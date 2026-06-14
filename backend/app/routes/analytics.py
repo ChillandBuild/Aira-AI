@@ -583,7 +583,7 @@ async def caller_timeline(
     
     calls = (
         db.table("call_logs")
-        .select("id,created_at,duration_seconds,outcome,lead_id,leads(name)")
+        .select("id,created_at,duration_seconds,outcome,lead_id,leads(name,phone)")
         .eq("caller_id", str(caller_id))
         .eq("tenant_id", tenant_id)
         .gte("created_at", day_start_iso)
@@ -599,65 +599,37 @@ async def caller_timeline(
         .eq("tenant_id", tenant_id)
         .gte("started_at", day_start_iso)
         .lt("started_at", day_end_iso)
+        .order("started_at")
         .execute()
     ).data or []
     
-    active_intervals = []
-    for log in status_logs:
-        if log["status"] == "active":
-            s_time = datetime.fromisoformat(log["started_at"].replace("Z", "+00:00"))
-            s_time = max(s_time, day_start)
-            e_time = datetime.fromisoformat(log["ended_at"].replace("Z", "+00:00")) if log.get("ended_at") else day_end
-            e_time = min(e_time, day_end)
-            if s_time < e_time:
-                active_intervals.append((s_time, e_time))
-                
-    active_intervals.sort(key=lambda x: x[0])
+    events = []
     
-    merged_active = []
-    for start, end in active_intervals:
-        if not merged_active:
-            merged_active.append((start, end))
-        else:
-            prev_start, prev_end = merged_active[-1]
-            if start <= prev_end:
-                merged_active[-1] = (prev_start, max(prev_end, end))
-            else:
-                merged_active.append((start, end))
-                
-    def get_active_overlap(gs, ge):
-        if gs >= ge:
-            return 0.0
-        overlap = 0.0
-        for as_, ae_ in merged_active:
-            os = max(gs, as_)
-            oe = min(ge, ae_)
-            if os < oe:
-                overlap += (oe - os).total_seconds()
-        return overlap
-        
-    blocks = []
-    for i, call in enumerate(calls):
-        call_start = datetime.fromisoformat(call["created_at"].replace("Z", "+00:00"))
-        
-        if i == 0:
-            if merged_active:
-                gap = get_active_overlap(merged_active[0][0], call_start)
-            else:
-                gap = 0.0
-        else:
-            prev_call_end = datetime.fromisoformat(calls[i-1]["created_at"].replace("Z", "+00:00")) + timedelta(seconds=calls[i-1].get("duration_seconds") or 0)
-            gap = get_active_overlap(prev_call_end, call_start)
-            
-        blocks.append({
-            "start": call["created_at"],
-            "duration_seconds": call.get("duration_seconds") or 0,
-            "lead_name": (call.get("leads") or {}).get("name") or "Unknown",
-            "outcome": call.get("outcome"),
-            "gap_before_seconds": round(gap)
+    for s in status_logs:
+        events.append({
+            "type": "status",
+            "id": s["id"],
+            "status": s["status"],
+            "started_at": s["started_at"],
+            "ended_at": s["ended_at"],
+            "duration_seconds": None,
         })
         
-    return {"timeline": blocks}
+    for c in calls:
+        lead = c.get("leads") or {}
+        events.append({
+            "type": "call",
+            "id": c["id"],
+            "started_at": c["created_at"],
+            "duration_seconds": c.get("duration_seconds") or 0,
+            "outcome": c.get("outcome"),
+            "lead_name": lead.get("name") or "Unknown",
+            "lead_phone": lead.get("phone") or "",
+        })
+        
+    events.sort(key=lambda x: x["started_at"])
+    
+    return {"data": events}
 
 
 @router.get("/qa-queue")
