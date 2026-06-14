@@ -150,6 +150,37 @@ _ANALYZE_USER = (
 _SUMMARY_KEYS = {"course", "product", "budget", "timeline", "next_action", "sentiment", "brief"}
 _EVAL_KEYS = {"talk_ratio", "objection_handling", "outcome_clarity", "overall_score", "coaching_tip"}
 
+_SCORE_KEYS = [
+    "greeting_quality",
+    "communication_clarity",
+    "product_knowledge",
+    "requirement_understanding",
+    "conversation_engagement",
+    "objection_handling",
+    "professionalism",
+]
+
+
+def _quality_label(score: float) -> str:
+    if score >= 9:
+        return "Excellent"
+    if score >= 7:
+        return "Good"
+    if score >= 5:
+        return "Average"
+    return "Bad"
+
+
+def _finalize_evaluation(evaluation: dict) -> dict:
+    """Derive overall_score/quality_label from the 7 graded criteria and tag the schema version."""
+    scores = [evaluation[k] for k in _SCORE_KEYS if k in evaluation]
+    if scores:
+        overall = round(sum(scores) / len(scores), 1)
+        evaluation["overall_score"] = overall
+        evaluation["quality_label"] = _quality_label(overall)
+    evaluation["evaluation_version"] = 2
+    return evaluation
+
 
 async def analyze_call(transcript: str, lead_name: str | None = None) -> tuple[dict, dict]:
     """Single LLM pass returning (summary_dict, evaluation_dict).
