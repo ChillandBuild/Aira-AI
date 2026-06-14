@@ -11,6 +11,7 @@ from groq import AsyncGroq
 
 from app.config import settings
 from app.db.supabase import get_supabase
+from app.services.call_summarizer import _SCORE_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ _TRANSCRIPT_CHARS = 600
 
 
 def _build_stats_text(stats: dict) -> str:
-    return (
+    text = (
         f"Total calls: {stats['total_calls']} | "
         f"Conversions: {stats['converted']} | "
         f"Callbacks: {stats['callbacks']} | "
@@ -43,6 +44,43 @@ def _build_stats_text(stats: dict) -> str:
         f"Avg duration: {stats['avg_duration_seconds']}s | "
         f"Avg score: {stats.get('avg_score', 'N/A')}"
     )
+    weakest = stats.get("weakest_criterion")
+    if weakest:
+        avg = stats["criteria_avg"][weakest]
+        text += f" | Weakest area today: {weakest} (avg {avg}/10)"
+    return text
+
+
+def _aggregate_evaluations(rows: list[dict]) -> dict:
+    """Aggregate per-criterion scores and outcome-accuracy flags across a day's calls."""
+    criteria_sums: dict[str, float] = {k: 0.0 for k in _SCORE_KEYS}
+    criteria_counts: dict[str, int] = {k: 0 for k in _SCORE_KEYS}
+    outcome_mismatches = 0
+
+    for row in rows:
+        evaluation = row.get("evaluation") or {}
+        if not isinstance(evaluation, dict):
+            continue
+        for key in _SCORE_KEYS:
+            value = evaluation.get(key)
+            if value is not None:
+                criteria_sums[key] += float(value)
+                criteria_counts[key] += 1
+        if evaluation.get("outcome_match") is False:
+            outcome_mismatches += 1
+
+    criteria_avg = {
+        k: round(criteria_sums[k] / criteria_counts[k], 1)
+        for k in _SCORE_KEYS
+        if criteria_counts[k] > 0
+    }
+    weakest_criterion = min(criteria_avg, key=criteria_avg.get) if criteria_avg else None
+
+    return {
+        "criteria_avg": criteria_avg,
+        "weakest_criterion": weakest_criterion,
+        "outcome_mismatches": outcome_mismatches,
+    }
 
 
 def _pick_representative(rows: list[dict]) -> list[dict]:
@@ -80,7 +118,7 @@ async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) 
 
     rows_res = (
         db.table("call_logs")
-        .select("id,outcome,duration_seconds,score,transcript")
+        .select("id,outcome,duration_seconds,score,transcript,evaluation")
         .eq("caller_id", caller_id)
         .eq("tenant_id", tenant_id)
         .gte("created_at", day_start)
@@ -111,6 +149,7 @@ async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) 
         "avg_duration_seconds": avg_duration,
         "avg_score": avg_score,
     }
+    stats.update(_aggregate_evaluations(rows))
 
     # ── Pick representative transcripts ───────────────────────────────
     selected = _pick_representative(rows)
