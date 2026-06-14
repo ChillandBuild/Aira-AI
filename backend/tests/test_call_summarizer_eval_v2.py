@@ -69,5 +69,124 @@ class FinalizeEvaluationTests(unittest.TestCase):
         self.assertEqual(result["quality_label"], "Good")
 
 
+class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self._orig_client = call_summarizer._client
+        self.mock_client = MagicMock()
+        call_summarizer._client = self.mock_client
+
+    def tearDown(self):
+        call_summarizer._client = self._orig_client
+
+    async def test_analyze_call_returns_v2_evaluation_with_derived_fields(self):
+        llm_payload = {
+            "course": "CRM Pro",
+            "product": "CRM Pro",
+            "budget": "50000",
+            "timeline": "next month",
+            "next_action": "Send proposal",
+            "sentiment": "positive",
+            "brief": "Lead is interested in CRM Pro.",
+            "greeting_quality": 8,
+            "greeting_quality_reason": "Clear intro, didn't ask the customer's name.",
+            "communication_clarity": 7,
+            "communication_clarity_reason": "Mostly clear; a couple of rushed lines.",
+            "product_knowledge": 6,
+            "product_knowledge_reason": "Quoted an outdated price vs. the knowledge base.",
+            "requirement_understanding": 8,
+            "requirement_understanding_reason": "Identified budget and timeline early.",
+            "conversation_engagement": 7,
+            "conversation_engagement_reason": "Good rapport, customer talked a lot at the end.",
+            "objection_handling": 5,
+            "objection_handling_reason": "Dismissed the price objection.",
+            "professionalism": 9,
+            "professionalism_reason": "Polite throughout, no interruptions.",
+            "talk_ratio": 62,
+            "clear_next_step": True,
+            "next_step_summary": "Demo scheduled for Friday.",
+            "outcome_match": False,
+            "outcome_match_reason": "Marked converted but customer said they'd think about it.",
+            "purchase_intent": "medium",
+            "missed_opportunity": True,
+            "missed_opportunity_note": "Didn't offer the premium plan when asked about pricing tiers.",
+            "coaching_tip": "Acknowledge the price objection before pivoting to value.",
+        }
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(llm_payload)
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=mock_message)]
+        self.mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        summary, evaluation = await call_summarizer.analyze_call(
+            "transcript text",
+            lead_name="Jane",
+            outcome="converted",
+            kb_context="CRM Pro costs 4999/month per seat.",
+        )
+
+        # Summary fields pass through unchanged
+        self.assertEqual(summary["course"], "CRM Pro")
+        self.assertEqual(summary["sentiment"], "positive")
+
+        # All 23 LLM-graded evaluation fields pass through
+        for key in call_summarizer._SCORE_KEYS:
+            self.assertEqual(evaluation[key], llm_payload[key])
+            self.assertEqual(evaluation[f"{key}_reason"], llm_payload[f"{key}_reason"])
+        self.assertEqual(evaluation["talk_ratio"], 62)
+        self.assertEqual(evaluation["clear_next_step"], True)
+        self.assertEqual(evaluation["next_step_summary"], "Demo scheduled for Friday.")
+        self.assertEqual(evaluation["outcome_match"], False)
+        self.assertEqual(evaluation["purchase_intent"], "medium")
+        self.assertEqual(evaluation["missed_opportunity"], True)
+        self.assertEqual(evaluation["coaching_tip"], llm_payload["coaching_tip"])
+
+        # Derived fields
+        expected_overall = round(sum(llm_payload[k] for k in call_summarizer._SCORE_KEYS) / 7, 1)
+        self.assertEqual(evaluation["overall_score"], expected_overall)
+        self.assertEqual(evaluation["quality_label"], call_summarizer._quality_label(expected_overall))
+        self.assertEqual(evaluation["evaluation_version"], 2)
+
+        # Prompt grounding: KB context, outcome, and bumped max_tokens reached Groq
+        sent_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
+        user_msg = sent_kwargs["messages"][1]["content"]
+        self.assertIn("CRM Pro costs 4999/month per seat.", user_msg)
+        self.assertIn("converted", user_msg)
+        self.assertEqual(sent_kwargs["max_tokens"], 1100)
+
+    async def test_analyze_call_without_kb_context_still_grades_leniently(self):
+        llm_payload = {
+            "course": "CRM Pro", "product": "CRM Pro", "budget": None, "timeline": None,
+            "next_action": "Call back", "sentiment": "neutral", "brief": "Brief call.",
+            "greeting_quality": 7, "greeting_quality_reason": "Fine.",
+            "communication_clarity": 7, "communication_clarity_reason": "Fine.",
+            "product_knowledge": 7, "product_knowledge_reason": "No KB available, graded neutrally.",
+            "requirement_understanding": 7, "requirement_understanding_reason": "Fine.",
+            "conversation_engagement": 7, "conversation_engagement_reason": "Fine.",
+            "objection_handling": 7, "objection_handling_reason": "Fine.",
+            "professionalism": 7, "professionalism_reason": "Fine.",
+            "talk_ratio": 50,
+            "clear_next_step": False, "next_step_summary": None,
+            "outcome_match": True, "outcome_match_reason": "Matches.",
+            "purchase_intent": "low",
+            "missed_opportunity": False, "missed_opportunity_note": None,
+            "coaching_tip": "Keep going.",
+        }
+        mock_message = MagicMock()
+        mock_message.content = json.dumps(llm_payload)
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=mock_message)]
+        self.mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        summary, evaluation = await call_summarizer.analyze_call(
+            "transcript text", lead_name=None, outcome=None, kb_context=None,
+        )
+
+        self.assertEqual(evaluation["overall_score"], 7.0)
+        self.assertEqual(evaluation["quality_label"], "Good")
+        sent_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
+        user_msg = sent_kwargs["messages"][1]["content"]
+        self.assertIn("none available", user_msg.lower())
+
+
 if __name__ == "__main__":
     unittest.main()

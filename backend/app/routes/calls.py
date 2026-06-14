@@ -14,7 +14,7 @@ from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
 from app.services.call_scorer import score_from_outcome, recompute_caller_score
-from app.services.call_summarizer import transcribe_recording, summarize_call, evaluate_call, analyze_call
+from app.services.call_summarizer import transcribe_recording, analyze_call
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call
 from app.services.voice_router import get_best_voice_number, increment_voice_call_count

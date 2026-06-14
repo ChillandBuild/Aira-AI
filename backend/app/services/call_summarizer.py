@@ -12,21 +12,6 @@ _client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else
 _TRANSCRIBE_MODEL = "whisper-large-v3-turbo"
 _SUMMARY_MODEL = "llama-3.3-70b-versatile"
 
-_SUMMARIZE_SYSTEM = (
-    "You are analyzing a sales call transcript for a B2B sales team. "
-    "The transcript may be in English, Tamil, Hindi, or a mix of these languages "
-    "(including transliterated/Tanglish text). Read and understand it regardless of "
-    "language, but write all output field values in English."
-)
-
-_SUMMARIZE_USER = (
-    "Transcript:\n{transcript}\n\n"
-    "Extract: course/product/service interested in, budget mentioned, timeline/deadline, "
-    "recommended next action, overall sentiment (positive/neutral/negative), and a call brief (a 2-3 sentence overview of what was discussed on the call).\n"
-    "Translate any non-English content into English before writing the field values. "
-    "Return valid JSON only with keys: course, product, budget, timeline, next_action, sentiment, brief."
-)
-
 
 async def transcribe_recording(recording_url: str) -> str:
     if not _client:
@@ -55,68 +40,6 @@ async def transcribe_recording(recording_url: str) -> str:
         return ""
 
 
-async def summarize_call(transcript: str, lead_name: str | None = None) -> dict:
-    if not transcript or not _client:
-        return {}
-
-    user_prompt = _SUMMARIZE_USER.format(transcript=transcript)
-    if lead_name:
-        user_prompt = f"Lead name: {lead_name}\n\n" + user_prompt
-
-    try:
-        response = await _client.chat.completions.create(
-            model=_SUMMARY_MODEL,
-            messages=[
-                {"role": "system", "content": _SUMMARIZE_SYSTEM},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.2,
-            max_tokens=400,
-        )
-        return json.loads(response.choices[0].message.content)
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse Groq summary JSON: {e}")
-        return {}
-    except Exception as e:
-        logger.error(f"Groq summarize_call failed: {e}")
-        return {}
-
-
-_EVALUATE_PROMPT = (
-    "You are evaluating a sales call recording transcript. Assess the caller's performance.\n\n"
-    "Transcript:\n{transcript}\n\n"
-    "Return valid JSON only with these exact keys:\n"
-    "- talk_ratio: integer 0-100, estimated percentage of time the caller was speaking\n"
-    "- objection_handling: one of 'good', 'average', 'poor'\n"
-    "- outcome_clarity: 'yes' if call ended with a clear next step, 'no' otherwise\n"
-    "- overall_score: integer 1-10 for overall call quality\n"
-    "- coaching_tip: string, one specific actionable improvement for the caller (max 50 words)"
-)
-
-
-async def evaluate_call(transcript: str) -> dict:
-    if not transcript or not _client:
-        return {}
-    try:
-        response = await _client.chat.completions.create(
-            model=_SUMMARY_MODEL,
-            messages=[
-                {"role": "user", "content": _EVALUATE_PROMPT.format(transcript=transcript)},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.2,
-            max_tokens=300,
-        )
-        return json.loads(response.choices[0].message.content)
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse Groq evaluation JSON: {e}")
-        return {}
-    except Exception as e:
-        logger.error(f"Groq evaluate_call failed: {e}")
-        return {}
-
-
 # ── Single-pass analysis (summary + evaluation in one LLM call) ────────
 
 _ANALYZE_SYSTEM = (
@@ -129,6 +52,8 @@ _ANALYZE_SYSTEM = (
 _ANALYZE_USER = (
     "{lead_line}"
     "Transcript:\n{transcript}\n\n"
+    "{outcome_line}"
+    "{kb_block}"
     "Translate any non-English content into English before writing the field values.\n"
     "Return valid JSON only with ALL of these keys:\n"
     "Summary fields:\n"
@@ -139,16 +64,42 @@ _ANALYZE_USER = (
     "- next_action: recommended next action\n"
     "- sentiment: one of 'positive', 'neutral', 'negative'\n"
     "- brief: a 2-3 sentence overview/summary of what was discussed on the call (e.g. key topics discussed, lead's reaction, customer concerns)\n"
-    "Evaluation fields:\n"
+    "Evaluation fields — score each 1-10 and give a one-sentence reason:\n"
+    "- greeting_quality / greeting_quality_reason: did the caller introduce themselves and the company clearly?\n"
+    "- communication_clarity / communication_clarity_reason: was the caller's speech clear and understandable?\n"
+    "- product_knowledge / product_knowledge_reason: did the caller give correct product/service info? Compare against the knowledge base reference below.\n"
+    "- requirement_understanding / requirement_understanding_reason: did the caller ask relevant questions and understand the customer's need?\n"
+    "- conversation_engagement / conversation_engagement_reason: was the customer actively engaged in the conversation?\n"
+    "- objection_handling / objection_handling_reason: did the caller handle doubts and objections properly?\n"
+    "- professionalism / professionalism_reason: polite language, no rude behavior, no unnecessary arguments?\n"
+    "Other evaluation fields:\n"
     "- talk_ratio: integer 0-100, estimated % of time the caller was speaking\n"
-    "- objection_handling: one of 'good', 'average', 'poor'\n"
-    "- outcome_clarity: 'yes' if call ended with a clear next step, 'no' otherwise\n"
-    "- overall_score: integer 1-10 for overall call quality\n"
+    "- clear_next_step: true if the call ended with a clear next step, false otherwise\n"
+    "- next_step_summary: short description of the agreed next step, or null\n"
+    "- outcome_match: true if the caller-recorded outcome above matches what actually happened on the call, false otherwise\n"
+    "- outcome_match_reason: one sentence explaining the outcome_match verdict\n"
+    "- purchase_intent: one of 'high', 'medium', 'low'\n"
+    "- missed_opportunity: true if the caller missed a chance to push the lead further, false otherwise\n"
+    "- missed_opportunity_note: one sentence describing the missed opportunity, or null\n"
     "- coaching_tip: one specific actionable improvement for the caller (max 50 words)"
 )
 
 _SUMMARY_KEYS = {"course", "product", "budget", "timeline", "next_action", "sentiment", "brief"}
-_EVAL_KEYS = {"talk_ratio", "objection_handling", "outcome_clarity", "overall_score", "coaching_tip"}
+_EVAL_KEYS = {
+    "greeting_quality", "greeting_quality_reason",
+    "communication_clarity", "communication_clarity_reason",
+    "product_knowledge", "product_knowledge_reason",
+    "requirement_understanding", "requirement_understanding_reason",
+    "conversation_engagement", "conversation_engagement_reason",
+    "objection_handling", "objection_handling_reason",
+    "professionalism", "professionalism_reason",
+    "talk_ratio",
+    "clear_next_step", "next_step_summary",
+    "outcome_match", "outcome_match_reason",
+    "purchase_intent",
+    "missed_opportunity", "missed_opportunity_note",
+    "coaching_tip",
+}
 
 _SCORE_KEYS = [
     "greeting_quality",
@@ -182,17 +133,39 @@ def _finalize_evaluation(evaluation: dict) -> dict:
     return evaluation
 
 
-async def analyze_call(transcript: str, lead_name: str | None = None) -> tuple[dict, dict]:
+async def analyze_call(
+    transcript: str,
+    lead_name: str | None = None,
+    outcome: str | None = None,
+    kb_context: str | None = None,
+) -> tuple[dict, dict]:
     """Single LLM pass returning (summary_dict, evaluation_dict).
 
-    Replaces calling summarize_call + evaluate_call separately.
-    Falls back to ({}, {}) on any error.
+    evaluation_dict is the v2 QA scorecard — see _finalize_evaluation for the
+    derived overall_score/quality_label. Falls back to ({}, {}) on any error.
     """
     if not transcript or not _client:
         return {}, {}
 
     lead_line = f"Lead name: {lead_name}\n\n" if lead_name else ""
-    user_prompt = _ANALYZE_USER.format(lead_line=lead_line, transcript=transcript)
+    outcome_line = f"Caller-recorded outcome: {outcome}\n\n" if outcome else ""
+    if kb_context:
+        kb_block = (
+            "Knowledge base reference (use this to judge product_knowledge accuracy; "
+            "if it doesn't cover what was discussed, grade product_knowledge leniently "
+            "and say so in product_knowledge_reason):\n" + kb_context + "\n\n"
+        )
+    else:
+        kb_block = (
+            "Knowledge base reference: none available — grade product_knowledge "
+            "leniently/neutral.\n\n"
+        )
+    user_prompt = _ANALYZE_USER.format(
+        lead_line=lead_line,
+        outcome_line=outcome_line,
+        kb_block=kb_block,
+        transcript=transcript,
+    )
 
     try:
         response = await _client.chat.completions.create(
@@ -203,11 +176,12 @@ async def analyze_call(transcript: str, lead_name: str | None = None) -> tuple[d
             ],
             response_format={"type": "json_object"},
             temperature=0.2,
-            max_tokens=500,
+            max_tokens=1100,
         )
         data = json.loads(response.choices[0].message.content)
         summary = {k: data[k] for k in _SUMMARY_KEYS if k in data}
         evaluation = {k: data[k] for k in _EVAL_KEYS if k in data}
+        evaluation = _finalize_evaluation(evaluation)
         return summary, evaluation
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse Groq analyze_call JSON: {e}")
