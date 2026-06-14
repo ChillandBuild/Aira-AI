@@ -280,6 +280,94 @@ function SegmentDropdown({ tagId, dark }: { tagId: string, dark?: boolean }) {
   );
 }
 
+// ─── Live sending visualizer (immediate broadcast in flight) ─────────────────
+function SendingProgress({ names, index, total }: { names: string[]; index: number; total: number }) {
+  const ROW = 46;
+  const VISIBLE = 5;
+  const safeTotal = Math.max(total, 1);
+  const done = Math.min(index + 1, safeTotal);
+  const pct = Math.min(96, Math.round((done / safeTotal) * 100));
+  const offset = (Math.floor(VISIBLE / 2) - index) * ROW;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Dispatching campaign…</h2>
+        <p className="font-body text-sm text-on-surface-muted">
+          Sending one by one — keep this tab open until it finishes.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-surface-mid bg-surface-low p-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="flex items-center gap-2 font-label text-sm font-semibold text-on-surface">
+            <Loader2 size={15} className="animate-spin text-tertiary" />
+            Sending <span className="text-tertiary">{done.toLocaleString()}</span> of {total.toLocaleString()} contacts
+          </span>
+          <span className="font-display text-sm font-bold text-tertiary tabular-nums">{pct}%</span>
+        </div>
+
+        <div className="h-2 w-full rounded-full bg-surface-mid overflow-hidden mb-4">
+          <div
+            className="h-full rounded-full bg-tertiary transition-[width] duration-300 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        <div className="relative overflow-hidden rounded-xl" style={{ height: VISIBLE * ROW }}>
+          {/* center focus band */}
+          <div
+            className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-xl bg-tertiary/10 border border-tertiary/25 pointer-events-none"
+            style={{ height: ROW }}
+          />
+          <div
+            className="transition-transform duration-300 ease-out"
+            style={{ transform: `translateY(${offset}px)` }}
+          >
+            {names.map((n, i) => {
+              const state = i < index ? "done" : i === index ? "current" : "pending";
+              const opacity = Math.max(0.12, 1 - Math.abs(i - index) * 0.34);
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-4"
+                  style={{ height: ROW, opacity }}
+                >
+                  <span className="shrink-0">
+                    {state === "done" ? (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-100">
+                        <Check size={12} strokeWidth={3} className="text-green-600" />
+                      </span>
+                    ) : state === "current" ? (
+                      <Loader2 size={18} className="animate-spin text-tertiary" />
+                    ) : (
+                      <span className="block h-2 w-2 rounded-full bg-on-surface-muted/40 ml-1.5" />
+                    )}
+                  </span>
+                  <span
+                    className={`font-body text-sm truncate ${
+                      state === "current" ? "text-on-surface font-semibold" : "text-on-surface-muted"
+                    }`}
+                  >
+                    {n || "—"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {/* top + bottom fades */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-surface-low to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-surface-low to-transparent" />
+        </div>
+      </div>
+
+      <p className="font-body text-xs text-on-surface-muted text-center">
+        Large lists take a little while — delivery receipts arrive afterward in Broadcast History.
+      </p>
+    </div>
+  );
+}
+
 // ─── Per-broadcast Segment Dropdown ──────────────────────────────────────────
 type RetryAttempt = {
   attempt: number;
@@ -555,6 +643,22 @@ export default function OutboundLeadsPage() {
   const [sendLoading, setSendLoading] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<SendResult | null>(null);
+  const [sendingNames, setSendingNames] = useState<string[]>([]);
+  const [sendingIndex, setSendingIndex] = useState(0);
+
+  // Drive the sending ticker while an immediate broadcast is in flight. Advances
+  // through the real lead names at a count-aware cadence and holds at the last
+  // one until the server confirms — never claims "done" before the response.
+  useEffect(() => {
+    if (!sendLoading || sendingNames.length === 0) return;
+    if (sendingIndex >= sendingNames.length - 1) return;
+    const perLead = sendingNames.length > 100 ? 320 : sendingNames.length > 20 ? 480 : 650;
+    const t = setTimeout(
+      () => setSendingIndex((i) => Math.min(i + 1, sendingNames.length - 1)),
+      perLead,
+    );
+    return () => clearTimeout(t);
+  }, [sendLoading, sendingIndex, sendingNames.length]);
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
@@ -1034,7 +1138,6 @@ export default function OutboundLeadsPage() {
 
   async function handleSend() {
     if (!parsedData || !csvFile) return;
-    setSendLoading(true);
     setSendError(null);
 
     try {
@@ -1057,6 +1160,10 @@ export default function OutboundLeadsPage() {
           extra_cols,
         };
       }).filter((l) => l.phone);
+
+      setSendingNames(leads.map((l) => l.name || l.phone));
+      setSendingIndex(0);
+      setSendLoading(true);
 
       const payload = {
         leads,
@@ -1634,7 +1741,14 @@ export default function OutboundLeadsPage() {
               )}
 
               {/* ── Step 5: Confirm & Send ────────────────────────────────────── */}
-              {currentStep === 5 && parsedData && (
+              {currentStep === 5 && parsedData && sendLoading && scheduleType === "now" && (
+                <SendingProgress
+                  names={sendingNames}
+                  index={sendingIndex}
+                  total={sendingNames.length || parsedData.total_rows}
+                />
+              )}
+              {currentStep === 5 && parsedData && !(sendLoading && scheduleType === "now") && (
                 <div className="space-y-6">
                   <div>
                     <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Confirm & Send</h2>
