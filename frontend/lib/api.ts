@@ -97,6 +97,35 @@ export interface TemplatePerformanceRow {
   last_sent: string | null;
 }
 
+export interface CallEvaluation {
+  evaluation_version?: number;
+  greeting_quality?: number;
+  greeting_quality_reason?: string;
+  communication_clarity?: number;
+  communication_clarity_reason?: string;
+  product_knowledge?: number;
+  product_knowledge_reason?: string;
+  requirement_understanding?: number;
+  requirement_understanding_reason?: string;
+  conversation_engagement?: number;
+  conversation_engagement_reason?: string;
+  objection_handling?: number;
+  objection_handling_reason?: string;
+  professionalism?: number;
+  professionalism_reason?: string;
+  talk_ratio?: number;
+  overall_score?: number;
+  quality_label?: "Excellent" | "Good" | "Average" | "Bad";
+  clear_next_step?: boolean;
+  next_step_summary?: string | null;
+  outcome_match?: boolean;
+  outcome_match_reason?: string;
+  purchase_intent?: "high" | "medium" | "low";
+  missed_opportunity?: boolean;
+  missed_opportunity_note?: string | null;
+  coaching_tip?: string;
+}
+
 export interface CallLog {
   id: string;
   lead_id: string | null;
@@ -116,6 +145,7 @@ export interface CallLog {
     sentiment?: string;
     brief?: string;
   } | null;
+  evaluation: CallEvaluation | null;
   quality_rating: number | null;
   transcript: string | null;
   created_at: string;
