@@ -40,6 +40,16 @@ class AggregateEvaluationsTests(unittest.TestCase):
         self.assertIsNone(result["weakest_criterion"])
         self.assertEqual(result["outcome_mismatches"], 0)
 
+    def test_v1_shaped_rows_do_not_crash_and_contribute_nothing(self):
+        rows = [
+            {"evaluation": {"objection_handling": "good", "outcome_clarity": "yes", "overall_score": 8}},
+            {"evaluation": {"greeting_quality": 7}},
+        ]
+        result = call_digest._aggregate_evaluations(rows)
+        self.assertEqual(result["criteria_avg"], {"greeting_quality": 7.0})
+        self.assertEqual(result["weakest_criterion"], "greeting_quality")
+        self.assertEqual(result["outcome_mismatches"], 0)
+
 
 class BuildStatsTextTests(unittest.TestCase):
     def test_build_stats_text_includes_weakest_criterion(self):

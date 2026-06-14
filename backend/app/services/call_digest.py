@@ -63,7 +63,7 @@ def _aggregate_evaluations(rows: list[dict]) -> dict:
             continue
         for key in _SCORE_KEYS:
             value = evaluation.get(key)
-            if value is not None:
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
                 criteria_sums[key] += float(value)
                 criteria_counts[key] += 1
         if evaluation.get("outcome_match") is False:
