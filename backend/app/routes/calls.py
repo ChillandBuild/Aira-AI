@@ -15,6 +15,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
 from app.services.call_scorer import score_from_outcome, recompute_caller_score
 from app.services.call_summarizer import transcribe_recording, analyze_call
+from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call
 from app.services.voice_router import get_best_voice_number, increment_voice_call_count
@@ -472,7 +473,17 @@ async def _run_summarization(call_log_id: str, recording_url: str, force: bool =
             lead_row = db.table("leads").select("name").eq("id", lead_id).maybe_single().execute()
             lead_name = (lead_row.data or {}).get("name")
 
-        summary, evaluation = await analyze_call(transcript, lead_name=lead_name)
+        tenant_id = call_data.get("tenant_id")
+        kb_context = ""
+        if tenant_id:
+            kb_context = await get_knowledge_context(tenant_id, query=transcript[:1500])
+
+        summary, evaluation = await analyze_call(
+            transcript,
+            lead_name=lead_name,
+            outcome=outcome,
+            kb_context=kb_context,
+        )
 
         updates: dict = {"transcript": transcript}
         if summary:
