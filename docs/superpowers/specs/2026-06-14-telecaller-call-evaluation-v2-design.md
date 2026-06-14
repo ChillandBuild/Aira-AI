@@ -41,14 +41,24 @@ Replaces the v1 shape entirely (no DB migration — `evaluation` is jsonb).
 {
   "evaluation_version": 2,
 
-  // LLM-graded, 1-10
+  // LLM-graded, 1-10, each with a one-line reason
   "greeting_quality": 8,
+  "greeting_quality_reason": "Introduced self and company, but didn't confirm the caller's name first.",
   "communication_clarity": 7,
-  "product_knowledge": 6,          // graded against KB excerpts (see below)
+  "communication_clarity_reason": "Mostly clear; a couple of rushed sentences mid-call.",
+  "product_knowledge": 6,
+  "product_knowledge_reason": "Quoted an outdated pricing tier vs. the knowledge base.",   // graded against KB excerpts (see below)
   "requirement_understanding": 8,
+  "requirement_understanding_reason": "Correctly identified budget and timeline early.",
   "conversation_engagement": 7,
+  "conversation_engagement_reason": "Good rapport, but let the customer dominate the last 2 minutes.",
   "objection_handling": 5,
+  "objection_handling_reason": "Dismissed the price objection instead of addressing it.",
   "professionalism": 9,
+  "professionalism_reason": "Polite throughout, no interruptions.",
+
+  // Additional metric, LLM-graded
+  "talk_ratio": 62,                // % of time the caller was speaking
 
   // Derived in Python, NOT LLM-graded directly
   "overall_score": 7.1,            // mean of the 7 scores above, round(1)
@@ -67,6 +77,11 @@ Replaces the v1 shape entirely (no DB migration — `evaluation` is jsonb).
   "coaching_tip": "Acknowledge the price objection before pivoting to value."
 }
 ```
+
+Each of the 7 graded criteria carries its own `<criterion>_reason` — this is what answers
+"why did the telecaller get this score" at the per-criterion level, in addition to the
+flag-level reasons (`outcome_match_reason`, `missed_opportunity_note`, etc.) and the
+overall `coaching_tip`.
 
 Mapping to the original 13 criteria:
 
@@ -125,10 +140,18 @@ Prompt additions to `_ANALYZE_USER`:
 - `"Caller-recorded outcome: {outcome}"` — basis for `outcome_match` /
   `outcome_match_reason`.
 - Full list of new v2 fields requested (excluding `overall_score`/`quality_label`,
-  which are derived).
+  which are derived) — 7 scores + 7 per-criterion reasons + `talk_ratio` +
+  `clear_next_step`/`next_step_summary` + `outcome_match`/`outcome_match_reason` +
+  `purchase_intent` + `missed_opportunity`/`missed_opportunity_note` + `coaching_tip`
+  (23 fields total).
 
 `_EVAL_KEYS` updated to the v2 field set (minus derived fields). Remove dead
 `evaluate_call` / `summarize_call` functions and old `_EVALUATE_PROMPT`.
+
+**Token impact:** input grows by the KB excerpt size (~150-400 tokens). Output grows
+significantly — from ~5 fields to 23, including 7 short reason strings — so
+`max_tokens` goes from 500 → ~1100. Still **one Groq call per recording**, no new call
+multiplier.
 
 ## Derivation logic
 
@@ -165,7 +188,10 @@ contradict each other.
 gains a scorecard panel under the existing `ai_summary` block, rendered only when
 `evaluation.evaluation_version === 2` (older rows render nothing extra — no broken UI):
 
-- 7 criteria as compact score chips (e.g. "Greeting 8/10")
+- 7 criteria as compact score chips (e.g. "Greeting 8/10"), each with its
+  `<criterion>_reason` shown as a tooltip/title on hover (or expandable on tap) —
+  keeps the panel compact while the "why" is one interaction away
+- `talk_ratio` shown as a small "Talk 62%" chip alongside the criteria
 - `overall_score` + `quality_label` badge (color-coded: Excellent=emerald, Good=blue,
   Average=amber, Bad=rose)
 - `clear_next_step` / `next_step_summary`
@@ -194,11 +220,23 @@ v2 shape, all fields optional (covers legacy rows).
 This gives per-caller score history with explanations via `caller_digests` (existing
 `GET /{caller_id}/digest` endpoint, no new table) without re-reading transcripts.
 
+## Concurrency — many calls finishing at once
+
+No new handling needed. `_run_summarization` (where the KB lookup + `analyze_call`
+run) already executes inside `_GROQ_SEMAPHORE = asyncio.Semaphore(5)`
+([calls.py:400](../../../backend/app/routes/calls.py#L400)), added specifically for
+"many calls end at the same time (shift end, break, etc.)".
+
+If 10 calls finish together: 5 pipelines (download → transcribe → KB lookup →
+`analyze_call` → store) run concurrently, the other 5 queue and start as slots free.
+The new KB-grounding step is just one more I/O hop inside an already-throttled
+pipeline — it inherits the existing cap for free. Each pipeline takes slightly longer
+end-to-end (one extra retrieval round-trip), so the queue of 10 drains a bit slower,
+but nothing breaks and no new semaphore/queue is needed.
+
 ## Out of scope / future work
 
 - No new caller-facing "self view" of scores (admin/QA-only for now, via
   `qa-queue` + `QaReviewFeed`, both `require_owner`-gated).
 - `ShiftTimeline` / caller-timeline enrichment with scores — not included; can be a
   follow-up once v2 data has accumulated.
-- `talk_ratio` is dropped (unused elsewhere, not in the 13 criteria) — can be re-added
-  later if needed.
