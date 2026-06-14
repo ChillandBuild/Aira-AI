@@ -193,8 +193,11 @@ def _process_chain(db, original: dict) -> None:
         return
 
     latest = children[-1] if children else original
-    if (latest.get("status") or "done") != "done":
-        return  # previous attempt still sending; wait for receipts
+    if (latest.get("status") or "done") in ("pending", "running"):
+        return  # previous attempt still in flight; wait for it to finish + receipts
+    # A "failed" latest attempt (e.g. no sending number available at the time) is
+    # terminal but sent nothing — fall through and schedule the next window so the
+    # chain self-heals once a number is available again, bounded by max_attempts.
 
     last_sent = _parse_dt(latest.get("executed_at")) or _parse_dt(latest.get("fire_at")) \
         or _parse_dt(latest.get("created_at"))

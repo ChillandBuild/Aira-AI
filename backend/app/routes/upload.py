@@ -1614,7 +1614,7 @@ async def get_retry_timeline(broadcast_id: str, tenant_id: str = Depends(get_ten
 
     parent = (
         db.table("scheduled_broadcasts")
-        .select("id,retry_enabled,retry_time,retry_max_attempts,retry_completed_at,executed_at,fire_at")
+        .select("id,retry_enabled,retry_time,retry_max_attempts,retry_completed_at,executed_at,fire_at,status,error")
         .eq("id", parent_id)
         .eq("tenant_id", tenant_id)
         .maybe_single()
@@ -1623,7 +1623,7 @@ async def get_retry_timeline(broadcast_id: str, tenant_id: str = Depends(get_ten
 
     children = (
         db.table("scheduled_broadcasts")
-        .select("id,retry_attempt,executed_at,fire_at")
+        .select("id,retry_attempt,executed_at,fire_at,status,error")
         .eq("retry_of", parent_id)
         .eq("tenant_id", tenant_id)
         .order("retry_attempt")
@@ -1632,9 +1632,11 @@ async def get_retry_timeline(broadcast_id: str, tenant_id: str = Depends(get_ten
     )
 
     chain = [{"id": parent_id, "retry_attempt": 0,
-              "executed_at": parent.get("executed_at") or parent.get("fire_at")}] + [
+              "executed_at": parent.get("executed_at") or parent.get("fire_at"),
+              "status": parent.get("status"), "error": parent.get("error")}] + [
         {"id": c["id"], "retry_attempt": c.get("retry_attempt"),
-         "executed_at": c.get("executed_at") or c.get("fire_at")}
+         "executed_at": c.get("executed_at") or c.get("fire_at"),
+         "status": c.get("status"), "error": c.get("error")}
         for c in children
     ]
 
@@ -1678,6 +1680,8 @@ async def get_retry_timeline(broadcast_id: str, tenant_id: str = Depends(get_ten
             "targeted": targeted,
             "delivered": delivered,
             "undelivered": max(0, targeted - delivered),
+            "status": att.get("status") or "done",
+            "error": att.get("error"),
         })
 
     # Eventually-reached leads across the whole chain (distinct).

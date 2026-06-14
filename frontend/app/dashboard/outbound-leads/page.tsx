@@ -288,6 +288,8 @@ type RetryAttempt = {
   targeted: number;
   delivered: number;
   undelivered: number;
+  status: string;
+  error: string | null;
 };
 
 type RetryTimelineData = {
@@ -335,17 +337,32 @@ function RetryTimeline({ broadcastId }: { broadcastId: string }) {
 
       {open && !loading && data && hasRetries && (
         <div className="mt-2.5 space-y-1.5">
-          <div className="grid grid-cols-4 gap-2 font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider px-2">
+          <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr] gap-2 font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider px-2">
             <span>Attempt</span><span className="text-right">Targeted</span><span className="text-right">Delivered</span><span className="text-right">Still failed</span>
           </div>
-          {data.attempts.map((a) => (
-            <div key={a.attempt} className="grid grid-cols-4 gap-2 items-center bg-surface-low rounded-lg px-2 py-1.5 font-body text-xs">
-              <span className="font-semibold text-on-surface truncate" title={a.sent_at || ""}>{a.label}</span>
-              <span className="text-right text-on-surface-muted">{a.targeted}</span>
-              <span className="text-right text-green-600 font-semibold">{a.delivered}</span>
-              <span className="text-right text-amber-600 font-semibold">{a.undelivered}</span>
-            </div>
-          ))}
+          {data.attempts.map((a) => {
+            const failed = a.status === "failed";
+            const inFlight = a.status === "pending" || a.status === "running";
+            const sentOk = a.status === "done" && a.targeted > 0;
+            return (
+              <div key={a.attempt} className="bg-surface-low rounded-lg px-2 py-1.5">
+                <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr] gap-2 items-center font-body text-xs">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-semibold text-on-surface truncate" title={a.sent_at || ""}>{a.label}</span>
+                    {failed && <span className="shrink-0 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-red-100 text-red-700">Failed</span>}
+                    {inFlight && <span className="shrink-0 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-blue-100 text-blue-700">{a.status === "pending" ? "Queued" : "Sending"}</span>}
+                    {sentOk && <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-green-100 text-green-700"><Check size={9} strokeWidth={3} />Sent</span>}
+                  </span>
+                  <span className="text-right text-on-surface-muted">{a.targeted}</span>
+                  <span className="text-right text-green-600 font-semibold">{a.delivered}</span>
+                  <span className="text-right text-amber-600 font-semibold">{a.undelivered}</span>
+                </div>
+                {failed && a.error && (
+                  <p className="mt-1 font-body text-[10.5px] text-red-600 leading-snug">{a.error} — will retry at the next window.</p>
+                )}
+              </div>
+            );
+          })}
           <p className="font-body text-[11px] text-on-surface-muted pt-1 px-2">
             {data.rollup.eventually_delivered} of {data.rollup.original_targeted} eventually delivered
             {!data.completed && data.retry_enabled ? " · more retries pending" : ""}.
