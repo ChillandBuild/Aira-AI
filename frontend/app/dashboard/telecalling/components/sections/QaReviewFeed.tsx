@@ -34,7 +34,7 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
     setLoading(true);
     try {
       const res = await api.analytics.qaQueue(10);
-      setQaQueue(res.data || []);
+      setQaQueue(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Failed to load QA queue:", err);
     } finally {

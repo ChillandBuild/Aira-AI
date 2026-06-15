@@ -42,7 +42,7 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
         caller_id: callerFilter || undefined,
         segment: segmentFilter || undefined,
       });
-      setEntries(res.data || []);
+      setEntries(Array.isArray(res.data) ? res.data : []);
       setTotal(res.meta?.total || 0);
     } catch {
       toast.error("Failed to load assignment log");

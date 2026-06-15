@@ -30,7 +30,7 @@ export default function ShiftTimeline({ callerId, statsFrom }: ShiftTimelineProp
     setLoading(true);
     try {
       const res = await api.analytics.callerTimeline(callerId, date);
-      setEvents(res.data || []);
+      setEvents(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error("Failed to load timeline events:", err);
       setEvents([]);
