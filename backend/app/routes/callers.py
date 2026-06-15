@@ -69,6 +69,18 @@ async def update_my_status(payload: StatusToggle, ctx: dict = Depends(get_tenant
         raise HTTPException(status_code=403, detail="Only callers can toggle status")
 
     db = get_supabase()
+
+    current = (
+        db.table("callers")
+        .select("status,status_changed_at")
+        .eq("id", caller_id)
+        .single()
+        .execute()
+    ).data
+
+    if current and current["status"] == payload.status:
+        return {"status": payload.status, "changed_at": current["status_changed_at"]}
+
     now = datetime.now(timezone.utc).isoformat()
 
     # Close the previous status log entry

@@ -61,9 +61,11 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
 
       // Apply cache only if it belongs to the current user — prevents stale owner
       // role from bleeding into a caller session when the same browser is reused.
+      let appliedCachedRole: "owner" | "caller" | null = null;
       if (currentUserId) {
         const cached = readCache();
         if (cached && cached.userId === currentUserId) {
+          appliedCachedRole = cached.role;
           setRole(cached.role);
           setCallerId(cached.callerId);
           setEnabledFeatures(cached.enabledFeatures);
@@ -82,13 +84,21 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           const newFeatures = d.enabled_features ?? ["whatsapp", "telecalling"];
           const newIsAdmin = d.is_system_admin ?? false;
           const newCallerId = d.caller_id ?? null;
+          if (currentUserId) {
+            writeCache({ userId: currentUserId, role: newRole, callerId: newCallerId, enabledFeatures: newFeatures, isSystemAdmin: newIsAdmin });
+          }
+          // The cached role we already committed to was wrong (role changed
+          // server-side since the cache was written). Reload so the page mounts
+          // fresh with the corrected role instead of unmounting the owner-only
+          // tree mid-render with requests still in flight.
+          if (appliedCachedRole && appliedCachedRole !== newRole) {
+            window.location.reload();
+            return;
+          }
           setRole(newRole);
           setCallerId(newCallerId);
           setEnabledFeatures(newFeatures);
           setIsSystemAdmin(newIsAdmin);
-          if (currentUserId) {
-            writeCache({ userId: currentUserId, role: newRole, callerId: newCallerId, enabledFeatures: newFeatures, isSystemAdmin: newIsAdmin });
-          }
           return;
         } catch {
           if (attempt < retries) {
