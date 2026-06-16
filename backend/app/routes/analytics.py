@@ -2,6 +2,7 @@
 Analytics routes — service metrics for WhatsApp, telecalling, and lead funnel.
 """
 
+import asyncio
 import csv
 import io
 import logging
@@ -159,14 +160,14 @@ async def whatsapp_analytics(tenant_id: str = Depends(get_owner_tenant_id)):
     db = get_supabase()
     today = _today_start()
 
-    msgs_today = (
+    msgs_today_res = await asyncio.to_thread(
         db.table("messages")
         .select("id,direction,is_ai_generated")
         .eq("tenant_id", tenant_id)
         .gte("created_at", today)
-        .execute()
-        .data or []
+        .execute
     )
+    msgs_today = msgs_today_res.data or []
 
     messages_sent_today = sum(1 for m in msgs_today if m.get("direction") == "outbound")
     messages_received_today = sum(1 for m in msgs_today if m.get("direction") == "inbound")
@@ -188,7 +189,9 @@ async def template_performance(tenant_id: str = Depends(get_owner_tenant_id)):
     """Per-template broadcast performance: Sent / Read / Replied / Hot leads."""
     db = get_supabase()
     try:
-        res = db.rpc("template_performance", {"p_tenant_id": tenant_id}).execute()
+        res = await asyncio.to_thread(
+            db.rpc("template_performance", {"p_tenant_id": tenant_id}).execute
+        )
         return {"data": res.data or []}
     except Exception as e:
         logger.error(f"template_performance failed for tenant {tenant_id}: {e}")
@@ -229,24 +232,6 @@ async def telecalling_analytics(
     )
     if range_end_exclusive:
         logs_today_query = logs_today_query.lt("created_at", range_end_exclusive.isoformat())
-    logs_today_res = logs_today_query.execute().data or []
-
-    logs_week_res = (
-        db.table("call_logs")
-        .select("id")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", week)
-        .execute()
-        .data or []
-    )
-
-    all_logs_res = (
-        db.table("call_logs")
-        .select("id,duration_seconds,outcome,caller_id")
-        .eq("tenant_id", tenant_id)
-        .execute()
-        .data or []
-    )
 
     status_logs_query = (
         db.table("caller_status_logs")
@@ -256,29 +241,49 @@ async def telecalling_analytics(
     )
     if range_end_exclusive:
         status_logs_query = status_logs_query.lt("started_at", range_end_exclusive.isoformat())
-    status_logs_today = status_logs_query.execute().data or []
+
+    # These five reads are independent — run them concurrently off the event loop.
+    logs_today_exec, logs_week_exec, all_time_res, status_logs_exec, callers_exec = await asyncio.gather(
+        asyncio.to_thread(logs_today_query.execute),
+        asyncio.to_thread(
+            db.table("call_logs")
+            .select("id")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", week)
+            .execute
+        ),
+        asyncio.to_thread(
+            db.rpc("get_telecalling_all_time_stats", {"p_tenant_id": tenant_id}).execute
+        ),
+        asyncio.to_thread(status_logs_query.execute),
+        asyncio.to_thread(
+            db.table("callers")
+            .select("id,name,overall_score")
+            .eq("tenant_id", tenant_id)
+            .eq("active", True)
+            .execute
+        ),
+    )
+    logs_today_res = logs_today_exec.data or []
+    logs_week_res = logs_week_exec.data or []
+    all_time_data = (all_time_res.data or {}) if all_time_res else {}
+    status_logs_today = status_logs_exec.data or []
+    callers_res = callers_exec.data or []
 
     calls_today = len(logs_today_res)
     calls_this_week = len(logs_week_res)
     conversions_today = sum(1 for l in logs_today_res if l.get("outcome") == "converted")
 
-    durations = [l["duration_seconds"] for l in all_logs_res if l.get("duration_seconds") is not None]
-    avg_duration_seconds = round(sum(durations) / len(durations)) if durations else None
+    # All-time durations and outcomes from RPC
+    avg_duration_seconds = all_time_data.get("avg_duration_seconds")
+    if avg_duration_seconds == 0:
+        avg_duration_seconds = None
 
     outcome_breakdown = {"converted": 0, "callback": 0, "not_interested": 0, "no_answer": 0}
-    for log in all_logs_res:
-        outcome = log.get("outcome")
-        if outcome in outcome_breakdown:
-            outcome_breakdown[outcome] += 1
-
-    callers_res = (
-        db.table("callers")
-        .select("id,name,overall_score")
-        .eq("tenant_id", tenant_id)
-        .eq("active", True)
-        .execute()
-        .data or []
-    )
+    rpc_breakdown = all_time_data.get("outcome_breakdown") or {}
+    for k, v in rpc_breakdown.items():
+        if k in outcome_breakdown:
+            outcome_breakdown[k] = v
 
     # calls_per_hour — IST hours 9–18, today's calls
     hour_counts: dict[int, int] = {h: 0 for h in range(9, 19)}
@@ -322,17 +327,13 @@ async def telecalling_analytics(
         for s in slots
     ]
 
-    # per-caller conversion rates (all-time)
+    # per-caller conversion rates (all-time) from RPC
     caller_total: dict[str, int] = {}
     caller_converted: dict[str, int] = {}
-    for log in all_logs_res:
-        cid = log.get("caller_id")
-        if not cid:
-            continue
-        cid_str = str(cid)
-        caller_total[cid_str] = caller_total.get(cid_str, 0) + 1
-        if log.get("outcome") == "converted":
-            caller_converted[cid_str] = caller_converted.get(cid_str, 0) + 1
+    rpc_caller_stats = all_time_data.get("caller_stats") or {}
+    for cid_str, stats_dict in rpc_caller_stats.items():
+        caller_total[cid_str] = stats_dict.get("total", 0)
+        caller_converted[cid_str] = stats_dict.get("converted", 0)
 
     # Team-wide aggregates
     team_connected_calls = [l for l in logs_today_res if (l.get("duration_seconds") or 0) > 0 or (l.get("outcome") is not None and l.get("outcome") != "no_answer")]
@@ -503,23 +504,25 @@ async def telecalling_analytics(
     yesterday_start = today_start - timedelta(days=1)
 
     comp_logs = (
-        db.table("call_logs")
-        .select("id,duration_seconds,outcome,caller_id,created_at")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", comp_window_start_iso)
-        .lt("created_at", today_start.isoformat())
-        .execute()
-        .data or []
-    )
+        await asyncio.to_thread(
+            db.table("call_logs")
+            .select("id,duration_seconds,outcome,caller_id,created_at")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", comp_window_start_iso)
+            .lt("created_at", today_start.isoformat())
+            .execute
+        )
+    ).data or []
     comp_status = (
-        db.table("caller_status_logs")
-        .select("id,caller_id,status,started_at,ended_at")
-        .eq("tenant_id", tenant_id)
-        .gte("started_at", comp_window_start_iso)
-        .lt("started_at", today_start.isoformat())
-        .execute()
-        .data or []
-    )
+        await asyncio.to_thread(
+            db.table("caller_status_logs")
+            .select("id,caller_id,status,started_at,ended_at")
+            .eq("tenant_id", tenant_id)
+            .gte("started_at", comp_window_start_iso)
+            .lt("started_at", today_start.isoformat())
+            .execute
+        )
+    ).data or []
 
     comparison = {
         "yesterday": _window_aggregate(
@@ -582,25 +585,29 @@ async def caller_timeline(
     day_end_iso = day_end.isoformat()
     
     calls = (
-        db.table("call_logs")
-        .select("id,created_at,duration_seconds,outcome,lead_id,leads(name,phone)")
-        .eq("caller_id", str(caller_id))
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", day_start_iso)
-        .lt("created_at", day_end_iso)
-        .order("created_at")
-        .execute()
+        await asyncio.to_thread(
+            db.table("call_logs")
+            .select("id,created_at,duration_seconds,outcome,lead_id,leads(name,phone)")
+            .eq("caller_id", str(caller_id))
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", day_start_iso)
+            .lt("created_at", day_end_iso)
+            .order("created_at")
+            .execute
+        )
     ).data or []
     
     status_logs = (
-        db.table("caller_status_logs")
-        .select("id,status,started_at,ended_at")
-        .eq("caller_id", str(caller_id))
-        .eq("tenant_id", tenant_id)
-        .gte("started_at", day_start_iso)
-        .lt("started_at", day_end_iso)
-        .order("started_at")
-        .execute()
+        await asyncio.to_thread(
+            db.table("caller_status_logs")
+            .select("id,status,started_at,ended_at")
+            .eq("caller_id", str(caller_id))
+            .eq("tenant_id", tenant_id)
+            .gte("started_at", day_start_iso)
+            .lt("started_at", day_end_iso)
+            .order("started_at")
+            .execute
+        )
     ).data or []
     
     events = []
@@ -641,13 +648,15 @@ async def qa_queue(
     db = get_supabase()
     
     res = (
-        db.table("call_logs")
-        .select("id,created_at,duration_seconds,outcome,recording_url,transcript,ai_summary,evaluation,lead_id,caller_id,leads(name,phone)")
-        .eq("tenant_id", tenant_id)
-        .not_.is_("evaluation", "null")
-        .order("created_at", desc=True)
-        .limit(200)
-        .execute()
+        await asyncio.to_thread(
+            db.table("call_logs")
+            .select("id,created_at,duration_seconds,outcome,recording_url,transcript,ai_summary,evaluation,lead_id,caller_id,leads(name,phone)")
+            .eq("tenant_id", tenant_id)
+            .not_.is_("evaluation", "null")
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute
+        )
     ).data or []
     
     valid_calls = []
@@ -675,13 +684,15 @@ async def export_telecalling(
     start_date = (now - timedelta(days=90)).isoformat()
     
     rows = (
-        db.table("call_logs")
-        .select("id,created_at,caller_id,lead_id,duration_seconds,outcome,disposition,status,recording_url,score,transcript,ai_summary,evaluation,callers(name),leads(name,phone)")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", start_date)
-        .order("created_at", desc=True)
-        .limit(5000)
-        .execute()
+        await asyncio.to_thread(
+            db.table("call_logs")
+            .select("id,created_at,caller_id,lead_id,duration_seconds,outcome,disposition,status,recording_url,score,transcript,ai_summary,evaluation,callers(name),leads(name,phone)")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", start_date)
+            .order("created_at", desc=True)
+            .limit(5000)
+            .execute
+        )
     ).data or []
     
     output = io.StringIO()
@@ -732,12 +743,13 @@ async def funnel_analytics(tenant_id: str = Depends(get_owner_tenant_id)):
     week = _week_start()
 
     leads_all = (
-        db.table("leads")
-        .select("id,segment,source,score,created_at")
-        .eq("tenant_id", tenant_id)
-        .execute()
-        .data or []
-    )
+        await asyncio.to_thread(
+            db.table("leads")
+            .select("id,segment,source,score,created_at")
+            .eq("tenant_id", tenant_id)
+            .execute
+        )
+    ).data or []
 
     total_leads = len(leads_all)
 
@@ -834,13 +846,14 @@ async def overview_analytics(
     window_start_dt, days_iso = _range_params(range)
 
     leads_rows = (
-        db.table("leads")
-        .select("id,phone,segment,score,source,created_at,converted_at,ai_enabled,deleted_at")
-        .eq("tenant_id", tenant_id)
-        .is_("deleted_at", "null")
-        .execute()
-        .data or []
-    )
+        await asyncio.to_thread(
+            db.table("leads")
+            .select("id,phone,segment,score,source,created_at,converted_at,ai_enabled,deleted_at")
+            .eq("tenant_id", tenant_id)
+            .is_("deleted_at", "null")
+            .execute
+        )
+    ).data or []
 
     daily_leads_map = {d: 0 for d in days_iso}
     by_segment = {"A": 0, "B": 0, "C": 0, "D": 0}
@@ -882,13 +895,14 @@ async def overview_analytics(
     total_leads = len(leads_rows)
 
     msgs_window = (
-        db.table("messages")
-        .select("id,direction,is_ai_generated,created_at,lead_id")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", window_start_dt.isoformat())
-        .execute()
-        .data or []
-    )
+        await asyncio.to_thread(
+            db.table("messages")
+            .select("id,direction,is_ai_generated,created_at,lead_id")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", window_start_dt.isoformat())
+            .execute
+        )
+    ).data or []
 
     daily_msgs_map = {d: {"inbound": 0, "outbound": 0} for d in days_iso}
     ai_count = 0
@@ -977,7 +991,7 @@ async def messaging_analytics(
     )
     if channel != "all":
         q = q.eq("channel", channel)
-    msgs = q.execute().data or []
+    msgs = (await asyncio.to_thread(q.execute)).data or []
 
     # sent_today / received_today — always from today regardless of range
     today_q = (
@@ -988,7 +1002,7 @@ async def messaging_analytics(
     )
     if channel != "all":
         today_q = today_q.eq("channel", channel)
-    msgs_today = today_q.execute().data or []
+    msgs_today = (await asyncio.to_thread(today_q.execute)).data or []
 
     sent_today = sum(1 for m in msgs_today if m.get("direction") == "outbound")
     received_today = sum(1 for m in msgs_today if m.get("direction") == "inbound")
@@ -1059,14 +1073,14 @@ async def inbound_analytics(
     today_iso = datetime.now(timezone.utc).date().isoformat()
 
     try:
-        rows = (
+        rows = await asyncio.to_thread(
             db.table("leads")
             .select("id,source,ad_campaign_id,segment,created_at")
             .eq("tenant_id", tenant_id)
             .in_("source", list(INBOUND_SOURCES))
             .is_("deleted_at", "null")
             .gte("created_at", start_dt.isoformat())
-            .execute()
+            .execute
         )
         leads = rows.data or []
     except Exception as e:
