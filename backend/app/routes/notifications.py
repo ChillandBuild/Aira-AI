@@ -75,11 +75,11 @@ async def list_pool_items(
     try:
         handovers = (
             db.table("chat_handovers")
-            .select("id, lead_id, reason, created_at, leads(name)")
+            .select("id, lead_id, reason, opened_at, leads(name)")
             .eq("tenant_id", tenant_id)
             .eq("status", "pending")
             .is_("assigned_to", "null")
-            .order("created_at", desc=True)
+            .order("opened_at", desc=True)
             .limit(20)
             .execute()
         )
@@ -91,7 +91,7 @@ async def list_pool_items(
                 "lead_id": h["lead_id"],
                 "lead_name": lead.get("name") if isinstance(lead, dict) else None,
                 "reason": h.get("reason"),
-                "created_at": h.get("created_at"),
+                "created_at": h.get("opened_at"),
             })
     except Exception as e:
         logger.warning(f"pool handovers fetch failed (transient?): {e}")
