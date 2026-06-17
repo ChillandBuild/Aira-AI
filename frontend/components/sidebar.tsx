@@ -24,6 +24,7 @@ type NavItem = {
 
 
 const TELECALLING_ITEMS: NavItem[] = [
+  { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload" },
   { href: "/dashboard/telecalling", icon: Phone, label: "Dialer" },
   { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls" },
   { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes" },

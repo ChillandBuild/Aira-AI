@@ -436,6 +436,7 @@ async def create_caller(payload: CreateCaller, tenant_id: str = Depends(get_tena
         "name": payload.name.strip(),
         "phone": payload.phone.strip(),
         "active": True,
+        "status": "active",
         "overall_score": 7.0,
         "tenant_id": tenant_id,
     }).execute()

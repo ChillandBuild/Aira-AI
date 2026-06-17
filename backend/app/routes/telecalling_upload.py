@@ -69,7 +69,7 @@ def _round_robin_assign_leads(
         .select("id,name,user_id")
         .eq("tenant_id", tenant_id)
         .eq("active", True)
-        .eq("status", "active")
+        .or_("status.eq.active,status.is.null")
     )
     if owner_user_id:
         query = query.neq("user_id", owner_user_id)
@@ -290,7 +290,7 @@ async def get_upload_history(
         .range(offset, offset + limit - 1)
         .execute()
     )
-    return {"batches": result.data or [], "page": page, "limit": limit}
+    return result.data or []
 
 
 @router.get("/history/{batch_id}/csv")

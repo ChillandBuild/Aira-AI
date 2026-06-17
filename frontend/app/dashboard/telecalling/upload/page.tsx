@@ -17,8 +17,11 @@ import {
   Star,
   ToggleLeft,
   ToggleRight,
+  Check,
+  CloudUpload,
 } from "lucide-react";
 import { getAuthHeaders } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://aira-ai-5tfr.onrender.com";
@@ -82,12 +85,12 @@ function formatDate(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
-const SEGMENT_OPTIONS = [
-  { value: "", label: "None (auto)" },
-  { value: "A", label: "A" },
-  { value: "B", label: "B" },
-  { value: "C", label: "C" },
-  { value: "D", label: "D" },
+const SEGMENT_CHOICES = [
+  { value: "", label: "None (auto-assign)", description: "System assigns segments automatically based on lead scoring rules." },
+  { value: "A", label: "Segment A — Hot", description: "High-intent leads. Contacted first, shorter follow-up intervals." },
+  { value: "B", label: "Segment B — Warm", description: "Interested but not urgent. Standard follow-up cadence." },
+  { value: "C", label: "Segment C — Cold", description: "Low intent. Longer intervals between contact attempts." },
+  { value: "D", label: "Segment D — Nurture", description: "Not ready to buy. Periodic check-ins only." },
 ];
 
 const SEGMENT_COLORS: Record<string, string> = {
@@ -197,58 +200,85 @@ async function apiDeleteScript(id: string): Promise<void> {
   }
 }
 
+// ─── Step Indicator ──────────────────────────────────────────────────────────
+
+const WIZARD_STEPS = ["Upload", "Segment", "Confirm"];
+
+function StepIndicator({ current }: { current: number }) {
+  return (
+    <div className="flex items-start w-full mb-10">
+      {WIZARD_STEPS.map((label, i) => {
+        const step = i + 1;
+        const done = step < current;
+        const active = step === current;
+        return (
+          <div key={label} className="flex-1 flex flex-col items-center relative">
+            {i > 0 && (
+              <div className={cn("absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors", done ? "bg-tertiary" : "bg-surface-mid")} />
+            )}
+            <div className={cn(
+              "relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all",
+              done ? "bg-tertiary text-white" : active ? "bg-tertiary text-white ring-4 ring-tertiary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"
+            )}>
+              {done ? <Check size={16} /> : step}
+            </div>
+            <span className={cn(
+              "mt-2 font-label text-xs text-center whitespace-nowrap",
+              active ? "text-tertiary font-semibold" : done ? "text-tertiary/50" : "text-on-surface-muted"
+            )}>
+              {label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function TelecallingUploadPage() {
-  const [activeTab, setActiveTab] = useState<"upload" | "scripts">("upload");
+  const [activeTab, setActiveTab] = useState<"upload" | "history" | "scripts">("upload");
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-          <Upload size={18} />
-        </div>
-        <div>
-          <h1 className="font-display text-lg font-bold text-tertiary">
-            Telecalling Management
-          </h1>
-          <p className="text-xs text-ink-secondary">
-            Upload contacts and manage call scripts
-          </p>
-        </div>
+      <div className="mb-8">
+        <h1 className="font-display text-4xl font-bold text-on-surface">Telecalling Upload</h1>
+        <p className="font-body text-base text-on-surface-muted mt-2">Upload contacts, view history, and manage call scripts.</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-0.5 p-0.5 bg-slate-100 rounded-xl w-fit">
-        <button
-          onClick={() => setActiveTab("upload")}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeTab === "upload" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          <Upload size={14} /> Upload Contacts
-        </button>
-        <button
-          onClick={() => setActiveTab("scripts")}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeTab === "scripts" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-          }`}
-        >
-          <FileText size={14} /> Call Scripts
-        </button>
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-1 border-b border-surface-mid mb-6">
+        {(["upload", "history", "scripts"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              "px-6 py-3 font-label font-semibold text-sm transition-all border-b-2",
+              activeTab === tab
+                ? "border-tertiary text-tertiary"
+                : "border-transparent text-on-surface-muted hover:text-on-surface"
+            )}
+          >
+            {tab === "upload" ? "Upload Contacts" : tab === "history" ? "Upload History" : "Scripts"}
+          </button>
+        ))}
       </div>
 
-      {activeTab === "upload" ? <UploadTab /> : <ScriptsTab />}
+      {activeTab === "upload" && <UploadTab />}
+      {activeTab === "history" && <HistoryTab />}
+      {activeTab === "scripts" && <ScriptsTab />}
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// UPLOAD TAB
+// UPLOAD TAB — 3-step wizard
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function UploadTab() {
+  const [currentStep, setCurrentStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
   const [segmentOverride, setSegmentOverride] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -256,6 +286,334 @@ function UploadTab() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Count rows by reading the file
+  const [rowCount, setRowCount] = useState<number | null>(null);
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    setFile(selected);
+    setUploadResult(null);
+    setUploadError(null);
+    setRowCount(null);
+    if (selected) {
+      // Count CSV rows (excluding header)
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        if (text) {
+          const lines = text.split("\n").filter((l) => l.trim().length > 0);
+          setRowCount(Math.max(0, lines.length - 1)); // subtract header
+        }
+      };
+      reader.readAsText(selected);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    const dropped = e.dataTransfer.files?.[0];
+    if (dropped && dropped.name.endsWith(".csv")) {
+      setFile(dropped);
+      setUploadResult(null);
+      setUploadError(null);
+      setRowCount(null);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        if (text) {
+          const lines = text.split("\n").filter((l) => l.trim().length > 0);
+          setRowCount(Math.max(0, lines.length - 1));
+        }
+      };
+      reader.readAsText(dropped);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+  }
+
+  async function handleUpload() {
+    if (!file) return;
+    setUploading(true);
+    setUploadResult(null);
+    setUploadError(null);
+    try {
+      const headers = await getAuthHeaders();
+      const fd = new FormData();
+      fd.append("file", file);
+      if (segmentOverride) fd.append("segment_override", segmentOverride);
+      const res = await fetch(`${API_URL}/api/v1/telecalling-upload/upload`, {
+        method: "POST",
+        body: fd,
+        headers: { ...headers },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
+        throw new Error(err.detail || `Upload failed (${res.status})`);
+      }
+      const result: UploadResult = await res.json();
+      setUploadResult(result);
+    } catch (e: unknown) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleReset() {
+    setFile(null);
+    setSegmentOverride("");
+    setCurrentStep(1);
+    setUploadResult(null);
+    setUploadError(null);
+    setRowCount(null);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  const segmentLabel = SEGMENT_CHOICES.find((s) => s.value === segmentOverride)?.label ?? "None (auto-assign)";
+
+  return (
+    <div className="animate-slide-up">
+      <div className="bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 min-h-[500px] flex flex-col">
+        <StepIndicator current={currentStep} />
+
+        {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
+        {currentStep === 1 && (
+          <div className="space-y-6 flex-1">
+            <div>
+              <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV</h2>
+              <p className="font-body text-sm text-on-surface-muted">Select a CSV file with contact data. We will detect column mappings automatically.</p>
+            </div>
+
+            <label
+              className={cn(
+                "relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group",
+                file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]"
+              )}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
+              <div className={cn(
+                "w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                file ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"
+              )}>
+                {file ? <Check size={28} /> : <CloudUpload size={28} />}
+              </div>
+              <div className="text-center px-4">
+                <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
+                  {file ? file.name : "Drop your CSV file here"}
+                </p>
+                <p className="font-body text-xs text-on-surface-muted mt-1.5">
+                  {file
+                    ? `${(file.size / 1024).toFixed(1)} KB${rowCount !== null ? ` · ${rowCount.toLocaleString()} rows` : ""} · click to change file`
+                    : "or click to browse — .csv · name and phone columns required"}
+                </p>
+              </div>
+              {!file && (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
+                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Auto-detects columns</span>
+                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Deduplicates leads</span>
+                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Indian numbers formatted</span>
+                </div>
+              )}
+              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFileSelect} />
+            </label>
+
+            <div className="flex justify-end">
+              <button
+                disabled={!file}
+                onClick={() => setCurrentStep(2)}
+                className={cn(
+                  "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
+                  file
+                    ? "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                    : "bg-surface-mid text-on-surface-muted cursor-not-allowed"
+                )}
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 2: Segment Override ────────────────────────────────────── */}
+        {currentStep === 2 && (
+          <div className="space-y-6 flex-1">
+            <div>
+              <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Choose Segment Override</h2>
+              <p className="font-body text-sm text-on-surface-muted">Optionally assign all contacts in this upload to a specific segment.</p>
+            </div>
+
+            <div className="space-y-3">
+              {SEGMENT_CHOICES.map((seg) => (
+                <button
+                  key={seg.value}
+                  onClick={() => setSegmentOverride(seg.value)}
+                  className={cn(
+                    "w-full text-left p-4 rounded-xl border-2 transition-all",
+                    segmentOverride === seg.value
+                      ? "border-tertiary bg-tertiary/5 shadow-sm"
+                      : "border-surface-mid bg-surface-low hover:border-tertiary/30"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
+                      segmentOverride === seg.value ? "border-tertiary" : "border-surface-mid"
+                    )}>
+                      {segmentOverride === seg.value && <div className="w-2.5 h-2.5 rounded-full bg-tertiary" />}
+                    </div>
+                    <div>
+                      <p className="font-label text-sm font-semibold text-on-surface">{seg.label}</p>
+                      <p className="font-body text-xs text-on-surface-muted mt-0.5">{seg.description}</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-between">
+              <button
+                onClick={() => setCurrentStep(1)}
+                className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"
+              >
+                Back
+              </button>
+              <button
+                onClick={() => setCurrentStep(3)}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm bg-tertiary text-white hover:bg-tertiary/90 shadow-md transition-all"
+              >
+                Next <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Confirm & Upload ───────────────────────────────────── */}
+        {currentStep === 3 && (
+          <div className="space-y-6 flex-1">
+            <div>
+              <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Review & Upload</h2>
+              <p className="font-body text-sm text-on-surface-muted">Double-check the details below, then start the upload.</p>
+            </div>
+
+            {/* Summary Card */}
+            {!uploadResult && !uploadError && (
+              <div className="rounded-2xl border border-surface-mid bg-surface-low p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
+                    <FileText size={20} className="text-tertiary" />
+                  </div>
+                  <div>
+                    <p className="font-label text-sm font-semibold text-on-surface">{file?.name ?? "No file"}</p>
+                    <p className="font-body text-xs text-on-surface-muted">
+                      {file ? `${(file.size / 1024).toFixed(1)} KB` : ""}
+                      {rowCount !== null ? ` · ${rowCount.toLocaleString()} contacts` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="border-t border-surface-mid pt-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="font-label text-xs text-on-surface-muted mb-1">Segment Override</p>
+                    <p className="font-label text-sm font-semibold text-on-surface">{segmentLabel}</p>
+                  </div>
+                  <div>
+                    <p className="font-label text-xs text-on-surface-muted mb-1">File Type</p>
+                    <p className="font-label text-sm font-semibold text-on-surface">CSV</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Success Banner */}
+            {uploadResult && (
+              <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
+                    <Check size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="font-display text-lg font-bold text-emerald-800">Upload Successful</p>
+                    <p className="font-body text-xs text-emerald-600">Batch ID: {uploadResult.batch_id}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white/70 rounded-xl p-3 text-center">
+                    <p className="font-display text-2xl font-bold text-emerald-700">{uploadResult.inserted}</p>
+                    <p className="font-label text-xs text-emerald-600">Inserted</p>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-3 text-center">
+                    <p className="font-display text-2xl font-bold text-amber-700">{uploadResult.duplicates}</p>
+                    <p className="font-label text-xs text-amber-600">Duplicates</p>
+                  </div>
+                  <div className="bg-white/70 rounded-xl p-3 text-center">
+                    <p className="font-display text-2xl font-bold text-blue-700">{uploadResult.assigned}</p>
+                    <p className="font-label text-xs text-blue-600">Assigned</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error Banner */}
+            {uploadError && (
+              <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                    <X size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <p className="font-display text-lg font-bold text-red-800">Upload Failed</p>
+                    <p className="font-body text-sm text-red-600">{uploadError}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-between">
+              <button
+                onClick={() => {
+                  if (uploadResult || uploadError) {
+                    handleReset();
+                  } else {
+                    setCurrentStep(2);
+                  }
+                }}
+                className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"
+              >
+                {uploadResult || uploadError ? "Start New Upload" : "Back"}
+              </button>
+              {!uploadResult && !uploadError && (
+                <button
+                  disabled={!file || uploading}
+                  onClick={handleUpload}
+                  className={cn(
+                    "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
+                    !file || uploading
+                      ? "bg-surface-mid text-on-surface-muted cursor-not-allowed"
+                      : "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                  )}
+                >
+                  {uploading ? (
+                    <><Loader2 size={16} className="animate-spin" /> Uploading...</>
+                  ) : (
+                    <><Upload size={16} /> Upload Contacts</>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UPLOAD HISTORY TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function HistoryTab() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -286,38 +644,6 @@ function UploadTab() {
     fetchHistory(page);
   }, [page, fetchHistory]);
 
-  async function handleUpload() {
-    if (!file) return;
-    setUploading(true);
-    setUploadResult(null);
-    setUploadError(null);
-    try {
-      const headers = await getAuthHeaders();
-      const fd = new FormData();
-      fd.append("file", file);
-      if (segmentOverride) fd.append("segment_override", segmentOverride);
-      const res = await fetch(`${API_URL}/api/v1/telecalling-upload/upload`, {
-        method: "POST",
-        body: fd,
-        headers: { ...headers },
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Upload failed" }));
-        throw new Error(err.detail || `Upload failed (${res.status})`);
-      }
-      const result: UploadResult = await res.json();
-      setUploadResult(result);
-      setFile(null);
-      if (fileRef.current) fileRef.current.value = "";
-      fetchHistory(1);
-      setPage(1);
-    } catch (e: unknown) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  }
-
   async function handleDownloadCsv(batchId: string, fileName: string) {
     try {
       const headers = await getAuthHeaders();
@@ -341,125 +667,72 @@ function UploadTab() {
   }
 
   return (
-    <>
-      {/* Upload Card */}
-      <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-        <h2 className="font-display text-base font-bold text-tertiary mb-4">Upload Contacts</h2>
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-          <div className="flex-1 min-w-0">
-            <label className="block text-xs font-medium text-ink-secondary mb-1.5">CSV File</label>
-            <div
-              className={`relative flex items-center gap-2 rounded-lg border border-dashed px-3 py-2.5 transition cursor-pointer ${
-                file ? "border-indigo-300 bg-indigo-50/50" : "border-slate-200 bg-surface-low hover:border-slate-300"
-              }`}
-              onClick={() => fileRef.current?.click()}
-            >
-              <FileText size={16} className="shrink-0 text-ink-muted" />
-              <span className="truncate text-sm text-ink-secondary">
-                {file ? file.name : "Choose a .csv file..."}
-              </span>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv"
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null);
-                  setUploadResult(null);
-                  setUploadError(null);
-                }}
-              />
-            </div>
+    <div className="animate-slide-up">
+      <div className="bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="font-display text-xl font-bold text-on-surface">Upload History</h2>
+            <p className="font-body text-sm text-on-surface-muted mt-1">View all previous uploads and download assignment CSVs.</p>
           </div>
-          <div className="w-full sm:w-44">
-            <label className="block text-xs font-medium text-ink-secondary mb-1.5">Segment Override</label>
-            <select
-              value={segmentOverride}
-              onChange={(e) => setSegmentOverride(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-surface-low px-3 py-2.5 text-sm text-ink outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-            >
-              {SEGMENT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-          <button
-            disabled={!file || uploading}
-            onClick={handleUpload}
-            className="bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap transition"
-          >
-            {uploading ? (
-              <><Loader2 size={14} className="animate-spin" />Uploading...</>
-            ) : (
-              <><Upload size={14} />Upload</>
-            )}
-          </button>
         </div>
-        {uploadResult && (
-          <div className="mt-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-800 flex flex-wrap gap-x-6 gap-y-1">
-            <span className="font-semibold">Upload successful</span>
-            <span>Inserted: <strong>{uploadResult.inserted}</strong></span>
-            <span>Duplicates: <strong>{uploadResult.duplicates}</strong></span>
-            <span>Assigned: <strong>{uploadResult.assigned}</strong></span>
-          </div>
-        )}
-        {uploadError && (
-          <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{uploadError}</div>
-        )}
-      </div>
 
-      {/* History Card */}
-      <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-        <h2 className="font-display text-base font-bold text-tertiary mb-4">Upload History</h2>
         {historyLoading && history.length === 0 ? (
-          <div className="flex items-center justify-center py-12 text-ink-muted">
-            <Loader2 size={20} className="animate-spin mr-2" />Loading...
+          <div className="flex items-center justify-center py-16 text-on-surface-muted">
+            <Loader2 size={24} className="animate-spin mr-3 text-tertiary" />
+            <span className="font-body text-sm">Loading history...</span>
           </div>
         ) : history.length === 0 ? (
-          <div className="text-center py-12 text-ink-muted text-sm">No uploads yet.</div>
+          <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-2xl bg-surface-low flex items-center justify-center mx-auto mb-3">
+              <FileText size={24} className="text-on-surface-muted" />
+            </div>
+            <p className="font-label text-sm text-on-surface-muted">No uploads yet. Upload your first CSV to see it here.</p>
+          </div>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full">
                 <thead>
-                  <tr className="text-left text-ink-muted">
-                    <th className="pb-2 pr-4 font-medium">File Name</th>
-                    <th className="pb-2 pr-4 font-medium">Date</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Total</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Inserted</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Duplicates</th>
-                    <th className="pb-2 pr-4 font-medium text-right">Assigned</th>
-                    <th className="pb-2 pr-4 font-medium">Segment</th>
-                    <th className="pb-2 font-medium">Actions</th>
+                  <tr className="border-b border-surface-mid">
+                    <th className="pb-3 pr-4 text-left font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">File Name</th>
+                    <th className="pb-3 pr-4 text-left font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Date</th>
+                    <th className="pb-3 pr-4 text-right font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Total</th>
+                    <th className="pb-3 pr-4 text-right font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Inserted</th>
+                    <th className="pb-3 pr-4 text-right font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Duplicates</th>
+                    <th className="pb-3 pr-4 text-right font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Assigned</th>
+                    <th className="pb-3 pr-4 text-left font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Segment</th>
+                    <th className="pb-3 font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {history.map((item) => (
-                    <tr key={item.id} className="border-b border-slate-100 last:border-0">
-                      <td className="py-2.5 pr-4">
-                        <div className="flex items-center gap-1.5">
-                          <FileText size={13} className="shrink-0 text-ink-muted" />
-                          <span className="truncate max-w-[180px] font-medium text-ink">{item.file_name}</span>
+                    <tr key={item.id} className="border-b border-surface-mid/50 last:border-0 hover:bg-surface-low/50 transition-colors">
+                      <td className="py-4 pr-4">
+                        <div className="flex items-center gap-2">
+                          <FileText size={14} className="shrink-0 text-on-surface-muted" />
+                          <span className="truncate max-w-[200px] font-label text-sm font-medium text-on-surface">{item.file_name}</span>
                         </div>
                       </td>
-                      <td className="py-2.5 pr-4 text-ink-secondary whitespace-nowrap">{formatDate(item.created_at)}</td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums text-ink">{item.total_contacts}</td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums text-emerald-600">{item.inserted}</td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums text-amber-600">{item.duplicates}</td>
-                      <td className="py-2.5 pr-4 text-right tabular-nums text-indigo-600">{item.assigned}</td>
-                      <td className="py-2.5 pr-4">
+                      <td className="py-4 pr-4 font-body text-sm text-on-surface-muted whitespace-nowrap">{formatDate(item.created_at)}</td>
+                      <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-on-surface">{item.total_contacts}</td>
+                      <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-emerald-600">{item.inserted}</td>
+                      <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-amber-600">{item.duplicates}</td>
+                      <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-blue-600">{item.assigned}</td>
+                      <td className="py-4 pr-4">
                         {item.segment_override ? (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-indigo-50 text-indigo-700">{item.segment_override}</span>
+                          <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase", SEGMENT_COLORS[item.segment_override] ?? "bg-slate-100 text-slate-500 border border-slate-200")}>
+                            Seg {item.segment_override}
+                          </span>
                         ) : (
-                          <span className="text-ink-muted">Auto</span>
+                          <span className="font-label text-xs text-on-surface-muted">Auto</span>
                         )}
                       </td>
-                      <td className="py-2.5">
+                      <td className="py-4">
                         <button
                           onClick={() => handleDownloadCsv(item.id, item.file_name)}
-                          className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-medium transition"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-label font-semibold text-tertiary hover:bg-tertiary/10 transition-colors"
                         >
-                          <Download size={12} /><span>Download CSV</span>
+                          <Download size={13} /> CSV
                         </button>
                       </td>
                     </tr>
@@ -467,20 +740,22 @@ function UploadTab() {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-              <span className="text-xs text-ink-muted">Page {page}</span>
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-surface-mid">
+              <span className="font-label text-xs text-on-surface-muted">Page {page}</span>
               <div className="flex gap-2">
                 <button
                   disabled={page <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-ink-secondary hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  className="px-4 py-2 rounded-xl font-label text-xs font-semibold border border-surface-mid text-on-surface-muted hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
                   Previous
                 </button>
                 <button
                   disabled={!hasMore}
                   onClick={() => setPage((p) => p + 1)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-ink-secondary hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  className="px-4 py-2 rounded-xl font-label text-xs font-semibold border border-surface-mid text-on-surface-muted hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                 >
                   Next
                 </button>
@@ -489,7 +764,7 @@ function UploadTab() {
           </>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -607,38 +882,43 @@ function ScriptsTab() {
   }
 
   return (
-    <>
+    <div className="animate-slide-up">
       {/* Script list */}
-      <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display text-base font-bold text-tertiary">Call Scripts</h2>
+      <div className="bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="font-display text-xl font-bold text-on-surface">Call Scripts</h2>
+            <p className="font-body text-sm text-on-surface-muted mt-1">Create guided talk tracks for your telecalling team.</p>
+          </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-indigo-700 transition"
+            className="flex items-center gap-2 bg-tertiary text-white px-4 py-2.5 rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 shadow-md transition-all"
           >
-            <Plus size={14} />New Script
+            <Plus size={16} /> New Script
           </button>
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 size={24} className="animate-spin text-indigo-500" />
+          <div className="flex items-center justify-center py-16">
+            <Loader2 size={24} className="animate-spin text-tertiary" />
           </div>
         ) : scripts.length === 0 ? (
-          <div className="text-center py-12 text-sm text-ink-muted">
-            <FileText size={24} className="text-slate-300 mx-auto mb-2" />
-            No scripts yet. Create one to give telecallers guided talk tracks.
+          <div className="text-center py-16">
+            <div className="w-14 h-14 rounded-2xl bg-surface-low flex items-center justify-center mx-auto mb-3">
+              <FileText size={24} className="text-on-surface-muted" />
+            </div>
+            <p className="font-label text-sm text-on-surface-muted">No scripts yet. Create one to give telecallers guided talk tracks.</p>
           </div>
         ) : (
           <div className="space-y-3">
             {scripts.map((s) => (
               <div
                 key={s.id}
-                className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                className="bg-surface-low border border-surface-mid rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:shadow-sm transition-all"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-display text-sm font-bold text-slate-800 truncate">{s.name}</span>
+                    <span className="font-display text-sm font-bold text-on-surface truncate">{s.name}</span>
                     {segmentBadge(s.segment)}
                     {s.is_default && (
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-0.5">
@@ -649,19 +929,19 @@ function ScriptsTab() {
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-slate-100 text-slate-400 border border-slate-200">Inactive</span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{s.steps.length} step{s.steps.length !== 1 ? "s" : ""}</p>
+                  <p className="font-body text-xs text-on-surface-muted mt-1">{s.steps.length} step{s.steps.length !== 1 ? "s" : ""}</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <button onClick={() => handleToggleActive(s)} className="p-1.5 rounded-lg hover:bg-slate-200 transition">
-                    {s.active ? <ToggleRight size={18} className="text-emerald-500" /> : <ToggleLeft size={18} className="text-slate-400" />}
+                  <button onClick={() => handleToggleActive(s)} className="p-2 rounded-xl hover:bg-surface transition-colors">
+                    {s.active ? <ToggleRight size={18} className="text-emerald-500" /> : <ToggleLeft size={18} className="text-on-surface-muted" />}
                   </button>
-                  <button onClick={() => { setPreviewScript(s); setPreviewStep(0); }} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition">
+                  <button onClick={() => { setPreviewScript(s); setPreviewStep(0); }} className="p-2 rounded-xl hover:bg-surface text-on-surface-muted transition-colors">
                     <Eye size={15} />
                   </button>
-                  <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition">
+                  <button onClick={() => openEdit(s)} className="p-2 rounded-xl hover:bg-surface text-on-surface-muted transition-colors">
                     <Pencil size={15} />
                   </button>
-                  <button onClick={() => setDeletingId(s.id)} className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-500 transition">
+                  <button onClick={() => setDeletingId(s.id)} className="p-2 rounded-xl hover:bg-red-50 text-red-500 transition-colors">
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -673,13 +953,13 @@ function ScriptsTab() {
 
       {/* Delete confirmation */}
       {deletingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl p-6 shadow-2xl w-full max-w-sm border border-slate-100">
-            <h3 className="font-display text-base font-bold text-slate-800 mb-2">Delete Script</h3>
-            <p className="text-sm text-slate-500 mb-6">Are you sure? This cannot be undone.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl p-6 shadow-2xl w-full max-w-sm ring-1 ring-[#c4c7c7]/20">
+            <h3 className="font-display text-base font-bold text-on-surface mb-2">Delete Script</h3>
+            <p className="font-body text-sm text-on-surface-muted mb-6">Are you sure? This cannot be undone.</p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setDeletingId(null)} className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-200">Cancel</button>
-              <button onClick={() => handleDelete(deletingId)} className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-700">Delete</button>
+              <button onClick={() => setDeletingId(null)} className="px-4 py-2 rounded-xl font-label text-sm font-semibold text-on-surface-muted hover:bg-surface-low transition-colors">Cancel</button>
+              <button onClick={() => handleDelete(deletingId)} className="bg-red-600 text-white px-4 py-2 rounded-xl font-label text-sm font-semibold hover:bg-red-700 transition-colors">Delete</button>
             </div>
           </div>
         </div>
@@ -687,79 +967,79 @@ function ScriptsTab() {
 
       {/* Create/Edit Modal */}
       {showEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-100 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-100 shrink-0">
-              <h2 className="font-display text-lg font-bold text-slate-800">{editingId ? "Edit Script" : "New Script"}</h2>
-              <button onClick={closeEditor} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl ring-1 ring-[#c4c7c7]/20 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-surface-mid shrink-0">
+              <h2 className="font-display text-lg font-bold text-on-surface">{editingId ? "Edit Script" : "New Script"}</h2>
+              <button onClick={closeEditor} className="p-2 rounded-xl hover:bg-surface-low text-on-surface-muted transition-colors"><X size={18} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">Script Name</label>
+                <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5 uppercase tracking-wider">Script Name</label>
                 <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Segment A Hot Lead Script"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400" />
+                  className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface-low placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary" />
               </div>
               <div className="flex gap-4 items-end">
                 <div className="flex-1">
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5">Segment</label>
+                  <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5 uppercase tracking-wider">Segment</label>
                   <select value={formSegment} onChange={(e) => setFormSegment(e.target.value)}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-white">
+                    className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface-low focus:outline-none focus:ring-2 focus:ring-tertiary">
                     <option value="">None (All)</option>
                     <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
                   </select>
                 </div>
-                <label className="flex items-center gap-2 pb-2 cursor-pointer">
-                  <input type="checkbox" checked={formIsDefault} onChange={(e) => setFormIsDefault(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-indigo-600" />
-                  <span className="text-xs font-medium text-slate-600">Default</span>
+                <label className="flex items-center gap-2 pb-3 cursor-pointer">
+                  <input type="checkbox" checked={formIsDefault} onChange={(e) => setFormIsDefault(e.target.checked)} className="w-4 h-4 rounded border-surface-mid text-tertiary focus:ring-tertiary" />
+                  <span className="font-label text-xs font-semibold text-on-surface-muted">Default</span>
                 </label>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-3">Steps</label>
+                <label className="block font-label text-xs font-semibold text-on-surface-muted mb-3 uppercase tracking-wider">Steps</label>
                 <div className="space-y-4">
                   {formSteps.map((step, idx) => (
-                    <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div key={idx} className="bg-surface-low border border-surface-mid rounded-xl p-4">
                       <div className="flex items-center gap-2 mb-3">
-                        <GripVertical size={14} className="text-slate-300" />
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Step {idx + 1}</span>
+                        <GripVertical size={14} className="text-on-surface-muted" />
+                        <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider">Step {idx + 1}</span>
                         {formSteps.length > 1 && (
-                          <button onClick={() => removeStep(idx)} className="ml-auto p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><X size={14} /></button>
+                          <button onClick={() => removeStep(idx)} className="ml-auto p-1 rounded-lg hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors"><X size={14} /></button>
                         )}
                       </div>
                       <textarea value={step.text} onChange={(e) => updateStep(idx, { text: e.target.value })} placeholder="Script line..." rows={2}
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 resize-none" />
+                        className="w-full border border-surface-mid rounded-lg px-3 py-2 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary resize-none" />
                       <input type="text" value={step.note} onChange={(e) => updateStep(idx, { note: e.target.value })} placeholder="Coaching hint (optional)"
-                        className="w-full mt-2 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
+                        className="w-full mt-2 border border-surface-mid rounded-lg px-3 py-1.5 font-body text-xs text-on-surface-muted bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary" />
                       {step.branches.length > 0 && (
                         <div className="mt-3 space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1"><GitBranch size={10} />Branches</span>
+                          <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase flex items-center gap-1"><GitBranch size={10} />Branches</span>
                           {step.branches.map((br, bi) => (
                             <div key={bi} className="flex items-center gap-2">
                               <input type="text" value={br.label} onChange={(e) => updateBranch(idx, bi, { label: e.target.value })} placeholder="Label"
-                                className="flex-1 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs" />
-                              <span className="text-[10px] text-slate-400">Go to</span>
+                                className="flex-1 border border-surface-mid rounded-lg px-2.5 py-1.5 font-body text-xs bg-surface text-on-surface" />
+                              <span className="font-label text-[10px] text-on-surface-muted">Go to</span>
                               <input type="number" min={1} max={formSteps.length} value={br.goto} onChange={(e) => updateBranch(idx, bi, { goto: parseInt(e.target.value) || 1 })}
-                                className="w-14 border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-center" />
-                              <button onClick={() => removeBranch(idx, bi)} className="p-1 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-500"><X size={12} /></button>
+                                className="w-14 border border-surface-mid rounded-lg px-2 py-1.5 font-body text-xs text-center bg-surface text-on-surface" />
+                              <button onClick={() => removeBranch(idx, bi)} className="p-1 rounded hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors"><X size={12} /></button>
                             </div>
                           ))}
                         </div>
                       )}
-                      <button onClick={() => addBranch(idx)} className="mt-2 text-[10px] font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                      <button onClick={() => addBranch(idx)} className="mt-2 font-label text-[10px] font-semibold text-tertiary hover:text-tertiary/80 flex items-center gap-1 transition-colors">
                         <GitBranch size={10} />Add Branch
                       </button>
                     </div>
                   ))}
                 </div>
                 <button onClick={() => setFormSteps((prev) => [...prev, emptyFormStep()])}
-                  className="mt-3 flex items-center gap-1.5 bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-200">
+                  className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl font-label text-xs font-semibold text-on-surface-muted border border-surface-mid hover:bg-surface-low transition-colors">
                   <Plus size={14} />Add Step
                 </button>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-3 p-6 pt-4 border-t border-slate-100 shrink-0">
-              <button onClick={closeEditor} className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-200">Cancel</button>
+            <div className="flex items-center justify-end gap-3 p-6 pt-4 border-t border-surface-mid shrink-0">
+              <button onClick={closeEditor} className="px-4 py-2 rounded-xl font-label text-sm font-semibold text-on-surface-muted hover:bg-surface-low transition-colors">Cancel</button>
               <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                className="flex items-center gap-2 bg-tertiary text-white px-5 py-2.5 rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 shadow-md disabled:opacity-50 transition-all">
                 {saving && <Loader2 size={14} className="animate-spin" />}
                 {editingId ? "Save Changes" : "Create Script"}
               </button>
@@ -770,33 +1050,39 @@ function ScriptsTab() {
 
       {/* Preview Modal */}
       {previewScript && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-100 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-slate-100 shrink-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl ring-1 ring-[#c4c7c7]/20 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-surface-mid shrink-0">
               <div>
                 <div className="flex items-center gap-2">
-                  <Eye size={18} className="text-indigo-500" />
-                  <h2 className="font-display text-lg font-bold text-slate-800">Script Preview</h2>
+                  <Eye size={18} className="text-tertiary" />
+                  <h2 className="font-display text-lg font-bold text-on-surface">Script Preview</h2>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">{previewScript.name}{previewScript.segment ? ` · Segment ${previewScript.segment}` : ""}</p>
+                <p className="font-body text-xs text-on-surface-muted mt-0.5">{previewScript.name}{previewScript.segment ? ` · Segment ${previewScript.segment}` : ""}</p>
               </div>
-              <button onClick={() => { setPreviewScript(null); setPreviewStep(0); }} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+              <button onClick={() => { setPreviewScript(null); setPreviewStep(0); }} className="p-2 rounded-xl hover:bg-surface-low text-on-surface-muted transition-colors"><X size={18} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {previewScript.steps.sort((a, b) => a.order - b.order).map((step, idx) => {
                 const isCurrent = idx === previewStep;
                 return (
-                  <div key={idx} className={`rounded-xl p-4 border-2 transition-all ${isCurrent ? "border-indigo-400 bg-indigo-50/50 shadow-sm" : "border-slate-100 bg-white"}`}>
+                  <div key={idx} className={cn(
+                    "rounded-xl p-4 border-2 transition-all",
+                    isCurrent ? "border-tertiary bg-tertiary/5 shadow-sm" : "border-surface-mid bg-surface"
+                  )}>
                     <div className="flex items-start gap-3">
-                      <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isCurrent ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>{step.order}</span>
+                      <span className={cn(
+                        "shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
+                        isCurrent ? "bg-tertiary text-white" : "bg-surface-low text-on-surface-muted"
+                      )}>{step.order}</span>
                       <div className="min-w-0 flex-1">
-                        <p className={`text-sm ${isCurrent ? "text-slate-900 font-semibold" : "text-slate-600"}`}>{step.text}</p>
-                        {step.note && <p className="text-xs text-slate-400 italic mt-1">{step.note}</p>}
+                        <p className={cn("font-body text-sm", isCurrent ? "text-on-surface font-semibold" : "text-on-surface-muted")}>{step.text}</p>
+                        {step.note && <p className="font-body text-xs text-on-surface-muted italic mt-1">{step.note}</p>}
                         {isCurrent && step.branches && step.branches.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-3">
                             {step.branches.map((br, bi) => (
                               <button key={bi} onClick={() => { const i = previewScript.steps.findIndex((s) => s.order === br.goto); if (i >= 0) setPreviewStep(i); }}
-                                className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1">
+                                className="bg-surface-low text-on-surface px-3 py-1.5 rounded-lg font-label text-xs font-semibold hover:bg-surface-mid flex items-center gap-1 transition-colors">
                                 <ChevronRight size={12} />{br.label || `Go to ${br.goto}`}
                               </button>
                             ))}
@@ -808,13 +1094,13 @@ function ScriptsTab() {
                 );
               })}
             </div>
-            <div className="flex items-center justify-between p-6 pt-4 border-t border-slate-100 shrink-0">
-              <span className="text-xs text-slate-400 font-medium">Step {previewStep + 1} of {previewScript.steps.length}</span>
+            <div className="flex items-center justify-between p-6 pt-4 border-t border-surface-mid shrink-0">
+              <span className="font-label text-xs text-on-surface-muted">Step {previewStep + 1} of {previewScript.steps.length}</span>
               <div className="flex gap-2">
                 <button onClick={() => setPreviewStep((p) => Math.max(0, p - 1))} disabled={previewStep === 0}
-                  className="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-200 disabled:opacity-40">Back</button>
+                  className="px-4 py-2 rounded-xl font-label text-xs font-semibold text-on-surface-muted hover:bg-surface-low disabled:opacity-40 transition-colors">Back</button>
                 <button onClick={() => setPreviewStep((p) => Math.min(previewScript.steps.length - 1, p + 1))} disabled={previewStep === previewScript.steps.length - 1}
-                  className="flex items-center gap-1 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-40">
+                  className="flex items-center gap-1 bg-tertiary text-white px-4 py-2 rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 transition-all">
                   Next<ChevronRight size={14} />
                 </button>
               </div>
@@ -822,6 +1108,6 @@ function ScriptsTab() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
