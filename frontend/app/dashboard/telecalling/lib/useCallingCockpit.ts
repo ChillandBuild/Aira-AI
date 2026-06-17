@@ -41,7 +41,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   const [briefLoading, setBriefLoading] = useState(false);
   const [selectedLeadLoading, setSelectedLeadLoading] = useState(false);
   const [selectedCallbackJobId, setSelectedCallbackJobId] = useState<string | null>(null);
-  const [activeProfileTab, setActiveProfileTab] = useState<"overview" | "notes" | "attribution">("overview");
+  const [activeProfileTab, setActiveProfileTab] = useState<"overview" | "notes" | "attribution" | "script">("overview");
 
   // Callbacks (auto-link + queue counts)
   const [todayCallbacks, setTodayCallbacks] = useState<CallbackJob[]>([]);
