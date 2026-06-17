@@ -400,6 +400,21 @@ export function Sidebar() {
           </Link>
         )}
 
+        {role !== "owner" && (
+          <Link
+            href="/dashboard/settings"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
+              pathname.startsWith("/dashboard/settings")
+                ? "bg-zinc-200/70 text-zinc-950"
+                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+            )}
+          >
+            <Settings size={16} className={pathname.startsWith("/dashboard/settings") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <span>Account</span>
+          </Link>
+        )}
+
         {role === "owner" && (
           <div className="px-2 pt-1">
             <Link
