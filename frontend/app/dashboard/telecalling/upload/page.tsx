@@ -216,23 +216,22 @@ export default function TelecallingUploadPage() {
 
       {/* Tabs */}
       <div className="flex gap-0.5 p-0.5 bg-slate-100 rounded-xl w-fit">
-        {[
-          { id: "upload" as const, label: "Upload Contacts", icon: Upload },
-          { id: "scripts" as const, label: "Call Scripts", icon: FileText },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              activeTab === tab.id
-                ? "bg-white text-indigo-600 shadow-sm"
-                : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            <tab.icon size={14} />
-            {tab.label}
-          </button>
-        ))}
+        <button
+          onClick={() => setActiveTab("upload")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "upload" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Upload size={14} /> Upload Contacts
+        </button>
+        <button
+          onClick={() => setActiveTab("scripts")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+            activeTab === "scripts" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <FileText size={14} /> Call Scripts
+        </button>
       </div>
 
       {activeTab === "upload" ? <UploadTab /> : <ScriptsTab />}
