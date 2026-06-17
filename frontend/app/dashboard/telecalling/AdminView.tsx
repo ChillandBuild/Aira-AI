@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Phone, ChevronDown, Settings, Sparkles, User, Inbox, Clock } from "lucide-react";
+import { Phone, ChevronDown, Settings, Sparkles, User, Inbox, Clock, Upload, FileText } from "lucide-react";
 import type { Caller, Lead } from "@/lib/api";
 import { useAdminDashboard, useLeads } from "@/hooks/useApi";
 import type { AdminDashboardData } from "@/hooks/useApi";
@@ -11,6 +11,7 @@ import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import NumpadDialer from "./components/NumpadDialer";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
+import Link from "next/link";
 
 export default function AdminView({ fallbackData }: { fallbackData?: AdminDashboardData }) {
   const { data: dashboard, mutate: refreshDashboard } = useAdminDashboard(fallbackData);
@@ -70,12 +71,26 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                   Calling as <span className="text-indigo-600 font-semibold">{selectedCallerName}</span>
                 </p>
               </div>
-              <button
-                onClick={() => setShowConfigModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-amber-300 hover:text-amber-600 font-label text-xs font-bold transition-colors shadow-sm shrink-0"
-              >
-                <Settings size={13} /> Config
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href="/dashboard/telecalling/upload"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:text-indigo-600 font-label text-xs font-bold transition-colors shadow-sm"
+                >
+                  <Upload size={13} /> Upload
+                </Link>
+                <Link
+                  href="/dashboard/telecalling/scripts"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:text-indigo-600 font-label text-xs font-bold transition-colors shadow-sm"
+                >
+                  <FileText size={13} /> Scripts
+                </Link>
+                <button
+                  onClick={() => setShowConfigModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-amber-300 hover:text-amber-600 font-label text-xs font-bold transition-colors shadow-sm"
+                >
+                  <Settings size={13} /> Config
+                </button>
+              </div>
             </div>
 
             {/* Calling as selector */}
