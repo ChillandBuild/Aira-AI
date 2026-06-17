@@ -9,6 +9,11 @@ type TelecallingConfig = {
   channels: string[];
   max_call_attempts?: number;
   assignment_mode?: "push" | "pull";
+  recycle_enabled?: boolean;
+  recycle_delay_hours?: number;
+  recycle_max_retries?: number;
+  recycle_start_hour?: number;
+  recycle_end_hour?: number;
 };
 
 const DEFAULT: TelecallingConfig = {
@@ -199,6 +204,77 @@ export function TelecallingConfigPanel() {
                 <span><strong>Pull</strong> — leads wait in a shared pool; callers grab the next one with &quot;Call Next&quot;.</span>
               )}
             </p>
+          </div>
+
+          {/* Contact Recycling */}
+          <div>
+            <div className="font-label text-sm font-semibold text-ink mb-1">Contact Recycling</div>
+            <div className="font-body text-xs text-ink-muted mb-3">Automatically re-queue no-answer leads back into the calling queue after a delay</div>
+
+            <label className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface-subtle cursor-pointer hover:border-amber-300 transition-colors mb-3">
+              <input
+                type="checkbox"
+                checked={draft.recycle_enabled ?? false}
+                onChange={(e) => setDraft({ ...draft, recycle_enabled: e.target.checked })}
+                className="mt-0.5 accent-amber-600"
+              />
+              <div>
+                <div className="font-label text-sm font-semibold text-ink">Enable Contact Recycling</div>
+                <div className="font-body text-xs text-ink-muted mt-0.5">No-answer leads reset to &quot;new&quot; after the delay, so they re-enter the calling queue</div>
+              </div>
+            </label>
+
+            {draft.recycle_enabled && (
+              <div className="space-y-3 pl-1">
+                <div className="flex items-center gap-3">
+                  <label className="font-label text-xs font-semibold text-ink w-32">Delay (hours)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={48}
+                    value={draft.recycle_delay_hours ?? 4}
+                    onChange={(e) => setDraft({ ...draft, recycle_delay_hours: Number(e.target.value) })}
+                    className="w-20 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                  />
+                  <span className="font-body text-xs text-ink-muted">Wait this long after last failed call</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="font-label text-xs font-semibold text-ink w-32">Max retries</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={draft.recycle_max_retries ?? 3}
+                    onChange={(e) => setDraft({ ...draft, recycle_max_retries: Number(e.target.value) })}
+                    className="w-20 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                  />
+                  <span className="font-body text-xs text-ink-muted">Stop recycling after this many total attempts</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="font-label text-xs font-semibold text-ink w-32">Calling hours</label>
+                  <select
+                    value={draft.recycle_start_hour ?? 9}
+                    onChange={(e) => setDraft({ ...draft, recycle_start_hour: Number(e.target.value) })}
+                    className="px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{`${i.toString().padStart(2, "0")}:00`}</option>
+                    ))}
+                  </select>
+                  <span className="font-body text-xs text-ink-muted">to</span>
+                  <select
+                    value={draft.recycle_end_hour ?? 18}
+                    onChange={(e) => setDraft({ ...draft, recycle_end_hour: Number(e.target.value) })}
+                    className="px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{`${i.toString().padStart(2, "0")}:00`}</option>
+                    ))}
+                  </select>
+                  <span className="font-body text-xs text-ink-muted">IST</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Save */}
