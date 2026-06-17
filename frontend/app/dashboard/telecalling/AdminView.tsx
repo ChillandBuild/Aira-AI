@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Phone, ChevronDown, Settings, Sparkles, User, Inbox, Clock, Upload, FileText } from "lucide-react";
+import { Phone, ChevronDown, Settings, Sparkles, User, Inbox, Clock, Upload } from "lucide-react";
 import type { Caller, Lead } from "@/lib/api";
 import { useAdminDashboard, useLeads } from "@/hooks/useApi";
 import type { AdminDashboardData } from "@/hooks/useApi";
@@ -76,13 +76,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                   href="/dashboard/telecalling/upload"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:text-indigo-600 font-label text-xs font-bold transition-colors shadow-sm"
                 >
-                  <Upload size={13} /> Upload
-                </Link>
-                <Link
-                  href="/dashboard/telecalling/scripts"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:text-indigo-600 font-label text-xs font-bold transition-colors shadow-sm"
-                >
-                  <FileText size={13} /> Scripts
+                  <Upload size={13} /> Upload & Scripts
                 </Link>
                 <button
                   onClick={() => setShowConfigModal(true)}
