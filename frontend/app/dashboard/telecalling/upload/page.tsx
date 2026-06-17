@@ -136,12 +136,17 @@ function formToSteps(form: FormStep[]): Step[] {
 // ─── Script API helpers ──────────────────────────────────────────────────────
 
 async function fetchScripts(): Promise<CallScript[]> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${API_URL}/api/v1/call-scripts`, {
-    headers: { "Content-Type": "application/json", ...headers },
-  });
-  if (!res.ok) return [];
-  return res.json();
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/api/v1/call-scripts`, {
+      headers: { "Content-Type": "application/json", ...headers },
+    });
+    if (!res.ok) return [];
+    const raw = await res.json();
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
 }
 
 async function apiCreateScript(body: {
@@ -266,7 +271,8 @@ function UploadTab() {
         { headers }
       );
       if (!res.ok) throw new Error("Failed to load history");
-      const data: HistoryItem[] = await res.json();
+      const raw = await res.json();
+      const data: HistoryItem[] = Array.isArray(raw) ? raw : [];
       setHistory(data);
       setHasMore(data.length === LIMIT);
     } catch {
