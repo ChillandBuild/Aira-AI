@@ -202,6 +202,17 @@ async def _sweep_unassigned_leads() -> None:
         logger.error(f"Assignment sweep scheduler error: {e}")
 
 
+async def _recycle_contacts() -> None:
+    """APScheduler job: re-queue no_answer leads within calling hours."""
+    try:
+        from app.services.contact_recycler import recycle_all_tenants
+        count = recycle_all_tenants()
+        if count:
+            logger.info(f"Contact recycler: recycled {count} lead(s)")
+    except Exception as e:
+        logger.error(f"Contact recycler error: {e}")
+
+
 _scheduler = AsyncIOScheduler()
 
 
@@ -280,12 +291,19 @@ async def lifespan(app: FastAPI):
         id="assignment-sweep",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _recycle_contacts,
+        trigger="interval",
+        minutes=30,
+        id="recycle-contacts",
+        replace_existing=True,
+    )
     _scheduler.add_listener(
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m)")
+    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m)")
 
     yield
 
