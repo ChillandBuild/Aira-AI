@@ -112,11 +112,21 @@ export default function LeadDetailPanel({
     }
   };
 
-  if (selectedLeadLoading || !selectedLead) {
+  if (selectedLeadLoading) {
     return (
       <div className="py-16 flex flex-col items-center justify-center bg-slate-50 rounded-2xl mx-5 mt-5">
         <RefreshCw size={32} className="animate-spin text-orange-400 mb-2" />
         <p className="font-body text-sm text-amber-700/60 font-medium">Loading lead profile...</p>
+      </div>
+    );
+  }
+
+  if (!selectedLead) {
+    return (
+      <div className="py-16 flex flex-col items-center justify-center text-center bg-slate-50 rounded-2xl mx-5 mt-5 px-6">
+        <User size={32} className="text-slate-300 mb-2" />
+        <p className="font-body text-sm text-slate-600 font-semibold">Couldn&apos;t load this lead</p>
+        <p className="font-body text-xs text-slate-400 mt-1">The request failed. Select the lead again or pick another from the queue.</p>
       </div>
     );
   }

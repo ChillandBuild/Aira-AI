@@ -596,7 +596,7 @@ async def get_lead_messages(lead_id: UUID, tenant_id: str = Depends(get_tenant_i
 async def get_lead(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
     lead_result = db.table("leads").select("*").eq("id", str(lead_id)).eq("tenant_id", tenant_id).is_("deleted_at", "null").maybe_single().execute()
-    if not lead_result.data:
+    if not lead_result or not lead_result.data:
         raise HTTPException(status_code=404, detail="Lead not found")
     msgs_result = db.table("messages").select("*").eq("lead_id", str(lead_id)).eq("tenant_id", tenant_id).order("created_at").execute()
     lead = lead_result.data
@@ -617,19 +617,19 @@ async def get_lead(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
         
         # Look up template name
         sb_rec = db.table("scheduled_broadcasts").select("template_name").eq("id", rec["broadcast_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
-        if sb_rec.data:
+        if sb_rec and sb_rec.data:
             lead["template_name"] = sb_rec.data["template_name"]
-            
+
         # Look up tag name
         if rec.get("tag_id"):
             tag_rec = db.table("broadcast_tags").select("name").eq("id", rec["tag_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
-            if tag_rec.data:
+            if tag_rec and tag_rec.data:
                 lead["tag_name"] = tag_rec.data["name"]
-                
+
     # 2. Check for ad campaign
     if lead.get("ad_campaign_id"):
         campaign = db.table("ad_campaigns").select("campaign_name, platform").eq("id", lead["ad_campaign_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
-        if campaign.data:
+        if campaign and campaign.data:
             lead["ad_campaign_name"] = campaign.data["campaign_name"]
             lead["channel"] = campaign.data["platform"]
             
