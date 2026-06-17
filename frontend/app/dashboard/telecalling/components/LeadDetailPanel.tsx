@@ -1,7 +1,7 @@
 "use client";
-import React, { useState } from "react";
-import { Sparkles, Phone, StickyNote, Tag, Inbox, User, RefreshCw, MessageSquare, CalendarClock } from "lucide-react";
-import { Lead, Message, CallLog } from "@/lib/api";
+import React, { useState, useEffect } from "react";
+import { Sparkles, Phone, StickyNote, Tag, Inbox, User, RefreshCw, MessageSquare, CalendarClock, FileText, ChevronRight } from "lucide-react";
+import { Lead, Message, CallLog, API_URL, getAuthHeaders } from "@/lib/api";
 import type { NotesResponse, ActiveCallCtx } from "../types";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import LeadAttribution from "./LeadAttribution";
@@ -27,8 +27,8 @@ export interface LeadDetailPanelProps {
   briefLoading: boolean;
   generatePreCallBrief: (leadId: string) => void;
   selectedLeadLoading: boolean;
-  activeProfileTab: "overview" | "notes" | "attribution";
-  setActiveProfileTab: (tab: "overview" | "notes" | "attribution") => void;
+  activeProfileTab: "overview" | "notes" | "attribution" | "script";
+  setActiveProfileTab: (tab: "overview" | "notes" | "attribution" | "script") => void;
   activeCallCtx: ActiveCallCtx | null;
   callStatus: "ringing" | "connected" | "ended" | null;
   callDuration: number;
@@ -304,10 +304,11 @@ export default function LeadDetailPanel({
         {[
           { id: "overview", label: "Overview" },
           { id: "notes", label: "Notes & Log" },
+          { id: "script", label: "Script" },
         ].map((t) => (
           <button
             key={t.id}
-            onClick={() => setActiveProfileTab(t.id as "overview" | "notes" | "attribution")}
+            onClick={() => setActiveProfileTab(t.id as "overview" | "notes" | "attribution" | "script")}
             className={`px-6 py-4 font-display text-xs font-black tracking-wider uppercase border-b-2 text-center transition-all ${
               activeProfileTab === t.id
                 ? "border-orange-500 text-orange-700"
@@ -848,6 +849,152 @@ export default function LeadDetailPanel({
           </div>
         )}
 
+        {activeProfileTab === "script" && (
+          <ScriptPanel segment={selectedLead.segment} />
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+interface ScriptStep {
+  order: number;
+  text: string;
+  note?: string;
+  branches?: { label: string; goto: number }[];
+}
+
+function ScriptPanel({ segment }: { segment: string }) {
+  const [script, setScript] = useState<{ name: string; steps: ScriptStep[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/call-scripts/resolve?segment=${segment}`, { headers: auth });
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled && data && data.steps && data.steps.length > 0) {
+            setScript(data);
+            setCurrentStep(0);
+          } else if (!cancelled) {
+            setScript(null);
+          }
+        }
+      } catch { /* non-critical */ }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [segment]);
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center">
+        <div className="animate-spin w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto" />
+        <p className="text-xs text-slate-400 mt-2">Loading script...</p>
+      </div>
+    );
+  }
+
+  if (!script || !script.steps.length) {
+    return (
+      <div className="p-8 bg-slate-50/40 border border-slate-200 text-center rounded-xl">
+        <FileText size={24} className="text-slate-300 mx-auto mb-2" />
+        <p className="text-xs text-slate-400 font-medium">No script configured for segment {segment}.</p>
+        <p className="text-[10px] text-slate-300 mt-1">Create one in Telecalling → Scripts.</p>
+      </div>
+    );
+  }
+
+  const steps = script.steps.sort((a, b) => a.order - b.order);
+  const step = steps[currentStep];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-display text-xs font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5">
+          <FileText size={12} className="text-indigo-400" /> {script.name}
+        </h3>
+        <span className="text-[10px] text-slate-400 font-bold">
+          Step {currentStep + 1} of {steps.length}
+        </span>
+      </div>
+
+      <div className="bg-white border-2 border-indigo-100 rounded-2xl p-5 shadow-sm">
+        <div className="flex items-start gap-3">
+          <div className="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-black text-xs shrink-0">
+            {step.order}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-body text-sm text-slate-800 leading-relaxed">{step.text}</p>
+            {step.note && (
+              <p className="font-body text-xs text-slate-400 italic mt-2">{step.note}</p>
+            )}
+          </div>
+        </div>
+
+        {step.branches && step.branches.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {step.branches.map((b) => (
+              <button
+                key={b.label}
+                onClick={() => {
+                  const idx = steps.findIndex((s) => s.order === b.goto);
+                  if (idx >= 0) setCurrentStep(idx);
+                }}
+                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-200 transition-all flex items-center gap-1"
+              >
+                {b.label} <ChevronRight size={10} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+          disabled={currentStep === 0}
+          className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold disabled:opacity-30 transition-all"
+        >
+          Previous
+        </button>
+        <button
+          onClick={() => setCurrentStep(Math.min(steps.length - 1, currentStep + 1))}
+          disabled={currentStep === steps.length - 1}
+          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold disabled:opacity-30 transition-all"
+        >
+          Next Step
+        </button>
+      </div>
+
+      {/* Step overview */}
+      <div className="space-y-1">
+        {steps.map((s, i) => (
+          <button
+            key={s.order}
+            onClick={() => setCurrentStep(i)}
+            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-body transition-all flex items-center gap-2 ${
+              i === currentStep
+                ? "bg-indigo-50 text-indigo-700 font-bold border border-indigo-200"
+                : i < currentStep
+                ? "text-slate-400 hover:bg-slate-50"
+                : "text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${
+              i === currentStep ? "bg-indigo-600 text-white" : i < currentStep ? "bg-slate-200 text-slate-500" : "bg-slate-100 text-slate-400"
+            }`}>
+              {s.order}
+            </span>
+            <span className="truncate">{s.text}</span>
+          </button>
+        ))}
       </div>
     </div>
   );
