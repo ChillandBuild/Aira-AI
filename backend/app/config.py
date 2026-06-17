@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     supabase_url: str
     supabase_service_key: str
+    supabase_jwt_secret: str | None = None
     groq_api_key: str | None = None
     jina_api_key: str | None = None
     telecmi_user_id: str | None = None
