@@ -121,6 +121,9 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                 for (let h = START_HOUR; h <= END_HOUR; h += 2) {
                   hourLabels.push(`${h.toString().padStart(2, "0")}:00${h === START_HOUR || h === END_HOUR ? " IST" : ""}`);
                 }
+                if (hourLabels.length > 0 && !hourLabels[hourLabels.length - 1].startsWith(END_HOUR.toString().padStart(2, "0"))) {
+                  hourLabels.push(`${END_HOUR.toString().padStart(2, "0")}:00 IST`);
+                }
                 return hourLabels.map((label) => (
                   <span key={label}>{label}</span>
                 ));
