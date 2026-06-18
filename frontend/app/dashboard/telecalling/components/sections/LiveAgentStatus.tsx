@@ -173,7 +173,7 @@ export default function LiveAgentStatus({
           {/* Mode toggle pill */}
           <div className="flex rounded-lg border border-slate-200 overflow-hidden">
             <button
-              onClick={() => setLocalShiftConfig((prev) => ({ ...prev, shift_mode: "common" }))}
+              onClick={() => { setLocalShiftConfig((prev) => ({ ...prev, shift_mode: "common" })); setIndividualCallerId(""); }}
               className={`px-3 py-1 text-xs font-bold transition-colors ${
                 localShiftConfig.shift_mode === "common"
                   ? "bg-primary text-white"
@@ -194,43 +194,8 @@ export default function LiveAgentStatus({
             </button>
           </div>
 
-          {/* Start / End hour selects */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-slate-500 font-medium">Start:</span>
-            <select
-              value={localShiftConfig.shift_start_hour}
-              onChange={(e) => setLocalShiftConfig((prev) => ({ ...prev, shift_start_hour: parseInt(e.target.value) }))}
-              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {HOURS.map((h) => (
-                <option key={h} value={h}>{formatHour(h)}</option>
-              ))}
-            </select>
-            <span className="text-slate-500 font-medium ml-1">End:</span>
-            <select
-              value={localShiftConfig.shift_end_hour}
-              onChange={(e) => setLocalShiftConfig((prev) => ({ ...prev, shift_end_hour: parseInt(e.target.value) }))}
-              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
-            >
-              {HOURS.map((h) => (
-                <option key={h} value={h}>{formatHour(h)}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Save button */}
-          <button
-            onClick={handleSaveShiftConfig}
-            disabled={savingShiftConfig}
-            className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
-          >
-            {savingShiftConfig ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
-            Save
-          </button>
-        </div>
-        {localShiftConfig.shift_mode === "individual" && (
-          <div className="mt-3 pt-3 border-t border-slate-200 flex flex-wrap items-center gap-3">
-            <span className="text-[10px] text-slate-500 font-bold uppercase">Per-caller:</span>
+          {/* Caller dropdown — only in individual mode */}
+          {localShiftConfig.shift_mode === "individual" && (
             <select
               value={individualCallerId}
               onChange={(e) => {
@@ -249,42 +214,56 @@ export default function LiveAgentStatus({
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            {individualCallerId && (
-              <>
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-slate-500 font-medium">Start:</span>
-                  <select
-                    value={individualStart}
-                    onChange={(e) => setIndividualStart(parseInt(e.target.value))}
-                    className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {HOURS.map((h) => (
-                      <option key={h} value={h}>{formatHour(h)}</option>
-                    ))}
-                  </select>
-                  <span className="text-slate-500 font-medium ml-1">End:</span>
-                  <select
-                    value={individualEnd}
-                    onChange={(e) => setIndividualEnd(parseInt(e.target.value))}
-                    className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
-                  >
-                    {HOURS.map((h) => (
-                      <option key={h} value={h}>{formatHour(h)}</option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  onClick={handleSaveIndividualShift}
-                  disabled={savingIndividual}
-                  className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
-                >
-                  {savingIndividual ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
-                  Save
-                </button>
-              </>
-            )}
+          )}
+
+          {/* Start / End hour selects */}
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-slate-500 font-medium">Start:</span>
+            <select
+              value={localShiftConfig.shift_mode === "individual" && individualCallerId ? individualStart : localShiftConfig.shift_start_hour}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                if (localShiftConfig.shift_mode === "individual" && individualCallerId) {
+                  setIndividualStart(val);
+                } else {
+                  setLocalShiftConfig((prev) => ({ ...prev, shift_start_hour: val }));
+                }
+              }}
+              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {HOURS.map((h) => (
+                <option key={h} value={h}>{formatHour(h)}</option>
+              ))}
+            </select>
+            <span className="text-slate-500 font-medium ml-1">End:</span>
+            <select
+              value={localShiftConfig.shift_mode === "individual" && individualCallerId ? individualEnd : localShiftConfig.shift_end_hour}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                if (localShiftConfig.shift_mode === "individual" && individualCallerId) {
+                  setIndividualEnd(val);
+                } else {
+                  setLocalShiftConfig((prev) => ({ ...prev, shift_end_hour: val }));
+                }
+              }}
+              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {HOURS.map((h) => (
+                <option key={h} value={h}>{formatHour(h)}</option>
+              ))}
+            </select>
           </div>
-        )}
+
+          {/* Single Save button */}
+          <button
+            onClick={localShiftConfig.shift_mode === "individual" && individualCallerId ? handleSaveIndividualShift : handleSaveShiftConfig}
+            disabled={savingShiftConfig || savingIndividual}
+            className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
+          >
+            {(savingShiftConfig || savingIndividual) ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
+            Save
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
