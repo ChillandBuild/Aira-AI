@@ -22,6 +22,7 @@ import { api } from "@/lib/api";
 import type { CallerStats, CallLog } from "@/lib/api";
 import { toast } from "sonner";
 import { useMyStats, useMyPerformance, useCallerLogs } from "@/hooks/useApi";
+import { useAuthRole } from "../contexts/AuthRoleContext";
 import AttendanceMini from "../team/AttendanceMini";
 
 export interface ProfileClientProps {
@@ -41,9 +42,12 @@ export function ProfileClient({
   userName,
   userCreatedAt,
 }: ProfileClientProps) {
-  const { data: stats, error: statsError, mutate: mutateStats } = useMyStats(true, fallbackStats ?? undefined);
-  const { data: performanceData } = useMyPerformance(true, fallbackPerformance ?? undefined);
-  const { data: logsData } = useCallerLogs(stats?.caller_id ?? null, true, fallbackLogs ?? undefined);
+  const { role } = useAuthRole();
+  const isAdmin = role === "owner";
+
+  const { data: stats, mutate: mutateStats } = useMyStats(!isAdmin, fallbackStats ?? undefined);
+  const { data: performanceData } = useMyPerformance(!isAdmin, fallbackPerformance ?? undefined);
+  const { data: logsData } = useCallerLogs(stats?.caller_id ?? null, !isAdmin, fallbackLogs ?? undefined);
 
   const [tip, setTip] = useState<string | null>(null);
   const [tipLoading, setTipLoading] = useState(false);
@@ -128,17 +132,7 @@ export function ProfileClient({
     }
   };
 
-  const isLoading = !stats && !statsError;
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <RefreshCw size={24} className="animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!stats) {
+  if (isAdmin) {
     const adminName = userName || userEmail?.split("@")[0] || "Admin";
     const initials = adminName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
     const memberSince = userCreatedAt ? new Date(userCreatedAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : null;
@@ -220,6 +214,14 @@ export function ProfileClient({
             </Link>
           ))}
         </div>
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <RefreshCw size={24} className="animate-spin text-primary" />
       </div>
     );
   }
