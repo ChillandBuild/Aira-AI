@@ -80,6 +80,10 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Telecaller cockpit (wrap-up, Call Next, live call) | ✅ Built — calls.py /pending-wrapups + /next-lead atomic claim; mandatory wrap-up modal; CallerView queue tabs by call_status |
 | Admin telecalling monitoring | ✅ Built — Performance tab; /analytics/telecalling (connect rate, idle/bunking, speed-to-lead, quality); owner-gated caller-timeline/qa-queue/export |
 | Call-status pipeline + DNC + attempt cap | ✅ Built — migration 102; outcomes drive leads.call_status (orthogonal to segment); DNC lead-level (do_not_call, +opted_out for do-not-contact); no_answer ≥ max_call_attempts → unreachable |
+| Telecalling Upload (CSV + round-robin) | ✅ Built — routes/telecalling_upload.py; 2-step wizard (Upload → Confirm) at /dashboard/telecalling/upload; sidebar nav entry; round-robin auto-assign to least-loaded caller (excludes owner, includes null-status callers); dedup by phone; upload history with CSV export |
+| Call Scripts (CRUD + cockpit) | ✅ Built — routes/call_scripts.py; segment-based resolution (segment script > default); branching steps with goto navigation; ScriptPanel in telecaller cockpit LeadDetailPanel |
+| Contact Recycling | ✅ Built — services/contact_recycler.py; APScheduler 30-min job resets no_answer leads to "new" after configurable delay; IST calling hours + max retries; config in TelecallingConfigPanel |
+| Shift Time Management | ✅ Built — migration 112; common or per-caller shift hours in telecalling_config + callers.shift_start_hour/shift_end_hour; LiveAgentStatus shift config UI + amber outside-shift indicator; ShiftTimeline dynamic hour range (replaces hardcoded 9–19) |
 
 ## Hard Invariants — Never Break
 1. Lead score always integer 1–10
@@ -134,6 +138,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | _process_scheduled_broadcasts | 1 min | Fire pending scheduled_broadcasts rows |
 | _check_token_health | 24 h | Validate Meta tokens, create token_invalid incidents |
 | _sync_all_number_quality | 24 h | Sync Meta number quality rating & limits |
+| _recycle_contacts | 30 min | Re-queue no_answer leads back to "new" (contact_recycler.recycle_all_tenants) |
 
 ## Task Router — Read This File Before Acting
 | Task involves | Read first |
@@ -141,6 +146,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | WhatsApp, Meta API, provider layer, phone_numbers | backend/app/routes/webhook.py + services/meta_cloud.py + services/outbound_router.py |
 | Telecalling, TeleCMI, call logs, notes, briefing modal | backend/app/routes/calls.py + services/telecmi_client.py + services/call_summarizer.py |
 | Telecaller auto-assignment, round-robin, Assignment Log, callback reassignment | backend/app/services/assignment.py + routes/assignment_log.py + main.py (_sweep_unassigned_leads, _process_callback_reassignments) |
+| Telecalling upload, call scripts, contact recycling | backend/app/routes/telecalling_upload.py + routes/call_scripts.py + services/contact_recycler.py |
 | Leads, scoring, segments, opt-in, call_status pipeline | backend/app/routes/leads.py + services/scoring_engine.py (v2) + services/lead_scorer.py (legacy, AI-disabled path) |
 | Number pool, failover, Numbers page, Incidents page | backend/app/routes/numbers.py + services/failover.py + routes/incidents.py |
 | CSV upload, bulk send, scheduled/drip broadcasts | backend/app/routes/upload.py + services/broadcast_executor.py |
@@ -155,7 +161,7 @@ Parallel pattern: schema + API route + frontend page → all 3 in one message.
 ## Settings Page — Fully Configurable
 All channel credentials (WhatsApp/Instagram/Facebook/Telegram/TeleCMI/Groq) editable in Settings UI.
 InboxConfigPanel: escalation on/off, per-trigger (A/B/C/D/F). Chat escalation is trigger-only — segment/score escalation and auto-assign-to-telecaller were removed; handovers are a shared pool any telecaller or admin can resolve. (Trigger E "score-hot" dropped.)
-TelecallingConfigPanel: module on/off, auto-assign, per-segment assignment (A/B/C/D), channels.
+TelecallingConfigPanel: module on/off, auto-assign, per-segment assignment (A/B/C/D), channels, contact recycling (enable/delay/retries/hours), shift time management (common/individual mode + hours).
 
 ## Known Tech Debt
 - RLS enabled on all core tables (few untracked tables like bot_flows / reengagement_steps pending review)
@@ -182,10 +188,13 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/app/services/lead_scorer.py | Groq scoring (1–10) |
 | backend/app/services/telecmi_client.py | TeleCMI click-to-call |
 | backend/app/db/supabase.py | Supabase client singleton |
-| backend/supabase/migrations/ | All schema migrations 001–083 |
+| backend/app/routes/telecalling_upload.py | Telecalling CSV upload + round-robin assignment |
+| backend/app/routes/call_scripts.py | Call scripts CRUD (segment-based, branching steps) |
+| backend/app/services/contact_recycler.py | Contact recycling — re-queue no_answer leads |
+| backend/supabase/migrations/ | All schema migrations 001–112 |
 | frontend/app/dashboard/ | All dashboard pages |
 
-## Migration Index (latest = 103)
+## Migration Index (latest = 112)
 | Migration | What |
 |---|---|
 | 051 | Telegram support — tg_user_id on leads |
@@ -247,6 +256,8 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | 101_drop_1d_1w_1m_cadences | drop legacy 1d/1w/1m follow-up cadences |
 | 102_call_status_dnc | leads.call_status (new/in_progress/callback/converted/not_interested/dnc/unreachable) + do_not_call + CHECK + idx_leads_call_status — call-status pipeline orthogonal to A/B/C/D segment; DNC is lead-level (not a call outcome) |
 | 103_reengagement_target_sources | reengagement_steps.target_sources jsonb — filter re-engagement by acquisition source (organic/meta_ads/csv/telegram/instagram/facebook); NULL = all |
+| 111_telecalling_upload_scripts | call_scripts table (segment-based, steps jsonb, is_default, active) + telecalling_upload_batches table (upload history, assignment_snapshot jsonb) |
+| 112_caller_shift_hours | callers.shift_start_hour + shift_end_hour (smallint, nullable) — per-caller shift time override |
 
 ## Bot Flow Builder (replaces Automations UI)
 Visual WhatsApp flow builder at /dashboard/automations (sidebar "Bot Flows"). Backend
