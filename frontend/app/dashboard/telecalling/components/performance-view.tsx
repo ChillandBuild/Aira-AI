@@ -157,7 +157,8 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
 
   const getSortedPerformers = () => {
     if (!stats || !stats.per_caller) return [];
-    return [...stats.per_caller].sort((a, b) => {
+    const callerIds = new Set(callersList.map((c) => c.id));
+    return [...stats.per_caller].filter((p) => callerIds.has(p.caller_id)).sort((a, b) => {
       let valA: string | number = 0;
       let valB: string | number = 0;
       if (sortField === "name") {

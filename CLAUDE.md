@@ -83,7 +83,9 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Telecalling Upload (CSV + round-robin) | ✅ Built — routes/telecalling_upload.py; 2-step wizard (Upload → Confirm) at /dashboard/telecalling/upload; sidebar nav entry; round-robin auto-assign to least-loaded caller (excludes owner, includes null-status callers); dedup by phone; upload history with CSV export |
 | Call Scripts (CRUD + cockpit) | ✅ Built — routes/call_scripts.py; segment-based resolution (segment script > default); branching steps with goto navigation; ScriptPanel in telecaller cockpit LeadDetailPanel |
 | Contact Recycling | ✅ Built — services/contact_recycler.py; APScheduler 30-min job resets no_answer leads to "new" after configurable delay; IST calling hours + max retries; config in TelecallingConfigPanel |
-| Shift Time Management | ✅ Built — migration 112; common or per-caller shift hours in telecalling_config + callers.shift_start_hour/shift_end_hour; LiveAgentStatus shift config UI + amber outside-shift indicator; ShiftTimeline dynamic hour range (replaces hardcoded 9–19) |
+| Shift Time Management | ✅ Built — migration 112; common or per-caller shift hours in telecalling_config + callers.shift_start_hour/shift_end_hour; LiveAgentStatus shift config UI (unified row: mode toggle + caller dropdown + hours + save) + amber outside-shift indicator; ShiftTimeline dynamic hour range (replaces hardcoded 9–19) |
+| Admin Profile Page | ✅ Built — role-based profile: admin sees dark gradient identity card (name, crown badge, email, member-since, quote) + 6 quick-nav cards; telecallers see caller stats/attendance/coaching as before; uses useAuthRole() not stats-null check |
+| Admin exclusion from telecaller metrics | ✅ Built — admin filtered from Agent Performance Leaderboard (backend analytics.py owner filter + frontend callerIds filter), excluded from LiveAgentStatus/ShiftTimeline, no attendance/shift/call tracking for admin |
 
 ## Hard Invariants — Never Break
 1. Lead score always integer 1–10
@@ -98,6 +100,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 10. WhatsApp webhook verifies X-Hub-Signature-256 before processing — returns 200 but drops invalid
 11. `call_status` (telecalling pipeline) is orthogonal to A/B/C/D `segment` — call outcomes NEVER write segment; segment stays score/chat-owned
 12. DNC is lead-level (`do_not_call`), NOT a `call_logs.outcome` value (that column is CHECK-constrained) — "do not contact" also sets `opted_out`; `opted_out`=WhatsApp/broadcast, `do_not_call`=voice
+13. Admin (owner) is excluded from ALL telecaller metrics — no attendance, shift tracking, leaderboard rows, or call stats. `list_callers` filters owner by `user_id`; analytics `per_caller` filters owner; frontend leaderboard double-filters via `callerIds` set; profile page uses `useAuthRole()` role check (not stats-null)
 
 ## Stack
 | Layer | Tech | Location |
@@ -191,6 +194,7 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/app/routes/telecalling_upload.py | Telecalling CSV upload + round-robin assignment |
 | backend/app/routes/call_scripts.py | Call scripts CRUD (segment-based, branching steps) |
 | backend/app/services/contact_recycler.py | Contact recycling — re-queue no_answer leads |
+| frontend/app/dashboard/profile/ProfileClient.tsx | Profile page — role-based: admin card (owner) vs caller stats (caller) |
 | backend/supabase/migrations/ | All schema migrations 001–112 |
 | frontend/app/dashboard/ | All dashboard pages |
 
