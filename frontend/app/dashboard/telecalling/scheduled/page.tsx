@@ -76,7 +76,7 @@ export default function ScheduledCallsPage() {
   const load = useCallback(async () => {
     try {
       const res = await api.followUps.callbacksBoard();
-      setCallbacks(res.data);
+      setCallbacks(Array.isArray(res?.data) ? res.data : []);
     } catch {
       toast.error("Failed to load scheduled calls");
     } finally {
@@ -133,8 +133,8 @@ export default function ScheduledCallsPage() {
         fetchAllNotes(cb.lead_id).catch(() => []),
         api.leads.callLogs(cb.lead_id)
       ]);
-      setNotes(fetchedNotes);
-      setCallLogs(fetchedLogs);
+      setNotes(Array.isArray(fetchedNotes) ? fetchedNotes : []);
+      setCallLogs(Array.isArray(fetchedLogs) ? fetchedLogs : []);
     } catch (err) {
       toast.error("Failed to load lead context details");
       console.error(err);

@@ -23,10 +23,12 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
   // Load my assigned leads (the cockpit owns callbacks/config/wrap-ups itself).
   const loadQueue = useCallback(async () => {
     try {
-      const [callers, leads] = await Promise.all([
+      const [rawCallers, rawLeads] = await Promise.all([
         api.callers.list(),
         api.leads.list({ assigned_to: callerId || undefined, limit: 100 }),
       ]);
+      const callers = Array.isArray(rawCallers) ? rawCallers : [];
+      const leads = Array.isArray(rawLeads) ? rawLeads : [];
       const me = callers.find((c: Caller) => c.id === callerId) || null;
       if (me) setMyStatus((me.status as "active" | "break" | "logged_out") || "active");
 
