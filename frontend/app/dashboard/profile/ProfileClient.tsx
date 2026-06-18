@@ -12,12 +12,10 @@ import {
   XCircle,
   PhoneForwarded,
   Minus,
-  Shield,
   Upload,
   BarChart2,
   Settings,
   Users,
-  FileText,
   Crown,
 } from "lucide-react";
 import { api } from "@/lib/api";
