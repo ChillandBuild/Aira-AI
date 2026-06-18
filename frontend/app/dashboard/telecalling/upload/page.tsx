@@ -85,13 +85,6 @@ function formatDate(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
-const SEGMENT_CHOICES = [
-  { value: "", label: "None (auto-assign)", description: "System assigns segments automatically based on lead scoring rules." },
-  { value: "A", label: "Segment A — Hot", description: "High-intent leads. Contacted first, shorter follow-up intervals." },
-  { value: "B", label: "Segment B — Warm", description: "Interested but not urgent. Standard follow-up cadence." },
-  { value: "C", label: "Segment C — Cold", description: "Low intent. Longer intervals between contact attempts." },
-  { value: "D", label: "Segment D — Nurture", description: "Not ready to buy. Periodic check-ins only." },
-];
 
 const SEGMENT_COLORS: Record<string, string> = {
   A: "bg-emerald-50 text-emerald-700 border border-emerald-200",
@@ -202,7 +195,7 @@ async function apiDeleteScript(id: string): Promise<void> {
 
 // ─── Step Indicator ──────────────────────────────────────────────────────────
 
-const WIZARD_STEPS = ["Upload", "Segment", "Confirm"];
+const WIZARD_STEPS = ["Upload", "Confirm"];
 
 function StepIndicator({ current }: { current: number }) {
   return (
@@ -280,7 +273,6 @@ export default function TelecallingUploadPage() {
 function UploadTab() {
   const [currentStep, setCurrentStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
-  const [segmentOverride, setSegmentOverride] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -342,7 +334,6 @@ function UploadTab() {
       const headers = await getAuthHeaders();
       const fd = new FormData();
       fd.append("file", file);
-      if (segmentOverride) fd.append("segment_override", segmentOverride);
       const res = await fetch(`${API_URL}/api/v1/telecalling-upload/upload`, {
         method: "POST",
         body: fd,
@@ -363,15 +354,12 @@ function UploadTab() {
 
   function handleReset() {
     setFile(null);
-    setSegmentOverride("");
     setCurrentStep(1);
     setUploadResult(null);
     setUploadError(null);
     setRowCount(null);
     if (fileRef.current) fileRef.current.value = "";
   }
-
-  const segmentLabel = SEGMENT_CHOICES.find((s) => s.value === segmentOverride)?.label ?? "None (auto-assign)";
 
   return (
     <div className="animate-slide-up">
@@ -437,61 +425,8 @@ function UploadTab() {
           </div>
         )}
 
-        {/* ── Step 2: Segment Override ────────────────────────────────────── */}
+        {/* ── Step 2: Confirm & Upload ───────────────────────────────────── */}
         {currentStep === 2 && (
-          <div className="space-y-6 flex-1">
-            <div>
-              <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Choose Segment Override</h2>
-              <p className="font-body text-sm text-on-surface-muted">Optionally assign all contacts in this upload to a specific segment.</p>
-            </div>
-
-            <div className="space-y-3">
-              {SEGMENT_CHOICES.map((seg) => (
-                <button
-                  key={seg.value}
-                  onClick={() => setSegmentOverride(seg.value)}
-                  className={cn(
-                    "w-full text-left p-4 rounded-xl border-2 transition-all",
-                    segmentOverride === seg.value
-                      ? "border-tertiary bg-tertiary/5 shadow-sm"
-                      : "border-surface-mid bg-surface-low hover:border-tertiary/30"
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
-                      segmentOverride === seg.value ? "border-tertiary" : "border-surface-mid"
-                    )}>
-                      {segmentOverride === seg.value && <div className="w-2.5 h-2.5 rounded-full bg-tertiary" />}
-                    </div>
-                    <div>
-                      <p className="font-label text-sm font-semibold text-on-surface">{seg.label}</p>
-                      <p className="font-body text-xs text-on-surface-muted mt-0.5">{seg.description}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex justify-between">
-              <button
-                onClick={() => setCurrentStep(1)}
-                className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => setCurrentStep(3)}
-                className="flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm bg-tertiary text-white hover:bg-tertiary/90 shadow-md transition-all"
-              >
-                Next <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 3: Confirm & Upload ───────────────────────────────────── */}
-        {currentStep === 3 && (
           <div className="space-y-6 flex-1">
             <div>
               <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Review & Upload</h2>
@@ -513,11 +448,7 @@ function UploadTab() {
                     </p>
                   </div>
                 </div>
-                <div className="border-t border-surface-mid pt-4 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="font-label text-xs text-on-surface-muted mb-1">Segment Override</p>
-                    <p className="font-label text-sm font-semibold text-on-surface">{segmentLabel}</p>
-                  </div>
+                <div className="border-t border-surface-mid pt-4">
                   <div>
                     <p className="font-label text-xs text-on-surface-muted mb-1">File Type</p>
                     <p className="font-label text-sm font-semibold text-on-surface">CSV</p>
@@ -576,7 +507,7 @@ function UploadTab() {
                   if (uploadResult || uploadError) {
                     handleReset();
                   } else {
-                    setCurrentStep(2);
+                    setCurrentStep(1);
                   }
                 }}
                 className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"

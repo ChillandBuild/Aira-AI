@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   X, Check, Download, ChevronUp, ChevronDown, Loader2, ShieldAlert,
 } from "lucide-react";
-import { api, type Caller, type TelecallingAnalyticsExtended } from "@/lib/api";
+import { api, API_URL, getAuthHeaders, type Caller, type TelecallingAnalyticsExtended } from "@/lib/api";
 import { formatTalk } from "./sections/performance-format";
 import TeamAttendanceGrid from "../../team/TeamAttendanceGrid";
 import LiveAgentStatus from "./sections/LiveAgentStatus";
@@ -45,6 +45,11 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
   const [exportUntil, setExportUntil] = useState<string>(new Date().toISOString().split("T")[0]);
   const [exporting, setExporting] = useState(false);
 
+  // Shift config
+  const [shiftConfig, setShiftConfig] = useState<{ shift_mode: "common" | "individual"; shift_start_hour: number; shift_end_hour: number }>({
+    shift_mode: "common", shift_start_hour: 9, shift_end_hour: 19,
+  });
+
   // Lead profile modal
   const [viewingLeadId, setViewingLeadId] = useState<string | null>(null);
 
@@ -77,6 +82,37 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
     loadPerformanceStats();
     loadCallers();
   }, [loadPerformanceStats, loadCallers]);
+
+  // Fetch telecalling config for shift settings
+  useEffect(() => {
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth });
+        if (res.ok) {
+          const data = await res.json();
+          setShiftConfig({
+            shift_mode: data.shift_mode || "common",
+            shift_start_hour: data.shift_start_hour ?? 9,
+            shift_end_hour: data.shift_end_hour ?? 19,
+          });
+        }
+      } catch {}
+    })();
+  }, []);
+
+  async function handleShiftConfigSave(config: typeof shiftConfig) {
+    const auth = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...auth },
+      body: JSON.stringify(config),
+    });
+    if (res.ok) {
+      setShiftConfig(config);
+      toast.success("Shift config saved");
+    }
+  }
 
   const handleUpdateTarget = async (callerId: string) => {
     const targetVal = editingTarget[callerId];
@@ -176,6 +212,8 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
         onStatsToChange={setStatsTo}
         onCallersChange={setCallersList}
         onRemoved={loadCallers}
+        shiftConfig={shiftConfig}
+        onShiftConfigSave={handleShiftConfigSave}
       />
 
       {/* Selection indicator */}
@@ -350,7 +388,24 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
       {/* 6. Per-caller drill-down — only when a caller is selected */}
       {selectedCallerId && (
         <div className="mt-8 space-y-8">
-          <ShiftTimeline callerId={selectedCallerId} statsFrom={statsFrom} statsTo={statsTo} />
+          {(() => {
+            const selectedCaller = callersList.find((c) => c.id === selectedCallerId);
+            const effectiveShiftStart = shiftConfig.shift_mode === "individual" && selectedCaller?.shift_start_hour != null
+              ? selectedCaller.shift_start_hour
+              : shiftConfig.shift_start_hour;
+            const effectiveShiftEnd = shiftConfig.shift_mode === "individual" && selectedCaller?.shift_end_hour != null
+              ? selectedCaller.shift_end_hour
+              : shiftConfig.shift_end_hour;
+            return (
+              <ShiftTimeline
+                callerId={selectedCallerId}
+                statsFrom={statsFrom}
+                statsTo={statsTo}
+                shiftStartHour={effectiveShiftStart}
+                shiftEndHour={effectiveShiftEnd}
+              />
+            );
+          })()}
         </div>
       )}
 

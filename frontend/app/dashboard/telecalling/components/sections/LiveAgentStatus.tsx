@@ -2,9 +2,15 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Users, X, Check, Loader2, Trash2, Pencil } from "lucide-react";
+import { Users, X, Check, Loader2, Trash2, Pencil, Clock } from "lucide-react";
 import { api, type Caller } from "@/lib/api";
 import { timeAgo } from "@/lib/utils";
+
+interface ShiftConfig {
+  shift_mode: "common" | "individual";
+  shift_start_hour: number;
+  shift_end_hour: number;
+}
 
 interface LiveAgentStatusProps {
   callers: Caller[];
@@ -16,16 +22,46 @@ interface LiveAgentStatusProps {
   onStatsToChange: (v: string) => void;
   onCallersChange: (updater: (prev: Caller[]) => Caller[]) => void;
   onRemoved: () => Promise<void> | void;
+  shiftConfig: ShiftConfig;
+  onShiftConfigSave: (config: ShiftConfig) => Promise<void>;
 }
+
+function formatHour(h: number): string {
+  return `${h.toString().padStart(2, "0")}:00`;
+}
+
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export default function LiveAgentStatus({
   callers, selectedCallerId, onSelectCaller,
   statsFrom, statsTo, onStatsFromChange, onStatsToChange,
   onCallersChange, onRemoved,
+  shiftConfig, onShiftConfigSave,
 }: LiveAgentStatusProps) {
   const [editingAgentIdFor, setEditingAgentIdFor] = useState<string | null>(null);
   const [agentIdInputValue, setAgentIdInputValue] = useState<string>("");
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null);
+
+  // Shift config local editing state
+  const [localShiftConfig, setLocalShiftConfig] = useState<ShiftConfig>(shiftConfig);
+  const [savingShiftConfig, setSavingShiftConfig] = useState(false);
+
+  // Per-caller shift inline edit state
+  const [editingShiftFor, setEditingShiftFor] = useState<string | null>(null);
+  const [shiftEditStart, setShiftEditStart] = useState<number>(9);
+  const [shiftEditEnd, setShiftEditEnd] = useState<number>(19);
+  const [savingShiftFor, setSavingShiftFor] = useState<string | null>(null);
+
+  // Keep local config in sync when parent pushes new config
+  const [lastExternalConfig, setLastExternalConfig] = useState(shiftConfig);
+  if (
+    shiftConfig.shift_mode !== lastExternalConfig.shift_mode ||
+    shiftConfig.shift_start_hour !== lastExternalConfig.shift_start_hour ||
+    shiftConfig.shift_end_hour !== lastExternalConfig.shift_end_hour
+  ) {
+    setLastExternalConfig(shiftConfig);
+    setLocalShiftConfig(shiftConfig);
+  }
 
   const totalAgentsCount = callers.length;
   const breakAgents = callers.filter((c) => c.status === "break");
@@ -63,6 +99,39 @@ export default function LiveAgentStatus({
     }
   };
 
+  const handleSaveShiftConfig = async () => {
+    setSavingShiftConfig(true);
+    try {
+      await onShiftConfigSave(localShiftConfig);
+    } finally {
+      setSavingShiftConfig(false);
+    }
+  };
+
+  const handleSaveCallerShift = async (callerId: string) => {
+    setSavingShiftFor(callerId);
+    try {
+      const updated = await api.callers.update(callerId, {
+        shift_start_hour: shiftEditStart,
+        shift_end_hour: shiftEditEnd,
+      });
+      onCallersChange((prev) =>
+        prev.map((c) =>
+          c.id === callerId
+            ? { ...c, shift_start_hour: updated.shift_start_hour, shift_end_hour: updated.shift_end_hour }
+            : c
+        )
+      );
+      setEditingShiftFor(null);
+      toast.success("Caller shift updated");
+    } catch (err) {
+      console.error("Failed to update caller shift:", err);
+      toast.error("Failed to update caller shift");
+    } finally {
+      setSavingShiftFor(null);
+    }
+  };
+
   return (
     <div className="bg-surface rounded-card p-5 shadow-card ring-1 ring-[#c4c7c7]/15">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
@@ -94,11 +163,94 @@ export default function LiveAgentStatus({
         </div>
       </div>
 
+      {/* Shift Hours config section */}
+      <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-2 mb-2">
+          <Clock size={14} className="text-slate-500" />
+          <span className="font-label text-xs font-bold text-slate-700 uppercase">Shift Hours</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Mode toggle pill */}
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+            <button
+              onClick={() => setLocalShiftConfig((prev) => ({ ...prev, shift_mode: "common" }))}
+              className={`px-3 py-1 text-xs font-bold transition-colors ${
+                localShiftConfig.shift_mode === "common"
+                  ? "bg-primary text-white"
+                  : "bg-white text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Common
+            </button>
+            <button
+              onClick={() => setLocalShiftConfig((prev) => ({ ...prev, shift_mode: "individual" }))}
+              className={`px-3 py-1 text-xs font-bold transition-colors ${
+                localShiftConfig.shift_mode === "individual"
+                  ? "bg-primary text-white"
+                  : "bg-white text-slate-600 hover:bg-slate-100"
+              }`}
+            >
+              Individual
+            </button>
+          </div>
+
+          {/* Start / End hour selects */}
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-slate-500 font-medium">Start:</span>
+            <select
+              value={localShiftConfig.shift_start_hour}
+              onChange={(e) => setLocalShiftConfig((prev) => ({ ...prev, shift_start_hour: parseInt(e.target.value) }))}
+              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {HOURS.map((h) => (
+                <option key={h} value={h}>{formatHour(h)}</option>
+              ))}
+            </select>
+            <span className="text-slate-500 font-medium ml-1">End:</span>
+            <select
+              value={localShiftConfig.shift_end_hour}
+              onChange={(e) => setLocalShiftConfig((prev) => ({ ...prev, shift_end_hour: parseInt(e.target.value) }))}
+              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+            >
+              {HOURS.map((h) => (
+                <option key={h} value={h}>{formatHour(h)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Save button */}
+          <button
+            onClick={handleSaveShiftConfig}
+            disabled={savingShiftConfig}
+            className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
+          >
+            {savingShiftConfig ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
+            Save
+          </button>
+        </div>
+        {localShiftConfig.shift_mode === "individual" && (
+          <p className="text-[10px] text-slate-400 mt-1.5 font-medium">Per-caller shifts editable on each card below</p>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
         {callers.map((c) => {
           const st = c.status || "active";
           const statusColor = st === "active" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : st === "break" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-slate-500 bg-slate-100 border-slate-200";
           const isSelected = selectedCallerId === c.id;
+
+          // Effective shift for this caller
+          const effectiveStart = shiftConfig.shift_mode === "individual" && c.shift_start_hour != null
+            ? c.shift_start_hour
+            : shiftConfig.shift_start_hour;
+          const effectiveEnd = shiftConfig.shift_mode === "individual" && c.shift_end_hour != null
+            ? c.shift_end_hour
+            : shiftConfig.shift_end_hour;
+
+          const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+          const currentHour = nowIST.getHours();
+          const isOutsideShift = currentHour < effectiveStart || currentHour >= effectiveEnd;
+
           return (
             <div
               key={c.id}
@@ -121,7 +273,7 @@ export default function LiveAgentStatus({
                 )}
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
                   <span>{c.phone || "—"}</span>
-                  <span className="text-slate-300">·</span>
+                  <span className="text-slate-300">&middot;</span>
                   {editingAgentIdFor === c.id ? (
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -159,6 +311,71 @@ export default function LiveAgentStatus({
                       >
                         <Pencil size={9} />
                       </button>
+                    </span>
+                  )}
+                </div>
+                {/* Shift time display */}
+                <div className="flex items-center gap-1 mt-0.5">
+                  {editingShiftFor === c.id ? (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={shiftEditStart}
+                        onChange={(e) => setShiftEditStart(parseInt(e.target.value))}
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-1 py-0.5 rounded bg-white border border-slate-200 text-[10px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {HOURS.map((h) => (
+                          <option key={h} value={h}>{formatHour(h)}</option>
+                        ))}
+                      </select>
+                      <span className="text-[10px] text-slate-400">&ndash;</span>
+                      <select
+                        value={shiftEditEnd}
+                        onChange={(e) => setShiftEditEnd(parseInt(e.target.value))}
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-1 py-0.5 rounded bg-white border border-slate-200 text-[10px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        {HOURS.map((h) => (
+                          <option key={h} value={h}>{formatHour(h)}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleSaveCallerShift(c.id); }}
+                        disabled={savingShiftFor === c.id}
+                        className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
+                        title="Save Shift"
+                      >
+                        {savingShiftFor === c.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingShiftFor(null); }}
+                        disabled={savingShiftFor === c.id}
+                        className="p-0.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded border border-slate-200"
+                        title="Cancel"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <Clock size={9} className={isOutsideShift ? "text-amber-500" : "text-slate-400"} />
+                      <span className={`text-[10px] font-medium ${isOutsideShift ? "text-amber-500" : "text-slate-400"}`}>
+                        {formatHour(effectiveStart)}&ndash;{formatHour(effectiveEnd)}
+                      </span>
+                      {shiftConfig.shift_mode === "individual" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingShiftFor(c.id);
+                            setShiftEditStart(c.shift_start_hour ?? shiftConfig.shift_start_hour);
+                            setShiftEditEnd(c.shift_end_hour ?? shiftConfig.shift_end_hour);
+                          }}
+                          className="p-0.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded"
+                          title="Edit Shift"
+                        >
+                          <Pencil size={9} />
+                        </button>
+                      )}
                     </span>
                   )}
                 </div>

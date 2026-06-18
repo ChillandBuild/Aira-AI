@@ -269,7 +269,7 @@ export default function LeadDetailPanel({
                   <span className="text-slate-500">•</span>
                   <span>{selectedLead.channel || selectedLead.source || "Direct"}</span>
                   <span className="text-slate-500">•</span>
-                  <span>Assigned {selectedLead.assigned_at ? timeAgo(selectedLead.assigned_at) : "recently"}</span>
+                  <span>{selectedLead.assigned_at ? `Assigned ${timeAgo(selectedLead.assigned_at)}` : "Unassigned"}</span>
                 </p>
               )}
             </div>

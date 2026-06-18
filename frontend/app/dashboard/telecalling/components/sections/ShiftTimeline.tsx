@@ -10,13 +10,14 @@ interface ShiftTimelineProps {
   callerId: string;
   statsFrom: string;
   statsTo?: string;
+  shiftStartHour: number;
+  shiftEndHour: number;
 }
 
-const START_HOUR = 9;
-const END_HOUR = 19;
-const TOTAL_SECONDS = (END_HOUR - START_HOUR) * 3600;
-
-export default function ShiftTimeline({ callerId, statsFrom }: ShiftTimelineProps) {
+export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shiftEndHour }: ShiftTimelineProps) {
+  const START_HOUR = shiftStartHour;
+  const END_HOUR = shiftEndHour;
+  const TOTAL_SECONDS = (END_HOUR - START_HOUR) * 3600;
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState(statsFrom);
@@ -115,12 +116,15 @@ export default function ShiftTimeline({ callerId, statsFrom }: ShiftTimelineProp
               })}
             </div>
             <div className="flex justify-between text-[10px] text-slate-400 font-bold px-1 mt-2">
-              <span>09:00 IST</span>
-              <span>11:00</span>
-              <span>13:00</span>
-              <span>15:00</span>
-              <span>17:00</span>
-              <span>19:00 IST</span>
+              {(() => {
+                const hourLabels: string[] = [];
+                for (let h = START_HOUR; h <= END_HOUR; h += 2) {
+                  hourLabels.push(`${h.toString().padStart(2, "0")}:00${h === START_HOUR || h === END_HOUR ? " IST" : ""}`);
+                }
+                return hourLabels.map((label) => (
+                  <span key={label}>{label}</span>
+                ));
+              })()}
             </div>
           </div>
 

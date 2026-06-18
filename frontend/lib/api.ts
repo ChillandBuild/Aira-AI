@@ -70,6 +70,8 @@ export interface Caller {
   status_changed_at?: string;
   target?: number;
   telecmi_agent_id?: string | null;
+  shift_start_hour?: number | null;
+  shift_end_hour?: number | null;
 }
 
 export interface CallerStats {
@@ -888,7 +890,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ name, phone }),
       }),
-    update: (id: string, data: { name?: string; phone?: string; telecmi_agent_id?: string | null }) =>
+    update: (id: string, data: { name?: string; phone?: string; telecmi_agent_id?: string | null; shift_start_hour?: number | null; shift_end_hour?: number | null }) =>
       apiFetch<Caller>(`/api/v1/callers/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
