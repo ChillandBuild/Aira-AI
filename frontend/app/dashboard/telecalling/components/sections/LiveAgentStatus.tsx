@@ -112,6 +112,7 @@ export default function LiveAgentStatus({
     if (!individualCallerId) return;
     setSavingIndividual(true);
     try {
+      await onShiftConfigSave(localShiftConfig);
       const updated = await api.callers.update(individualCallerId, {
         shift_start_hour: individualStart,
         shift_end_hour: individualEnd,
@@ -273,12 +274,12 @@ export default function LiveAgentStatus({
           const isSelected = selectedCallerId === c.id;
 
           // Effective shift for this caller
-          const effectiveStart = shiftConfig.shift_mode === "individual" && c.shift_start_hour != null
+          const effectiveStart = localShiftConfig.shift_mode === "individual" && c.shift_start_hour != null
             ? c.shift_start_hour
-            : shiftConfig.shift_start_hour;
-          const effectiveEnd = shiftConfig.shift_mode === "individual" && c.shift_end_hour != null
+            : localShiftConfig.shift_start_hour;
+          const effectiveEnd = localShiftConfig.shift_mode === "individual" && c.shift_end_hour != null
             ? c.shift_end_hour
-            : shiftConfig.shift_end_hour;
+            : localShiftConfig.shift_end_hour;
 
           const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
           const currentHour = nowIST.getHours();
