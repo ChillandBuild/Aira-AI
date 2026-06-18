@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import {
   Phone,
   TrendingUp,
@@ -11,6 +12,13 @@ import {
   XCircle,
   PhoneForwarded,
   Minus,
+  Shield,
+  Upload,
+  BarChart2,
+  Settings,
+  Users,
+  FileText,
+  Crown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { CallerStats, CallLog } from "@/lib/api";
@@ -22,12 +30,18 @@ export interface ProfileClientProps {
   fallbackStats: CallerStats | null;
   fallbackPerformance: { target: number; achieved: number } | null;
   fallbackLogs: CallLog[] | null;
+  userEmail?: string | null;
+  userName?: string | null;
+  userCreatedAt?: string | null;
 }
 
 export function ProfileClient({
   fallbackStats,
   fallbackPerformance,
   fallbackLogs,
+  userEmail,
+  userName,
+  userCreatedAt,
 }: ProfileClientProps) {
   const { data: stats, error: statsError, mutate: mutateStats } = useMyStats(true, fallbackStats ?? undefined);
   const { data: performanceData } = useMyPerformance(true, fallbackPerformance ?? undefined);
@@ -127,11 +141,87 @@ export function ProfileClient({
   }
 
   if (!stats) {
+    const adminName = userName || userEmail?.split("@")[0] || "Admin";
+    const initials = adminName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+    const memberSince = userCreatedAt ? new Date(userCreatedAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : null;
+
+    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const hour = now.getHours();
+    const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+    const quickLinks = [
+      { href: "/dashboard", icon: BarChart2, label: "Dashboard", desc: "Team overview & metrics", color: "from-indigo-500 to-violet-500" },
+      { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload Contacts", desc: "Import CSV & manage scripts", color: "from-emerald-500 to-teal-500" },
+      { href: "/dashboard/telecalling", icon: Phone, label: "Telecalling", desc: "Dialer & lead queue", color: "from-amber-500 to-orange-500" },
+      { href: "/dashboard/team", icon: Users, label: "Team", desc: "Manage telecallers", color: "from-blue-500 to-cyan-500" },
+      { href: "/dashboard/settings", icon: Settings, label: "Settings", desc: "Config & channels", color: "from-slate-500 to-zinc-500" },
+      { href: "/dashboard/analytics", icon: TrendingUp, label: "Analytics", desc: "Performance reports", color: "from-rose-500 to-pink-500" },
+    ];
+
     return (
-      <div className="text-center py-20">
-        <p className="text-on-surface-muted font-body">
-          Profile is only available for telecallers.
-        </p>
+      <div>
+        <div className="mb-8">
+          <h1 className="font-display text-3xl font-bold text-tertiary">My Profile</h1>
+          <p className="font-body text-on-surface-muted mt-1">{greeting}, {adminName.split(" ")[0]}</p>
+        </div>
+
+        {/* Admin Identity Card */}
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-[2rem] p-8 shadow-xl mb-8 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-indigo-500/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/4" />
+
+          <div className="relative flex items-center gap-6">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <span className="font-display text-3xl font-bold text-white">{initials}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 flex-wrap">
+                <h2 className="font-display text-2xl font-bold text-white">{adminName}</h2>
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30">
+                  <Crown size={12} className="text-amber-400" />
+                  <span className="font-label text-xs font-bold text-amber-300 uppercase tracking-wider">Admin</span>
+                </span>
+              </div>
+              {userEmail && (
+                <p className="font-body text-sm text-slate-400 mt-1">{userEmail}</p>
+              )}
+              <div className="flex items-center gap-4 mt-3">
+                {memberSince && (
+                  <span className="font-label text-xs text-slate-500">Member since {memberSince}</span>
+                )}
+                <span className="flex items-center gap-1.5 font-label text-xs text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  All systems online
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Signature quote */}
+          <div className="relative mt-6 pt-6 border-t border-slate-700/50">
+            <p className="font-body text-sm text-slate-400 italic leading-relaxed">
+              &quot;The best leaders don&apos;t create followers — they create more leaders.&quot;
+            </p>
+            <p className="font-label text-[10px] text-slate-600 mt-1 uppercase tracking-widest">Your role: Empower your team</p>
+          </div>
+        </div>
+
+        {/* Quick Navigation */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {quickLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="group bg-surface rounded-2xl p-5 shadow-card ring-1 ring-[#c4c7c7]/15 hover:shadow-lg hover:ring-primary/20 transition-all duration-200"
+            >
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${link.color} flex items-center justify-center mb-3 shadow-sm group-hover:scale-110 transition-transform`}>
+                <link.icon size={18} className="text-white" />
+              </div>
+              <h3 className="font-display text-sm font-bold text-on-surface">{link.label}</h3>
+              <p className="font-body text-xs text-on-surface-muted mt-0.5">{link.desc}</p>
+            </Link>
+          ))}
+        </div>
       </div>
     );
   }

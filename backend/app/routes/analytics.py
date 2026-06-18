@@ -258,7 +258,7 @@ async def telecalling_analytics(
         asyncio.to_thread(status_logs_query.execute),
         asyncio.to_thread(
             db.table("callers")
-            .select("id,name,overall_score")
+            .select("id,name,overall_score,user_id")
             .eq("tenant_id", tenant_id)
             .eq("active", True)
             .execute
@@ -268,7 +268,11 @@ async def telecalling_analytics(
     logs_week_res = logs_week_exec.data or []
     all_time_data = (all_time_res.data or {}) if all_time_res else {}
     status_logs_today = status_logs_exec.data or []
-    callers_res = callers_exec.data or []
+    all_callers = callers_exec.data or []
+
+    owner_row = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").limit(1).execute()
+    owner_user_id = (owner_row.data[0] if owner_row.data else {}).get("user_id")
+    callers_res = [c for c in all_callers if c.get("user_id") != owner_user_id] if owner_user_id else all_callers
 
     calls_today = len(logs_today_res)
     calls_this_week = len(logs_week_res)
