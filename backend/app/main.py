@@ -327,7 +327,7 @@ if _frontend_url:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_origin_regex=r"https://aira-ai-.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -391,9 +391,7 @@ async def health():
             }
         )
 
-@app.get("/sentry-debug")
-async def trigger_error():
-    division_by_zero = 1 / 0
+# Sentry debug route removed
 
 _auth = [Depends(get_current_user)]
 

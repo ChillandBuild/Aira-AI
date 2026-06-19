@@ -8,18 +8,20 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _TRANSCRIBE_MODEL = "whisper-large-v3-turbo"
 _SUMMARY_MODEL = "llama-3.3-70b-versatile"
 
 
-async def transcribe_recording(recording_url: str) -> str:
-    if not _client:
-        logger.warning("GROQ_API_KEY not configured — skipping transcription")
+async def transcribe_recording(recording_url: str, tenant_id: str | None = None) -> str:
+    try:
+        client = get_groq_client(tenant_id, is_async=True)
+    except Exception as e:
+        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
         return ""
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.get(recording_url)
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            resp = await http_client.get(recording_url)
             resp.raise_for_status()
             audio_bytes = resp.content
     except Exception as e:
@@ -28,7 +30,7 @@ async def transcribe_recording(recording_url: str) -> str:
 
     try:
         logger.info(f"Sending {len(audio_bytes)} bytes to Groq Whisper for transcription")
-        result = await _client.audio.transcriptions.create(
+        result = await client.audio.transcriptions.create(
             file=("recording.mp3", audio_bytes, "audio/mp3"),
             model=_TRANSCRIBE_MODEL,
         )
@@ -138,13 +140,19 @@ async def analyze_call(
     lead_name: str | None = None,
     outcome: str | None = None,
     kb_context: str | None = None,
+    tenant_id: str | None = None,
 ) -> tuple[dict, dict]:
     """Single LLM pass returning (summary_dict, evaluation_dict).
 
     evaluation_dict is the v2 QA scorecard — see _finalize_evaluation for the
     derived overall_score/quality_label. Falls back to ({}, {}) on any error.
     """
-    if not transcript or not _client:
+    if not transcript:
+        return {}, {}
+    try:
+        client = get_groq_client(tenant_id, is_async=True)
+    except Exception as e:
+        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
         return {}, {}
 
     lead_line = f"Lead name: {lead_name}\n\n" if lead_name else ""
@@ -168,7 +176,7 @@ async def analyze_call(
     )
 
     try:
-        response = await _client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=_SUMMARY_MODEL,
             messages=[
                 {"role": "system", "content": _ANALYZE_SYSTEM},

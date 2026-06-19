@@ -30,12 +30,12 @@ function DeltaRow({ deltas, asPct, unit }: { deltas: TileDeltas; asPct?: boolean
     <div className="mt-2 flex flex-col gap-0.5 text-[10px] font-bold">
       {deltas.yesterday && (
         <span className={deltaColor(deltas.yesterday)}>
-          {deltaLabel(deltas.yesterday, { asPct, unit })} <span className="text-slate-400 font-medium">vs yesterday</span>
+          {deltaLabel(deltas.yesterday, { asPct, unit })} <span className="text-[#a8a29e] font-medium">vs yesterday</span>
         </span>
       )}
       {deltas.avg7d && (
         <span className={deltaColor(deltas.avg7d)}>
-          {deltaLabel(deltas.avg7d, { asPct, unit })} <span className="text-slate-400 font-medium">vs 7-day avg</span>
+          {deltaLabel(deltas.avg7d, { asPct, unit })} <span className="text-[#a8a29e] font-medium">vs 7-day avg</span>
         </span>
       )}
     </div>
@@ -57,10 +57,10 @@ function Tile({ icon, iconClass, value, label, tooltip, loading, deltas, deltaOp
   return (
     <div className="bg-surface rounded-card p-4 shadow-card ring-1 ring-[#c4c7c7]/15" title={tooltip}>
       <div className={`p-2 rounded-lg w-fit mb-2 ${iconClass}`}>{icon}</div>
-      <span className="block text-2xl font-display font-black text-slate-800">
-        {loading ? <Loader2 className="animate-spin text-slate-400" size={20} /> : value}
+      <span className="block text-2xl font-display font-black text-[#292524]">
+        {loading ? <Loader2 className="animate-spin text-[#a8a29e]" size={20} /> : value}
       </span>
-      <span className="text-slate-400 font-label text-[10px] uppercase font-bold tracking-wider mt-1 block">{label}</span>
+      <span className="text-[#a8a29e] font-label text-[10px] uppercase font-bold tracking-wider mt-1 block">{label}</span>
       {!loading && deltas && <DeltaRow deltas={deltas} asPct={deltaOpts?.asPct} unit={deltaOpts?.unit} />}
     </div>
   );

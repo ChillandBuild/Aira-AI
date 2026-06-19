@@ -178,7 +178,7 @@ async def test_route_booking_intent_invalid_input_llm_returns_false():
         mock_val.return_value = False
         res = await route_booking_intent("lead-1", "tenant-1", "+919876543210", "I am busy today", db)
         assert res is False
-        mock_val.assert_called_once_with("collecting_rasi", "I am busy today")
+        mock_val.assert_called_once_with("collecting_rasi", "I am busy today", tenant_id="tenant-1")
 
 
 @pytest.mark.asyncio
@@ -195,6 +195,6 @@ async def test_route_booking_intent_valid_input_llm_returns_true():
         mock_val.return_value = True
         res = await route_booking_intent("lead-1", "tenant-1", "+919876543210", "Mesham", db)
         assert res is True
-        mock_val.assert_called_once_with("collecting_rasi", "Mesham")
+        mock_val.assert_called_once_with("collecting_rasi", "Mesham", tenant_id="tenant-1")
         mock_advance.assert_called_once()
 

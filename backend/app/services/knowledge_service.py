@@ -78,11 +78,11 @@ async def _index_chunks(
         ).execute()
     return len(chunks)
 
-_groq_client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _VISION_MODEL = "llama-3.2-11b-vision-preview"
 
 
-def extract_text_from_file(file_content: bytes, filename: str, mime_type: str) -> str:
+def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, tenant_id: str | None = None) -> str:
     file_obj = io.BytesIO(file_content)
     text = ""
     try:
@@ -110,10 +110,9 @@ def extract_text_from_file(file_content: bytes, filename: str, mime_type: str) -
             text = df.to_string()
 
         elif mime_type.startswith("image/"):
-            if not _groq_client:
-                raise ValueError("GROQ_API_KEY not configured — cannot extract text from images")
+            client = get_groq_client(tenant_id, is_async=False)
             b64 = base64.b64encode(file_content).decode("utf-8")
-            response = _groq_client.chat.completions.create(
+            response = client.chat.completions.create(
                 model=_VISION_MODEL,
                 messages=[{
                     "role": "user",
@@ -153,7 +152,7 @@ async def process_document(
 ):
     db = get_supabase()
     try:
-        text = await asyncio.to_thread(extract_text_from_file, file_content, filename, mime_type)
+        text = await asyncio.to_thread(extract_text_from_file, file_content, filename, mime_type, tenant_id)
         if not text:
             raise ValueError("No text could be extracted from the file.")
 

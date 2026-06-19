@@ -70,21 +70,21 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
           <h2 className="font-display text-base font-bold text-tertiary">Shift Timeline Visualizer</h2>
           <p className="font-label text-xs text-on-surface-muted">Analyze live calling activity blocks, status transitions, and gaps.</p>
         </div>
-        <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-          <span className="font-label text-[10px] text-slate-500 font-bold uppercase pl-1">Date:</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-body text-xs text-slate-800 focus:outline-none" />
+        <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
+          <span className="font-manrope text-[10px] text-[#78716c] font-bold uppercase pl-1">Date:</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-manrope text-xs text-[#292524] focus:outline-none" />
         </div>
       </div>
 
       {loading ? (
         <div className="py-12 flex flex-col items-center justify-center">
-          <Loader2 className="animate-spin text-slate-400 mb-2" size={24} />
-          <p className="text-xs text-slate-400">Fetching timeline details...</p>
+          <Loader2 className="animate-spin text-[#a8a29e] mb-2" size={24} />
+          <p className="text-xs text-[#a8a29e]">Fetching timeline details...</p>
         </div>
       ) : (
         <div className="space-y-6">
           <div className="relative pt-4">
-            <div className="w-full h-10 bg-slate-200 rounded-xl relative border border-slate-350/50 shadow-inner overflow-hidden">
+            <div className="w-full h-10 bg-[#e8e3db] rounded-xl relative border border-[#d6cfc9]/50 shadow-inner overflow-hidden">
               {events.map((event) => {
                 if (event.type === "status" && event.status === "break") {
                   return (
@@ -115,7 +115,7 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                 return null;
               })}
             </div>
-            <div className="flex justify-between text-[10px] text-slate-400 font-bold px-1 mt-2">
+            <div className="flex justify-between text-[10px] text-[#a8a29e] font-bold px-1 mt-2">
               {(() => {
                 const hourLabels: string[] = [];
                 for (let h = START_HOUR; h <= END_HOUR; h += 2) {
@@ -131,22 +131,22 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
             </div>
           </div>
 
-          <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 max-h-[300px] overflow-y-auto space-y-2">
-            <span className="font-label text-[10px] text-slate-450 font-bold uppercase tracking-wider block mb-2">Detailed Log Checklist</span>
+          <div className="bg-[#faf8f5]/50 rounded-2xl p-4 border border-[#f0ece4] max-h-[300px] overflow-y-auto space-y-2">
+            <span className="font-label text-[10px] text-[#a8a29e] font-bold uppercase tracking-wider block mb-2">Detailed Log Checklist</span>
             {events.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-4">No events logged for this day.</p>
+              <p className="text-xs text-[#a8a29e] text-center py-4">No events logged for this day.</p>
             ) : (
               events.map((event) => (
-                <div key={event.id} className="flex items-center justify-between py-2 border-b border-slate-100 text-xs text-slate-650">
+                <div key={event.id} className="flex items-center justify-between py-2 border-b border-[#f0ece4] text-xs text-[#57534e]">
                   <div className="flex items-center gap-2.5">
-                    <Clock size={12} className="text-slate-400" />
-                    <span className="font-bold text-slate-700">{formatIST(event.started_at)}</span>
-                    <span className="text-slate-400">·</span>
+                    <Clock size={12} className="text-[#a8a29e]" />
+                    <span className="font-bold text-[#44403c]">{formatIST(event.started_at)}</span>
+                    <span className="text-[#a8a29e]">·</span>
                     {event.type === "status" ? (
-                      <span>Status changed to <span className="font-bold text-slate-800 capitalize">{event.status}</span></span>
+                      <span>Status changed to <span className="font-bold text-[#292524] capitalize">{event.status}</span></span>
                     ) : (
                       <span>
-                        Called <span className="font-bold text-slate-800">{event.lead_name || formatPhone(event.lead_phone)}</span>
+                        Called <span className="font-bold text-[#292524]">{event.lead_name || formatPhone(event.lead_phone)}</span>
                         {" ("}
                         <span className="font-medium">{event.duration_seconds || 0}s</span>
                         {")"}
@@ -157,13 +157,13 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                     <span className={`px-2 py-0.5 rounded font-bold text-[9px] uppercase border ${
                       event.outcome === "converted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                       event.outcome === "callback" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                      "bg-slate-150 text-slate-600 border-slate-200"
+                      "bg-[#f0ece4] text-[#57534e] border-[#e8e3db]"
                     }`}>
                       {event.outcome || "Answered"}
                     </span>
                   )}
                   {event.type === "status" && (
-                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 font-bold text-[9px] uppercase rounded border border-slate-200">
+                    <span className="px-2 py-0.5 bg-[#f0ece4] text-[#57534e] font-bold text-[9px] uppercase rounded border border-[#e8e3db]">
                       Shift Status
                     </span>
                   )}

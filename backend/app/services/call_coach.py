@@ -1,11 +1,9 @@
 import logging
-from groq import Groq
-from app.config import settings
 from app.db.supabase import get_supabase
+from app.services.groq_client import get_groq_client
 
 logger = logging.getLogger(__name__)
 
-_client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
 _MODEL = "llama-3.3-70b-versatile"
 
 COACH_PROMPT = """You are a sales coach for B2B telecallers.
@@ -38,6 +36,15 @@ def _summarize_logs(logs: list[dict]) -> str:
 
 async def coaching_tip(caller_id: str) -> str:
     db = get_supabase()
+    
+    # Query caller to find tenant_id
+    try:
+        caller = db.table("callers").select("tenant_id").eq("id", caller_id).maybe_single().execute()
+        tenant_id = caller.data.get("tenant_id") if caller and caller.data else None
+    except Exception as e:
+        logger.warning(f"Failed to query caller {caller_id} for tenant_id: {e}")
+        tenant_id = None
+
     logs = (
         db.table("call_logs")
         .select("outcome,duration_seconds,score,notes")
@@ -47,10 +54,15 @@ async def coaching_tip(caller_id: str) -> str:
         .execute()
     )
     summary = _summarize_logs(logs.data or [])
-    if not _client:
-        return "Keep calls under 3 minutes and always end with: 'Can I schedule a quick demo?'"
+    
     try:
-        response = _client.chat.completions.create(
+        client = get_groq_client(tenant_id, is_async=False)
+    except Exception as e:
+        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
+        return "Keep calls under 3 minutes and always end with: 'Can I schedule a quick demo?'"
+
+    try:
+        response = client.chat.completions.create(
             model=_MODEL,
             messages=[{"role": "user", "content": COACH_PROMPT + "\n\nCaller stats: " + summary}],
             temperature=0.5,
@@ -58,5 +70,5 @@ async def coaching_tip(caller_id: str) -> str:
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"Coaching tip failed for caller {caller_id}: {e}")
+        logger.warning(f"Coaching tip generation failed: {e}")
         return "Keep calls under 3 minutes and always end with: 'Can I schedule a quick demo?'"

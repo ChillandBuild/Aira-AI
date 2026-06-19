@@ -1,8 +1,0 @@
-Read AI_RULES.md in the project root before doing anything. That file has the full stack, hard rules, file locations, and agent patterns for this project.
-
-Key reminders for Cursor:
-- Every backend route needs tenant_id isolation
-- AI model is Groq (llama-3.3-70b-versatile) — never add Gemini/OpenAI
-- Migrations go in backend/supabase/migrations/ — next number is 036
-- Frontend is Next.js 14 App Router in frontend/app/dashboard/
-- No trailing summaries. Code over prose.

@@ -62,3 +62,15 @@ def test_frontend_uses_signed_csv_endpoint_for_history_links():
     assert "csv_file_path" in page_source
     assert "openBroadcastCsv" in page_source
     assert "/api/v1/upload/csv-signed-url" in page_source
+
+
+def test_security_new_tables_rls_migration():
+    migration = read_backend("supabase/migrations/113_security_and_new_tables_rls.sql").lower()
+    for table in (
+        "reengagement_steps",
+        "reengagement_logs",
+        "autopilot_runs",
+        "call_scripts",
+        "telecalling_upload_batches",
+    ):
+        assert f"alter table if exists public.{table} enable row level security" in migration

@@ -146,7 +146,7 @@ export function ProfileClient({
       { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload Contacts", desc: "Import CSV & manage scripts", color: "from-emerald-500 to-teal-500" },
       { href: "/dashboard/telecalling", icon: Phone, label: "Telecalling", desc: "Dialer & lead queue", color: "from-amber-500 to-orange-500" },
       { href: "/dashboard/team", icon: Users, label: "Team", desc: "Manage telecallers", color: "from-blue-500 to-cyan-500" },
-      { href: "/dashboard/settings", icon: Settings, label: "Settings", desc: "Config & channels", color: "from-slate-500 to-zinc-500" },
+      { href: "/dashboard/settings", icon: Settings, label: "Settings", desc: "Config & channels", color: "from-[#78716c] to-[#78716c]" },
       { href: "/dashboard/analytics", icon: TrendingUp, label: "Analytics", desc: "Performance reports", color: "from-rose-500 to-pink-500" },
     ];
 
@@ -158,7 +158,7 @@ export function ProfileClient({
         </div>
 
         {/* Admin Identity Card */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-[2rem] p-8 shadow-xl mb-8 relative overflow-hidden">
+        <div className="bg-gradient-to-br from-[#1c1917] via-[#292524] to-[#1c1917] rounded-[2rem] p-8 shadow-xl mb-8 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-indigo-500/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/4" />
 
@@ -175,11 +175,11 @@ export function ProfileClient({
                 </span>
               </div>
               {userEmail && (
-                <p className="font-body text-sm text-slate-400 mt-1">{userEmail}</p>
+                <p className="font-body text-sm text-[#a8a29e] mt-1">{userEmail}</p>
               )}
               <div className="flex items-center gap-4 mt-3">
                 {memberSince && (
-                  <span className="font-label text-xs text-slate-500">Member since {memberSince}</span>
+                  <span className="font-label text-xs text-[#78716c]">Member since {memberSince}</span>
                 )}
                 <span className="flex items-center gap-1.5 font-label text-xs text-emerald-400">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -190,11 +190,11 @@ export function ProfileClient({
           </div>
 
           {/* Signature quote */}
-          <div className="relative mt-6 pt-6 border-t border-slate-700/50">
-            <p className="font-body text-sm text-slate-400 italic leading-relaxed">
+          <div className="relative mt-6 pt-6 border-t border-[#44403c]/50">
+            <p className="font-body text-sm text-[#a8a29e] italic leading-relaxed">
               &quot;The best leaders don&apos;t create followers — they create more leaders.&quot;
             </p>
-            <p className="font-label text-[10px] text-slate-600 mt-1 uppercase tracking-widest">Your role: Empower your team</p>
+            <p className="font-label text-[10px] text-[#57534e] mt-1 uppercase tracking-widest">Your role: Empower your team</p>
           </div>
         </div>
 

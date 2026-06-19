@@ -219,6 +219,66 @@ def _resolve_tenant_from_payload(payload: dict, db) -> str | None:
     return None
 
 
+async def _process_inbound_message_background(
+    lead_id: str,
+    tenant_id: str,
+    phone: str,
+    body: str,
+    msg_type: str,
+) -> None:
+    from app.db.supabase import get_supabase
+    db = get_supabase()
+    try:
+        # Booking state machine: takes priority over AI.
+        # If a booking is in progress OR booking intent is detected,
+        # the state machine owns this message.
+        if body:
+            from app.services.booking_flow import route_booking_intent
+            if await route_booking_intent(lead_id, tenant_id, phone, body, db):
+                try:
+                    from app.services.scoring_engine import compute_score as _bk_score
+                    await _bk_score(message=body, lead_id=str(lead_id), db=db, tenant_id=tenant_id)
+                except Exception as _bk_se:
+                    logger.warning(f"Booking-flow scoring failed for lead {lead_id}: {_bk_se}")
+                return
+
+        # Update conversation state counters
+        from app.services.booking_flow import get_or_create_state
+        from datetime import datetime, timezone
+        conv_state = get_or_create_state(lead_id, tenant_id, db)
+        new_count = (conv_state.get("message_count") or 0) + 1
+
+        db.table("lead_conversation_state").update({
+            "message_count": new_count,
+            "last_activity_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("lead_id", lead_id).eq("tenant_id", tenant_id).execute()
+
+        # Check if compaction needed (threshold: 10)
+        if new_count >= 10:
+            try:
+                from app.services.conversation_compactor import compact_conversation
+                await compact_conversation(lead_id, tenant_id, db, mode="rolling")
+            except Exception as compact_err:
+                logger.error(f"Compaction failed for lead {lead_id}: {compact_err}")
+
+        # Only trigger AI reply for text messages (not media)
+        if msg_type in ("text", "button", "interactive") and body:
+            try:
+                from app.services.context_builder import build_scorer_context
+                context_block = build_scorer_context(lead_id, db)
+                from app.services.ai_reply import generate_reply
+                await generate_reply(
+                    lead_id=lead_id,
+                    message=body,
+                    phone=phone,
+                    context_block=context_block,
+                )
+            except Exception as e:
+                logger.error(f"Reply routing failed for lead {lead_id}: {e}")
+    except Exception as err:
+        logger.error(f"Background inbound message processing failed for lead {lead_id}: {err}")
+
+
 @router.post("")
 async def whatsapp_webhook(
     request: Request,
@@ -409,53 +469,15 @@ async def whatsapp_webhook(
                         except Exception:
                             pass
 
-                    # Booking state machine: takes priority over AI.
-                    # If a booking is in progress OR booking intent is detected,
-                    # the state machine owns this message.
-                    if body:
-                        from app.services.booking_flow import route_booking_intent
-                        if await route_booking_intent(lead_id, tenant_id, phone, body, db):
-                            try:
-                                from app.services.scoring_engine import compute_score as _bk_score
-                                await _bk_score(message=body, lead_id=str(lead_id), db=db, tenant_id=tenant_id)
-                            except Exception as _bk_se:
-                                logger.warning(f"Booking-flow scoring failed for lead {lead_id}: {_bk_se}")
-                            continue
-
-                    # Update conversation state counters
-                    from app.services.booking_flow import get_or_create_state
-                    from datetime import datetime, timezone
-                    conv_state = get_or_create_state(lead_id, tenant_id, db)
-                    new_count = (conv_state.get("message_count") or 0) + 1
-
-                    db.table("lead_conversation_state").update({
-                        "message_count": new_count,
-                        "last_activity_at": datetime.now(timezone.utc).isoformat(),
-                    }).eq("lead_id", lead_id).eq("tenant_id", tenant_id).execute()
-
-                    # Check if compaction needed (threshold: 10)
-                    if new_count >= 10:
-                        try:
-                            from app.services.conversation_compactor import compact_conversation
-                            await compact_conversation(lead_id, tenant_id, db, mode="rolling")
-                        except Exception as compact_err:
-                            logger.error(f"Compaction failed for lead {lead_id}: {compact_err}")
-
-                    # Only trigger AI reply for text messages (not media)
-                    if msg_type in ("text", "button", "interactive") and body:
-                        try:
-                            from app.services.context_builder import build_scorer_context
-                            context_block = build_scorer_context(lead_id, db)
-                            from app.services.ai_reply import generate_reply
-                            background_tasks.add_task(
-                                generate_reply,
-                                lead_id=lead_id,
-                                message=body,
-                                phone=phone,
-                                context_block=context_block,
-                            )
-                        except Exception as e:
-                            logger.error(f"Reply routing failed for lead {lead_id}: {e}")
+                    # Delegate booking flow, state machine, compaction, and reply to background task to avoid Meta timeout
+                    background_tasks.add_task(
+                        _process_inbound_message_background,
+                        lead_id=lead_id,
+                        tenant_id=tenant_id,
+                        phone=phone,
+                        body=body,
+                        msg_type=msg_type
+                    )
 
                 # Handle message status updates (delivered, read, failed)
                 for status_update in value.get("statuses", []):

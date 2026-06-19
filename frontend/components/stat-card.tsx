@@ -12,16 +12,16 @@ export function StatCard({ label, value, sub, accent }: StatCardProps) {
   return (
     <div
       className={cn(
-        "card card-hover rounded-3xl",
+        "card card-hover",
         accent
           ? "border-transparent text-white"
           : "bg-surface"
       )}
-      style={accent ? { background: "linear-gradient(135deg, #18181b 0%, #3f3f46 100%)" } : {}}
+      style={accent ? { background: "linear-gradient(135deg, #2e1065, #5b21b6)" } : {}}
     >
       <p className={cn(
-        "stat-label mb-3",
-        accent ? "text-white/60" : ""
+        "stat-label mb-2",
+        accent ? "text-purple-200/60" : ""
       )}>
         {label}
       </p>
@@ -33,8 +33,8 @@ export function StatCard({ label, value, sub, accent }: StatCardProps) {
       </p>
       {sub && (
         <p className={cn(
-          "mt-1.5 font-body text-sm",
-          accent ? "text-white/60" : "text-ink-muted"
+          "mt-1 text-xs",
+          accent ? "text-purple-200/60" : "text-ink-muted"
         )}>
           {sub}
         </p>

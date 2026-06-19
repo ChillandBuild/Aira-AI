@@ -251,11 +251,11 @@ function OverviewTab({ range }: { range: DateRange }) {
                     <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a1a1aa" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
                 <Tooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e4e4e7" }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
                 />
                 <Area type="monotone" dataKey="count" stroke="#6366f1" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
               </AreaChart>
@@ -267,10 +267,10 @@ function OverviewTab({ range }: { range: DateRange }) {
           <div role="img" aria-label="Messages per day chart">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={data.daily_messages} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a1a1aa" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e4e4e7" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
                 <Bar dataKey="inbound" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} name="Inbound" />
                 <Bar dataKey="outbound" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} name="Outbound" />
               </BarChart>
@@ -319,7 +319,7 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
   const segments = [
     { label: "AI", value: breakdown.ai, color: "bg-indigo-500" },
     { label: "Knowledge Base", value: breakdown.knowledge, color: "bg-blue-400" },
-    { label: "Manual", value: breakdown.manual, color: "bg-slate-400" },
+    { label: "Manual", value: breakdown.manual, color: "bg-[#a8a29e]" },
   ];
 
   return (
@@ -414,10 +414,10 @@ function ChannelsTab({ range }: { range: DateRange }) {
               <div role="img" aria-label="Message volume chart">
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={data.daily_messages} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a1a1aa" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e4e4e7" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
                     <Line type="monotone" dataKey="inbound" stroke="#3b82f6" strokeWidth={2} dot={false} name="Inbound" />
                     <Line type="monotone" dataKey="outbound" stroke="#10b981" strokeWidth={2} dot={false} name="Outbound" />
                   </LineChart>
@@ -450,7 +450,7 @@ function HotLeadAging({ aging }: { aging: FunnelAnalyticsExtended["hot_lead_agin
             <span className="font-label text-xs text-on-surface-muted w-14 shrink-0">{bucket}</span>
             <div className="flex-1 bg-surface-mid rounded-full h-4 overflow-hidden">
               <div
-                className={`h-4 rounded-full ${HOT_AGING_COLORS[i] ?? "bg-slate-400"} transition-all`}
+                className={`h-4 rounded-full ${HOT_AGING_COLORS[i] ?? "bg-[#a8a29e]"} transition-all`}
                 style={{ width: `${pct}%` }}
               />
             </div>

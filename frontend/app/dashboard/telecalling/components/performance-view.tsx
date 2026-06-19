@@ -221,19 +221,19 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
       <div className="flex items-center gap-2 text-xs">
         {selectedCallerId ? (
           <>
-            <span className="font-label text-slate-500">
-              Showing: <span className="font-bold text-slate-800">{selectedCallerName}</span>
+            <span className="font-manrope text-[#78716c]">
+              Showing: <span className="font-bold text-[#292524]">{selectedCallerName}</span>
             </span>
             <button
               onClick={() => setSelectedCallerId(null)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-slate-200 text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors text-[10px] font-bold"
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-[#e8e3db] text-[#a8a29e] hover:text-[#44403c] hover:bg-[#faf8f5] transition-colors text-[10px] font-bold"
             >
               <X size={10} /> Clear
             </button>
           </>
         ) : (
-          <span className="font-label text-slate-500">
-            Showing: <span className="font-bold text-slate-800">Team Overview</span>
+          <span className="font-manrope text-[#78716c]">
+            Showing: <span className="font-bold text-[#292524]">Team Overview</span>
           </span>
         )}
       </div>
@@ -265,20 +265,20 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
             <h2 className="font-display text-base font-bold text-tertiary">Agent Performance Leaderboard</h2>
             <p className="font-label text-xs text-on-surface-muted">Sort by connect rate, idle time, or quality scores to manage team output.</p>
           </div>
-          <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-            <span className="font-label text-[10px] text-slate-500 font-bold uppercase pl-1">Export Performance:</span>
+          <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
+            <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Export Performance:</span>
             <input
               type="date"
               value={exportSince}
               onChange={(e) => setExportSince(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-body text-xs text-slate-800 focus:outline-none"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
             />
-            <span className="text-slate-400 text-xs">to</span>
+            <span className="text-[#a8a29e] text-xs">to</span>
             <input
               type="date"
               value={exportUntil}
               onChange={(e) => setExportUntil(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-body text-xs text-slate-800 focus:outline-none"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
             />
             <button
               onClick={handleExportCsv}
@@ -294,13 +294,13 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-slate-100 text-slate-400 font-label uppercase text-[10px] font-bold">
-                <th className="py-3 px-4 cursor-pointer hover:text-slate-800" onClick={() => handleSort("name")}>Agent Name {sortIcon("name")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-slate-800" onClick={() => handleSort("calls_today")}>Calls Today {sortIcon("calls_today")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-slate-800" onClick={() => handleSort("connect_rate")}>Connect Rate {sortIcon("connect_rate")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-slate-800" onClick={() => handleSort("avg_talk_seconds")}>Avg Talk Time {sortIcon("avg_talk_seconds")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-slate-800" onClick={() => handleSort("idle_minutes_today")}>Idle Minutes {sortIcon("idle_minutes_today")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-slate-800" onClick={() => handleSort("quality_avg")}>Quality Score {sortIcon("quality_avg")}</th>
+              <tr className="border-b border-[#f0ece4] text-[#a8a29e] font-label uppercase text-[10px] font-bold">
+                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("name")}>Agent Name {sortIcon("name")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("calls_today")}>Calls Today {sortIcon("calls_today")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("connect_rate")}>Connect Rate {sortIcon("connect_rate")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("avg_talk_seconds")}>Avg Talk Time {sortIcon("avg_talk_seconds")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("idle_minutes_today")}>Idle Minutes {sortIcon("idle_minutes_today")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("quality_avg")}>Quality Score {sortIcon("quality_avg")}</th>
                 <th className="py-3 px-4">Bunking Alert</th>
                 <th className="py-3 px-4">Daily Target</th>
               </tr>
@@ -308,13 +308,13 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
             <tbody>
               {loadingStats ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-slate-400 font-medium">
-                    <Loader2 className="animate-spin text-slate-400 inline mr-2" size={16} /> Loading performance logs...
+                  <td colSpan={8} className="text-center py-8 text-[#a8a29e] font-medium">
+                    <Loader2 className="animate-spin text-[#a8a29e] inline mr-2" size={16} /> Loading performance logs...
                   </td>
                 </tr>
               ) : getSortedPerformers().length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-slate-400">No performance records for today.</td>
+                  <td colSpan={8} className="text-center py-8 text-[#a8a29e]">No performance records for today.</td>
                 </tr>
               ) : (
                 getSortedPerformers().map((row) => {
@@ -326,20 +326,20 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
                   return (
                     <tr
                       key={row.caller_id}
-                      className={`border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${selectedCallerId === row.caller_id ? "bg-primary/5" : ""}`}
+                      className={`border-b border-[#f0ece4] hover:bg-[#faf8f5]/50 transition-colors ${selectedCallerId === row.caller_id ? "bg-primary/5" : ""}`}
                     >
-                      <td className="py-3.5 px-4 font-bold text-slate-800">{row.name}</td>
-                      <td className="py-3.5 px-4 text-slate-600 font-semibold">{row.calls_today}</td>
-                      <td className="py-3.5 px-4 text-slate-600 font-semibold">
+                      <td className="py-3.5 px-4 font-bold text-[#292524]">{row.name}</td>
+                      <td className="py-3.5 px-4 text-[#57534e] font-semibold">{row.calls_today}</td>
+                      <td className="py-3.5 px-4 text-[#57534e] font-semibold">
                         {row.connect_rate ? `${Math.round(row.connect_rate * 100)}%` : "0%"}
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600 font-medium">
+                      <td className="py-3.5 px-4 text-[#57534e] font-medium">
                         {formatTalk(row.avg_talk_seconds)}
                       </td>
-                      <td className="py-3.5 px-4 text-slate-650 font-medium">
+                      <td className="py-3.5 px-4 text-[#57534e] font-medium">
                         {row.idle_minutes_today ? `${Math.round(row.idle_minutes_today)} min` : "0 min"}
                       </td>
-                      <td className="py-3.5 px-4 text-slate-800 font-bold text-sm">
+                      <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
                         {row.quality_avg ? `${row.quality_avg.toFixed(1)}/10` : "\u2014"}
                       </td>
                       <td className="py-3.5 px-4">
@@ -348,7 +348,7 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
                             <ShieldAlert size={10} /> Idle Gap Alert
                           </span>
                         ) : (
-                          <span className="text-slate-400 font-medium">—</span>
+                          <span className="text-[#a8a29e] font-medium">—</span>
                         )}
                       </td>
                       <td className="py-3.5 px-4">
@@ -358,7 +358,7 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
                             min="0"
                             value={currentTarget}
                             onChange={(e) => setEditingTarget({ ...editingTarget, [row.caller_id]: parseInt(e.target.value) || 0 })}
-                            className="w-14 px-1.5 py-1 rounded bg-white border border-slate-200 text-center font-bold font-body text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-14 px-1.5 py-1 rounded bg-white border border-[#e8e3db] text-center font-bold font-body text-xs text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           {(editingTarget[row.caller_id] !== undefined) && (
                             <button
@@ -414,13 +414,13 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
       <div className="bg-surface rounded-card shadow-card ring-1 ring-[#c4c7c7]/15 overflow-hidden">
         <button
           onClick={() => setToolsOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors"
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#faf8f5]/50 transition-colors"
         >
           <div className="text-left">
             <h2 className="font-display text-base font-bold text-tertiary">Tools</h2>
             <p className="font-label text-xs text-on-surface-muted">QA call review &amp; bulk lead assignment.</p>
           </div>
-          {toolsOpen ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+          {toolsOpen ? <ChevronUp size={16} className="text-[#a8a29e]" /> : <ChevronDown size={16} className="text-[#a8a29e]" />}
         </button>
         {toolsOpen && (
           <div className="px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-8">

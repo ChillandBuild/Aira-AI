@@ -139,16 +139,16 @@ export default function LiveAgentStatus({
         <h2 className="font-display text-sm font-bold text-tertiary flex items-center gap-2">
           <Users size={16} className="text-primary" /> Live Agent Status
         </h2>
-        <div className="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
-          <span className="font-label text-[10px] text-slate-500 font-bold uppercase pl-1">Range:</span>
-          <input type="date" value={statsFrom} onChange={(e) => onStatsFromChange(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-body text-xs text-slate-800 focus:outline-none" />
-          <span className="text-slate-400 text-xs">to</span>
-          <input type="date" value={statsTo} onChange={(e) => onStatsToChange(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-slate-200 font-body text-xs text-slate-800 focus:outline-none" />
+        <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
+          <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Range:</span>
+          <input type="date" value={statsFrom} onChange={(e) => onStatsFromChange(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none" />
+          <span className="text-[#a8a29e] text-xs">to</span>
+          <input type="date" value={statsTo} onChange={(e) => onStatsToChange(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none" />
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-4 text-xs">
-        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
-          <span className="font-bold text-slate-700">{totalAgentsCount} Total</span>
+        <div className="flex items-center gap-2 bg-[#faf8f5] border border-[#e8e3db] px-3 py-1.5 rounded-lg">
+          <span className="font-bold text-[#44403c]">{totalAgentsCount} Total</span>
         </div>
         <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-1.5 rounded-lg">
           <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
@@ -158,27 +158,27 @@ export default function LiveAgentStatus({
           <span className="w-2 h-2 bg-amber-500 rounded-full" />
           <span className="font-bold">{breakAgents.length} On Break</span>
         </div>
-        <div className="flex items-center gap-2 bg-slate-100 border border-slate-300 text-slate-600 px-3 py-1.5 rounded-lg">
-          <span className="w-2 h-2 bg-slate-400 rounded-full" />
+        <div className="flex items-center gap-2 bg-[#f0ece4] border border-[#d6cfc9] text-[#57534e] px-3 py-1.5 rounded-lg">
+          <span className="w-2 h-2 bg-[#a8a29e] rounded-full" />
           <span className="font-bold">{offlineAgents.length} Offline</span>
         </div>
       </div>
 
       {/* Shift Hours config section */}
-      <div className="mt-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+      <div className="mt-4 p-3 bg-[#faf8f5] rounded-xl border border-[#e8e3db]">
         <div className="flex items-center gap-2 mb-2">
-          <Clock size={14} className="text-slate-500" />
-          <span className="font-label text-xs font-bold text-slate-700 uppercase">Shift Hours</span>
+          <Clock size={14} className="text-[#78716c]" />
+          <span className="font-label text-xs font-bold text-[#44403c] uppercase">Shift Hours</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {/* Mode toggle pill */}
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          <div className="flex rounded-lg border border-[#e8e3db] overflow-hidden">
             <button
               onClick={() => { setLocalShiftConfig((prev) => ({ ...prev, shift_mode: "common" })); setIndividualCallerId(""); }}
               className={`px-3 py-1 text-xs font-bold transition-colors ${
                 localShiftConfig.shift_mode === "common"
                   ? "bg-primary text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-100"
+                  : "bg-white text-[#57534e] hover:bg-[#f0ece4]"
               }`}
             >
               Common
@@ -188,7 +188,7 @@ export default function LiveAgentStatus({
               className={`px-3 py-1 text-xs font-bold transition-colors ${
                 localShiftConfig.shift_mode === "individual"
                   ? "bg-primary text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-100"
+                  : "bg-white text-[#57534e] hover:bg-[#f0ece4]"
               }`}
             >
               Individual
@@ -208,7 +208,7 @@ export default function LiveAgentStatus({
                   setIndividualEnd(caller?.shift_end_hour ?? localShiftConfig.shift_end_hour);
                 }
               }}
-              className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="px-2 py-1 rounded-lg bg-white border border-[#e8e3db] text-xs text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
             >
               <option value="">Select telecaller</option>
               {callers.map((c) => (
@@ -219,7 +219,7 @@ export default function LiveAgentStatus({
 
           {/* Start / End hour selects */}
           <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-slate-500 font-medium">Start:</span>
+            <span className="text-[#78716c] font-medium">Start:</span>
             <select
               value={localShiftConfig.shift_mode === "individual" && individualCallerId ? individualStart : localShiftConfig.shift_start_hour}
               onChange={(e) => {
@@ -230,13 +230,13 @@ export default function LiveAgentStatus({
                   setLocalShiftConfig((prev) => ({ ...prev, shift_start_hour: val }));
                 }
               }}
-              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-xs text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {HOURS.map((h) => (
                 <option key={h} value={h}>{formatHour(h)}</option>
               ))}
             </select>
-            <span className="text-slate-500 font-medium ml-1">End:</span>
+            <span className="text-[#78716c] font-medium ml-1">End:</span>
             <select
               value={localShiftConfig.shift_mode === "individual" && individualCallerId ? individualEnd : localShiftConfig.shift_end_hour}
               onChange={(e) => {
@@ -247,7 +247,7 @@ export default function LiveAgentStatus({
                   setLocalShiftConfig((prev) => ({ ...prev, shift_end_hour: val }));
                 }
               }}
-              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-xs text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {HOURS.map((h) => (
                 <option key={h} value={h}>{formatHour(h)}</option>
@@ -270,7 +270,7 @@ export default function LiveAgentStatus({
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
         {callers.map((c) => {
           const st = c.status || "active";
-          const statusColor = st === "active" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : st === "break" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-slate-500 bg-slate-100 border-slate-200";
+          const statusColor = st === "active" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : st === "break" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-[#78716c] bg-[#f0ece4] border-[#e8e3db]";
           const isSelected = selectedCallerId === c.id;
 
           // Effective shift for this caller
@@ -290,24 +290,24 @@ export default function LiveAgentStatus({
               key={c.id}
               onClick={() => onSelectCaller(selectedCallerId === c.id ? null : c.id)}
               className={`relative flex items-center justify-between p-2.5 bg-surface-low rounded-xl border text-xs cursor-pointer transition-all ${
-                isSelected ? "ring-2 ring-primary border-primary/40 bg-primary/5" : "border-slate-100 hover:border-slate-200"
+                isSelected ? "ring-2 ring-primary border-primary/40 bg-primary/5" : "border-[#f0ece4] hover:border-[#e8e3db]"
               }`}
             >
               <button
                 onClick={(e) => { e.stopPropagation(); handleRemoveCaller(c.id, c.name); }}
-                className="absolute top-1 right-1 p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                className="absolute top-1 right-1 p-1 text-[#d6cfc9] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
                 title={`Remove ${c.name}`}
               >
                 <Trash2 size={11} />
               </button>
               <div className="truncate pr-5">
-                <span className="font-bold text-slate-800">{c.name}</span>
+                <span className="font-bold text-[#292524]">{c.name}</span>
                 {c.status_changed_at && (
-                  <span className="block text-[10px] text-slate-400 font-medium">Since {timeAgo(c.status_changed_at)}</span>
+                  <span className="block text-[10px] text-[#a8a29e] font-medium">Since {timeAgo(c.status_changed_at)}</span>
                 )}
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
+                <div className="flex items-center gap-1.5 text-xs text-[#78716c] mt-0.5">
                   <span>{c.phone || "—"}</span>
-                  <span className="text-slate-300">&middot;</span>
+                  <span className="text-[#d6cfc9]">&middot;</span>
                   {editingAgentIdFor === c.id ? (
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -316,7 +316,7 @@ export default function LiveAgentStatus({
                         onChange={(e) => setAgentIdInputValue(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                         autoFocus
-                        className="w-20 px-1 py-0.5 rounded bg-white border border-slate-200 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-20 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                       <button
                         onClick={(e) => { e.stopPropagation(); handleSaveAgentId(c.id); }}
@@ -329,7 +329,7 @@ export default function LiveAgentStatus({
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
                         disabled={savingAgentId === c.id}
-                        className="p-0.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded border border-slate-200"
+                        className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]"
                         title="Cancel"
                       >
                         <X size={10} />
@@ -340,7 +340,7 @@ export default function LiveAgentStatus({
                       {c.telecmi_agent_id || "—"}
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(c.id); setAgentIdInputValue(c.telecmi_agent_id || ""); }}
-                        className="p-0.5 text-slate-300 hover:text-slate-600 hover:bg-slate-100 rounded"
+                        className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
                         title="Edit TeleCMI Agent ID"
                       >
                         <Pencil size={9} />
@@ -350,8 +350,8 @@ export default function LiveAgentStatus({
                 </div>
                 {/* Shift time display (read-only) */}
                 <div className="flex items-center gap-1 mt-0.5">
-                  <Clock size={9} className={isOutsideShift ? "text-amber-500" : "text-slate-400"} />
-                  <span className={`text-[10px] font-medium ${isOutsideShift ? "text-amber-500" : "text-slate-400"}`}>
+                  <Clock size={9} className={isOutsideShift ? "text-amber-500" : "text-[#a8a29e]"} />
+                  <span className={`text-[10px] font-medium ${isOutsideShift ? "text-amber-500" : "text-[#a8a29e]"}`}>
                     {formatHour(effectiveStart)}&ndash;{formatHour(effectiveEnd)}
                   </span>
                 </div>

@@ -5,7 +5,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _SCORER_MODEL = "llama-3.3-70b-versatile"
 
 _DEFAULT_RUBRIC = """- 9-10: High intent — asked for pricing, demo, or ready to buy, confirmed booking, completed booking flow
@@ -52,8 +52,10 @@ async def score_message(
     context_block: str | None = None,
     tenant_id: str | None = None,
 ) -> int:
-    if not _client:
-        logger.warning("GROQ_API_KEY not configured — skipping scoring")
+    try:
+        client = get_groq_client(tenant_id, is_async=False)
+    except Exception as e:
+        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
         return current_score
     try:
         rubric = _get_rubric(tenant_id)
@@ -64,7 +66,7 @@ async def score_message(
             current_score=current_score,
             message=message,
         )
-        response = _client.chat.completions.create(
+        response = client.chat.completions.create(
             model=_SCORER_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,

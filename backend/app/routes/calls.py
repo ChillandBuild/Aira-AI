@@ -186,8 +186,8 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 
 
-def _verify_telecmi_webhook_secret(request: Request) -> bool:
-    configured_secret = get_setting("telecmi_webhook_secret")
+def _verify_telecmi_webhook_secret(request: Request, tenant_id: str | None = None) -> bool:
+    configured_secret = get_setting("telecmi_webhook_secret", tenant_id=tenant_id)
     received_secret = request.query_params.get("webhook_secret")
     if not configured_secret or not received_secret:
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
@@ -219,8 +219,21 @@ def _extract_call_log_id(cdr: dict) -> str | None:
 @public_router.post("/telecmi-cdr")
 async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks):
     """Receive Call Detail Record (CDR) from TeleCMI."""
-    _verify_telecmi_webhook_secret(request)
-    cdr = await request.json()
+    try:
+        cdr = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    tenant_id = request.query_params.get("tenant_id")
+    if not tenant_id:
+        call_log_id = _extract_call_log_id(cdr)
+        if call_log_id:
+            db = get_supabase()
+            call_log = db.table("call_logs").select("tenant_id").eq("id", call_log_id).maybe_single().execute()
+            if call_log and call_log.data:
+                tenant_id = call_log.data.get("tenant_id")
+
+    _verify_telecmi_webhook_secret(request, tenant_id=tenant_id)
     logger.info(f"TeleCMI CDR received: {cdr}")
 
     status = cdr.get("status")
@@ -372,8 +385,21 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks):
 @public_router.post("/telecmi-events")
 async def telecmi_live_events(request: Request):
     """Receive live call events from TeleCMI (optional — for real-time UI updates)."""
-    _verify_telecmi_webhook_secret(request)
-    event = await request.json()
+    try:
+        event = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    tenant_id = request.query_params.get("tenant_id")
+    if not tenant_id:
+        request_id = event.get("request_id")
+        if request_id:
+            db = get_supabase()
+            call_log = db.table("call_logs").select("tenant_id").eq("call_sid", request_id).maybe_single().execute()
+            if call_log and call_log.data:
+                tenant_id = call_log.data.get("tenant_id")
+
+    _verify_telecmi_webhook_secret(request, tenant_id=tenant_id)
     status = event.get("status")
     request_id = event.get("request_id")
     logger.info(f"TeleCMI event: status={status}, request_id={request_id}")
@@ -462,7 +488,8 @@ async def _run_summarization(call_log_id: str, recording_url: str, force: bool =
             return
 
         # ── Transcribe ───────────────────────────────────────────────────
-        transcript = await transcribe_recording(recording_url)
+        tenant_id = call_data.get("tenant_id")
+        transcript = await transcribe_recording(recording_url, tenant_id=tenant_id)
         if not transcript:
             return
 
@@ -473,7 +500,6 @@ async def _run_summarization(call_log_id: str, recording_url: str, force: bool =
             lead_row = db.table("leads").select("name").eq("id", lead_id).maybe_single().execute()
             lead_name = (lead_row.data or {}).get("name")
 
-        tenant_id = call_data.get("tenant_id")
         kb_context = ""
         if tenant_id:
             kb_context = await get_knowledge_context(tenant_id, query=transcript[:1500])
@@ -483,6 +509,7 @@ async def _run_summarization(call_log_id: str, recording_url: str, force: bool =
             lead_name=lead_name,
             outcome=outcome,
             kb_context=kb_context,
+            tenant_id=tenant_id,
         )
 
         updates: dict = {"transcript": transcript}

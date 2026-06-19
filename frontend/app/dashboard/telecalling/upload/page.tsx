@@ -96,13 +96,13 @@ const SEGMENT_COLORS: Record<string, string> = {
 function segmentBadge(seg: string | null) {
   if (!seg)
     return (
-      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200">
+      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-[#f0ece4] text-[#78716c] border border-[#e8e3db]">
         All
       </span>
     );
   return (
     <span
-      className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${SEGMENT_COLORS[seg] ?? "bg-slate-100 text-slate-500 border border-slate-200"}`}
+      className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${SEGMENT_COLORS[seg] ?? "bg-[#f0ece4] text-[#78716c] border border-[#e8e3db]"}`}
     >
       Seg {seg}
     </span>
@@ -651,7 +651,7 @@ function HistoryTab() {
                       <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-blue-600">{item.assigned}</td>
                       <td className="py-4 pr-4">
                         {item.segment_override ? (
-                          <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase", SEGMENT_COLORS[item.segment_override] ?? "bg-slate-100 text-slate-500 border border-slate-200")}>
+                          <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase", SEGMENT_COLORS[item.segment_override] ?? "bg-[#f0ece4] text-[#78716c] border border-[#e8e3db]")}>
                             Seg {item.segment_override}
                           </span>
                         ) : (
@@ -857,7 +857,7 @@ function ScriptsTab() {
                       </span>
                     )}
                     {!s.active && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-slate-100 text-slate-400 border border-slate-200">Inactive</span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-[#f0ece4] text-[#a8a29e] border border-[#e8e3db]">Inactive</span>
                     )}
                   </div>
                   <p className="font-body text-xs text-on-surface-muted mt-1">{s.steps.length} step{s.steps.length !== 1 ? "s" : ""}</p>

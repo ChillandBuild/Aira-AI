@@ -25,7 +25,7 @@ from app.services.segmentation import score_to_segment, parse_thresholds
 
 logger = logging.getLogger(__name__)
 
-_client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _MODEL = "llama-3.3-70b-versatile"
 
 # ── Intent signal patterns ────────────────────────────────────────────────────
@@ -177,7 +177,10 @@ _ARC_RUBRIC_DEFAULT = """
 
 async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5) -> int:
     """LLM scores the conversation thread for overall purchase intent."""
-    if not _client:
+    try:
+        client = get_groq_client(tenant_id, is_async=True)
+    except Exception as e:
+        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
         return 5
     try:
         from app.config_dynamic import get_setting
@@ -200,7 +203,7 @@ async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5
         f"Reply with ONLY a single integer 1-10."
     )
     try:
-        resp = await _client.chat.completions.create(
+        resp = await client.chat.completions.create(
             model=_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,

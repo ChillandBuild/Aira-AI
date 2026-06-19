@@ -55,21 +55,14 @@ async def get_booking(booking_id: str, tenant_id: str = Depends(get_tenant_id)):
 
 @public_router.post("/razorpay-webhook")
 async def razorpay_webhook(request: Request):
+    import json
     raw_body = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
 
-    if not verify_webhook_signature(raw_body, signature):
-        logger.warning("Razorpay webhook: invalid signature")
-        raise HTTPException(status_code=400, detail="Invalid signature")
-
     try:
-        payload = await request.json()
+        payload = json.loads(raw_body.decode("utf-8"))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    event = payload.get("event", "")
-    if event != "payment_link.paid":
-        return {"status": "ignored", "event": event}
 
     entity = payload.get("payload", {}).get("payment_link", {}).get("entity", {})
     notes = entity.get("notes", {})
@@ -78,6 +71,21 @@ async def razorpay_webhook(request: Request):
         payload.get("payload", {}).get("payment", {}).get("entity", {}).get("id", "")
     )
 
+    tenant_id = None
+    if booking_id:
+        db = get_supabase()
+        booking = db.table("bookings").select("tenant_id").eq("id", booking_id).maybe_single().execute()
+        if booking and booking.data:
+            tenant_id = booking.data.get("tenant_id")
+
+    if not verify_webhook_signature(raw_body, signature, tenant_id=tenant_id):
+        logger.warning(f"Razorpay webhook: invalid signature for tenant={tenant_id}")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    event = payload.get("event", "")
+    if event != "payment_link.paid":
+        return {"status": "ignored", "event": event}
+
     if not booking_id:
         logger.error("Razorpay webhook: no booking_id in notes")
         return {"status": "error", "detail": "no booking_id"}
@@ -85,14 +93,27 @@ async def razorpay_webhook(request: Request):
     result = confirm_booking(booking_id, razorpay_payment_id)
     if result and result[0]:
         phone, booking_ref, devotee_name, tenant_id = result
-        confirmation_msg = (
-            f"🎉 *Booking Confirmed!*\n\n"
-            f"🙏 Namaskaram {devotee_name or 'Devotee'},\n\n"
-            f"Your booking is confirmed.\n"
-            f"📋 *Reference:* {booking_ref}\n\n"
-            f"✅ We will be in touch with further details.\n\n"
-            f"Thank you. 🙏"
+        from app.config_dynamic import get_setting
+        default_template = (
+            "🎉 *Booking Confirmed!*\n\n"
+            "Hello {customer_name},\n\n"
+            "Your booking is confirmed.\n"
+            "📋 *Reference:* {booking_ref}\n\n"
+            "✅ We will be in touch with further details.\n\n"
+            "Thank you. 🙏"
         )
+        template = get_setting("booking_confirmation_template", tenant_id=tenant_id) or default_template
+        try:
+            confirmation_msg = template.format(
+                customer_name=devotee_name or "Customer",
+                booking_ref=booking_ref,
+            )
+        except Exception:
+            # Fallback if the user's custom template has formatting errors
+            confirmation_msg = default_template.format(
+                customer_name=devotee_name or "Customer",
+                booking_ref=booking_ref,
+            )
         try:
             await send_whatsapp(phone, confirmation_msg, tenant_id=tenant_id)
         except Exception as e:

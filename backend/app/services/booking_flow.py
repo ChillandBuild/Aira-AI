@@ -84,23 +84,18 @@ def _is_booking_question(message: str) -> bool:
     tokens = set(re.findall(r"[\w஀-௿ऀ-ॿ]+", text.lower()))
     return bool(tokens & _QUESTION_TOKENS)
 
-_client = None
+from app.services.groq_client import get_groq_client
 
-def _get_groq_client():
-    global _client
-    if _client is None:
-        try:
-            from groq import AsyncGroq
-            from app.config import settings
-            _client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
-        except Exception as e:
-            logger.warning(f"Failed to initialize Groq client in booking_flow: {e}")
-            _client = None
-    return _client
+def _get_groq_client(tenant_id: str | None = None):
+    try:
+        return get_groq_client(tenant_id, is_async=True)
+    except Exception as e:
+        logger.warning(f"Failed to initialize Groq client in booking_flow: {e}")
+        return None
 
 
-async def _validate_collect_input(current_state: str, message: str) -> bool:
-    client = _get_groq_client()
+async def _validate_collect_input(current_state: str, message: str, tenant_id: str | None = None) -> bool:
+    client = _get_groq_client(tenant_id)
     if not client:
         return True
 
@@ -179,7 +174,7 @@ async def route_booking_intent(
                 logger.warning(f"Rejection patterns check failed: {re_err}")
 
             # Validate input using LLM
-            is_valid = await _validate_collect_input(current_state, body)
+            is_valid = await _validate_collect_input(current_state, body, tenant_id=tenant_id)
             if not is_valid:
                 logger.info(f"Booking flow input validation failed for state {current_state}, message: {body}")
                 return False
@@ -519,24 +514,25 @@ def confirm_booking(
     db = db or get_supabase()
     from datetime import datetime, timezone
 
-    # Idempotency: skip if already confirmed
-    existing = (
-        db.table("bookings")
-        .select("status")
-        .eq("id", booking_id)
-        .maybe_single()
-        .execute()
-    )
-    if not existing.data or existing.data.get("status") == "confirmed":
-        return None
-
     now_iso = datetime.now(timezone.utc).isoformat()
-    db.table("bookings").update({
-        "status": "confirmed",
-        "razorpay_payment_id": razorpay_payment_id,
-        "paid_at": now_iso,
-        "confirmed_at": now_iso,
-    }).eq("id", booking_id).execute()
+    try:
+        updated = (
+            db.table("bookings")
+            .update({
+                "status": "confirmed",
+                "razorpay_payment_id": razorpay_payment_id,
+                "paid_at": now_iso,
+                "confirmed_at": now_iso,
+            })
+            .eq("id", booking_id)
+            .eq("status", "pending")
+            .execute()
+        )
+        if not updated.data:
+            return None
+    except Exception as e:
+        logger.error(f"Atomic confirm_booking update failed: {e}")
+        return None
 
     db.table("lead_conversation_state").update({
         "state": "idle",

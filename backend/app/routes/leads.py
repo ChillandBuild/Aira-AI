@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-_groq_client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _BRIEF_MODEL = "llama-3.3-70b-versatile"
 
 
@@ -1041,11 +1041,14 @@ Recent call history:
 Write EXACTLY this JSON (no markdown, no explanation):
 {{"brief": "2-3 sentence summary of who this lead is, where they came from, and what context the caller should know", "opener": "one natural opening line the caller can use to start the conversation"}}"""
 
-    if not _groq_client:
+    try:
+        client = get_groq_client(tenant_id, is_async=False)
+    except Exception as e:
+        logger.error(f"Failed to configure Groq API Key for tenant {tenant_id}: {e}")
         raise HTTPException(status_code=500, detail="Brief generation failed")
 
     try:
-        response = _groq_client.chat.completions.create(
+        response = client.chat.completions.create(
             model=_BRIEF_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,

@@ -18,10 +18,10 @@ export default function CallsPerHour({ stats }: { stats: TelecallingAnalyticsExt
         <div role="img" aria-label="Calls per hour chart">
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#a1a1aa" }} />
-              <YAxis tick={{ fontSize: 10, fill: "#a1a1aa" }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e4e4e7" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
               <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Calls" fill="#6366f1" />
             </BarChart>
           </ResponsiveContainer>

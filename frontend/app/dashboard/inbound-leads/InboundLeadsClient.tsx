@@ -66,9 +66,9 @@ const SEGMENT_FILTER_OPTIONS = [
 function ChannelBadge({ source }: { source: string }) {
   const cfg = CHANNEL_CONFIG[source] ?? {
     label: source,
-    color: "text-zinc-600",
-    bg: "bg-zinc-100 border-zinc-200",
-    dot: "bg-zinc-400",
+    color: "text-[#57534e]",
+    bg: "bg-[#f0ece4] border-[#e8e3db]",
+    dot: "bg-[#a8a29e]",
   };
   return (
     <span className={cn(
@@ -84,13 +84,13 @@ function ChannelBadge({ source }: { source: string }) {
 // Ensure score displays nicely between 1 and 10
 function ScoreBar({ score }: { score: number }) {
   const pct = Math.min(Math.max(score, 1), 10) * 10;
-  const color = score >= 8 ? "bg-emerald-500" : score >= 6 ? "bg-amber-400" : "bg-zinc-300";
+  const color = score >= 8 ? "bg-emerald-500" : score >= 6 ? "bg-amber-400" : "bg-[#d6cfc9]";
   return (
     <div className="flex items-center gap-2">
-      <div className="w-14 h-1.5 rounded-full bg-zinc-100 overflow-hidden">
+      <div className="w-14 h-1.5 rounded-full bg-[#f0ece4] overflow-hidden">
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-mono text-zinc-500 font-bold">{score}</span>
+      <span className="text-xs font-mono text-[#78716c] font-bold">{score}</span>
     </div>
   );
 }
@@ -104,13 +104,13 @@ function StatCard({
   gradient: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200/80 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-200 group">
+    <div className="bg-white rounded-2xl border border-[#e8e3db]/80 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-200 group">
       <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110", gradient)}>
         <Icon size={19} className="text-white" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-zinc-900 leading-none tabular-nums">{value}</p>
-        <p className="text-xs text-zinc-400 font-medium mt-0.5">{label}</p>
+        <p className="text-2xl font-bold text-[#1c1917] leading-none tabular-nums">{value}</p>
+        <p className="text-xs text-[#a8a29e] font-medium mt-0.5">{label}</p>
       </div>
     </div>
   );
@@ -122,14 +122,14 @@ function EmptyState() {
       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center mb-4 shadow-sm">
         <RadioTower size={28} className="text-violet-400" />
       </div>
-      <h3 className="font-bold text-zinc-700 text-lg mb-1">No Inbound Leads Yet</h3>
-      <p className="text-sm text-zinc-400 max-w-sm leading-relaxed">
+      <h3 className="font-bold text-[#44403c] text-lg mb-1">No Inbound Leads Yet</h3>
+      <p className="text-sm text-[#a8a29e] max-w-sm leading-relaxed">
         Leads will appear here when users message you via WhatsApp, Instagram DM,
         Facebook Messenger, or Telegram — whether from an ad or organically.
       </p>
       <div className="mt-5 flex items-center gap-2 flex-wrap justify-center">
         {["WhatsApp", "Instagram DM", "Facebook Messenger", "Telegram"].map((ch) => (
-          <span key={ch} className="px-3 py-1.5 rounded-full bg-zinc-100 text-zinc-500 text-xs font-medium border border-zinc-200">
+          <span key={ch} className="px-3 py-1.5 rounded-full bg-[#f0ece4] text-[#78716c] text-xs font-medium border border-[#e8e3db]">
             {ch}
           </span>
         ))}
@@ -272,7 +272,7 @@ export function InboundLeadsClient({
           <button
             onClick={() => mutateLeads()}
             disabled={leadsValidating}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-surface-mid text-on-surface font-label text-sm font-semibold hover:border-zinc-300 transition-all disabled:opacity-40"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-surface-mid text-on-surface font-label text-sm font-semibold hover:border-[#d6cfc9] transition-all disabled:opacity-40"
           >
             <RefreshCw size={13} className={leadsValidating ? "animate-spin" : ""} />
             Refresh
@@ -308,7 +308,7 @@ export function InboundLeadsClient({
                   setOrigin("all");
                   setSelectedSegment("");
                 }}
-                className="flex items-center gap-1 text-xs text-zinc-400 hover:text-red-500 font-semibold transition-colors"
+                className="flex items-center gap-1 text-xs text-[#a8a29e] hover:text-red-500 font-semibold transition-colors"
               >
                 <X size={11} /> Clear all
               </button>
@@ -324,7 +324,7 @@ export function InboundLeadsClient({
                     key={o.value}
                     onClick={() => setOrigin(o.value)}
                     className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                      origin === o.value ? "bg-white shadow text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
+                      origin === o.value ? "bg-white shadow text-[#1c1917]" : "text-[#78716c] hover:text-[#44403c]"
                     }`}
                   >
                     {o.label}
@@ -339,7 +339,7 @@ export function InboundLeadsClient({
               <select
                 value={selectedSegment}
                 onChange={(e) => setSelectedSegment(e.target.value)}
-                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-sm bg-surface-low text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="rounded-lg border border-[#e8e3db] px-3 py-1.5 text-sm bg-surface-low text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
               >
                 {SEGMENT_FILTER_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
@@ -363,7 +363,7 @@ export function InboundLeadsClient({
                     <option key={c.id} value={c.id}>{c.campaign_name}</option>
                   ))}
                 </select>
-                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
               </div>
             </div>
             {/* Channel */}
@@ -379,7 +379,7 @@ export function InboundLeadsClient({
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
-                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
               </div>
             </div>
             {/* From */}
@@ -475,7 +475,7 @@ export function InboundLeadsClient({
                           "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border",
                           lead.origin === "ad"
                             ? "bg-violet-50 border-violet-200 text-violet-700"
-                            : "bg-zinc-100 border-zinc-200 text-zinc-600"
+                            : "bg-[#f0ece4] border-[#e8e3db] text-[#57534e]"
                         )}>
                           {lead.origin.charAt(0).toUpperCase() + lead.origin.slice(1)}
                         </span>

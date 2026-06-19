@@ -21,10 +21,10 @@ export default function DashboardError({
       <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-5">
         <AlertTriangle size={26} />
       </div>
-      <h2 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">
+      <h2 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">
         {isNetwork ? "Can't reach the server" : "Something went wrong"}
       </h2>
-      <p className="font-body text-sm text-slate-500 max-w-md mt-2 leading-relaxed">
+      <p className="font-body text-sm text-[#78716c] max-w-md mt-2 leading-relaxed">
         {isNetwork
           ? "The backend may be waking up or briefly unavailable. Your data is safe — give it a few seconds and retry."
           : "This view hit an unexpected error and couldn't render. You can retry without losing your session."}

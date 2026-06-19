@@ -35,7 +35,7 @@ export default function LeadAttribution({ lead, variant = "full" }: LeadAttribut
             isCompact ? "p-3" : "p-3.5"
           }`}>
             <span className="font-label text-[9px] text-purple-700/60 uppercase font-extrabold block">Broadcast Campaign ID</span>
-            <p className={`font-mono text-slate-800 font-bold mt-1.5 truncate select-all ${
+            <p className={`font-mono text-[#292524] font-bold mt-1.5 truncate select-all ${
               isCompact ? "text-[10px] pr-6" : "text-xs pr-8"
             }`}>
               {lead.broadcast_id || "None"}
@@ -57,7 +57,7 @@ export default function LeadAttribution({ lead, variant = "full" }: LeadAttribut
             isCompact ? "p-3" : "p-3.5"
           }`}>
             <span className="font-label text-[9px] text-purple-700/60 uppercase font-extrabold block">Message Template</span>
-            <p className="font-body text-xs text-slate-850 font-bold mt-1.5 truncate">
+            <p className="font-body text-xs text-[#1c1917] font-bold mt-1.5 truncate">
               {lead.template_name || "N/A"}
             </p>
           </div>
@@ -91,13 +91,13 @@ export default function LeadAttribution({ lead, variant = "full" }: LeadAttribut
             isCompact ? "p-3" : "p-3.5"
           }`}>
             <span className="font-label text-[9px] text-emerald-700/60 uppercase font-extrabold block">Ad Campaign</span>
-            <p className="font-body text-xs text-slate-850 font-bold mt-1 truncate">{lead.ad_campaign_name || "Organic Traffic"}</p>
+            <p className="font-body text-xs text-[#1c1917] font-bold mt-1 truncate">{lead.ad_campaign_name || "Organic Traffic"}</p>
           </div>
           <div className={`bg-white/90 backdrop-blur-sm border border-emerald-100/65 rounded-xl shadow-sm ${
             isCompact ? "p-3" : "p-3.5"
           }`}>
             <span className="font-label text-[9px] text-emerald-700/60 uppercase font-extrabold block">Channel Source</span>
-            <p className="font-body text-xs text-slate-850 font-bold mt-1 capitalize truncate">{lead.channel || lead.source || "Organic"}</p>
+            <p className="font-body text-xs text-[#1c1917] font-bold mt-1 capitalize truncate">{lead.channel || lead.source || "Organic"}</p>
           </div>
         </div>
       </div>

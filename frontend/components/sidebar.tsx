@@ -105,21 +105,21 @@ export function Sidebar() {
         <AiraLogo size={34} />
         <div>
           <span
-            className="block text-zinc-900 font-display font-bold tracking-tight leading-none text-[16px]"
+            className="block text-[#1c1917] font-display font-bold tracking-tight leading-none text-[16px]"
             style={{ letterSpacing: "-0.03em" }}
           >
-            Aira<span className="text-zinc-500 ml-0.5 font-normal">AI</span>
+            Aira<span className="text-[#a8a29e] ml-0.5 font-normal">AI</span>
           </span>
           <span
-            className="block text-zinc-500 font-label uppercase"
-            style={{ fontSize: "0.55rem", letterSpacing: "0.1em", marginTop: "3px" }}
+            className="block text-[#a8a29e] font-mono uppercase"
+            style={{ fontSize: "0.5rem", letterSpacing: "0.1em", marginTop: "3px" }}
           >
             Lead Intelligence
           </span>
         </div>
       </div>
 
-      <div className="mx-5 h-px bg-zinc-300/60" />
+      <div className="mx-5 h-px bg-[#e8e3db]" />
 
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview */}
@@ -129,11 +129,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname === "/dashboard"
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <LayoutDashboard size={16} className={pathname === "/dashboard" ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <LayoutDashboard size={16} className={pathname === "/dashboard" ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Dashboard</span>
           </Link>
         )}
@@ -145,11 +145,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/inbox")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <Inbox size={16} className={pathname.startsWith("/dashboard/inbox") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <Inbox size={16} className={pathname.startsWith("/dashboard/inbox") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span className="flex-grow">Inbox</span>
             {inboxCount > 0 && (
               <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
@@ -165,11 +165,11 @@ export function Sidebar() {
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
             pathname.startsWith("/dashboard/conversations")
-              ? "bg-zinc-200/70 text-zinc-950"
-              : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+              ? "bg-[#f5f3ff] text-[#5b21b6]"
+              : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
           )}
         >
-          <MessageSquare size={16} className={pathname.startsWith("/dashboard/conversations") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+          <MessageSquare size={16} className={pathname.startsWith("/dashboard/conversations") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
           <span>Conversations</span>
         </Link>
 
@@ -180,11 +180,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/leads")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <Users size={16} className={pathname.startsWith("/dashboard/leads") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <Users size={16} className={pathname.startsWith("/dashboard/leads") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Segments</span>
           </Link>
         )}
@@ -196,11 +196,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/inbound-leads")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <RadioTower size={16} className={pathname.startsWith("/dashboard/inbound-leads") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <RadioTower size={16} className={pathname.startsWith("/dashboard/inbound-leads") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Inbound Leads</span>
           </Link>
         )}
@@ -212,11 +212,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/outbound-leads")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <Upload size={16} className={pathname.startsWith("/dashboard/outbound-leads") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <Upload size={16} className={pathname.startsWith("/dashboard/outbound-leads") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Outbound Leads</span>
           </Link>
         )}
@@ -228,11 +228,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/templates")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <FileCheck size={16} className={pathname.startsWith("/dashboard/templates") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <FileCheck size={16} className={pathname.startsWith("/dashboard/templates") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Templates</span>
           </Link>
         )}
@@ -244,11 +244,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/numbers")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <Layers size={16} className={pathname.startsWith("/dashboard/numbers") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <Layers size={16} className={pathname.startsWith("/dashboard/numbers") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Numbers Pool</span>
           </Link>
         )}
@@ -260,11 +260,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/knowledge")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <BookOpen size={16} className={pathname.startsWith("/dashboard/knowledge") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <BookOpen size={16} className={pathname.startsWith("/dashboard/knowledge") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Knowledge Base</span>
           </Link>
         )}
@@ -276,11 +276,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/analytics")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <BarChart2 size={16} className={pathname.startsWith("/dashboard/analytics") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <BarChart2 size={16} className={pathname.startsWith("/dashboard/analytics") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Analytics</span>
           </Link>
         )}
@@ -292,16 +292,16 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/team")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <Users size={16} className={pathname.startsWith("/dashboard/team") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <Users size={16} className={pathname.startsWith("/dashboard/team") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Team</span>
           </Link>
         )}
 
-        <div className="mx-2 my-3 h-px bg-zinc-200" />
+        <div className="mx-2 my-3 h-px bg-[#e8e3db]" />
 
         {/* TOP LEVEL: Channels */}
         {role === "owner" && (
@@ -310,11 +310,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/channels")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <MessageSquare size={16} className={pathname.startsWith("/dashboard/channels") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <MessageSquare size={16} className={pathname.startsWith("/dashboard/channels") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Channels</span>
           </Link>
         )}
@@ -326,12 +326,12 @@ export function Sidebar() {
               onClick={() => toggleGroup("Telecalling")}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                isTcActive ? "text-zinc-950" : "text-zinc-700 hover:bg-zinc-200/40"
+                isTcActive ? "text-[#1c1917]" : "text-[#78716c] hover:bg-[#f0ece4]"
               )}
             >
-              <Phone size={16} className={isTcActive ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+              <Phone size={16} className={isTcActive ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
               <span className="flex-1">Telecalling</span>
-              {showTc ? <ChevronDown size={14} className="text-zinc-500" /> : <ChevronRight size={14} className="text-zinc-500" />}
+              {showTc ? <ChevronDown size={14} className="text-[#a8a29e]" /> : <ChevronRight size={14} className="text-[#a8a29e]" />}
             </button>
 
             {/* Tree items */}
@@ -356,19 +356,19 @@ export function Sidebar() {
                       {/* Curved branch lines */}
                       <div
                         className={cn(
-                          "absolute left-3 w-px bg-zinc-300/80",
+                          "absolute left-3 w-px bg-[#d6cfc9]",
                           isLast ? "top-0 h-4.5" : "-top-1 bottom-0"
                         )}
                       />
-                      <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-zinc-300/80 rounded-bl-lg" />
+                      <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-[#d6cfc9] rounded-bl-lg" />
 
                       <Link
                         href={item.href}
                         className={cn(
                           "flex items-center gap-2.5 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group",
                           active
-                            ? "bg-white shadow-md border border-zinc-200/80 text-zinc-950 font-bold"
-                            : "text-zinc-600 hover:text-zinc-950 hover:bg-zinc-200/40"
+                            ? "bg-white shadow-md border border-[#e8e3db] text-[#5b21b6] font-bold"
+                            : "text-[#78716c] hover:text-[#1c1917] hover:bg-[#f0ece4]"
                         )}
                       >
                         <span className="truncate flex-1">{item.label}</span>
@@ -384,7 +384,7 @@ export function Sidebar() {
 
       {/* Footer Actions */}
       <div className="px-3 pb-4 space-y-1.5">
-        <div className="mx-2 mb-2 h-px bg-zinc-300/60" />
+        <div className="mx-2 mb-2 h-px bg-[#e8e3db]" />
 
         {role === "owner" && (
           <Link
@@ -392,11 +392,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/settings")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <Settings size={16} className={pathname.startsWith("/dashboard/settings") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <Settings size={16} className={pathname.startsWith("/dashboard/settings") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Settings</span>
           </Link>
         )}
@@ -407,11 +407,11 @@ export function Sidebar() {
             className={cn(
               "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
               pathname.startsWith("/dashboard/settings")
-                ? "bg-zinc-200/70 text-zinc-950"
-                : "text-zinc-700 hover:bg-zinc-200/40 hover:text-zinc-950"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#78716c] hover:bg-[#f0ece4] hover:text-[#1c1917]"
             )}
           >
-            <Settings size={16} className={pathname.startsWith("/dashboard/settings") ? "text-zinc-900" : "text-zinc-500 group-hover:text-zinc-700"} />
+            <Settings size={16} className={pathname.startsWith("/dashboard/settings") ? "text-[#5b21b6]" : "text-[#a8a29e] group-hover:text-[#78716c]"} />
             <span>Account</span>
           </Link>
         )}

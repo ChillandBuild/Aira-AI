@@ -13,7 +13,7 @@ from app.services.ai_reply import invalidate_prompt_cache
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-_client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _TUNE_MODEL = "llama-3.3-70b-versatile"
 
 META_PROMPT = """You are a prompt-engineering coach. Below is the current SYSTEM PROMPT
@@ -92,10 +92,10 @@ async def _auto_generate_rubric(system_prompt: str, tenant_id: str, force: bool 
                 logger.info(f"Scoring rubric already exists for tenant {tenant_id} — skipping auto-generation")
                 return
 
-        if not settings.groq_api_key:
+        try:
+            client = get_groq_client(tenant_id, is_async=True)
+        except Exception:
             return
-
-        client = AsyncGroq(api_key=settings.groq_api_key)
         prompt = f"""You are configuring a lead scoring system for a B2B sales team.
 
 Based on this business's AI assistant system prompt, write a lead scoring rubric (1-10 scale).
@@ -180,8 +180,10 @@ async def analyze(for_prompt: str = "whatsapp_reply", limit: int = 5, tenant_id:
     if not transcripts:
         raise HTTPException(status_code=400, detail="Converted leads have no message history.")
 
-    if not _client:
-        raise HTTPException(status_code=503, detail="GROQ_API_KEY not configured")
+    try:
+        client = get_groq_client(tenant_id, is_async=False)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"GROQ_API_KEY not configured for tenant {tenant_id}: {e}")
 
     meta = (
         META_PROMPT
@@ -189,7 +191,7 @@ async def analyze(for_prompt: str = "whatsapp_reply", limit: int = 5, tenant_id:
         .replace("{conversations}", "\n\n".join(transcripts))
     )
     try:
-        resp = _client.chat.completions.create(
+        resp = client.chat.completions.create(
             model=_TUNE_MODEL,
             messages=[{"role": "user", "content": meta}],
             response_format={"type": "json_object"},

@@ -44,18 +44,18 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     <>
       {/* Accidental-dial guard countdown */}
       {dialCountdown !== null && dialTarget && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl border border-slate-200 text-center animate-in fade-in zoom-in-95">
-            <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+        <div className="fixed inset-0 bg-[#1c1917]/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl border border-[#e8e3db] text-center animate-in fade-in zoom-in-95">
+            <div className="w-16 h-16 bg-[#f5f3ff] text-[#5b21b6] rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
               <Phone size={24} />
             </div>
-            <h3 className="font-display text-lg font-bold text-slate-800">Calling in {dialCountdown}s...</h3>
-            <p className="font-body text-sm text-slate-500 mt-1.5">
+            <h3 className="font-manrope text-lg font-bold text-[#292524]">Calling in {dialCountdown}s...</h3>
+            <p className="font-manrope text-sm text-[#78716c] mt-1.5">
               Target: {"lead" in dialTarget ? dialTarget.lead?.name || dialTarget.lead?.phone : dialTarget.phone}
             </p>
             <button
               onClick={cancelDial}
-              className="mt-6 w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-label text-sm font-bold rounded-2xl transition-all border border-red-200"
+              className="mt-6 w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-manrope text-sm font-bold rounded-2xl transition-all border border-red-200"
             >
               Cancel Dial
             </button>
@@ -65,22 +65,22 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
 
       {/* Mandatory wrap-up form */}
       {showWrapupModal && activeCallCtx && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-7 max-w-lg w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-[#1c1917]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-7 max-w-lg w-full shadow-2xl border border-[#e8e3db] animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="text-center mb-6">
               <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-label text-[10px] font-black uppercase tracking-wider">
                 Call Completed
               </span>
-              <h3 className="font-display text-xl font-bold text-slate-900 mt-2">Mandatory Call Wrap-up</h3>
-              <p className="font-body text-xs text-slate-400 mt-1">
+              <h3 className="font-display text-xl font-bold text-[#1c1917] mt-2">Mandatory Call Wrap-up</h3>
+              <p className="font-body text-xs text-[#a8a29e] mt-1">
                 Please log feedback for the call with{" "}
-                <span className="font-semibold text-slate-700">{activeCallCtx.name || activeCallCtx.phone}</span>.
+                <span className="font-semibold text-[#44403c]">{activeCallCtx.name || activeCallCtx.phone}</span>.
               </p>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="font-label text-[10px] text-slate-400 uppercase tracking-wider font-extrabold block mb-2">
+                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-2">
                   Call Outcome / Disposition *
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -92,8 +92,8 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                         ? "bg-red-600 border-red-600 text-white"
                         : "bg-indigo-600 border-indigo-600 text-white"
                       : o.danger
-                        ? "bg-slate-50 hover:bg-red-50 text-red-700 border-red-200"
-                        : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200";
+                        ? "bg-[#faf8f5] hover:bg-red-50 text-red-700 border-red-200"
+                        : "bg-[#faf8f5] hover:bg-[#f0ece4] text-[#44403c] border-[#e8e3db]";
                     return (
                       <button key={o.value} type="button" onClick={() => setWrapupOutcome(o.value)} className={`${base} ${cls}`}>
                         {o.label}
@@ -104,7 +104,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
               </div>
 
               <div>
-                <label className="font-label text-[10px] text-slate-400 uppercase tracking-wider font-extrabold block mb-1.5">
+                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
                   Interaction Note / Comments
                 </label>
                 <textarea
@@ -112,12 +112,12 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                   onChange={(e) => setWrapupNotes(e.target.value)}
                   placeholder="Summarize customer feedback and key discussion points..."
                   rows={4}
-                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 font-body text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 resize-none shadow-inner"
+                  className="w-full px-4 py-3 rounded-2xl bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 resize-none shadow-inner"
                 />
               </div>
 
               <div>
-                <label className="font-label text-[10px] text-slate-400 uppercase tracking-wider font-extrabold block mb-1.5">
+                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
                   Tags
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -131,7 +131,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                         className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
                           selected
                             ? "bg-indigo-600 border-indigo-600 text-white"
-                            : "bg-slate-50 border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-600"
+                            : "bg-[#faf8f5] border-[#e8e3db] text-[#57534e] hover:border-indigo-300 hover:text-indigo-600"
                         }`}
                       >
                         {tag}
@@ -142,7 +142,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
               </div>
 
               <div>
-                <label className="font-label text-[10px] text-slate-400 uppercase tracking-wider font-extrabold block mb-1.5">
+                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
                   How did this call go?
                 </label>
                 <div className="flex gap-1">
@@ -153,7 +153,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                       onClick={() => setWrapupQualityRating(wrapupQualityRating === n ? 0 : n)}
                       className="p-1 transition-transform hover:scale-110"
                     >
-                      <Star size={20} className={n <= wrapupQualityRating ? "fill-amber-400 text-amber-400" : "text-slate-300"} />
+                      <Star size={20} className={n <= wrapupQualityRating ? "fill-amber-400 text-amber-400" : "text-[#d6cfc9]"} />
                     </button>
                   ))}
                 </div>
@@ -177,26 +177,26 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
 
       {/* Blocking pending-wrap-ups list (telecaller discipline gate only) */}
       {blockingWrapups && pendingWrapups.length > 0 && !showWrapupModal && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[80vh] shadow-2xl flex flex-col border border-slate-200">
+        <div className="fixed inset-0 bg-[#1c1917]/85 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[80vh] shadow-2xl flex flex-col border border-[#e8e3db]">
             <div className="text-center mb-6 shrink-0">
               <div className="w-12 h-12 bg-amber-50 border border-amber-200 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
                 <AlertCircle size={24} />
               </div>
-              <h2 className="font-display text-xl font-extrabold text-slate-900">Action Required: Pending Call Wrap-ups</h2>
-              <p className="font-body text-xs text-slate-400 mt-1.5">
+              <h2 className="font-display text-xl font-extrabold text-[#1c1917]">Action Required: Pending Call Wrap-ups</h2>
+              <p className="font-body text-xs text-[#a8a29e] mt-1.5">
                 You have {pendingWrapups.length} completed call(s) that require outcome feedback. Please submit feedback to unlock the dashboard.
               </p>
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-3 mb-2 pr-1">
               {pendingWrapups.map((log) => (
-                <div key={log.id} className="border border-slate-150 rounded-2xl p-4 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div key={log.id} className="border border-[#f0ece4] rounded-2xl p-4 bg-[#faf8f5]/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="font-body text-sm font-bold text-slate-800 truncate">
+                    <p className="font-body text-sm font-bold text-[#292524] truncate">
                       {log.leads?.name || "Unnamed Lead"} ({formatPhone(log.leads?.phone || "")})
                     </p>
-                    <p className="font-label text-xs text-slate-500 mt-1">
+                    <p className="font-label text-xs text-[#78716c] mt-1">
                       Duration: {log.duration_seconds || 0}s · Completed {new Date(log.created_at).toLocaleString()}
                     </p>
                   </div>

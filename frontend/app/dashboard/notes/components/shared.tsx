@@ -29,10 +29,10 @@ const TAG_CARD_BG: Record<string, string> = {
   "Pricing": "bg-purple-50/70 border-purple-100",
   "Visit": "bg-green-50/70 border-green-100",
   "Brochure": "bg-teal-50/70 border-teal-100",
-  "Not interested": "bg-slate-100/70 border-slate-200",
+  "Not interested": "bg-[#f0ece4]/70 border-[#e8e3db]",
   "Hot lead": "bg-orange-50/70 border-orange-100",
 };
-const DEFAULT_CARD_BG = "bg-white border-slate-200";
+const DEFAULT_CARD_BG = "bg-white border-[#e8e3db]";
 const PINNED_CARD_BG = "bg-amber-50/60 border-amber-200";
 
 // Notes saved with a Title show "Title\n\nBody" — split them so the title can
@@ -61,7 +61,7 @@ const TAG_DOT_COLOR: Record<string, string> = {
   "Pricing": "bg-purple-400",
   "Visit": "bg-green-400",
   "Brochure": "bg-teal-400",
-  "Not interested": "bg-slate-400",
+  "Not interested": "bg-[#a8a29e]",
   "Hot lead": "bg-orange-400",
 };
 
@@ -69,7 +69,7 @@ export function dotColorFor(note: { tags?: string[]; is_pinned: boolean }): stri
   if (note.is_pinned) return "bg-amber-400";
   const tag = note.tags?.[0];
   if (tag && TAG_DOT_COLOR[tag]) return TAG_DOT_COLOR[tag];
-  return "bg-indigo-400";
+  return "bg-primary/70";
 }
 
 // ─── Score pill ─────────────────────────────────────────────────────────────────
@@ -83,46 +83,46 @@ export function scoreBadgeColor(score: number): string {
 const OUTCOME_DOT_COLOR: Record<string, string> = {
   converted: "bg-emerald-400",
   not_interested: "bg-rose-400",
-  no_answer: "bg-slate-400",
+  no_answer: "bg-[#a8a29e]",
   do_not_call: "bg-red-400",
   unreachable: "bg-gray-400",
 };
 
 export function outcomeDotColor(outcome?: string | null): string {
-  return (outcome && OUTCOME_DOT_COLOR[outcome]) || "bg-indigo-400";
+  return (outcome && OUTCOME_DOT_COLOR[outcome]) || "bg-primary/70";
 }
 
 const OUTCOME_BADGE_COLOR: Record<string, string> = {
   converted: "bg-emerald-50 text-emerald-600",
   not_interested: "bg-rose-50 text-rose-600",
-  no_answer: "bg-slate-100 text-slate-500",
+  no_answer: "bg-[#f0ece4] text-[#78716c]",
   do_not_call: "bg-red-50 text-red-600",
   unreachable: "bg-gray-100 text-gray-500",
 };
 
 export function outcomeBadgeColor(outcome?: string | null): string {
-  return (outcome && OUTCOME_BADGE_COLOR[outcome]) || "bg-indigo-50 text-indigo-600";
+  return (outcome && OUTCOME_BADGE_COLOR[outcome]) || "bg-[#f5f3ff] text-primary";
 }
 
 // ─── Sentiment ──────────────────────────────────────────────────────────────────
 const SENTIMENT_CHIP_COLOR: Record<string, string> = {
   positive: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  neutral: "bg-slate-100 text-slate-600 border-slate-200",
+  neutral: "bg-[#f0ece4] text-[#57534e] border-[#e8e3db]",
   negative: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 export function sentimentChipColor(sentiment?: string | null): string {
-  return (sentiment && SENTIMENT_CHIP_COLOR[sentiment.toLowerCase()]) || "bg-indigo-50 text-indigo-700 border-indigo-200";
+  return (sentiment && SENTIMENT_CHIP_COLOR[sentiment.toLowerCase()]) || "bg-[#f5f3ff] text-primary border-[#ede9fe]";
 }
 
 const SENTIMENT_DOT_COLOR: Record<string, string> = {
   positive: "bg-emerald-400",
-  neutral: "bg-slate-300",
+  neutral: "bg-[#d6cfc9]",
   negative: "bg-rose-400",
 };
 
 export function sentimentDotColor(sentiment?: string | null): string {
-  return (sentiment && SENTIMENT_DOT_COLOR[sentiment.toLowerCase()]) || "bg-slate-200";
+  return (sentiment && SENTIMENT_DOT_COLOR[sentiment.toLowerCase()]) || "bg-[#e8e3db]";
 }
 
 // Small dot-row showing sentiment per call, oldest → newest (logs arrive newest-first)
@@ -154,7 +154,7 @@ export function TimelineItem({
 }) {
   return (
     <div className="relative pl-6 pb-3 last:pb-0">
-      {!isLast && <span className="absolute left-[4.5px] top-3 bottom-0 w-px bg-slate-200" />}
+      {!isLast && <span className="absolute left-[4.5px] top-3 bottom-0 w-px bg-[#e8e3db]" />}
       <span className={`absolute left-0 top-2 w-[11px] h-[11px] rounded-full ring-4 ring-white ${color}`} />
       {children}
     </div>
@@ -164,9 +164,9 @@ export function TimelineItem({
 // ─── Segment badges ────────────────────────────────────────────────────────────
 export const SEGMENT_COLORS: Record<string, string> = {
   A: "bg-rose-100 text-rose-600",
-  B: "bg-indigo-50 text-indigo-700",
+  B: "bg-[#f5f3ff] text-primary",
   C: "bg-blue-50 text-blue-600",
-  D: "bg-slate-100 text-slate-500",
+  D: "bg-[#f0ece4] text-[#78716c]",
 };
 export const SEGMENT_LABELS: Record<string, string> = {
   A: "Hot", B: "Warm", C: "Cold", D: "Disqualified",
@@ -215,14 +215,14 @@ export function TagSelector({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 font-label text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-50 transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-[#e8e3db] font-label text-xs text-[#78716c] hover:text-[#292524] hover:bg-[#faf8f5] transition-colors"
       >
         <Tag size={11} />
         {selected.length > 0 ? `${selected.length} tag${selected.length > 1 ? "s" : ""}` : "Add tags"}
       </button>
       {open && (
-        <div className="absolute bottom-full mb-1 left-0 z-30 w-56 bg-white rounded-xl shadow-lg border border-slate-200 p-3 space-y-2">
-          <p className="font-label text-[10px] text-slate-400 uppercase tracking-wider">Select tags</p>
+        <div className="absolute bottom-full mb-1 left-0 z-30 w-56 bg-white rounded-xl shadow-lg border border-[#e8e3db] p-3 space-y-2">
+          <p className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider">Select tags</p>
           <div className="flex flex-wrap gap-1.5">
             {PRESET_TAGS.map((t) => (
               <button
@@ -231,7 +231,7 @@ export function TagSelector({
                 className={`px-2 py-0.5 rounded-full border font-label text-[10px] font-semibold transition-all ${
                   selected.includes(t.label)
                     ? t.color + " ring-2 ring-offset-1 ring-current"
-                    : "bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300"
+                    : "bg-[#faf8f5] border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
                 }`}
               >
                 {t.label}
@@ -244,13 +244,13 @@ export function TagSelector({
               onChange={(e) => setCustom(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
               placeholder="Custom tag…"
-              className="flex-1 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 font-label text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="flex-1 px-2 py-1 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-label text-xs focus:outline-none focus:ring-1 focus:ring-primary"
             />
-            <button onClick={addCustom} className="px-2 py-1 rounded-lg bg-indigo-600 text-white font-label text-xs hover:bg-indigo-700">
+            <button onClick={addCustom} className="px-2 py-1 rounded-lg bg-primary text-white font-label text-xs hover:bg-primary/90">
               <Plus size={11} />
             </button>
           </div>
-          <button onClick={() => setOpen(false)} className="w-full text-center font-label text-[10px] text-slate-400 hover:text-slate-700">Done</button>
+          <button onClick={() => setOpen(false)} className="w-full text-center font-label text-[10px] text-[#a8a29e] hover:text-[#44403c]">Done</button>
         </div>
       )}
     </div>
@@ -300,10 +300,10 @@ export function AiSummaryCard({
   if (!s) {
     if (!log.recording_url) return null;
     return (
-      <div className="p-4 bg-white rounded-2xl border border-slate-200 border-l-4 border-l-slate-200 shadow-sm">
+      <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[#e8e3db] shadow-sm">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <p className="font-label text-xs font-semibold text-slate-700">
+            <p className="font-label text-xs font-semibold text-[#44403c]">
               {formatDateTime(log.created_at)}
               {log.duration_seconds != null && ` · ${log.duration_seconds}s`}
             </p>
@@ -317,7 +317,7 @@ export function AiSummaryCard({
             type="button"
             onClick={generateSummary}
             disabled={generating}
-            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-label text-[10px] font-extrabold disabled:opacity-60 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+            className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-[10px] font-extrabold disabled:opacity-60 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap"
           >
             {generating ? <RefreshCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
             {generating ? "Generating…" : "Generate Summary"}
@@ -328,14 +328,14 @@ export function AiSummaryCard({
   }
 
   return (
-    <div className="p-4 bg-white rounded-2xl border border-slate-200 border-l-4 border-l-indigo-200 shadow-sm hover:shadow-md transition-shadow">
+    <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[#ede9fe] shadow-sm hover:shadow-md transition-shadow">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-2 text-left"
       >
         <div className="flex-1 min-w-0">
-          <p className="font-label text-xs font-semibold text-slate-700">
+          <p className="font-label text-xs font-semibold text-[#44403c]">
             {formatDateTime(log.created_at)}
             {log.duration_seconds != null && ` · ${log.duration_seconds}s`}
           </p>
@@ -352,21 +352,21 @@ export function AiSummaryCard({
             )}
           </div>
           {s.brief && !open && (
-            <p className="font-body text-xs text-slate-500 mt-1.5 truncate max-w-xl">
+            <p className="font-body text-xs text-[#78716c] mt-1.5 truncate max-w-xl">
               {s.brief}
             </p>
           )}
         </div>
-        <span className="p-1.5 rounded-lg text-slate-400 shrink-0">
+        <span className="p-1.5 rounded-lg text-[#a8a29e] shrink-0">
           {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
       {open && (
-        <div className="mt-3 space-y-2 pt-3 border-t border-slate-100">
+        <div className="mt-3 space-y-2 pt-3 border-t border-[#f0ece4]">
           {s.brief && (
-            <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
+            <div className="p-3 bg-[#faf8f5] border border-[#f0ece4] rounded-xl">
               <p className="font-label text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-1">Call Brief</p>
-              <p className="font-body text-xs text-slate-700 leading-relaxed font-medium">
+              <p className="font-body text-xs text-[#44403c] leading-relaxed font-medium">
                 {s.brief}
               </p>
             </div>
@@ -380,8 +380,8 @@ export function AiSummaryCard({
             const prev = prevSummary?.[k];
             const changed = !!prev && prev !== v;
             return (
-              <p key={k} className="font-body text-xs text-slate-600">
-                <span className="font-semibold text-slate-800">{SUMMARY_FIELD_LABELS[k]}:</span> {v}
+              <p key={k} className="font-body text-xs text-[#57534e]">
+                <span className="font-semibold text-[#292524]">{SUMMARY_FIELD_LABELS[k]}:</span> {v}
                 {changed && (
                   <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-label text-[9px] font-bold align-middle">
                     was {prev}
@@ -408,14 +408,14 @@ export function AiSummaryCard({
             <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
               <audio ref={audioRef} controls src={log.recording_url} className="w-full h-8" />
               <div className="flex items-center gap-1">
-                <span className="font-label text-[9px] text-slate-400 uppercase mr-1">Speed</span>
+                <span className="font-label text-[9px] text-[#a8a29e] uppercase mr-1">Speed</span>
                 {PLAYBACK_RATES.map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => setPlaybackRate(r)}
                     className={`px-1.5 py-0.5 rounded font-label text-[9px] font-bold transition-colors ${
-                      rate === r ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      rate === r ? "bg-indigo-600 text-white" : "bg-[#f0ece4] text-[#78716c] hover:bg-[#e8e3db]"
                     }`}
                   >
                     {r}x

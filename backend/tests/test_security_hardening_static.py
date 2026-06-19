@@ -39,7 +39,7 @@ def test_call_delete_is_tenant_scoped():
 
 def test_telecmi_callbacks_require_shared_secret():
     source = read("app/routes/calls.py")
-    assert "def _verify_telecmi_webhook_secret(request: Request) -> bool:" in source
+    assert "def _verify_telecmi_webhook_secret(request: Request, tenant_id: str | None = None) -> bool:" in source
     assert 'request.query_params.get("webhook_secret")' in source
     assert 'raise HTTPException(status_code=403, detail="Invalid webhook secret")' in source
     assert "@public_router.post(\"/telecmi-cdr\")" in source

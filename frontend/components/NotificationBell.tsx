@@ -31,7 +31,7 @@ export function NotificationBell() {
       case "missed_callback":
       case "sentiment_critical":
         return {
-          bg: "bg-slate-50/65 hover:bg-slate-100/65 border-slate-200/50 border-l-4 border-l-rose-500 dark:bg-slate-800/30 dark:hover:bg-slate-800/60 dark:border-slate-800 dark:border-l-rose-500",
+          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-rose-500 dark:bg-[#292524]/30 dark:hover:bg-[#292524]/60 dark:border-[#292524] dark:border-l-rose-500",
           iconBg: "bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400",
           icon: <AlertCircle size={14} />,
         };
@@ -39,7 +39,7 @@ export function NotificationBell() {
       case "callback_claimable":
       case "break_overtime":
         return {
-          bg: "bg-slate-50/65 hover:bg-slate-100/65 border-slate-200/50 border-l-4 border-l-amber-500 dark:bg-slate-800/30 dark:hover:bg-slate-800/60 dark:border-slate-800 dark:border-l-amber-500",
+          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-amber-500 dark:bg-[#292524]/30 dark:hover:bg-[#292524]/60 dark:border-[#292524] dark:border-l-amber-500",
           iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400",
           icon: <Clock size={14} />,
         };
@@ -48,7 +48,7 @@ export function NotificationBell() {
       case "callback_taken_over":
       default:
         return {
-          bg: "bg-slate-50/65 hover:bg-slate-100/65 border-slate-200/50 border-l-4 border-l-indigo-500 dark:bg-slate-800/30 dark:hover:bg-slate-800/60 dark:border-slate-800 dark:border-l-indigo-500",
+          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-indigo-500 dark:bg-[#292524]/30 dark:hover:bg-[#292524]/60 dark:border-[#292524] dark:border-l-indigo-500",
           iconBg: "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400",
           icon: <Info size={14} />,
         };
@@ -60,12 +60,12 @@ export function NotificationBell() {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2.5 bg-slate-800/60 border border-slate-600/40 rounded-xl hover:bg-slate-700/60 hover:border-indigo-400 transition-all group"
+        className="relative p-2.5 bg-[#292524]/60 border border-[#57534e]/40 rounded-xl hover:bg-[#44403c]/60 hover:border-indigo-400 transition-all group"
         title="Notification Center"
       >
-        <Bell size={18} className="text-slate-300 group-hover:text-indigo-300 transition-colors" />
+        <Bell size={18} className="text-[#d6cfc9] group-hover:text-indigo-300 transition-colors" />
         {totalUnread > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black rounded-full flex items-center justify-center ring-4 ring-slate-900 shadow-sm animate-bounce-short">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black rounded-full flex items-center justify-center ring-4 ring-[#1c1917] shadow-sm animate-bounce-short">
             {totalUnread > 99 ? "99+" : totalUnread}
           </span>
         )}
@@ -75,10 +75,10 @@ export function NotificationBell() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-3 w-80 md:w-96 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="absolute right-0 top-full mt-3 w-80 md:w-96 bg-white/95 dark:bg-[#1c1917]/95 backdrop-blur-xl border border-[#e8e3db]/60 dark:border-[#292524]/60 rounded-3xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in slide-in-from-top-4 duration-200">
             {/* Header */}
-            <div className="px-5 py-4 bg-gradient-to-br from-indigo-50/65 to-purple-50/65 dark:from-slate-900 dark:to-slate-850 border-b border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-              <h3 className="font-display text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+            <div className="px-5 py-4 bg-gradient-to-br from-indigo-50/65 to-purple-50/65 dark:from-[#1c1917] dark:to-[#1c1917] border-b border-[#f0ece4] dark:border-[#292524]/80 flex items-center justify-between">
+              <h3 className="font-display text-sm font-black text-[#292524] dark:text-[#e8e3db] uppercase tracking-wider">
                 Notification Center
               </h3>
               <div className="flex items-center gap-2">
@@ -94,7 +94,7 @@ export function NotificationBell() {
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors"
+                  className="p-1.5 text-[#a8a29e] hover:text-[#44403c] dark:hover:text-[#e8e3db] rounded-xl hover:bg-[#f0ece4]/50 dark:hover:bg-[#292524]/50 transition-colors"
                 >
                   <X size={16} />
                 </button>
@@ -104,8 +104,8 @@ export function NotificationBell() {
             {/* Combined Content List */}
             <div className="overflow-y-auto flex-1 p-3.5 space-y-3">
               {totalUnread === 0 ? (
-                <div className="py-16 text-center text-sm text-slate-400 dark:text-slate-500 font-body flex flex-col items-center gap-2">
-                  <CheckCircle2 size={32} className="text-slate-300 dark:text-slate-700" />
+                <div className="py-16 text-center text-sm text-[#a8a29e] dark:text-[#78716c] font-body flex flex-col items-center gap-2">
+                  <CheckCircle2 size={32} className="text-[#d6cfc9] dark:text-[#44403c]" />
                   All caught up!
                 </div>
               ) : (
@@ -122,7 +122,7 @@ export function NotificationBell() {
                           <div
                             key={cb.id}
                             onClick={handleCallbackClick}
-                            className="p-3.5 bg-slate-50/65 hover:bg-slate-100/65 border border-slate-200/50 border-l-4 border-l-amber-500 dark:bg-slate-800/30 dark:hover:bg-slate-800/60 dark:border-slate-800 dark:border-l-amber-500 rounded-2xl transition-all flex gap-3 cursor-pointer group"
+                            className="p-3.5 bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border border-[#e8e3db]/50 border-l-4 border-l-amber-500 dark:bg-[#292524]/30 dark:hover:bg-[#292524]/60 dark:border-[#292524] dark:border-l-amber-500 rounded-2xl transition-all flex gap-3 cursor-pointer group"
                           >
                             <div className="mt-0.5 shrink-0">
                               <div className="w-7 h-7 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
@@ -130,14 +130,14 @@ export function NotificationBell() {
                               </div>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-display text-xs font-black text-slate-800 dark:text-slate-100 truncate">
+                              <p className="font-display text-xs font-black text-[#292524] dark:text-[#f0ece4] truncate">
                                 {cb.lead?.name || "Unnamed Lead"}
                               </p>
-                              <p className="font-body text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                              <p className="font-body text-[11px] text-[#78716c] dark:text-[#a8a29e] mt-0.5 truncate">
                                 {cb.lead?.phone || "No phone"}
                               </p>
                               {cb.message_preview && (
-                                <p className="font-body text-[10px] text-slate-500/80 dark:text-slate-400/85 mt-1 italic line-clamp-1">
+                                <p className="font-body text-[10px] text-[#78716c]/80 dark:text-[#a8a29e]/85 mt-1 italic line-clamp-1">
                                   &quot;{cb.message_preview}&quot;
                                 </p>
                               )}
@@ -157,10 +157,10 @@ export function NotificationBell() {
                   {/* Separator Line */}
                   {callbacks.length > 0 && notifications.length > 0 && (
                     <div className="flex items-center py-1.5 px-1">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mr-2 shrink-0">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#a8a29e] mr-2 shrink-0">
                         Other Alerts
                       </span>
-                      <div className="h-[1px] bg-slate-100 dark:bg-slate-800/80 flex-1" />
+                      <div className="h-[1px] bg-[#f0ece4] dark:bg-[#292524]/80 flex-1" />
                     </div>
                   )}
 
@@ -168,7 +168,7 @@ export function NotificationBell() {
                   {notifications.length > 0 && (
                     <div className="space-y-2">
                       {callbacks.length === 0 && (
-                        <div className="px-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                        <div className="px-1.5 text-[10px] font-black uppercase tracking-widest text-[#a8a29e] flex items-center gap-1.5">
                           <Bell size={11} />
                           System & Lead Alerts ({notifications.length})
                         </div>
@@ -201,13 +201,13 @@ export function NotificationBell() {
                                 </div>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-display text-xs font-black text-slate-800 dark:text-slate-100 truncate">
+                                <p className="font-display text-xs font-black text-[#292524] dark:text-[#f0ece4] truncate">
                                   {n.title}
                                 </p>
-                                <p className="font-body text-[11px] mt-0.5 leading-relaxed text-slate-650 dark:text-slate-300">
+                                <p className="font-body text-[11px] mt-0.5 leading-relaxed text-[#57534e] dark:text-[#d6cfc9]">
                                   {cleanMessage}
                                 </p>
-                                <p className="font-label text-[8px] text-slate-400 dark:text-slate-500 mt-1.5">
+                                <p className="font-label text-[8px] text-[#a8a29e] dark:text-[#78716c] mt-1.5">
                                   {new Date(n.created_at).toLocaleString("en-US", {
                                     month: "short",
                                     day: "numeric",
@@ -218,7 +218,7 @@ export function NotificationBell() {
                               </div>
                               <button
                                 onClick={(e) => handleMarkRead(n.id, e)}
-                                className="shrink-0 self-center p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xs"
+                                className="shrink-0 self-center p-1.5 text-[#a8a29e] dark:text-[#78716c] hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-[#292524] rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xs"
                                 title="Dismiss"
                               >
                                 <CheckCircle2 size={16} />

@@ -31,7 +31,7 @@ export default function BackgroundAnimation() {
       size: number;
       speedX: number;
       speedY: number;
-      
+
       constructor() {
         this.x = Math.random() * canvas!.width;
         this.y = Math.random() * canvas!.height;
@@ -52,7 +52,7 @@ export default function BackgroundAnimation() {
 
       draw() {
         if (!ctx) return;
-        ctx.fillStyle = "rgba(255, 255, 255, 0.5)"; 
+        ctx.fillStyle = "rgba(91, 33, 182, 0.18)";
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
@@ -74,27 +74,25 @@ export default function BackgroundAnimation() {
       }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw background gradient
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      gradient.addColorStop(0, '#000000'); // black
-      gradient.addColorStop(1, '#0a0a0a'); // slightly lighter black
+      gradient.addColorStop(0, '#faf8f5');
+      gradient.addColorStop(1, '#f5f3ff');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw connecting lines
       for (let i = 0; i < particles.length; i++) {
         particles[i].update();
         particles[i].draw();
-        
+
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
           const distSq = dx * dx + dy * dy;
-          
-          if (distSq < 22500) { // 150 * 150
+
+          if (distSq < 22500) {
             const distance = Math.sqrt(distSq);
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 - distance / 1000})`;
+            ctx.strokeStyle = `rgba(91, 33, 182, ${0.08 - distance / 2500})`;
             ctx.lineWidth = 1;
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
@@ -109,7 +107,6 @@ export default function BackgroundAnimation() {
     window.addEventListener("resize", resize);
     document.addEventListener("visibilitychange", onVisibility);
 
-    // Defer initialization until after first paint
     const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number })
       .requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200));
     const startId = idle(() => {

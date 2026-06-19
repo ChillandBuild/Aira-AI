@@ -7,7 +7,7 @@ from app.db.supabase import get_supabase
 
 logger = logging.getLogger(__name__)
 
-_client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _COMPACTOR_MODEL = "llama-3.1-8b-instant"
 
 INITIAL_COMPACT_PROMPT = """You are summarizing a WhatsApp conversation for a sales lead scoring system.
@@ -74,9 +74,11 @@ async def compact_conversation(
     """
     db = db or get_supabase()
     
-    if not _client:
-        logger.warning("GROQ_API_KEY not configured — skipping compaction")
-        return ""
+    try:
+        client = get_groq_client(tenant_id, is_async=False)
+    except Exception as e:
+        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
+        return existing_summary or ""
     
     try:
         # Fetch current state
@@ -128,7 +130,7 @@ async def compact_conversation(
             )
         
         # Call Groq for summarization
-        response = _client.chat.completions.create(
+        response = client.chat.completions.create(
             model=_COMPACTOR_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,

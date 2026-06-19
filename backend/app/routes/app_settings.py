@@ -318,6 +318,26 @@ async def activate_channel(
                 logger.warning(f"WA subscribed_apps failed for tenant {tenant_id}: {sub_data['error']}")
 
         logger.info(f"WhatsApp activated tenant={tenant_id} phone={data.get('display_phone_number')} subscribed={subscribed}")
+        
+        # Upsert number into phone_numbers table
+        try:
+            display_phone = data.get("display_phone_number")
+            if display_phone:
+                db.table("phone_numbers").upsert({
+                    "provider": "meta_cloud",
+                    "number": display_phone.strip(),
+                    "display_name": data.get("verified_name") or "WhatsApp Primary",
+                    "meta_phone_number_id": phone_id,
+                    "role": "primary",
+                    "status": "active",
+                    "warm_up_day": 14,
+                    "paused_outbound": False,
+                    "tenant_id": tenant_id,
+                }, on_conflict="number").execute()
+                logger.info(f"Automatically registered active primary number {display_phone} for tenant {tenant_id}")
+        except Exception as phone_reg_err:
+            logger.warning(f"Failed to auto-register phone number on activation: {phone_reg_err}")
+
         record_audit_event(
             db,
             tenant_id=tenant_id,

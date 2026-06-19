@@ -86,17 +86,17 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
       <div className="flex-1 grid grid-cols-12 gap-4 min-h-0 pb-4">
         {/* Left Side: Lead List (4/12) */}
         <div className="col-span-4 flex flex-col gap-5 min-h-0 pr-1">
-          <div className="flex-1 bg-slate-50 rounded-3xl p-5 shadow-sm border border-slate-200 flex flex-col min-h-0">
+          <div className="flex-1 bg-[#faf8f5] rounded-3xl p-5 shadow-sm border border-[#e8e3db] flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <div>
-                <h2 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">Lead Queue</h2>
-                <p className="font-body text-xs text-slate-500 mt-0.5">{myLeads.length} leads assigned</p>
+                <h2 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Queue</h2>
+                <p className="font-body text-xs text-[#78716c] mt-0.5">{myLeads.length} leads assigned</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleDownloadCSV}
                   disabled={exporting || myLeads.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200/80 rounded-xl font-label text-xs font-bold hover:bg-slate-50 transition-all text-slate-700 shadow-sm hover:border-indigo-500 hover:text-indigo-600 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#e8e3db]/80 rounded-xl font-label text-xs font-bold hover:bg-[#faf8f5] transition-all text-[#44403c] shadow-sm hover:border-indigo-500 hover:text-indigo-600 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
                   title="Download CSV of all assigned leads"
                 >
                   {exporting ? <RefreshCw size={12} className="animate-spin text-indigo-600" /> : <Download size={12} />}
@@ -117,19 +117,19 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
             {/* Search */}
             <div className="mb-4 shrink-0">
               <div className="relative">
-                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
                 <input
                   type="text"
                   placeholder="Search by name or phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all shadow-inner"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#faf8f5] border border-[#e8e3db] rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all shadow-inner"
                 />
               </div>
             </div>
 
             {/* Sub-tabs */}
-            <div className="flex gap-0.5 p-0.5 bg-slate-200/60 rounded-2xl shrink-0 mb-4">
+            <div className="flex gap-0.5 p-0.5 bg-[#e8e3db]/60 rounded-2xl shrink-0 mb-4">
               {[
                 { id: "new", label: `To Call (${newLeads.length})` },
                 { id: "callback", label: `Callbacks (${callbackLeads.length})` },
@@ -141,7 +141,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                   key={tab.id}
                   onClick={() => setQueueSubTab(tab.id as typeof queueSubTab)}
                   className={`flex-1 py-1.5 px-0 rounded-xl font-label text-[9.5px] font-extrabold text-center whitespace-nowrap transition-all ${
-                    queueSubTab === tab.id ? "bg-white text-orange-600 shadow-sm" : "text-amber-700/70 hover:text-slate-800"
+                    queueSubTab === tab.id ? "bg-white text-orange-600 shadow-sm" : "text-amber-700/70 hover:text-[#292524]"
                   }`}
                 >
                   {tab.label}
@@ -156,19 +156,19 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
               </div>
             ) : myLeads.length === 0 ? (
               <div className="text-center py-12 flex-1 flex flex-col justify-center items-center">
-                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 border border-slate-100 mb-3">
+                <div className="w-12 h-12 bg-[#faf8f5] rounded-full flex items-center justify-center text-[#a8a29e] border border-[#f0ece4] mb-3">
                   <Inbox size={18} />
                 </div>
-                <p className="font-body text-sm font-semibold text-slate-500">No leads assigned to you</p>
-                <p className="font-label text-xs text-slate-400 mt-1">Queue automations will route hot leads as they arrive.</p>
+                <p className="font-body text-sm font-semibold text-[#78716c]">No leads assigned to you</p>
+                <p className="font-label text-xs text-[#a8a29e] mt-1">Queue automations will route hot leads as they arrive.</p>
               </div>
             ) : activeSubTabLeads.length === 0 ? (
               <div className="text-center py-12 flex-1 flex flex-col justify-center items-center">
-                <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center text-slate-400 border border-slate-100 mb-3">
+                <div className="w-12 h-12 bg-[#faf8f5] rounded-full flex items-center justify-center text-[#a8a29e] border border-[#f0ece4] mb-3">
                   <Inbox size={18} />
                 </div>
-                <p className="font-body text-sm font-semibold text-slate-500">No matching leads found</p>
-                <p className="font-label text-xs text-slate-400 mt-1">Try switching tabs or adjusting your search query.</p>
+                <p className="font-body text-sm font-semibold text-[#78716c]">No matching leads found</p>
+                <p className="font-label text-xs text-[#a8a29e] mt-1">Try switching tabs or adjusting your search query.</p>
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto space-y-2 pr-1">
@@ -189,9 +189,9 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                     avatarBg = "bg-amber-500";
                     callBtnBg = "bg-amber-500 hover:bg-amber-600 shadow-amber-500/10";
                   } else if (lead.call_status && ["converted", "not_interested", "dnc", "unreachable"].includes(lead.call_status)) {
-                    borderAccent = "border-l-slate-350";
-                    avatarBg = "bg-slate-400";
-                    callBtnBg = "bg-slate-450 hover:bg-slate-500 shadow-slate-500/10";
+                    borderAccent = "border-l-[#d6cfc9]";
+                    avatarBg = "bg-[#a8a29e]";
+                    callBtnBg = "bg-[#a8a29e] hover:bg-[#78716c] shadow-[#78716c]/10";
                   }
 
                   return (
@@ -201,7 +201,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                       className={`rounded-2xl border-y border-r border-l-[6px] transition-all duration-200 cursor-pointer p-3 flex items-center justify-between gap-3 ${borderAccent} ${
                         isSelected
                           ? "bg-gradient-to-r from-indigo-50/70 to-purple-50/20 border-indigo-200 shadow-[0_4px_15px_rgba(99,102,241,0.06)] ring-1 ring-indigo-500/10 translate-x-1"
-                          : "bg-slate-50/30 border-slate-100 hover:bg-slate-50 hover:shadow-sm"
+                          : "bg-[#faf8f5]/30 border-[#f0ece4] hover:bg-[#faf8f5] hover:shadow-sm"
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -210,7 +210,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="font-body text-sm font-bold text-slate-800 truncate">{lead.name || formatPhone(lead.phone)}</p>
+                            <p className="font-body text-sm font-bold text-[#292524] truncate">{lead.name || formatPhone(lead.phone)}</p>
                             {lead.score >= 7 && (
                               <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded font-label text-[8px] font-black uppercase tracking-wider">HOT</span>
                             )}
@@ -220,9 +220,9 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <p className="font-label text-xs text-slate-500">{lead.name ? formatPhone(lead.phone) + " · " : ""}Score {lead.score}/10</p>
+                            <p className="font-label text-xs text-[#78716c]">{lead.name ? formatPhone(lead.phone) + " · " : ""}Score {lead.score}/10</p>
                           </div>
-                          <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
+                          <div className="flex items-center gap-1 text-[10px] text-[#a8a29e] mt-0.5">
                             <Clock size={10} />
                             {lead.call_status === "callback" ? (
                               <span>Scheduled callback</span>
@@ -254,28 +254,28 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
         </div>
 
         {/* Right Side: Lead Profile (8/12) */}
-        <div className="col-span-8 flex flex-col min-h-0 bg-slate-50 rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="col-span-8 flex flex-col min-h-0 bg-[#faf8f5] rounded-3xl border border-[#e8e3db] shadow-sm overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             {!cockpit.selectedLeadId ? (
-              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-slate-50/40 to-indigo-50/10">
+              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-indigo-50/10">
                 <div className="relative mb-6">
                   <div className="absolute inset-0 bg-indigo-400/5 blur-2xl rounded-full scale-150 animate-pulse" />
-                  <div className="relative p-6 rounded-3xl bg-white border border-slate-150 shadow-md text-indigo-500">
+                  <div className="relative p-6 rounded-3xl bg-white border border-[#f0ece4] shadow-md text-indigo-500">
                     <Sparkles size={38} className="text-indigo-500" />
                   </div>
                 </div>
-                <h3 className="font-display text-xl font-extrabold text-slate-900 tracking-tight">Lead Profile Workspace</h3>
-                <p className="font-body text-sm text-slate-500 max-w-md mt-2 leading-relaxed">
+                <h3 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Profile Workspace</h3>
+                <p className="font-body text-sm text-[#78716c] max-w-md mt-2 leading-relaxed">
                   Choose a lead from your active queue on the left to review campaign source attribution details, previous calls history, and log feedback notes.
                 </p>
                 <div className="grid grid-cols-2 gap-4 mt-8 w-full max-w-xs">
-                  <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm text-left">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Queue</span>
-                    <span className="text-xl font-bold text-slate-800 mt-1 block">{myLeads.length}</span>
+                  <div className="p-4 bg-white border border-[#f0ece4] rounded-2xl shadow-sm text-left">
+                    <span className="text-[10px] font-bold text-[#a8a29e] uppercase tracking-wider block">Total Queue</span>
+                    <span className="text-xl font-bold text-[#292524] mt-1 block">{myLeads.length}</span>
                   </div>
-                  <div className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm text-left">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Today Callbacks</span>
-                    <span className="text-xl font-bold text-slate-800 mt-1 block">{cockpit.todayCallbacks.length}</span>
+                  <div className="p-4 bg-white border border-[#f0ece4] rounded-2xl shadow-sm text-left">
+                    <span className="text-[10px] font-bold text-[#a8a29e] uppercase tracking-wider block">Today Callbacks</span>
+                    <span className="text-xl font-bold text-[#292524] mt-1 block">{cockpit.todayCallbacks.length}</span>
                   </div>
                 </div>
               </div>

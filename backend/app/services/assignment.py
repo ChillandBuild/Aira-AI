@@ -146,9 +146,19 @@ def auto_assign_lead(
     )
     owner_user_id = (owner.data[0] if owner.data else {}).get("user_id")
 
+    cfg = get_telecalling_config(tenant_id)
+    shift_mode = cfg.get("shift_mode", "common")
+    common_start = cfg.get("shift_start_hour", 9)
+    common_end = cfg.get("shift_end_hour", 19)
+
+    from datetime import datetime, timezone, timedelta
+    now_utc = datetime.now(timezone.utc)
+    now_ist = now_utc + timedelta(hours=5, minutes=30)
+    current_hour = now_ist.hour
+
     query = (
         db.table("callers")
-        .select("id,name,user_id")
+        .select("id,name,user_id,shift_start_hour,shift_end_hour")
         .eq("tenant_id", tenant_id)
         .eq("active", True)
         .eq("status", "active")
@@ -162,9 +172,38 @@ def auto_assign_lead(
     if not callers.data:
         return None
 
+    in_shift_callers = []
+    for caller in callers.data:
+        if shift_mode == "individual":
+            start_h = caller.get("shift_start_hour")
+            end_h = caller.get("shift_end_hour")
+            if start_h is None:
+                start_h = common_start
+            if end_h is None:
+                end_h = common_end
+        else:
+            start_h = common_start
+            if caller.get("shift_start_hour") is not None:
+                start_h = caller.get("shift_start_hour")
+            end_h = common_end
+            if caller.get("shift_end_hour") is not None:
+                end_h = caller.get("shift_end_hour")
+
+        if start_h <= end_h:
+            is_in_shift = (start_h <= current_hour < end_h)
+        else:
+            is_in_shift = (current_hour >= start_h or current_hour < end_h)
+
+        if is_in_shift:
+            in_shift_callers.append(caller)
+
+    if not in_shift_callers:
+        logger.info(f"No in-shift callers available for tenant {tenant_id} at hour {current_hour} IST")
+        return None
+
     min_count = None
     chosen = None
-    for caller in callers.data:
+    for caller in in_shift_callers:
         count = _open_lead_count(db, tenant_id, caller["id"])
         if min_count is None or count < min_count:
             min_count = count
@@ -174,10 +213,19 @@ def auto_assign_lead(
         return None
 
     chosen_id = chosen["id"]
-    db.table("leads").update({
+    update_query = db.table("leads").update({
         "assigned_to": chosen_id,
         "assigned_at": datetime.now(timezone.utc).isoformat(),
-    }).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+    }).eq("id", lead_id).eq("tenant_id", tenant_id)
+
+    if event_type != "reassigned":
+        update_query = update_query.is_("assigned_to", "null")
+
+    update_res = update_query.execute()
+    if not update_res.data:
+        logger.info(f"Lead {lead_id} was already assigned or not found. Skipping auto-assignment.")
+        return None
+
     logger.info(f"Lead {lead_id} auto-assigned to caller {chosen_id} (reason={reason})")
 
     record_assignment_event(

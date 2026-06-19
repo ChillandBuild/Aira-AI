@@ -93,7 +93,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 3. WhatsApp 24h session window — approved templates only outside window
 4. All segment lists: GET /api/v1/leads?segment=A&format=csv
 5. Call recordings → Supabase Storage only, never local disk
-6. Tenant isolation enforced at app layer via `get_tenant_and_role()` — DB-level RLS not yet enabled
+6. Tenant isolation enforced at database level via RLS policies and at app layer via `get_tenant_and_role()`
 7. Bulk-send endpoint rejects leads with null opt_in_source
 8. **Template submission** always uses `meta_waba_id` (NOT `meta_phone_number_id`)
 9. AI model is Groq `llama-3.3-70b-versatile` — do NOT add Gemini/OpenAI imports
@@ -167,7 +167,7 @@ InboxConfigPanel: escalation on/off, per-trigger (A/B/C/D/F). Chat escalation is
 TelecallingConfigPanel: module on/off, auto-assign, per-segment assignment (A/B/C/D), channels, contact recycling (enable/delay/retries/hours), shift time management (common/individual mode + hours).
 
 ## Known Tech Debt
-- RLS enabled on all core tables (few untracked tables like bot_flows / reengagement_steps pending review)
+- None (RLS fully enabled on all tables, including reengagement, autopilot, call scripts, and upload batches via migration 113)
 
 ## Architecture Map (auto-derived)
 Navigable module wiki at `graphify-out/wiki/index.md` — one article per module (callbacks, assignment, AI reply, webhooks, bot-flow, scoring, etc.) with source files + cross-module links. Plain markdown, no tooling needed to read. Pull it when tracing structure; CLAUDE.md remains the source of truth for invariants/decisions.
@@ -198,7 +198,7 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/supabase/migrations/ | All schema migrations 001–112 |
 | frontend/app/dashboard/ | All dashboard pages |
 
-## Migration Index (latest = 112)
+## Migration Index (latest = 113)
 | Migration | What |
 |---|---|
 | 051 | Telegram support — tg_user_id on leads |
@@ -262,6 +262,7 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | 103_reengagement_target_sources | reengagement_steps.target_sources jsonb — filter re-engagement by acquisition source (organic/meta_ads/csv/telegram/instagram/facebook); NULL = all |
 | 111_telecalling_upload_scripts | call_scripts table (segment-based, steps jsonb, is_default, active) + telecalling_upload_batches table (upload history, assignment_snapshot jsonb) |
 | 112_caller_shift_hours | callers.shift_start_hour + shift_end_hour (smallint, nullable) — per-caller shift time override |
+| 113_security_and_new_tables_rls | Enable RLS and define tenant member/owner policies for reengagement_steps, reengagement_logs, autopilot_runs, call_scripts, and telecalling_upload_batches |
 
 ## Bot Flow Builder (replaces Automations UI)
 Visual WhatsApp flow builder at /dashboard/automations (sidebar "Bot Flows"). Backend

@@ -56,47 +56,47 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
       <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
         {loading ? (
           <div className="py-12 flex flex-col items-center justify-center">
-            <Loader2 className="animate-spin text-slate-400 mb-2" size={24} />
-            <p className="text-xs text-slate-400">Loading call recordings...</p>
+            <Loader2 className="animate-spin text-[#a8a29e] mb-2" size={24} />
+            <p className="text-xs text-[#a8a29e]">Loading call recordings...</p>
           </div>
         ) : qaQueue.length === 0 ? (
-          <p className="text-xs text-slate-400 text-center py-12">No calls pending QA review.</p>
+          <p className="text-xs text-[#a8a29e] text-center py-12">No calls pending QA review.</p>
         ) : (
           qaQueue.map((item) => (
-            <div key={item.id} className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-3 shadow-sm hover:shadow-md transition-shadow">
+            <div key={item.id} className="p-4 bg-[#faf8f5] border border-[#f0ece4] rounded-2xl space-y-3 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div>
                   <button
                     onClick={() => item.lead_id && onViewLead(item.lead_id)}
-                    className="font-bold text-slate-800 hover:text-indigo-600 text-xs flex items-center gap-1"
+                    className="font-bold text-[#292524] hover:text-indigo-600 text-xs flex items-center gap-1"
                   >
-                    {item.leads?.name || formatPhone(item.leads?.phone)} <Eye size={12} className="text-slate-400" />
+                    {item.leads?.name || formatPhone(item.leads?.phone)} <Eye size={12} className="text-[#a8a29e]" />
                   </button>
-                  <span className="text-[10px] text-slate-450 block font-medium mt-0.5">{timeAgo(item.created_at)}</span>
+                  <span className="text-[10px] text-[#a8a29e] block font-medium mt-0.5">{timeAgo(item.created_at)}</span>
                 </div>
                 <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border ${
                   item.outcome === "converted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                   item.outcome === "callback" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                  "bg-slate-150 text-slate-600 border-slate-200"
+                  "bg-[#f0ece4] text-[#57534e] border-[#e8e3db]"
                 }`}>
                   {item.outcome || item.disposition || "Completed"}
                 </span>
               </div>
 
               {item.ai_summary && (
-                <div className="bg-white/80 p-3 rounded-xl border border-slate-200/50 text-[11px] leading-relaxed text-slate-600 space-y-1">
-                  {item.ai_summary.brief && <p><span className="font-bold text-slate-800">Brief:</span> {item.ai_summary.brief}</p>}
+                <div className="bg-white/80 p-3 rounded-xl border border-[#e8e3db]/50 text-[11px] leading-relaxed text-[#57534e] space-y-1">
+                  {item.ai_summary.brief && <p><span className="font-bold text-[#292524]">Brief:</span> {item.ai_summary.brief}</p>}
                   {(item.ai_summary.course || item.ai_summary.product) && (
-                    <p><span className="font-bold text-slate-800">Course Interest:</span> {item.ai_summary.course || item.ai_summary.product}</p>
+                    <p><span className="font-bold text-[#292524]">Course Interest:</span> {item.ai_summary.course || item.ai_summary.product}</p>
                   )}
-                  <p><span className="font-bold text-slate-800">Summary:</span> Next Action: {item.ai_summary.next_action || "—"}</p>
-                  {item.ai_summary.budget && <p><span className="font-bold text-slate-800">Budget:</span> {item.ai_summary.budget}</p>}
-                  {item.ai_summary.sentiment && <p><span className="font-bold text-slate-800">Sentiment:</span> {item.ai_summary.sentiment}</p>}
+                  <p><span className="font-bold text-[#292524]">Summary:</span> Next Action: {item.ai_summary.next_action || "—"}</p>
+                  {item.ai_summary.budget && <p><span className="font-bold text-[#292524]">Budget:</span> {item.ai_summary.budget}</p>}
+                  {item.ai_summary.sentiment && <p><span className="font-bold text-[#292524]">Sentiment:</span> {item.ai_summary.sentiment}</p>}
                 </div>
               )}
 
               {item.evaluation?.evaluation_version === 2 && (
-                <div className="bg-white/80 p-3 rounded-xl border border-slate-200/50 text-[11px] leading-relaxed text-slate-600 space-y-2">
+                <div className="bg-white/80 p-3 rounded-xl border border-[#e8e3db]/50 text-[11px] leading-relaxed text-[#57534e] space-y-2">
                   <div className="flex items-center justify-between flex-wrap gap-1.5">
                     <div className="flex items-center gap-1 flex-wrap">
                       {SCORE_CRITERIA.map(({ key, reasonKey, label }) => {
@@ -107,14 +107,14 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
                           <span
                             key={key}
                             title={typeof reason === "string" ? reason : ""}
-                            className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-bold text-[9px] text-slate-700 cursor-help"
+                            className="px-1.5 py-0.5 rounded bg-[#f0ece4] border border-[#e8e3db] font-bold text-[9px] text-[#44403c] cursor-help"
                           >
                             {label} {String(value)}/10
                           </span>
                         );
                       })}
                       {item.evaluation?.talk_ratio != null && (
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 font-bold text-[9px] text-slate-700">
+                        <span className="px-1.5 py-0.5 rounded bg-[#f0ece4] border border-[#e8e3db] font-bold text-[9px] text-[#44403c]">
                           Talk {item.evaluation.talk_ratio}%
                         </span>
                       )}
@@ -133,11 +133,11 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
                   )}
 
                   {item.evaluation?.next_step_summary && (
-                    <p><span className="font-bold text-slate-800">Next Step:</span> {item.evaluation.next_step_summary}</p>
+                    <p><span className="font-bold text-[#292524]">Next Step:</span> {item.evaluation.next_step_summary}</p>
                   )}
 
                   {item.evaluation?.purchase_intent && (
-                    <p><span className="font-bold text-slate-800">Purchase Intent:</span> {item.evaluation.purchase_intent}</p>
+                    <p><span className="font-bold text-[#292524]">Purchase Intent:</span> {item.evaluation.purchase_intent}</p>
                   )}
 
                   {item.evaluation?.missed_opportunity && item.evaluation?.missed_opportunity_note && (
@@ -145,7 +145,7 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
                   )}
 
                   {item.evaluation?.coaching_tip && (
-                    <p><span className="font-bold text-slate-800">Coaching Tip:</span> {item.evaluation.coaching_tip}</p>
+                    <p><span className="font-bold text-[#292524]">Coaching Tip:</span> {item.evaluation.coaching_tip}</p>
                   )}
                 </div>
               )}
@@ -155,7 +155,7 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
                   <audio src={item.recording_url} controls className="w-full h-8 text-xs focus:outline-none" />
                 </div>
               ) : (
-                <p className="text-[10px] text-slate-400 font-medium italic">Audio recording processing or not available</p>
+                <p className="text-[10px] text-[#a8a29e] font-medium italic">Audio recording processing or not available</p>
               )}
             </div>
           ))

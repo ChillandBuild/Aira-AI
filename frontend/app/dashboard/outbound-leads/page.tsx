@@ -1802,12 +1802,12 @@ export default function OutboundLeadsPage() {
                           <p className="font-display text-xl font-bold text-amber-600">{riskSummary.high_no_reply_count}</p>
                           <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Silent 2+</p>
                         </div>
-                        <div className="p-2.5 bg-white/95 rounded-xl border border-slate-200">
-                          <p className="font-display text-xl font-bold text-slate-600">{riskSummary.opted_out_count}</p>
+                        <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
+                          <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.opted_out_count}</p>
                           <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Opted Out</p>
                         </div>
-                        <div className="p-2.5 bg-white/95 rounded-xl border border-slate-200">
-                          <p className="font-display text-xl font-bold text-slate-600">{riskSummary.tag_opted_out_count}</p>
+                        <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
+                          <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.tag_opted_out_count}</p>
                           <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Tag Opt-Out</p>
                         </div>
                         <div className="p-2.5 bg-white/95 rounded-xl border border-green-100">

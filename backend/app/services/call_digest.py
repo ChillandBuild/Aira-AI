@@ -15,7 +15,7 @@ from app.services.call_summarizer import _SCORE_KEYS
 
 logger = logging.getLogger(__name__)
 
-_client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _MODEL = "llama-3.3-70b-versatile"
 
 _DIGEST_PROMPT = (
@@ -155,31 +155,38 @@ async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) 
     selected = _pick_representative(rows)
 
     coaching_report: str | None = None
-    if selected and _client:
-        parts = []
-        for i, r in enumerate(selected, 1):
-            snippet = (r["transcript"] or "")[:_TRANSCRIPT_CHARS]
-            parts.append(
-                f"[Call {i} — outcome: {r.get('outcome', '?')}, "
-                f"duration: {r.get('duration_seconds', 0)}s]\n{snippet}"
-            )
+    if selected:
         try:
-            response = await _client.chat.completions.create(
-                model=_MODEL,
-                messages=[{
-                    "role": "user",
-                    "content": _DIGEST_PROMPT.format(
-                        stats_text=_build_stats_text(stats),
-                        transcripts_text="\n\n".join(parts),
-                    ),
-                }],
-                temperature=0.4,
-                max_tokens=250,
-            )
-            coaching_report = response.choices[0].message.content.strip()
-            logger.info(f"Digest generated for caller {caller_id} on {date_str}")
+            client = get_groq_client(tenant_id, is_async=True)
         except Exception as e:
-            logger.error(f"Digest LLM call failed for caller {caller_id}: {e}")
+            logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
+            client = None
+
+        if client:
+            parts = []
+            for i, r in enumerate(selected, 1):
+                snippet = (r["transcript"] or "")[:_TRANSCRIPT_CHARS]
+                parts.append(
+                    f"[Call {i} — outcome: {r.get('outcome', '?')}, "
+                    f"duration: {r.get('duration_seconds', 0)}s]\n{snippet}"
+                )
+            try:
+                response = await client.chat.completions.create(
+                    model=_MODEL,
+                    messages=[{
+                        "role": "user",
+                        "content": _DIGEST_PROMPT.format(
+                            stats_text=_build_stats_text(stats),
+                            transcripts_text="\n\n".join(parts),
+                        ),
+                    }],
+                    temperature=0.4,
+                    max_tokens=250,
+                )
+                coaching_report = response.choices[0].message.content.strip()
+                logger.info(f"Digest generated for caller {caller_id} on {date_str}")
+            except Exception as e:
+                logger.error(f"Digest LLM call failed for caller {caller_id}: {e}")
 
     # ── Upsert (safe to re-run) ───────────────────────────────────────
     db.table("caller_digests").upsert(

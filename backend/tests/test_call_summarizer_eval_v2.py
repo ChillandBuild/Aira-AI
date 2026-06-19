@@ -71,12 +71,12 @@ class FinalizeEvaluationTests(unittest.TestCase):
 
 class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self._orig_client = call_summarizer._client
         self.mock_client = MagicMock()
-        call_summarizer._client = self.mock_client
+        self._orig_get_groq_client = call_summarizer.get_groq_client
+        call_summarizer.get_groq_client = MagicMock(return_value=self.mock_client)
 
     def tearDown(self):
-        call_summarizer._client = self._orig_client
+        call_summarizer.get_groq_client = self._orig_get_groq_client
 
     async def test_analyze_call_returns_v2_evaluation_with_derived_fields(self):
         llm_payload = {

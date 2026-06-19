@@ -66,7 +66,7 @@ def _round_robin_assign_leads(
 
     query = (
         db.table("callers")
-        .select("id,name,user_id")
+        .select("id,name,user_id,shift_start_hour,shift_end_hour")
         .eq("tenant_id", tenant_id)
         .eq("active", True)
         .or_("status.eq.active,status.is.null")
@@ -78,6 +78,47 @@ def _round_robin_assign_leads(
     if not callers:
         return []
 
+    from app.services.assignment import get_telecalling_config
+    cfg = get_telecalling_config(tenant_id)
+    shift_mode = cfg.get("shift_mode", "common")
+    common_start = cfg.get("shift_start_hour", 9)
+    common_end = cfg.get("shift_end_hour", 19)
+
+    from datetime import datetime, timezone, timedelta
+    now_utc = datetime.now(timezone.utc)
+    now_ist = now_utc + timedelta(hours=5, minutes=30)
+    current_hour = now_ist.hour
+
+    in_shift_callers = []
+    for caller in callers:
+        if shift_mode == "individual":
+            start_h = caller.get("shift_start_hour")
+            end_h = caller.get("shift_end_hour")
+            if start_h is None:
+                start_h = common_start
+            if end_h is None:
+                end_h = common_end
+        else:
+            start_h = common_start
+            if caller.get("shift_start_hour") is not None:
+                start_h = caller.get("shift_start_hour")
+            end_h = common_end
+            if caller.get("shift_end_hour") is not None:
+                end_h = caller.get("shift_end_hour")
+
+        if start_h <= end_h:
+            is_in_shift = (start_h <= current_hour < end_h)
+        else:
+            is_in_shift = (current_hour >= start_h or current_hour < end_h)
+
+        if is_in_shift:
+            in_shift_callers.append(caller)
+
+    if not in_shift_callers:
+        logger.info(f"No in-shift callers for CSV upload tenant {tenant_id} at hour {current_hour} IST. Leaving leads unassigned.")
+        return []
+
+    callers = in_shift_callers
     load: dict[str, int] = {}
     for caller in callers:
         res = (

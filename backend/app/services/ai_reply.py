@@ -17,14 +17,13 @@ from app.services.assignment import (
 
 logger = logging.getLogger(__name__)
 
-_groq_client = AsyncGroq(api_key=settings.groq_api_key) if settings.groq_api_key else None
+from app.services.groq_client import get_groq_client
 _REPLY_MODEL = "llama-3.3-70b-versatile"
 
 
-async def _groq_complete(prompt: str, max_tokens: int = 300) -> str:
-    if not _groq_client:
-        raise RuntimeError("GROQ_API_KEY not configured")
-    response = await _groq_client.chat.completions.create(
+async def _groq_complete(prompt: str, max_tokens: int = 300, tenant_id: str | None = None) -> str:
+    client = get_groq_client(tenant_id, is_async=True)
+    response = await client.chat.completions.create(
         model=_REPLY_MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.4,
@@ -33,10 +32,9 @@ async def _groq_complete(prompt: str, max_tokens: int = 300) -> str:
     return response.choices[0].message.content.strip()
 
 
-async def _groq_chat(messages: list[dict], max_tokens: int = 300) -> str:
-    if not _groq_client:
-        raise RuntimeError("GROQ_API_KEY not configured")
-    response = await _groq_client.chat.completions.create(
+async def _groq_chat(messages: list[dict], max_tokens: int = 300, tenant_id: str | None = None) -> str:
+    client = get_groq_client(tenant_id, is_async=True)
+    response = await client.chat.completions.create(
         model=_REPLY_MODEL,
         messages=messages,
         temperature=0.4,
@@ -332,12 +330,13 @@ async def generate_reengagement_message(lead_id: str, cadence: str, db=None) -> 
     db = db or get_supabase()
     lead = (
         db.table("leads")
-        .select("name,segment")
+        .select("name,segment,tenant_id")
         .eq("id", str(lead_id))
         .limit(1)
         .execute()
     )
     lead_data = lead.data[0] if lead.data else {}
+    tenant_id = lead_data.get("tenant_id")
     history_rows = list(reversed(_recent_thread(db, lead_id, limit=6)))
     history = "\n".join(
         f"{row.get('direction', 'unknown')}: {row.get('content', '').strip()}"
@@ -358,7 +357,7 @@ Be warm, specific, and low-pressure.
 Reference the lead's interest naturally and end with one clear next step.
 Do not use markdown or quotes."""
     try:
-        text = await _groq_complete(prompt, max_tokens=120)
+        text = await _groq_complete(prompt, max_tokens=120, tenant_id=tenant_id)
         return text[:280] if len(text) > 280 else text
     except Exception as e:
         logger.error(f"Re-engagement copy failed for lead {lead_id}: {e}")
@@ -662,7 +661,7 @@ async def generate_reply(
         else:
             chat_messages[-1]["content"] = _tagged_message
 
-        _raw_reply = await _groq_chat(chat_messages, max_tokens=600)
+        _raw_reply = await _groq_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)
         is_ai = True
         reply_source = "knowledge" if context_text else "ai"
 

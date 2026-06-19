@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 const SEGMENT_CONFIG: Record<"A" | "B" | "C" | "D", { label: string; tone: string; bar: string; bg: string }> = {
   A: { label: "Hot", tone: "text-emerald-700", bar: "bg-emerald-500", bg: "bg-emerald-50" },
   B: { label: "Warm", tone: "text-amber-700", bar: "bg-amber-500", bg: "bg-amber-50" },
-  C: { label: "Cold", tone: "text-slate-600", bar: "bg-slate-400", bg: "bg-slate-50" },
+  C: { label: "Cold", tone: "text-ink-muted", bar: "bg-stone-400", bg: "bg-[#faf8f5]" },
   D: { label: "Disqualified", tone: "text-rose-600", bar: "bg-rose-400", bg: "bg-rose-50" },
 };
 
@@ -33,23 +33,23 @@ function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D",
     <div className="card rounded-[32px] p-8">
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h2 className="font-display font-bold text-zinc-900 text-[18px]">
+          <h2 className="font-display font-bold text-ink text-[18px]">
             Pipeline Activity
           </h2>
-          <p className="font-body text-xs text-zinc-400 mt-1">
+          <p className="font-body text-xs text-ink-muted mt-1">
             {total === 0 ? "No leads yet" : `${total} active leads categorized`}
           </p>
         </div>
       </div>
 
       {total === 0 ? (
-        <div className="py-8 text-center font-body text-sm text-zinc-400">
+        <div className="py-8 text-center font-body text-sm text-ink-muted">
           Upload leads or wait for inbound WhatsApp messages.
         </div>
       ) : (
         <>
           {/* Stacked bar chart */}
-          <div className="h-3 rounded-full overflow-hidden flex bg-zinc-100 mb-6">
+          <div className="h-3 rounded-full overflow-hidden flex bg-surface-mid mb-6">
             {counts.map(({ seg, count }) =>
               count > 0 ? (
                 <div
@@ -71,15 +71,15 @@ function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D",
                 <Link
                   key={seg}
                   href={`/dashboard/leads?segment=${seg}`}
-                  className={`p-4 rounded-2xl ${cfg.bg} border border-transparent hover:border-zinc-200 transition-all`}
+                  className={`p-4 rounded-2xl ${cfg.bg} border border-transparent hover:border-border transition-all`}
                 >
-                  <div className="font-display font-bold text-zinc-900 text-[22px]">
+                  <div className="font-mono font-bold text-ink text-[22px]">
                     {count}
                   </div>
-                  <div className="font-label text-[10px] font-semibold mt-1 uppercase tracking-wider text-zinc-500">
+                  <div className="font-label text-[10px] font-semibold mt-1 uppercase tracking-wider text-ink-secondary">
                     {cfg.label}
                   </div>
-                  <div className="font-body text-[11px] text-zinc-400 mt-0.5">{pct}% of pipeline</div>
+                  <div className="font-body text-[11px] text-ink-muted mt-0.5">{pct}% of pipeline</div>
                 </Link>
               );
             })}
@@ -99,7 +99,7 @@ function TodaySnapshot({ overview }: { overview: AnalyticsOverview | null }) {
   return (
     <div className="card rounded-[32px] h-full p-8 flex flex-col justify-between">
       <div>
-        <h2 className="font-display font-bold text-zinc-900 mb-6 text-[18px]">
+        <h2 className="font-display font-bold text-ink mb-6 text-[18px]">
           Today
         </h2>
         <div className="space-y-5">
@@ -109,11 +109,11 @@ function TodaySnapshot({ overview }: { overview: AnalyticsOverview | null }) {
                 <Inbox size={16} className="text-blue-600" />
               </div>
               <div>
-                <div className="font-body font-semibold text-[13px] text-zinc-800">Inbound</div>
-                <div className="font-body text-xs text-zinc-400">Messages received</div>
+                <div className="font-body font-semibold text-[13px] text-ink">Inbound</div>
+                <div className="font-body text-xs text-ink-muted">Messages received</div>
               </div>
             </div>
-            <div className="font-display font-bold text-zinc-900 text-[20px]">
+            <div className="font-mono font-bold text-ink text-[20px]">
               {inbound}
             </div>
           </div>
@@ -124,11 +124,11 @@ function TodaySnapshot({ overview }: { overview: AnalyticsOverview | null }) {
                 <SendIcon size={16} className="text-emerald-600" />
               </div>
               <div>
-                <div className="font-body font-semibold text-[13px] text-zinc-800">Outbound</div>
-                <div className="font-body text-xs text-zinc-400">Replies sent</div>
+                <div className="font-body font-semibold text-[13px] text-ink">Outbound</div>
+                <div className="font-body text-xs text-ink-muted">Replies sent</div>
               </div>
             </div>
-            <div className="font-display font-bold text-zinc-900 text-[20px]">
+            <div className="font-mono font-bold text-ink text-[20px]">
               {outbound}
             </div>
           </div>
@@ -139,11 +139,11 @@ function TodaySnapshot({ overview }: { overview: AnalyticsOverview | null }) {
                 <Sparkles size={16} className="text-purple-600" />
               </div>
               <div>
-                <div className="font-body font-semibold text-[13px] text-zinc-800">AI handled</div>
-                <div className="font-body text-xs text-zinc-400">Auto-replies sent</div>
+                <div className="font-body font-semibold text-[13px] text-ink">AI handled</div>
+                <div className="font-body text-xs text-ink-muted">Auto-replies sent</div>
               </div>
             </div>
-            <div className="font-display font-bold text-zinc-900 text-[20px]">
+            <div className="font-mono font-bold text-ink text-[20px]">
               {aiToday}
             </div>
           </div>
@@ -175,10 +175,10 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
   if (!overview) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <RefreshCw size={24} className="animate-spin text-zinc-900" />
+        <RefreshCw size={24} className="animate-spin text-ink" />
         {!roleLoading && role === null && (
           <div className="text-center max-w-sm">
-            <p className="font-body text-sm text-zinc-400 mb-3">
+            <p className="font-body text-sm text-ink-muted mb-3">
               Couldn&apos;t reach the server. The backend may be waking up — this can take 30–60 seconds.
             </p>
             <button
@@ -204,7 +204,7 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
       {/* Title */}
       <div className="mb-6">
         <h1 className="page-title text-[26px]">
-          Product <span className="text-zinc-400 font-normal">overview</span>
+          Product <span className="text-ink-muted font-normal">overview</span>
         </h1>
         <p className="page-subtitle">Here&apos;s what&apos;s happening with your leads.</p>
       </div>
@@ -237,14 +237,14 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
                     <path d="M 4 30 Q 20 20 40 25 T 80 8 T 96 18" fill="none" stroke="url(#totalLeadsGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Total Leads</div>
-                <div className="font-display font-bold text-[40px] text-zinc-900 tracking-tight leading-none mt-2">
+                <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Total Leads</div>
+                <div className="font-mono font-bold text-[40px] text-ink tracking-tight leading-none mt-2">
                   {total}
                 </div>
               </div>
               <div className="mt-8 flex items-center">
                 <span className="badge badge-green font-semibold">↑ 12.4%</span>
-                <span className="text-xs text-zinc-400 ml-2 font-medium">vs last week</span>
+                <span className="text-xs text-ink-muted ml-2 font-medium">vs last week</span>
               </div>
             </div>
 
@@ -272,14 +272,14 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
                     <path d="M 4 25 Q 15 35 35 20 T 70 12 T 96 8" fill="none" stroke="url(#hotLeadsGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Hot Leads</div>
-                <div className="font-display font-bold text-[40px] text-zinc-900 tracking-tight leading-none mt-2">
+                <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Hot Leads</div>
+                <div className="font-mono font-bold text-[40px] text-ink tracking-tight leading-none mt-2">
                   {segA}
                 </div>
               </div>
               <div className="mt-8 flex items-center">
                 <span className="badge badge-green font-semibold">↑ 36.8%</span>
-                <span className="text-xs text-zinc-400 ml-2 font-medium">high intent</span>
+                <span className="text-xs text-ink-muted ml-2 font-medium">high intent</span>
               </div>
             </div>
           </div>
@@ -295,19 +295,19 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
         {/* Column 1: Performance Stats */}
         <div className="card rounded-[32px] p-8 flex flex-col justify-between">
           <div>
-            <h2 className="font-display font-bold text-zinc-900 mb-6 text-[18px]">
+            <h2 className="font-display font-bold text-[#1c1917] mb-6 text-[18px]">
               Performance
             </h2>
             <div className="space-y-6">
               <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Converted (7d)</div>
-                <div className="font-display font-bold text-[28px] text-zinc-900 mt-1">{overview?.converted_7d ?? 0}</div>
+                <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Converted (7d)</div>
+                <div className="font-display font-bold text-[28px] text-[#1c1917] mt-1">{overview?.converted_7d ?? 0}</div>
               </div>
-              <div className="pt-4 border-t border-zinc-100">
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Awaiting Response</div>
+              <div className="pt-4 border-t border-[#f0ece4]">
+                <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Awaiting Response</div>
                 <div className={cn(
                   "font-display font-bold text-[28px] mt-1",
-                  (overview?.unreplied_24h ?? 0) > 0 ? "text-rose-600" : "text-zinc-900"
+                  (overview?.unreplied_24h ?? 0) > 0 ? "text-rose-600" : "text-[#1c1917]"
                 )}>
                   {overview?.unreplied_24h ?? 0}
                 </div>
@@ -318,24 +318,24 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
 
         {/* Column 2: Volume & Automation Share */}
         <div className="lg:col-span-2 card rounded-[32px] p-8">
-          <h2 className="font-display font-bold text-zinc-900 mb-6 text-[18px]">
+          <h2 className="font-display font-bold text-[#1c1917] mb-6 text-[18px]">
             Automation & Traffic
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-zinc-100">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 divide-y md:divide-y-0 md:divide-x divide-[#f0ece4]">
             <div className="pb-6 md:pb-0">
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">AI Auto-Reply Share</div>
-              <div className="font-display font-bold text-[36px] text-zinc-900 tracking-tight mt-2">{aiPct}%</div>
-              <div className="text-xs text-zinc-400 mt-2 font-medium">
+              <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">AI Auto-Reply Share</div>
+              <div className="font-display font-bold text-[36px] text-[#1c1917] tracking-tight mt-2">{aiPct}%</div>
+              <div className="text-xs text-[#a8a29e] mt-2 font-medium">
                 {aiVsHuman?.ai ?? 0} AI · {aiVsHuman?.human ?? 0} human (7d)
               </div>
             </div>
 
             <div className="pt-6 md:pt-0 md:pl-8">
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Inquiries (7d)</div>
-              <div className="font-display font-bold text-[36px] text-zinc-900 tracking-tight mt-2">
+              <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Inquiries (7d)</div>
+              <div className="font-display font-bold text-[36px] text-[#1c1917] tracking-tight mt-2">
                 {overview?.daily_leads?.reduce((acc, d) => acc + d.count, 0) ?? 0}
               </div>
-              <div className="text-xs text-zinc-400 mt-2 font-medium">New leads added this week</div>
+              <div className="text-xs text-[#a8a29e] mt-2 font-medium">New leads added this week</div>
             </div>
           </div>
         </div>

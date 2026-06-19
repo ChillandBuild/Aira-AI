@@ -1,28 +1,21 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, DM_Sans, Syne } from "next/font/google";
+import { Manrope, JetBrains_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const bricolage = Bricolage_Grotesque({
+const manrope = Manrope({
   subsets: ["latin"],
-  variable: "--font-bricolage",
+  variable: "--font-manrope",
   display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-const dmSans = DM_Sans({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-dm-sans",
+  variable: "--font-mono",
   display: "swap",
-  weight: ["300", "400", "500", "600"],
-});
-
-const syne = Syne({
-  subsets: ["latin"],
-  variable: "--font-syne",
-  display: "swap",
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +27,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${bricolage.variable} ${dmSans.variable} ${syne.variable}`}>
+    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable}`}>
       <body className="antialiased">
         {children}
         <Toaster position="top-right" richColors closeButton />

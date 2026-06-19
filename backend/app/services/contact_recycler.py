@@ -60,7 +60,7 @@ def recycle_leads_for_tenant(tenant_id: str) -> int:
         .eq("tenant_id", tenant_id)
         .eq("call_status", "in_progress")
         .is_("converted_at", "null")
-        .neq("deleted", True)
+        .is_("deleted_at", "null")
         .neq("do_not_call", True)
         .limit(200)
         .execute()
