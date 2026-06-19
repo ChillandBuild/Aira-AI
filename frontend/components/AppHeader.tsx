@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Clock, Settings, RefreshCw, LayoutGrid, List } from "lucide-react";
+import { Clock, RefreshCw, LayoutGrid, List } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
-import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
+
 import { cn } from "@/lib/utils";
 
 // Define a map of exact path matches and dynamic route prefixes
@@ -169,7 +169,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const [time, setTime] = useState<string>("");
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { role } = useAuthRole();
+
   const { title, description } = getRouteMetadata(pathname || "", searchParams);
   const tab = searchParams.get("tab") || "";
 

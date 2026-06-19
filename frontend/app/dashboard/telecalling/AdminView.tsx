@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { Phone, ChevronDown, Settings, Sparkles, User, Inbox, Clock } from "lucide-react";
+import { useCallback, useState } from "react";
+import { Phone, ChevronDown, Sparkles, User, Inbox, Clock } from "lucide-react";
 import type { Caller, Lead } from "@/lib/api";
 import { useAdminDashboard, useLeads } from "@/hooks/useApi";
 import type { AdminDashboardData } from "@/hooks/useApi";
