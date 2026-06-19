@@ -60,12 +60,13 @@ export function NotificationBell() {
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative flex items-center justify-center w-[34px] h-[34px] bg-[#292524]/60 border border-[#57534e]/40 rounded-full hover:bg-[#44403c]/60 hover:border-indigo-400 transition-all group"
+        className="relative flex items-center justify-center w-[34px] h-[34px] rounded-full transition-transform hover:scale-105 group"
+        style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}
         title="Notification Center"
       >
-        <Bell size={16} className="text-[#d6cfc9] group-hover:text-indigo-300 transition-colors" />
+        <Bell size={16} className="text-white" />
         {totalUnread > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black rounded-full flex items-center justify-center ring-4 ring-[#1c1917] shadow-sm animate-bounce-short">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1.5 bg-gradient-to-r from-rose-500 to-pink-600 text-white text-[10px] font-black rounded-full flex items-center justify-center ring-4 ring-[#faf8f5] shadow-sm animate-bounce-short">
             {totalUnread > 99 ? "99+" : totalUnread}
           </span>
         )}
