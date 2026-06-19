@@ -8,7 +8,7 @@ interface RoleCtx {
   callerId: string | null;
   enabledFeatures: string[];
   isSystemAdmin: boolean;
-  pageToggles: any;
+  pageToggles: Record<string, unknown> | null;
   loading: boolean;
 }
 
@@ -29,7 +29,7 @@ interface CacheEntry {
   callerId: string | null;
   enabledFeatures: string[];
   isSystemAdmin: boolean;
-  pageToggles: any;
+  pageToggles: Record<string, unknown> | null;
 }
 
 function readCache(): CacheEntry | null {
@@ -52,7 +52,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
   const [callerId, setCallerId] = useState<string | null>(null);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["whatsapp", "telecalling"]);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
-  const [pageToggles, setPageToggles] = useState<any>(null);
+  const [pageToggles, setPageToggles] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

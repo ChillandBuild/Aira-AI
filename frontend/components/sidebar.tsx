@@ -90,18 +90,24 @@ export function Sidebar() {
   // Helper to check if a page is toggled ON (defaults to true if toggles are missing)
   const isEnabled = (key: string) => {
     if (!pageToggles) return true;
-    if (pageToggles[key] === undefined) return true;
-    if (typeof pageToggles[key] === 'object') return pageToggles[key].enabled !== false;
-    return pageToggles[key] !== false;
+    const val = pageToggles[key];
+    if (val === undefined) return true;
+    if (val && typeof val === 'object') {
+      const obj = val as Record<string, unknown>;
+      return obj.enabled !== false;
+    }
+    return val !== false;
   };
 
   // Helper for nested toggles
   const isNestedEnabled = (parent: string, child: string) => {
     if (!pageToggles) return true;
-    if (!pageToggles[parent]) return true;
-    if (typeof pageToggles[parent] === 'object') {
-      if (pageToggles[parent].enabled === false) return false;
-      return pageToggles[parent][child] !== false;
+    const parentVal = pageToggles[parent];
+    if (!parentVal) return true;
+    if (parentVal && typeof parentVal === 'object') {
+      const obj = parentVal as Record<string, unknown>;
+      if (obj.enabled === false) return false;
+      return obj[child] !== false;
     }
     return true;
   };

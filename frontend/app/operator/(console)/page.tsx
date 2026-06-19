@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Pencil, RefreshCw, PowerOff, Power, Trash2 } from "lucide-react";
+import { Plus, Pencil, RefreshCw, PowerOff, Power } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
 type ServiceTier =
@@ -332,3 +332,4 @@ export default function OperatorPage() {
       </div>
     </div>
   );
+}

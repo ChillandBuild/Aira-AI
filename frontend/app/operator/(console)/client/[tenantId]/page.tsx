@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
-type ServiceTier = string;
 
 // Types
 type ClientDetail = {
@@ -54,14 +53,55 @@ type Caller = {
   active: boolean;
   overall_score: number;
   created_at: string;
+  user_id?: string;
 };
 
 type AuditEntry = {
   id: string;
   actor_role: string;
   action: string;
-  metadata: any;
+  metadata: Record<string, unknown> | null;
   created_at: string;
+};
+
+type ToggleValue = boolean | Record<string, boolean>;
+type PageToggles = Record<string, ToggleValue>;
+
+type ClientDetailResponse = {
+  tenant: ClientDetail;
+  owner_email: string | null;
+  settings_summary: SettingsSummary[];
+};
+
+type PageTogglesResponse = {
+  page_toggles: PageToggles | null;
+};
+
+type TeamResponse = {
+  users: TeamMember[];
+  callers: Caller[];
+};
+
+type ActivityResponse = {
+  leads_7d: number;
+  messages_7d: number;
+  calls_7d: number;
+  leads_30d: number;
+  messages_30d: number;
+  calls_30d: number;
+  recent_leads: Array<{
+    id: string;
+    name: string;
+    phone: string;
+    source: string;
+    segment: string;
+    score: number;
+    created_at: string;
+  }>;
+};
+
+type AuditLogResponse = {
+  entries: AuditEntry[];
 };
 
 const SERVICE_LABELS: Record<string, string> = {
@@ -118,8 +158,8 @@ export default function ClientDetailPage() {
   const [counts, setCounts] = useState<DataCounts | null>(null);
   
   // Feature Toggles state
-  const [pageToggles, setPageToggles] = useState<any>(null);
-  const [editedToggles, setEditedToggles] = useState<any>(null);
+  const [pageToggles, setPageToggles] = useState<PageToggles | null>(null);
+  const [editedToggles, setEditedToggles] = useState<PageToggles | null>(null);
   const [savingToggles, setSavingToggles] = useState(false);
   
   // Expanded sections in toggles
@@ -128,8 +168,8 @@ export default function ClientDetailPage() {
   });
 
   // Other tabs data
-  const [teamData, setTeamData] = useState<{users: TeamMember[], callers: Caller[]} | null>(null);
-  const [activityData, setActivityData] = useState<any>(null);
+  const [teamData, setTeamData] = useState<TeamResponse | null>(null);
+  const [activityData, setActivityData] = useState<ActivityResponse | null>(null);
   const [auditData, setAuditData] = useState<AuditEntry[]>([]);
 
   // Danger zone state
@@ -140,12 +180,12 @@ export default function ClientDetailPage() {
       setLoading(true);
       try {
         const [detailRes, countsRes, togglesRes, teamRes, activityRes, auditRes] = await Promise.all([
-          apiFetch<any>(`/api/v1/operator/clients/${tenantId}/detail`),
+          apiFetch<ClientDetailResponse>(`/api/v1/operator/clients/${tenantId}/detail`),
           apiFetch<DataCounts>(`/api/v1/operator/clients/${tenantId}/data-counts`),
-          apiFetch<any>(`/api/v1/operator/clients/${tenantId}/page-toggles`),
-          apiFetch<any>(`/api/v1/operator/clients/${tenantId}/team`),
-          apiFetch<any>(`/api/v1/operator/clients/${tenantId}/activity`),
-          apiFetch<any>(`/api/v1/operator/clients/${tenantId}/audit-log`)
+          apiFetch<PageTogglesResponse>(`/api/v1/operator/clients/${tenantId}/page-toggles`),
+          apiFetch<TeamResponse>(`/api/v1/operator/clients/${tenantId}/team`),
+          apiFetch<ActivityResponse>(`/api/v1/operator/clients/${tenantId}/activity`),
+          apiFetch<AuditLogResponse>(`/api/v1/operator/clients/${tenantId}/audit-log`)
         ]);
 
         setClient(detailRes.tenant);
@@ -201,11 +241,14 @@ export default function ClientDetailPage() {
   };
 
   const updateToggle = (path: string[], value: boolean) => {
+    if (!editedToggles) return;
     const newToggles = { ...editedToggles };
     if (path.length === 1) {
       newToggles[path[0]] = value;
     } else {
-      newToggles[path[0]] = { ...newToggles[path[0]], [path[1]]: value };
+      const parent = newToggles[path[0]];
+      const parentObj = (parent && typeof parent === 'object') ? (parent as Record<string, boolean>) : {};
+      newToggles[path[0]] = { ...parentObj, [path[1]]: value };
     }
     setEditedToggles(newToggles);
   };
@@ -238,8 +281,9 @@ export default function ClientDetailPage() {
 
     setWipingSection(endpoint);
     try {
-      const res = await apiFetch<any>(`/api/v1/operator/clients/${tenantId}/${endpoint}`, { method: "POST" });
-      alert(`Successfully wiped ${sectionName}.\n\nDeleted records:\n${Object.entries(res.deleted).map(([k,v]) => `${k}: ${v}`).join('\n')}`);
+      const res = await apiFetch<Record<string, unknown>>(`/api/v1/operator/clients/${tenantId}/${endpoint}`, { method: "POST" });
+      const deletedCounts = res.deleted as Record<string, number>;
+      alert(`Successfully wiped ${sectionName}.\n\nDeleted records:\n${Object.entries(deletedCounts).map(([k,v]) => `${k}: ${v}`).join('\n')}`);
       // Refresh counts
       const countsRes = await apiFetch<DataCounts>(`/api/v1/operator/clients/${tenantId}/data-counts`);
       setCounts(countsRes);
@@ -402,7 +446,7 @@ export default function ClientDetailPage() {
             <div className="p-6 border-b border-white/[0.08] flex items-center justify-between bg-black/20">
               <div>
                 <h3 className="text-lg font-semibold text-white">Feature Toggles</h3>
-                <p className="text-sm text-slate-400">Control which pages and sections are visible in the client's sidebar.</p>
+                <p className="text-sm text-slate-400">Control which pages and sections are visible in the client&apos;s sidebar.</p>
               </div>
               <button 
                 onClick={handleSaveToggles}
@@ -431,7 +475,14 @@ export default function ClientDetailPage() {
                     <item.icon size={18} className="text-slate-500" />
                     <span className="font-medium">{item.label}</span>
                   </div>
-                  <CustomToggle checked={editedToggles[item.id] ?? true} onChange={(v) => updateToggle([item.id], v)} />
+                  <CustomToggle 
+                    checked={
+                      editedToggles 
+                        ? (typeof editedToggles[item.id] === 'boolean' ? (editedToggles[item.id] as boolean) : true)
+                        : true
+                    } 
+                    onChange={(v) => updateToggle([item.id], v)} 
+                  />
                 </div>
               ))}
 
@@ -443,7 +494,10 @@ export default function ClientDetailPage() {
                 { id: "telecalling", label: "Telecalling", icon: Phone, subs: [{ id: "upload", label: "Lead Upload" }, { id: "dialer", label: "Dialer" }, { id: "scheduled", label: "Scheduled Calls" }, { id: "notes", label: "Call Notes" }] },
                 { id: "settings", label: "Settings", icon: Settings, subs: [{ id: "general", label: "General Settings" }, { id: "channels", label: "Channel Configuration" }, { id: "telecalling_config", label: "Telecalling Configuration" }, { id: "inbox_config", label: "Inbox Configuration" }] }
               ].map(group => {
-                const isGroupEnabled = editedToggles[group.id]?.enabled ?? true;
+                const groupVal = editedToggles?.[group.id];
+                const isGroupEnabled = (groupVal && typeof groupVal === 'object' && 'enabled' in groupVal)
+                  ? (groupVal.enabled as boolean ?? true)
+                  : true;
                 const isExpanded = expandedSections[group.id];
                 return (
                   <div key={group.id} className="border border-white/[0.04] rounded-xl overflow-hidden my-2">
@@ -461,15 +515,19 @@ export default function ClientDetailPage() {
                     
                     {isExpanded && (
                       <div className={`p-2 bg-black/20 ${!isGroupEnabled ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
-                        {group.subs.map(sub => (
-                          <div key={sub.id} className="flex items-center justify-between p-3 pl-12 hover:bg-white/[0.03] rounded-lg transition-colors">
-                            <span className="text-sm text-slate-400">{sub.label}</span>
-                            <CustomToggle 
-                              checked={editedToggles[group.id]?.[sub.id] ?? true} 
-                              onChange={(v) => updateToggle([group.id, sub.id], v)} 
-                            />
-                          </div>
-                        ))}
+                        {group.subs.map(sub => {
+                          const subVal = (groupVal && typeof groupVal === 'object') ? groupVal[sub.id] : true;
+                          const isSubEnabled = typeof subVal === 'boolean' ? subVal : true;
+                          return (
+                            <div key={sub.id} className="flex items-center justify-between p-3 pl-12 hover:bg-white/[0.03] rounded-lg transition-colors">
+                              <span className="text-sm text-slate-400">{sub.label}</span>
+                              <CustomToggle 
+                                checked={isSubEnabled} 
+                                onChange={(v) => updateToggle([group.id, sub.id], v)} 
+                              />
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -632,7 +690,7 @@ export default function ClientDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04]">
-                  {activityData.recent_leads.map((l: any) => (
+                  {activityData.recent_leads.map((l) => (
                     <tr key={l.id} className="hover:bg-white/[0.02]">
                       <td className="px-6 py-3 font-medium text-white">{l.name}</td>
                       <td className="px-6 py-3 text-slate-300">{l.source}</td>
