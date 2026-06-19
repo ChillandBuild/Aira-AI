@@ -88,7 +88,6 @@ function formatDate(dateStr: string): string {
 async function toCsvFile(file: File): Promise<File> {
   const lower = file.name.toLowerCase();
   if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls")) return file;
-  // @ts-expect-error xlsx types
   const XLSX = await import("xlsx");
   const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
   const ws = wb.Sheets[wb.SheetNames[0]];
