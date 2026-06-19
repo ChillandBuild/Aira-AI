@@ -819,11 +819,11 @@ select.form-input-dark option {
   position: absolute;
   inset: -15%;
   background:
-    radial-gradient(36% 42% at 18% 26%, rgba(124, 58, 237, 0.34), transparent 70%),
-    radial-gradient(42% 48% at 82% 34%, rgba(91, 33, 182, 0.26), transparent 70%),
-    radial-gradient(48% 54% at 50% 84%, rgba(167, 139, 250, 0.28), transparent 72%),
-    radial-gradient(30% 36% at 86% 74%, rgba(236, 72, 153, 0.1), transparent 70%);
-  filter: blur(22px);
+    radial-gradient(34% 40% at 20% 28%, rgba(124, 58, 237, 0.22), transparent 70%),
+    radial-gradient(40% 46% at 80% 36%, rgba(91, 33, 182, 0.17), transparent 70%),
+    radial-gradient(46% 52% at 50% 82%, rgba(167, 139, 250, 0.18), transparent 72%),
+    radial-gradient(28% 34% at 86% 74%, rgba(236, 72, 153, 0.07), transparent 70%);
+  filter: blur(24px);
   will-change: transform, opacity;
   animation: hero-breathe 11s ease-in-out infinite;
 }
@@ -838,32 +838,32 @@ select.form-input-dark option {
 
 .hero-curtains span {
   position: absolute;
-  bottom: -14%;
-  width: 24%;
-  height: 95%;
+  bottom: -12%;
+  width: 22%;
+  height: 82%;
   border-radius: 50% 50% 46% 46%;
-  filter: blur(26px);
+  filter: blur(34px);
   transform-origin: bottom center;
-  background: linear-gradient(to top, transparent, rgba(124, 58, 237, 0.42) 46%, rgba(139, 92, 246, 0.26) 74%, transparent);
+  background: linear-gradient(to top, transparent, rgba(124, 58, 237, 0.2) 48%, rgba(167, 139, 250, 0.1) 76%, transparent);
   animation: aurora-sway 15s ease-in-out infinite;
   will-change: transform, opacity;
 }
 
-.hero-curtains span:nth-child(1) { left: 3%; animation-delay: 0s; }
+.hero-curtains span:nth-child(1) { left: 4%; animation-delay: 0s; }
 .hero-curtains span:nth-child(2) {
-  left: 25%; width: 17%; animation-delay: -3.5s;
-  background: linear-gradient(to top, transparent, rgba(167, 139, 250, 0.34) 50%, transparent);
+  left: 26%; width: 15%; animation-delay: -3.5s;
+  background: linear-gradient(to top, transparent, rgba(167, 139, 250, 0.18) 50%, transparent);
 }
-.hero-curtains span:nth-child(3) { left: 44%; width: 26%; animation-delay: -7s; }
+.hero-curtains span:nth-child(3) { left: 45%; width: 24%; animation-delay: -7s; }
 .hero-curtains span:nth-child(4) {
-  left: 65%; width: 19%; animation-delay: -10.5s;
-  background: linear-gradient(to top, transparent, rgba(124, 58, 237, 0.3) 50%, rgba(236, 72, 153, 0.16) 70%, transparent);
+  left: 66%; width: 17%; animation-delay: -10.5s;
+  background: linear-gradient(to top, transparent, rgba(236, 72, 153, 0.1) 52%, transparent);
 }
-.hero-curtains span:nth-child(5) { left: 79%; width: 22%; animation-delay: -13s; }
+.hero-curtains span:nth-child(5) { left: 80%; width: 20%; animation-delay: -13s; }
 
 @keyframes aurora-sway {
-  0%, 100% { transform: translateX(0) scaleY(1); opacity: 0.7; }
-  50% { transform: translateX(20px) scaleY(1.16); opacity: 1; }
+  0%, 100% { transform: translateX(0) scaleY(1); opacity: 0.5; }
+  50% { transform: translateX(18px) scaleY(1.14); opacity: 0.85; }
 }
 
 /* A soft crescent of moonlight, high in the hero */
