@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Clock, RefreshCw, LayoutGrid, List } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
@@ -18,21 +18,21 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     };
   }
   if (pathname === "/dashboard/outbound-leads") {
-    let tabLabel = "Broadcast Message";
-    if (tab === "history") tabLabel = "Broadcast History";
-    if (tab === "tags") tabLabel = "Tags";
+    let desc = "Import a CSV and broadcast a WhatsApp campaign to all eligible leads.";
+    if (tab === "history") desc = "Track delivery status, read rates, and failures of sent broadcast campaigns.";
+    if (tab === "tags") desc = "Create and manage tags to segment and label leads for outbound campaigns.";
     return {
-      title: `Outbound Leads / ${tabLabel}`,
-      description: "Import a CSV and broadcast a WhatsApp campaign to all eligible leads.",
+      title: "Outbound Leads",
+      description: desc,
     };
   }
   if (pathname === "/dashboard/telecalling/upload") {
-    let tabLabel = "Upload Contacts";
-    if (tab === "history") tabLabel = "Upload History";
-    if (tab === "scripts") tabLabel = "Call Scripts";
+    let desc = "Upload contacts, assign them to queues, and start call campaigns.";
+    if (tab === "history") desc = "Review past CSV uploads, processing status, and import summaries.";
+    if (tab === "scripts") desc = "Manage call scripts and guidelines for telecallers to follow.";
     return {
-      title: `Telecalling Upload / ${tabLabel}`,
-      description: "Upload contacts, view history, and manage call scripts.",
+      title: "Telecalling Upload",
+      description: desc,
     };
   }
   if (pathname === "/dashboard/telecalling") {
@@ -169,6 +169,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const [time, setTime] = useState<string>("");
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const { title, description } = getRouteMetadata(pathname || "", searchParams);
   const tab = searchParams.get("tab") || "";
@@ -254,6 +255,52 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
       {/* Right side actions */}
       <div className="flex items-center gap-2.5">
+        {pathname === "/dashboard/outbound-leads" && (
+          <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl mr-2">
+            {(["upload", "history", "tags"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set("tab", t);
+                  router.replace(`/dashboard/outbound-leads?${params.toString()}`, { scroll: false });
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                  (tab === t || (t === "upload" && !tab))
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
+              >
+                {t === "upload" ? "Broadcast Message" : t === "history" ? "Broadcast History" : "Tags"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {pathname === "/dashboard/telecalling/upload" && (
+          <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl mr-2">
+            {(["upload", "history", "scripts"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set("tab", t);
+                  router.replace(`/dashboard/telecalling/upload?${params.toString()}`, { scroll: false });
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                  (tab === t || (t === "upload" && !tab))
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
+              >
+                {t === "upload" ? "Upload Contacts" : t === "history" ? "Upload History" : "Scripts"}
+              </button>
+            ))}
+          </div>
+        )}
+
         {pathname === "/dashboard/notes" && (
           <>
             <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
 
 function Portal({ children }: { children: React.ReactNode }) {
@@ -332,37 +332,14 @@ function StepIndicator({ current }: { current: number }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function TelecallingUploadPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab = (rawTab === "history" || rawTab === "scripts" ? rawTab : "upload") as "upload" | "history" | "scripts";
 
-  const setActiveTab = (val: "upload" | "history" | "scripts") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", val);
-    router.replace(`/dashboard/telecalling/upload?${params.toString()}`, { scroll: false });
-  };
+
 
   return (
     <div className="max-w-7xl">
-      {/* Tab Navigation */}
-      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start mb-6 w-fit">
-        {(["upload", "history", "scripts"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
-              activeTab === tab
-                ? "bg-white text-indigo-600 shadow-sm"
-                : "text-[#78716c] hover:text-[#292524]"
-            )}
-          >
-            {tab === "upload" ? "Upload Contacts" : tab === "history" ? "Upload History" : "Scripts"}
-          </button>
-        ))}
-      </div>
-
       {activeTab === "upload" && <UploadTab />}
       {activeTab === "history" && <HistoryTab />}
       {activeTab === "scripts" && <ScriptsTab />}
