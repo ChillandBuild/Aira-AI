@@ -347,13 +347,38 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
 
   return (
     <div>
-      <div className="flex justify-end mb-8">
+      {composing && (
+        <ComposeModal
+          onClose={() => setComposing(false)}
+          onSent={() => {
+            mutate();
+          }}
+        />
+      )}
+
+      {/* Tabs and Actions merged in a single row */}
+      <div className="mb-6 flex items-center justify-between border-b border-[#e8e3db] pb-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setPageView("leads")}
+            className={`px-4 py-2 text-sm font-semibold transition-all -mb-[10px] ${pageView === "leads" ? "border-b-2 border-on-surface text-on-surface" : "text-on-surface-muted hover:text-on-surface"}`}
+          >
+            Leads
+          </button>
+          <button
+            onClick={() => setPageView("reengagement")}
+            className={`px-4 py-2 text-sm font-semibold transition-all -mb-[10px] ${pageView === "reengagement" ? "border-b-2 border-on-surface text-on-surface" : "text-on-surface-muted hover:text-on-surface"}`}
+          >
+            Re-engagement
+          </button>
+        </div>
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => setComposing(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-secondary text-white rounded-xl font-label text-sm font-semibold hover:bg-secondary/90 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-[#1c1917] hover:bg-[#292524] text-white rounded-xl font-label text-xs font-bold transition-all shadow-sm"
           >
-            <Plus size={16} />
+            <Plus size={14} />
             New Message
           </button>
           <button
@@ -365,36 +390,12 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
                 toast.error(err instanceof Error ? err.message : "Export failed");
               }
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] rounded-xl font-label text-xs font-bold transition-all shadow-sm"
           >
-            <Download size={16} />
+            <Download size={14} />
             Export {SEGMENT_LABELS[tab]}
           </button>
         </div>
-      </div>
-
-      {composing && (
-        <ComposeModal
-          onClose={() => setComposing(false)}
-          onSent={() => {
-            mutate();
-          }}
-        />
-      )}
-
-      <div className="mb-6 flex gap-2 border-b border-on-surface/10">
-        <button
-          onClick={() => setPageView("leads")}
-          className={`px-4 py-2 text-sm font-medium ${pageView === "leads" ? "border-b-2 border-on-surface text-on-surface" : "text-on-surface-muted"}`}
-        >
-          Leads
-        </button>
-        <button
-          onClick={() => setPageView("reengagement")}
-          className={`px-4 py-2 text-sm font-medium ${pageView === "reengagement" ? "border-b-2 border-on-surface text-on-surface" : "text-on-surface-muted"}`}
-        >
-          Re-engagement
-        </button>
       </div>
 
       {pageView === "reengagement" && (
