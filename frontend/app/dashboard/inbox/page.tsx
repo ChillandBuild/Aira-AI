@@ -83,6 +83,20 @@ export default function InboxPage() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
+    const handleToggle = () => {
+      setShowConfig((prev) => !prev);
+    };
+    window.addEventListener("toggle-escalation-rules", handleToggle);
+    return () => {
+      window.removeEventListener("toggle-escalation-rules", handleToggle);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("escalation-rules-state", { detail: { open: showConfig } }));
+  }, [showConfig]);
+
+  useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setReassigningId(null);
@@ -121,26 +135,6 @@ export default function InboxPage() {
 
   return (
     <div>
-      <div className="mb-7 flex items-start justify-between">
-        <div>
-          <h1 className="page-title">Chat Inbox</h1>
-          <p className="page-subtitle">Conversations where AI couldn&apos;t answer — needs your reply.</p>
-        </div>
-        {role === "owner" && (
-          <button
-            onClick={() => setShowConfig(prev => !prev)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-xl font-label text-sm font-semibold transition-colors border",
-              showConfig
-                ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                : "bg-white border-surface-mid text-on-surface hover:text-violet-600 hover:border-violet-300"
-            )}
-          >
-            <Settings size={16} />
-            {showConfig ? "Hide Rules" : "Escalation Rules"}
-          </button>
-        )}
-      </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-grow flex-1 min-w-0 w-full">

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { AuthRoleProvider } from "./contexts/AuthRoleContext";
@@ -81,7 +81,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             <Sidebar />
 
             <main className="ml-[220px] flex-1 min-h-screen flex flex-col">
-              <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
+              <Suspense fallback={<div className="h-20 bg-[#faf8f5] border-b border-[#e8e3db]" />}>
+                <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
+              </Suspense>
               <ClaimBanner />
               <div className="p-7 max-w-[1400px] relative w-full">
                 {children}

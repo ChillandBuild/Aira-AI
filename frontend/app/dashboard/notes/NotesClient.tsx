@@ -218,24 +218,18 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-extrabold text-[#1c1917] tracking-tight">Call Notes</h1>
-          <p className="font-body text-sm text-[#78716c] mt-1">Browse and manage notes across your leads</p>
+      <div className="mb-6 flex justify-end items-center gap-2 flex-wrap">
+        <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
+          <button onClick={() => setPageMode("by_lead")} className={pillClass(pageMode === "by_lead")}>By Lead</button>
+          <button onClick={() => setPageMode("all_notes")} className={pillClass(pageMode === "all_notes")}>All Notes</button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
-            <button onClick={() => setPageMode("by_lead")} className={pillClass(pageMode === "by_lead")}>By Lead</button>
-            <button onClick={() => setPageMode("all_notes")} className={pillClass(pageMode === "all_notes")}>All Notes</button>
-          </div>
-          <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
-            <button onClick={() => setViewMode("grid")} className={iconPillClass(viewMode === "grid")} title="Grid view">
-              <LayoutGrid size={14} />
-            </button>
-            <button onClick={() => setViewMode("list")} className={iconPillClass(viewMode === "list")} title="List view">
-              <ListIcon size={14} />
-            </button>
-          </div>
+        <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
+          <button onClick={() => setViewMode("grid")} className={iconPillClass(viewMode === "grid")} title="Grid view">
+            <LayoutGrid size={14} />
+          </button>
+          <button onClick={() => setViewMode("list")} className={iconPillClass(viewMode === "list")} title="List view">
+            <ListIcon size={14} />
+          </button>
         </div>
       </div>
 
