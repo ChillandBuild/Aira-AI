@@ -85,9 +85,17 @@ function formatDate(dateStr: string): string {
   }).format(new Date(dateStr));
 }
 
-
-
-
+async function toCsvFile(file: File): Promise<File> {
+  const lower = file.name.toLowerCase();
+  if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls")) return file;
+  // @ts-expect-error xlsx types
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) throw new Error("The spreadsheet has no sheets");
+  const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false, rawNumbers: false });
+  return new File([csv], file.name.replace(/\.(xlsx|xls)$/i, ".csv"), { type: "text/csv" });
+}
 
 function emptyFormStep(): FormStep {
   return { text: "", note: "", branches: [] };
@@ -255,13 +263,17 @@ function UploadTab() {
   // Count rows by reading the file
   const [rowCount, setRowCount] = useState<number | null>(null);
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0] ?? null;
-    setFile(selected);
+    setFile(null);
     setUploadResult(null);
     setUploadError(null);
     setRowCount(null);
-    if (selected) {
+    if (!selected) return;
+
+    try {
+      const csvFile = await toCsvFile(selected);
+      setFile(csvFile);
       // Count CSV rows (excluding header)
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -271,27 +283,40 @@ function UploadTab() {
           setRowCount(Math.max(0, lines.length - 1)); // subtract header
         }
       };
-      reader.readAsText(selected);
+      reader.readAsText(csvFile);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Failed to process file");
     }
   }
 
-  function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+  async function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     const dropped = e.dataTransfer.files?.[0];
-    if (dropped && dropped.name.endsWith(".csv")) {
-      setFile(dropped);
-      setUploadResult(null);
-      setUploadError(null);
-      setRowCount(null);
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const text = ev.target?.result as string;
-        if (text) {
-          const lines = text.split("\n").filter((l) => l.trim().length > 0);
-          setRowCount(Math.max(0, lines.length - 1));
-        }
-      };
-      reader.readAsText(dropped);
+    setFile(null);
+    setUploadResult(null);
+    setUploadError(null);
+    setRowCount(null);
+    if (!dropped) return;
+
+    const lowerName = dropped.name.toLowerCase();
+    if (lowerName.endsWith(".csv") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
+      try {
+        const csvFile = await toCsvFile(dropped);
+        setFile(csvFile);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const text = ev.target?.result as string;
+          if (text) {
+            const lines = text.split("\n").filter((l) => l.trim().length > 0);
+            setRowCount(Math.max(0, lines.length - 1));
+          }
+        };
+        reader.readAsText(csvFile);
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : "Failed to process file");
+      }
+    } else {
+      setUploadError("Invalid file format. Please upload a .csv, .xlsx, or .xls file.");
     }
   }
 
@@ -335,180 +360,242 @@ function UploadTab() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  function downloadSampleCSV() {
+    const csvContent = "data:text/csv;charset=utf-8,phone,name,course,city\n919876543210,John Doe,Full Stack Development,Chennai\n919988776655,Jane Smith,Data Science,Bangalore\n";
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "aira_sample_contacts.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   return (
     <div className="animate-slide-up">
-      <div className="bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 min-h-[500px] flex flex-col">
-        <StepIndicator current={currentStep} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+        {/* Left Column: Wizard Card */}
+        <div className="lg:col-span-2 bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 min-h-[500px] flex flex-col">
+          <StepIndicator current={currentStep} />
 
-        {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
-        {currentStep === 1 && (
-          <div className="space-y-6 flex-1">
-            <div>
-              <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV</h2>
-              <p className="font-body text-sm text-on-surface-muted">Select a CSV file with contact data. We will detect column mappings automatically.</p>
-            </div>
+          {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
+          {currentStep === 1 && (
+            <div className="space-y-6 flex-1">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your contacts</h2>
+                <p className="font-body text-sm text-on-surface-muted">Select a CSV or Excel file with contact data. We will detect column mappings automatically.</p>
+              </div>
 
-            <label
-              className={cn(
-                "relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group",
-                file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]"
-              )}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-            >
-              <div className={cn(
-                "w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm",
-                file ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"
-              )}>
-                {file ? <Check size={28} /> : <CloudUpload size={28} />}
-              </div>
-              <div className="text-center px-4">
-                <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
-                  {file ? file.name : "Drop your CSV file here"}
-                </p>
-                <p className="font-body text-xs text-on-surface-muted mt-1.5">
-                  {file
-                    ? `${(file.size / 1024).toFixed(1)} KB${rowCount !== null ? ` · ${rowCount.toLocaleString()} rows` : ""} · click to change file`
-                    : "or click to browse — .csv · name and phone columns required"}
-                </p>
-              </div>
-              {!file && (
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
-                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Auto-detects columns</span>
-                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Deduplicates leads</span>
-                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Indian numbers formatted</span>
+              {uploadError && (
+                <div className="text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                  <X size={14} className="text-red-500" />
+                  {uploadError}
                 </div>
               )}
-              <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleFileSelect} />
-            </label>
 
-            <div className="flex justify-end">
-              <button
-                disabled={!file}
-                onClick={() => setCurrentStep(2)}
+              <label
                 className={cn(
-                  "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
-                  file
-                    ? "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
-                    : "bg-surface-mid text-on-surface-muted cursor-not-allowed"
+                  "relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group",
+                  file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]"
                 )}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
               >
-                Next <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 2: Confirm & Upload ───────────────────────────────────── */}
-        {currentStep === 2 && (
-          <div className="space-y-6 flex-1">
-            <div>
-              <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Review & Upload</h2>
-              <p className="font-body text-sm text-on-surface-muted">Double-check the details below, then start the upload.</p>
-            </div>
-
-            {/* Summary Card */}
-            {!uploadResult && !uploadError && (
-              <div className="rounded-2xl border border-surface-mid bg-surface-low p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
-                    <FileText size={20} className="text-tertiary" />
-                  </div>
-                  <div>
-                    <p className="font-label text-sm font-semibold text-on-surface">{file?.name ?? "No file"}</p>
-                    <p className="font-body text-xs text-on-surface-muted">
-                      {file ? `${(file.size / 1024).toFixed(1)} KB` : ""}
-                      {rowCount !== null ? ` · ${rowCount.toLocaleString()} contacts` : ""}
-                    </p>
-                  </div>
+                <div className={cn(
+                  "w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                  file ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"
+                )}>
+                  {file ? <Check size={28} /> : <CloudUpload size={28} />}
                 </div>
-                <div className="border-t border-surface-mid pt-4">
-                  <div>
-                    <p className="font-label text-xs text-on-surface-muted mb-1">File Type</p>
-                    <p className="font-label text-sm font-semibold text-on-surface">CSV</p>
-                  </div>
+                <div className="text-center px-4">
+                  <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
+                    {file ? file.name : "Drop your CSV or Excel file here"}
+                  </p>
+                  <p className="font-body text-xs text-on-surface-muted mt-1.5">
+                    {file
+                      ? `${(file.size / 1024).toFixed(1)} KB${rowCount !== null ? ` · ${rowCount.toLocaleString()} rows` : ""} · click to change file`
+                      : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
+                  </p>
                 </div>
-              </div>
-            )}
+                {!file && (
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
+                    <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Auto-detects columns</span>
+                    <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Deduplicates leads</span>
+                    <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Indian numbers formatted</span>
+                  </div>
+                )}
+                <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
+              </label>
 
-            {/* Success Banner */}
-            {uploadResult && (
-              <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
-                    <Check size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <p className="font-display text-lg font-bold text-emerald-800">Upload Successful</p>
-                    <p className="font-body text-xs text-emerald-600">Batch ID: {uploadResult.batch_id}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-white/70 rounded-xl p-3 text-center">
-                    <p className="font-display text-2xl font-bold text-emerald-700">{uploadResult.inserted}</p>
-                    <p className="font-label text-xs text-emerald-600">Inserted</p>
-                  </div>
-                  <div className="bg-white/70 rounded-xl p-3 text-center">
-                    <p className="font-display text-2xl font-bold text-amber-700">{uploadResult.duplicates}</p>
-                    <p className="font-label text-xs text-amber-600">Duplicates</p>
-                  </div>
-                  <div className="bg-white/70 rounded-xl p-3 text-center">
-                    <p className="font-display text-2xl font-bold text-blue-700">{uploadResult.assigned}</p>
-                    <p className="font-label text-xs text-blue-600">Assigned</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Error Banner */}
-            {uploadError && (
-              <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
-                    <X size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <p className="font-display text-lg font-bold text-red-800">Upload Failed</p>
-                    <p className="font-body text-sm text-red-600">{uploadError}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between">
-              <button
-                onClick={() => {
-                  if (uploadResult || uploadError) {
-                    handleReset();
-                  } else {
-                    setCurrentStep(1);
-                  }
-                }}
-                className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"
-              >
-                {uploadResult || uploadError ? "Start New Upload" : "Back"}
-              </button>
-              {!uploadResult && !uploadError && (
+              <div className="flex justify-end">
                 <button
-                  disabled={!file || uploading}
-                  onClick={handleUpload}
+                  disabled={!file}
+                  onClick={() => setCurrentStep(2)}
                   className={cn(
                     "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
-                    !file || uploading
-                      ? "bg-surface-mid text-on-surface-muted cursor-not-allowed"
-                      : "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                    file
+                      ? "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                      : "bg-surface-mid text-on-surface-muted cursor-not-allowed"
                   )}
                 >
-                  {uploading ? (
-                    <><Loader2 size={16} className="animate-spin" /> Uploading...</>
-                  ) : (
-                    <><Upload size={16} /> Upload Contacts</>
-                  )}
+                  Next <ChevronRight size={16} />
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 2: Confirm & Upload ───────────────────────────────────── */}
+          {currentStep === 2 && (
+            <div className="space-y-6 flex-1">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Review & Upload</h2>
+                <p className="font-body text-sm text-on-surface-muted">Double-check the details below, then start the upload.</p>
+              </div>
+
+              {/* Summary Card */}
+              {!uploadResult && !uploadError && (
+                <div className="rounded-2xl border border-surface-mid bg-surface-low p-6 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
+                      <FileText size={20} className="text-tertiary" />
+                    </div>
+                    <div>
+                      <p className="font-label text-sm font-semibold text-on-surface">{file?.name ?? "No file"}</p>
+                      <p className="font-body text-xs text-on-surface-muted">
+                        {file ? `${(file.size / 1024).toFixed(1)} KB` : ""}
+                        {rowCount !== null ? ` · ${rowCount.toLocaleString()} contacts` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="border-t border-surface-mid pt-4">
+                    <div>
+                      <p className="font-label text-xs text-on-surface-muted mb-1">File Type</p>
+                      <p className="font-label text-sm font-semibold text-on-surface">CSV</p>
+                    </div>
+                  </div>
+                </div>
               )}
+
+              {/* Success Banner */}
+              {uploadResult && (
+                <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
+                      <Check size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="font-display text-lg font-bold text-emerald-800">Upload Successful</p>
+                      <p className="font-body text-xs text-emerald-600">Batch ID: {uploadResult.batch_id}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-white/70 rounded-xl p-3 text-center">
+                      <p className="font-display text-2xl font-bold text-emerald-700">{uploadResult.inserted}</p>
+                      <p className="font-label text-xs text-emerald-600">Inserted</p>
+                    </div>
+                    <div className="bg-white/70 rounded-xl p-3 text-center">
+                      <p className="font-display text-2xl font-bold text-amber-700">{uploadResult.duplicates}</p>
+                      <p className="font-label text-xs text-amber-600">Duplicates</p>
+                    </div>
+                    <div className="bg-white/70 rounded-xl p-3 text-center">
+                      <p className="font-display text-2xl font-bold text-blue-700">{uploadResult.assigned}</p>
+                      <p className="font-label text-xs text-blue-600">Assigned</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Banner */}
+              {uploadError && (
+                <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                      <X size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="font-display text-lg font-bold text-red-800">Upload Failed</p>
+                      <p className="font-body text-sm text-red-600">{uploadError}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between">
+                <button
+                  onClick={() => {
+                    if (uploadResult || uploadError) {
+                      handleReset();
+                    } else {
+                      setCurrentStep(1);
+                    }
+                  }}
+                  className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"
+                >
+                  {uploadResult || uploadError ? "Start New Upload" : "Back"}
+                </button>
+                {!uploadResult && !uploadError && (
+                  <button
+                    disabled={!file || uploading}
+                    onClick={handleUpload}
+                    className={cn(
+                      "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
+                      !file || uploading
+                        ? "bg-surface-mid text-on-surface-muted cursor-not-allowed"
+                        : "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                    )}
+                  >
+                    {uploading ? (
+                      <><Loader2 size={16} className="animate-spin" /> Uploading...</>
+                    ) : (
+                      <><Upload size={16} /> Upload Contacts</>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Sidebar */}
+        <div className="space-y-6">
+          <div className="bg-surface rounded-[2rem] p-6 shadow-lg ring-1 ring-[#c4c7c7]/20">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                <FileText size={16} />
+              </div>
+              <h3 className="font-display font-bold text-on-surface text-base">CSV Template</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                Make sure your CSV or Excel file includes these headers. Match additional variables with custom columns.
+              </p>
+
+              <div className="divide-y divide-surface-mid border-t border-b border-surface-mid">
+                <div className="py-2 flex justify-between text-xs font-body">
+                  <span className="font-mono text-on-surface font-semibold">phone</span>
+                  <span className="text-red-700 font-bold bg-red-50 px-1.5 py-0.5 rounded text-[9px]">Required</span>
+                </div>
+                <div className="py-2 flex justify-between text-xs font-body">
+                  <span className="font-mono text-on-surface font-semibold">name</span>
+                  <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
+                </div>
+                <div className="py-2 flex justify-between text-xs font-body">
+                  <span className="font-mono text-on-surface font-semibold">course / other</span>
+                  <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
+                </div>
+              </div>
+
+              <button
+                onClick={downloadSampleCSV}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-low hover:bg-surface-mid rounded-xl font-label text-xs font-bold text-on-surface transition-colors border border-surface-mid/60"
+              >
+                <Download size={13} />
+                Download Sample CSV
+              </button>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
