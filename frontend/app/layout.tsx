@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, JetBrains_Mono } from "next/font/google";
+import { Manrope, JetBrains_Mono, Dancing_Script } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -18,6 +18,13 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500", "600", "700"],
 });
 
+const dancingScript = Dancing_Script({
+  subsets: ["latin"],
+  variable: "--font-script",
+  display: "swap",
+  weight: ["700"],
+});
+
 export const metadata: Metadata = {
   title: "Aira AI — Lead Intelligence",
   description: "WhatsApp lead management for education consultancies",
@@ -27,7 +34,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable}`}>
+    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${dancingScript.variable}`}>
       <body className="antialiased">
         {children}
         <Toaster position="top-right" richColors closeButton />

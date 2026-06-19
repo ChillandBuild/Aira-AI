@@ -29,7 +29,7 @@ export function ProfileMenu() {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center justify-center w-[30px] h-[30px] rounded-full text-white text-[11px] font-bold transition-transform hover:scale-105" style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}>
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center justify-center w-[34px] h-[34px] rounded-full text-white text-[12px] font-bold transition-transform hover:scale-105" style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}>
         {initials}
       </button>
       {open && (
