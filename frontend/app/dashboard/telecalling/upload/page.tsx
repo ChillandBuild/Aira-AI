@@ -86,12 +86,7 @@ function formatDate(dateStr: string): string {
 }
 
 
-const SEGMENT_COLORS: Record<string, string> = {
-  A: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  B: "bg-blue-50 text-blue-700 border border-blue-200",
-  C: "bg-amber-50 text-amber-700 border border-amber-200",
-  D: "bg-rose-50 text-rose-700 border border-rose-200",
-};
+
 
 
 function emptyFormStep(): FormStep {
@@ -616,7 +611,6 @@ function HistoryTab() {
                     <th className="pb-3 pr-4 text-right font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Inserted</th>
                     <th className="pb-3 pr-4 text-right font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Duplicates</th>
                     <th className="pb-3 pr-4 text-right font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Assigned</th>
-                    <th className="pb-3 pr-4 text-left font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Segment</th>
                     <th className="pb-3 font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -634,15 +628,6 @@ function HistoryTab() {
                       <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-emerald-600">{item.inserted}</td>
                       <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-amber-600">{item.duplicates}</td>
                       <td className="py-4 pr-4 text-right font-label text-sm tabular-nums text-blue-600">{item.assigned}</td>
-                      <td className="py-4 pr-4">
-                        {item.segment_override ? (
-                          <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase", SEGMENT_COLORS[item.segment_override] ?? "bg-[#f0ece4] text-[#78716c] border border-[#e8e3db]")}>
-                            Seg {item.segment_override}
-                          </span>
-                        ) : (
-                          <span className="font-label text-xs text-on-surface-muted">Auto</span>
-                        )}
-                      </td>
                       <td className="py-4">
                         <button
                           onClick={() => handleDownloadCsv(item.id, item.file_name)}
