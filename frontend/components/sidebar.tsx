@@ -99,20 +99,47 @@ export function Sidebar() {
   const showTc = expandedGroups.Telecalling || isTcActive;
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-[220px] bg-background flex flex-col z-20 select-none">
-      {/* Brand — height matches header (h-14 = 56px) so divider aligns with header border */}
+    <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none">
+      {/* Brand — h-14 (56px) matches the header so this bottom border and the
+          header border form one continuous divider; the aside's right border
+          meets them at a clean corner. Glow radius stays < the box so it never
+          bleeds across the divider line. */}
       <div className="h-14 flex items-center px-5 border-b border-[#e8e3db]">
-        <svg width="80" height="28" viewBox="0 0 200 70" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: "drop-shadow(0 0 6px rgba(91,33,182,0.35)) drop-shadow(0 0 14px rgba(91,33,182,0.15))" }}>
-          {/* A — dark with violet accent triangle */}
-          <path d="M0 68L24 2h8l24 66h-10L36 42H20L10 68H0zM23 34h10L28 14 23 34z" fill="#1c1917" />
+        <svg
+          width="84"
+          height="30"
+          viewBox="0 0 200 70"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-label="Aira"
+          style={{
+            filter:
+              "drop-shadow(0 1px 0.5px rgba(255,255,255,0.92)) drop-shadow(0 0 6px rgba(91,33,182,0.42)) drop-shadow(0 0 11px rgba(91,33,182,0.2))",
+          }}
+        >
+          <defs>
+            {/* Inner shadow → glyphs read as pressed into the page (carved) */}
+            <filter id="airaCarve" x="-20%" y="-20%" width="140%" height="140%">
+              <feOffset in="SourceAlpha" dx="0" dy="1.2" />
+              <feGaussianBlur stdDeviation="1" result="offset-blur" />
+              <feComposite operator="out" in="SourceAlpha" in2="offset-blur" result="inverse" />
+              <feFlood floodColor="#1c1917" floodOpacity="0.55" result="color" />
+              <feComposite operator="in" in="color" in2="inverse" result="shadow" />
+              <feComposite operator="over" in="shadow" in2="SourceGraphic" />
+            </filter>
+          </defs>
+
+          {/* Carved letter bodies — page-toned, so the recess reads instead of solid ink */}
+          <g filter="url(#airaCarve)" fill="#e6dfd4">
+            <path d="M0 68L24 2h8l24 66h-10L36 42H20L10 68H0zM23 34h10L28 14 23 34z" />
+            <rect x="66" y="2" width="8" height="66" />
+            <path d="M90 2h22c12 0 18 8 18 18s-6 18-18 18h-4l22 30h-12l-20-28h-0V68H90V2zm8 30h14c6 0 10-4 10-12s-4-10-10-10H98v22z" />
+            <path d="M144 68l24-66h8l24 66h-10l-10-26h-16l-10 26h-10zm23-34h10l-5-20-5 20z" />
+          </g>
+
+          {/* Violet accent triangles — the lit core glowing out of the carve */}
           <polygon points="23,58 28,48 33,58" fill="#5b21b6" />
-          {/* I */}
-          <rect x="66" y="2" width="8" height="66" fill="#1c1917" />
-          {/* R */}
-          <path d="M90 2h22c12 0 18 8 18 18s-6 18-18 18h-4l22 30h-12l-20-28h-0V68H90V2zm8 30h14c6 0 10-4 10-12s-4-10-10-10H98v22z" fill="#1c1917" />
-          {/* A — violet with violet accent triangle */}
-          <path d="M144 68l24-66h8l24 66h-10l-10-26h-16l-10 26h-10zm23-34h10l-5-20-5 20z" fill="#5b21b6" />
-          <polygon points="167,58 172,48 177,58" fill="#5b21b6" opacity="0.6" />
+          <polygon points="167,58 172,48 177,58" fill="#5b21b6" />
         </svg>
       </div>
 
