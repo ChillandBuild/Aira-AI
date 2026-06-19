@@ -150,6 +150,7 @@ export default function LandingPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Demo form state
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", company: "", industry: "" });
@@ -210,7 +211,9 @@ export default function LandingPage() {
   }, [currentStep]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Scroll only the chat container — scrollIntoView would yank the whole page.
+    const el = chatScrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [chatMessages, isTyping]);
 
   // Form handler
@@ -586,7 +589,7 @@ export default function LandingPage() {
 
                 {/* Right Panel — Chat */}
                 <div className="md:w-[65%] p-8 flex flex-col justify-between min-h-[380px]">
-                  <div className="flex flex-col gap-3 overflow-y-auto max-h-[300px] pr-2">
+                  <div ref={chatScrollRef} className="flex flex-col gap-3 overflow-y-auto max-h-[300px] pr-2">
                     {chatMessages.map((msg, i) => {
                       if (msg.sender === "system") {
                         return (
