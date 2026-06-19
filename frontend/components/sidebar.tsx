@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
-  LayoutDashboard, MessageSquare, Users, Settings, Phone,
+  LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote,
   Inbox, ChevronDown, ChevronRight, RadioTower, Calendar,
 } from "lucide-react";

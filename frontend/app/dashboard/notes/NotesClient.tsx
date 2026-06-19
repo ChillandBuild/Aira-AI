@@ -3,8 +3,9 @@
 import { toast } from "sonner";
 import { useEffect, useState, useMemo } from "react";
 import {
-  Search, StickyNote, Plus, X, LayoutGrid, List as ListIcon, Pin, User, CalendarClock, RefreshCw, Sparkles,
+  Search, StickyNote, Plus, X, Pin, User, CalendarClock, RefreshCw, Sparkles,
 } from "lucide-react";
+
 import { api, Lead, CallLog, NoteWithLead } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import type { Note } from "@/app/dashboard/telecalling/types";
@@ -18,18 +19,6 @@ import { useLeadsWithActivity, useNotes, useAllNotes } from "@/hooks/useApi";
 
 type PageMode = "by_lead" | "all_notes";
 type ViewMode = "grid" | "list";
-
-function pillClass(active: boolean) {
-  return `px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all ${
-    active ? "bg-white text-indigo-600 shadow-sm" : "text-[#78716c] hover:text-[#292524]"
-  }`;
-}
-
-function iconPillClass(active: boolean) {
-  return `p-1.5 rounded-xl transition-all ${
-    active ? "bg-white text-indigo-600 shadow-sm" : "text-[#a8a29e] hover:text-[#44403c]"
-  }`;
-}
 
 export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] } | null }) {
   const [pageMode, setPageMode] = useState<PageMode>("by_lead");
