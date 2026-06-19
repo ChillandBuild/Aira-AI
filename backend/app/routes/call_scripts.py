@@ -109,7 +109,7 @@ async def get_script(script_id: str, ctx: dict = Depends(get_tenant_and_role)) -
 
 @router.post("")
 async def create_script(payload: CreateScript, ctx: dict = Depends(get_tenant_and_role)) -> dict:
-    if payload.segment not in ("A", "B", "C", "D"):
+    if payload.segment is not None and payload.segment not in ("A", "B", "C", "D"):
         raise HTTPException(status_code=400, detail="Segment must be A, B, C, or D")
 
     db = get_supabase()
