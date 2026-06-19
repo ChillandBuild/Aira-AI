@@ -100,20 +100,21 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[220px] bg-background flex flex-col z-20 select-none">
-      {/* Brand */}
-      <div className="px-5 py-5">
-        <span
-          className="block font-display font-extrabold leading-none text-[22px] text-[#5b21b6]"
-          style={{
-            letterSpacing: "-0.04em",
-            textShadow: "0 0 4px rgba(91,33,182,0.6), 0 0 14px rgba(91,33,182,0.3), 0 0 30px rgba(91,33,182,0.15)",
-          }}
-        >
-          Aira
-        </span>
+      {/* Brand — height matches header (h-14 = 56px) so divider aligns with header border */}
+      <div className="h-14 flex items-center px-5 border-b border-[#e8e3db]">
+        <svg width="80" height="28" viewBox="0 0 200 70" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ filter: "drop-shadow(0 0 6px rgba(91,33,182,0.35)) drop-shadow(0 0 14px rgba(91,33,182,0.15))" }}>
+          {/* A — dark with violet accent triangle */}
+          <path d="M0 68L24 2h8l24 66h-10L36 42H20L10 68H0zM23 34h10L28 14 23 34z" fill="#1c1917" />
+          <polygon points="23,58 28,48 33,58" fill="#5b21b6" />
+          {/* I */}
+          <rect x="66" y="2" width="8" height="66" fill="#1c1917" />
+          {/* R */}
+          <path d="M90 2h22c12 0 18 8 18 18s-6 18-18 18h-4l22 30h-12l-20-28h-0V68H90V2zm8 30h14c6 0 10-4 10-12s-4-10-10-10H98v22z" fill="#1c1917" />
+          {/* A — violet with violet accent triangle */}
+          <path d="M144 68l24-66h8l24 66h-10l-10-26h-16l-10 26h-10zm23-34h10l-5-20-5 20z" fill="#5b21b6" />
+          <polygon points="167,58 172,48 177,58" fill="#5b21b6" opacity="0.6" />
+        </svg>
       </div>
-
-      <div className="mx-5 h-px bg-[#e8e3db]" />
 
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview */}
