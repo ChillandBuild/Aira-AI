@@ -93,21 +93,6 @@ const SEGMENT_COLORS: Record<string, string> = {
   D: "bg-rose-50 text-rose-700 border border-rose-200",
 };
 
-function segmentBadge(seg: string | null) {
-  if (!seg)
-    return (
-      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-[#f0ece4] text-[#78716c] border border-[#e8e3db]">
-        All
-      </span>
-    );
-  return (
-    <span
-      className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${SEGMENT_COLORS[seg] ?? "bg-[#f0ece4] text-[#78716c] border border-[#e8e3db]"}`}
-    >
-      Seg {seg}
-    </span>
-  );
-}
 
 function emptyFormStep(): FormStep {
   return { text: "", note: "", branches: [] };
@@ -711,7 +696,6 @@ function ScriptsTab() {
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
-  const [formSegment, setFormSegment] = useState<string>("");
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [formSteps, setFormSteps] = useState<FormStep[]>([emptyFormStep()]);
 
@@ -732,7 +716,6 @@ function ScriptsTab() {
   function openCreate() {
     setEditingId(null);
     setFormName("");
-    setFormSegment("");
     setFormIsDefault(false);
     setFormSteps([emptyFormStep()]);
     setShowEditor(true);
@@ -741,7 +724,6 @@ function ScriptsTab() {
   function openEdit(s: CallScript) {
     setEditingId(s.id);
     setFormName(s.name);
-    setFormSegment(s.segment ?? "");
     setFormIsDefault(s.is_default);
     setFormSteps(stepsToForm(s.steps));
     setShowEditor(true);
@@ -757,15 +739,16 @@ function ScriptsTab() {
     setSaving(true);
     try {
       const steps = formToSteps(formSteps);
-      const segment = formSegment || null;
       if (editingId) {
-        await apiUpdateScript(editingId, { name: formName.trim(), segment, steps, is_default: formIsDefault });
+        await apiUpdateScript(editingId, { name: formName.trim(), segment: null, steps, is_default: formIsDefault });
       } else {
-        await apiCreateScript({ name: formName.trim(), segment, steps, is_default: formIsDefault });
+        await apiCreateScript({ name: formName.trim(), steps, is_default: formIsDefault });
       }
       closeEditor();
       await load();
-    } catch { /* silent */ }
+    } catch (err) {
+      console.error("Failed to save script:", err);
+    }
     setSaving(false);
   }
 
@@ -850,7 +833,6 @@ function ScriptsTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-display text-sm font-bold text-on-surface truncate">{s.name}</span>
-                    {segmentBadge(s.segment)}
                     {s.is_default && (
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-0.5">
                         <Star size={9} className="fill-purple-500 text-purple-500" />Default
@@ -910,20 +892,10 @@ function ScriptsTab() {
                 <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Segment A Hot Lead Script"
                   className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface-low placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary" />
               </div>
-              <div className="flex gap-4 items-end">
-                <div className="flex-1">
-                  <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5 uppercase tracking-wider">Segment</label>
-                  <select value={formSegment} onChange={(e) => setFormSegment(e.target.value)}
-                    className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface-low focus:outline-none focus:ring-2 focus:ring-tertiary">
-                    <option value="">None (All)</option>
-                    <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
-                  </select>
-                </div>
-                <label className="flex items-center gap-2 pb-3 cursor-pointer">
-                  <input type="checkbox" checked={formIsDefault} onChange={(e) => setFormIsDefault(e.target.checked)} className="w-4 h-4 rounded border-surface-mid text-tertiary focus:ring-tertiary" />
-                  <span className="font-label text-xs font-semibold text-on-surface-muted">Default</span>
-                </label>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={formIsDefault} onChange={(e) => setFormIsDefault(e.target.checked)} className="w-4 h-4 rounded border-surface-mid text-tertiary focus:ring-tertiary" />
+                <span className="font-label text-xs font-semibold text-on-surface-muted">Set as default script</span>
+              </label>
               <div>
                 <label className="block font-label text-xs font-semibold text-on-surface-muted mb-3 uppercase tracking-wider">Steps</label>
                 <div className="space-y-4">
@@ -989,7 +961,7 @@ function ScriptsTab() {
                   <Eye size={18} className="text-tertiary" />
                   <h2 className="font-display text-lg font-bold text-on-surface">Script Preview</h2>
                 </div>
-                <p className="font-body text-xs text-on-surface-muted mt-0.5">{previewScript.name}{previewScript.segment ? ` · Segment ${previewScript.segment}` : ""}</p>
+                <p className="font-body text-xs text-on-surface-muted mt-0.5">{previewScript.name}</p>
               </div>
               <button onClick={() => { setPreviewScript(null); setPreviewStep(0); }} className="p-2 rounded-xl hover:bg-surface-low text-on-surface-muted transition-colors"><X size={18} /></button>
             </div>

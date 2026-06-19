@@ -91,7 +91,9 @@ export function Sidebar() {
   const filterEnabled = (items: NavItem[]) => 
     items.filter(item => !item.feature || enabledFeatures.includes(item.feature));
 
-  const tcGroupItems = filterEnabled(TELECALLING_ITEMS);
+  const tcGroupItems = filterEnabled(TELECALLING_ITEMS).filter(
+    (item) => item.href !== "/dashboard/telecalling/upload" || role === "owner"
+  );
 
   const isTcActive = tcGroupItems.some(item => pathname.startsWith(item.href));
 

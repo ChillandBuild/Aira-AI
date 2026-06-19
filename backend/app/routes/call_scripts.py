@@ -18,7 +18,7 @@ class ScriptStep(BaseModel):
 
 class CreateScript(BaseModel):
     name: str
-    segment: str
+    segment: str | None = None
     steps: list[ScriptStep]
     is_default: bool = False
 
