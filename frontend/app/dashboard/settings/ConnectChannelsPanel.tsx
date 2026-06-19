@@ -1,11 +1,22 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
   CheckCircle2, Copy, Check, Zap, XCircle, X
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
+
+function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
+
 
 // ── Icons for Instagram & Facebook (Baseline SVG) ───────────────────────────
 function InstagramIcon({ size = 18, className = "" }: { size?: number | string; className?: string }) {
@@ -646,8 +657,9 @@ export default function ConnectChannelsPanel() {
 
       {/* Integration Configuration Modal */}
       {selectedChannel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-[3px] animate-fade-in">
-          <div className="bg-surface rounded-card shadow-card w-full max-w-2xl max-h-[85vh] overflow-y-auto ring-1 ring-[#c4c7c7]/20 flex flex-col">
+        <Portal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-[3px] animate-fade-in">
+            <div className="bg-surface rounded-card shadow-card w-full max-w-2xl max-h-[85vh] overflow-y-auto ring-1 ring-[#c4c7c7]/20 flex flex-col">
             
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-border-subtle">
@@ -744,69 +756,70 @@ export default function ConnectChannelsPanel() {
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Modal Footer */}
-            <div className="p-6 border-t border-border-subtle bg-surface-low flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                {saveState === "saved" && (
-                  <span className="inline-flex items-center gap-1.5 text-emerald-600 font-body text-sm font-medium animate-fade-in">
-                    <CheckCircle2 size={14} /> Saved successfully
-                  </span>
-                )}
-                {!isModalDirty && saveState === "idle" && isChannelConfigured(selectedChannel) && (
-                  <span className="text-[11px] text-ink-muted font-body">No unsaved changes</span>
-                )}
-                {isModalDirty && (
-                  <span className="text-[11px] text-amber-600 font-body font-medium animate-fade-in">Unsaved changes</span>
-                )}
-              </div>
+              {/* Modal Footer */}
+              <div className="p-6 border-t border-border-subtle bg-surface-low flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  {saveState === "saved" && (
+                    <span className="inline-flex items-center gap-1.5 text-emerald-600 font-body text-sm font-medium animate-fade-in">
+                      <CheckCircle2 size={14} /> Saved successfully
+                    </span>
+                  )}
+                  {!isModalDirty && saveState === "idle" && isChannelConfigured(selectedChannel) && (
+                    <span className="text-[11px] text-ink-muted font-body">No unsaved changes</span>
+                  )}
+                  {isModalDirty && (
+                    <span className="text-[11px] text-amber-600 font-body font-medium animate-fade-in">Unsaved changes</span>
+                  )}
+                </div>
 
-              <div className="flex items-center gap-2">
-                {selectedChannel.hasActivation && (
+                <div className="flex items-center gap-2">
+                  {selectedChannel.hasActivation && (
+                    <button
+                      type="button"
+                      onClick={handleActivate}
+                      disabled={activating || !isChannelConfigured(selectedChannel)}
+                      title={!isChannelConfigured(selectedChannel) ? "Save required fields first" : "Validate token and register webhook"}
+                      className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all border",
+                        isChannelConfigured(selectedChannel)
+                          ? "border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100"
+                          : "border-border text-ink-muted bg-surface-subtle cursor-not-allowed opacity-50"
+                      )}
+                    >
+                      {activating ? (
+                        <><Loader2 size={14} className="animate-spin" />Validating…</>
+                      ) : (
+                        <><Zap size={14} />Validate &amp; Activate</>
+                      )}
+                    </button>
+                  )}
+
                   <button
-                    type="button"
-                    onClick={handleActivate}
-                    disabled={activating || !isChannelConfigured(selectedChannel)}
-                    title={!isChannelConfigured(selectedChannel) ? "Save required fields first" : "Validate token and register webhook"}
-                    className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all border",
-                      isChannelConfigured(selectedChannel)
-                        ? "border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100"
-                        : "border-border text-ink-muted bg-surface-subtle cursor-not-allowed opacity-50"
+                    onClick={handleSave}
+                    disabled={saveState === "saving" || saveState === "saved" || !isModalDirty}
+                    className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all",
+                      saveState === "saved"
+                        ? "bg-emerald-100 text-emerald-700 cursor-default"
+                        : isModalDirty
+                        ? "bg-primary text-white hover:bg-primary/90"
+                        : "bg-surface-subtle text-ink-muted cursor-default"
                     )}
                   >
-                    {activating ? (
-                      <><Loader2 size={14} className="animate-spin" />Validating…</>
+                    {saveState === "saving" ? (
+                      <><Loader2 size={14} className="animate-spin" />Saving…</>
+                    ) : saveState === "saved" ? (
+                      <><CheckCircle2 size={14} />Saved</>
                     ) : (
-                      <><Zap size={14} />Validate &amp; Activate</>
+                      <><Save size={14} />Save Changes</>
                     )}
                   </button>
-                )}
-
-                <button
-                  onClick={handleSave}
-                  disabled={saveState === "saving" || saveState === "saved" || !isModalDirty}
-                  className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all",
-                    saveState === "saved"
-                      ? "bg-emerald-100 text-emerald-700 cursor-default"
-                      : isModalDirty
-                      ? "bg-primary text-white hover:bg-primary/90"
-                      : "bg-surface-subtle text-ink-muted cursor-default"
-                  )}
-                >
-                  {saveState === "saving" ? (
-                    <><Loader2 size={14} className="animate-spin" />Saving…</>
-                  ) : saveState === "saved" ? (
-                    <><CheckCircle2 size={14} />Saved</>
-                  ) : (
-                    <><Save size={14} />Save Changes</>
-                  )}
-                </button>
+                </div>
               </div>
-            </div>
 
+            </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

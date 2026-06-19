@@ -890,12 +890,7 @@ function ScriptPanel() {
           if (!cancelled && Array.isArray(data)) {
             const activeOnly = data.filter((s) => s.active);
             setActiveScripts(activeOnly);
-            if (activeOnly.length > 0) {
-              setSelectedScript(activeOnly[0]);
-              setCurrentStep(0);
-            } else {
-              setSelectedScript(null);
-            }
+            setSelectedScript(null);
           }
         }
       } catch { /* non-critical */ }
@@ -908,56 +903,83 @@ function ScriptPanel() {
     return (
       <div className="p-8 text-center">
         <div className="animate-spin w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto" />
-        <p className="text-xs text-[#a8a29e] mt-2">Loading script...</p>
+        <p className="text-xs text-[#a8a29e] mt-2">Loading scripts...</p>
       </div>
     );
   }
 
-  if (!selectedScript || !selectedScript.steps || !selectedScript.steps.length) {
+  if (activeScripts.length === 0) {
     return (
       <div className="p-8 bg-[#faf8f5]/40 border border-[#e8e3db] text-center rounded-xl">
         <FileText size={24} className="text-[#d6cfc9] mx-auto mb-2" />
         <p className="text-xs text-[#a8a29e] font-medium">No active scripts configured.</p>
-        <p className="text-[10px] text-[#d6cfc9] mt-1">Create one in Telecalling → Scripts.</p>
+        <p className="text-[10px] text-[#d6cfc9] mt-1">Create one in Telecalling &rarr; Scripts.</p>
+      </div>
+    );
+  }
+
+  if (!selectedScript) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between border-b border-[#e8e3db] pb-2 mb-2">
+          <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5">
+            <FileText size={12} className="text-indigo-400 shrink-0" /> Select Script
+          </h3>
+          <span className="text-[10px] text-[#a8a29e] font-bold">
+            {activeScripts.length} Active
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 gap-2.5">
+          {activeScripts.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                setSelectedScript(s);
+                setCurrentStep(0);
+              }}
+              className="w-full bg-white hover:bg-indigo-50/20 border border-[#e8e3db] hover:border-indigo-300 rounded-xl p-3.5 text-left transition-all duration-200 group flex items-start gap-3 shadow-sm hover:shadow"
+            >
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <FileText size={16} className="text-indigo-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="font-display text-xs font-bold text-[#292524] truncate group-hover:text-indigo-600 transition-colors">
+                  {s.name}
+                </h4>
+                <p className="font-body text-[10px] text-[#a8a29e] mt-0.5">
+                  {s.steps?.length || 0} conversational steps
+                </p>
+              </div>
+              <ChevronRight size={14} className="text-[#a8a29e] self-center group-hover:translate-x-0.5 transition-transform shrink-0" />
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
 
   const steps = [...selectedScript.steps].sort((a, b) => a.order - b.order);
-  const step = steps[currentStep];
+  const step = steps[currentStep] || steps[0] || { order: 1, text: "", note: "", branches: [] };
 
   return (
     <div className="space-y-3">
-      {activeScripts.length > 1 && (
-        <div className="flex items-center gap-2 mb-2 bg-[#faf8f5] p-2 border border-[#e8e3db] rounded-xl">
-          <label className="text-[10px] font-bold text-[#78716c] uppercase shrink-0">Script:</label>
-          <select
-            value={selectedScript?.id || ""}
-            onChange={(e) => {
-              const s = activeScripts.find((x) => x.id === e.target.value);
-              if (s) {
-                setSelectedScript(s);
-                setCurrentStep(0);
-              }
-            }}
-            className="text-xs border border-[#e8e3db] rounded-lg px-2.5 py-1 bg-white text-[#292524] focus:outline-none focus:ring-1 focus:ring-indigo-500 flex-1 font-semibold"
-          >
-            {activeScripts.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="flex items-center justify-between border-b border-[#e8e3db] pb-2 mb-2">
+        <button
+          onClick={() => setSelectedScript(null)}
+          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-wider font-label"
+        >
+          &larr; Back to all scripts
+        </button>
+        <span className="text-[10px] text-[#a8a29e] font-bold">
+          Step {currentStep + 1} of {steps.length}
+        </span>
+      </div>
 
       <div className="flex items-center justify-between">
         <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5 truncate max-w-[70%]">
           <FileText size={12} className="text-indigo-400 shrink-0" /> {selectedScript.name}
         </h3>
-        <span className="text-[10px] text-[#a8a29e] font-bold shrink-0">
-          Step {currentStep + 1} of {steps.length}
-        </span>
       </div>
 
       <div className="bg-white border-2 border-indigo-100 rounded-2xl p-5 shadow-sm">
@@ -966,7 +988,7 @@ function ScriptPanel() {
             {step.order}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-body text-sm text-[#292524] leading-relaxed">{step.text}</p>
+            <p className="font-body text-sm text-[#292524] leading-relaxed whitespace-pre-wrap">{step.text}</p>
             {step.note && (
               <p className="font-body text-xs text-[#a8a29e] italic mt-2">{step.note}</p>
             )}
