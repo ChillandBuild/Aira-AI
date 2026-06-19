@@ -26,8 +26,8 @@ const dancingScript = Dancing_Script({
 });
 
 export const metadata: Metadata = {
-  title: "Aira AI — Lead Intelligence",
-  description: "WhatsApp lead management for education consultancies",
+  title: "AIRA AI — Turn Every Enquiry Into Revenue | AI Revenue Acceleration Platform",
+  description: "AIRA helps businesses automate conversations, qualify leads, evaluate telecallers and convert more customers. AI-powered conversational CRM for WhatsApp, Instagram, Facebook & more.",
 };
 
 export default function RootLayout({
