@@ -12,7 +12,7 @@ import {
   Eye,
   ChevronRight,
   X,
-  GripVertical,
+
   GitBranch,
 
   ToggleLeft,
@@ -1128,71 +1128,197 @@ function ScriptsTab() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal (Full Screen Redesign) */}
       {showEditor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl ring-1 ring-[#c4c7c7]/20 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-surface-mid shrink-0">
-              <h2 className="font-display text-lg font-bold text-on-surface">{editingId ? "Edit Script" : "New Script"}</h2>
-              <button onClick={closeEditor} className="p-2 rounded-xl hover:bg-surface-low text-on-surface-muted transition-colors"><X size={18} /></button>
+        <div className="fixed inset-0 z-50 bg-[#faf8f5] flex flex-col animate-fade-in overflow-hidden">
+          {/* Full Screen Header */}
+          <div className="bg-surface border-b border-surface-mid p-6 flex items-center justify-between shrink-0 shadow-sm">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={closeEditor} 
+                className="p-2 rounded-xl hover:bg-surface-low text-on-surface-muted transition-colors flex items-center gap-1 font-label text-xs font-semibold"
+              >
+                <X size={16} /> Close
+              </button>
+              <div className="h-6 w-[1px] bg-surface-mid" />
+              <h2 className="font-display text-base font-bold text-on-surface">
+                {editingId ? "Edit Talk Track Script" : "Create New Talk Track Script"}
+              </h2>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
-              <div>
-                <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5 uppercase tracking-wider">Script Name</label>
-                <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Segment A Hot Lead Script"
-                  className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface-low placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary" />
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={closeEditor} 
+                className="px-4 py-2.5 rounded-xl font-label text-xs font-semibold text-on-surface-muted hover:bg-surface-low transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleSave} 
+                disabled={saving}
+                className="flex items-center gap-2 bg-tertiary text-white px-5 py-2.5 rounded-xl font-label text-xs font-semibold hover:bg-tertiary/90 shadow-md disabled:opacity-50 transition-all"
+              >
+                {saving && <Loader2 size={14} className="animate-spin" />}
+                {editingId ? "Save Changes" : "Save & Publish"}
+              </button>
+            </div>
+          </div>
+
+          {/* Editor Body */}
+          <div className="flex-grow overflow-y-auto bg-[#faf8f5] py-10 px-4">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Card 1: Script Title */}
+              <div className="bg-surface rounded-3xl p-6 shadow-sm border border-surface-mid">
+                <label className="block font-label text-xs font-bold text-on-surface-muted mb-2 uppercase tracking-wider">
+                  Script Talk Track Name
+                </label>
+                <input 
+                  type="text" 
+                  value={formName} 
+                  onChange={(e) => setFormName(e.target.value)} 
+                  placeholder="e.g., Cold Calling Outbound Script - Batch A"
+                  className="w-full border border-surface-mid rounded-2xl px-5 py-4 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary transition-all" 
+                />
+                <p className="text-[11px] text-on-surface-muted mt-2">
+                  Give your talk track a clear name so telecallers know when to select it.
+                </p>
               </div>
 
-              <div>
-                <label className="block font-label text-xs font-semibold text-on-surface-muted mb-3 uppercase tracking-wider">Steps</label>
-                <div className="space-y-4">
+              {/* Card 2: Script Steps */}
+              <div className="bg-surface rounded-3xl p-6 shadow-sm border border-surface-mid space-y-6">
+                <div className="flex items-center justify-between border-b border-surface-mid pb-4">
+                  <div>
+                    <h3 className="font-display text-sm font-bold text-on-surface">Interactive Conversation Steps</h3>
+                    <p className="font-body text-xs text-on-surface-muted mt-0.5">Define script lines, tips, and call flow routing choices.</p>
+                  </div>
+                  <button 
+                    onClick={() => setFormSteps((prev) => [...prev, emptyFormStep()])}
+                    className="flex items-center gap-1.5 bg-surface border border-surface-mid text-on-surface px-4 py-2 rounded-xl font-label text-xs font-semibold hover:bg-surface-low transition-colors"
+                  >
+                    <Plus size={14} /> Add New Step
+                  </button>
+                </div>
+
+                <div className="space-y-6">
                   {formSteps.map((step, idx) => (
-                    <div key={idx} className="bg-surface-low border border-surface-mid rounded-xl p-4">
-                      <div className="flex items-center gap-2 mb-3">
-                        <GripVertical size={14} className="text-on-surface-muted" />
-                        <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider">Step {idx + 1}</span>
+                    <div key={idx} className="bg-surface-low border border-surface-mid rounded-2xl p-5 relative hover:shadow-sm transition-all group">
+                      <div className="flex items-center gap-2.5 mb-4 border-b border-surface-mid/50 pb-2">
+                        <span className="w-6 h-6 rounded-full bg-tertiary/10 text-tertiary flex items-center justify-center text-[10px] font-black shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span className="font-label text-xs font-bold text-on-surface uppercase tracking-wider">Step {idx + 1} details</span>
                         {formSteps.length > 1 && (
-                          <button onClick={() => removeStep(idx)} className="ml-auto p-1 rounded-lg hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors"><X size={14} /></button>
+                          <button 
+                            onClick={() => removeStep(idx)} 
+                            className="ml-auto p-1.5 rounded-lg hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors opacity-60 hover:opacity-100"
+                            title="Remove Step"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         )}
                       </div>
-                      <textarea value={step.text} onChange={(e) => updateStep(idx, { text: e.target.value })} placeholder="Script line..." rows={2}
-                        className="w-full border border-surface-mid rounded-lg px-3 py-2 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary resize-none" />
-                      <input type="text" value={step.note} onChange={(e) => updateStep(idx, { note: e.target.value })} placeholder="Coaching hint (optional)"
-                        className="w-full mt-2 border border-surface-mid rounded-lg px-3 py-1.5 font-body text-xs text-on-surface-muted bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary" />
-                      {step.branches.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase flex items-center gap-1"><GitBranch size={10} />Branches</span>
-                          {step.branches.map((br, bi) => (
-                            <div key={bi} className="flex items-center gap-2">
-                              <input type="text" value={br.label} onChange={(e) => updateBranch(idx, bi, { label: e.target.value })} placeholder="Label"
-                                className="flex-1 border border-surface-mid rounded-lg px-2.5 py-1.5 font-body text-xs bg-surface text-on-surface" />
-                              <span className="font-label text-[10px] text-on-surface-muted">Go to</span>
-                              <input type="number" min={1} max={formSteps.length} value={br.goto} onChange={(e) => updateBranch(idx, bi, { goto: parseInt(e.target.value) || 1 })}
-                                className="w-14 border border-surface-mid rounded-lg px-2 py-1.5 font-body text-xs text-center bg-surface text-on-surface" />
-                              <button onClick={() => removeBranch(idx, bi)} className="p-1 rounded hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors"><X size={12} /></button>
-                            </div>
-                          ))}
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block font-label text-[10px] font-bold text-on-surface-muted mb-1.5 uppercase tracking-wide">
+                            Telecaller Talk track line (What the caller says)
+                          </label>
+                          <textarea 
+                            value={step.text} 
+                            onChange={(e) => updateStep(idx, { text: e.target.value })} 
+                            placeholder="Hello, is this {{name}}? I'm calling from Aira..." 
+                            rows={3}
+                            className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary resize-none transition-all" 
+                          />
                         </div>
-                      )}
-                      <button onClick={() => addBranch(idx)} className="mt-2 font-label text-[10px] font-semibold text-tertiary hover:text-tertiary/80 flex items-center gap-1 transition-colors">
-                        <GitBranch size={10} />Add Branch
-                      </button>
+
+                        <div>
+                          <label className="block font-label text-[10px] font-bold text-on-surface-muted mb-1.5 uppercase tracking-wide">
+                            Coaching / Hint note (Optional)
+                          </label>
+                          <input 
+                            type="text" 
+                            value={step.note} 
+                            onChange={(e) => updateStep(idx, { note: e.target.value })} 
+                            placeholder="e.g., Speak slowly and wait for their response."
+                            className="w-full border border-surface-mid rounded-xl px-4 py-2.5 font-body text-xs text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary transition-all" 
+                          />
+                        </div>
+
+                        {/* Interactive Branches */}
+                        <div className="bg-surface rounded-xl p-4 border border-surface-mid">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase flex items-center gap-1.5">
+                              <GitBranch size={12} className="text-tertiary" /> Conversation Paths & Branches
+                            </span>
+                            <button 
+                              onClick={() => addBranch(idx)} 
+                              className="font-label text-[10px] font-bold text-tertiary hover:text-tertiary/80 flex items-center gap-1 transition-colors"
+                            >
+                              <Plus size={10} /> Add Branch Option
+                            </button>
+                          </div>
+
+                          {step.branches.length === 0 ? (
+                            <p className="text-[10px] text-on-surface-muted italic">
+                              No custom branches. The script will simply guide the caller to the next logical step.
+                            </p>
+                          ) : (
+                            <div className="space-y-2.5">
+                              {step.branches.map((br, bi) => (
+                                <div key={bi} className="flex items-center gap-3 bg-surface-low p-2.5 rounded-lg border border-surface-mid">
+                                  <div className="flex-1">
+                                    <label className="block text-[8px] font-bold text-on-surface-muted uppercase mb-1">
+                                      Button Label (e.g. &quot;Interested&quot; / &quot;Not Interested&quot;)
+                                    </label>
+                                    <input 
+                                      type="text" 
+                                      value={br.label} 
+                                      onChange={(e) => updateBranch(idx, bi, { label: e.target.value })} 
+                                      placeholder="e.g. Yes, tell me more"
+                                      className="w-full border border-surface-mid rounded-md px-2 py-1 font-body text-xs bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-tertiary" 
+                                    />
+                                  </div>
+                                  <div className="w-24">
+                                    <label className="block text-[8px] font-bold text-on-surface-muted uppercase mb-1">
+                                      Go to Step
+                                    </label>
+                                    <select
+                                      value={br.goto}
+                                      onChange={(e) => updateBranch(idx, bi, { goto: parseInt(e.target.value) || 1 })}
+                                      className="w-full border border-surface-mid rounded-md px-2 py-1.5 font-body text-xs bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-tertiary"
+                                    >
+                                      {formSteps.map((_, sIdx) => (
+                                        <option key={sIdx} value={sIdx + 1}>
+                                          Step {sIdx + 1}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <button 
+                                    onClick={() => removeBranch(idx, bi)} 
+                                    className="p-1.5 rounded-md hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors mt-4"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => setFormSteps((prev) => [...prev, emptyFormStep()])}
-                  className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-xl font-label text-xs font-semibold text-on-surface-muted border border-surface-mid hover:bg-surface-low transition-colors">
-                  <Plus size={14} />Add Step
-                </button>
+
+                <div className="pt-4 border-t border-surface-mid flex justify-center">
+                  <button 
+                    onClick={() => setFormSteps((prev) => [...prev, emptyFormStep()])}
+                    className="flex items-center gap-2 bg-tertiary/10 text-tertiary px-8 py-3.5 rounded-2xl font-label text-xs font-semibold hover:bg-tertiary/15 transition-all shadow-sm"
+                  >
+                    <Plus size={16} /> Add Next Script Step
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 p-6 pt-4 border-t border-surface-mid shrink-0">
-              <button onClick={closeEditor} className="px-4 py-2 rounded-xl font-label text-sm font-semibold text-on-surface-muted hover:bg-surface-low transition-colors">Cancel</button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 bg-tertiary text-white px-5 py-2.5 rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 shadow-md disabled:opacity-50 transition-all">
-                {saving && <Loader2 size={14} className="animate-spin" />}
-                {editingId ? "Save Changes" : "Create Script"}
-              </button>
             </div>
           </div>
         </div>

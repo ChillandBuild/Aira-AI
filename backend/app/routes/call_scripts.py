@@ -6,7 +6,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role, require_owner
 
 logger = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(require_owner)])
+router = APIRouter()
 
 
 class ScriptStep(BaseModel):
@@ -113,7 +113,7 @@ async def get_script(script_id: str, ctx: dict = Depends(get_tenant_and_role)) -
     return result.data
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(require_owner)])
 async def create_script(payload: CreateScript, ctx: dict = Depends(get_tenant_and_role)) -> dict:
     if payload.segment is not None and payload.segment not in ("A", "B", "C", "D"):
         raise HTTPException(status_code=400, detail="Segment must be A, B, C, or D")
@@ -139,7 +139,7 @@ async def create_script(payload: CreateScript, ctx: dict = Depends(get_tenant_an
     return result.data[0]
 
 
-@router.patch("/{script_id}")
+@router.patch("/{script_id}", dependencies=[Depends(require_owner)])
 async def update_script(
     script_id: str,
     payload: UpdateScript,
@@ -187,7 +187,7 @@ async def update_script(
     return result.data[0]
 
 
-@router.delete("/{script_id}")
+@router.delete("/{script_id}", dependencies=[Depends(require_owner)])
 async def delete_script(script_id: str, ctx: dict = Depends(get_tenant_and_role)) -> dict:
     db = get_supabase()
 

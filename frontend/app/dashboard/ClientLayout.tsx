@@ -85,7 +85,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
               </Suspense>
               <ClaimBanner />
-              <div className="p-7 max-w-[1400px] relative w-full">
+              <div className="p-7 max-w-[1400px] w-full">
                 {children}
               </div>
             </main>
