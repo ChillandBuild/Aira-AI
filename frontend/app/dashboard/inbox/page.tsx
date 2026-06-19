@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { MessageSquare, CheckCircle, Settings, UserCog } from "lucide-react";
+import { MessageSquare, CheckCircle, UserCog } from "lucide-react";
 import Link from "next/link";
 import { SegmentBadge } from "@/components/segment-badge";
 import { API_URL, getAuthHeaders } from "@/lib/api";

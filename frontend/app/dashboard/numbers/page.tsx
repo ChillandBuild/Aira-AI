@@ -1,7 +1,7 @@
 "use client";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Plus, X, Pencil, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw, Info, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
@@ -272,7 +272,6 @@ const numbersApi = {
 function NumbersPageContent() {
   const { role, loading: roleLoading } = useAuthRole();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab = (rawTab === "activity" ? "activity" : "pool") as "pool" | "activity";

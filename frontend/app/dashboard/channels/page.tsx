@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
-  CheckCircle2, Copy, Check, Zap, XCircle, RefreshCw, X
+  CheckCircle2, Copy, Check, Zap, XCircle, X
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
