@@ -260,7 +260,7 @@ export default function ClientDetailPage() {
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
         disabled ? 'opacity-50 cursor-not-allowed' : ''
-      } ${checked ? 'bg-gradient-to-r from-cyan-500 to-emerald-500' : 'bg-slate-700'}`}
+      } ${checked ? 'bg-[#5b21b6]' : 'bg-[#e8e3db]'}`}
     >
       <span
         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
@@ -297,9 +297,9 @@ export default function ClientDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-cyan-500 flex flex-col items-center">
-          <div className="w-8 h-8 border-4 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin mb-4"></div>
-          <span className="text-slate-400 font-medium">Loading client details...</span>
+        <div className="text-[#5b21b6] flex flex-col items-center">
+          <div className="w-8 h-8 border-4 border-[#5b21b6]/20 border-t-[#5b21b6] rounded-full animate-spin mb-4"></div>
+          <span className="text-[#a8a29e] font-medium">Loading client details...</span>
         </div>
       </div>
     );
@@ -307,10 +307,13 @@ export default function ClientDetailPage() {
 
   if (error || !client) {
     return (
-      <div className="p-6 bg-red-500/[0.06] border border-red-500/20 rounded-2xl text-red-400 backdrop-blur-md">
+      <div className="p-6 bg-rose-50 border border-rose-200 rounded-[1.25rem] text-rose-800 font-manrope shadow-sm">
         <h2 className="text-xl font-bold mb-2">Error Loading Client</h2>
-        <p>{error || "Client not found."}</p>
-        <button onClick={() => router.push('/operator')} className="mt-4 px-4 py-2 bg-white/[0.05] rounded-xl hover:bg-white/[0.1] transition-colors text-white">
+        <p className="text-rose-700">{error || "Client not found."}</p>
+        <button 
+          onClick={() => router.push('/operator')} 
+          className="mt-4 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-sm font-semibold rounded-xl text-white transition-all shadow-sm"
+        >
           Return to Clients
         </button>
       </div>
@@ -331,38 +334,38 @@ export default function ClientDetailPage() {
   const isSettingSet = (key: string) => getSetting(key)?.has_value ?? false;
 
   return (
-    <div>
+    <div className="font-manrope">
       {/* Header */}
       <div className="mb-8">
         <button 
           onClick={() => router.push('/operator')}
-          className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors mb-4"
+          className="flex items-center gap-2 text-sm text-[#a8a29e] hover:text-[#1c1917] transition-colors mb-4"
         >
           <ArrowLeft size={16} /> Back to Clients
         </button>
         
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-[#1c1917] tracking-tight flex items-center gap-3">
               {client.name}
-              <span className={`text-xs px-2.5 py-1 rounded-md font-medium border ${
+              <span className={`text-xs px-2.5 py-1 rounded-md font-semibold border ${
                 client.status === "active" 
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
-                  : "bg-red-500/10 text-red-400 border-red-500/20"
+                  ? "bg-emerald-55 text-emerald-700 border-emerald-200 bg-emerald-50" 
+                  : "bg-rose-50 text-rose-700 border-rose-200"
               }`}>
                 {client.status.toUpperCase()}
               </span>
             </h1>
             <div className="flex items-center gap-4 mt-2 text-sm">
-              <span className="text-slate-400 font-mono bg-white/[0.05] px-2 py-0.5 rounded">ID: {client.id}</span>
-              <span className="text-slate-400">{ownerEmail || "No owner email"}</span>
-              <span className="text-slate-400">Created {new Date(client.created_at).toLocaleDateString()}</span>
+              <span className="text-[#78716c] font-mono bg-[#f0ece4]/60 px-2 py-0.5 rounded">ID: {client.id}</span>
+              <span className="text-[#78716c]">{ownerEmail || "No owner email"}</span>
+              <span className="text-[#78716c]">Created {new Date(client.created_at).toLocaleDateString()}</span>
             </div>
           </div>
           
-          <div className="bg-cyan-500/10 border border-cyan-500/20 px-4 py-2 rounded-xl">
-            <p className="text-xs text-cyan-500/70 uppercase tracking-wider font-semibold mb-0.5">Service Package</p>
-            <p className="text-sm font-medium text-cyan-400">{SERVICE_LABELS[featuresToService(client.enabled_features)] ?? "Custom"}</p>
+          <div className="bg-[#f5f3ff] border border-violet-200 px-4 py-2 rounded-xl">
+            <p className="text-xs text-[#5b21b6]/70 uppercase tracking-wider font-semibold mb-0.5">Service Package</p>
+            <p className="text-sm font-semibold text-[#5b21b6]">{SERVICE_LABELS[featuresToService(client.enabled_features)] ?? "Custom"}</p>
           </div>
         </div>
       </div>
@@ -376,15 +379,15 @@ export default function ClientDetailPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all whitespace-nowrap
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap border
                 ${isActive 
-                  ? (tab.isDanger ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gradient-to-r from-cyan-500/20 to-violet-500/20 text-white border border-white/[0.1]') 
-                  : (tab.isDanger ? 'text-red-400/70 hover:bg-red-500/10 hover:text-red-400' : 'text-slate-400 hover:text-white hover:bg-white/[0.05]')
+                  ? (tab.isDanger ? 'bg-rose-100 text-rose-700 border-rose-200 shadow-sm font-bold' : 'bg-[#5b21b6] text-white border-[#5b21b6] shadow-sm font-bold') 
+                  : (tab.isDanger ? 'text-rose-600 border-transparent hover:bg-rose-50' : 'text-[#78716c] border-transparent hover:text-[#1c1917] hover:bg-[#f0ece4]/50')
                 }`}
             >
               <Icon size={16} />
               {tab.label}
-              {tab.isDanger && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse ml-1"></span>}
+              {tab.isDanger && <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse ml-1"></span>}
             </button>
           );
         })}
@@ -397,25 +400,25 @@ export default function ClientDetailPage() {
         {activeTab === "overview" && counts && (
           <div className="space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-gradient-to-br from-cyan-500/10 to-violet-500/10 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-sm text-slate-400 mb-1">Total Leads</p>
-                <p className="text-3xl font-bold text-white">{counts.leads.toLocaleString()}</p>
+              <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+                <p className="text-sm text-[#78716c] font-medium mb-1">Total Leads</p>
+                <p className="text-3xl font-bold text-[#1c1917]">{counts.leads.toLocaleString()}</p>
               </div>
-              <div className="bg-gradient-to-br from-cyan-500/10 to-violet-500/10 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-sm text-slate-400 mb-1">Messages</p>
-                <p className="text-3xl font-bold text-white">{counts.messages.toLocaleString()}</p>
+              <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+                <p className="text-sm text-[#78716c] font-medium mb-1">Messages</p>
+                <p className="text-3xl font-bold text-[#1c1917]">{counts.messages.toLocaleString()}</p>
               </div>
-              <div className="bg-gradient-to-br from-cyan-500/10 to-violet-500/10 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-sm text-slate-400 mb-1">Call Logs</p>
-                <p className="text-3xl font-bold text-white">{counts.call_logs.toLocaleString()}</p>
+              <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+                <p className="text-sm text-[#78716c] font-medium mb-1">Call Logs</p>
+                <p className="text-3xl font-bold text-[#1c1917]">{counts.call_logs.toLocaleString()}</p>
               </div>
-              <div className="bg-gradient-to-br from-cyan-500/10 to-violet-500/10 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-sm text-slate-400 mb-1">Team & Callers</p>
-                <p className="text-3xl font-bold text-white">{counts.team_members + counts.callers}</p>
+              <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+                <p className="text-sm text-[#78716c] font-medium mb-1">Team & Callers</p>
+                <p className="text-3xl font-bold text-[#1c1917]">{counts.team_members + counts.callers}</p>
               </div>
             </div>
 
-            <h3 className="text-lg font-semibold text-white mt-8 mb-4">Integration Health</h3>
+            <h3 className="text-lg font-bold text-[#1c1917] mt-8 mb-4">Integration Health</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[
                 { name: "WhatsApp (Meta)", connected: isSettingSet("meta_phone_number_id") && isSettingSet("meta_access_token") },
@@ -423,14 +426,14 @@ export default function ClientDetailPage() {
                 { name: "Groq AI", connected: isSettingSet("groq_api_key") },
                 { name: "Payments (Razorpay)", connected: isSettingSet("razorpay_key_id") }
               ].map(int => (
-                <div key={int.name} className="bg-white/[0.02] border border-white/[0.08] rounded-xl p-4 flex items-center justify-between">
-                  <span className="text-slate-300 font-medium">{int.name}</span>
+                <div key={int.name} className="bg-white border border-[#e8e3db] rounded-xl p-4 flex items-center justify-between shadow-sm">
+                  <span className="text-[#1c1917] font-medium">{int.name}</span>
                   {int.connected ? (
-                    <span className="flex items-center gap-1.5 text-sm text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
+                    <span className="flex items-center gap-1.5 text-sm text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
                       <CheckCircle size={14} /> Connected
                     </span>
                   ) : (
-                    <span className="flex items-center gap-1.5 text-sm text-slate-500 bg-white/[0.05] px-2.5 py-1 rounded-md border border-white/[0.05]">
+                    <span className="flex items-center gap-1.5 text-sm text-[#a8a29e] bg-[#f0ece4]/30 px-2.5 py-1 rounded-md border border-[#e8e3db]">
                       <XCircle size={14} /> Not Configured
                     </span>
                   )}
@@ -442,16 +445,16 @@ export default function ClientDetailPage() {
 
         {/* FEATURE TOGGLES TAB */}
         {activeTab === "toggles" && editedToggles && (
-          <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden backdrop-blur-xl">
-            <div className="p-6 border-b border-white/[0.08] flex items-center justify-between bg-black/20">
+          <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] overflow-hidden shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+            <div className="p-6 border-b border-[#e8e3db] flex items-center justify-between bg-[#f0ece4]/20">
               <div>
-                <h3 className="text-lg font-semibold text-white">Feature Toggles</h3>
-                <p className="text-sm text-slate-400">Control which pages and sections are visible in the client&apos;s sidebar.</p>
+                <h3 className="text-lg font-bold text-[#1c1917]">Feature Toggles</h3>
+                <p className="text-sm text-[#78716c]">Control which pages and sections are visible in the client&apos;s sidebar.</p>
               </div>
               <button 
                 onClick={handleSaveToggles}
                 disabled={!hasTogglesChanged || savingToggles}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-violet-500 text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:grayscale transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-[#5b21b6] hover:bg-[#4c1d95] text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:grayscale transition-all"
               >
                 <Save size={16} /> {savingToggles ? "Saving..." : "Save Changes"}
               </button>
@@ -470,10 +473,10 @@ export default function ClientDetailPage() {
                 { id: "numbers_pool", label: "Numbers Pool", icon: Layers },
                 { id: "bookings", label: "Bookings", icon: BookOpen }
               ].map(item => (
-                <div key={item.id} className="flex items-center justify-between p-4 hover:bg-white/[0.02] rounded-xl transition-colors">
-                  <div className="flex items-center gap-3 text-slate-300">
-                    <item.icon size={18} className="text-slate-500" />
-                    <span className="font-medium">{item.label}</span>
+                <div key={item.id} className="flex items-center justify-between p-4 hover:bg-[#f0ece4]/20 border-b border-[#e8e3db]/40 last:border-0 rounded-xl transition-colors">
+                  <div className="flex items-center gap-3 text-[#1c1917]">
+                    <item.icon size={18} className="text-[#a8a29e]" />
+                    <span className="font-semibold">{item.label}</span>
                   </div>
                   <CustomToggle 
                     checked={
@@ -500,27 +503,27 @@ export default function ClientDetailPage() {
                   : true;
                 const isExpanded = expandedSections[group.id];
                 return (
-                  <div key={group.id} className="border border-white/[0.04] rounded-xl overflow-hidden my-2">
-                    <div className="flex items-center justify-between p-4 bg-white/[0.01] hover:bg-white/[0.03] transition-colors">
+                  <div key={group.id} className="border border-[#e8e3db] rounded-xl overflow-hidden my-2">
+                    <div className="flex items-center justify-between p-4 bg-[#f0ece4]/10 hover:bg-[#f0ece4]/30 transition-colors">
                       <div 
-                        className="flex items-center gap-3 text-slate-300 cursor-pointer flex-1"
+                        className="flex items-center gap-3 text-[#1c1917] cursor-pointer flex-1"
                         onClick={() => toggleSection(group.id)}
                       >
-                        {isExpanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
-                        <group.icon size={18} className="text-slate-500" />
-                        <span className="font-medium">{group.label}</span>
+                        {isExpanded ? <ChevronDown size={16} className="text-[#a8a29e]" /> : <ChevronRight size={16} className="text-[#a8a29e]" />}
+                        <group.icon size={18} className="text-[#a8a29e]" />
+                        <span className="font-semibold">{group.label}</span>
                       </div>
                       <CustomToggle checked={isGroupEnabled} onChange={(v) => updateToggle([group.id, 'enabled'], v)} />
                     </div>
                     
                     {isExpanded && (
-                      <div className={`p-2 bg-black/20 ${!isGroupEnabled ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
+                      <div className={`p-2 bg-[#f0ece4]/20 ${!isGroupEnabled ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
                         {group.subs.map(sub => {
                           const subVal = (groupVal && typeof groupVal === 'object') ? groupVal[sub.id] : true;
                           const isSubEnabled = typeof subVal === 'boolean' ? subVal : true;
                           return (
-                            <div key={sub.id} className="flex items-center justify-between p-3 pl-12 hover:bg-white/[0.03] rounded-lg transition-colors">
-                              <span className="text-sm text-slate-400">{sub.label}</span>
+                            <div key={sub.id} className="flex items-center justify-between p-3 pl-12 hover:bg-[#f0ece4]/40 border-t border-[#e8e3db]/20 transition-colors">
+                              <span className="text-sm text-[#78716c]">{sub.label}</span>
                               <CustomToggle 
                                 checked={isSubEnabled} 
                                 onChange={(v) => updateToggle([group.id, sub.id], v)} 
@@ -541,16 +544,16 @@ export default function ClientDetailPage() {
         {activeTab === "settings" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Meta */}
-            <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5">
-              <h3 className="text-lg font-semibold text-white mb-4 border-b border-white/[0.08] pb-2">WhatsApp / Meta</h3>
+            <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+              <h3 className="text-lg font-bold text-[#1c1917] mb-4 border-b border-[#e8e3db] pb-2">WhatsApp / Meta</h3>
               <div className="space-y-3">
                 {['meta_phone_number_id', 'meta_waba_id', 'meta_access_token', 'meta_webhook_verify_token'].map(k => (
                   <div key={k} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400 font-mono">{k}</span>
+                    <span className="text-[#78716c] font-mono">{k}</span>
                     {isSettingSet(k) ? (
-                      <span className="text-emerald-400 flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
                     ) : (
-                      <span className="text-slate-600">Not set</span>
+                      <span className="text-[#a8a29e]">Not set</span>
                     )}
                   </div>
                 ))}
@@ -558,16 +561,16 @@ export default function ClientDetailPage() {
             </div>
 
             {/* TeleCMI */}
-            <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5">
-              <h3 className="text-lg font-semibold text-white mb-4 border-b border-white/[0.08] pb-2">Telecalling (TeleCMI)</h3>
+            <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+              <h3 className="text-lg font-bold text-[#1c1917] mb-4 border-b border-[#e8e3db] pb-2">Telecalling (TeleCMI)</h3>
               <div className="space-y-3">
                 {['telecmi_user_id', 'telecmi_callerid', 'telecmi_secret', 'telecmi_recording_base_url'].map(k => (
                   <div key={k} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400 font-mono">{k}</span>
+                    <span className="text-[#78716c] font-mono">{k}</span>
                     {isSettingSet(k) ? (
-                      <span className="text-emerald-400 flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
                     ) : (
-                      <span className="text-slate-600">Not set</span>
+                      <span className="text-[#a8a29e]">Not set</span>
                     )}
                   </div>
                 ))}
@@ -575,16 +578,16 @@ export default function ClientDetailPage() {
             </div>
 
             {/* AI */}
-            <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5">
-              <h3 className="text-lg font-semibold text-white mb-4 border-b border-white/[0.08] pb-2">AI Configuration</h3>
+            <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+              <h3 className="text-lg font-bold text-[#1c1917] mb-4 border-b border-[#e8e3db] pb-2">AI Configuration</h3>
               <div className="space-y-3">
                 {['groq_api_key', 'ai_auto_reply_enabled'].map(k => (
                   <div key={k} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400 font-mono">{k}</span>
+                    <span className="text-[#78716c] font-mono">{k}</span>
                     {isSettingSet(k) ? (
-                      <span className="text-emerald-400 flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
                     ) : (
-                      <span className="text-slate-600">Not set</span>
+                      <span className="text-[#a8a29e]">Not set</span>
                     )}
                   </div>
                 ))}
@@ -592,16 +595,16 @@ export default function ClientDetailPage() {
             </div>
 
             {/* Payments & Bookings */}
-            <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5">
-              <h3 className="text-lg font-semibold text-white mb-4 border-b border-white/[0.08] pb-2">Bookings & Payments</h3>
+            <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
+              <h3 className="text-lg font-bold text-[#1c1917] mb-4 border-b border-[#e8e3db] pb-2">Bookings & Payments</h3>
               <div className="space-y-3">
                 {['razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret', 'booking_event_name'].map(k => (
                   <div key={k} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-400 font-mono">{k}</span>
+                    <span className="text-[#78716c] font-mono">{k}</span>
                     {isSettingSet(k) ? (
-                      <span className="text-emerald-400 flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1"><Check size={14}/> {getSetting(k)?.is_secret ? "••••••••" : "Set"}</span>
                     ) : (
-                      <span className="text-slate-600">Not set</span>
+                      <span className="text-[#a8a29e]">Not set</span>
                     )}
                   </div>
                 ))}
@@ -612,44 +615,44 @@ export default function ClientDetailPage() {
 
         {/* TEAM TAB */}
         {activeTab === "team" && teamData && (
-          <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden backdrop-blur-xl">
+          <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] overflow-hidden shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-white/[0.06] bg-black/20">
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-widest">User / Role</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-widest">Type</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-widest">Created</th>
+                <tr className="border-b border-[#e8e3db] bg-[#f0ece4]/20">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-[#78716c] uppercase tracking-widest">User / Role</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-[#78716c] uppercase tracking-widest">Type</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-[#78716c] uppercase tracking-widest">Created</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody className="divide-y divide-[#e8e3db]/50">
                 {teamData.users.map((u, i) => (
-                  <tr key={`u-${i}`} className="hover:bg-white/[0.02]">
+                  <tr key={`u-${i}`} className="hover:bg-[#f0ece4]/10 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-white font-mono">{u.user_id.slice(0, 8)}...</p>
+                      <p className="text-sm font-semibold text-[#1c1917] font-mono">{u.user_id.slice(0, 8)}...</p>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="text-xs px-2 py-1 bg-violet-500/10 text-violet-400 rounded border border-violet-500/20 uppercase">Dashboard {u.role}</span>
+                      <span className="text-xs px-2 py-1 bg-violet-50 text-[#5b21b6] rounded border border-violet-200 uppercase font-semibold">Dashboard {u.role}</span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-400">{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-sm text-[#78716c]">{new Date(u.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
                 {teamData.callers.map((c, i) => (
-                  <tr key={`c-${i}`} className="hover:bg-white/[0.02]">
+                  <tr key={`c-${i}`} className="hover:bg-[#f0ece4]/10 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="text-sm font-medium text-white">{c.name}</p>
-                      {c.user_id && <p className="text-xs text-slate-500 font-mono mt-1">User ID: {c.user_id.slice(0, 8)}...</p>}
+                      <p className="text-sm font-semibold text-[#1c1917]">{c.name}</p>
+                      {c.user_id && <p className="text-xs text-[#a8a29e] font-mono mt-1">User ID: {c.user_id.slice(0, 8)}...</p>}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 items-start">
-                        <span className="text-xs px-2 py-1 bg-cyan-500/10 text-cyan-400 rounded border border-cyan-500/20 uppercase">Caller</span>
-                        {!c.active && <span className="text-[10px] text-red-400">Inactive</span>}
+                        <span className="text-xs px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200 uppercase font-semibold">Caller</span>
+                        {!c.active && <span className="text-[10px] text-rose-600 font-semibold">Inactive</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-400">{new Date(c.created_at).toLocaleDateString()}</td>
+                    <td className="px-6 py-4 text-sm text-[#78716c]">{new Date(c.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}
                 {teamData.users.length === 0 && teamData.callers.length === 0 && (
-                  <tr><td colSpan={3} className="px-6 py-8 text-center text-slate-500">No team members found</td></tr>
+                  <tr><td colSpan={3} className="px-6 py-8 text-center text-[#a8a29e]">No team members found</td></tr>
                 )}
               </tbody>
             </table>
@@ -660,28 +663,28 @@ export default function ClientDetailPage() {
         {activeTab === "activity" && activityData && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5 backdrop-blur-md">
-                <h3 className="text-slate-400 text-sm font-medium mb-4">Last 7 Days</h3>
+              <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-sm font-manrope">
+                <h3 className="text-[#78716c] text-sm font-bold mb-4">Last 7 Days</h3>
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center"><span className="text-slate-300">New Leads</span><span className="text-white font-bold">{activityData.leads_7d}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-slate-300">Messages</span><span className="text-white font-bold">{activityData.messages_7d}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-slate-300">Calls</span><span className="text-white font-bold">{activityData.calls_7d}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[#78716c]">New Leads</span><span className="text-[#1c1917] font-bold">{activityData.leads_7d}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[#78716c]">Messages</span><span className="text-[#1c1917] font-bold">{activityData.messages_7d}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[#78716c]">Calls</span><span className="text-[#1c1917] font-bold">{activityData.calls_7d}</span></div>
                 </div>
               </div>
-              <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl p-5 backdrop-blur-md">
-                <h3 className="text-slate-400 text-sm font-medium mb-4">Last 30 Days</h3>
+              <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] p-5 shadow-sm font-manrope">
+                <h3 className="text-[#78716c] text-sm font-bold mb-4">Last 30 Days</h3>
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center"><span className="text-slate-300">New Leads</span><span className="text-white font-bold">{activityData.leads_30d}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-slate-300">Messages</span><span className="text-white font-bold">{activityData.messages_30d}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-slate-300">Calls</span><span className="text-white font-bold">{activityData.calls_30d}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[#78716c]">New Leads</span><span className="text-[#1c1917] font-bold">{activityData.leads_30d}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[#78716c]">Messages</span><span className="text-[#1c1917] font-bold">{activityData.messages_30d}</span></div>
+                  <div className="flex justify-between items-center"><span className="text-[#78716c]">Calls</span><span className="text-[#1c1917] font-bold">{activityData.calls_30d}</span></div>
                 </div>
               </div>
             </div>
             
-            <h3 className="text-lg font-semibold text-white mt-4">Recent Leads</h3>
-            <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden backdrop-blur-xl">
+            <h3 className="text-lg font-bold text-[#1c1917] mt-4 font-manrope">Recent Leads</h3>
+            <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] overflow-hidden shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)]">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-400 bg-black/20 uppercase border-b border-white/[0.06]">
+                <thead className="text-xs text-[#78716c] bg-[#f0ece4]/20 uppercase border-b border-[#e8e3db]">
                   <tr>
                     <th className="px-6 py-4">Name</th>
                     <th className="px-6 py-4">Source</th>
@@ -689,17 +692,17 @@ export default function ClientDetailPage() {
                     <th className="px-6 py-4">Created</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/[0.04]">
+                <tbody className="divide-y divide-[#e8e3db]/50">
                   {activityData.recent_leads.map((l) => (
-                    <tr key={l.id} className="hover:bg-white/[0.02]">
-                      <td className="px-6 py-3 font-medium text-white">{l.name}</td>
-                      <td className="px-6 py-3 text-slate-300">{l.source}</td>
-                      <td className="px-6 py-3 text-slate-300">{l.segment}</td>
-                      <td className="px-6 py-3 text-slate-400">{new Date(l.created_at).toLocaleString()}</td>
+                    <tr key={l.id} className="hover:bg-[#f0ece4]/10 transition-colors">
+                      <td className="px-6 py-3 font-semibold text-[#1c1917]">{l.name}</td>
+                      <td className="px-6 py-3 text-[#78716c]">{l.source}</td>
+                      <td className="px-6 py-3 text-[#78716c]">{l.segment}</td>
+                      <td className="px-6 py-3 text-[#a8a29e]">{new Date(l.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
                   {activityData.recent_leads.length === 0 && (
-                    <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No recent leads</td></tr>
+                    <tr><td colSpan={4} className="px-6 py-8 text-center text-[#a8a29e]">No recent leads</td></tr>
                   )}
                 </tbody>
               </table>
@@ -709,9 +712,9 @@ export default function ClientDetailPage() {
 
         {/* AUDIT LOG TAB */}
         {activeTab === "audit" && (
-          <div className="bg-white/[0.02] border border-white/[0.08] rounded-2xl overflow-hidden backdrop-blur-xl">
+          <div className="bg-white border border-[#e8e3db] rounded-[1.25rem] overflow-hidden shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)] font-manrope">
             <table className="w-full text-sm text-left">
-              <thead className="text-xs text-slate-400 bg-black/20 uppercase border-b border-white/[0.06]">
+              <thead className="text-xs text-[#78716c] bg-[#f0ece4]/20 uppercase border-b border-[#e8e3db]">
                 <tr>
                   <th className="px-6 py-4">Time</th>
                   <th className="px-6 py-4">Action</th>
@@ -719,17 +722,17 @@ export default function ClientDetailPage() {
                   <th className="px-6 py-4 max-w-[200px]">Metadata</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/[0.04]">
+              <tbody className="divide-y divide-[#e8e3db]/50">
                 {auditData.map((log) => (
-                  <tr key={log.id} className="hover:bg-white/[0.02]">
-                    <td className="px-6 py-4 text-slate-400 whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</td>
-                    <td className="px-6 py-4 font-medium text-cyan-400">{log.action}</td>
-                    <td className="px-6 py-4 text-slate-300">{log.actor_role}</td>
-                    <td className="px-6 py-4 text-xs font-mono text-slate-500 truncate max-w-[200px] hover:whitespace-normal hover:break-all">{JSON.stringify(log.metadata)}</td>
+                  <tr key={log.id} className="hover:bg-[#f0ece4]/10 transition-colors">
+                    <td className="px-6 py-4 text-[#a8a29e] whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</td>
+                    <td className="px-6 py-4 font-semibold text-[#5b21b6]">{log.action}</td>
+                    <td className="px-6 py-4 text-[#78716c]">{log.actor_role}</td>
+                    <td className="px-6 py-4 text-xs font-mono text-[#a8a29e] truncate max-w-[200px] hover:whitespace-normal hover:break-all">{JSON.stringify(log.metadata)}</td>
                   </tr>
                 ))}
                 {auditData.length === 0 && (
-                  <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No audit logs found</td></tr>
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-[#a8a29e]">No audit logs found</td></tr>
                 )}
               </tbody>
             </table>
@@ -739,27 +742,27 @@ export default function ClientDetailPage() {
         {/* DANGER ZONE TAB */}
         {activeTab === "danger" && counts && (
           <div className="space-y-6">
-            <div className="p-6 bg-red-500/[0.05] border border-red-500/20 rounded-2xl backdrop-blur-md">
+            <div className="p-6 bg-rose-50 border border-rose-200 rounded-[1.25rem] shadow-sm font-manrope">
               <div className="flex items-start gap-3 mb-4">
-                <AlertTriangle className="text-red-500 shrink-0 mt-1" size={24} />
+                <AlertTriangle className="text-rose-600 shrink-0 mt-1" size={24} />
                 <div>
-                  <h3 className="text-lg font-bold text-red-400">Danger Zone</h3>
-                  <p className="text-sm text-red-400/80 mt-1">Actions here are irreversible. Wiping data permanently deletes it from the database.</p>
+                  <h3 className="text-lg font-bold text-rose-800">Danger Zone</h3>
+                  <p className="text-sm text-rose-700 mt-1">Actions here are irreversible. Wiping data permanently deletes it from the database.</p>
                 </div>
               </div>
 
-              <div className="space-y-1 mt-6 divide-y divide-red-500/10">
+              <div className="space-y-1 mt-6 divide-y divide-rose-200">
                 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Leads & Conversations</h4>
-                    <p className="text-sm text-slate-400">Deletes: leads, messages, conversations, follow-ups, handovers</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.leads} leads, {counts.messages} messages</p>
+                    <h4 className="font-semibold text-[#1c1917]">Leads & Conversations</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: leads, messages, conversations, follow-ups, handovers</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.leads} leads, {counts.messages} messages</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-leads", "Leads & Conversations")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-leads" ? "Wiping..." : "Wipe Leads"}
                   </button>
@@ -767,14 +770,14 @@ export default function ClientDetailPage() {
 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Call Logs</h4>
-                    <p className="text-sm text-slate-400">Deletes: call logs, call evaluations</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.call_logs} call records</p>
+                    <h4 className="font-semibold text-[#1c1917]">Call Logs</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: call logs, call evaluations</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.call_logs} call records</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-calls", "Call Logs")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-calls" ? "Wiping..." : "Wipe Call Logs"}
                   </button>
@@ -782,14 +785,14 @@ export default function ClientDetailPage() {
 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Broadcasts</h4>
-                    <p className="text-sm text-slate-400">Deletes: scheduled broadcasts, recipients, scores, history</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.scheduled_broadcasts} broadcasts, {counts.broadcast_recipients} recipients</p>
+                    <h4 className="font-semibold text-[#1c1917]">Broadcasts</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: scheduled broadcasts, recipients, scores, history</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.scheduled_broadcasts} broadcasts, {counts.broadcast_recipients} recipients</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-broadcasts", "Broadcasts")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-broadcasts" ? "Wiping..." : "Wipe Broadcasts"}
                   </button>
@@ -797,14 +800,14 @@ export default function ClientDetailPage() {
 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Knowledge Base</h4>
-                    <p className="text-sm text-slate-400">Deletes: knowledge documents and text chunks</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.knowledge_documents} documents</p>
+                    <h4 className="font-semibold text-[#1c1917]">Knowledge Base</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: knowledge documents and text chunks</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.knowledge_documents} documents</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-knowledge", "Knowledge Base")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-knowledge" ? "Wiping..." : "Wipe Knowledge"}
                   </button>
@@ -812,14 +815,14 @@ export default function ClientDetailPage() {
 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Templates</h4>
-                    <p className="text-sm text-slate-400">Deletes: message templates</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.templates} templates</p>
+                    <h4 className="font-semibold text-[#1c1917]">Templates</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: message templates</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.templates} templates</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-templates", "Templates")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-templates" ? "Wiping..." : "Wipe Templates"}
                   </button>
@@ -827,14 +830,14 @@ export default function ClientDetailPage() {
 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Bookings</h4>
-                    <p className="text-sm text-slate-400">Deletes: bookings and calendar events</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.bookings} bookings</p>
+                    <h4 className="font-semibold text-[#1c1917]">Bookings</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: bookings and calendar events</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.bookings} bookings</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-bookings", "Bookings")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-bookings" ? "Wiping..." : "Wipe Bookings"}
                   </button>
@@ -842,14 +845,14 @@ export default function ClientDetailPage() {
 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Notes & Todos</h4>
-                    <p className="text-sm text-slate-400">Deletes: lead notes and employee todos</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.notes} notes, {counts.todos} todos</p>
+                    <h4 className="font-semibold text-[#1c1917]">Notes & Todos</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: lead notes and employee todos</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.notes} notes, {counts.todos} todos</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-notes", "Notes & Todos")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-notes" ? "Wiping..." : "Wipe Notes"}
                   </button>
@@ -857,14 +860,14 @@ export default function ClientDetailPage() {
 
                 <div className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h4 className="font-semibold text-white">Team Members</h4>
-                    <p className="text-sm text-slate-400">Deletes: callers, caller attendance, non-owner users</p>
-                    <p className="text-xs text-red-400 mt-1">{counts.callers} callers, {Math.max(0, counts.team_members - 1)} members (excludes owner)</p>
+                    <h4 className="font-semibold text-[#1c1917]">Team Members</h4>
+                    <p className="text-sm text-[#78716c]">Deletes: callers, caller attendance, non-owner users</p>
+                    <p className="text-xs text-rose-600 font-semibold mt-1">{counts.callers} callers, {Math.max(0, counts.team_members - 1)} members (excludes owner)</p>
                   </div>
                   <button 
                     onClick={() => handleWipe("wipe-team", "Team Members")}
                     disabled={!!wipingSection}
-                    className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors whitespace-nowrap text-sm font-medium"
+                    className="px-4 py-2 bg-rose-50 text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-100 transition-colors whitespace-nowrap text-sm font-semibold"
                   >
                     {wipingSection === "wipe-team" ? "Wiping..." : "Wipe Team"}
                   </button>
@@ -873,16 +876,16 @@ export default function ClientDetailPage() {
               </div>
             </div>
 
-            <div className="p-6 bg-red-600/[0.1] border border-red-500/30 rounded-2xl backdrop-blur-md shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+            <div className="p-6 bg-rose-100 border border-rose-300 rounded-[1.25rem] shadow-sm">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                  <h4 className="text-xl font-bold text-red-500 mb-1">DELETE EVERYTHING</h4>
-                  <p className="text-sm text-slate-300">Wipe ALL data for this client across every single section above. The tenant account itself is preserved.</p>
+                  <h4 className="text-xl font-bold text-rose-700 mb-1">DELETE EVERYTHING</h4>
+                  <p className="text-sm text-[#78716c]">Wipe ALL data for this client across every single section above. The tenant account itself is preserved.</p>
                 </div>
                 <button 
                   onClick={() => handleWipe("wipe-all", "EVERYTHING")}
                   disabled={!!wipingSection}
-                  className="px-6 py-3 bg-red-500/20 text-red-400 font-bold border-2 border-red-500/40 rounded-xl hover:bg-red-500/30 hover:border-red-500/60 hover:shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all whitespace-nowrap flex items-center gap-2"
+                  className="px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-all whitespace-nowrap flex items-center gap-2 shadow-sm"
                 >
                   <Shield size={18} /> {wipingSection === "wipe-all" ? "WIPING DATA..." : "DELETE ALL CLIENT DATA"}
                 </button>
