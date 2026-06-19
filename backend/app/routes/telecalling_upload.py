@@ -291,18 +291,29 @@ async def upload_telecalling_contacts(
     assignments = _round_robin_assign_leads(db, unassigned_ids, tenant_id, cfg_segments)
     assignment_map = {a["lead_id"]: a for a in assignments}
 
+    # Map all caller IDs to names (for capturing existing assignments in the snapshot)
+    all_callers_res = db.table("callers").select("id,name").eq("tenant_id", tenant_id).execute()
+    all_caller_map = {c["id"]: c["name"] for c in (all_callers_res.data or [])}
+
     snapshot: list[dict] = []
     for phone in all_upload_phones:
         ld = lead_by_phone.get(phone)
         if not ld:
             continue
         a = assignment_map.get(ld["id"])
+        if a:
+            caller_id = a["caller_id"]
+            caller_name = a["caller_name"]
+        else:
+            caller_id = ld.get("assigned_to")
+            caller_name = all_caller_map.get(caller_id) if caller_id else None
+
         snapshot.append({
             "lead_id": ld["id"],
             "phone": phone,
             "name": ld.get("name"),
-            "caller_id": a["caller_id"] if a else None,
-            "caller_name": a["caller_name"] if a else None,
+            "caller_id": caller_id,
+            "caller_name": caller_name,
         })
 
     csv_path: str | None = None
@@ -376,25 +387,57 @@ async def download_assignment_csv(
 
     file_name = result.data.get("file_name") or "contacts.csv"
     csv_storage_path = result.data.get("csv_storage_path")
+    snapshot = result.data.get("assignment_snapshot") or []
 
-    # If the original raw CSV is stored, download and return it
+    # If the original raw CSV is stored, download and return it merged with caller names
     if csv_storage_path:
         try:
             file_bytes = db.storage.from_("broadcast-csvs").download(csv_storage_path)
+            raw_text = file_bytes.decode("utf-8-sig", errors="replace")
             
-            csv_filename = f"assignments_{file_name}" if file_name else f"assignments_{batch_id}.csv"
-            if not csv_filename.endswith(".csv"):
-                csv_filename += ".csv"
+            # Map phone numbers to caller names from the snapshot
+            phone_to_caller: dict[str, str] = {}
+            for item in snapshot:
+                phone = item.get("phone")
+                caller_name = item.get("caller_name")
+                if phone and caller_name:
+                    phone_to_caller[phone] = caller_name
 
-            return Response(
-                content=file_bytes,
-                media_type="text/csv",
-                headers={"Content-Disposition": f"attachment; filename={csv_filename}"},
-            )
+            # Parse original CSV rows
+            reader = csv.reader(io.StringIO(raw_text))
+            rows = list(reader)
+
+            if rows:
+                headers = rows[0]
+                phone_idx = -1
+                for idx, h in enumerate(headers):
+                    if h.strip().lower() == "phone":
+                        phone_idx = idx
+                        break
+
+                headers.append("assigned_caller")
+
+                for row in rows[1:]:
+                    raw_phone = row[phone_idx] if phone_idx >= 0 and phone_idx < len(row) else ""
+                    norm_phone = _normalize_phone(raw_phone)
+                    caller_name = phone_to_caller.get(norm_phone or "") or "Unassigned"
+                    row.append(caller_name)
+
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerows(rows)
+
+                csv_filename = f"assignments_{file_name}" if file_name else f"assignments_{batch_id}.csv"
+                if not csv_filename.endswith(".csv"):
+                    csv_filename += ".csv"
+
+                return Response(
+                    content=output.getvalue(),
+                    media_type="text/csv",
+                    headers={"Content-Disposition": f"attachment; filename={csv_filename}"},
+                )
         except Exception:
-            logger.exception("Failed to download CSV from storage, falling back to assignment snapshot")
-
-    snapshot = result.data.get("assignment_snapshot") or []
+            logger.exception("Failed to download or merge CSV from storage, falling back to assignment snapshot")
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=["phone", "name", "caller_name", "caller_id", "lead_id"])
     writer.writeheader()

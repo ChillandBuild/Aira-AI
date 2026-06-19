@@ -25,7 +25,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
     try {
       const [rawCallers, rawLeads] = await Promise.all([
         api.callers.list(),
-        api.leads.list({ assigned_to: callerId || undefined, limit: 100 }),
+        api.leads.list({ assigned_to: callerId || undefined, limit: 1000 }),
       ]);
       const callers = Array.isArray(rawCallers) ? rawCallers : [];
       const leads = Array.isArray(rawLeads) ? rawLeads : [];
