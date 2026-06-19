@@ -8,7 +8,6 @@ export default async function OperatorLayout({ children }: { children: React.Rea
 
   const { data: { session } } = await supabase.auth.getSession();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  let isSystemAdmin = false;
   try {
     const meRes = await fetch(`${apiUrl}/api/v1/operator/me`, {
       headers: { Authorization: `Bearer ${session?.access_token}` },
@@ -16,54 +15,38 @@ export default async function OperatorLayout({ children }: { children: React.Rea
     });
     if (meRes.ok) {
       const me = await meRes.json();
-      isSystemAdmin = !!me.is_system_admin;
+      if (!me.is_system_admin) redirect("/dashboard");
+    } else {
+      redirect("/dashboard");
     }
-  } catch (e) {
-    console.error("Failed to verify system admin status:", e);
-  }
-
-  if (!isSystemAdmin) {
+  } catch {
     redirect("/dashboard");
   }
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] relative font-manrope">
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[#e8e3db] px-8 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-lg font-bold text-[#1c1917]">
-            Aira{" "}
-            <span className="text-[#5b21b6]">
-              AI
-            </span>
+          <span className="text-lg font-bold text-gray-900">
+            Aira <span className="text-indigo-600">AI</span>
           </span>
-          <span className="text-[10px] font-semibold text-[#78716c] uppercase tracking-widest border border-[#e8e3db] bg-[#f0ece4]/40 rounded px-2 py-0.5">
+          <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest border border-gray-200 rounded px-2 py-0.5">
             Operator Console
           </span>
           <nav className="flex items-center gap-1 ml-4">
-            <a
-              href="/operator"
-              className="text-sm text-[#78716c] hover:text-[#1c1917] px-3 py-1.5 rounded-lg hover:bg-[#f0ece4]/50 transition-all duration-200"
-            >
+            <a href="/operator" className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100">
               Clients
             </a>
-            <a
-              href="/operator/scheduler"
-              className="text-sm text-[#78716c] hover:text-[#1c1917] px-3 py-1.5 rounded-lg hover:bg-[#f0ece4]/50 transition-all duration-200"
-            >
+            <a href="/operator/scheduler" className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100">
               Schedulers
             </a>
           </nav>
         </div>
-        <a
-          href="/login"
-          className="text-sm text-[#a8a29e] hover:text-[#78716c] transition-colors duration-200"
-        >
+        <a href="/login" className="text-sm text-gray-500 hover:text-gray-800">
           ← Back to Client Login
         </a>
       </header>
-
-      <main className="relative z-10 max-w-6xl mx-auto px-8 py-8">{children}</main>
+      <main className="max-w-5xl mx-auto px-8 py-8">{children}</main>
     </div>
   );
 }

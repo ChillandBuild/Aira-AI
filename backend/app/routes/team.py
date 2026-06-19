@@ -56,10 +56,10 @@ def _active_team_callers(db, tenant_id: str) -> list[dict]:
 def get_me(ctx: dict = Depends(get_tenant_and_role)):
     db = get_supabase()
 
-    # Enabled features and page_toggles for this tenant
+    # Enabled features for this tenant
     tenant = (
         db.table("tenants")
-        .select("enabled_features, page_toggles")
+        .select("enabled_features")
         .eq("id", ctx["tenant_id"])
         .limit(1)
         .execute()
@@ -68,7 +68,6 @@ def get_me(ctx: dict = Depends(get_tenant_and_role)):
     enabled_features: list[str] = (
         tenant_row.get("enabled_features") or ["whatsapp", "telecalling"]
     )
-    page_toggles = tenant_row.get("page_toggles") or {}
 
     # Check system admin — use limit(1) instead of maybe_single() to avoid
     # PostgREST 406 on zero rows, which causes the client to return None and
@@ -100,7 +99,6 @@ def get_me(ctx: dict = Depends(get_tenant_and_role)):
         "caller_profile": profile,
         "enabled_features": enabled_features,
         "is_system_admin": is_system_admin,
-        "page_toggles": page_toggles,
     }
 
 

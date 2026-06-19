@@ -45,7 +45,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
       window.removeEventListener("change-notes-page-mode", handlePageMode);
       window.removeEventListener("change-notes-view-mode", handleViewMode);
     };
-  }, [pageMode, viewMode]);
+  }, []);
 
   // Update header state when pageMode changes
   useEffect(() => {

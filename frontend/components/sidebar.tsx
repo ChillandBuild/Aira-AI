@@ -32,7 +32,7 @@ const TELECALLING_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { role, enabledFeatures, pageToggles, loading: roleLoading } = useAuthRole();
+  const { role, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
   
   // Track open/collapsed state of nested groups
@@ -87,47 +87,13 @@ export function Sidebar() {
     );
   }
 
-  // Helper to check if a page is toggled ON (defaults to true if toggles are missing)
-  const isEnabled = (key: string) => {
-    if (!pageToggles) return true;
-    const val = pageToggles[key];
-    if (val === undefined) return true;
-    if (val && typeof val === 'object') {
-      const obj = val as Record<string, unknown>;
-      return obj.enabled !== false;
-    }
-    return val !== false;
-  };
-
-  // Helper for nested toggles
-  const isNestedEnabled = (parent: string, child: string) => {
-    if (!pageToggles) return true;
-    const parentVal = pageToggles[parent];
-    if (!parentVal) return true;
-    if (parentVal && typeof parentVal === 'object') {
-      const obj = parentVal as Record<string, unknown>;
-      if (obj.enabled === false) return false;
-      return obj[child] !== false;
-    }
-    return true;
-  };
-
   // Filter items by enabled features
   const filterEnabled = (items: NavItem[]) => 
     items.filter(item => !item.feature || enabledFeatures.includes(item.feature));
 
-  // Telecalling items, filtered by toggles
-  const baseTcItems = filterEnabled(TELECALLING_ITEMS).filter(
+  const tcGroupItems = filterEnabled(TELECALLING_ITEMS).filter(
     (item) => item.href !== "/dashboard/telecalling/upload" || role === "owner"
   );
-  
-  const tcGroupItems = baseTcItems.filter(item => {
-    if (item.href === "/dashboard/telecalling/upload") return isNestedEnabled("telecalling", "upload");
-    if (item.href === "/dashboard/telecalling") return isNestedEnabled("telecalling", "dialer");
-    if (item.href === "/dashboard/telecalling/scheduled") return isNestedEnabled("telecalling", "scheduled");
-    if (item.href === "/dashboard/notes") return isNestedEnabled("telecalling", "notes");
-    return true;
-  });
 
   const isTcActive = tcGroupItems.some(item => pathname.startsWith(item.href));
 
@@ -155,7 +121,7 @@ export function Sidebar() {
 
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview */}
-        {role === "owner" && isEnabled("dashboard") && (
+        {role === "owner" && (
           <Link
             href="/dashboard"
             className={cn(
@@ -171,7 +137,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Inbox (Common for all platforms) */}
-        {waEnabled && isEnabled("inbox") && (
+        {waEnabled && (
           <Link
             href="/dashboard/inbox"
             className={cn(
@@ -192,23 +158,21 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Conversations (Common for all platforms) */}
-        {isEnabled("conversations") && (
-          <Link
-            href="/dashboard/conversations"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/conversations")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <MessageSquare size={16} className={pathname.startsWith("/dashboard/conversations") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Conversations</span>
-          </Link>
-        )}
+        <Link
+          href="/dashboard/conversations"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
+            pathname.startsWith("/dashboard/conversations")
+              ? "bg-[#f5f3ff] text-[#5b21b6]"
+              : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+          )}
+        >
+          <MessageSquare size={16} className={pathname.startsWith("/dashboard/conversations") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+          <span>Conversations</span>
+        </Link>
 
         {/* TOP LEVEL: Leads */}
-        {role === "owner" && isEnabled("segments") && (
+        {role === "owner" && (
           <Link
             href="/dashboard/leads"
             className={cn(
@@ -224,7 +188,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Inbound Leads */}
-        {role === "owner" && anyInboundEnabled && isEnabled("inbound_leads") && (
+        {role === "owner" && anyInboundEnabled && (
           <Link
             href="/dashboard/inbound-leads"
             className={cn(
@@ -240,7 +204,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Outbound Leads */}
-        {role === "owner" && waEnabled && isEnabled("outbound_leads") && (
+        {role === "owner" && waEnabled && (
           <Link
             href="/dashboard/outbound-leads"
             className={cn(
@@ -256,7 +220,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Templates */}
-        {role === "owner" && waEnabled && isEnabled("templates") && (
+        {role === "owner" && waEnabled && (
           <Link
             href="/dashboard/templates"
             className={cn(
@@ -272,7 +236,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Numbers Pool */}
-        {role === "owner" && waEnabled && isEnabled("numbers_pool") && (
+        {role === "owner" && waEnabled && (
           <Link
             href="/dashboard/numbers"
             className={cn(
@@ -288,7 +252,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Knowledge Base (Common for all platforms) */}
-        {role === "owner" && isEnabled("knowledge") && (
+        {role === "owner" && (
           <Link
             href="/dashboard/knowledge"
             className={cn(
@@ -304,7 +268,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Analytics */}
-        {role === "owner" && isEnabled("analytics") && (
+        {role === "owner" && (
           <Link
             href="/dashboard/analytics"
             className={cn(
@@ -320,7 +284,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Team */}
-        {role === "owner" && isEnabled("team") && (
+        {role === "owner" && (
           <Link
             href="/dashboard/team"
             className={cn(
@@ -338,7 +302,7 @@ export function Sidebar() {
 
 
         {/* GROUP: Telecalling */}
-        {enabledFeatures.includes("telecalling") && isEnabled("telecalling") && tcGroupItems.length > 0 && (
+        {enabledFeatures.includes("telecalling") && tcGroupItems.length > 0 && (
           <div className="space-y-0.5">
             <button
               onClick={() => toggleGroup("Telecalling")}

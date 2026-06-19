@@ -8,7 +8,6 @@ interface RoleCtx {
   callerId: string | null;
   enabledFeatures: string[];
   isSystemAdmin: boolean;
-  pageToggles: Record<string, unknown> | null;
   loading: boolean;
 }
 
@@ -17,7 +16,6 @@ const AuthRoleContext = createContext<RoleCtx>({
   callerId: null,
   enabledFeatures: ["whatsapp", "telecalling"],
   isSystemAdmin: false,
-  pageToggles: null,
   loading: true,
 });
 
@@ -29,7 +27,6 @@ interface CacheEntry {
   callerId: string | null;
   enabledFeatures: string[];
   isSystemAdmin: boolean;
-  pageToggles: Record<string, unknown> | null;
 }
 
 function readCache(): CacheEntry | null {
@@ -52,7 +49,6 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
   const [callerId, setCallerId] = useState<string | null>(null);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["whatsapp", "telecalling"]);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
-  const [pageToggles, setPageToggles] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -74,7 +70,6 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           setCallerId(cached.callerId);
           setEnabledFeatures(cached.enabledFeatures);
           setIsSystemAdmin(cached.isSystemAdmin);
-          setPageToggles(cached.pageToggles);
           setLoading(false);
         }
       }
@@ -89,9 +84,8 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           const newFeatures = d.enabled_features ?? ["whatsapp", "telecalling"];
           const newIsAdmin = d.is_system_admin ?? false;
           const newCallerId = d.caller_id ?? null;
-          const newToggles = d.page_toggles || null;
           if (currentUserId) {
-            writeCache({ userId: currentUserId, role: newRole, callerId: newCallerId, enabledFeatures: newFeatures, isSystemAdmin: newIsAdmin, pageToggles: newToggles });
+            writeCache({ userId: currentUserId, role: newRole, callerId: newCallerId, enabledFeatures: newFeatures, isSystemAdmin: newIsAdmin });
           }
           // The cached role we already committed to was wrong (role changed
           // server-side since the cache was written). Reload so the page mounts
@@ -105,7 +99,6 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           setCallerId(newCallerId);
           setEnabledFeatures(newFeatures);
           setIsSystemAdmin(newIsAdmin);
-          setPageToggles(newToggles);
           return;
         } catch {
           if (attempt < retries) {
@@ -119,7 +112,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthRoleContext.Provider value={{ role, callerId, enabledFeatures, isSystemAdmin, pageToggles, loading }}>
+    <AuthRoleContext.Provider value={{ role, callerId, enabledFeatures, isSystemAdmin, loading }}>
       {children}
     </AuthRoleContext.Provider>
   );
