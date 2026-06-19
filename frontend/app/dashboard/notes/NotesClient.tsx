@@ -35,6 +35,39 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
   const [pageMode, setPageMode] = useState<PageMode>("by_lead");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
+  // Listen for changes from global header
+  useEffect(() => {
+    const handlePageMode = (e: Event) => {
+      const customEvent = e as CustomEvent<PageMode>;
+      setPageMode(customEvent.detail);
+    };
+    const handleViewMode = (e: Event) => {
+      const customEvent = e as CustomEvent<ViewMode>;
+      setViewMode(customEvent.detail);
+    };
+    window.addEventListener("change-notes-page-mode", handlePageMode);
+    window.addEventListener("change-notes-view-mode", handleViewMode);
+    
+    // Dispatch initial state when notes page mounts
+    window.dispatchEvent(new CustomEvent("notes-page-mode-state", { detail: pageMode }));
+    window.dispatchEvent(new CustomEvent("notes-view-mode-state", { detail: viewMode }));
+
+    return () => {
+      window.removeEventListener("change-notes-page-mode", handlePageMode);
+      window.removeEventListener("change-notes-view-mode", handleViewMode);
+    };
+  }, []);
+
+  // Update header state when pageMode changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("notes-page-mode-state", { detail: pageMode }));
+  }, [pageMode]);
+
+  // Update header state when viewMode changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("notes-view-mode-state", { detail: viewMode }));
+  }, [viewMode]);
+
   // by-lead state
   const { data: leadsData, mutate: mutateLeads } = useLeadsWithActivity(true, fallbackLeads || undefined);
   const leads = useMemo(() => (leadsData?.data || []) as Lead[], [leadsData?.data]);
@@ -218,21 +251,6 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
 
   return (
     <div>
-      <div className="mb-6 flex justify-end items-center gap-2 flex-wrap">
-        <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
-          <button onClick={() => setPageMode("by_lead")} className={pillClass(pageMode === "by_lead")}>By Lead</button>
-          <button onClick={() => setPageMode("all_notes")} className={pillClass(pageMode === "all_notes")}>All Notes</button>
-        </div>
-        <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
-          <button onClick={() => setViewMode("grid")} className={iconPillClass(viewMode === "grid")} title="Grid view">
-            <LayoutGrid size={14} />
-          </button>
-          <button onClick={() => setViewMode("list")} className={iconPillClass(viewMode === "list")} title="List view">
-            <ListIcon size={14} />
-          </button>
-        </div>
-      </div>
-
       {pageMode === "all_notes" ? (
         <div className="space-y-4">
           {/* Filters bar */}

@@ -335,16 +335,16 @@ export default function TelecallingUploadPage() {
   return (
     <div className="max-w-7xl">
       {/* Tab Navigation */}
-      <div className="flex items-center gap-1 border-b border-surface-mid mb-6">
+      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start mb-6 w-fit">
         {(["upload", "history", "scripts"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "px-6 py-3 font-label font-semibold text-sm transition-all border-b-2",
+              "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
               activeTab === tab
-                ? "border-tertiary text-tertiary"
-                : "border-transparent text-on-surface-muted hover:text-on-surface"
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-[#78716c] hover:text-[#292524]"
             )}
           >
             {tab === "upload" ? "Upload Contacts" : tab === "history" ? "Upload History" : "Scripts"}

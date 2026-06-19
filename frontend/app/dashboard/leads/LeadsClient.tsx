@@ -462,14 +462,17 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
       <div>
         <div className="flex flex-wrap items-center gap-4 mb-6">
           {/* Segment tabs */}
-          <div className="flex gap-1 bg-surface-mid p-1 rounded-xl w-fit">
+          <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 w-fit">
             {SEGMENTS.map((seg) => (
               <button
                 key={seg}
                 onClick={() => setTab(seg)}
-                className={`px-5 py-2 rounded-lg font-label text-sm font-semibold transition-all ${
-                  tab === seg ? "bg-surface shadow-card text-tertiary" : "text-on-surface-muted hover:text-on-surface"
-                }`}
+                className={cn(
+                  "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+                  tab === seg
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
               >
                 {SEGMENT_LABELS[seg]}
               </button>

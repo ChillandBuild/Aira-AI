@@ -109,18 +109,22 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
       )}
 
       {/* View tabs and actions in a single line */}
-      <div className="mb-6 flex items-center justify-between border-b border-[#e8e3db]">
-        <div className="flex">
+      <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
+        <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start w-fit">
           <button onClick={() => setTab("performance")}
-            className={`flex items-center gap-1.5 px-6 py-3 font-label font-semibold text-sm transition-all border-b-2 -mb-px ${tab === "performance" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"}`}>
+            className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
+              tab === "performance" ? "bg-white text-indigo-600 shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+            }`}>
             <TrendingUp size={14} /> Team & Performance
           </button>
           <button onClick={() => setTab("log")}
-            className={`flex items-center gap-1.5 px-6 py-3 font-label font-semibold text-sm transition-all border-b-2 -mb-px ${tab === "log" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"}`}>
+            className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
+              tab === "log" ? "bg-white text-indigo-600 shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+            }`}>
             <ClipboardList size={14} /> Assignment Log
           </button>
         </div>
-        <button onClick={() => setShowInvite(true)} className="btn-primary mb-2.5">
+        <button onClick={() => setShowInvite(true)} className="btn-primary">
           <UserPlus size={14} /> Add Telecaller
         </button>
       </div>
