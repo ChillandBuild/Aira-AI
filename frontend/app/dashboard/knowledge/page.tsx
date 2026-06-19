@@ -323,12 +323,14 @@ export default function KnowledgePage() {
   return (
     <div className="space-y-6">
       {/* Tabs */}
-      <div className="flex items-center gap-2 border-b border-surface-mid">
+      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start w-fit">
         <button
           onClick={() => setTab("documents")}
           className={cn(
-            "px-6 py-3 font-label font-semibold text-sm transition-all border-b-2",
-            tab === "documents" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"
+            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            tab === "documents"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-[#78716c] hover:text-[#292524]"
           )}
         >
           <div className="flex items-center gap-2">
@@ -338,8 +340,10 @@ export default function KnowledgePage() {
         <button
           onClick={() => setTab("ai-tune")}
           className={cn(
-            "px-6 py-3 font-label font-semibold text-sm transition-all border-b-2",
-            tab === "ai-tune" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"
+            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            tab === "ai-tune"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-[#78716c] hover:text-[#292524]"
           )}
         >
           <div className="flex items-center gap-2">

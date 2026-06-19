@@ -509,12 +509,14 @@ function NumbersPageContent() {
   return (
     <div>
       {/* Tab Navigation */}
-      <div className="flex items-center gap-1 border-b border-surface-mid mb-6">
+      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start mb-6 w-fit">
         <button
           onClick={() => handleTabChange("pool")}
           className={cn(
-            "px-6 py-3 font-label font-semibold text-sm transition-all border-b-2",
-            activeTab === "pool" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"
+            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            activeTab === "pool"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-[#78716c] hover:text-[#292524]"
           )}
         >
           Active Pool
@@ -522,8 +524,10 @@ function NumbersPageContent() {
         <button
           onClick={() => handleTabChange("activity")}
           className={cn(
-            "px-6 py-3 font-label font-semibold text-sm transition-all border-b-2",
-            activeTab === "activity" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"
+            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            activeTab === "activity"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-[#78716c] hover:text-[#292524]"
           )}
         >
           Activity Log
