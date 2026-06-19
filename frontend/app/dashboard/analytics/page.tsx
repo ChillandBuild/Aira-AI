@@ -636,13 +636,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="font-display text-3xl font-bold text-tertiary">Analytics</h1>
-          <p className="font-body text-on-surface-muted mt-1">
-            Service metrics across all channels and the lead funnel
-          </p>
-        </div>
+      <div className="flex justify-end gap-4 flex-wrap">
         {/* Date range pills */}
         <div className="flex gap-1 bg-surface-low rounded-xl p-1 ring-1 ring-[#c4c7c7]/15 self-start">
           {RANGES.map((r) => (
@@ -659,7 +653,7 @@ export default function AnalyticsPage() {
             </button>
           ))}
         </div>
-      </header>
+      </div>
 
       {/* Tab row */}
       <nav className="flex gap-1 bg-surface-low rounded-xl p-1 w-fit ring-1 ring-[#c4c7c7]/15">

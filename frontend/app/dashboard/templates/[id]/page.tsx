@@ -253,10 +253,11 @@ export default function TemplateDetailsPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard/templates"
-            className="p-2 rounded-xl hover:bg-surface-subtle text-ink-muted hover:text-ink transition-colors"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#f0ece4] text-[#1c1917]/80 hover:text-[#1c1917] font-label text-sm font-semibold transition-all border border-[#e8e3db] bg-transparent"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={14} /> Back to Templates
           </Link>
+          <div className="h-6 w-[1px] bg-[#e8e3db]" />
           <div>
             <h1 className="font-mono text-sm font-semibold text-ink-secondary leading-tight truncate max-w-md">
               {template.name}

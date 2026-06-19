@@ -78,11 +78,7 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-7">
-        <div>
-          <h1 className="page-title">Team</h1>
-          <p className="page-subtitle">Add and manage telecallers under your account.</p>
-        </div>
+      <div className="flex justify-end mb-6">
         <button onClick={() => setShowInvite(true)} className="btn-primary">
           <UserPlus size={14} /> Add Telecaller
         </button>

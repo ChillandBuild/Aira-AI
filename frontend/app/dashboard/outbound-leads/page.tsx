@@ -1236,11 +1236,6 @@ export default function OutboundLeadsPage() {
 
   return (
     <div className="max-w-7xl">
-      <div className="mb-8">
-        <h1 className="font-display text-4xl font-bold text-on-surface">Outbound Leads</h1>
-        <p className="font-body text-base text-on-surface-muted mt-2">Import a CSV and broadcast a WhatsApp campaign to all eligible leads.</p>
-      </div>
-
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 border-b border-surface-mid mb-6">
         {(["upload", "history", "tags"] as const).map((tab) => (

@@ -521,13 +521,6 @@ function NumbersPageContent() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <h1 className="font-display text-3xl font-bold text-tertiary">WhatsApp Numbers</h1>
-          <p className="font-body text-on-surface-muted mt-1">Manage sender numbers and outbound routing</p>
-        </div>
-      </div>
-
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 border-b border-surface-mid mb-6">
         <button

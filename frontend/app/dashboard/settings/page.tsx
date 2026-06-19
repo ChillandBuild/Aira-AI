@@ -277,10 +277,6 @@ export default function SettingsPage() {
   if (role !== "owner") {
     return (
       <div>
-        <div className="mb-7">
-          <h1 className="page-title">Settings</h1>
-          <p className="page-subtitle">Manage your account.</p>
-        </div>
         <ChangePasswordCard />
       </div>
     );
@@ -324,10 +320,6 @@ export default function SettingsPage() {
 
   return (
     <div>
-      <div className="mb-7">
-        <h1 className="page-title">Settings</h1>
-        <p className="page-subtitle">Configure global parameters, voice calling and AI behavior.</p>
-      </div>
 
       {error && (
         <div className="mb-5 flex items-center gap-2 p-3.5 rounded-2xl bg-red-50 text-red-700 border border-red-100">

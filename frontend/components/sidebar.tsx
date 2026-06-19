@@ -102,11 +102,11 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none">
-      {/* Brand — h-14 (56px) matches the header so this bottom border and the
+      {/* Brand — h-20 (80px) matches the header so this bottom border and the
           header border form one continuous divider. shrink-0 is essential: the
           nav below overflows and would otherwise compress this box under flex
-          pressure, lifting the divider above the header's fixed 56px line. */}
-      <div className="h-14 shrink-0 flex items-center px-5 border-b border-[#e8e3db]">
+          pressure, lifting the divider above the header's fixed 80px line. */}
+      <div className="h-20 shrink-0 flex items-center px-5 border-b border-[#e8e3db]">
         <span
           className="text-[#1c1917] leading-none select-none"
           style={{

@@ -215,12 +215,6 @@ export default function TelecallingUploadPage() {
 
   return (
     <div className="max-w-7xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="font-display text-4xl font-bold text-on-surface">Telecalling Upload</h1>
-        <p className="font-body text-base text-on-surface-muted mt-2">Upload contacts, view history, and manage call scripts.</p>
-      </div>
-
       {/* Tab Navigation */}
       <div className="flex items-center gap-1 border-b border-surface-mid mb-6">
         {(["upload", "history", "scripts"] as const).map((tab) => (

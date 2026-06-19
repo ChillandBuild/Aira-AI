@@ -312,15 +312,6 @@ export default function KnowledgePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold text-tertiary">Knowledge Base</h1>
-          <p className="font-body text-on-surface-muted mt-1">
-            Upload documents and tune AI prompts to answer lead queries accurately.
-          </p>
-        </div>
-      </div>
-
       {/* Tabs */}
       <div className="flex items-center gap-2 border-b border-surface-mid">
         <button

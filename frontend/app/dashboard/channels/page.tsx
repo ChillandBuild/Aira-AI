@@ -528,12 +528,7 @@ export default function ChannelsHubPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="page-title">Connect Channels</h1>
-          <p className="page-subtitle">Configure credentials and view synchronization health across your messaging channels.</p>
-        </div>
+      <div className="flex justify-end">
         <button
           onClick={loadHealth}
           disabled={healthLoading}

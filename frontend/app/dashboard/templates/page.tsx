@@ -210,14 +210,7 @@ export default function TemplatesPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title">WhatsApp Message Templates</h1>
-          <p className="page-subtitle">
-            Create, sync and manage your WhatsApp message templates. Send verified templates to customer lists.
-          </p>
-        </div>
-
+      <div className="flex justify-end gap-4 flex-wrap">
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={handleSyncAll}

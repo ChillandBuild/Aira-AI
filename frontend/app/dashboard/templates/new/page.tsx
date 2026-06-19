@@ -205,19 +205,13 @@ export default function NewTemplatePage() {
   return (
     <div className="max-w-6xl mx-auto pb-12">
       {/* Header and Back Link */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="mb-6">
         <Link
           href="/dashboard/templates"
-          className="p-2 rounded-xl hover:bg-surface-subtle text-ink-muted hover:text-ink transition-colors"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#f0ece4] text-[#1c1917]/80 hover:text-[#1c1917] font-label text-sm font-semibold transition-all border border-[#e8e3db] bg-transparent"
         >
-          <ArrowLeft size={18} />
+          <ArrowLeft size={14} /> Back to Templates
         </Link>
-        <div>
-          <h1 className="font-display font-bold text-ink text-2xl">Create Message Template</h1>
-          <p className="font-body text-sm text-ink-muted">
-            Follow the steps to submit your WhatsApp template for review.
-          </p>
-        </div>
       </div>
 
       {/* Stepper progress */}

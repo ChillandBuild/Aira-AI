@@ -110,16 +110,13 @@ export default function CarouselTemplateBuilderPage() {
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
-        <Link href="/dashboard/templates" className="p-2 rounded-xl hover:bg-surface-subtle text-ink-muted">
-          <ArrowLeft size={18} />
+      <div className="mb-6">
+        <Link
+          href="/dashboard/templates"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#f0ece4] text-[#1c1917]/80 hover:text-[#1c1917] font-label text-sm font-semibold transition-all border border-[#e8e3db] bg-transparent"
+        >
+          <ArrowLeft size={14} /> Back to Templates
         </Link>
-        <div>
-          <h1 className="page-title">New Carousel Template</h1>
-          <p className="page-subtitle">
-            Showcase up to 10 swipeable product cards in a single message. Each card needs an image and body text.
-          </p>
-        </div>
       </div>
 
       {error && (

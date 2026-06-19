@@ -239,18 +239,7 @@ export function InboundLeadsClient({
   return (
     <div>
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-sm shadow-violet-200">
-              <RadioTower size={17} className="text-white" />
-            </div>
-            <h1 className="page-title">Inbound Leads</h1>
-          </div>
-          <p className="page-subtitle ml-11.5">
-            All inbound leads — organic and Meta Ad, across WhatsApp, Instagram, Facebook &amp; Telegram.
-          </p>
-        </div>
+      <div className="mb-7 flex justify-end gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           <button
             onClick={() => setShowFilters((p) => !p)}

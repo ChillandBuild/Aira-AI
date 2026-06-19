@@ -201,14 +201,6 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
 
   return (
     <div className="animate-slide-up space-y-6 select-none">
-      {/* Title */}
-      <div className="mb-6">
-        <h1 className="page-title text-[26px]">
-          Product <span className="text-ink-muted font-normal">overview</span>
-        </h1>
-        <p className="page-subtitle">Here&apos;s what&apos;s happening with your leads.</p>
-      </div>
-
       {/* Row 1: Overview & Snapshot */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
