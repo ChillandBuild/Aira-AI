@@ -5,7 +5,6 @@ import type { Caller, Lead } from "@/lib/api";
 import { useAdminDashboard, useLeads } from "@/hooks/useApi";
 import type { AdminDashboardData } from "@/hooks/useApi";
 import { formatPhone } from "@/lib/utils";
-import { TelecallingConfigPanel } from "../settings/TelecallingConfigPanel";
 import NotesHistoryModal from "./components/notes-history-modal";
 import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
@@ -18,7 +17,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
 
   // Who the call dials as (null = admin self).
   const [selectedCallerId, setSelectedCallerId] = useState<string | null>(null);
-  const [showConfigModal, setShowConfigModal] = useState(false);
+
 
   // Left-panel: Queue vs Manual Dial
   const [leftTab, setLeftTab] = useState<"queue" | "dialer">("queue");
@@ -48,11 +47,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
     return true;
   });
 
-  // Lock body scroll when the config modal is open
-  useEffect(() => {
-    document.body.style.overflow = showConfigModal ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [showConfigModal]);
+
 
   const selectedCallerName = callers.find((c) => c.id === selectedCallerId)?.name ?? "Admin (me)";
 
@@ -71,12 +66,6 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setShowConfigModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#e8e3db]/80 hover:border-amber-300 hover:text-amber-600 font-manrope text-xs font-bold transition-colors shadow-sm"
-                >
-                  <Settings size={13} /> Config
-                </button>
               </div>
             </div>
 
@@ -240,16 +229,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
 
       {historyLead && <NotesHistoryModal lead={historyLead} onClose={() => setHistoryLead(null)} />}
 
-      {showConfigModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm cursor-pointer"
-          onClick={() => setShowConfigModal(false)}
-        >
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto cursor-default" onClick={(e) => e.stopPropagation()}>
-            <TelecallingConfigPanel />
-          </div>
-        </div>
-      )}
+
 
       <CockpitModals cockpit={cockpit} />
     </div>

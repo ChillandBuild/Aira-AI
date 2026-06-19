@@ -5,7 +5,6 @@ import Link from "next/link";
 import { SegmentBadge } from "@/components/segment-badge";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { InboxConfigPanel } from "../settings/InboxConfigPanel";
 import { toast } from "sonner";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 
@@ -68,7 +67,6 @@ export default function InboxPage() {
   const [handovers, setHandovers] = useState<Handover[]>([]);
   const [callers, setCallers] = useState<Caller[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showConfig, setShowConfig] = useState(false);
   const [reassigningId, setReassigningId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -82,19 +80,7 @@ export default function InboxPage() {
 
   useEffect(() => { load(); }, []);
 
-  useEffect(() => {
-    const handleToggle = () => {
-      setShowConfig((prev) => !prev);
-    };
-    window.addEventListener("toggle-escalation-rules", handleToggle);
-    return () => {
-      window.removeEventListener("toggle-escalation-rules", handleToggle);
-    };
-  }, []);
 
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent("escalation-rules-state", { detail: { open: showConfig } }));
-  }, [showConfig]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -233,14 +219,6 @@ export default function InboxPage() {
           )}
         </div>
 
-        {role === "owner" && (
-          <div className={cn(
-            "w-full lg:w-[420px] shrink-0 sticky top-4 transition-all duration-300 ease-in-out origin-right transform",
-            showConfig ? "opacity-100 translate-x-0 scale-100 max-w-[420px]" : "opacity-0 translate-x-4 scale-95 max-w-0 overflow-hidden pointer-events-none"
-          )}>
-            <InboxConfigPanel />
-          </div>
-        )}
       </div>
     </div>
   );

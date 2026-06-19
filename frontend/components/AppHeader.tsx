@@ -101,7 +101,8 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     let tabLabel = "General";
     if (tab === "channels") tabLabel = "Messaging Channels";
     if (tab === "telecalling") tabLabel = "Telecalling Config";
-    if (tab === "ai") tabLabel = "AI & Automations";
+    if (tab === "ai") tabLabel = "AI Settings";
+    if (tab === "automations") tabLabel = "Automations";
     return {
       title: `Account Settings / ${tabLabel}`,
       description: "Configure global parameters, voice calling and AI behavior.",
@@ -173,7 +174,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const tab = searchParams.get("tab") || "";
 
   // Action states for conditional header buttons
-  const [escalationOpen, setEscalationOpen] = useState(false);
   const [channelsLoading, setChannelsLoading] = useState(false);
 
   // Notes switcher states
@@ -190,17 +190,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Listen to Escalation Rules state from Inbox page
-  useEffect(() => {
-    const handleEscalationState = (e: Event) => {
-      const customEvent = e as CustomEvent<{ open: boolean }>;
-      setEscalationOpen(customEvent.detail.open);
-    };
-    window.addEventListener("escalation-rules-state", handleEscalationState);
-    return () => {
-      window.removeEventListener("escalation-rules-state", handleEscalationState);
-    };
-  }, []);
+
 
   // Listen to Channels loading state from Channels page
   useEffect(() => {
@@ -242,9 +232,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
     window.dispatchEvent(new CustomEvent("change-notes-view-mode", { detail: mode }));
   };
 
-  const onToggleEscalation = () => {
-    window.dispatchEvent(new CustomEvent("toggle-escalation-rules"));
-  };
+
 
   const onRefreshHealth = () => {
     window.dispatchEvent(new CustomEvent("refresh-channels-health"));
@@ -321,20 +309,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           </>
         )}
 
-        {pathname === "/dashboard/inbox" && role === "owner" && (
-          <button
-            onClick={onToggleEscalation}
-            className={cn(
-              "flex items-center gap-2 h-[34px] px-3.5 rounded-lg font-label text-xs font-semibold transition-colors border shadow-sm",
-              escalationOpen
-                ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                : "bg-white border-[#e8e3db] text-[#1c1917] hover:text-violet-600 hover:border-violet-300"
-            )}
-          >
-            <Settings size={13} />
-            <span>Escalation Rules</span>
-          </button>
-        )}
+
 
         {(pathname === "/dashboard/channels" || (pathname === "/dashboard/settings" && tab === "channels")) && (
           <button

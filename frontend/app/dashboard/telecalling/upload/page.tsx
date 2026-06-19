@@ -495,264 +495,87 @@ function UploadTab() {
   }
 
   return (
-    <div className="animate-slide-up">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Left Column: Wizard Card */}
-        <div className="lg:col-span-2 bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 min-h-[500px] flex flex-col">
-          <StepIndicator current={currentStep} />
+    <div className="animate-slide-up bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 min-h-[500px] flex flex-col">
+      <StepIndicator current={currentStep} />
 
-          {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
-          {currentStep === 1 && (
-            <div className="space-y-6 flex-1">
-              <div>
-                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your contacts</h2>
-                <p className="font-body text-sm text-on-surface-muted">Select a CSV or Excel file with contact data. We will detect column mappings automatically.</p>
+      {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
+      {currentStep === 1 && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
+          {/* Left Column: Upload controls (7 cols) */}
+          <div className="lg:col-span-7 space-y-6 flex flex-col justify-between h-full">
+            <div>
+              <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your contacts</h2>
+              <p className="font-body text-sm text-on-surface-muted">Select a CSV or Excel file with contact data. We will detect column mappings automatically.</p>
+            </div>
+
+            {(uploadError || parseError) && (
+              <div className="text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
+                <X size={14} className="text-red-500 shrink-0" />
+                <span className="truncate">{uploadError || parseError}</span>
               </div>
+            )}
 
-              {(uploadError || parseError) && (
-                <div className="text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
-                  <X size={14} className="text-red-500 shrink-0" />
-                  <span className="truncate">{uploadError || parseError}</span>
+            <label
+              className={cn(
+                "relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group",
+                file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]",
+                parseLoading && "pointer-events-none opacity-60"
+              )}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
+              <div className={cn(
+                "w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm",
+                file ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"
+              )}>
+                {parseLoading ? (
+                  <Loader2 size={28} className="animate-spin text-tertiary" />
+                ) : file ? (
+                  <Check size={28} />
+                ) : (
+                  <CloudUpload size={28} />
+                )}
+              </div>
+              <div className="text-center px-4">
+                <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
+                  {parseLoading ? "Processing & parsing file..." : file ? file.name : "Drop your CSV or Excel file here"}
+                </p>
+                <p className="font-body text-xs text-on-surface-muted mt-1.5">
+                  {parseLoading
+                    ? "Analyzing columns, verifying phone numbers, and searching for duplicates..."
+                    : file
+                    ? `${(file.size / 1024).toFixed(1)} KB${rowCount !== null ? ` · ${rowCount.toLocaleString()} rows` : ""} · click to change file`
+                    : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
+                </p>
+              </div>
+              {!file && !parseLoading && (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
+                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Auto-detects columns</span>
+                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Deduplicates leads</span>
+                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Indian numbers formatted</span>
                 </div>
               )}
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} disabled={parseLoading} />
+            </label>
 
-              <label
+            <div className="flex justify-end">
+              <button
+                disabled={!file || parseLoading}
+                onClick={() => setCurrentStep(2)}
                 className={cn(
-                  "relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group",
-                  file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]",
-                  parseLoading && "pointer-events-none opacity-60"
+                  "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
+                  file && !parseLoading
+                    ? "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                    : "bg-surface-mid text-on-surface-muted cursor-not-allowed"
                 )}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
               >
-                <div className={cn(
-                  "w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm",
-                  file ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"
-                )}>
-                  {parseLoading ? (
-                    <Loader2 size={28} className="animate-spin text-tertiary" />
-                  ) : file ? (
-                    <Check size={28} />
-                  ) : (
-                    <CloudUpload size={28} />
-                  )}
-                </div>
-                <div className="text-center px-4">
-                  <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
-                    {parseLoading ? "Processing & parsing file..." : file ? file.name : "Drop your CSV or Excel file here"}
-                  </p>
-                  <p className="font-body text-xs text-on-surface-muted mt-1.5">
-                    {parseLoading
-                      ? "Analyzing columns, verifying phone numbers, and searching for duplicates..."
-                      : file
-                      ? `${(file.size / 1024).toFixed(1)} KB${rowCount !== null ? ` · ${rowCount.toLocaleString()} rows` : ""} · click to change file`
-                      : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
-                  </p>
-                </div>
-                {!file && !parseLoading && (
-                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
-                    <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Auto-detects columns</span>
-                    <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Deduplicates leads</span>
-                    <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Indian numbers formatted</span>
-                  </div>
-                )}
-                <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} disabled={parseLoading} />
-              </label>
-
-              <div className="flex justify-end">
-                <button
-                  disabled={!file || parseLoading}
-                  onClick={() => setCurrentStep(2)}
-                  className={cn(
-                    "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
-                    file && !parseLoading
-                      ? "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
-                      : "bg-surface-mid text-on-surface-muted cursor-not-allowed"
-                  )}
-                >
-                  Next <ChevronRight size={16} />
-                </button>
-              </div>
+                Next <ChevronRight size={16} />
+              </button>
             </div>
-          )}
+          </div>
 
-          {/* ── Step 2: Confirm & Upload ───────────────────────────────────── */}
-          {currentStep === 2 && (
-            <div className="space-y-6 flex-1">
-              <div>
-                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Review & Upload</h2>
-                <p className="font-body text-sm text-on-surface-muted">Double-check the details below, then start the upload.</p>
-              </div>
-
-              {/* Summary Stats Grid */}
-              {!uploadResult && !uploadError && parsedData && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="p-4 bg-surface-low border border-surface-mid rounded-xl text-center shadow-sm">
-                    <p className="font-display text-2xl font-bold text-tertiary">{parsedData.total_rows.toLocaleString()}</p>
-                    <p className="font-label text-xs text-on-surface-muted mt-1">Total Contacts</p>
-                  </div>
-                  <div className={`p-4 rounded-xl text-center border shadow-sm ${parsedData.duplicate_count > 0 ? "bg-amber-50/70 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
-                    <p className={`font-display text-2xl font-bold ${parsedData.duplicate_count > 0 ? "text-amber-700" : "text-on-surface-muted"}`}>{parsedData.duplicate_count}</p>
-                    <p className="font-label text-xs text-on-surface-muted mt-1">Duplicates (Skipped)</p>
-                  </div>
-                  <div className="p-4 bg-green-50/70 border border-green-200 rounded-xl text-center shadow-sm">
-                    <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
-                    <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
-                  </div>
-                  <div className="md:col-span-3 p-4 bg-surface-low border border-surface-mid rounded-xl">
-                    <p className="font-label text-xs text-on-surface-muted mb-2 font-medium">Columns detected (auto-mapped phone/name columns highlighted)</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {parsedData.columns.map(col => (
-                        <span key={col} className={`px-2.5 py-1 rounded-md text-[10px] font-semibold tracking-wide border
-                          ${col === "phone" || col === "name"
-                            ? "bg-tertiary/10 text-tertiary border-tertiary/20 font-bold"
-                            : "bg-surface-mid text-on-surface-muted border-transparent"}`}>
-                          {col}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Fallback basic summary if parse endpoint was skipped or failed */}
-              {!uploadResult && !uploadError && !parsedData && (
-                <div className="rounded-2xl border border-surface-mid bg-surface-low p-6 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
-                      <FileText size={20} className="text-tertiary" />
-                    </div>
-                    <div>
-                      <p className="font-label text-sm font-semibold text-on-surface">{file?.name ?? "No file"}</p>
-                      <p className="font-body text-xs text-on-surface-muted">
-                        {file ? `${(file.size / 1024).toFixed(1)} KB` : ""}
-                        {rowCount !== null ? ` · ${rowCount.toLocaleString()} contacts` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="border-t border-surface-mid pt-4">
-                    <div>
-                      <p className="font-label text-xs text-on-surface-muted mb-1">File Type</p>
-                      <p className="font-label text-sm font-semibold text-on-surface">CSV</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Data Preview Table */}
-              {!uploadResult && !uploadError && parsedData && parsedData.preview.length > 0 && (
-                <div className="space-y-2">
-                  <p className="font-label text-xs font-semibold text-on-surface-muted">Data Preview (First {parsedData.preview.length} rows)</p>
-                  <div className="overflow-x-auto rounded-xl ring-1 ring-[#c4c7c7]/20 bg-white max-h-[250px] shadow-sm">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="sticky top-0 z-20">
-                        <tr className="bg-surface-low border-b border-surface-mid">
-                          {parsedData.columns.map((col) => (
-                            <th key={col} className="px-3.5 py-2.5 font-label font-bold text-on-surface-muted whitespace-nowrap bg-surface-low border-b border-surface-mid">
-                              {col}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {parsedData.preview.map((row, ri) => (
-                          <tr key={ri} className="border-b border-surface-mid/50 hover:bg-surface-low/50 transition-colors">
-                            {parsedData.columns.map((col) => (
-                              <td key={col} className="px-3.5 py-2.5 font-body text-on-surface whitespace-nowrap">
-                                {row[col] ?? "—"}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Success Banner */}
-              {uploadResult && (
-                <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
-                      <Check size={20} className="text-white" />
-                    </div>
-                    <div>
-                      <p className="font-display text-lg font-bold text-emerald-800">Upload Successful</p>
-                      <p className="font-body text-xs text-emerald-600">Batch ID: {uploadResult.batch_id}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-white/70 rounded-xl p-3 text-center">
-                      <p className="font-display text-2xl font-bold text-emerald-700">{uploadResult.inserted}</p>
-                      <p className="font-label text-xs text-emerald-600">Inserted</p>
-                    </div>
-                    <div className="bg-white/70 rounded-xl p-3 text-center">
-                      <p className="font-display text-2xl font-bold text-amber-700">{uploadResult.duplicates}</p>
-                      <p className="font-label text-xs text-amber-600">Duplicates</p>
-                    </div>
-                    <div className="bg-white/70 rounded-xl p-3 text-center">
-                      <p className="font-display text-2xl font-bold text-blue-700">{uploadResult.assigned}</p>
-                      <p className="font-label text-xs text-blue-600">Assigned</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Error Banner */}
-              {uploadError && (
-                <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
-                      <X size={20} className="text-white" />
-                    </div>
-                    <div>
-                      <p className="font-display text-lg font-bold text-red-800">Upload Failed</p>
-                      <p className="font-body text-sm text-red-600">{uploadError}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-between">
-                <button
-                  onClick={() => {
-                    if (uploadResult || uploadError) {
-                      handleReset();
-                    } else {
-                      setCurrentStep(1);
-                    }
-                  }}
-                  className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"
-                >
-                  {uploadResult || uploadError ? "Start New Upload" : "Back"}
-                </button>
-                {!uploadResult && !uploadError && (
-                  <button
-                    disabled={!file || uploading}
-                    onClick={handleUpload}
-                    className={cn(
-                      "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
-                      !file || uploading
-                        ? "bg-surface-mid text-on-surface-muted cursor-not-allowed"
-                        : "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
-                    )}
-                  >
-                    {uploading ? (
-                      <><Loader2 size={16} className="animate-spin" /> Uploading...</>
-                    ) : (
-                      <><Upload size={16} /> Upload Contacts</>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column: Sidebar */}
-        <div className="space-y-6">
-          <div className="bg-surface rounded-[2rem] p-6 shadow-lg ring-1 ring-[#c4c7c7]/20">
+          {/* Right Column: Template Guide (5 cols) */}
+          <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
                 <FileText size={16} />
@@ -790,7 +613,180 @@ function UploadTab() {
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Step 2: Confirm & Upload ───────────────────────────────────── */}
+      {currentStep === 2 && (
+        <div className="space-y-6 flex-1">
+          <div>
+            <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Review & Upload</h2>
+            <p className="font-body text-sm text-on-surface-muted">Double-check the details below, then start the upload.</p>
+          </div>
+
+          {/* Summary Stats Grid */}
+          {!uploadResult && !uploadError && parsedData && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-surface-low border border-surface-mid rounded-xl text-center shadow-sm">
+                <p className="font-display text-2xl font-bold text-tertiary">{parsedData.total_rows.toLocaleString()}</p>
+                <p className="font-label text-xs text-on-surface-muted mt-1">Total Contacts</p>
+              </div>
+              <div className={`p-4 rounded-xl text-center border shadow-sm ${parsedData.duplicate_count > 0 ? "bg-amber-50/70 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
+                <p className={`font-display text-2xl font-bold ${parsedData.duplicate_count > 0 ? "text-amber-700" : "text-on-surface-muted"}`}>{parsedData.duplicate_count}</p>
+                <p className="font-label text-xs text-on-surface-muted mt-1">Duplicates (Skipped)</p>
+              </div>
+              <div className="p-4 bg-green-50/70 border border-green-200 rounded-xl text-center shadow-sm">
+                <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
+                <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
+              </div>
+              <div className="md:col-span-3 p-4 bg-surface-low border border-surface-mid rounded-xl">
+                <p className="font-label text-xs text-on-surface-muted mb-2 font-medium">Columns detected (auto-mapped phone/name columns highlighted)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {parsedData.columns.map(col => (
+                    <span key={col} className={`px-2.5 py-1 rounded-md text-[10px] font-semibold tracking-wide border
+                      ${col === "phone" || col === "name"
+                        ? "bg-tertiary/10 text-tertiary border-tertiary/20 font-bold"
+                        : "bg-surface-mid text-on-surface-muted border-transparent"}`}>
+                      {col}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Fallback basic summary if parse endpoint was skipped or failed */}
+          {!uploadResult && !uploadError && !parsedData && (
+            <div className="rounded-2xl border border-surface-mid bg-surface-low p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
+                  <FileText size={20} className="text-tertiary" />
+                </div>
+                <div>
+                  <p className="font-label text-sm font-semibold text-on-surface">{file?.name ?? "No file"}</p>
+                  <p className="font-body text-xs text-on-surface-muted">
+                    {file ? `${(file.size / 1024).toFixed(1)} KB` : ""}
+                    {rowCount !== null ? ` · ${rowCount.toLocaleString()} contacts` : ""}
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-surface-mid pt-4">
+                <div>
+                  <p className="font-label text-xs text-on-surface-muted mb-1">File Type</p>
+                  <p className="font-label text-sm font-semibold text-on-surface">CSV</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Data Preview Table */}
+          {!uploadResult && !uploadError && parsedData && parsedData.preview.length > 0 && (
+            <div className="space-y-2">
+              <p className="font-label text-xs font-semibold text-on-surface-muted">Data Preview (First {parsedData.preview.length} rows)</p>
+              <div className="overflow-x-auto rounded-xl ring-1 ring-[#c4c7c7]/20 bg-white max-h-[250px] shadow-sm">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="sticky top-0 z-20">
+                    <tr className="bg-surface-low border-b border-surface-mid">
+                      {parsedData.columns.map((col) => (
+                        <th key={col} className="px-3.5 py-2.5 font-label font-bold text-on-surface-muted whitespace-nowrap bg-surface-low border-b border-surface-mid">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedData.preview.map((row, ri) => (
+                      <tr key={ri} className="border-b border-surface-mid/50 hover:bg-surface-low/50 transition-colors">
+                        {parsedData.columns.map((col) => (
+                          <td key={col} className="px-3.5 py-2.5 font-body text-on-surface whitespace-nowrap">
+                            {row[col] ?? "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Success Banner */}
+          {uploadResult && (
+            <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
+                  <Check size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-display text-lg font-bold text-emerald-800">Upload Successful</p>
+                  <p className="font-body text-xs text-emerald-600">Batch ID: {uploadResult.batch_id}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-white/70 rounded-xl p-3 text-center">
+                  <p className="font-display text-2xl font-bold text-emerald-700">{uploadResult.inserted}</p>
+                  <p className="font-label text-xs text-emerald-600">Inserted</p>
+                </div>
+                <div className="bg-white/70 rounded-xl p-3 text-center">
+                  <p className="font-display text-2xl font-bold text-amber-700">{uploadResult.duplicates}</p>
+                  <p className="font-label text-xs text-amber-600">Duplicates</p>
+                </div>
+                <div className="bg-white/70 rounded-xl p-3 text-center">
+                  <p className="font-display text-2xl font-bold text-blue-700">{uploadResult.assigned}</p>
+                  <p className="font-label text-xs text-blue-600">Assigned</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Banner */}
+          {uploadError && (
+            <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                  <X size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-display text-lg font-bold text-red-800">Upload Failed</p>
+                  <p className="font-body text-sm text-red-600">{uploadError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-between">
+            <button
+              onClick={() => {
+                if (uploadResult || uploadError) {
+                  handleReset();
+                } else {
+                  setCurrentStep(1);
+                }
+              }}
+              className="px-6 py-3 rounded-xl font-label font-semibold text-sm text-on-surface-muted hover:text-on-surface hover:bg-surface-low transition-all"
+            >
+              {uploadResult || uploadError ? "Start New Upload" : "Back"}
+            </button>
+            {!uploadResult && !uploadError && (
+              <button
+                disabled={!file || uploading}
+                onClick={handleUpload}
+                className={cn(
+                  "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
+                  !file || uploading
+                    ? "bg-surface-mid text-on-surface-muted cursor-not-allowed"
+                    : "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                )}
+              >
+                {uploading ? (
+                  <><Loader2 size={16} className="animate-spin" /> Uploading...</>
+                ) : (
+                  <><Upload size={16} /> Upload Contacts</>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

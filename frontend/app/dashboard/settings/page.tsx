@@ -405,7 +405,18 @@ export default function SettingsPage() {
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
-          AI & Automations
+          AI Settings
+        </button>
+        <button
+          onClick={() => router.push(`${pathname}?tab=automations`)}
+          className={cn(
+            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            activeTab === "automations"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-[#78716c] hover:text-[#292524]"
+          )}
+        >
+          Automations
         </button>
       </div>
 
@@ -476,7 +487,7 @@ export default function SettingsPage() {
           {activeTab === "telecalling" && (
             <div className="space-y-6">
               {/* TeleCMI Credentials Card */}
-              <div className="card rounded-3xl">
+              <div className="card rounded-3xl animate-slide-up">
                 <button
                   type="button"
                   onClick={() => setCollapsed(c => ({ ...c, voice: !c.voice }))}
@@ -575,16 +586,14 @@ export default function SettingsPage() {
                   </>
                 )}
               </div>
-
-              <TelecallingConfigPanel />
             </div>
           )}
 
-          {/* TAB 4: AI & Automations */}
+          {/* TAB 4: AI Settings */}
           {activeTab === "ai" && (
             <div className="space-y-6">
               {/* Groq AI Credentials Card */}
-              <div className="card rounded-3xl">
+              <div className="card rounded-3xl animate-slide-up">
                 <button
                   type="button"
                   onClick={() => setCollapsed(c => ({ ...c, ai: !c.ai }))}
@@ -714,7 +723,12 @@ export default function SettingsPage() {
                   </>
                 )}
               </div>
+            </div>
+          )}
 
+          {/* TAB 5: Automations */}
+          {activeTab === "automations" && (
+            <div className="space-y-6">
               {/* Lead Scoring thresholds */}
               {(() => {
                 const isOrderValid = scoringThresholds.A > scoringThresholds.B && scoringThresholds.B > scoringThresholds.C;
@@ -725,7 +739,7 @@ export default function SettingsPage() {
                 };
                 const thresholdLabels: Record<string, string> = { A: "A — HOT", B: "B — WARM", C: "C — COLD" };
                 return (
-                  <div className="card rounded-3xl">
+                  <div className="card rounded-3xl animate-slide-up">
                     <button
                       type="button"
                       onClick={() => setScoringCollapsed(c => !c)}
@@ -828,6 +842,8 @@ export default function SettingsPage() {
               })()}
 
               <InboxConfigPanel />
+
+              <TelecallingConfigPanel />
             </div>
           )}
         </div>

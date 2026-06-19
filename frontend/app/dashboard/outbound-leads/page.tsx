@@ -1264,928 +1264,1038 @@ export default function OutboundLeadsPage() {
 
       {/* Upload Wizard */}
       {activeTab === "upload" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start animate-slide-up">
-          {/* Left Column: Wizard Steps */}
-          <div className="lg:col-span-2 bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 flex flex-col justify-between min-h-[600px]">
-            <div>
-              <StepIndicator current={currentStep} />
+        <div className="bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 flex flex-col min-h-[600px] animate-slide-up">
+          <StepIndicator current={currentStep} />
 
-              {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
-              {currentStep === 1 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV or Excel</h2>
-                    <p className="font-body text-sm text-on-surface-muted">We&apos;ll detect column mappings automatically.</p>
+          {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
+          {currentStep === 1 && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
+              {/* Left Column: Upload Controls (7 cols) */}
+              <div className="lg:col-span-7 space-y-6">
+                <div>
+                  <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV or Excel</h2>
+                  <p className="font-body text-sm text-on-surface-muted">We&apos;ll detect column mappings automatically.</p>
+                </div>
+
+                <label className={`relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group
+                  ${csvFile ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]"}`}>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm
+                    ${csvFile ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"}`}>
+                    {csvFile ? <Check size={28} /> : <Upload size={28} />}
+                  </div>
+                  <div className="text-center px-4">
+                    <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
+                      {csvFile ? csvFile.name : "Drop your CSV or Excel file here"}
+                    </p>
+                    <p className="font-body text-xs text-on-surface-muted mt-1.5">
+                      {csvFile
+                        ? `${(csvFile.size / 1024).toFixed(1)} KB · click to change file`
+                        : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
+                    </p>
+                  </div>
+                  {!csvFile && (
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
+                      <span>✓ Auto-detects columns</span>
+                      <span>✓ Deduplicates leads</span>
+                      <span>✓ Indian numbers formatted</span>
+                    </div>
+                  )}
+                  <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
+                </label>
+
+                {parseLoading && (
+                  <div className="flex items-center gap-2 py-2">
+                    <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
+                    <p className="font-body text-sm text-on-surface-muted">Parsing file…</p>
+                  </div>
+                )}
+                {parseError && (
+                  <div className="flex items-start gap-2 p-3.5 bg-red-50 text-red-700 rounded-xl font-body text-sm">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    {parseError}
+                  </div>
+                )}
+
+                {parsedData && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-4 bg-tertiary/5 border border-tertiary/15 rounded-xl text-center">
+                      <p className="font-display text-2xl font-bold text-tertiary">{parsedData.total_rows.toLocaleString()}</p>
+                      <p className="font-label text-xs text-on-surface-muted mt-1">Total Rows</p>
+                    </div>
+                    <div className={`p-4 rounded-xl text-center border ${parsedData.duplicate_count > 0 ? "bg-amber-50 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
+                      <p className={`font-display text-2xl font-bold ${parsedData.duplicate_count > 0 ? "text-amber-700" : "text-on-surface-muted"}`}>{parsedData.duplicate_count}</p>
+                      <p className="font-label text-xs text-on-surface-muted mt-1">Duplicates</p>
+                    </div>
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-center">
+                      <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
+                      <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
+                    </div>
+                    <div className="col-span-3 p-3 bg-surface-low rounded-xl">
+                      <p className="font-label text-xs text-on-surface-muted mb-1.5">Columns detected</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {parsedData.columns.map(col => (
+                          <span key={col} className={`px-2.5 py-0.5 rounded-md text-[10px] font-semibold tracking-wide
+                            ${Object.values(parsedData.suggested_mapping).includes(col) ? "bg-tertiary/10 text-tertiary border border-tertiary/10" : "bg-surface-mid text-on-surface-muted"}`}>
+                            {col}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-4 border-t border-surface-mid/30">
+                  <button
+                    onClick={() => setCurrentStep(2)}
+                    disabled={!parsedData}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Templates Guide & Policy (5 cols) */}
+              <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                      <FileSpreadsheet size={16} />
+                    </div>
+                    <h3 className="font-display font-bold text-on-surface text-base">CSV Template</h3>
                   </div>
 
-                  <label className={`relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group
-                    ${csvFile ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]"}`}>
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm
-                      ${csvFile ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"}`}>
-                      {csvFile ? <Check size={28} /> : <Upload size={28} />}
-                    </div>
-                    <div className="text-center px-4">
-                      <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
-                        {csvFile ? csvFile.name : "Drop your CSV or Excel file here"}
-                      </p>
-                      <p className="font-body text-xs text-on-surface-muted mt-1.5">
-                        {csvFile
-                          ? `${(csvFile.size / 1024).toFixed(1)} KB · click to change file`
-                          : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
-                      </p>
-                    </div>
-                    {!csvFile && (
-                      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
-                        <span>✓ Auto-detects columns</span>
-                        <span>✓ Deduplicates leads</span>
-                        <span>✓ Indian numbers formatted</span>
+                  {parsedData ? (
+                    <div className="space-y-3 text-xs">
+                      <div className="p-3 bg-surface-low rounded-xl">
+                        <p className="font-label text-[10px] text-on-surface-muted uppercase font-bold">Uploaded File</p>
+                        <p className="font-body font-semibold text-on-surface truncate mt-0.5">{csvFile?.name}</p>
                       </div>
-                    )}
-                    <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
-                  </label>
-
-                  {parseLoading && (
-                    <div className="flex items-center gap-2 py-2">
-                      <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
-                      <p className="font-body text-sm text-on-surface-muted">Parsing file…</p>
-                    </div>
-                  )}
-                  {parseError && (
-                    <div className="flex items-start gap-2 p-3.5 bg-red-50 text-red-700 rounded-xl font-body text-sm">
-                      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                      {parseError}
-                    </div>
-                  )}
-
-                  {parsedData && (
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="p-4 bg-tertiary/5 border border-tertiary/15 rounded-xl text-center">
-                        <p className="font-display text-2xl font-bold text-tertiary">{parsedData.total_rows.toLocaleString()}</p>
-                        <p className="font-label text-xs text-on-surface-muted mt-1">Total Rows</p>
-                      </div>
-                      <div className={`p-4 rounded-xl text-center border ${parsedData.duplicate_count > 0 ? "bg-amber-50 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
-                        <p className={`font-display text-2xl font-bold ${parsedData.duplicate_count > 0 ? "text-amber-700" : "text-on-surface-muted"}`}>{parsedData.duplicate_count}</p>
-                        <p className="font-label text-xs text-on-surface-muted mt-1">Duplicates</p>
-                      </div>
-                      <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-center">
-                        <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
-                        <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
-                      </div>
-                      <div className="col-span-3 p-3 bg-surface-low rounded-xl">
-                        <p className="font-label text-xs text-on-surface-muted mb-1.5">Columns detected</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {parsedData.columns.map(col => (
-                            <span key={col} className={`px-2.5 py-0.5 rounded-md text-[10px] font-semibold tracking-wide
-                              ${Object.values(parsedData.suggested_mapping).includes(col) ? "bg-tertiary/10 text-tertiary border border-tertiary/10" : "bg-surface-mid text-on-surface-muted"}`}>
-                              {col}
-                            </span>
-                          ))}
+                      <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="p-2 bg-green-50 border border-green-100 rounded-xl">
+                          <p className="font-label text-[9px] text-green-700 uppercase font-bold">Leads</p>
+                          <p className="font-display font-bold text-green-700 mt-0.5">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
+                        </div>
+                        <div className="p-2 bg-surface-low rounded-xl">
+                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Headers</p>
+                          <p className="font-display font-bold text-on-surface mt-0.5">{parsedData.columns.length}</p>
                         </div>
                       </div>
                     </div>
-                  )}
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                        Make sure your CSV file includes these headers. Match additional variables with custom columns.
+                      </p>
 
-                  <div className="flex justify-end pt-4 border-t border-surface-mid/30">
-                    <button
-                      onClick={() => setCurrentStep(2)}
-                      disabled={!parsedData}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                    >
-                      Next <ChevronRight size={16} />
-                    </button>
+                      <div className="divide-y divide-surface-mid border-t border-b border-surface-mid">
+                        <div className="py-2 flex justify-between text-xs font-body">
+                          <span className="font-mono text-on-surface font-semibold">phone</span>
+                          <span className="text-red-700 font-bold bg-red-50 px-1.5 py-0.5 rounded text-[9px]">Required</span>
+                        </div>
+                        <div className="py-2 flex justify-between text-xs font-body">
+                          <span className="font-mono text-on-surface font-semibold">name</span>
+                          <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
+                        </div>
+                        <div className="py-2 flex justify-between text-xs font-body">
+                          <span className="font-mono text-on-surface font-semibold">course / other</span>
+                          <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={downloadSampleCSV}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-low hover:bg-surface-mid rounded-xl font-label text-xs font-bold text-on-surface transition-colors border border-surface-mid/60"
+                      >
+                        <Download size={13} />
+                        Download Sample CSV
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-surface-mid/40 pt-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                      <ShieldCheck size={16} />
+                    </div>
+                    <h3 className="font-display font-bold text-on-surface text-base">Policy Guide</h3>
                   </div>
+                  <ul className="space-y-2 font-body text-xs text-on-surface-muted">
+                    <li className="flex gap-2">
+                      <span className="text-emerald-500 font-bold">✓</span>
+                      <span><strong>Opt-in rule</strong>: Only send messages to leads who explicitly agreed to receive updates.</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-emerald-500 font-bold">✓</span>
+                      <span><strong>Limits</strong>: Keep dispatches below your tier limits to protect WABA quality rating.</span>
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="text-emerald-500 font-bold">✓</span>
+                      <span><strong>24h rule</strong>: Users can reply to template broadcasts to open a 24h custom chat session.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 2: Opt-in Source ──────────────────────────────────────── */}
+          {currentStep === 2 && (
+            <div className="space-y-6 flex-1">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Opt-in Source</h2>
+                <p className="font-body text-sm text-on-surface-muted">How did these leads consent to be contacted?</p>
+              </div>
+
+              <div className="space-y-2">
+                {OPT_IN_OPTIONS.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors
+                      ${optInSource === opt.value ? "border-tertiary bg-tertiary/5" : "border-surface-mid bg-surface-low hover:border-tertiary/40"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="opt_in_source"
+                      value={opt.value}
+                      checked={optInSource === opt.value}
+                      onChange={() => handleOptInSelect(opt.value)}
+                      className="mt-0.5 accent-[var(--color-tertiary)]"
+                    />
+                    <div>
+                      <p className="font-label text-sm font-semibold text-on-surface">{opt.label}</p>
+                      <p className="font-body text-xs text-on-surface-muted mt-0.5">{opt.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {optInLoading && (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
+                  <p className="font-body text-sm text-on-surface-muted">Validating consent rule…</p>
                 </div>
               )}
 
-              {/* ── Step 2: Opt-in Source ──────────────────────────────────────── */}
-              {currentStep === 2 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Opt-in Source</h2>
-                    <p className="font-body text-sm text-on-surface-muted">How did these leads consent to be contacted?</p>
-                  </div>
+              {optInValidation && (
+                <div className={`flex items-start gap-2.5 p-3.5 rounded-xl font-body text-sm border
+                  ${optInValidation.allowed ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"}`}>
+                  {optInValidation.allowed ? <Check size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
+                  <span>
+                    <strong className="capitalize">{optInValidation.template_type}</strong> — {optInValidation.message}
+                  </span>
+                </div>
+              )}
 
-                  <div className="space-y-2">
-                    {OPT_IN_OPTIONS.map((opt) => (
+              <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
+                <button
+                  onClick={() => setCurrentStep(1)}
+                  className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep(3)}
+                  disabled={!optInValidation?.allowed}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  Next <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 3: Preview ───────────────────────────────────────────── */}
+          {currentStep === 3 && parsedData && (
+            <div className="space-y-6 flex-1">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Preview Data</h2>
+                <p className="font-body text-sm text-on-surface-muted">
+                  Showing first {parsedData.preview.length} of {parsedData.total_rows.toLocaleString()} rows.
+                </p>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl ring-1 ring-[#c4c7c7]/20 bg-white max-h-[350px]">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 z-20">
+                    <tr className="bg-surface-low border-b border-surface-mid">
+                      {parsedData.columns.map((col) => (
+                        <th key={col} className="px-3.5 py-3 font-label font-bold text-on-surface-muted whitespace-nowrap bg-surface-low">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedData.preview.map((row, ri) => (
+                      <tr key={ri} className="border-b border-surface-mid/50 hover:bg-surface-low transition-colors">
+                        {parsedData.columns.map((col) => (
+                          <td key={col} className="px-3.5 py-3 font-body text-on-surface whitespace-nowrap">
+                            {row[col] ?? "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
+                <button
+                  onClick={() => setCurrentStep(2)}
+                  className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={() => setCurrentStep(4)}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 transition-colors shadow-sm"
+                >
+                  Next <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Template & Schedule ───────────────────────────────── */}
+          {currentStep === 4 && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
+              {/* Left Column: Template Selection & Settings (7 cols) */}
+              <div className="lg:col-span-7 space-y-6">
+                <div>
+                  <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Template & Schedule</h2>
+                  <p className="font-body text-sm text-on-surface-muted">Choose which template to send and when.</p>
+                </div>
+
+                <div className="bg-surface-low border border-surface-mid rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider mb-1 font-bold">Sender Number</p>
+                    {primaryNumberLoading ? (
+                      <p className="font-body text-xs text-on-surface-muted">Loading primary number...</p>
+                    ) : primaryNumber ? (
+                      <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.display_name} ({primaryNumber.number})</p>
+                    ) : (
+                      <p className="font-body text-xs text-red-600 font-semibold">No primary number found! Broadcast may fail.</p>
+                    )}
+                  </div>
+                  <Link href="/dashboard/numbers" className="px-3 py-1.5 bg-white border border-surface-mid rounded-lg font-label text-xs font-semibold text-on-surface hover:bg-surface-low transition-colors shadow-sm">
+                    Change
+                  </Link>
+                </div>
+
+                <div>
+                  <label htmlFor="template-select" className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
+                    Template Name
+                  </label>
+                  <select
+                    id="template-select"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">Select a template…</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.name}>
+                        {t.name} ({t.category.toLowerCase()})
+                      </option>
+                    ))}
+                  </select>
+                  {templatesLoading && (
+                    <p className="font-label text-xs text-on-surface-muted mt-2">Loading templates…</p>
+                  )}
+                  {!templatesLoading && templatesError && (
+                    <p className="font-label text-xs text-red-600 mt-2 font-semibold">
+                      Failed to load templates. <button onClick={() => { setTemplatesError(false); setTemplatesLoading(false); }} className="underline">Retry</button>
+                    </p>
+                  )}
+                  {!templatesLoading && !templatesError && templates.length === 0 && (
+                    <p className="font-label text-xs text-amber-600 mt-2 font-semibold">
+                      No approved templates yet. <Link href="/dashboard/templates" className="underline">Create one →</Link>
+                    </p>
+                  )}
+                </div>
+
+                {/* ── Broadcast Tag ─────────────────────────────────────── */}
+                <div>
+                  <label htmlFor="tag-select" className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
+                    Broadcast Tag <span className="normal-case font-normal text-on-surface-muted">(optional)</span>
+                  </label>
+                  <select
+                    id="tag-select"
+                    value={selectedTag}
+                    onChange={(e) => setSelectedTag(e.target.value)}
+                    className={inputCls}
+                  >
+                    <option value="">No tag — skip interest tracking</option>
+                    {tags.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                  {tagsLoading && (
+                    <p className="font-label text-xs text-on-surface-muted mt-2">Loading tags…</p>
+                  )}
+                  {!tagsLoading && tags.length === 0 && (
+                    <p className="font-label text-xs text-on-surface-muted mt-2">
+                      No tags yet. <button onClick={() => setActiveTab("tags")} className="underline text-violet-600">Create one →</button>
+                    </p>
+                  )}
+                </div>
+
+                {/* ── Template Variable Mapping ─────────────────────────── */}
+                {templateName && parsedData && parsedData.columns.length > 0 && (
+                  <div className="bg-surface-low border border-surface-mid rounded-xl p-4 space-y-4">
+                    <div>
+                      <p className="font-label text-xs font-bold text-on-surface uppercase tracking-wider">
+                        Template Variables <span className="normal-case font-normal text-on-surface-muted font-body text-xs">(optional)</span>
+                      </p>
+                      <p className="font-body text-xs text-on-surface-muted mt-0.5">
+                        If your template uses <code className="bg-surface-mid px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{1}}"}</code>, <code className="bg-surface-mid px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{2}}"}</code> placeholders, map them to your CSV columns.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {variableMapping.map((col, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-surface-mid/60">
+                          <span className="font-mono text-xs text-on-surface-muted w-10 shrink-0 font-bold">{`{{${idx + 1}}}`}</span>
+                          <select
+                            value={col}
+                            onChange={(e) => {
+                              const next = [...variableMapping];
+                              next[idx] = e.target.value;
+                              setVariableMapping(next);
+                            }}
+                            className="flex-1 bg-surface-low rounded-lg px-2.5 py-1.5 font-body text-xs text-on-surface border-0 focus:outline-none focus:ring-1 focus:ring-tertiary"
+                          >
+                            <option value="">— pick a column —</option>
+                            {parsedData.columns.map(c => (
+                              <option key={c} value={c}>{c}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setVariableMapping(variableMapping.filter((_, i) => i !== idx))}
+                            className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded hover:bg-red-50 transition-colors font-semibold"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setVariableMapping([...variableMapping, ""])}
+                        className="text-xs font-bold text-tertiary hover:underline flex items-center gap-1 mt-1 pl-1"
+                      >
+                        + Add variable mapping
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
+                    Schedule Type
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {(["now", "scheduled", "drip"] as ScheduleType[]).map((type) => (
                       <label
-                        key={opt.value}
-                        className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors
-                          ${optInSource === opt.value ? "border-tertiary bg-tertiary/5" : "border-surface-mid bg-surface-low hover:border-tertiary/40"}`}
+                        key={type}
+                        className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors
+                          ${scheduleType === type ? "border-tertiary bg-tertiary/5" : "border-surface-mid bg-surface-low hover:border-tertiary/40"}`}
                       >
                         <input
                           type="radio"
-                          name="opt_in_source"
-                          value={opt.value}
-                          checked={optInSource === opt.value}
-                          onChange={() => handleOptInSelect(opt.value)}
-                          className="mt-0.5 accent-[var(--color-tertiary)]"
+                          name="schedule_type"
+                          value={type}
+                          checked={scheduleType === type}
+                          onChange={() => setScheduleType(type)}
+                          className="accent-[var(--color-tertiary)]"
                         />
-                        <div>
-                          <p className="font-label text-sm font-semibold text-on-surface">{opt.label}</p>
-                          <p className="font-body text-xs text-on-surface-muted mt-0.5">{opt.description}</p>
-                        </div>
+                        <span className="font-label text-xs font-bold text-on-surface">
+                          {type === "now" ? "Send Now" : type === "scheduled" ? "Later" : "Drip Days"}
+                        </span>
                       </label>
                     ))}
                   </div>
-
-                  {optInLoading && (
-                    <div className="flex items-center gap-2 py-2">
-                      <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
-                      <p className="font-body text-sm text-on-surface-muted">Validating consent rule…</p>
-                    </div>
-                  )}
-
-                  {optInValidation && (
-                    <div className={`flex items-start gap-2.5 p-3.5 rounded-xl font-body text-sm border
-                      ${optInValidation.allowed ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"}`}>
-                      {optInValidation.allowed ? <Check size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
-                      <span>
-                        <strong className="capitalize">{optInValidation.template_type}</strong> — {optInValidation.message}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
-                    <button
-                      onClick={() => setCurrentStep(1)}
-                      className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => setCurrentStep(3)}
-                      disabled={!optInValidation?.allowed}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                    >
-                      Next <ChevronRight size={16} />
-                    </button>
-                  </div>
                 </div>
-              )}
 
-              {/* ── Step 3: Preview ───────────────────────────────────────────── */}
-              {currentStep === 3 && parsedData && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Preview Data</h2>
-                    <p className="font-body text-sm text-on-surface-muted">
-                      Showing first {parsedData.preview.length} of {parsedData.total_rows.toLocaleString()} rows.
-                    </p>
-                  </div>
-
-                  <div className="overflow-x-auto rounded-xl ring-1 ring-[#c4c7c7]/20 bg-white max-h-[350px]">
-                    <table className="w-full text-left text-xs">
-                      <thead className="sticky top-0 z-20">
-                        <tr className="bg-surface-low border-b border-surface-mid">
-                          {parsedData.columns.map((col) => (
-                            <th key={col} className="px-3.5 py-3 font-label font-bold text-on-surface-muted whitespace-nowrap bg-surface-low">
-                              {col}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {parsedData.preview.map((row, ri) => (
-                          <tr key={ri} className="border-b border-surface-mid/50 hover:bg-surface-low transition-colors">
-                            {parsedData.columns.map((col) => (
-                              <td key={col} className="px-3.5 py-3 font-body text-on-surface whitespace-nowrap">
-                                {row[col] ?? "—"}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
-                    <button
-                      onClick={() => setCurrentStep(2)}
-                      className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={() => setCurrentStep(4)}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 transition-colors shadow-sm"
-                    >
-                      Next <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Step 4: Template & Schedule ───────────────────────────────── */}
-              {currentStep === 4 && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Template & Schedule</h2>
-                    <p className="font-body text-sm text-on-surface-muted">Choose which template to send and when.</p>
-                  </div>
-
-                  <div className="bg-surface-low border border-surface-mid rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider mb-1 font-bold">Sender Number</p>
-                      {primaryNumberLoading ? (
-                        <p className="font-body text-xs text-on-surface-muted">Loading primary number...</p>
-                      ) : primaryNumber ? (
-                        <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.display_name} ({primaryNumber.number})</p>
-                      ) : (
-                        <p className="font-body text-xs text-red-600 font-semibold">No primary number found! Broadcast may fail.</p>
-                      )}
-                    </div>
-                    <Link href="/dashboard/numbers" className="px-3 py-1.5 bg-white border border-surface-mid rounded-lg font-label text-xs font-semibold text-on-surface hover:bg-surface-low transition-colors shadow-sm">
-                      Change
-                    </Link>
-                  </div>
-
-                  <div>
-                    <label htmlFor="template-select" className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
-                      Template Name
-                    </label>
-                    <select
-                      id="template-select"
-                      value={templateName}
-                      onChange={(e) => setTemplateName(e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="">Select a template…</option>
-                      {templates.map(t => (
-                        <option key={t.id} value={t.name}>
-                          {t.name} ({t.category.toLowerCase()})
-                        </option>
-                      ))}
-                    </select>
-                    {templatesLoading && (
-                      <p className="font-label text-xs text-on-surface-muted mt-2">Loading templates…</p>
-                    )}
-                    {!templatesLoading && templatesError && (
-                      <p className="font-label text-xs text-red-600 mt-2 font-semibold">
-                        Failed to load templates. <button onClick={() => { setTemplatesError(false); setTemplatesLoading(false); }} className="underline">Retry</button>
-                      </p>
-                    )}
-                    {!templatesLoading && !templatesError && templates.length === 0 && (
-                      <p className="font-label text-xs text-amber-600 mt-2 font-semibold">
-                        No approved templates yet. <Link href="/dashboard/templates" className="underline">Create one →</Link>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* ── Broadcast Tag ─────────────────────────────────────── */}
-                  <div>
-                    <label htmlFor="tag-select" className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
-                      Broadcast Tag <span className="normal-case font-normal text-on-surface-muted">(optional)</span>
-                    </label>
-                    <select
-                      id="tag-select"
-                      value={selectedTag}
-                      onChange={(e) => setSelectedTag(e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="">No tag — skip interest tracking</option>
-                      {tags.map(t => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                    {tagsLoading && (
-                      <p className="font-label text-xs text-on-surface-muted mt-2">Loading tags…</p>
-                    )}
-                    {!tagsLoading && tags.length === 0 && (
-                      <p className="font-label text-xs text-on-surface-muted mt-2">
-                        No tags yet. <button onClick={() => setActiveTab("tags")} className="underline text-violet-600">Create one →</button>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* ── Template Variable Mapping ─────────────────────────── */}
-                  {templateName && parsedData && parsedData.columns.length > 0 && (
-                    <div className="bg-surface-low border border-surface-mid rounded-xl p-4 space-y-4">
-                      <div>
-                        <p className="font-label text-xs font-bold text-on-surface uppercase tracking-wider">
-                          Template Variables <span className="normal-case font-normal text-on-surface-muted font-body text-xs">(optional)</span>
-                        </p>
-                        <p className="font-body text-xs text-on-surface-muted mt-0.5">
-                          If your template uses <code className="bg-surface-mid px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{1}}"}</code>, <code className="bg-surface-mid px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{2}}"}</code> placeholders, map them to your CSV columns.
-                        </p>
-                      </div>
-                      <div className="space-y-2">
-                        {variableMapping.map((col, idx) => (
-                          <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-surface-mid/60">
-                            <span className="font-mono text-xs text-on-surface-muted w-10 shrink-0 font-bold">{`{{${idx + 1}}}`}</span>
-                            <select
-                              value={col}
-                              onChange={(e) => {
-                                const next = [...variableMapping];
-                                next[idx] = e.target.value;
-                                setVariableMapping(next);
-                              }}
-                              className="flex-1 bg-surface-low rounded-lg px-2.5 py-1.5 font-body text-xs text-on-surface border-0 focus:outline-none focus:ring-1 focus:ring-tertiary"
-                            >
-                              <option value="">— pick a column —</option>
-                              {parsedData.columns.map(c => (
-                                <option key={c} value={c}>{c}</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              onClick={() => setVariableMapping(variableMapping.filter((_, i) => i !== idx))}
-                              className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded hover:bg-red-50 transition-colors font-semibold"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => setVariableMapping([...variableMapping, ""])}
-                          className="text-xs font-bold text-tertiary hover:underline flex items-center gap-1 mt-1 pl-1"
-                        >
-                          + Add variable mapping
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {/* ──────────────────────────────────────────────────────── */}
-
+                {scheduleType === "scheduled" && (
                   <div>
                     <label className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
-                      Schedule Type
+                      Send At
                     </label>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {(["now", "scheduled", "drip"] as ScheduleType[]).map((type) => (
-                        <label
-                          key={type}
-                          className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors
-                            ${scheduleType === type ? "border-tertiary bg-tertiary/5" : "border-surface-mid bg-surface-low hover:border-tertiary/40"}`}
-                        >
-                          <input
-                            type="radio"
-                            name="schedule_type"
-                            value={type}
-                            checked={scheduleType === type}
-                            onChange={() => setScheduleType(type)}
-                            className="accent-[var(--color-tertiary)]"
-                          />
-                          <span className="font-label text-xs font-bold text-on-surface">
-                            {type === "now" ? "Send Now" : type === "scheduled" ? "Later" : "Drip Days"}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+                    <input
+                      type="datetime-local"
+                      value={scheduleAt}
+                      onChange={(e) => setScheduleAt(e.target.value)}
+                      className={inputCls}
+                    />
                   </div>
+                )}
 
-                  {scheduleType === "scheduled" && (
+                {scheduleType === "drip" && (
+                  <div className="space-y-4">
                     <div>
                       <label className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
-                        Send At
+                        Spread over how many days?
                       </label>
                       <input
-                        type="datetime-local"
-                        value={scheduleAt}
-                        onChange={(e) => setScheduleAt(e.target.value)}
+                        type="number"
+                        min={1}
+                        value={dripDays}
+                        onChange={(e) => setDripDays(e.target.value)}
+                        placeholder="e.g. 7"
                         className={inputCls}
                       />
                     </div>
-                  )}
+                    <div>
+                      <label className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
+                        Send time each day (IST) <span className="text-on-surface-muted/60 normal-case font-normal">— optional, leave blank to send at upload time</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={dripSendTime}
+                        onChange={(e) => setDripSendTime(e.target.value)}
+                        className={inputCls}
+                      />
+                    </div>
+                  </div>
+                )}
 
-                  {scheduleType === "drip" && (
-                    <div className="space-y-4">
+                {/* ── Auto-retry undelivered ── */}
+                <div className="rounded-xl border border-surface-mid bg-surface-low p-4 space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={retryEnabled}
+                      onChange={(e) => setRetryEnabled(e.target.checked)}
+                      className="mt-0.5 accent-[var(--color-tertiary)]"
+                    />
+                    <span>
+                      <span className="font-label text-xs font-bold text-on-surface block">Auto-retry undelivered messages</span>
+                      <span className="font-body text-xs text-on-surface-muted">
+                        Re-send to leads who never got the message (Meta&apos;s daily marketing cap). Wrong numbers and unsubscribed leads are excluded automatically.
+                      </span>
+                    </span>
+                  </label>
+
+                  {retryEnabled && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
                       <div>
-                        <label className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
-                          Spread over how many days?
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={dripDays}
-                          onChange={(e) => setDripDays(e.target.value)}
-                          placeholder="e.g. 7"
-                          className={inputCls}
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider mb-2">
-                          Send time each day (IST) <span className="text-on-surface-muted/60 normal-case font-normal">— optional, leave blank to send at upload time</span>
+                        <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
+                          Retry each day at
                         </label>
                         <input
                           type="time"
-                          value={dripSendTime}
-                          onChange={(e) => setDripSendTime(e.target.value)}
+                          value={retryTime}
+                          onChange={(e) => setRetryTime(e.target.value)}
                           className={inputCls}
                         />
                       </div>
+                      <div>
+                        <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
+                          Max retries
+                        </label>
+                        <select
+                          value={retryMaxAttempts}
+                          onChange={(e) => setRetryMaxAttempts(parseInt(e.target.value, 10))}
+                          className={inputCls}
+                        >
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <option key={n} value={n}>{n} {n === 1 ? "retry" : "retries"}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   )}
+                </div>
 
-                  {/* ── Auto-retry undelivered (marketing-cap 131049 + silent drops) ── */}
-                  <div className="rounded-xl border border-surface-mid bg-surface-low p-4 space-y-3">
-                    <label className="flex items-start gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={retryEnabled}
-                        onChange={(e) => setRetryEnabled(e.target.checked)}
-                        className="mt-0.5 accent-[var(--color-tertiary)]"
-                      />
-                      <span>
-                        <span className="font-label text-xs font-bold text-on-surface block">Auto-retry undelivered messages</span>
-                        <span className="font-body text-xs text-on-surface-muted">
-                          Re-send to leads who never got the message (Meta&apos;s daily marketing cap). Wrong numbers and unsubscribed leads are excluded automatically.
-                        </span>
+                <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={async () => { setCurrentStep(5); await fetchRiskAudit(); }}
+                    disabled={!templateName.trim()}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Previews & Sender Info (5 cols) */}
+              <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
+                {/* Sender Stats */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
+                        <Phone size={16} />
+                      </div>
+                      <h3 className="font-display font-bold text-on-surface text-base">Sender Line</h3>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Active
+                    </div>
+                  </div>
+
+                  {primaryNumberLoading ? (
+                    <div className="py-4 text-center">
+                      <div className="w-5 h-5 border-2 border-tertiary border-t-transparent rounded-full animate-spin mx-auto mb-1" />
+                      <p className="font-body text-xs text-on-surface-muted">Fetching line details...</p>
+                    </div>
+                  ) : primaryNumber ? (
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider font-bold">Display Name</p>
+                        <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.display_name}</p>
+                      </div>
+                      <div>
+                        <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider font-bold">WhatsApp Number</p>
+                        <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.number}</p>
+                      </div>
+                      <div className="pt-2.5 border-t border-surface-mid grid grid-cols-2 gap-2 text-center">
+                        <div className="p-2 bg-surface-low rounded-xl">
+                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Daily Limit</p>
+                          <p className="font-display text-xs font-bold text-on-surface mt-0.5">1k / day</p>
+                        </div>
+                        <div className="p-2 bg-surface-low rounded-xl">
+                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Quality Score</p>
+                          <p className="font-display text-xs font-bold text-emerald-600 mt-0.5">High</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-body flex items-start gap-2 border border-amber-100">
+                      <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                      <span>No primary sender configured. Broadcasts will fail until you map a primary sender.</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* WhatsApp Live Preview */}
+                <div className="border-t border-surface-mid/40 pt-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                      <Smartphone size={16} />
+                    </div>
+                    <h3 className="font-display font-bold text-on-surface text-base">Live Preview</h3>
+                  </div>
+
+                  {/* Phone Mockup */}
+                  <div className="border border-surface-mid rounded-[24px] overflow-hidden bg-[#efeae2] shadow-inner relative max-w-sm mx-auto">
+                    {/* Phone Header */}
+                    <div className="bg-[#075e54] text-white px-3 py-2 flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center font-display text-[10px] font-bold shrink-0">
+                        A
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-label text-[10px] font-semibold truncate leading-tight">Aira Assistant</p>
+                        <p className="font-body text-[8px] text-white/80 leading-none">Online</p>
+                      </div>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    </div>
+
+                    {/* Chat Container */}
+                    <div className="p-3 space-y-3 min-h-[180px] flex flex-col justify-end">
+                      {templateName ? (
+                        (() => {
+                          const activeTemplate = templates.find(t => t.name === templateName);
+                          if (!activeTemplate) return (
+                            <p className="font-body text-xs text-on-surface-muted text-center py-8">Loading template structure...</p>
+                          );
+
+                          return (
+                            <div className="space-y-1.5 max-w-[90%] self-start w-full">
+                              {/* Message Bubble */}
+                              <div className="bg-white rounded-2xl rounded-tl-none p-2.5 shadow-sm text-[#111B21] relative border border-white/5 w-full">
+                                {/* Header Media */}
+                                {activeTemplate.header_media_type && activeTemplate.header_media_type !== "NONE" && (
+                                  <div className="mb-2 bg-surface-low rounded-lg p-3 flex flex-col items-center justify-center border border-surface-mid text-on-surface-muted gap-1">
+                                    {activeTemplate.header_media_type === "IMAGE" && <ImageIcon size={20} className="text-on-surface-muted" />}
+                                    {activeTemplate.header_media_type === "VIDEO" && <PlayCircle size={20} className="text-on-surface-muted" />}
+                                    {activeTemplate.header_media_type === "DOCUMENT" && <FileText size={20} className="text-on-surface-muted" />}
+                                    {activeTemplate.header_media_type === "LOCATION" && <MapPin size={20} className="text-on-surface-muted" />}
+                                    <span className="font-label text-[9px] font-bold tracking-wide uppercase mt-0.5 text-on-surface-muted">
+                                      {activeTemplate.header_media_type} Header
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Header Text */}
+                                {activeTemplate.header_text && (
+                                  <p className="font-label text-xs font-bold text-[#111b21] mb-1 leading-tight">
+                                    {activeTemplate.header_text}
+                                  </p>
+                                )}
+
+                                {/* Body Text */}
+                                <p className="font-body text-[11px] whitespace-pre-wrap break-words leading-relaxed text-[#111b21]">
+                                  {formatPreviewText(activeTemplate.body_text)}
+                                </p>
+
+                                {/* Footer Text */}
+                                {activeTemplate.footer_text && (
+                                  <p className="font-body text-[9px] text-gray-500 mt-1 leading-tight border-t border-surface-mid/40 pt-1.5">
+                                    {activeTemplate.footer_text}
+                                  </p>
+                                )}
+
+                                {/* Timestamp & checkmarks */}
+                                <div className="text-right mt-1 leading-none">
+                                  <span className="font-body text-[8px] text-gray-400">12:30 PM</span>
+                                  <span className="text-[#53bdeb] ml-1 font-body text-[9px] font-bold">✓✓</span>
+                                </div>
+                              </div>
+
+                              {/* Action Buttons underneath bubble */}
+                              {activeTemplate.buttons && activeTemplate.buttons.length > 0 && (
+                                <div className="space-y-1 w-full">
+                                  {activeTemplate.buttons.map((btn, bidx) => (
+                                    <button
+                                      key={bidx}
+                                      type="button"
+                                      className="w-full bg-white/95 hover:bg-white text-[#008069] font-label text-[10px] font-bold py-2 px-2.5 rounded-lg shadow-sm border border-white/5 flex items-center justify-center gap-1.5 transition-colors"
+                                    >
+                                      {btn.type === "URL" && <Globe size={10} />}
+                                      {btn.type === "PHONE_NUMBER" && <Phone size={10} />}
+                                      {btn.type === "WHATSAPP_CALL" && <Phone size={10} />}
+                                      {btn.type === "COPY_CODE" && <Copy size={10} />}
+                                      {btn.text}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-on-surface-muted/60 w-full">
+                          <MessageSquare size={20} className="opacity-40" />
+                          <p className="font-body text-xs">Select a template in step 4 to view live message layout</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 5: Confirm & Send ────────────────────────────────────── */}
+          {currentStep === 5 && parsedData && sendLoading && scheduleType === "now" && (
+            <SendingProgress
+              names={sendingNames}
+              index={sendingIndex}
+              total={sendingNames.length || parsedData.total_rows}
+            />
+          )}
+          {currentStep === 5 && parsedData && !(sendLoading && scheduleType === "now") && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
+              {/* Left Column: Confirm details (7 cols) */}
+              <div className="lg:col-span-7 space-y-6">
+                <div>
+                  <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Confirm & Send</h2>
+                  <p className="font-body text-sm text-on-surface-muted">Review campaign configurations before dispatches.</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Leads Count", value: parsedData.total_rows.toLocaleString() },
+                    { label: "Consent Source", value: optInSource.replace(/_/g, " ") },
+                    { label: "Active Template", value: templateName },
+                    { label: "Dispatch Plan", value: scheduleType === "now" ? "Send Immediately" : scheduleType === "scheduled" ? `At ${scheduleAt}` : `Drip over ${dripDays} days${dripSendTime ? ` · ${dripSendTime} IST daily` : ""}` },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="p-4 bg-surface-low rounded-xl border border-surface-mid">
+                      <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider mb-1 font-bold">{label}</p>
+                      <p className="font-body text-sm font-bold text-on-surface capitalize truncate">{value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Risk Audit Card */}
+                {riskLoading && (
+                  <div className="flex items-center gap-2 p-3.5 bg-surface-low rounded-xl border border-surface-mid font-body text-sm text-on-surface-muted">
+                    <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
+                    Checking audience health…
+                  </div>
+                )}
+                {!riskLoading && riskSummary && (riskSummary.negative_reply_count > 0 || riskSummary.high_no_reply_count > 0 || riskSummary.opted_out_count > 0 || riskSummary.tag_opted_out_count > 0) && (
+                  <div className="rounded-2xl border border-amber-300/80 bg-gradient-to-br from-amber-50 via-orange-50 to-white p-4 shadow-sm space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-7 h-7 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                          <AlertTriangle size={14} className="text-amber-700" />
+                        </div>
+                        <div>
+                          <p className="font-label text-sm font-semibold text-amber-900">Audience Risk Summary</p>
+                          <p className="font-body text-xs text-amber-700/90 mt-0.5">Review risky contacts before dispatching this broadcast.</p>
+                        </div>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-white/80 border border-amber-200 text-[10px] font-label font-semibold uppercase tracking-wide text-amber-700">
+                        Pre-send Check
                       </span>
-                    </label>
+                    </div>
 
-                    {retryEnabled && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
-                        <div>
-                          <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
-                            Retry each day at
-                          </label>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
+                      <div className="p-2.5 bg-white/95 rounded-xl border border-red-100">
+                        <p className="font-display text-xl font-bold text-red-600">{riskSummary.negative_reply_count}</p>
+                        <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Said No</p>
+                      </div>
+                      <div className="p-2.5 bg-white/95 rounded-xl border border-amber-100">
+                        <p className="font-display text-xl font-bold text-amber-600">{riskSummary.high_no_reply_count}</p>
+                        <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Silent 2+</p>
+                      </div>
+                      <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
+                        <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.opted_out_count}</p>
+                        <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Opted Out</p>
+                      </div>
+                      <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
+                        <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.tag_opted_out_count}</p>
+                        <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Tag Opt-Out</p>
+                      </div>
+                      <div className="p-2.5 bg-white/95 rounded-xl border border-green-100">
+                        <p className="font-display text-xl font-bold text-green-600">{riskSummary.safe_count}</p>
+                        <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Safe</p>
+                      </div>
+                    </div>
+
+                    {riskSummary.negative_reply_count > 0 && (
+                      <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
                           <input
-                            type="time"
-                            value={retryTime}
-                            onChange={(e) => setRetryTime(e.target.value)}
-                            className={inputCls}
+                            type="checkbox"
+                            checked={excludeNegativeReplies}
+                            onChange={(e) => setExcludeNegativeReplies(e.target.checked)}
+                            className="w-4 h-4 rounded border-amber-300 text-amber-600 accent-amber-600"
                           />
+                          <span className="font-body text-sm text-amber-900">
+                            Exclude {riskSummary.negative_reply_count} lead{riskSummary.negative_reply_count !== 1 ? "s" : ""} who previously said no
+                          </span>
+                        </label>
+                      </div>
+                    )}
+
+                    {(riskSummary.total_opted_out_count ?? riskSummary.tag_opted_out_count ?? 0) > 0 && (
+                      <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-3 space-y-2">
+                        <div className="flex items-center gap-2 text-orange-900 font-body text-sm">
+                          <AlertTriangle size={14} className="shrink-0" />
+                          {(() => {
+                            const n = riskSummary.total_opted_out_count ?? riskSummary.tag_opted_out_count ?? 0;
+                            const tagOnly = (riskSummary.tag_opted_out_count ?? 0) > 0 && (riskSummary.opted_out_count ?? 0) === 0;
+                            const globalOnly = (riskSummary.opted_out_count ?? 0) > 0 && (riskSummary.tag_opted_out_count ?? 0) === 0;
+                            const suffix = globalOnly ? " globally" : tagOnly ? " of this tag" : " of this tag or globally";
+                            return `${n} contact${n !== 1 ? "s" : ""} opted out${suffix}.`;
+                          })()}
                         </div>
-                        <div>
-                          <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
-                            Max retries
-                          </label>
-                          <select
-                            value={retryMaxAttempts}
-                            onChange={(e) => setRetryMaxAttempts(parseInt(e.target.value, 10))}
-                            className={inputCls}
-                          >
-                            {[1, 2, 3, 4, 5].map((n) => (
-                              <option key={n} value={n}>{n} {n === 1 ? "retry" : "retries"}</option>
-                            ))}
-                          </select>
-                        </div>
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={includeOptedOut}
+                            onChange={(e) => setIncludeOptedOut(e.target.checked)}
+                            className="w-4 h-4 rounded border-orange-300 text-orange-600 accent-orange-600"
+                          />
+                          <span className="font-body text-sm text-orange-900">
+                            {(() => {
+                              const n = riskSummary.total_opted_out_count ?? riskSummary.tag_opted_out_count ?? 0;
+                              return `Send to opted-out contact${n !== 1 ? "s" : ""} anyway`;
+                            })()}
+                          </span>
+                        </label>
                       </div>
                     )}
                   </div>
+                )}
 
-                  <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
-                    <button
-                      onClick={() => setCurrentStep(3)}
-                      className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={async () => { setCurrentStep(5); await fetchRiskAudit(); }}
-                      disabled={!templateName.trim()}
-                      className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                    >
-                      Next <ChevronRight size={16} />
-                    </button>
+                {sendError && (
+                  <div className="flex items-start gap-2 p-3.5 bg-red-50 text-red-700 rounded-xl font-body text-sm border border-red-100">
+                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                    {sendError}
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* ── Step 5: Confirm & Send ────────────────────────────────────── */}
-              {currentStep === 5 && parsedData && sendLoading && scheduleType === "now" && (
-                <SendingProgress
-                  names={sendingNames}
-                  index={sendingIndex}
-                  total={sendingNames.length || parsedData.total_rows}
-                />
-              )}
-              {currentStep === 5 && parsedData && !(sendLoading && scheduleType === "now") && (
-                <div className="space-y-6">
-                  <div>
-                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Confirm & Send</h2>
-                    <p className="font-body text-sm text-on-surface-muted">Review campaign configurations before dispatches.</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: "Leads Count", value: parsedData.total_rows.toLocaleString() },
-                      { label: "Consent Source", value: optInSource.replace(/_/g, " ") },
-                      { label: "Active Template", value: templateName },
-                      { label: "Dispatch Plan", value: scheduleType === "now" ? "Send Immediately" : scheduleType === "scheduled" ? `At ${scheduleAt}` : `Drip over ${dripDays} days${dripSendTime ? ` · ${dripSendTime} IST daily` : ""}` },
-                    ].map(({ label, value }) => (
-                      <div key={label} className="p-4 bg-surface-low rounded-xl border border-surface-mid">
-                        <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider mb-1 font-bold">{label}</p>
-                        <p className="font-body text-sm font-bold text-on-surface capitalize truncate">{value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* ── Risk Audit Card ─────────────────────────────────── */}
-                  {riskLoading && (
-                    <div className="flex items-center gap-2 p-3.5 bg-surface-low rounded-xl border border-surface-mid font-body text-sm text-on-surface-muted">
-                      <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
-                      Checking audience health…
-                    </div>
-                  )}
-                  {!riskLoading && riskSummary && (riskSummary.negative_reply_count > 0 || riskSummary.high_no_reply_count > 0 || riskSummary.opted_out_count > 0 || riskSummary.tag_opted_out_count > 0) && (
-                    <div className="rounded-2xl border border-amber-300/80 bg-gradient-to-br from-amber-50 via-orange-50 to-white p-4 shadow-sm space-y-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
-                            <AlertTriangle size={14} className="text-amber-700" />
-                          </div>
-                          <div>
-                            <p className="font-label text-sm font-semibold text-amber-900">Audience Risk Summary</p>
-                            <p className="font-body text-xs text-amber-700/90 mt-0.5">Review risky contacts before dispatching this broadcast.</p>
-                          </div>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full bg-white/80 border border-amber-200 text-[10px] font-label font-semibold uppercase tracking-wide text-amber-700">
-                          Pre-send Check
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
-                        <div className="p-2.5 bg-white/95 rounded-xl border border-red-100">
-                          <p className="font-display text-xl font-bold text-red-600">{riskSummary.negative_reply_count}</p>
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Said No</p>
-                        </div>
-                        <div className="p-2.5 bg-white/95 rounded-xl border border-amber-100">
-                          <p className="font-display text-xl font-bold text-amber-600">{riskSummary.high_no_reply_count}</p>
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Silent 2+</p>
-                        </div>
-                        <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
-                          <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.opted_out_count}</p>
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Opted Out</p>
-                        </div>
-                        <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
-                          <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.tag_opted_out_count}</p>
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Tag Opt-Out</p>
-                        </div>
-                        <div className="p-2.5 bg-white/95 rounded-xl border border-green-100">
-                          <p className="font-display text-xl font-bold text-green-600">{riskSummary.safe_count}</p>
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Safe</p>
-                        </div>
-                      </div>
-
-                      {riskSummary.negative_reply_count > 0 && (
-                        <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
-                          <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={excludeNegativeReplies}
-                              onChange={(e) => setExcludeNegativeReplies(e.target.checked)}
-                              className="w-4 h-4 rounded border-amber-300 text-amber-600 accent-amber-600"
-                            />
-                            <span className="font-body text-sm text-amber-900">
-                              Exclude {riskSummary.negative_reply_count} lead{riskSummary.negative_reply_count !== 1 ? "s" : ""} who previously said no
-                            </span>
-                          </label>
-                        </div>
-                      )}
-
-                      {(riskSummary.total_opted_out_count ?? riskSummary.tag_opted_out_count ?? 0) > 0 && (
-                        <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-3 space-y-2">
-                          <div className="flex items-center gap-2 text-orange-900 font-body text-sm">
-                            <AlertTriangle size={14} className="shrink-0" />
-                            {(() => {
-                              const n = riskSummary.total_opted_out_count ?? riskSummary.tag_opted_out_count ?? 0;
-                              const tagOnly = (riskSummary.tag_opted_out_count ?? 0) > 0 && (riskSummary.opted_out_count ?? 0) === 0;
-                              const globalOnly = (riskSummary.opted_out_count ?? 0) > 0 && (riskSummary.tag_opted_out_count ?? 0) === 0;
-                              const suffix = globalOnly ? " globally" : tagOnly ? " of this tag" : " of this tag or globally";
-                              return `${n} contact${n !== 1 ? "s" : ""} opted out${suffix}.`;
-                            })()}
-                          </div>
-                          <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={includeOptedOut}
-                              onChange={(e) => setIncludeOptedOut(e.target.checked)}
-                              className="w-4 h-4 rounded border-orange-300 text-orange-600 accent-orange-600"
-                            />
-                            <span className="font-body text-sm text-orange-900">
-                              {(() => {
-                                const n = riskSummary.total_opted_out_count ?? riskSummary.tag_opted_out_count ?? 0;
-                                return `Send to opted-out contact${n !== 1 ? "s" : ""} anyway`;
-                              })()}
-                            </span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {sendError && (
-                    <div className="flex items-start gap-2 p-3.5 bg-red-50 text-red-700 rounded-xl font-body text-sm border border-red-100">
-                      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                      {sendError}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
-                    <button
-                      onClick={() => setCurrentStep(4)}
-                      className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={handleSend}
-                      disabled={sendLoading}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
-                    >
-                      <Upload size={14} />
-                      {sendLoading ? "Sending…" : "Confirm & Dispatch"}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* ── Step 6: Done ──────────────────────────────────────────────── */}
-              {currentStep === 6 && sendResult && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 bg-green-50 border border-green-100 p-4 rounded-2xl">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0 border border-green-200">
-                      <Check size={20} className="text-green-700" />
-                    </div>
-                    <div>
-                      <h2 className="font-display text-xl font-bold text-green-950">Campaign sent successfully!</h2>
-                      <p className="font-body text-xs text-green-700 mt-0.5">Leads queued — replies will appear in Conversations.</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-4 gap-3">
-                    <div className="p-4 bg-green-50/50 border border-green-200/50 rounded-xl text-center">
-                      <p className="font-display text-3xl font-bold text-green-700">{sendResult.queued.toLocaleString()}</p>
-                      <p className="font-label text-[10px] text-green-600 mt-1 uppercase tracking-wide font-bold">Sent</p>
-                    </div>
-                    <div className="p-4 bg-surface-low border border-surface-mid rounded-xl text-center">
-                      <p className="font-display text-3xl font-bold text-on-surface-muted">{sendResult.failed.toLocaleString()}</p>
-                      <p className="font-label text-[10px] text-on-surface-muted mt-1 uppercase tracking-wide font-bold">Failed</p>
-                    </div>
-                    <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center">
-                      <p className="font-display text-3xl font-bold text-gray-600">{sendResult.opted_out_skipped.toLocaleString()}</p>
-                      <p className="font-label text-[10px] text-gray-500 mt-1 uppercase tracking-wide font-bold">Opted Out</p>
-                    </div>
-                    <div className="p-4 bg-tertiary/5 border border-tertiary/15 rounded-xl text-center">
-                      <p className="font-display text-sm font-bold text-tertiary truncate leading-10">{sendResult.number_used}</p>
-                      <p className="font-label text-[10px] text-on-surface-muted mt-1 uppercase tracking-wide font-bold">Sender Line</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-4 border-t border-surface-mid/30">
-                    <Link
-                      href="/dashboard/conversations"
-                      className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 transition-colors shadow-sm"
-                    >
-                      <MessageSquare size={16} />
-                      View Conversations
-                    </Link>
-                    <button
-                      onClick={resetAll}
-                      className="flex items-center gap-2 px-5 py-3 bg-surface-low text-on-surface rounded-xl font-label text-sm font-semibold hover:bg-surface-mid transition-colors border border-surface-mid/60"
-                    >
-                      <RotateCcw size={14} />
-                      Upload Another
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Column: Dynamic Helper Sidebar */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Widget 1: Sender Stats */}
-            <div className="bg-surface rounded-[2rem] p-6 shadow-lg ring-1 ring-[#c4c7c7]/20 animate-slide-up">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
-                    <Phone size={16} />
-                  </div>
-                  <h3 className="font-display font-bold text-on-surface text-base">Sender Line</h3>
-                </div>
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Active
-                </div>
-              </div>
-
-              {primaryNumberLoading ? (
-                <div className="py-4 text-center">
-                  <div className="w-5 h-5 border-2 border-tertiary border-t-transparent rounded-full animate-spin mx-auto mb-1" />
-                  <p className="font-body text-xs text-on-surface-muted">Fetching line details...</p>
-                </div>
-              ) : primaryNumber ? (
-                <div className="space-y-3">
-                  <div>
-                    <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider font-bold">Display Name</p>
-                    <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.display_name}</p>
-                  </div>
-                  <div>
-                    <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider font-bold">WhatsApp Number</p>
-                    <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.number}</p>
-                  </div>
-                  <div className="pt-2.5 border-t border-surface-mid grid grid-cols-2 gap-2 text-center">
-                    <div className="p-2 bg-surface-low rounded-xl">
-                      <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Daily Limit</p>
-                      <p className="font-display text-xs font-bold text-on-surface mt-0.5">1k / day</p>
-                    </div>
-                    <div className="p-2 bg-surface-low rounded-xl">
-                      <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Quality Score</p>
-                      <p className="font-display text-xs font-bold text-emerald-600 mt-0.5">High</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-body flex items-start gap-2 border border-amber-100">
-                  <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                  <span>No primary sender configured. Broadcasts will fail until you map a primary sender.</span>
-                </div>
-              )}
-            </div>
-
-            {/* Widget 2: Live WhatsApp Preview */}
-            <div className="bg-surface rounded-[2rem] p-6 shadow-lg ring-1 ring-[#c4c7c7]/20">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-                  <Smartphone size={16} />
-                </div>
-                <h3 className="font-display font-bold text-on-surface text-base">Live Preview</h3>
-              </div>
-
-              {/* Phone Mockup */}
-              <div className="border border-surface-mid rounded-[24px] overflow-hidden bg-[#efeae2] shadow-inner relative max-w-sm mx-auto">
-                {/* Phone Header */}
-                <div className="bg-[#075e54] text-white px-3 py-2 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center font-display text-[10px] font-bold shrink-0">
-                    A
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-label text-[10px] font-semibold truncate leading-tight">Aira Assistant</p>
-                    <p className="font-body text-[8px] text-white/80 leading-none">Online</p>
-                  </div>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                </div>
-
-                {/* Chat Container */}
-                <div className="p-3 space-y-3 min-h-[180px] flex flex-col justify-end">
-                  {templateName ? (
-                    (() => {
-                      const activeTemplate = templates.find(t => t.name === templateName);
-                      if (!activeTemplate) return (
-                        <p className="font-body text-xs text-on-surface-muted text-center py-8">Loading template structure...</p>
-                      );
-
-                      return (
-                        <div className="space-y-1.5 max-w-[90%] self-start w-full">
-                          {/* Message Bubble */}
-                          <div className="bg-white rounded-2xl rounded-tl-none p-2.5 shadow-sm text-[#111B21] relative border border-white/5 w-full">
-                            {/* Header Media */}
-                            {activeTemplate.header_media_type && activeTemplate.header_media_type !== "NONE" && (
-                              <div className="mb-2 bg-surface-low rounded-lg p-3 flex flex-col items-center justify-center border border-surface-mid text-on-surface-muted gap-1">
-                                {activeTemplate.header_media_type === "IMAGE" && <ImageIcon size={20} className="text-on-surface-muted" />}
-                                {activeTemplate.header_media_type === "VIDEO" && <PlayCircle size={20} className="text-on-surface-muted" />}
-                                {activeTemplate.header_media_type === "DOCUMENT" && <FileText size={20} className="text-on-surface-muted" />}
-                                {activeTemplate.header_media_type === "LOCATION" && <MapPin size={20} className="text-on-surface-muted" />}
-                                <span className="font-label text-[9px] font-bold tracking-wide uppercase mt-0.5 text-on-surface-muted">
-                                  {activeTemplate.header_media_type} Header
-                                </span>
-                              </div>
-                            )}
-
-                            {/* Header Text */}
-                            {activeTemplate.header_text && (
-                              <p className="font-label text-xs font-bold text-[#111b21] mb-1 leading-tight">
-                                {activeTemplate.header_text}
-                              </p>
-                            )}
-
-                            {/* Body Text */}
-                            <p className="font-body text-[11px] whitespace-pre-wrap break-words leading-relaxed text-[#111b21]">
-                              {formatPreviewText(activeTemplate.body_text)}
-                            </p>
-
-                            {/* Footer Text */}
-                            {activeTemplate.footer_text && (
-                              <p className="font-body text-[9px] text-gray-500 mt-1 leading-tight border-t border-surface-mid/40 pt-1.5">
-                                {activeTemplate.footer_text}
-                              </p>
-                            )}
-
-                            {/* Timestamp & checkmarks */}
-                            <div className="text-right mt-1 leading-none">
-                              <span className="font-body text-[8px] text-gray-400">12:30 PM</span>
-                              <span className="text-[#53bdeb] ml-1 font-body text-[9px] font-bold">✓✓</span>
-                            </div>
-                          </div>
-
-                          {/* Action Buttons underneath bubble */}
-                          {activeTemplate.buttons && activeTemplate.buttons.length > 0 && (
-                            <div className="space-y-1 w-full">
-                              {activeTemplate.buttons.map((btn, bidx) => (
-                                <button
-                                  key={bidx}
-                                  type="button"
-                                  className="w-full bg-white/95 hover:bg-white text-[#008069] font-label text-[10px] font-bold py-2 px-2.5 rounded-lg shadow-sm border border-white/5 flex items-center justify-center gap-1.5 transition-colors"
-                                >
-                                  {btn.type === "URL" && <Globe size={10} />}
-                                  {btn.type === "PHONE_NUMBER" && <Phone size={10} />}
-                                  {btn.type === "WHATSAPP_CALL" && <Phone size={10} />}
-                                  {btn.type === "COPY_CODE" && <Copy size={10} />}
-                                  {btn.text}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-on-surface-muted/60 w-full">
-                      <MessageSquare size={20} className="opacity-40" />
-                      <p className="font-body text-xs">Select a template in step 4 to view live message layout</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Widget 3: CSV Format Guidance */}
-            <div className="bg-surface rounded-[2rem] p-6 shadow-lg ring-1 ring-[#c4c7c7]/20">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-                  <FileSpreadsheet size={16} />
-                </div>
-                <h3 className="font-display font-bold text-on-surface text-base">CSV Template</h3>
-              </div>
-
-              {parsedData ? (
-                <div className="space-y-3 text-xs">
-                  <div className="p-3 bg-surface-low rounded-xl">
-                    <p className="font-label text-[10px] text-on-surface-muted uppercase font-bold">Uploaded File</p>
-                    <p className="font-body font-semibold text-on-surface truncate mt-0.5">{csvFile?.name}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-center">
-                    <div className="p-2 bg-green-50 border border-green-100 rounded-xl">
-                      <p className="font-label text-[9px] text-green-700 uppercase font-bold">Leads</p>
-                      <p className="font-display font-bold text-green-700 mt-0.5">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
-                    </div>
-                    <div className="p-2 bg-surface-low rounded-xl">
-                      <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Headers</p>
-                      <p className="font-display font-bold text-on-surface mt-0.5">{parsedData.columns.length}</p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                    Make sure your CSV file includes these headers. Match additional variables with custom columns.
-                  </p>
-
-                  <div className="divide-y divide-surface-mid border-t border-b border-surface-mid">
-                    <div className="py-2 flex justify-between text-xs font-body">
-                      <span className="font-mono text-on-surface font-semibold">phone</span>
-                      <span className="text-red-700 font-bold bg-red-50 px-1.5 py-0.5 rounded text-[9px]">Required</span>
-                    </div>
-                    <div className="py-2 flex justify-between text-xs font-body">
-                      <span className="font-mono text-on-surface font-semibold">name</span>
-                      <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
-                    </div>
-                    <div className="py-2 flex justify-between text-xs font-body">
-                      <span className="font-mono text-on-surface font-semibold">course / other</span>
-                      <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
-                    </div>
-                  </div>
-
+                <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
                   <button
-                    onClick={downloadSampleCSV}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-low hover:bg-surface-mid rounded-xl font-label text-xs font-bold text-on-surface transition-colors border border-surface-mid/60"
+                    onClick={() => setCurrentStep(4)}
+                    className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
                   >
-                    <Download size={13} />
-                    Download Sample CSV
+                    Back
+                  </button>
+                  <button
+                    onClick={handleSend}
+                    disabled={sendLoading}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    <Upload size={14} />
+                    {sendLoading ? "Sending…" : "Confirm & Dispatch"}
                   </button>
                 </div>
-              )}
-            </div>
-
-            {/* Widget 4: Compliance & Limits */}
-            <div className="bg-surface rounded-[2rem] p-6 shadow-lg ring-1 ring-[#c4c7c7]/20 text-xs">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
-                  <ShieldCheck size={16} />
-                </div>
-                <h3 className="font-display font-bold text-on-surface text-base">Policy Guide</h3>
               </div>
-              <ul className="space-y-2 font-body text-on-surface-muted">
-                <li className="flex gap-2">
-                  <span className="text-emerald-500 font-bold">✓</span>
-                  <span><strong>Opt-in rule</strong>: Only send messages to leads who explicitly agreed to receive updates.</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-emerald-500 font-bold">✓</span>
-                  <span><strong>Limits</strong>: Keep dispatches below your tier limits to protect WABA quality rating.</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-emerald-500 font-bold">✓</span>
-                  <span><strong>24h rule</strong>: Users can reply to template broadcasts to open a 24h custom chat session.</span>
-                </li>
-              </ul>
+
+              {/* Right Column: Template preview (5 cols) */}
+              <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                    <Smartphone size={16} />
+                  </div>
+                  <h3 className="font-display font-bold text-on-surface text-base">Live Preview</h3>
+                </div>
+
+                {/* Phone Mockup */}
+                <div className="border border-surface-mid rounded-[24px] overflow-hidden bg-[#efeae2] shadow-inner relative max-w-sm mx-auto">
+                  {/* Phone Header */}
+                  <div className="bg-[#075e54] text-white px-3 py-2 flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center font-display text-[10px] font-bold shrink-0">
+                      A
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-label text-[10px] font-semibold truncate leading-tight">Aira Assistant</p>
+                      <p className="font-body text-[8px] text-white/80 leading-none">Online</p>
+                    </div>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                  </div>
+
+                  {/* Chat Container */}
+                  <div className="p-3 space-y-3 min-h-[180px] flex flex-col justify-end">
+                    {templateName ? (
+                      (() => {
+                        const activeTemplate = templates.find(t => t.name === templateName);
+                        if (!activeTemplate) return (
+                          <p className="font-body text-xs text-on-surface-muted text-center py-8">Loading template structure...</p>
+                        );
+
+                        return (
+                          <div className="space-y-1.5 max-w-[90%] self-start w-full">
+                            {/* Message Bubble */}
+                            <div className="bg-white rounded-2xl rounded-tl-none p-2.5 shadow-sm text-[#111B21] relative border border-white/5 w-full">
+                              {/* Header Media */}
+                              {activeTemplate.header_media_type && activeTemplate.header_media_type !== "NONE" && (
+                                <div className="mb-2 bg-surface-low rounded-lg p-3 flex flex-col items-center justify-center border border-surface-mid text-on-surface-muted gap-1">
+                                  {activeTemplate.header_media_type === "IMAGE" && <ImageIcon size={20} className="text-on-surface-muted" />}
+                                  {activeTemplate.header_media_type === "VIDEO" && <PlayCircle size={20} className="text-on-surface-muted" />}
+                                  {activeTemplate.header_media_type === "DOCUMENT" && <FileText size={20} className="text-on-surface-muted" />}
+                                  {activeTemplate.header_media_type === "LOCATION" && <MapPin size={20} className="text-on-surface-muted" />}
+                                  <span className="font-label text-[9px] font-bold tracking-wide uppercase mt-0.5 text-on-surface-muted">
+                                    {activeTemplate.header_media_type} Header
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Header Text */}
+                              {activeTemplate.header_text && (
+                                <p className="font-label text-xs font-bold text-[#111b21] mb-1 leading-tight">
+                                  {activeTemplate.header_text}
+                                </p>
+                              )}
+
+                              {/* Body Text */}
+                              <p className="font-body text-[11px] whitespace-pre-wrap break-words leading-relaxed text-[#111b21]">
+                                {formatPreviewText(activeTemplate.body_text)}
+                              </p>
+
+                              {/* Footer Text */}
+                              {activeTemplate.footer_text && (
+                                <p className="font-body text-[9px] text-gray-500 mt-1 leading-tight border-t border-surface-mid/40 pt-1.5">
+                                  {activeTemplate.footer_text}
+                                </p>
+                              )}
+
+                              {/* Timestamp & checkmarks */}
+                              <div className="text-right mt-1 leading-none">
+                                <span className="font-body text-[8px] text-gray-400">12:30 PM</span>
+                                <span className="text-[#53bdeb] ml-1 font-body text-[9px] font-bold">✓✓</span>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons underneath bubble */}
+                            {activeTemplate.buttons && activeTemplate.buttons.length > 0 && (
+                              <div className="space-y-1 w-full">
+                                {activeTemplate.buttons.map((btn, bidx) => (
+                                  <button
+                                    key={bidx}
+                                    type="button"
+                                    className="w-full bg-white/95 hover:bg-white text-[#008069] font-label text-[10px] font-bold py-2 px-2.5 rounded-lg shadow-sm border border-white/5 flex items-center justify-center gap-1.5 transition-colors"
+                                  >
+                                    {btn.type === "URL" && <Globe size={10} />}
+                                    {btn.type === "PHONE_NUMBER" && <Phone size={10} />}
+                                    {btn.type === "WHATSAPP_CALL" && <Phone size={10} />}
+                                    {btn.type === "COPY_CODE" && <Copy size={10} />}
+                                    {btn.text}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-on-surface-muted/60 w-full">
+                        <MessageSquare size={20} className="opacity-40" />
+                        <p className="font-body text-xs">Select a template in step 4 to view live message layout</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* ── Step 6: Done ──────────────────────────────────────────────── */}
+          {currentStep === 6 && sendResult && (
+            <div className="space-y-6 flex-1">
+              <div className="flex items-center gap-3 bg-green-50 border border-green-100 p-4 rounded-2xl">
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0 border border-green-200">
+                  <Check size={20} className="text-green-700" />
+                </div>
+                <div>
+                  <h2 className="font-display text-xl font-bold text-green-950">Campaign sent successfully!</h2>
+                  <p className="font-body text-xs text-green-700 mt-0.5">Leads queued — replies will appear in Conversations.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-3">
+                <div className="p-4 bg-green-50/50 border border-green-200/50 rounded-xl text-center">
+                  <p className="font-display text-3xl font-bold text-green-700">{sendResult.queued.toLocaleString()}</p>
+                  <p className="font-label text-[10px] text-green-600 mt-1 uppercase tracking-wide font-bold">Sent</p>
+                </div>
+                <div className="p-4 bg-surface-low border border-surface-mid rounded-xl text-center">
+                  <p className="font-display text-3xl font-bold text-on-surface-muted">{sendResult.failed.toLocaleString()}</p>
+                  <p className="font-label text-[10px] text-on-surface-muted mt-1 uppercase tracking-wide font-bold">Failed</p>
+                </div>
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center">
+                  <p className="font-display text-3xl font-bold text-gray-600">{sendResult.opted_out_skipped.toLocaleString()}</p>
+                  <p className="font-label text-[10px] text-gray-500 mt-1 uppercase tracking-wide font-bold">Opted Out</p>
+                </div>
+                <div className="p-4 bg-tertiary/5 border border-tertiary/15 rounded-xl text-center">
+                  <p className="font-display text-sm font-bold text-tertiary truncate leading-10">{sendResult.number_used}</p>
+                  <p className="font-label text-[10px] text-on-surface-muted mt-1 uppercase tracking-wide font-bold">Sender Line</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4 border-t border-surface-mid/30">
+                <Link
+                  href="/dashboard/conversations"
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 transition-colors shadow-sm"
+                >
+                  <MessageSquare size={16} />
+                  View Conversations
+                </Link>
+                <button
+                  onClick={resetAll}
+                  className="flex items-center gap-2 px-5 py-3 bg-surface-low text-on-surface rounded-xl font-label text-sm font-semibold hover:bg-surface-mid transition-colors border border-surface-mid/60"
+                >
+                  <RotateCcw size={14} />
+                  Upload Another
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
