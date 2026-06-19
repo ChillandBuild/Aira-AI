@@ -161,7 +161,6 @@ def auto_assign_lead(
         .select("id,name,user_id,shift_start_hour,shift_end_hour")
         .eq("tenant_id", tenant_id)
         .eq("active", True)
-        .eq("status", "active")
     )
     if owner_user_id:
         query = query.neq("user_id", owner_user_id)
@@ -197,9 +196,10 @@ def auto_assign_lead(
         if is_in_shift:
             in_shift_callers.append(caller)
 
+    # Fallback to all active callers if no one is in shift
     if not in_shift_callers:
-        logger.info(f"No in-shift callers available for tenant {tenant_id} at hour {current_hour} IST")
-        return None
+        logger.info(f"No in-shift callers available for tenant {tenant_id} at hour {current_hour} IST. Falling back to all active callers.")
+        in_shift_callers = callers.data
 
     min_count = None
     chosen = None

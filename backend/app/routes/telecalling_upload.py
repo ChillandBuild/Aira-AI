@@ -69,7 +69,6 @@ def _round_robin_assign_leads(
         .select("id,name,user_id,shift_start_hour,shift_end_hour")
         .eq("tenant_id", tenant_id)
         .eq("active", True)
-        .or_("status.eq.active,status.is.null")
     )
     if owner_user_id:
         query = query.neq("user_id", owner_user_id)
@@ -114,9 +113,10 @@ def _round_robin_assign_leads(
         if is_in_shift:
             in_shift_callers.append(caller)
 
+    # Fallback to all active callers if no one is in shift
     if not in_shift_callers:
-        logger.info(f"No in-shift callers for CSV upload tenant {tenant_id} at hour {current_hour} IST. Leaving leads unassigned.")
-        return []
+        logger.info(f"No in-shift callers for CSV upload tenant {tenant_id} at hour {current_hour} IST. Falling back to all active callers.")
+        in_shift_callers = callers
 
     callers = in_shift_callers
     load: dict[str, int] = {}
@@ -168,6 +168,28 @@ def _round_robin_assign_leads(
             "caller_id": best_id,
             "caller_name": best.get("name"),
         })
+
+    # Group assignment counts per caller and send a consolidated notification
+    caller_counts: dict[str, int] = {}
+    for a in assignments:
+        cid = a["caller_id"]
+        caller_counts[cid] = caller_counts.get(cid, 0) + 1
+
+    from app.services.notify import notify_user
+    for cid, count in caller_counts.items():
+        c_item = caller_map.get(cid)
+        if c_item and c_item.get("user_id"):
+            try:
+                notify_user(
+                    tenant_id,
+                    c_item["user_id"],
+                    "lead_assigned",
+                    "New leads assigned",
+                    f"You've been assigned {count} new leads from telecalling upload.",
+                    db=db,
+                )
+            except Exception:
+                logger.exception("Failed to send telecalling upload notification to caller")
 
     return assignments
 
@@ -343,7 +365,7 @@ async def download_assignment_csv(
     db = get_supabase()
     result = (
         db.table("telecalling_upload_batches")
-        .select("assignment_snapshot,file_name")
+        .select("assignment_snapshot,file_name,csv_storage_path")
         .eq("id", str(batch_id))
         .eq("tenant_id", tenant_id)
         .maybe_single()
@@ -352,9 +374,27 @@ async def download_assignment_csv(
     if not result or not result.data:
         raise HTTPException(status_code=404, detail="Batch not found")
 
-    snapshot = result.data.get("assignment_snapshot") or []
-    file_name = result.data.get("file_name") or "assignments.csv"
+    file_name = result.data.get("file_name") or "contacts.csv"
+    csv_storage_path = result.data.get("csv_storage_path")
 
+    # If the original raw CSV is stored, download and return it
+    if csv_storage_path:
+        try:
+            file_bytes = db.storage.from_("broadcast-csvs").download(csv_storage_path)
+            
+            csv_filename = f"assignments_{file_name}" if file_name else f"assignments_{batch_id}.csv"
+            if not csv_filename.endswith(".csv"):
+                csv_filename += ".csv"
+
+            return Response(
+                content=file_bytes,
+                media_type="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={csv_filename}"},
+            )
+        except Exception:
+            logger.exception("Failed to download CSV from storage, falling back to assignment snapshot")
+
+    snapshot = result.data.get("assignment_snapshot") or []
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=["phone", "name", "caller_name", "caller_id", "lead_id"])
     writer.writeheader()
