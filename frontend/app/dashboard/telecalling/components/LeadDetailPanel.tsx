@@ -850,7 +850,7 @@ export default function LeadDetailPanel({
         )}
 
         {activeProfileTab === "script" && (
-          <ScriptPanel segment={selectedLead.segment} />
+          <ScriptPanel />
         )}
 
       </div>
@@ -865,8 +865,16 @@ interface ScriptStep {
   branches?: { label: string; goto: number }[];
 }
 
-function ScriptPanel({ segment }: { segment: string }) {
-  const [script, setScript] = useState<{ name: string; steps: ScriptStep[] } | null>(null);
+interface CallScript {
+  id: string;
+  name: string;
+  steps: ScriptStep[];
+  active: boolean;
+}
+
+function ScriptPanel() {
+  const [activeScripts, setActiveScripts] = useState<CallScript[]>([]);
+  const [selectedScript, setSelectedScript] = useState<CallScript | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -876,21 +884,25 @@ function ScriptPanel({ segment }: { segment: string }) {
       setLoading(true);
       try {
         const auth = await getAuthHeaders();
-        const res = await fetch(`${API_URL}/api/v1/call-scripts/resolve?segment=${segment}`, { headers: auth });
+        const res = await fetch(`${API_URL}/api/v1/call-scripts/resolve`, { headers: auth });
         if (res.ok) {
           const data = await res.json();
-          if (!cancelled && data && data.steps && data.steps.length > 0) {
-            setScript(data);
-            setCurrentStep(0);
-          } else if (!cancelled) {
-            setScript(null);
+          if (!cancelled && Array.isArray(data)) {
+            const activeOnly = data.filter((s) => s.active);
+            setActiveScripts(activeOnly);
+            if (activeOnly.length > 0) {
+              setSelectedScript(activeOnly[0]);
+              setCurrentStep(0);
+            } else {
+              setSelectedScript(null);
+            }
           }
         }
       } catch { /* non-critical */ }
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [segment]);
+  }, []);
 
   if (loading) {
     return (
@@ -901,26 +913,49 @@ function ScriptPanel({ segment }: { segment: string }) {
     );
   }
 
-  if (!script || !script.steps.length) {
+  if (!selectedScript || !selectedScript.steps || !selectedScript.steps.length) {
     return (
       <div className="p-8 bg-[#faf8f5]/40 border border-[#e8e3db] text-center rounded-xl">
         <FileText size={24} className="text-[#d6cfc9] mx-auto mb-2" />
-        <p className="text-xs text-[#a8a29e] font-medium">No script configured for segment {segment}.</p>
+        <p className="text-xs text-[#a8a29e] font-medium">No active scripts configured.</p>
         <p className="text-[10px] text-[#d6cfc9] mt-1">Create one in Telecalling → Scripts.</p>
       </div>
     );
   }
 
-  const steps = script.steps.sort((a, b) => a.order - b.order);
+  const steps = [...selectedScript.steps].sort((a, b) => a.order - b.order);
   const step = steps[currentStep];
 
   return (
     <div className="space-y-3">
+      {activeScripts.length > 1 && (
+        <div className="flex items-center gap-2 mb-2 bg-[#faf8f5] p-2 border border-[#e8e3db] rounded-xl">
+          <label className="text-[10px] font-bold text-[#78716c] uppercase shrink-0">Script:</label>
+          <select
+            value={selectedScript?.id || ""}
+            onChange={(e) => {
+              const s = activeScripts.find((x) => x.id === e.target.value);
+              if (s) {
+                setSelectedScript(s);
+                setCurrentStep(0);
+              }
+            }}
+            className="text-xs border border-[#e8e3db] rounded-lg px-2.5 py-1 bg-white text-[#292524] focus:outline-none focus:ring-1 focus:ring-indigo-500 flex-1 font-semibold"
+          >
+            {activeScripts.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5">
-          <FileText size={12} className="text-indigo-400" /> {script.name}
+        <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5 truncate max-w-[70%]">
+          <FileText size={12} className="text-indigo-400 shrink-0" /> {selectedScript.name}
         </h3>
-        <span className="text-[10px] text-[#a8a29e] font-bold">
+        <span className="text-[10px] text-[#a8a29e] font-bold shrink-0">
           Step {currentStep + 1} of {steps.length}
         </span>
       </div>
@@ -974,7 +1009,7 @@ function ScriptPanel({ segment }: { segment: string }) {
       </div>
 
       {/* Step overview */}
-      <div className="space-y-1">
+      <div className="space-y-1 max-h-[150px] overflow-y-auto pr-1">
         {steps.map((s, i) => (
           <button
             key={s.order}

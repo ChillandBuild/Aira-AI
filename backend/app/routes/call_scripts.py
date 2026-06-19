@@ -81,14 +81,20 @@ async def list_scripts(ctx: dict = Depends(get_tenant_and_role)) -> list:
 
 @router.get("/resolve")
 async def resolve_script(
-    segment: str = Query(..., description="Segment A/B/C/D"),
+    segment: str | None = Query(None, description="Segment A/B/C/D (ignored)"),
     ctx: dict = Depends(get_tenant_and_role)
-) -> dict | None:
-    if segment not in ("A", "B", "C", "D"):
-        raise HTTPException(status_code=400, detail="Segment must be A, B, C, or D")
+) -> list[dict]:
+    db = get_supabase()
+    result = (
+        db.table("call_scripts")
+        .select("*")
+        .eq("tenant_id", ctx["tenant_id"])
+        .eq("active", True)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return result.data or []
 
-    script = get_script_for_call(ctx["tenant_id"], segment)
-    return script
 
 
 @router.get("/{script_id}")

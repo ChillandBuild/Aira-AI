@@ -14,7 +14,7 @@ import {
   X,
   GripVertical,
   GitBranch,
-  Star,
+
   ToggleLeft,
   ToggleRight,
   Check,
@@ -956,7 +956,7 @@ function ScriptsTab() {
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
-  const [formIsDefault, setFormIsDefault] = useState(false);
+
   const [formSteps, setFormSteps] = useState<FormStep[]>([emptyFormStep()]);
 
   const [previewScript, setPreviewScript] = useState<CallScript | null>(null);
@@ -976,7 +976,6 @@ function ScriptsTab() {
   function openCreate() {
     setEditingId(null);
     setFormName("");
-    setFormIsDefault(false);
     setFormSteps([emptyFormStep()]);
     setShowEditor(true);
   }
@@ -984,7 +983,6 @@ function ScriptsTab() {
   function openEdit(s: CallScript) {
     setEditingId(s.id);
     setFormName(s.name);
-    setFormIsDefault(s.is_default);
     setFormSteps(stepsToForm(s.steps));
     setShowEditor(true);
   }
@@ -1000,9 +998,9 @@ function ScriptsTab() {
     try {
       const steps = formToSteps(formSteps);
       if (editingId) {
-        await apiUpdateScript(editingId, { name: formName.trim(), segment: null, steps, is_default: formIsDefault });
+        await apiUpdateScript(editingId, { name: formName.trim(), segment: null, steps, is_default: false });
       } else {
-        await apiCreateScript({ name: formName.trim(), steps, is_default: formIsDefault });
+        await apiCreateScript({ name: formName.trim(), steps, is_default: false });
       }
       closeEditor();
       await load();
@@ -1093,11 +1091,7 @@ function ScriptsTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-display text-sm font-bold text-on-surface truncate">{s.name}</span>
-                    {s.is_default && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-purple-50 text-purple-700 border border-purple-200 flex items-center gap-0.5">
-                        <Star size={9} className="fill-purple-500 text-purple-500" />Default
-                      </span>
-                    )}
+
                     {!s.active && (
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-[#f0ece4] text-[#a8a29e] border border-[#e8e3db]">Inactive</span>
                     )}
@@ -1152,10 +1146,7 @@ function ScriptsTab() {
                 <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Segment A Hot Lead Script"
                   className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface-low placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary" />
               </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={formIsDefault} onChange={(e) => setFormIsDefault(e.target.checked)} className="w-4 h-4 rounded border-surface-mid text-tertiary focus:ring-tertiary" />
-                <span className="font-label text-xs font-semibold text-on-surface-muted">Set as default script</span>
-              </label>
+
               <div>
                 <label className="block font-label text-xs font-semibold text-on-surface-muted mb-3 uppercase tracking-wider">Steps</label>
                 <div className="space-y-4">
