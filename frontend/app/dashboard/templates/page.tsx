@@ -209,32 +209,8 @@ export default function TemplatesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex justify-end gap-4 flex-wrap">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={handleSyncAll}
-            disabled={syncing}
-            className="btn-ghost flex items-center gap-2 text-xs font-semibold text-ink-secondary"
-          >
-            <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-            {syncing ? "Syncing..." : "Sync from Meta"}
-          </button>
-
-          <Link href="/dashboard/templates/carousel" className="btn-ghost flex items-center gap-2 text-xs font-semibold">
-            <Layers size={14} />
-            New Carousel
-          </Link>
-
-          <Link href="/dashboard/templates/new" className="btn-primary flex items-center gap-2 text-xs font-semibold">
-            <Plus size={14} />
-            Create Template
-          </Link>
-        </div>
-      </div>
-
-      {/* Stats Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Stats and Action Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
           { label: "Approved Templates", count: countApproved, color: "#10b981", bg: "bg-emerald-50/50", border: "border-emerald-100" },
           { label: "Pending Review", count: countPending, color: "#f59e0b", bg: "bg-amber-50/50", border: "border-amber-100" },
@@ -250,6 +226,34 @@ export default function TemplatesPage() {
             </div>
           </div>
         ))}
+
+        {/* Actions Column */}
+        <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex gap-2">
+            <button
+              onClick={handleSyncAll}
+              disabled={syncing}
+              className="flex-1 px-3 py-2 bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] rounded-xl font-label text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+              {syncing ? "Syncing..." : "Sync"}
+            </button>
+            <Link
+              href="/dashboard/templates/carousel"
+              className="flex-1 px-3 py-2 bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] rounded-xl font-label text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <Layers size={12} />
+              Carousel
+            </Link>
+          </div>
+          <Link
+            href="/dashboard/templates/new"
+            className="w-full py-2.5 bg-[#5b21b6] hover:bg-[#4c1d95] text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
+          >
+            <Plus size={14} />
+            Create Template
+          </Link>
+        </div>
       </div>
 
       {error && (

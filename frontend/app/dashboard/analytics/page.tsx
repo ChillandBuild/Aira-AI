@@ -635,10 +635,27 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex justify-end gap-4 flex-wrap">
+      {/* Page header: tabs & date pills inline */}
+      <div className="flex items-center justify-between gap-4 border-b border-[#e8e3db] pb-4 flex-wrap">
+        {/* Tab row */}
+        <nav className="flex gap-1 bg-surface-low rounded-xl p-1 w-fit ring-1 ring-[#c4c7c7]/15">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-2 rounded-lg font-label text-sm font-semibold transition-colors ${
+                activeTab === tab.id
+                  ? "bg-surface text-tertiary shadow-card"
+                  : "text-on-surface-muted hover:text-on-surface"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+
         {/* Date range pills */}
-        <div className="flex gap-1 bg-surface-low rounded-xl p-1 ring-1 ring-[#c4c7c7]/15 self-start">
+        <div className="flex gap-1 bg-surface-low rounded-xl p-1 ring-1 ring-[#c4c7c7]/15">
           {RANGES.map((r) => (
             <button
               key={r.id}
@@ -654,23 +671,6 @@ export default function AnalyticsPage() {
           ))}
         </div>
       </div>
-
-      {/* Tab row */}
-      <nav className="flex gap-1 bg-surface-low rounded-xl p-1 w-fit ring-1 ring-[#c4c7c7]/15">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2 rounded-lg font-label text-sm font-semibold transition-colors ${
-              activeTab === tab.id
-                ? "bg-surface text-tertiary shadow-card"
-                : "text-on-surface-muted hover:text-on-surface"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </nav>
 
       {/* Tab content */}
       {activeTab === "overview" && <OverviewTab range={range} />}

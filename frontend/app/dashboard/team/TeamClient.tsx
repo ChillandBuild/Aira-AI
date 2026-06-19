@@ -78,12 +78,6 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
 
   return (
     <div>
-      <div className="flex justify-end mb-6">
-        <button onClick={() => setShowInvite(true)} className="btn-primary">
-          <UserPlus size={14} /> Add Telecaller
-        </button>
-      </div>
-
       {showInvite && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-card-hover w-full max-w-md p-6">
@@ -94,9 +88,9 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
               <div><label className="font-body text-sm font-medium text-ink mb-1.5 block">Password *</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input" placeholder="Set a password for them" /></div>
               <div><label className="font-body text-sm font-medium text-ink mb-1.5 block">Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="Ravi Kumar" /></div>
               <div><label className="font-body text-sm font-medium text-ink mb-1.5 block">Phone</label><input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className="input" placeholder="+919876543210" /></div>
-              <div><label className="font-body text-sm font-medium text-ink mb-1.5 block">TeleCMI Agent ID</label><input type="text" value={telecmiAgentId} onChange={(e) => setTelecmiAgentId(e.target.value)} className="input" placeholder="e.g. 102_33335739" /></div>
-              <div className="flex gap-2 pt-2">
-                <button type="button" onClick={() => { setShowInvite(false); setError(null); }} className="btn-ghost flex-1">Cancel</button>
+              <div><label className="font-body text-sm font-medium text-ink mb-1.5 block">Telecmi Agent ID</label><input type="text" value={telecmiAgentId} onChange={(e) => setTelecmiAgentId(e.target.value)} className="input" placeholder="Agent ID for TeleCMI dialer" /></div>
+              <div className="flex gap-3 pt-3">
+                <button type="button" onClick={() => { setShowInvite(false); setError(null); }} className="btn-secondary flex-1">Cancel</button>
                 <button type="submit" disabled={inviting || !email.trim()} className="btn-primary flex-1">{inviting ? "Adding…" : "Add"}</button>
               </div>
             </form>
@@ -104,15 +98,20 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
         </div>
       )}
 
-      {/* View tabs */}
-      <div className="mb-6 flex border-b border-border-subtle">
-        <button onClick={() => setTab("performance")}
-          className={`flex items-center gap-1.5 px-6 py-3 font-label font-semibold text-sm transition-all border-b-2 ${tab === "performance" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"}`}>
-          <TrendingUp size={14} /> Team & Performance
-        </button>
-        <button onClick={() => setTab("log")}
-          className={`flex items-center gap-1.5 px-6 py-3 font-label font-semibold text-sm transition-all border-b-2 ${tab === "log" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"}`}>
-          <ClipboardList size={14} /> Assignment Log
+      {/* View tabs and actions in a single line */}
+      <div className="mb-6 flex items-center justify-between border-b border-[#e8e3db]">
+        <div className="flex">
+          <button onClick={() => setTab("performance")}
+            className={`flex items-center gap-1.5 px-6 py-3 font-label font-semibold text-sm transition-all border-b-2 -mb-px ${tab === "performance" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"}`}>
+            <TrendingUp size={14} /> Team & Performance
+          </button>
+          <button onClick={() => setTab("log")}
+            className={`flex items-center gap-1.5 px-6 py-3 font-label font-semibold text-sm transition-all border-b-2 -mb-px ${tab === "log" ? "border-tertiary text-tertiary" : "border-transparent text-on-surface-muted hover:text-on-surface"}`}>
+            <ClipboardList size={14} /> Assignment Log
+          </button>
+        </div>
+        <button onClick={() => setShowInvite(true)} className="btn-primary mb-2.5">
+          <UserPlus size={14} /> Add Telecaller
         </button>
       </div>
 
