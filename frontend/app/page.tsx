@@ -246,11 +246,8 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 md:px-10 flex justify-between items-center h-[72px]">
           {/* Logo */}
           <button onClick={() => scrollToSection("hero")} className="flex items-center gap-2.5 group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00d4aa] to-[#0ea5e9] flex items-center justify-center">
-              <span className="text-white font-extrabold text-sm">A</span>
-            </div>
-            <span className="nav-logo-text">AIRA</span>
-            <span className="text-[#506070] text-xs font-medium hidden sm:inline ml-1">AI Revenue Acceleration</span>
+            <span className="nav-logo-text">Aira</span>
+            <span className="text-ink-muted text-xs font-medium hidden sm:inline ml-1 border-l border-border pl-2.5">AI Revenue Acceleration</span>
           </button>
 
           {/* Desktop Nav */}
@@ -285,7 +282,7 @@ export default function LandingPage() {
           {/* Mobile Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden text-[#8899aa] hover:text-white transition-colors"
+            className="md:hidden text-ink-secondary hover:text-ink transition-colors"
             aria-label="Toggle Menu"
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -300,7 +297,7 @@ export default function LandingPage() {
                 <button
                   key={item.label}
                   onClick={() => scrollToSection(item.id)}
-                  className="text-left text-lg font-medium text-[#8899aa] hover:text-white transition-colors"
+                  className="text-left text-lg font-medium text-ink-secondary hover:text-ink transition-colors"
                 >
                   {item.label}
                 </button>
@@ -331,7 +328,7 @@ export default function LandingPage() {
             {/* Left — Copy */}
             <div className="flex flex-col gap-7 reveal visible">
               <div className="hero-badge">
-                <div className="w-2 h-2 rounded-full bg-[#00d4aa] pulse-accent"></div>
+                <div className="w-2 h-2 rounded-full bg-primary pulse-accent"></div>
                 AI-Powered. Human-Centric. Revenue-Focused.
               </div>
 
@@ -360,22 +357,22 @@ export default function LandingPage() {
                   onClick={() => scrollToSection("demo")}
                   className="btn-ghost-dark"
                 >
-                  <Activity size={16} className="text-[#00d4aa]" />
+                  <Activity size={16} className="text-primary" />
                   Watch Demo
                 </button>
               </div>
 
-              <div className="flex items-center gap-6 pt-4 text-xs text-[#506070]">
+              <div className="flex items-center gap-6 pt-4 text-xs text-ink-muted">
                 <span className="flex items-center gap-1.5">
-                  <Shield size={13} className="text-[#00d4aa]" />
+                  <Shield size={13} className="text-primary" />
                   Secure
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 size={13} className="text-[#00d4aa]" />
+                  <CheckCircle2 size={13} className="text-primary" />
                   Reliable
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <Zap size={13} className="text-[#00d4aa]" />
+                  <Zap size={13} className="text-primary" />
                   Built for Growing Businesses
                 </span>
               </div>
@@ -383,17 +380,17 @@ export default function LandingPage() {
 
             {/* Right — Dashboard Mockup */}
             <div className="relative reveal visible" style={{ animationDelay: "0.15s" }}>
-              <div className="absolute -inset-8 bg-gradient-to-br from-[#00d4aa]/8 to-[#0ea5e9]/5 blur-3xl rounded-3xl pointer-events-none"></div>
+              <div className="absolute -inset-8 bg-gradient-to-br from-[#5b21b6]/10 to-[#7c3aed]/5 blur-3xl rounded-3xl pointer-events-none"></div>
               <div className="dashboard-mockup relative z-10">
                 {/* Window Chrome */}
                 <div className="window-chrome">
                   <div className="window-dot bg-[#ef4444]/70"></div>
                   <div className="window-dot bg-[#f59e0b]/70"></div>
                   <div className="window-dot bg-[#22c55e]/70"></div>
-                  <span className="ml-3 text-[10px] font-mono text-[#506070]">AIRA — Dashboard</span>
+                  <span className="ml-3 text-[10px] font-mono text-ink-muted">Aira — Dashboard</span>
                 </div>
                 {/* Dashboard Content */}
-                <div className="bg-[#0c1219] p-6">
+                <div className="bg-background p-6">
                   {/* Stats Row */}
                   <div className="grid grid-cols-4 gap-3 mb-5">
                     {[
@@ -402,28 +399,28 @@ export default function LandingPage() {
                       { label: "Hot Leads", value: "43", change: "+17%", up: true },
                       { label: "Conversion Rate", value: "16.8%", change: "+5%", up: true },
                     ].map((stat) => (
-                      <div key={stat.label} className="bg-[#111827] rounded-lg p-3 border border-[rgba(255,255,255,0.04)]">
-                        <p className="text-[8px] text-[#506070] font-medium uppercase tracking-wider">{stat.label}</p>
-                        <p className="text-lg font-bold text-white font-mono mt-1">{stat.value}</p>
-                        <p className={`text-[9px] font-mono mt-0.5 ${stat.up ? "text-[#34d399]" : "text-[#f87171]"}`}>
+                      <div key={stat.label} className="bg-surface rounded-lg p-3 border border-border-subtle">
+                        <p className="text-[8px] text-ink-muted font-medium uppercase tracking-wider">{stat.label}</p>
+                        <p className="text-lg font-bold text-ink font-mono mt-1">{stat.value}</p>
+                        <p className={`text-[9px] font-mono mt-0.5 ${stat.up ? "text-success" : "text-danger"}`}>
                           {stat.change}
                         </p>
                       </div>
                     ))}
                   </div>
                   {/* Chart placeholder */}
-                  <div className="bg-[#111827] rounded-lg p-4 border border-[rgba(255,255,255,0.04)] mb-4">
-                    <p className="text-[10px] text-[#506070] font-medium mb-3">Lead Funnel</p>
+                  <div className="bg-surface rounded-lg p-4 border border-border-subtle mb-4">
+                    <p className="text-[10px] text-ink-muted font-medium mb-3">Lead Funnel</p>
                     <div className="flex flex-col gap-1.5">
                       {[
-                        { label: "Enquiries", width: "100%", color: "#00d4aa" },
-                        { label: "Qualified", width: "65%", color: "#0ea5e9" },
-                        { label: "Interested", width: "42%", color: "#6366f1" },
-                        { label: "Converted", width: "25%", color: "#8b5cf6" },
+                        { label: "Enquiries", width: "100%", color: "#2e1065" },
+                        { label: "Qualified", width: "65%", color: "#5b21b6" },
+                        { label: "Interested", width: "42%", color: "#7c3aed" },
+                        { label: "Converted", width: "25%", color: "#a78bfa" },
                       ].map((bar) => (
                         <div key={bar.label} className="flex items-center gap-2">
-                          <span className="text-[8px] text-[#506070] w-14 text-right">{bar.label}</span>
-                          <div className="flex-1 h-4 bg-[#1f2937] rounded-sm overflow-hidden">
+                          <span className="text-[8px] text-ink-muted w-14 text-right">{bar.label}</span>
+                          <div className="flex-1 h-4 bg-surface-mid rounded-sm overflow-hidden">
                             <div
                               className="h-full rounded-sm transition-all duration-1000"
                               style={{ width: bar.width, background: bar.color }}
@@ -434,16 +431,16 @@ export default function LandingPage() {
                     </div>
                   </div>
                   {/* AI Chat Preview */}
-                  <div className="bg-[#111827] rounded-lg p-3 border border-[rgba(255,255,255,0.04)]">
+                  <div className="bg-surface rounded-lg p-3 border border-border-subtle">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#00d4aa] to-[#0ea5e9] flex items-center justify-center">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#4c1d95] to-[#5b21b6] flex items-center justify-center">
                         <Bot size={10} className="text-white" />
                       </div>
-                      <span className="text-[9px] font-semibold text-white">AIRA Assistant</span>
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#34d399] ml-auto"></div>
-                      <span className="text-[8px] text-[#34d399]">Online</span>
+                      <span className="text-[9px] font-semibold text-ink">Aira Assistant</span>
+                      <div className="w-1.5 h-1.5 rounded-full bg-success ml-auto"></div>
+                      <span className="text-[8px] text-success">Online</span>
                     </div>
-                    <p className="text-[10px] text-[#8899aa] bg-[#0c1219] rounded-md p-2">
+                    <p className="text-[10px] text-ink-secondary bg-background rounded-md p-2">
                       Hi 👋 How can I help you today?
                     </p>
                   </div>
@@ -468,10 +465,10 @@ export default function LandingPage() {
                   className={`problem-card glass-dark reveal reveal-delay-${i + 1}`}
                 >
                   <div className="problem-icon-wrap">
-                    <problem.icon size={24} className="text-[#00d4aa]" />
+                    <problem.icon size={24} className="text-primary" />
                   </div>
-                  <h3 className="font-bold text-sm text-white mb-1.5">{problem.title}</h3>
-                  <p className="text-xs text-[#8899aa] leading-relaxed">{problem.desc}</p>
+                  <h3 className="font-bold text-sm text-ink mb-1.5">{problem.title}</h3>
+                  <p className="text-xs text-ink-secondary leading-relaxed">{problem.desc}</p>
                 </div>
               ))}
             </div>
@@ -492,14 +489,14 @@ export default function LandingPage() {
                 <div key={step.title} className="flex items-start">
                   <div className={`flow-step w-32 md:w-40 reveal reveal-delay-${Math.min(i + 1, 5)}`}>
                     <div className="flow-step-icon">
-                      <step.icon size={28} className="text-[#00d4aa]" />
+                      <step.icon size={28} className="text-primary" />
                     </div>
-                    <h4 className="font-bold text-sm text-white mb-1">{step.title}</h4>
-                    <p className="text-[11px] text-[#8899aa] leading-relaxed px-1">{step.desc}</p>
+                    <h4 className="font-bold text-sm text-ink mb-1">{step.title}</h4>
+                    <p className="text-[11px] text-ink-secondary leading-relaxed px-1">{step.desc}</p>
                   </div>
                   {i < FLOW_STEPS.length - 1 && (
                     <div className="flow-arrow hidden md:flex pt-6">
-                      <ArrowRight size={18} className="text-[#506070] mx-1" />
+                      <ArrowRight size={18} className="text-ink-muted mx-1" />
                     </div>
                   )}
                 </div>
@@ -524,10 +521,10 @@ export default function LandingPage() {
                   className={`bento-card glass-dark glow-border reveal reveal-delay-${i + 1}`}
                 >
                   <div className="bento-icon">
-                    <feature.icon size={22} className="text-[#00d4aa]" />
+                    <feature.icon size={22} className="text-primary" />
                   </div>
-                  <h3 className="font-bold text-base text-white mb-2">{feature.title}</h3>
-                  <p className="text-sm text-[#8899aa] leading-relaxed mb-4">{feature.desc}</p>
+                  <h3 className="font-bold text-base text-ink mb-2">{feature.title}</h3>
+                  <p className="text-sm text-ink-secondary leading-relaxed mb-4">{feature.desc}</p>
                   <div className="flex flex-wrap gap-2 mt-auto">
                     {feature.tags.map((tag) => (
                       <span key={tag} className="bento-tag">{tag}</span>
@@ -535,7 +532,7 @@ export default function LandingPage() {
                   </div>
                   <button
                     onClick={() => scrollToSection("contact")}
-                    className="mt-4 text-xs font-semibold text-[#00d4aa] flex items-center gap-1 hover:gap-2 transition-all"
+                    className="mt-4 text-xs font-semibold text-primary flex items-center gap-1 hover:gap-2 transition-all"
                   >
                     Learn More <ArrowRight size={12} />
                   </button>
@@ -557,29 +554,29 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="glass-dark rounded-2xl overflow-hidden reveal" style={{ border: "1px solid rgba(0, 212, 170, 0.1)" }}>
+            <div className="glass-dark rounded-2xl overflow-hidden reveal">
               <div className="flex flex-col md:flex-row">
                 {/* Left Panel */}
-                <div className="md:w-[35%] p-8 border-b md:border-b-0 md:border-r border-[rgba(255,255,255,0.06)]">
-                  <h4 className="font-bold text-base text-white mb-3 flex items-center gap-2">
-                    <Activity size={16} className="text-[#00d4aa] animate-pulse" />
+                <div className="md:w-[35%] p-8 border-b md:border-b-0 md:border-r border-border-subtle">
+                  <h4 className="font-bold text-base text-ink mb-3 flex items-center gap-2">
+                    <Activity size={16} className="text-primary animate-pulse" />
                     Live Agent
                   </h4>
-                  <p className="text-xs text-[#8899aa] leading-relaxed mb-8">
+                  <p className="text-xs text-ink-secondary leading-relaxed mb-8">
                     Aira monitors webhooks, verifies signatures, queries the knowledge base, routes callbacks, and logs telecaller activity.
                   </p>
                   <div className="space-y-4">
                     {[
-                      { label: "Signature Verified", active: true, color: "#34d399" },
-                      { label: "RAG Query Context", active: true, color: "#00d4aa" },
-                      { label: "Lead Handover", active: currentStep >= 5, color: currentStep >= 5 ? "#34d399" : "#506070" },
+                      { label: "Signature Verified", active: true, color: "#059669" },
+                      { label: "RAG Query Context", active: true, color: "#5b21b6" },
+                      { label: "Lead Handover", active: currentStep >= 5, color: currentStep >= 5 ? "#059669" : "#a8a29e" },
                     ].map((item) => (
                       <div key={item.label} className="flex items-center gap-3">
                         <div
                           className="w-2 h-2 rounded-full transition-colors duration-300"
                           style={{ backgroundColor: item.color }}
                         ></div>
-                        <span className={`font-mono text-xs transition-colors duration-300 ${item.active ? "text-white" : "text-[#506070]"}`}>
+                        <span className={`font-mono text-xs transition-colors duration-300 ${item.active ? "text-ink" : "text-ink-muted"}`}>
                           {item.label}
                         </span>
                       </div>
@@ -611,7 +608,7 @@ export default function LandingPage() {
                           <div className={isAira ? "chat-bubble-aira" : "chat-bubble-customer"}>
                             {msg.text}
                           </div>
-                          <span className={`text-[10px] mt-1 ${isAira ? "self-end text-[#00d4aa]/60" : "self-start text-[#506070]"}`}>
+                          <span className={`text-[10px] mt-1 ${isAira ? "self-end text-primary/70" : "self-start text-ink-muted"}`}>
                             {isAira ? "Aira AI" : "Lead"} • {msg.time}
                           </span>
                         </div>
@@ -628,7 +625,7 @@ export default function LandingPage() {
                     <div ref={chatEndRef} />
                   </div>
 
-                  <div className="border-t border-[rgba(255,255,255,0.06)] pt-4 flex justify-between items-center text-[10px] text-[#506070]">
+                  <div className="border-t border-border-subtle pt-4 flex justify-between items-center text-[10px] text-ink-muted">
                     <span className="flex items-center gap-1.5">
                       <WhatsAppIcon size={12} className="text-[#25d366]" />
                       Channel: WhatsApp API
@@ -654,13 +651,13 @@ export default function LandingPage() {
               {INDUSTRIES.map((industry) => (
                 <div key={industry.name} className="industry-card glass-dark glow-border">
                   <div className="industry-icon">
-                    <industry.icon size={24} className="text-[#0ea5e9]" />
+                    <industry.icon size={24} className="text-primary" />
                   </div>
-                  <span className="text-sm font-medium text-white">{industry.name}</span>
+                  <span className="text-sm font-medium text-ink">{industry.name}</span>
                 </div>
               ))}
             </div>
-            <p className="text-center text-sm text-[#506070] mt-6 reveal">
+            <p className="text-center text-sm text-ink-muted mt-6 reveal">
               And more industries looking to grow faster.
             </p>
           </div>
@@ -688,8 +685,8 @@ export default function LandingPage() {
                       { icon: Users, text: "Dedicated Account Manager" },
                       { icon: Zap, text: "Go Live in 48 Hours" },
                     ].map((item) => (
-                      <div key={item.text} className="flex items-center gap-2 text-sm text-[#8899aa]">
-                        <item.icon size={14} className="text-[#00d4aa]" />
+                      <div key={item.text} className="flex items-center gap-2 text-sm text-ink-secondary">
+                        <item.icon size={14} className="text-primary" />
                         {item.text}
                       </div>
                     ))}
@@ -706,18 +703,18 @@ export default function LandingPage() {
                 <div className="demo-form-card">
                   {formSubmitted ? (
                     <div className="text-center py-10">
-                      <div className="w-16 h-16 rounded-full bg-[#00d4aa]/10 border border-[#00d4aa]/30 flex items-center justify-center mx-auto mb-5">
-                        <CheckCircle2 size={32} className="text-[#00d4aa]" />
+                      <div className="w-16 h-16 rounded-full bg-primary-light border border-primary-muted flex items-center justify-center mx-auto mb-5">
+                        <CheckCircle2 size={32} className="text-primary" />
                       </div>
-                      <h3 className="font-bold text-xl text-white mb-2">Thank You!</h3>
-                      <p className="text-sm text-[#8899aa] max-w-xs mx-auto">
+                      <h3 className="font-bold text-xl text-ink mb-2">Thank You!</h3>
+                      <p className="text-sm text-ink-secondary max-w-xs mx-auto">
                         Our team will reach out to you within 24 hours to schedule your personalized demo.
                       </p>
                     </div>
                   ) : (
                     <>
-                      <h3 className="font-bold text-lg text-white mb-1">Book a Demo</h3>
-                      <p className="text-xs text-[#506070] mb-6">
+                      <h3 className="font-bold text-lg text-ink mb-1">Book a Demo</h3>
+                      <p className="text-xs text-ink-muted mb-6">
                         Fill in your details and our team will get in touch.
                       </p>
                       <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
@@ -819,12 +816,9 @@ export default function LandingPage() {
             {/* Brand */}
             <div className="col-span-2">
               <div className="flex items-center gap-2.5 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00d4aa] to-[#0ea5e9] flex items-center justify-center">
-                  <span className="text-white font-extrabold text-sm">A</span>
-                </div>
-                <span className="nav-logo-text text-lg">AIRA</span>
+                <span className="nav-logo-text">Aira</span>
               </div>
-              <p className="text-xs text-[#506070] leading-relaxed max-w-xs mb-5">
+              <p className="text-xs text-ink-secondary leading-relaxed max-w-xs mb-5">
                 We help businesses automate conversations, qualify leads, evaluate telecallers and accelerate revenue.
               </p>
               <div className="flex gap-3">
@@ -838,9 +832,9 @@ export default function LandingPage() {
                     key={label}
                     href="#"
                     aria-label={label}
-                    className="w-8 h-8 rounded-lg bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] flex items-center justify-center hover:border-[#00d4aa]/30 hover:bg-[#00d4aa]/5 transition-all"
+                    className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center hover:border-primary/40 hover:bg-primary-light transition-all"
                   >
-                    <Icon size={14} className="text-[#506070] hover:text-[#00d4aa]" />
+                    <Icon size={14} className="text-ink-muted hover:text-primary" />
                   </a>
                 ))}
               </div>
@@ -881,18 +875,18 @@ export default function LandingPage() {
           {/* Newsletter */}
           <div className="river-separator mb-8"></div>
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="text-xs text-[#506070]">
-              © {new Date().getFullYear()} AIRA AI. All rights reserved.
+            <div className="text-xs text-ink-muted">
+              © {new Date().getFullYear()} Aira AI. All rights reserved.
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-[#506070]">Stay Updated</span>
+              <span className="text-xs text-ink-muted">Stay Updated</span>
               <div className="flex">
                 <input
                   type="email"
                   placeholder="Enter your email"
                   className="form-input-dark text-xs px-3 py-2 rounded-r-none w-48"
                 />
-                <button className="px-4 py-2 bg-gradient-to-r from-[#059669] to-[#00d4aa] text-white text-xs font-semibold rounded-r-lg rounded-l-none hover:opacity-90 transition-opacity">
+                <button className="px-4 py-2 bg-gradient-to-r from-[#4c1d95] to-[#5b21b6] text-white text-xs font-semibold rounded-r-lg rounded-l-none hover:opacity-90 transition-opacity">
                   Subscribe
                 </button>
               </div>
