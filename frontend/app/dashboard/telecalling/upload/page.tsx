@@ -36,6 +36,17 @@ interface UploadResult {
   assigned: number;
 }
 
+interface ParsedData {
+  columns: string[];
+  suggested_mapping: { name: string | null; phone: string | null; email: string | null; course: string | null };
+  total_rows: number;
+  duplicate_count: number;
+  preview: Record<string, string>[];
+  csv_file_url: string | null;
+  csv_file_path: string | null;
+  csv_file_name: string | null;
+}
+
 interface HistoryItem {
   id: string;
   file_name: string;
@@ -94,6 +105,97 @@ async function toCsvFile(file: File): Promise<File> {
   if (!ws) throw new Error("The spreadsheet has no sheets");
   const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false, rawNumbers: false });
   return new File([csv], file.name.replace(/\.(xlsx|xls)$/i, ".csv"), { type: "text/csv" });
+}
+
+function findPhoneAndNameColumns(headers: string[]): { phone: string | null; name: string | null } {
+  let phone: string | null = null;
+  let name: string | null = null;
+
+  // 1. Exact match (case insensitive, stripped)
+  for (const h of headers) {
+    const hl = h.toLowerCase().trim();
+    if (hl === "phone" || hl === "mobile" || hl === "contact" || hl === "number" || hl === "phone_number" || hl === "phone number") {
+      phone = h;
+    }
+    if (hl === "name" || hl === "full name" || hl === "fullname" || hl === "customer name" || hl === "lead name") {
+      name = h;
+    }
+  }
+
+  // 2. Substring match if not found yet
+  if (!phone) {
+    for (const h of headers) {
+      const hl = h.toLowerCase().trim();
+      if (hl.includes("phone") || hl.includes("mobile") || hl.includes("contact") || hl.includes("number") || hl.includes("num") || hl.includes("cell") || hl.includes("tel")) {
+        phone = h;
+        break;
+      }
+    }
+  }
+  if (!name) {
+    for (const h of headers) {
+      const hl = h.toLowerCase().trim();
+      if (hl.includes("name") || hl.includes("lead") || hl.includes("customer") || hl.includes("client")) {
+        name = h;
+        break;
+      }
+    }
+  }
+
+  return { phone, name };
+}
+
+function parseCsvHeaders(firstLine: string): string[] {
+  const headers: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < firstLine.length; i++) {
+    const char = firstLine[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      headers.push(current.trim().replace(/^"|"$/g, ""));
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  headers.push(current.trim().replace(/^"|"$/g, ""));
+  return headers;
+}
+
+async function normalizeCsvFile(file: File): Promise<{ normalizedFile: File; columns: string[]; phoneColumn: string | null; nameColumn: string | null }> {
+  const text = await file.text();
+  const firstNewlineIdx = text.search(/\r?\n/);
+  if (firstNewlineIdx === -1) {
+    throw new Error("CSV file is empty or has no headers");
+  }
+  const firstLine = text.substring(0, firstNewlineIdx);
+  const remaining = text.substring(firstNewlineIdx);
+
+  const headers = parseCsvHeaders(firstLine);
+  const { phone: detectedPhoneCol, name: detectedNameCol } = findPhoneAndNameColumns(headers);
+
+  if (!detectedPhoneCol) {
+    throw new Error("Could not find a phone number column in the file. Please ensure there is a column like 'phone', 'mobile', or 'contact'.");
+  }
+
+  const newHeaders = headers.map(h => {
+    if (h === detectedPhoneCol) return "phone";
+    if (h === detectedNameCol) return "name";
+    return h;
+  });
+
+  const newHeaderLine = newHeaders.map(h => `"${h.replace(/"/g, '""')}"`).join(",");
+  const newContent = newHeaderLine + remaining;
+
+  const normalizedFile = new File([newContent], file.name, { type: "text/csv" });
+  return {
+    normalizedFile,
+    columns: headers,
+    phoneColumn: detectedPhoneCol,
+    nameColumn: detectedNameCol
+  };
 }
 
 function emptyFormStep(): FormStep {
@@ -262,60 +364,69 @@ function UploadTab() {
   // Count rows by reading the file
   const [rowCount, setRowCount] = useState<number | null>(null);
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = e.target.files?.[0] ?? null;
+  const [parsedData, setParsedData] = useState<ParsedData | null>(null);
+  const [parseLoading, setParseLoading] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  async function processAndParseFile(selected: File) {
     setFile(null);
     setUploadResult(null);
     setUploadError(null);
     setRowCount(null);
-    if (!selected) return;
+    setParsedData(null);
+    setParseError(null);
+    setParseLoading(true);
 
     try {
+      // 1. Convert Excel to CSV if needed
       const csvFile = await toCsvFile(selected);
-      setFile(csvFile);
-      // Count CSV rows (excluding header)
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const text = ev.target?.result as string;
-        if (text) {
-          const lines = text.split("\n").filter((l) => l.trim().length > 0);
-          setRowCount(Math.max(0, lines.length - 1)); // subtract header
-        }
-      };
-      reader.readAsText(csvFile);
+
+      // 2. Normalize CSV headers client-side (maps phone/name columns)
+      const { normalizedFile } = await normalizeCsvFile(csvFile);
+      setFile(normalizedFile);
+
+      // 3. Call backend parsing endpoint to extract contacts info (duplicate count, preview, etc.)
+      const auth = await getAuthHeaders();
+      const fd = new FormData();
+      fd.append("file", normalizedFile);
+
+      const res = await fetch(`${API_URL}/api/v1/upload/parse`, {
+        method: "POST",
+        body: fd,
+        headers: { ...auth },
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(errorText || `Failed to parse CSV file (${res.status})`);
+      }
+
+      const data: ParsedData = await res.json();
+      setParsedData(data);
+      setRowCount(data.total_rows);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Failed to process file");
+      setParseError(err instanceof Error ? err.message : "Failed to process and parse file");
+    } finally {
+      setParseLoading(false);
     }
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    if (!selected) return;
+    await processAndParseFile(selected);
   }
 
   async function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     const dropped = e.dataTransfer.files?.[0];
-    setFile(null);
-    setUploadResult(null);
-    setUploadError(null);
-    setRowCount(null);
     if (!dropped) return;
 
     const lowerName = dropped.name.toLowerCase();
     if (lowerName.endsWith(".csv") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
-      try {
-        const csvFile = await toCsvFile(dropped);
-        setFile(csvFile);
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const text = ev.target?.result as string;
-          if (text) {
-            const lines = text.split("\n").filter((l) => l.trim().length > 0);
-            setRowCount(Math.max(0, lines.length - 1));
-          }
-        };
-        reader.readAsText(csvFile);
-      } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "Failed to process file");
-      }
+      await processAndParseFile(dropped);
     } else {
-      setUploadError("Invalid file format. Please upload a .csv, .xlsx, or .xls file.");
+      setParseError("Invalid file format. Please upload a .csv, .xlsx, or .xls file.");
     }
   }
 
@@ -356,6 +467,9 @@ function UploadTab() {
     setUploadResult(null);
     setUploadError(null);
     setRowCount(null);
+    setParsedData(null);
+    setParseError(null);
+    setParseLoading(false);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -385,17 +499,18 @@ function UploadTab() {
                 <p className="font-body text-sm text-on-surface-muted">Select a CSV or Excel file with contact data. We will detect column mappings automatically.</p>
               </div>
 
-              {uploadError && (
+              {(uploadError || parseError) && (
                 <div className="text-sm font-semibold text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2">
-                  <X size={14} className="text-red-500" />
-                  {uploadError}
+                  <X size={14} className="text-red-500 shrink-0" />
+                  <span className="truncate">{uploadError || parseError}</span>
                 </div>
               )}
 
               <label
                 className={cn(
                   "relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group",
-                  file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]"
+                  file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]",
+                  parseLoading && "pointer-events-none opacity-60"
                 )}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
@@ -404,35 +519,43 @@ function UploadTab() {
                   "w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm",
                   file ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"
                 )}>
-                  {file ? <Check size={28} /> : <CloudUpload size={28} />}
+                  {parseLoading ? (
+                    <Loader2 size={28} className="animate-spin text-tertiary" />
+                  ) : file ? (
+                    <Check size={28} />
+                  ) : (
+                    <CloudUpload size={28} />
+                  )}
                 </div>
                 <div className="text-center px-4">
                   <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
-                    {file ? file.name : "Drop your CSV or Excel file here"}
+                    {parseLoading ? "Processing & parsing file..." : file ? file.name : "Drop your CSV or Excel file here"}
                   </p>
                   <p className="font-body text-xs text-on-surface-muted mt-1.5">
-                    {file
+                    {parseLoading
+                      ? "Analyzing columns, verifying phone numbers, and searching for duplicates..."
+                      : file
                       ? `${(file.size / 1024).toFixed(1)} KB${rowCount !== null ? ` · ${rowCount.toLocaleString()} rows` : ""} · click to change file`
                       : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
                   </p>
                 </div>
-                {!file && (
+                {!file && !parseLoading && (
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
                     <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Auto-detects columns</span>
                     <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Deduplicates leads</span>
                     <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Indian numbers formatted</span>
                   </div>
                 )}
-                <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
+                <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} disabled={parseLoading} />
               </label>
 
               <div className="flex justify-end">
                 <button
-                  disabled={!file}
+                  disabled={!file || parseLoading}
                   onClick={() => setCurrentStep(2)}
                   className={cn(
                     "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
-                    file
+                    file && !parseLoading
                       ? "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
                       : "bg-surface-mid text-on-surface-muted cursor-not-allowed"
                   )}
@@ -451,8 +574,39 @@ function UploadTab() {
                 <p className="font-body text-sm text-on-surface-muted">Double-check the details below, then start the upload.</p>
               </div>
 
-              {/* Summary Card */}
-              {!uploadResult && !uploadError && (
+              {/* Summary Stats Grid */}
+              {!uploadResult && !uploadError && parsedData && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-surface-low border border-surface-mid rounded-xl text-center shadow-sm">
+                    <p className="font-display text-2xl font-bold text-tertiary">{parsedData.total_rows.toLocaleString()}</p>
+                    <p className="font-label text-xs text-on-surface-muted mt-1">Total Contacts</p>
+                  </div>
+                  <div className={`p-4 rounded-xl text-center border shadow-sm ${parsedData.duplicate_count > 0 ? "bg-amber-50/70 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
+                    <p className={`font-display text-2xl font-bold ${parsedData.duplicate_count > 0 ? "text-amber-700" : "text-on-surface-muted"}`}>{parsedData.duplicate_count}</p>
+                    <p className="font-label text-xs text-on-surface-muted mt-1">Duplicates (Skipped)</p>
+                  </div>
+                  <div className="p-4 bg-green-50/70 border border-green-200 rounded-xl text-center shadow-sm">
+                    <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
+                    <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
+                  </div>
+                  <div className="md:col-span-3 p-4 bg-surface-low border border-surface-mid rounded-xl">
+                    <p className="font-label text-xs text-on-surface-muted mb-2 font-medium">Columns detected (auto-mapped phone/name columns highlighted)</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {parsedData.columns.map(col => (
+                        <span key={col} className={`px-2.5 py-1 rounded-md text-[10px] font-semibold tracking-wide border
+                          ${col === "phone" || col === "name"
+                            ? "bg-tertiary/10 text-tertiary border-tertiary/20 font-bold"
+                            : "bg-surface-mid text-on-surface-muted border-transparent"}`}>
+                          {col}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Fallback basic summary if parse endpoint was skipped or failed */}
+              {!uploadResult && !uploadError && !parsedData && (
                 <div className="rounded-2xl border border-surface-mid bg-surface-low p-6 space-y-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
@@ -471,6 +625,37 @@ function UploadTab() {
                       <p className="font-label text-xs text-on-surface-muted mb-1">File Type</p>
                       <p className="font-label text-sm font-semibold text-on-surface">CSV</p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Data Preview Table */}
+              {!uploadResult && !uploadError && parsedData && parsedData.preview.length > 0 && (
+                <div className="space-y-2">
+                  <p className="font-label text-xs font-semibold text-on-surface-muted">Data Preview (First {parsedData.preview.length} rows)</p>
+                  <div className="overflow-x-auto rounded-xl ring-1 ring-[#c4c7c7]/20 bg-white max-h-[250px] shadow-sm">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="sticky top-0 z-20">
+                        <tr className="bg-surface-low border-b border-surface-mid">
+                          {parsedData.columns.map((col) => (
+                            <th key={col} className="px-3.5 py-2.5 font-label font-bold text-on-surface-muted whitespace-nowrap bg-surface-low border-b border-surface-mid">
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {parsedData.preview.map((row, ri) => (
+                          <tr key={ri} className="border-b border-surface-mid/50 hover:bg-surface-low/50 transition-colors">
+                            {parsedData.columns.map((col) => (
+                              <td key={col} className="px-3.5 py-2.5 font-body text-on-surface whitespace-nowrap">
+                                {row[col] ?? "—"}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
