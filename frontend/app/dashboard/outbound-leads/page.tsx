@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
@@ -632,6 +632,7 @@ export default function OutboundLeadsPage() {
   const [optInValidation, setOptInValidation] = useState<OptInValidation | null>(null);
   const [optInLoading, setOptInLoading] = useState(false);
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [templateName, setTemplateName] = useState(searchParams.get("template") ?? "");
   const [scheduleType, setScheduleType] = useState<ScheduleType>("now");
@@ -704,7 +705,14 @@ export default function OutboundLeadsPage() {
   const [historyRefreshing, setHistoryRefreshing] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | "failures" | "clean">("all");
-  const [activeTab, setActiveTab] = useState<"upload" | "history" | "tags">("upload");
+  const rawTab = searchParams.get("tab");
+  const activeTab = (rawTab === "history" || rawTab === "tags" ? rawTab : "upload") as "upload" | "history" | "tags";
+
+  const setActiveTab = (val: "upload" | "history" | "tags") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", val);
+    router.replace(`/dashboard/outbound-leads?${params.toString()}`, { scroll: false });
+  };
   const [tagsSearch, setTagsSearch] = useState("");
 
   const filteredTagsList = tagsList.filter((tag) =>

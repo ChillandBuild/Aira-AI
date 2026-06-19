@@ -238,44 +238,6 @@ export function InboundLeadsClient({
 
   return (
     <div>
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="mb-7 flex justify-end gap-4 flex-wrap">
-        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-          <button
-            onClick={() => setShowFilters((p) => !p)}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2.5 rounded-xl font-label text-sm font-semibold border transition-all",
-              showFilters || hasFilters
-                ? "bg-violet-50 border-violet-200 text-violet-700"
-                : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
-            )}
-          >
-            <Filter size={14} />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="w-4 h-4 rounded-full bg-violet-600 text-white text-[9px] font-bold flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => mutateLeads()}
-            disabled={leadsValidating}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-surface-mid text-on-surface font-label text-sm font-semibold hover:border-[#d6cfc9] transition-all disabled:opacity-40"
-          >
-            <RefreshCw size={13} className={leadsValidating ? "animate-spin" : ""} />
-            Refresh
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting || leads.length === 0}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white font-label text-sm font-semibold hover:bg-violet-700 transition-all disabled:opacity-40 shadow-sm"
-          >
-            <Download size={14} />
-            {exporting ? "Downloading…" : "Download CSV"}
-          </button>
-        </div>
-      </div>
 
       {/* ── Filter Panel ───────────────────────────────────────── */}
       <div className={cn(
@@ -391,12 +353,51 @@ export function InboundLeadsClient({
         </div>
       </div>
 
-      {/* ── Stats ──────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-violet-500 to-indigo-600" />
-        <StatCard label="Showing Now" value={leads.length} icon={Users} gradient="bg-gradient-to-br from-blue-500 to-cyan-600" />
-        <StatCard label="Unique Keywords" value={uniqueKeywords} icon={MessageSquare} gradient="bg-gradient-to-br from-amber-500 to-orange-500" />
-        <StatCard label="Active Campaigns" value={uniqueCampaigns} icon={Megaphone} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
+      {/* ── Stats & Actions ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
+        <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-violet-500 to-indigo-600" />
+          <StatCard label="Showing Now" value={leads.length} icon={Users} gradient="bg-gradient-to-br from-blue-500 to-cyan-600" />
+          <StatCard label="Unique Keywords" value={uniqueKeywords} icon={MessageSquare} gradient="bg-gradient-to-br from-amber-500 to-orange-500" />
+          <StatCard label="Active Campaigns" value={uniqueCampaigns} icon={Megaphone} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
+        </div>
+        <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowFilters((p) => !p)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                showFilters || hasFilters
+                  ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                  : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
+              )}
+            >
+              <Filter size={12} />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="w-4 h-4 rounded-full bg-violet-600 text-white text-[9px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => mutateLeads()}
+              disabled={leadsValidating}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all disabled:opacity-40 shadow-sm"
+            >
+              <RefreshCw size={12} className={leadsValidating ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </button>
+          </div>
+          <button
+            onClick={handleExport}
+            disabled={exporting || leads.length === 0}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-xl font-label text-xs font-bold hover:bg-violet-700 transition-all disabled:opacity-40 shadow-sm"
+          >
+            <Download size={12} />
+            <span>{exporting ? "Downloading…" : "Download CSV"}</span>
+          </button>
+        </div>
       </div>
 
       {/* ── Info Banner ─────────────────────────────────────────── */}

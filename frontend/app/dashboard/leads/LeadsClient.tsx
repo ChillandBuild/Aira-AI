@@ -9,6 +9,13 @@ import { useAuthRole } from "../contexts/AuthRoleContext";
 import { AssignButton } from "./AssignButton";
 import ReengagementBuilder from "./ReengagementBuilder";
 import { useLeads } from "@/hooks/useApi";
+import { useSearchParams, useRouter } from "next/navigation";
+
+function pillClass(active: boolean) {
+  return `px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
+    active ? "bg-white text-[#1c1917] shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+  }`;
+}
 
 function NameCell({ lead, onUpdate }: { lead: Lead; onUpdate: (l: Lead) => void }) {
   const [editing, setEditing] = useState(false);
@@ -201,7 +208,16 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
 
   // Re-engagement states
   const [wabaTemplates, setWabaTemplates] = useState<WabaTemplate[]>([]);
-  const [pageView, setPageView] = useState<"leads" | "reengagement">("leads");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const pageView = (rawTab === "reengagement" ? "reengagement" : "leads") as "leads" | "reengagement";
+
+  const setPageView = (val: "leads" | "reengagement") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", val);
+    router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+  };
   const [reengageTrigger, setReengageTrigger] = useState<"broadcast" | "inbound">("inbound");
 
   // SWR Hook
@@ -357,17 +373,17 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
       )}
 
       {/* Tabs and Actions merged in a single row */}
-      <div className="mb-6 flex items-center justify-between border-b border-[#e8e3db] pb-2">
-        <div className="flex gap-2">
+      <div className="mb-6 flex items-center justify-between border-b border-[#e8e3db] pb-3">
+        <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
           <button
             onClick={() => setPageView("leads")}
-            className={`px-4 py-2 text-sm font-semibold transition-all -mb-[10px] ${pageView === "leads" ? "border-b-2 border-on-surface text-on-surface" : "text-on-surface-muted hover:text-on-surface"}`}
+            className={pillClass(pageView === "leads")}
           >
             Leads
           </button>
           <button
             onClick={() => setPageView("reengagement")}
-            className={`px-4 py-2 text-sm font-semibold transition-all -mb-[10px] ${pageView === "reengagement" ? "border-b-2 border-on-surface text-on-surface" : "text-on-surface-muted hover:text-on-surface"}`}
+            className={pillClass(pageView === "reengagement")}
           >
             Re-engagement
           </button>

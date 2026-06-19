@@ -1,7 +1,7 @@
 "use client";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Plus, X, Pencil, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw, Info, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
@@ -272,11 +272,10 @@ const numbersApi = {
 function NumbersPageContent() {
   const { role, loading: roleLoading } = useAuthRole();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const tabQuery = searchParams.get("tab");
+  const rawTab = searchParams.get("tab");
+  const activeTab = (rawTab === "activity" ? "activity" : "pool") as "pool" | "activity";
 
-  const [activeTab, setActiveTab] = useState<"pool" | "activity">("pool");
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -291,7 +290,6 @@ function NumbersPageContent() {
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
-
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState(false);
   const [pausingId, setPausingId] = useState<string | null>(null);
@@ -303,21 +301,10 @@ function NumbersPageContent() {
   const [incidentsLoading, setIncidentsLoading] = useState(true);
   const [loadingMoreIncidents, setLoadingMoreIncidents] = useState(false);
 
-  useEffect(() => {
-    if (tabQuery === "activity") {
-      setActiveTab("activity");
-    } else {
-      setActiveTab("pool");
-    }
-  }, [tabQuery]);
-
-  const handleTabChange = (tab: "pool" | "activity") => {
-    setActiveTab(tab);
-    if (tab === "activity") {
-      router.push(`${pathname}?tab=activity`);
-    } else {
-      router.push(pathname);
-    }
+  const handleTabChange = (val: "pool" | "activity") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", val);
+    router.replace(`/dashboard/numbers?${params.toString()}`, { scroll: false });
   };
 
   async function reload() {

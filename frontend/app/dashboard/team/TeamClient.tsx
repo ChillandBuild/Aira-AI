@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   UserPlus, Loader2, ClipboardList, TrendingUp,
 } from "lucide-react";
@@ -18,7 +19,16 @@ interface TeamClientProps {
 
 export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
   const { role, loading: roleLoading } = useAuthRole();
-  const [tab, setTab] = useState<"performance" | "log">("performance");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const tab = (rawTab === "log" ? "log" : "performance") as "performance" | "log";
+
+  const setTab = (val: "performance" | "log") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", val);
+    router.replace(`/dashboard/team?${params.toString()}`, { scroll: false });
+  };
 
   // invite
   const [showInvite, setShowInvite] = useState(false);

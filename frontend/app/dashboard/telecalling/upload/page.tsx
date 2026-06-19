@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://aira-ai-5tfr.onrender.com";
@@ -320,7 +321,16 @@ function StepIndicator({ current }: { current: number }) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function TelecallingUploadPage() {
-  const [activeTab, setActiveTab] = useState<"upload" | "history" | "scripts">("upload");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab = (rawTab === "history" || rawTab === "scripts" ? rawTab : "upload") as "upload" | "history" | "scripts";
+
+  const setActiveTab = (val: "upload" | "history" | "scripts") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", val);
+    router.replace(`/dashboard/telecalling/upload?${params.toString()}`, { scroll: false });
+  };
 
   return (
     <div className="max-w-7xl">

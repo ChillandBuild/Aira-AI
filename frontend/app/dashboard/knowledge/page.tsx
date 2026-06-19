@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { timeAgo } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
+import { useSearchParams, useRouter } from "next/navigation";
 
 function IgIcon({ size = 14, className = "" }: { size?: number; className?: string }) {
   return (
@@ -63,7 +64,16 @@ export default function KnowledgePage() {
   const [documents, setDocuments] = useState<KnowledgeDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [tab, setTab] = useState<"documents" | "ai-tune">("documents");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const tab = (rawTab === "ai-tune" ? "ai-tune" : "documents") as "documents" | "ai-tune";
+
+  const setTab = (val: "documents" | "ai-tune") => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", val);
+    router.replace(`/dashboard/knowledge?${params.toString()}`, { scroll: false });
+  };
 
   // Knowledge search (retrieval) mode
   const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("semantic");

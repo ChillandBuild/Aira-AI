@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
-  CheckCircle2, Copy, Check, Zap, XCircle, RefreshCw, X
+  CheckCircle2, Copy, Check, Zap, XCircle, X
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -420,6 +420,26 @@ export default function ChannelsHubPage() {
     fetchTenantStatus();
   }, [load, loadHealth]);
 
+  // Bind health loading status to global header
+  useEffect(() => {
+    if (healthLoading) {
+      window.dispatchEvent(new CustomEvent("channels-health-loading-start"));
+    } else {
+      window.dispatchEvent(new CustomEvent("channels-health-loading-end"));
+    }
+  }, [healthLoading]);
+
+  // Listen to refresh request from global header
+  useEffect(() => {
+    const handleRefresh = () => {
+      loadHealth();
+    };
+    window.addEventListener("refresh-channels-health", handleRefresh);
+    return () => {
+      window.removeEventListener("refresh-channels-health", handleRefresh);
+    };
+  }, [loadHealth]);
+
   function settingFor(key: string) {
     return settings.find(s => s.key === key);
   }
@@ -528,18 +548,6 @@ export default function ChannelsHubPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      <div className="flex justify-end">
-        <button
-          onClick={loadHealth}
-          disabled={healthLoading}
-          title="Refresh health status"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold border border-border text-ink-muted hover:text-ink-secondary transition-all bg-white"
-        >
-          <RefreshCw size={14} className={healthLoading ? "animate-spin" : ""} />
-          <span>Refresh Health</span>
-        </button>
-      </div>
-
       {error && (
         <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-red-50 text-red-700 border border-red-100">
           <AlertCircle size={15} />

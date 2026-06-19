@@ -1,12 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { Clock } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Clock, Settings, RefreshCw } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
+import { cn } from "@/lib/utils";
 
 // Define a map of exact path matches and dynamic route prefixes
-function getRouteMetadata(pathname: string) {
+function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
+  const tab = searchParams.get("tab") || "";
+
   if (pathname === "/dashboard") {
     return {
       title: "Product Overview",
@@ -14,14 +18,20 @@ function getRouteMetadata(pathname: string) {
     };
   }
   if (pathname === "/dashboard/outbound-leads") {
+    let tabLabel = "Broadcast Message";
+    if (tab === "history") tabLabel = "Broadcast History";
+    if (tab === "tags") tabLabel = "Tags";
     return {
-      title: "Outbound Leads",
+      title: `Outbound Leads / ${tabLabel}`,
       description: "Import a CSV and broadcast a WhatsApp campaign to all eligible leads.",
     };
   }
   if (pathname === "/dashboard/telecalling/upload") {
+    let tabLabel = "Upload Contacts";
+    if (tab === "history") tabLabel = "Upload History";
+    if (tab === "scripts") tabLabel = "Call Scripts";
     return {
-      title: "Telecalling Upload",
+      title: `Telecalling Upload / ${tabLabel}`,
       description: "Upload contacts, view history, and manage call scripts.",
     };
   }
@@ -38,8 +48,10 @@ function getRouteMetadata(pathname: string) {
     };
   }
   if (pathname === "/dashboard/team") {
+    let tabLabel = "Agent Performance";
+    if (tab === "log") tabLabel = "Assignment Log";
     return {
-      title: "Team",
+      title: `Team / ${tabLabel}`,
       description: "Add and manage telecallers under your account.",
     };
   }
@@ -62,20 +74,26 @@ function getRouteMetadata(pathname: string) {
     };
   }
   if (pathname === "/dashboard/knowledge") {
+    let tabLabel = "Documents (RAG)";
+    if (tab === "ai-tune") tabLabel = "AI Tune";
     return {
-      title: "Knowledge Base",
+      title: `Knowledge Base / ${tabLabel}`,
       description: "Upload documents and tune AI prompts to answer lead queries accurately.",
     };
   }
   if (pathname === "/dashboard/leads") {
+    let tabLabel = "Leads";
+    if (tab === "reengagement") tabLabel = "Re-engagement";
     return {
-      title: "Segments",
+      title: `Segments / ${tabLabel}`,
       description: "Group and manage your leads by attributes and behavior.",
     };
   }
   if (pathname === "/dashboard/numbers") {
+    let tabLabel = "Numbers Pool";
+    if (tab === "activity") tabLabel = "Incident Log";
     return {
-      title: "WhatsApp Numbers",
+      title: `WhatsApp Numbers / ${tabLabel}`,
       description: "Manage sender numbers and outbound routing.",
     };
   }
@@ -115,6 +133,18 @@ function getRouteMetadata(pathname: string) {
       description: "View and manage your profile details, passwords and API access.",
     };
   }
+  if (pathname === "/dashboard/inbox") {
+    return {
+      title: "Chat Inbox",
+      description: "Conversations where AI couldn't answer — needs your reply.",
+    };
+  }
+  if (pathname === "/dashboard/notes") {
+    return {
+      title: "Call Notes",
+      description: "Browse and manage notes across your leads.",
+    };
+  }
 
   // fallback/prefix matches
   if (pathname.startsWith("/dashboard/templates/")) {
@@ -133,7 +163,13 @@ function getRouteMetadata(pathname: string) {
 export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const [time, setTime] = useState<string>("");
   const pathname = usePathname();
-  const { title, description } = getRouteMetadata(pathname || "");
+  const searchParams = useSearchParams();
+  const { role } = useAuthRole();
+  const { title, description } = getRouteMetadata(pathname || "", searchParams);
+
+  // Action states for conditional header buttons
+  const [escalationOpen, setEscalationOpen] = useState(false);
+  const [channelsLoading, setChannelsLoading] = useState(false);
 
   useEffect(() => {
     const updateTime = () => {
@@ -144,6 +180,38 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Listen to Escalation Rules state from Inbox page
+  useEffect(() => {
+    const handleEscalationState = (e: Event) => {
+      const customEvent = e as CustomEvent<{ open: boolean }>;
+      setEscalationOpen(customEvent.detail.open);
+    };
+    window.addEventListener("escalation-rules-state", handleEscalationState);
+    return () => {
+      window.removeEventListener("escalation-rules-state", handleEscalationState);
+    };
+  }, []);
+
+  // Listen to Channels loading state from Channels page
+  useEffect(() => {
+    const handleLoadingStart = () => setChannelsLoading(true);
+    const handleLoadingEnd = () => setChannelsLoading(false);
+    window.addEventListener("channels-health-loading-start", handleLoadingStart);
+    window.addEventListener("channels-health-loading-end", handleLoadingEnd);
+    return () => {
+      window.removeEventListener("channels-health-loading-start", handleLoadingStart);
+      window.removeEventListener("channels-health-loading-end", handleLoadingEnd);
+    };
+  }, []);
+
+  const onToggleEscalation = () => {
+    window.dispatchEvent(new CustomEvent("toggle-escalation-rules"));
+  };
+
+  const onRefreshHealth = () => {
+    window.dispatchEvent(new CustomEvent("refresh-channels-health"));
+  };
 
   return (
     <header className="sticky top-0 z-40 h-20 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]">
@@ -161,6 +229,32 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
       {/* Right side actions */}
       <div className="flex items-center gap-2.5">
+        {pathname === "/dashboard/inbox" && role === "owner" && (
+          <button
+            onClick={onToggleEscalation}
+            className={cn(
+              "flex items-center gap-2 h-[34px] px-3.5 rounded-lg font-label text-xs font-semibold transition-colors border shadow-sm",
+              escalationOpen
+                ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                : "bg-white border-[#e8e3db] text-[#1c1917] hover:text-violet-600 hover:border-violet-300"
+            )}
+          >
+            <Settings size={13} />
+            <span>Escalation Rules</span>
+          </button>
+        )}
+
+        {pathname === "/dashboard/channels" && (
+          <button
+            onClick={onRefreshHealth}
+            disabled={channelsLoading}
+            className="flex items-center gap-2 h-[34px] px-3.5 rounded-lg font-label text-xs font-semibold border border-[#e8e3db] text-[#78716c] hover:text-[#292524] transition-all bg-white disabled:opacity-40 shadow-sm"
+          >
+            <RefreshCw size={13} className={channelsLoading ? "animate-spin" : ""} />
+            <span>Refresh Health</span>
+          </button>
+        )}
+
         <button
           onClick={onOpenCalendar}
           className="flex items-center gap-1.5 h-[34px] px-3 transition-all text-[#1c1917] font-mono text-[13px] font-semibold tracking-wide hover:bg-[#f0ece4] bg-transparent border border-[#e8e3db] rounded-lg"
