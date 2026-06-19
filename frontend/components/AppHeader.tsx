@@ -18,7 +18,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 h-14 flex items-center justify-end gap-2.5 px-7 bg-white border-b border-[#e8e3db]">
+    <header className="sticky top-0 z-40 h-14 flex items-center justify-end gap-2.5 px-7 bg-[#faf8f5] border-b border-[#e8e3db]">
       <button
         onClick={onOpenCalendar}
         className="flex items-center gap-1.5 px-3 py-1.5 transition-all text-ink-secondary font-mono text-[13px] font-semibold tracking-wide hover:bg-[#f0ece4] bg-transparent border border-[#e8e3db] rounded-lg"

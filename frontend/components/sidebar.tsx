@@ -10,7 +10,7 @@ import {
   Inbox, ChevronDown, ChevronRight, RadioTower, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AiraLogo } from "./logo";
+
 import { createClient } from "@/lib/supabase/client";
 
 type NavItem = {
@@ -101,22 +101,16 @@ export function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-[220px] bg-background flex flex-col z-20 select-none">
       {/* Brand */}
-      <div className="px-5 py-5 flex items-center gap-3">
-        <AiraLogo size={34} />
-        <div>
-          <span
-            className="block text-[#1c1917] font-display font-bold tracking-tight leading-none text-[16px]"
-            style={{ letterSpacing: "-0.03em" }}
-          >
-            Aira<span className="text-[#a8a29e] ml-0.5 font-normal">AI</span>
-          </span>
-          <span
-            className="block text-[#a8a29e] font-mono uppercase"
-            style={{ fontSize: "0.5rem", letterSpacing: "0.1em", marginTop: "3px" }}
-          >
-            Lead Intelligence
-          </span>
-        </div>
+      <div className="px-5 py-5">
+        <span
+          className="block font-display font-extrabold leading-none text-[22px] text-[#5b21b6]"
+          style={{
+            letterSpacing: "-0.04em",
+            textShadow: "0 0 4px rgba(91,33,182,0.6), 0 0 14px rgba(91,33,182,0.3), 0 0 30px rgba(91,33,182,0.15)",
+          }}
+        >
+          Aira
+        </span>
       </div>
 
       <div className="mx-5 h-px bg-[#e8e3db]" />

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut, User } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useLogout } from "@/hooks/useLogout";
@@ -25,12 +25,12 @@ export function ProfileMenu() {
 
   const logout = useLogout();
 
+  const initials = email ? email.charAt(0).toUpperCase() : "U";
+
   return (
     <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 bg-[#292524]/60 border border-[#57534e]/40 rounded-xl hover:bg-[#44403c]/60 transition-all">
-        <span className="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center"><User size={14} /></span>
-        <span className="text-xs font-bold text-[#e8e3db] hidden sm:block">{roleLabel}</span>
-        <ChevronDown size={14} className="text-[#a8a29e]" />
+      <button onClick={() => setOpen((v) => !v)} className="flex items-center justify-center w-[30px] h-[30px] rounded-full text-white text-[11px] font-bold transition-transform hover:scale-105" style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}>
+        {initials}
       </button>
       {open && (
         <>
