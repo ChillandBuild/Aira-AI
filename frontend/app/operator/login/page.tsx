@@ -56,18 +56,18 @@ export default function OperatorLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-2xl font-bold text-[#1c1917] font-manrope">
-            Aira<span className="text-[#5b21b6]">AI</span>
+          <p className="text-2xl font-bold text-ink font-manrope">
+            Aira<span className="text-primary">AI</span>
           </p>
-          <p className="text-xs text-[#a8a29e] mt-1.5 uppercase tracking-widest font-semibold font-manrope">
+          <p className="text-xs text-ink-muted mt-1.5 uppercase tracking-widest font-semibold font-manrope">
             Operator Console
           </p>
         </div>
 
-        <div className="bg-white rounded-[1.25rem] shadow-[0_2px_16px_-2px_rgba(28,25,23,.07),0_1px_4px_-1px_rgba(28,25,23,.04)] border border-[#e8e3db] p-8">
+        <div className="bg-white rounded-card shadow-card border border-border p-8">
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-manrope">
@@ -75,41 +75,41 @@ export default function OperatorLoginPage() {
               </div>
             )}
             <div>
-              <label className="text-sm font-medium text-[#1c1917] block mb-1.5 font-manrope">Email</label>
+              <label className="text-sm font-medium text-ink block mb-1.5 font-manrope">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
                 autoFocus
-                className="input"
+                className="w-full px-3 py-2 border border-border rounded-xl text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-manrope"
                 placeholder="you@airaai.com"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#1c1917] block mb-1.5 font-manrope">Password</label>
+              <label className="text-sm font-medium text-ink block mb-1.5 font-manrope">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="input"
+                className="w-full px-3 py-2 border border-border rounded-xl text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-manrope"
                 placeholder="••••••••"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full justify-center mt-2 disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary-dark text-white font-medium py-2 rounded-xl transition-colors disabled:opacity-50 font-manrope"
             >
               {loading ? "Verifying..." : "Sign in"}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-[#a8a29e] mt-6 font-manrope">
+        <p className="text-center text-xs text-ink-muted mt-6 font-manrope">
           Client dashboard?{" "}
-          <a href="/login" className="text-[#5b21b6] hover:underline">Login here</a>
+          <a href="/login" className="text-primary hover:underline">Login here</a>
         </p>
       </div>
     </div>

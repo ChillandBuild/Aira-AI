@@ -3,8 +3,8 @@ import { useEffect, useState, useCallback } from "react";
 import { Key, PowerOff, Power, Trash2, Mail, User, Clock } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { ConfirmDialog } from "../components/confirm-dialog";
-import { SkeletonCard, SkeletonTable } from "../components/skeleton";
-import type { OverviewData } from "../page";
+import { SkeletonTable } from "../components/skeleton";
+import type { OverviewData } from "../types";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();

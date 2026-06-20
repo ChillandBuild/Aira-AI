@@ -29,14 +29,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-interface OverviewData {
-  tenant: { id: string; name: string; status: string; enabled_features: string[]; created_at: string };
-  owner: { user_id: string | null; email: string | null };
-  stats: { total_leads: number; active_leads: number; messages_sent_30d: number; messages_received_30d: number; team_members: number; last_activity: string | null };
-}
-
-export { apiFetch };
-export type { OverviewData };
+import type { OverviewData } from "./types";
 
 export default function ClientDetailPage() {
   const { id: tenantId } = useParams<{ id: string }>();

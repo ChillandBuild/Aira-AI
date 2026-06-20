@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Upload, Phone, Calendar, StickyNote, Hash, CheckCircle, Clock } from "lucide-react";
+import { Upload, Phone, Calendar, StickyNote, Hash, Clock } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { StatCard } from "../components/stat-card";
 import { SkeletonCard, SkeletonTable } from "../components/skeleton";

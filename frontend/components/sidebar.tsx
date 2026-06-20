@@ -92,10 +92,6 @@ export function Sidebar() {
     );
   }
 
-  // Filter items by enabled features
-  const filterEnabled = (items: NavItem[]) =>
-    items.filter(item => !item.feature || enabledFeatures.includes(item.feature));
-
   // Gate telecalling sub-items by sub-feature flags with backwards compatibility
   const hasTcSubFeatures = enabledFeatures.some(f => f.startsWith("telecalling."));
   const visibleTcItems = hasTcSubFeatures
