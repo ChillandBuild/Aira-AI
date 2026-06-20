@@ -154,6 +154,24 @@ export interface CallLog {
   leads?: { phone: string | null; name: string | null } | null;
 }
 
+export interface DigestEntry {
+  digest_date: string;
+  call_count: number;
+  stats: {
+    total_calls: number;
+    converted: number;
+    callbacks: number;
+    not_interested: number;
+    no_answer: number;
+    avg_duration_seconds: number;
+    avg_score: number | null;
+    weakest_criterion: string | null;
+    criteria_avg: Record<string, number>;
+  };
+  coaching_report: string | null;
+  created_at: string;
+}
+
 export interface NoteWithLead {
   id: string;
   lead_id: string;
@@ -907,6 +925,8 @@ export const api = {
     },
     coaching: (id: string) =>
       apiFetch<{ caller_id: string; tip: string }>(`/api/v1/callers/${id}/coaching`),
+    digest: (id: string, days = 7) =>
+      apiFetch<{ data: DigestEntry[] }>(`/api/v1/callers/${id}/digest?days=${days}`).then(r => r.data || []),
     myStatus: () =>
       apiFetch<{ status: string; caller_id: string | null }>(`/api/v1/callers/my-status`),
     setMyStatus: (status: "active" | "break" | "logged_out") =>

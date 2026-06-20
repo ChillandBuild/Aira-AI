@@ -439,6 +439,7 @@ _TELECALLING_CONFIG_DEFAULT: dict = {
     "scripts": {},
     "max_call_attempts": 4,
     "assignment_mode": "push",
+    "eval_daily_cap": 50,
 }
 
 

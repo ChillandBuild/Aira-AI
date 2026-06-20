@@ -1,14 +1,16 @@
 """
 AIRA Score Engine v2
 
-Composite score = clamp(arc + intent_delta + engagement_delta, 1, 10)
+Composite score = clamp(arc + intent_delta + engagement + decay, 1, 10)
 
   arc_score        — LLM scores the conversation thread, fires every 3 inbound
                      messages or on a significant trigger (booking keyword, first message).
-  intent_delta     — Rule-based instant signal on the current message. -3..+3.
+  intent_delta     — Rule-based instant signal on the current message. -3..+2.
                      Rejection phrases bypass everything → immediate score 1, segment D.
-  engagement_delta — Time-decay applied by APScheduler every 6 h. -4..0.
-                     Silent leads drift to C/D without needing another message.
+  engagement      — Rule-based engagement signal on message history. 0..+2.
+                     Reply volume, message substance, media shared.
+  decay           — Bidirectional time-decay applied by APScheduler every 6 h. -4..+3.
+                     Recent activity boosts; silent leads drift to C/D.
 
 Segment lock: upgrade always immediate. Small drop (1 segment) needs 2 consecutive
 confirmations. Big drop (2+ segments) or rejection phrase: immediate.
@@ -146,24 +148,61 @@ def _compute_intent_delta(message: str, flow_state: str) -> tuple[int, str]:
     return max(-3, min(2, delta)), ",".join(reasons) or "neutral"
 
 
-def _compute_engagement_delta(last_inbound_at: datetime | None) -> int:
-    """Time-decay based on days since last inbound message."""
+def _compute_decay(last_inbound_at: datetime | None) -> int:
+    """Bidirectional time-decay: +3 (very recent) to -4 (stale)."""
     if last_inbound_at is None:
         return 0
     now = datetime.now(timezone.utc)
     if last_inbound_at.tzinfo is None:
         last_inbound_at = last_inbound_at.replace(tzinfo=timezone.utc)
-    days = (now - last_inbound_at).days
-    if days <= 1:
+    hours = (now - last_inbound_at).total_seconds() / 3600
+    if hours <= 1:
+        return 3
+    elif hours <= 12:
+        return 1
+    elif hours <= 24:
         return 0
-    elif days <= 3:
+    elif hours <= 72:
         return -1
-    elif days <= 7:
+    elif hours <= 168:
         return -2
-    elif days <= 30:
+    elif hours <= 720:
         return -3
     else:
         return -4
+
+
+def _compute_engagement(lead_id: str, db) -> int:
+    """Rule-based engagement score from message history. 0..+2."""
+    try:
+        msgs = (
+            db.table("messages")
+            .select("content,media_url")
+            .eq("lead_id", str(lead_id))
+            .eq("direction", "inbound")
+            .order("created_at", desc=True)
+            .limit(10)
+            .execute()
+        ).data or []
+    except Exception:
+        return 0
+
+    if not msgs:
+        return 0
+
+    score = 0
+
+    if len(msgs) >= 5:
+        score += 1
+
+    avg_len = sum(len((m.get("content") or "").strip()) for m in msgs) / len(msgs)
+    if avg_len >= 40:
+        score += 1
+
+    if any(m.get("media_url") for m in msgs):
+        score += 1
+
+    return min(2, score)
 
 
 _ARC_RUBRIC_DEFAULT = """
@@ -274,7 +313,7 @@ async def compute_score(
     Main entry point. Computes composite score, persists to DB, returns breakdown.
 
     Returns:
-        score, segment, arc_score, intent_delta, engagement_delta,
+        score, segment, arc_score, intent_delta, engagement, decay,
         intent_reason, arc_updated, segment_drop_count
     """
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -284,7 +323,7 @@ async def compute_score(
         db.table("leads")
         .select(
             "score,score_arc,score_intent_delta,score_engagement_delta,"
-            "arc_message_count,segment,segment_drop_count,last_inbound_at"
+            "score_engagement,arc_message_count,segment,segment_drop_count,last_inbound_at"
         )
         .eq("id", str(lead_id))
         .limit(1)
@@ -324,7 +363,8 @@ async def compute_score(
     if is_rejection:
         rejection_payload = {
             "score": 1, "score_arc": 1, "score_intent_delta": -3,
-            "score_engagement_delta": 0, "segment": "D",
+            "score_engagement_delta": 0, "score_engagement": 0,
+            "segment": "D",
             "segment_drop_count": 0, "arc_message_count": 0,
             "last_inbound_at": now_iso,
             "broadcast_negative_reply_at": now_iso,
@@ -338,13 +378,16 @@ async def compute_score(
         logger.info(f"Lead {lead_id} rejection detected — immediate D")
         return {
             "score": 1, "segment": "D", "arc_score": 1,
-            "intent_delta": -3, "engagement_delta": 0,
+            "intent_delta": -3, "engagement": 0, "decay": 0,
             "intent_reason": "rejection", "arc_updated": True,
             "segment_drop_count": 0,
         }
 
-    # ── 6. Engagement delta (time-decay) ──────────────────────────────────────
-    engagement_delta = _compute_engagement_delta(last_inbound_for_decay)
+    # ── 6. Decay (bidirectional time-based) ──────────────────────────────────
+    decay = _compute_decay(last_inbound_for_decay)
+
+    # ── 6b. Engagement (rule-based, from message history) ─────────────────────
+    engagement = _compute_engagement(lead_id, db)
 
     # ── 7. Arc score (LLM, conditional) ───────────────────────────────────────
     arc_updated = False
@@ -370,10 +413,10 @@ async def compute_score(
 
         current_arc = await _score_arc(conversation, tenant_id, fallback=current_arc)
         arc_updated = True
-        arc_msg_count = 1  # reset to 1 so next call gets count=2, not 1 (which would re-trigger immediately)
+        arc_msg_count = 1
 
     # ── 8. Composite final score ───────────────────────────────────────────────
-    final_score = max(1, min(10, current_arc + intent_delta + engagement_delta))
+    final_score = max(1, min(10, current_arc + intent_delta + engagement + decay))
 
     # ── 9. Segment with lock ───────────────────────────────────────────────────
     try:
@@ -392,7 +435,8 @@ async def compute_score(
         "score": final_score,
         "score_arc": current_arc,
         "score_intent_delta": intent_delta,
-        "score_engagement_delta": engagement_delta,
+        "score_engagement_delta": decay,
+        "score_engagement": engagement,
         "arc_message_count": global_arc_count if not arc_updated else 1,
         "segment": final_segment,
         "segment_drop_count": new_drop_count,
@@ -401,7 +445,7 @@ async def compute_score(
 
     logger.info(
         f"Lead {lead_id} scored: arc={current_arc} intent={intent_delta:+d} "
-        f"eng={engagement_delta:+d} → {final_score} ({final_segment}) "
+        f"eng={engagement:+d} decay={decay:+d} → {final_score} ({final_segment}) "
         f"[arc_updated={arc_updated}, reason={intent_reason}]"
     )
 
@@ -410,7 +454,8 @@ async def compute_score(
         "segment": final_segment,
         "arc_score": current_arc,
         "intent_delta": intent_delta,
-        "engagement_delta": engagement_delta,
+        "engagement": engagement,
+        "decay": decay,
         "intent_reason": intent_reason,
         "arc_updated": arc_updated,
         "segment_drop_count": new_drop_count,
@@ -419,7 +464,7 @@ async def compute_score(
 
 async def apply_engagement_decay_all(db, tenant_id: str | None = None) -> int:
     """
-    Scheduler job: recompute engagement delta and score for all leads
+    Scheduler job: recompute decay and score for all leads
     that have been silent for >24 hours. Returns count of leads updated.
 
     Called by APScheduler every 6 hours.
@@ -429,7 +474,7 @@ async def apply_engagement_decay_all(db, tenant_id: str | None = None) -> int:
 
     query = (
         db.table("leads")
-        .select("id,score_arc,score_intent_delta,score_engagement_delta,segment,segment_drop_count,last_inbound_at,tenant_id")
+        .select("id,score_arc,score_intent_delta,score_engagement_delta,score_engagement,segment,segment_drop_count,last_inbound_at,tenant_id")
         .lt("last_inbound_at", cutoff)
         .is_("deleted_at", "null")
     )
@@ -442,15 +487,16 @@ async def apply_engagement_decay_all(db, tenant_id: str | None = None) -> int:
     for lead in leads:
         try:
             last_inbound = _parse_dt(lead.get("last_inbound_at"))
-            new_eng_delta = _compute_engagement_delta(last_inbound)
-            old_eng_delta = lead.get("score_engagement_delta") or 0
+            new_decay = _compute_decay(last_inbound)
+            old_decay = lead.get("score_engagement_delta") or 0
 
-            if new_eng_delta == old_eng_delta:
+            if new_decay == old_decay:
                 continue
 
-            arc    = lead.get("score_arc") or 5
-            intent = lead.get("score_intent_delta") or 0
-            final_score = max(1, min(10, arc + intent + new_eng_delta))
+            arc        = lead.get("score_arc") or 5
+            intent     = lead.get("score_intent_delta") or 0
+            engagement = lead.get("score_engagement") or 0
+            final_score = max(1, min(10, arc + intent + engagement + new_decay))
 
             lead_tenant = lead.get("tenant_id")
             try:
@@ -468,7 +514,7 @@ async def apply_engagement_decay_all(db, tenant_id: str | None = None) -> int:
 
             db.table("leads").update({
                 "score": final_score,
-                "score_engagement_delta": new_eng_delta,
+                "score_engagement_delta": new_decay,
                 "segment": final_segment,
                 "segment_drop_count": new_drop_count,
             }).eq("id", lead["id"]).execute()
@@ -476,7 +522,7 @@ async def apply_engagement_decay_all(db, tenant_id: str | None = None) -> int:
         except Exception as e:
             logger.error(f"Engagement decay failed for lead {lead.get('id')}: {e}")
 
-    logger.info(f"Engagement decay applied to {updated} leads")
+    logger.info(f"Decay sweep applied to {updated} leads")
     return updated
 
 

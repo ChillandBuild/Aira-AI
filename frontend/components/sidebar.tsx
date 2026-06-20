@@ -130,8 +130,8 @@ export function Sidebar() {
       </div>
 
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
-        {/* TOP LEVEL: Overview */}
-        {role === "owner" && (
+        {/* TOP LEVEL: Overview / Dashboard */}
+        {role === "owner" ? (
           <Link
             href="/dashboard"
             className={cn(
@@ -143,6 +143,19 @@ export function Sidebar() {
           >
             <LayoutDashboard size={16} className={pathname === "/dashboard" ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
             <span>Dashboard</span>
+          </Link>
+        ) : (
+          <Link
+            href="/dashboard/profile"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
+              pathname === "/dashboard/profile"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+            )}
+          >
+            <LayoutDashboard size={16} className={pathname === "/dashboard/profile" ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+            <span>Overview</span>
           </Link>
         )}
 

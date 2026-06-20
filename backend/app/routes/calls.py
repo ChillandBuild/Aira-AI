@@ -466,13 +466,72 @@ async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> No
 
 
 _SKIP_OUTCOMES = {"no_answer", "voicemail"}
+_TRANSCRIBE_MIN_DURATION = 30
+_EVAL_MIN_DURATION = 60
+_EVAL_DAILY_CAP_DEFAULT = 50
+_NEW_CALLER_DAYS = 14
+
+
+def _should_evaluate(
+    duration: int | None,
+    caller_id: str | None,
+    tenant_id: str | None,
+    db,
+) -> bool:
+    """Layer 3 gate: decide whether a call gets full AI evaluation."""
+    dur = duration or 0
+
+    # New callers (< 14 days) bypass the duration gate
+    is_new_caller = False
+    if caller_id:
+        try:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=_NEW_CALLER_DAYS)).isoformat()
+            cr = (
+                db.table("callers")
+                .select("id")
+                .eq("id", caller_id)
+                .gte("created_at", cutoff)
+                .maybe_single()
+                .execute()
+            )
+            is_new_caller = bool(cr and cr.data)
+        except Exception:
+            pass
+
+    if not is_new_caller and dur < _EVAL_MIN_DURATION:
+        return False
+
+    # Per-tenant daily cap
+    if tenant_id:
+        try:
+            from app.services.assignment import get_telecalling_config
+            cfg = get_telecalling_config(tenant_id)
+            cap = cfg.get("eval_daily_cap", _EVAL_DAILY_CAP_DEFAULT)
+
+            today_start = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ).isoformat()
+            count_res = (
+                db.table("call_logs")
+                .select("id", count="exact")
+                .eq("tenant_id", tenant_id)
+                .not_.is_("evaluation", "null")
+                .gte("created_at", today_start)
+                .execute()
+            )
+            if (count_res.count or 0) >= cap:
+                logger.info(f"Eval daily cap ({cap}) reached for tenant {tenant_id}")
+                return False
+        except Exception as e:
+            logger.warning(f"Eval cap check failed: {e}")
+
+    return True
 
 
 async def _run_summarization(call_log_id: str, recording_url: str, force: bool = False) -> None:
     try:
         db = get_supabase()
 
-        # ── Gate: skip calls with no conversation (not answered / voicemail) ──
         call_row = (
             db.table("call_logs")
             .select("outcome,duration_seconds,lead_id,caller_id,tenant_id")
@@ -482,19 +541,32 @@ async def _run_summarization(call_log_id: str, recording_url: str, force: bool =
         )
         call_data = (call_row.data or {})
         outcome = call_data.get("outcome")
+        duration = call_data.get("duration_seconds") or 0
+        tenant_id = call_data.get("tenant_id")
+        caller_id = call_data.get("caller_id")
+        lead_id = call_data.get("lead_id")
 
+        # ── Layer 2: Transcription gate ──────────────────────────────────
         if not force and outcome in _SKIP_OUTCOMES:
-            logger.info(f"Skipping AI analysis for {call_log_id}: outcome={outcome}")
+            logger.info(f"Skipping transcription for {call_log_id}: outcome={outcome}")
             return
 
-        # ── Transcribe ───────────────────────────────────────────────────
-        tenant_id = call_data.get("tenant_id")
+        if not force and duration < _TRANSCRIBE_MIN_DURATION:
+            logger.info(f"Skipping transcription for {call_log_id}: duration={duration}s < {_TRANSCRIBE_MIN_DURATION}s")
+            return
+
         transcript = await transcribe_recording(recording_url, tenant_id=tenant_id)
         if not transcript:
             return
 
-        # ── Single-pass analysis (summary + evaluation) ──────────────────
-        lead_id = call_data.get("lead_id")
+        db.table("call_logs").update({"transcript": transcript}).eq("id", call_log_id).execute()
+        logger.info(f"Transcript stored for {call_log_id} ({len(transcript)} chars)")
+
+        # ── Layer 3: Evaluation gate ─────────────────────────────────────
+        if not force and not _should_evaluate(duration, caller_id, tenant_id, db):
+            logger.info(f"Skipping evaluation for {call_log_id}: gated (duration={duration}s)")
+            return
+
         lead_name: str | None = None
         if lead_id:
             lead_row = db.table("leads").select("name").eq("id", lead_id).maybe_single().execute()
@@ -512,14 +584,15 @@ async def _run_summarization(call_log_id: str, recording_url: str, force: bool =
             tenant_id=tenant_id,
         )
 
-        updates: dict = {"transcript": transcript}
+        updates: dict = {}
         if summary:
             updates["ai_summary"] = summary
         if evaluation:
             updates["evaluation"] = evaluation
             logger.info(f"Call evaluation stored for {call_log_id}: score={evaluation.get('overall_score')}")
 
-        db.table("call_logs").update(updates).eq("id", call_log_id).execute()
+        if updates:
+            db.table("call_logs").update(updates).eq("id", call_log_id).execute()
 
         if summary.get("next_action") and lead_id:
             note_row = {
@@ -529,14 +602,10 @@ async def _run_summarization(call_log_id: str, recording_url: str, force: bool =
                 "structured": summary,
                 "is_pinned": False,
             }
-            if call_data.get("tenant_id"):
-                note_row["tenant_id"] = call_data["tenant_id"]
+            if tenant_id:
+                note_row["tenant_id"] = tenant_id
             db.table("lead_notes").insert(note_row).execute()
 
-        # ── Re-score caller now that AI evaluation is stored ─────────────
-        # The first recompute (at outcome-set time) only had the outcome score.
-        # Now that evaluation JSONB is persisted, blend it in.
-        caller_id = call_data.get("caller_id")
         if caller_id and evaluation:
             recompute_caller_score(caller_id, db)
 

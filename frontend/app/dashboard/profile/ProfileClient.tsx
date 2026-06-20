@@ -6,7 +6,6 @@ import {
   TrendingUp,
   Clock,
   Target,
-  Sparkles,
   RefreshCw,
   CheckCircle2,
   XCircle,
@@ -24,6 +23,7 @@ import { toast } from "sonner";
 import { useMyStats, useMyPerformance, useCallerLogs } from "@/hooks/useApi";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import AttendanceMini from "../team/AttendanceMini";
+import { CoachingDigest } from "@/components/CoachingDigest";
 
 export interface ProfileClientProps {
   fallbackStats: CallerStats | null;
@@ -49,8 +49,6 @@ export function ProfileClient({
   const { data: performanceData } = useMyPerformance(!isAdmin, fallbackPerformance ?? undefined);
   const { data: logsData } = useCallerLogs(stats?.caller_id ?? null, !isAdmin, fallbackLogs ?? undefined);
 
-  const [tip, setTip] = useState<string | null>(null);
-  const [tipLoading, setTipLoading] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
   const performance = performanceData ?? { target: 50, achieved: 0 };
@@ -71,19 +69,6 @@ export function ProfileClient({
       setTogglingStatus(false);
     }
   };
-
-  async function loadTip() {
-    if (!stats?.caller_id) return;
-    setTipLoading(true);
-    try {
-      const res = await api.callers.coaching(stats.caller_id);
-      setTip(res.tip);
-    } catch (err) {
-      setTip(err instanceof Error ? err.message : "Could not fetch tip");
-    } finally {
-      setTipLoading(false);
-    }
-  }
 
   function formatDuration(seconds: number | null): string {
     if (!seconds) return "—";
@@ -231,12 +216,15 @@ export function ProfileClient({
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-display text-3xl font-bold text-tertiary">
-          My Profile
+          Overview
         </h1>
         <p className="font-body text-on-surface-muted mt-1">
           Your performance at a glance
         </p>
       </div>
+
+      {/* Daily Coaching Digest */}
+      <CoachingDigest callerId={stats.caller_id} />
 
       {/* Profile Card + Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -444,34 +432,6 @@ export function ProfileClient({
         <AttendanceMini callerId={stats.caller_id} readOnly={true} />
       </div>
 
-      {/* AI Coaching */}
-      <div className="mb-8 bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-base font-bold text-tertiary flex items-center gap-2">
-            <Sparkles size={16} className="text-secondary" /> AI Coaching
-          </h2>
-          <button
-            onClick={loadTip}
-            disabled={tipLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-low rounded-lg font-label text-xs font-semibold hover:bg-surface-mid transition-colors disabled:opacity-40"
-          >
-            <RefreshCw
-              size={12}
-              className={tipLoading ? "animate-spin" : ""}
-            />
-            {tip ? "New Tip" : "Get Tip"}
-          </button>
-        </div>
-        <div className="p-4 bg-surface-low rounded-xl min-h-[3rem]">
-          <p className="font-body text-sm text-on-surface leading-relaxed">
-            {tipLoading
-              ? "Generating your personalized coaching tip…"
-              : tip
-                ? `💡 ${tip}`
-                : "Click 'Get Tip' to receive a personalized coaching suggestion based on your recent call data."}
-          </p>
-        </div>
-      </div>
 
       {/* Call History */}
       <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">

@@ -37,7 +37,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Outbound router (pool-aware) | ✅ Built — services/outbound_router.py |
 | Incidents page (frontend) | ✅ Built — dashboard/incidents/ |
 | lead_notes table + briefing modal | ✅ Built — migration 012 + lead_notes.py |
-| Groq Whisper transcription + AI call summary | ✅ Built — call_summarizer.py |
+| Groq Whisper transcription + AI call summary | ✅ Built — call_summarizer.py, 3-layer funnel: record 100% → transcribe ≥30s → evaluate ≥60s (new-caller bypass, per-tenant daily cap via telecalling_config.eval_daily_cap) |
 | Notes page (/dashboard/notes) | ✅ Built |
 | Message Templates page | ✅ Built — dashboard/templates/, routes/templates.py |
 | Template submission to Meta API | ✅ Built — uses meta_waba_id |
@@ -68,7 +68,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Broadcast history + fail reason tracking | ✅ Built — migration 058_broadcast_fail_reason |
 | Carousel templates (2–10 cards via Meta API) | ✅ Built — migration 060, dashboard/templates/carousel/ |
 | WABA onboarding (self-service) | ✅ Built — WABA ID + Phone Number ID configurable in Settings UI |
-| Score Engine v2 (composite scoring) | ✅ Built — arc + intent_delta + engagement_delta, migration 070, services/scoring_engine.py |
+| Score Engine v2 (composite scoring) | ✅ Built — arc + intent_delta + engagement + decay, migrations 070+116, services/scoring_engine.py |
 | Broadcast tags (colored, CSV export) | ✅ Built — migration 072_broadcast_tags, dashboard/tags/ |
 | Per-broadcast lead scoring | ✅ Built — broadcast_lead_scores table, migration 076, context-aware arc |
 | AI auto-reply toggle (per-bot) | ✅ Built — app_settings.ai_auto_reply, Settings UI |
@@ -150,7 +150,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Telecalling, TeleCMI, call logs, notes, briefing modal | backend/app/routes/calls.py + services/telecmi_client.py + services/call_summarizer.py |
 | Telecaller auto-assignment, round-robin, Assignment Log, callback reassignment | backend/app/services/assignment.py + routes/assignment_log.py + main.py (_sweep_unassigned_leads, _process_callback_reassignments) |
 | Telecalling upload, call scripts, contact recycling | backend/app/routes/telecalling_upload.py + routes/call_scripts.py + services/contact_recycler.py |
-| Leads, scoring, segments, opt-in, call_status pipeline | backend/app/routes/leads.py + services/scoring_engine.py (v2) + services/lead_scorer.py (legacy, AI-disabled path) |
+| Leads, scoring, segments, opt-in, call_status pipeline | backend/app/routes/leads.py + services/scoring_engine.py |
 | Number pool, failover, Numbers page, Incidents page | backend/app/routes/numbers.py + services/failover.py + routes/incidents.py |
 | CSV upload, bulk send, scheduled/drip broadcasts | backend/app/routes/upload.py + services/broadcast_executor.py |
 | Bookings, booking flow, Razorpay payments | backend/app/services/booking_flow.py + routes/bookings.py |
@@ -168,7 +168,7 @@ TelecallingConfigPanel: module on/off, auto-assign, per-segment assignment (A/B/
 BookingConfigPanel: CRUD booking types (name + amount); stored as `booking_types` JSON in app_settings. Multiple types → WhatsApp type-selection step before collection flow. Zero types → default ₹500 flat pricing.
 
 ## Known Tech Debt
-- lead_scorer.py (legacy two-pass) still called on AI-disabled branch — retire and route through scoring_engine.py
+- (none currently)
 
 ## Architecture Map (auto-derived)
 Navigable module wiki at `graphify-out/wiki/index.md` — one article per module (callbacks, assignment, AI reply, webhooks, bot-flow, scoring, etc.) with source files + cross-module links. Plain markdown, no tooling needed to read. Pull it when tracing structure; CLAUDE.md remains the source of truth for invariants/decisions.
@@ -189,7 +189,6 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/app/services/failover.py | Quality RED/YELLOW handlers + auto-failover |
 | backend/app/services/meta_webhook_verify.py | X-Hub-Signature-256 verification (shared by WA/IG/FB) |
 | backend/app/services/meta_cloud.py | Meta Cloud API (text/media/template + carousel submission) |
-| backend/app/services/lead_scorer.py | Groq scoring (1–10) |
 | backend/app/services/telecmi_client.py | TeleCMI click-to-call |
 | backend/app/db/supabase.py | Supabase client singleton |
 | backend/app/routes/telecalling_upload.py | Telecalling CSV upload + round-robin assignment |
@@ -199,7 +198,7 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/supabase/migrations/ | All schema migrations 001–114 |
 | frontend/app/dashboard/ | All dashboard pages |
 
-## Migration Index (latest = 115)
+## Migration Index (latest = 116)
 | Migration | What |
 |---|---|
 | 051 | Telegram support — tg_user_id on leads |
@@ -266,6 +265,7 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | 113_security_and_new_tables_rls | Superseded by 114. Enables RLS on reengagement_steps, reengagement_logs, autopilot_runs, call_scripts, telecalling_upload_batches |
 | 114_rls_launch_blocker | ✅ Applied 2026-06-20. Drops dead faqs/hot_lead_alerts tables; adds tenant_id to conversations + backfill; enables RLS+policies on all 9 remaining tables (conversations, bot_flows, meta_templates, reengagement_steps/logs, call_scripts, telecalling_upload_batches); deny-all on scheduler_runs; revokes anon EXECUTE on security definer helpers; sets search_path on 6 RPC functions |
 | 115_perf_advisor_warnings | ✅ Applied 2026-06-20. 5x auth_rls_initplan (wrap auth.uid() in subselect); 12x multiple_permissive_policies (split FOR ALL into INSERT/UPDATE/DELETE); 1x duplicate_index (drop csl_tenant_idx) |
+| 116_scoring_engagement_decay | leads.score_engagement (smallint, 0..+2) — explicit engagement signal; score_engagement_delta repurposed as bidirectional decay (-4..+3) |
 
 ## Bot Flow Builder (replaces Automations UI)
 Visual WhatsApp flow builder at /dashboard/automations (sidebar "Bot Flows"). Backend
