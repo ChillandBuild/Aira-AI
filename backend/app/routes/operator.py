@@ -68,8 +68,7 @@ class CreateClientPayload(BaseModel):
 
 
 class UpdateFeaturesPayload(BaseModel):
-    service: ServiceTier | None = None
-    features: list[str] | None = None
+    service: ServiceTier
 
 
 class UpdateStatusPayload(BaseModel):
@@ -181,18 +180,7 @@ async def create_client(payload: CreateClientPayload, _admin: dict = Depends(get
 @router.patch("/clients/{tenant_id}/features")
 def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    valid_features = {"whatsapp", "telecalling", "instagram", "facebook", "telegram"}
-
-    if payload.features is not None:
-        invalid = set(payload.features) - valid_features
-        if invalid:
-            raise HTTPException(status_code=400, detail=f"Invalid features: {', '.join(invalid)}")
-        features = payload.features
-    elif payload.service is not None:
-        features = _FEATURE_MAP[payload.service]
-    else:
-        raise HTTPException(status_code=400, detail="Provide 'features' or 'service'")
-
+    features = _FEATURE_MAP[payload.service]
     result = db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -204,7 +192,7 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
         action="operator.features_updated",
         target_type="tenant",
         target_id=tenant_id,
-        metadata={"features": features, "service": payload.service},
+        metadata={"service": payload.service, "enabled_features": features},
     )
     return {"tenant_id": tenant_id, "enabled_features": features}
 
@@ -302,265 +290,6 @@ async def reset_password(tenant_id: str, _admin: dict = Depends(get_system_admin
         metadata={"tenant_id": tenant_id},
     )
     return {"temp_password": temp_pw}
-
-
-@router.get("/clients/{tenant_id}/overview")
-def client_overview(tenant_id: str, _admin: dict = Depends(get_system_admin)):
-    from datetime import datetime, timezone, timedelta
-    db = get_supabase()
-
-    tenant = db.table("tenants").select("id, name, status, enabled_features, created_at, plan").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    owner_row = (
-        db.table("tenant_users")
-        .select("user_id, created_at")
-        .eq("tenant_id", tenant_id)
-        .eq("role", "owner")
-        .maybe_single()
-        .execute()
-    )
-    owner_info: dict = {"user_id": None, "email": None, "created_at": None}
-    if owner_row.data:
-        owner_info["user_id"] = owner_row.data["user_id"]
-        owner_info["created_at"] = owner_row.data["created_at"]
-        try:
-            user = db.auth.admin.get_user_by_id(owner_row.data["user_id"])
-            owner_info["email"] = user.user.email if hasattr(user, "user") else None
-        except Exception:
-            pass
-
-    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-
-    total_leads = db.table("leads").select("id", count="exact").eq("tenant_id", tenant_id).is_("deleted_at", "null").execute()
-    active_leads = (
-        db.table("leads").select("id", count="exact")
-        .eq("tenant_id", tenant_id).is_("deleted_at", "null")
-        .in_("segment", ["A", "B"])
-        .execute()
-    )
-    msgs_sent = (
-        db.table("messages").select("id", count="exact")
-        .eq("tenant_id", tenant_id).eq("direction", "outbound")
-        .gte("created_at", thirty_days_ago)
-        .execute()
-    )
-    msgs_recv = (
-        db.table("messages").select("id", count="exact")
-        .eq("tenant_id", tenant_id).eq("direction", "inbound")
-        .gte("created_at", thirty_days_ago)
-        .execute()
-    )
-    team_count = db.table("callers").select("id", count="exact").eq("tenant_id", tenant_id).execute()
-
-    last_msg = (
-        db.table("messages").select("created_at")
-        .eq("tenant_id", tenant_id)
-        .order("created_at", desc=True).limit(1).execute()
-    )
-    last_call = (
-        db.table("call_logs").select("created_at")
-        .eq("tenant_id", tenant_id)
-        .order("created_at", desc=True).limit(1).execute()
-    )
-    last_msg_ts = (last_msg.data or [{}])[0].get("created_at")
-    last_call_ts = (last_call.data or [{}])[0].get("created_at")
-    last_activity = max(filter(None, [last_msg_ts, last_call_ts]), default=None)
-
-    return {
-        "tenant": tenant.data,
-        "owner": owner_info,
-        "stats": {
-            "total_leads": total_leads.count or 0,
-            "active_leads": active_leads.count or 0,
-            "messages_sent_30d": msgs_sent.count or 0,
-            "messages_received_30d": msgs_recv.count or 0,
-            "team_members": team_count.count or 0,
-            "last_activity": last_activity,
-        },
-    }
-
-
-@router.get("/clients/{tenant_id}/config")
-def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-    tenant = db.table("tenants").select("enabled_features").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    settings_rows = (
-        db.table("app_settings")
-        .select("key, value")
-        .eq("tenant_id", tenant_id)
-        .execute()
-    )
-    settings_map = {r["key"]: r["value"] for r in (settings_rows.data or [])}
-
-    def cred_status(keys: list[str]) -> str:
-        vals = [settings_map.get(k) for k in keys]
-        non_null = [v for v in vals if v is not None and v != ""]
-        if len(non_null) == len(keys):
-            return "configured"
-        if len(non_null) > 0:
-            return "incomplete"
-        return "not_configured"
-
-    return {
-        "enabled_features": tenant.data["enabled_features"],
-        "credentials_status": {
-            "whatsapp": cred_status(["meta_phone_number_id", "meta_access_token", "meta_waba_id", "meta_webhook_verify_token"]),
-            "telecalling": cred_status(["telecmi_user_id", "telecmi_secret", "telecmi_callerid"]),
-            "ai": cred_status(["groq_api_key"]),
-            "payments": cred_status(["razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"]),
-        },
-        "settings": {
-            "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") == "true",
-            "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
-            "booking_event_name": settings_map.get("booking_event_name"),
-            "booking_ref_prefix": settings_map.get("booking_ref_prefix"),
-            "booking_amount_paise": settings_map.get("booking_amount_paise"),
-        },
-    }
-
-
-@router.get("/clients/{tenant_id}/health")
-def client_health(tenant_id: str, _admin: dict = Depends(get_system_admin)):
-    from datetime import datetime, timezone, timedelta
-    db = get_supabase()
-
-    tenant = db.table("tenants").select("id, enabled_features").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    channel_sources = {"whatsapp": "whatsapp", "instagram": "instagram", "facebook": "facebook", "telegram": "telegram"}
-    channels: dict = {}
-    for channel, source in channel_sources.items():
-        last_inbound = (
-            db.table("messages").select("created_at")
-            .eq("tenant_id", tenant_id).eq("direction", "inbound").eq("channel", source)
-            .order("created_at", desc=True).limit(1).execute()
-        )
-        last_ts = (last_inbound.data or [{}])[0].get("created_at")
-        is_enabled = channel in (tenant.data.get("enabled_features") or [])
-        channels[channel] = {
-            "status": "healthy" if is_enabled and last_ts else ("not_configured" if not is_enabled else "unhealthy"),
-            "last_inbound": last_ts,
-        }
-
-    token_incidents = (
-        db.table("incidents").select("id")
-        .eq("tenant_id", tenant_id).eq("type", "token_invalid")
-        .order("created_at", desc=True).limit(1).execute()
-    )
-    settings_rows = db.table("app_settings").select("key, value").eq("tenant_id", tenant_id).in_("key", ["meta_access_token"]).execute()
-    has_token = any(r["value"] for r in (settings_rows.data or []))
-    token_status = "not_set"
-    if has_token:
-        token_status = "expired" if token_incidents.data else "valid"
-
-    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    sent_7d = db.table("messages").select("id", count="exact").eq("tenant_id", tenant_id).eq("direction", "outbound").gte("created_at", seven_days_ago).execute()
-    delivered_7d = (
-        db.table("messages").select("id", count="exact")
-        .eq("tenant_id", tenant_id).eq("direction", "outbound")
-        .eq("delivery_status", "delivered")
-        .gte("created_at", seven_days_ago).execute()
-    )
-    failed_7d = (
-        db.table("messages").select("id", count="exact")
-        .eq("tenant_id", tenant_id).eq("direction", "outbound")
-        .eq("delivery_status", "failed")
-        .gte("created_at", seven_days_ago).execute()
-    )
-    sent_count = sent_7d.count or 0
-    delivered_count = delivered_7d.count or 0
-    failed_count = failed_7d.count or 0
-    success_rate = round((delivered_count / sent_count) * 100, 1) if sent_count > 0 else 0
-
-    recent_errors = (
-        db.table("messages").select("id, delivery_error, created_at")
-        .eq("tenant_id", tenant_id).eq("delivery_status", "failed")
-        .order("created_at", desc=True).limit(10).execute()
-    )
-    open_incidents = (
-        db.table("incidents").select("id, type, severity, message, created_at")
-        .eq("tenant_id", tenant_id)
-        .order("created_at", desc=True).limit(10).execute()
-    )
-
-    return {
-        "channels": channels,
-        "token_status": token_status,
-        "delivery_7d": {
-            "sent": sent_count,
-            "delivered": delivered_count,
-            "failed": failed_count,
-            "success_rate": success_rate,
-        },
-        "recent_errors": [
-            {"message_id": r["id"], "error": r.get("delivery_error"), "created_at": r["created_at"]}
-            for r in (recent_errors.data or [])
-        ],
-        "open_incidents": open_incidents.data or [],
-    }
-
-
-@router.get("/clients/{tenant_id}/team")
-def client_team(tenant_id: str, _admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-
-    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    owner_row = (
-        db.table("tenant_users")
-        .select("user_id, created_at")
-        .eq("tenant_id", tenant_id)
-        .eq("role", "owner")
-        .maybe_single()
-        .execute()
-    )
-    owner_info: dict = {"user_id": None, "email": None, "created_at": None}
-    if owner_row.data:
-        owner_info["user_id"] = owner_row.data["user_id"]
-        owner_info["created_at"] = owner_row.data["created_at"]
-        try:
-            user = db.auth.admin.get_user_by_id(owner_row.data["user_id"])
-            owner_info["email"] = user.user.email if hasattr(user, "user") else None
-        except Exception:
-            pass
-
-    callers_rows = (
-        db.table("callers")
-        .select("id, name, active, overall_score, shift_start_hour, shift_end_hour, user_id")
-        .eq("tenant_id", tenant_id)
-        .order("name")
-        .execute()
-    )
-
-    tenant_users = (
-        db.table("tenant_users")
-        .select("user_id, role")
-        .eq("tenant_id", tenant_id)
-        .execute()
-    )
-    role_map = {r["user_id"]: r["role"] for r in (tenant_users.data or [])}
-
-    callers = []
-    for c in (callers_rows.data or []):
-        callers.append({
-            "id": c["id"],
-            "name": c["name"],
-            "active": c["active"],
-            "overall_score": c["overall_score"],
-            "shift_start_hour": c.get("shift_start_hour"),
-            "shift_end_hour": c.get("shift_end_hour"),
-            "role": role_map.get(c.get("user_id"), "caller"),
-        })
-
-    return {"owner": owner_info, "callers": callers}
 
 
 @router.get("/scheduler-health")
