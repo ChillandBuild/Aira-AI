@@ -46,7 +46,8 @@ type ScoreEvent = {
     channel?: string;
     arc_score?: number;
     intent_delta?: number;
-    engagement_delta?: number;
+    engagement?: number;
+    decay?: number;
     intent_reason?: string;
     arc_updated?: boolean;
   };
@@ -202,9 +203,17 @@ function ScoreEventCard({ ev }: { ev: ScoreEvent }) {
               {ev.metadata.intent_delta > 0 ? "+" : ""}{ev.metadata.intent_delta} intent
             </span>
           )}
-          {ev.metadata.engagement_delta != null && ev.metadata.engagement_delta !== 0 && (
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
-              {ev.metadata.engagement_delta} eng
+          {ev.metadata.engagement != null && ev.metadata.engagement > 0 && (
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+              +{ev.metadata.engagement} eng
+            </span>
+          )}
+          {ev.metadata.decay != null && ev.metadata.decay !== 0 && (
+            <span className={cn(
+              "font-mono text-[10px] px-1.5 py-0.5 rounded",
+              ev.metadata.decay > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+            )}>
+              {ev.metadata.decay > 0 ? "+" : ""}{ev.metadata.decay} decay
             </span>
           )}
           {ev.metadata.intent_reason && ev.metadata.intent_reason !== "neutral" && (

@@ -9,6 +9,7 @@ import NumpadDialer from "./components/NumpadDialer";
 import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
+import { CoachingOneLiner } from "@/components/CoachingDigest";
 
 export default function CallerView({ callerId }: { callerId: string | null }) {
   // caller profile + my assigned queue
@@ -83,6 +84,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-transparent">
+      <CoachingOneLiner callerId={callerId} />
       <div className="flex-1 grid grid-cols-12 gap-4 min-h-0 pb-4">
         {/* Left Side: Lead List (4/12) */}
         <div className="col-span-4 flex flex-col gap-5 min-h-0 pr-1">

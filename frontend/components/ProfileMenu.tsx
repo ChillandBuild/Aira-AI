@@ -19,7 +19,7 @@ export function ProfileMenu() {
       const { data } = await supabase.auth.getUser();
       const userEmail = data.user?.email ?? "";
       setEmail(userEmail);
-      
+
       const metaName = data.user?.user_metadata?.full_name;
       if (metaName) {
         setFullName(metaName);
@@ -55,20 +55,18 @@ export function ProfileMenu() {
             </div>
 
             <div className="py-1">
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  if (role === "owner") {
+              {role === "owner" && (
+                <button
+                  onClick={() => {
+                    setOpen(false);
                     router.push("/dashboard/settings");
-                  } else {
-                    router.push("/dashboard/profile");
-                  }
-                }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
-              >
-                <Settings size={16} className="text-[#78716c]" />
-                <span className="flex-1">Account settings</span>
-              </button>
+                  }}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
+                >
+                  <Settings size={16} className="text-[#78716c]" />
+                  <span className="flex-1">Settings</span>
+                </button>
+              )}
 
               <button
                 className="w-full flex items-center justify-between gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
