@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { OperatorSidebar } from "./components/operator-sidebar";
 
 export default async function OperatorLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -24,29 +25,11 @@ export default async function OperatorLayout({ children }: { children: React.Rea
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-lg font-bold text-gray-900">
-            Aira <span className="text-indigo-600">AI</span>
-          </span>
-          <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest border border-gray-200 rounded px-2 py-0.5">
-            Operator Console
-          </span>
-          <nav className="flex items-center gap-1 ml-4">
-            <a href="/operator" className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100">
-              Clients
-            </a>
-            <a href="/operator/scheduler" className="text-sm text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-100">
-              Schedulers
-            </a>
-          </nav>
-        </div>
-        <a href="/login" className="text-sm text-gray-500 hover:text-gray-800">
-          ← Back to Client Login
-        </a>
-      </header>
-      <main className="max-w-5xl mx-auto px-8 py-8">{children}</main>
+    <div className="min-h-screen bg-background">
+      <OperatorSidebar userEmail={user.email || ""} />
+      <main className="ml-[240px] min-h-screen">
+        <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
+      </main>
     </div>
   );
 }
