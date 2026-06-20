@@ -973,11 +973,9 @@ async def next_lead(
                     matched_segments=segments,
                     db=db,
                 )
-                return claim.data[0]
-        # All fetched candidates were claimed by others between fetch and update —
-        # fall through to the caller's own assigned queue.
+                return {**claim.data[0], "_source": "pool"}
 
-    # 3. Pull caller's assigned leads (excl D, converted) sorted by least-recently-called (no calls first, then oldest call_log created_at)
+    # 3. Fall back to caller's own assigned leads, sorted by least-recently-called
     assigned_res = (
         db.table("leads")
         .select("*")
@@ -995,7 +993,7 @@ async def next_lead(
 
     leads_list = assigned_res.data or []
     if not leads_list:
-        raise HTTPException(status_code=404, detail="No leads available")
+        raise HTTPException(status_code=404, detail="No leads in pool or queue")
 
     lead_ids = [lead["id"] for lead in leads_list]
     logs_res = (
@@ -1020,7 +1018,7 @@ async def next_lead(
         return (1, last_call_time)
 
     leads_list.sort(key=sort_key)
-    return leads_list[0]
+    return {**leads_list[0], "_source": "queue"}
 
 
 @router.get("/assignment-mode")

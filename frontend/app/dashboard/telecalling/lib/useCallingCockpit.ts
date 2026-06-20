@@ -363,14 +363,19 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setDialingNext(true);
     try {
       const nextLd = await api.calls.nextLead(callerId ?? undefined);
-      toast.success(`Found next lead: ${nextLd.name || nextLd.phone}. Preparing to dial...`);
+      const source = (nextLd as unknown as Record<string, unknown>)._source;
+      if (source === "queue") {
+        toast("Pool is empty — calling from your existing queue", { icon: "🔄" });
+      } else {
+        toast.success(`Claimed lead: ${nextLd.name || nextLd.phone}`);
+      }
       setSelectedLeadId(nextLd.id);
       setDialTarget({ leadId: nextLd.id, lead: nextLd });
       setDialCountdown(3);
     } catch (err: unknown) {
       const errorObj = err as { status?: number; message?: string };
       if (errorObj?.status === 404) {
-        toast.error("No leads available in queue");
+        toast.error("No leads available — pool and queue are both empty");
       } else {
         toast.error(err instanceof Error ? err.message : "Failed to fetch next lead");
       }
