@@ -299,9 +299,11 @@ export function ManagementView({
         onClose={() => setWipeDialogOpen(false)}
         onConfirm={handleWipeLeads}
         title="Wipe All Leads"
-        description="This will permanently delete ALL leads, messages, and associated data for this client. This action cannot be undone."
+        description="This will permanently delete ALL leads and every piece of related data for this client. This cannot be undone."
         details={overview ? [
-          { label: "total leads", count: overview.stats.total_leads },
+          { label: "leads (contacts, scores, segments)", count: overview.stats.total_leads },
+          { label: "messages (all channels)", count: overview.stats.messages_sent_30d + overview.stats.messages_received_30d },
+          { label: "call notes, chat handovers, follow-up jobs, bookings, broadcast recipient records", count: 0 },
         ] : []}
         confirmText={overview?.tenant.name || "CONFIRM"}
         loading={wipeLoading}

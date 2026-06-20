@@ -1,0 +1,211 @@
+"use client";
+import { useCallback, useEffect, useState } from "react";
+import { RefreshCw, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { API_URL, getAuthHeaders } from "@/lib/api";
+
+interface AuditEntry {
+  id: string;
+  tenant_id: string | null;
+  tenant_name: string;
+  actor_user_id: string | null;
+  actor_role: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+interface AuditResponse {
+  data: AuditEntry[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+const ACTION_COLORS: Record<string, string> = {
+  "operator.data_cleared": "bg-danger/10 text-danger",
+  "operator.client_created": "bg-success/10 text-success",
+  "operator.status_changed": "bg-warning/10 text-warning",
+  "operator.password_reset": "bg-primary-light text-primary",
+  "operator.features_updated": "bg-primary-light text-primary",
+};
+
+function actionColor(action: string): string {
+  for (const [prefix, cls] of Object.entries(ACTION_COLORS)) {
+    if (action.startsWith(prefix)) return cls;
+  }
+  return "bg-surface-mid text-ink-secondary";
+}
+
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.abs(diff) / 1000;
+  if (s < 60) return `${Math.round(s)}s ago`;
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86400)}d ago`;
+}
+
+function formatMeta(meta: Record<string, unknown> | null): string {
+  if (!meta || Object.keys(meta).length === 0) return "";
+  return Object.entries(meta)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "********")
+    .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+    .join(" · ");
+}
+
+export default function AuditLogPage() {
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const limit = 30;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const auth = await getAuthHeaders();
+      const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (search) params.set("action", search);
+      const res = await fetch(`${API_URL}/api/v1/operator/audit-logs?${params}`, {
+        headers: { ...auth },
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      const data: AuditResponse = await res.json();
+      setLogs(data.data);
+      setTotal(data.total);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, search]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const totalPages = Math.ceil(total / limit) || 1;
+
+  return (
+    <div className="max-w-6xl mx-auto px-8 py-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">Audit Log</h1>
+          <p className="text-sm text-ink-muted mt-1">Track all operator actions across clients.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Filter by action..."
+              className="pl-9 pr-3 py-2 border border-border rounded-xl text-sm w-56 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            />
+          </div>
+          <button
+            onClick={load}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-ink-secondary hover:text-ink border border-border rounded-xl hover:bg-surface-mid transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-danger/20 rounded-xl text-sm text-danger">
+          {error}
+        </div>
+      )}
+
+      <div className="bg-white rounded-card border border-border overflow-hidden shadow-sm">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-surface-mid text-left">
+              <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Time</th>
+              <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Action</th>
+              <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Client</th>
+              <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Target</th>
+              <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Details</th>
+              <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Actor</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-subtle">
+            {loading && logs.length === 0 ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="animate-pulse">
+                  <td className="px-5 py-3"><div className="h-3 bg-surface-mid rounded w-16" /></td>
+                  <td className="px-5 py-3"><div className="h-3 bg-surface-mid rounded w-32" /></td>
+                  <td className="px-5 py-3"><div className="h-3 bg-surface-mid rounded w-20" /></td>
+                  <td className="px-5 py-3"><div className="h-3 bg-surface-mid rounded w-16" /></td>
+                  <td className="px-5 py-3"><div className="h-3 bg-surface-mid rounded w-40" /></td>
+                  <td className="px-5 py-3"><div className="h-3 bg-surface-mid rounded w-24" /></td>
+                </tr>
+              ))
+            ) : logs.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-12 text-center text-ink-muted">
+                  No audit log entries found.
+                </td>
+              </tr>
+            ) : (
+              logs.map((log) => (
+                <tr key={log.id} className="hover:bg-surface-mid/50 transition-colors">
+                  <td className="px-5 py-3 text-ink-muted text-xs whitespace-nowrap" title={new Date(log.created_at).toLocaleString("en-IN")}>
+                    {relTime(log.created_at)}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${actionColor(log.action)}`}>
+                      {log.action}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-ink text-xs">{log.tenant_name}</td>
+                  <td className="px-5 py-3 text-ink-muted text-xs font-mono">
+                    {log.target_type}{log.target_id ? `:${log.target_id.slice(0, 8)}` : ""}
+                  </td>
+                  <td className="px-5 py-3 text-ink-muted text-xs max-w-[300px] truncate" title={formatMeta(log.metadata)}>
+                    {formatMeta(log.metadata) || "—"}
+                  </td>
+                  <td className="px-5 py-3 text-xs">
+                    <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                      log.actor_role === "system_admin" ? "bg-purple-50 text-purple-700" : "bg-surface-mid text-ink-muted"
+                    }`}>
+                      {log.actor_role || "system"}
+                    </span>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-xs text-ink-muted">{total} entries · page {page} of {totalPages}</p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 rounded-lg border border-border hover:bg-surface-mid disabled:opacity-30 transition-colors"
+            >
+              <ChevronLeft size={14} />
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-lg border border-border hover:bg-surface-mid disabled:opacity-30 transition-colors"
+            >
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

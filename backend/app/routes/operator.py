@@ -1032,3 +1032,39 @@ def scheduler_health(_admin: dict = Depends(get_system_admin)):
         "recent_failures": recent_failures.data or [],
         "server_time": now.isoformat(),
     }
+
+
+@router.get("/audit-logs")
+def list_audit_logs(
+    page: int = 1,
+    limit: int = 50,
+    tenant_id: str | None = None,
+    action: str | None = None,
+    _admin: dict = Depends(get_system_admin),
+):
+    db = get_supabase()
+    q = db.table("app_audit_logs").select(
+        "id, tenant_id, actor_user_id, actor_role, action, target_type, target_id, metadata, created_at",
+        count="exact",
+    )
+    if tenant_id:
+        q = q.eq("tenant_id", tenant_id)
+    if action:
+        q = q.ilike("action", f"%{action}%")
+    offset = (page - 1) * limit
+    result = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+
+    tenant_ids = list({r["tenant_id"] for r in (result.data or []) if r.get("tenant_id")})
+    tenant_names: dict[str, str] = {}
+    if tenant_ids:
+        tenants = db.table("tenants").select("id, name").in_("id", tenant_ids).execute()
+        tenant_names = {t["id"]: t["name"] for t in (tenants.data or [])}
+
+    logs = []
+    for r in (result.data or []):
+        logs.append({
+            **r,
+            "tenant_name": tenant_names.get(r.get("tenant_id", ""), "—"),
+        })
+
+    return {"data": logs, "total": result.count or 0, "page": page, "limit": limit}

@@ -169,8 +169,8 @@ export function DataOpsView({ tenantId, clientName }: { tenantId: string; client
         onClose={() => setConfirmType(null)}
         onConfirm={handleClear}
         title={`Clear ${activeType?.label || ""}`}
-        description={`This will permanently delete for "${clientName}": ${activeType?.desc || ""} This action cannot be undone.`}
-        details={confirmType ? [{ label: activeType?.label || "", count: counts[confirmType] ?? 0 }] : []}
+        description={`This will permanently delete the following data for "${clientName}". This action cannot be undone.\n\n${activeType?.desc || ""}`}
+        details={confirmType ? [{ label: `${activeType?.label || ""} records`, count: counts[confirmType] ?? 0 }] : []}
         confirmText={clientName}
         loading={clearing}
       />

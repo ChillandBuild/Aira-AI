@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },
   { href: "/operator/scheduler", label: "Schedulers" },
+  { href: "/operator/audit-log", label: "Audit Log" },
 ];
 
 export function OperatorSidebar({ userEmail }: { userEmail: string }) {
