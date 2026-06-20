@@ -11,6 +11,10 @@ import { ContentView } from "./views/content";
 import { AnalyticsView } from "./views/analytics";
 import { TeamView } from "./views/team";
 import { TelecallingView } from "./views/telecalling";
+import { ConfigView } from "./views/config";
+import { HealthView } from "./views/health";
+import { ManagementView } from "./views/management";
+import { DataOpsView } from "./views/data-ops";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -163,7 +167,7 @@ export default function ClientDetailPage() {
   );
 }
 
-function SectionContent({ section, tenantId, overview }: {
+function SectionContent({ section, tenantId, overview, onReload, setError }: {
   section: SectionType; tenantId: string; overview: OverviewData | null;
   onReload: () => void; setError: (e: string | null) => void;
 }) {
@@ -197,6 +201,14 @@ function SectionContent({ section, tenantId, overview }: {
       return <TelecallingView tenantId={tenantId} subSection="scheduled" />;
     case "tc-notes":
       return <TelecallingView tenantId={tenantId} subSection="notes" />;
+    case "config":
+      return <ConfigView tenantId={tenantId} />;
+    case "health":
+      return <HealthView tenantId={tenantId} />;
+    case "management":
+      return <ManagementView tenantId={tenantId} overview={overview} onReload={onReload} setError={setError} />;
+    case "data-ops":
+      return <DataOpsView tenantId={tenantId} clientName={overview?.tenant.name || ""} />;
     default:
       return (
         <div className="flex items-center justify-center h-48 text-ink-muted text-sm">
