@@ -496,7 +496,7 @@ def client_health(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         .order("created_at", desc=True).limit(10).execute()
     )
     open_incidents = (
-        db.table("incidents").select("id, type, severity, message, created_at")
+        db.table("incidents").select("id, type, detail, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True).limit(10).execute()
     )
@@ -514,7 +514,16 @@ def client_health(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             {"message_id": r["id"], "error": r.get("delivery_error_title"), "created_at": r["created_at"]}
             for r in (recent_errors.data or [])
         ],
-        "open_incidents": open_incidents.data or [],
+        "open_incidents": [
+            {
+                "id": inc["id"],
+                "type": inc.get("type", ""),
+                "severity": (inc.get("detail") or {}).get("severity", "info"),
+                "message": (inc.get("detail") or {}).get("message", inc.get("type", "")),
+                "created_at": inc["created_at"],
+            }
+            for inc in (open_incidents.data or [])
+        ],
     }
 
 
@@ -872,7 +881,6 @@ _CLEAR_TABLES: dict[str, list[str]] = {
     "call_logs": ["call_logs"],
     "leads": [],
     "knowledge": ["knowledge_chunks", "knowledge_documents"],
-    "templates": ["message_templates"],
     "analytics": ["whatsapp_insights_snapshots"],
 }
 

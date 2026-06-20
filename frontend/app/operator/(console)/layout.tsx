@@ -28,7 +28,7 @@ export default async function OperatorLayout({ children }: { children: React.Rea
     <div className="min-h-screen bg-background">
       <OperatorSidebar userEmail={user.email || ""} />
       <main className="min-h-[calc(100vh-4rem)]">
-        <div className="max-w-6xl mx-auto px-8 py-8">{children}</div>
+        {children}
       </main>
     </div>
   );

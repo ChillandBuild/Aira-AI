@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { useParams } from "next/navigation";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { ClientDetailSidebar, type SectionType } from "./sidebar";
 import { OverviewView } from "./views/overview";
@@ -33,7 +32,6 @@ import type { OverviewData } from "./types";
 
 export default function ClientDetailPage() {
   const { id: tenantId } = useParams<{ id: string }>();
-  const router = useRouter();
   const [section, setSection] = useState<SectionType>("overview");
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,37 +94,51 @@ export default function ClientDetailPage() {
   }
 
   const tenant = overview?.tenant;
+  const SECTION_TITLES: Record<string, { title: string; desc: string }> = {
+    overview: { title: "Product Overview", desc: "Here's what's happening with your client's leads." },
+    inbox: { title: "Inbox", desc: "Conversations requiring attention." },
+    conversations: { title: "Conversations", desc: "All lead conversations across channels." },
+    segments: { title: "Segments", desc: "Leads grouped by segment — Hot, Warm, Cold, Disqualified." },
+    inbound: { title: "Inbound Leads", desc: "Leads from organic and advertising channels." },
+    outbound: { title: "Outbound Leads", desc: "Leads imported via CSV upload." },
+    templates: { title: "Templates", desc: "WhatsApp message templates and their approval status." },
+    numbers: { title: "Numbers Pool", desc: "Registered phone numbers and their quality ratings." },
+    knowledge: { title: "Knowledge Base", desc: "Uploaded documents powering AI responses." },
+    analytics: { title: "Analytics", desc: "Messaging and telecalling performance metrics." },
+    team: { title: "Team", desc: "Owner and telecaller team members." },
+    "tc-upload": { title: "Telecalling / Upload", desc: "CSV upload batches for telecalling campaigns." },
+    "tc-dialer": { title: "Telecalling / Dialer", desc: "Call logs and connect rates." },
+    "tc-scheduled": { title: "Telecalling / Scheduled", desc: "Upcoming scheduled callbacks." },
+    "tc-notes": { title: "Telecalling / Notes", desc: "Call notes from telecallers." },
+    config: { title: "Configuration", desc: "Credential status and key settings." },
+    health: { title: "Health", desc: "Channel health, delivery stats, and incidents." },
+    management: { title: "Management", desc: "Owner management and account actions." },
+    "data-ops": { title: "Data Operations", desc: "Clear specific data types for this client." },
+  };
+  const sectionMeta = SECTION_TITLES[section] || { title: section, desc: "" };
 
   return (
-    <div>
-      {/* Back */}
-      <button onClick={() => router.push("/operator")} className="flex items-center gap-1.5 text-sm text-ink-secondary hover:text-ink transition-colors mb-4">
-        <ArrowLeft size={14} /> Back to Clients
-      </button>
+    <>
+      {/* Fixed sidebar */}
+      <ClientDetailSidebar
+        activeSection={section}
+        onSectionChange={setSection}
+        enabledFeatures={tenant?.enabled_features || []}
+        onToggleFeature={handleToggleFeature}
+        featureUpdating={featureUpdating}
+        tenantName={tenant?.name || ""}
+      />
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-danger/20 rounded-xl text-sm text-danger flex items-center justify-between">
-          {error}
-          <button onClick={() => setError(null)} className="text-xs underline ml-2">dismiss</button>
-        </div>
-      )}
-
-      {/* Header Card */}
-      {tenant && (
-        <div className="bg-white rounded-card border border-border p-6 mb-6 shadow-sm">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-ink font-display">{tenant.name}</h1>
-              <p className="text-xs text-ink-muted font-mono mt-1">
-                {tenant.id}
-                <button onClick={() => navigator.clipboard.writeText(tenant.id)} className="ml-2 text-ink-muted hover:text-ink transition-colors" title="Copy ID">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                </button>
-              </p>
-              {overview?.owner?.email && <p className="text-sm text-ink-secondary mt-2">Owner: {overview.owner.email}</p>}
-              <p className="text-xs text-ink-muted mt-1">Created {new Date(tenant.created_at).toLocaleDateString("en-IN")}</p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
+      {/* Content area pushed right of sidebar */}
+      <div className="ml-[220px]">
+        {/* Section header (like AppHeader) */}
+        <div className="sticky top-16 z-20 h-16 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]">
+          <div className="flex flex-col justify-center select-none">
+            <h1 className="font-display text-lg font-bold text-ink leading-tight">{sectionMeta.title}</h1>
+            <p className="font-body text-xs text-ink-muted mt-0.5 max-w-[650px] truncate">{sectionMeta.desc}</p>
+          </div>
+          {tenant && (
+            <div className="flex items-center gap-2 flex-shrink-0">
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 tenant.status === "active" ? "bg-green-50 text-success" : "bg-red-50 text-danger"
               }`}>
@@ -134,29 +146,28 @@ export default function ClientDetailPage() {
                 {tenant.status}
               </span>
               {tenant.enabled_features.filter(f => !f.includes(".")).map(f => (
-                <span key={f} className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-muted text-primary">
-                  {{"whatsapp":"WhatsApp","telecalling":"Telecalling","instagram":"Instagram","facebook":"Facebook","telegram":"Telegram"}[f] || f}
+                <span key={f} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-muted text-primary">
+                  {{"whatsapp":"WA","telecalling":"TC","instagram":"IG","facebook":"FB","telegram":"TG","analytics":"AN"}[f] || f}
                 </span>
               ))}
             </div>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* Sidebar + Content */}
-      <div className="flex gap-6">
-        <ClientDetailSidebar
-          activeSection={section}
-          onSectionChange={setSection}
-          enabledFeatures={tenant?.enabled_features || []}
-          onToggleFeature={handleToggleFeature}
-          featureUpdating={featureUpdating}
-        />
-        <div className="flex-1 min-w-0">
+        {/* Error banner */}
+        {error && (
+          <div className="mx-7 mt-4 p-3 bg-red-50 border border-danger/20 rounded-xl text-sm text-danger flex items-center justify-between">
+            {error}
+            <button onClick={() => setError(null)} className="text-xs underline ml-2">dismiss</button>
+          </div>
+        )}
+
+        {/* Main content */}
+        <div className="px-7 py-6">
           <SectionContent section={section} tenantId={tenantId} overview={overview} onReload={loadOverview} setError={setError} />
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, Inbox, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
   Wrench, Activity, Settings, Database, ChevronDown, ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 
 export type SectionType =
@@ -22,7 +24,7 @@ type NavItem = {
 };
 
 const PRODUCT_NAV: NavItem[] = [
-  { key: "overview", icon: LayoutDashboard, label: "Overview", alwaysOn: true },
+  { key: "overview", icon: LayoutDashboard, label: "Dashboard", alwaysOn: true },
   { key: "inbox", icon: Inbox, label: "Inbox", featureKey: "whatsapp" },
   { key: "conversations", icon: MessageSquare, label: "Conversations", alwaysOn: true },
   { key: "segments", icon: Users, label: "Segments", alwaysOn: true },
@@ -55,12 +57,14 @@ interface SidebarProps {
   enabledFeatures: string[];
   onToggleFeature: (feature: string) => void;
   featureUpdating: boolean;
+  tenantName: string;
 }
 
 export function ClientDetailSidebar({
-  activeSection, onSectionChange, enabledFeatures, onToggleFeature, featureUpdating
+  activeSection, onSectionChange, enabledFeatures, onToggleFeature, featureUpdating, tenantName
 }: SidebarProps) {
   const [tcExpanded, setTcExpanded] = useState(true);
+  const router = useRouter();
 
   const isEnabled = (key: string) => enabledFeatures.includes(key);
 
@@ -88,13 +92,13 @@ export function ClientDetailSidebar({
     return (
       <div
         onClick={() => onSectionChange(item.key)}
-        className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-200 group ${
+        className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 group ${
           indent ? "ml-4" : ""
-        } ${active ? "bg-primary-light text-primary" : disabled ? "opacity-40" : "text-ink-secondary hover:bg-surface-mid hover:text-ink"}`}
+        } ${active ? "bg-[#f5f3ff] text-[#5b21b6]" : disabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"}`}
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <item.icon size={16} className="flex-shrink-0" />
-          <span className={`text-sm font-medium truncate ${disabled && !active ? "line-through" : ""}`}>{item.label}</span>
+        <div className="flex items-center gap-3 min-w-0">
+          <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[#5b21b6]" : ""}`} />
+          <span className={`text-sm font-semibold truncate ${disabled && !active ? "line-through" : ""}`}>{item.label}</span>
         </div>
         {featureKey && !alwaysOn && <FeatureToggle featureKey={featureKey} disabled={featureKey.startsWith("telecalling.") && !isEnabled("telecalling")} />}
       </div>
@@ -102,46 +106,59 @@ export function ClientDetailSidebar({
   }
 
   return (
-    <div className="w-[200px] flex-shrink-0 border-r border-border-subtle pr-2 space-y-1">
-      {/* Product sections */}
-      {PRODUCT_NAV.map(item => (
-        <NavItemRow key={item.key} item={item} />
-      ))}
-
-      {/* Telecalling group */}
-      <div>
-        <div
-          onClick={() => setTcExpanded(!tcExpanded)}
-          className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-200 ${
-            ["tc-upload", "tc-dialer", "tc-scheduled", "tc-notes"].includes(activeSection)
-              ? "bg-primary-light text-primary" : isEnabled("telecalling") ? "text-ink-secondary hover:bg-surface-mid hover:text-ink" : "text-ink-secondary opacity-40"
-          }`}
+    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-30 select-none">
+      {/* Client header */}
+      <div className="px-4 py-4 border-b border-[#e8e3db]">
+        <button
+          onClick={() => router.push("/operator")}
+          className="flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink transition-colors mb-2"
         >
-          <div className="flex items-center gap-2.5">
-            <Phone size={16} />
-            <span className="text-sm font-medium">Telecalling</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <FeatureToggle featureKey="telecalling" />
-            {tcExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </div>
-        </div>
-        {tcExpanded && isEnabled("telecalling") && (
-          <div className="mt-1 space-y-0.5">
-            {TC_SUB_NAV.map(item => (
-              <NavItemRow key={item.key} item={item} indent />
-            ))}
-          </div>
-        )}
+          <ArrowLeft size={12} /> Back to Clients
+        </button>
+        <p className="text-sm font-bold text-ink truncate">{tenantName}</p>
       </div>
 
-      {/* Divider + Operator sections */}
-      <div className="pt-3 mt-3 border-t border-border-subtle">
-        <p className="px-3 py-1 text-[10px] font-semibold text-ink-muted uppercase tracking-widest">Operator</p>
-        {OPERATOR_NAV.map(item => (
+      {/* Navigation */}
+      <div className="flex-grow overflow-y-auto px-3 py-3 space-y-0.5 scrollbar-thin">
+        {PRODUCT_NAV.map(item => (
           <NavItemRow key={item.key} item={item} />
         ))}
+
+        {/* Telecalling group */}
+        <div>
+          <div
+            onClick={() => setTcExpanded(!tcExpanded)}
+            className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 ${
+              ["tc-upload", "tc-dialer", "tc-scheduled", "tc-notes"].includes(activeSection)
+                ? "bg-[#f5f3ff] text-[#5b21b6]" : isEnabled("telecalling") ? "text-[#1c1917] hover:bg-[#f0ece4]" : "text-[#1c1917] opacity-40"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Phone size={16} />
+              <span className="text-sm font-semibold">Telecalling</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <FeatureToggle featureKey="telecalling" />
+              {tcExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </div>
+          </div>
+          {tcExpanded && isEnabled("telecalling") && (
+            <div className="mt-0.5 space-y-0.5">
+              {TC_SUB_NAV.map(item => (
+                <NavItemRow key={item.key} item={item} indent />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Divider + Operator sections */}
+        <div className="pt-3 mt-3 border-t border-[#e8e3db]">
+          <p className="px-3 py-1 text-[10px] font-semibold text-ink-muted uppercase tracking-widest">Operator</p>
+          {OPERATOR_NAV.map(item => (
+            <NavItemRow key={item.key} item={item} />
+          ))}
+        </div>
       </div>
-    </div>
+    </aside>
   );
 }
