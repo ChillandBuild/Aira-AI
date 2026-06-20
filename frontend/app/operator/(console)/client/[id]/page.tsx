@@ -5,6 +5,12 @@ import { ArrowLeft } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { ClientDetailSidebar, type SectionType } from "./sidebar";
 import { OverviewView } from "./views/overview";
+import { InboxView } from "./views/inbox";
+import { LeadsView } from "./views/leads";
+import { ContentView } from "./views/content";
+import { AnalyticsView } from "./views/analytics";
+import { TeamView } from "./views/team";
+import { TelecallingView } from "./views/telecalling";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -157,16 +163,45 @@ export default function ClientDetailPage() {
   );
 }
 
-function SectionContent({ section, tenantId, overview, onReload, setError }: {
+function SectionContent({ section, tenantId, overview }: {
   section: SectionType; tenantId: string; overview: OverviewData | null;
   onReload: () => void; setError: (e: string | null) => void;
 }) {
-  if (section === "overview" && overview) {
-    return <OverviewView stats={overview.stats} />;
+  switch (section) {
+    case "overview":
+      return overview ? <OverviewView stats={overview.stats} /> : null;
+    case "inbox":
+    case "conversations":
+      return <InboxView tenantId={tenantId} />;
+    case "segments":
+      return <LeadsView tenantId={tenantId} subSection="segments" />;
+    case "inbound":
+      return <LeadsView tenantId={tenantId} subSection="inbound" />;
+    case "outbound":
+      return <LeadsView tenantId={tenantId} subSection="outbound" />;
+    case "templates":
+      return <ContentView tenantId={tenantId} subSection="templates" />;
+    case "numbers":
+      return <ContentView tenantId={tenantId} subSection="numbers" />;
+    case "knowledge":
+      return <ContentView tenantId={tenantId} subSection="knowledge" />;
+    case "analytics":
+      return <AnalyticsView tenantId={tenantId} />;
+    case "team":
+      return <TeamView tenantId={tenantId} />;
+    case "tc-upload":
+      return <TelecallingView tenantId={tenantId} subSection="upload" />;
+    case "tc-dialer":
+      return <TelecallingView tenantId={tenantId} subSection="dialer" />;
+    case "tc-scheduled":
+      return <TelecallingView tenantId={tenantId} subSection="scheduled" />;
+    case "tc-notes":
+      return <TelecallingView tenantId={tenantId} subSection="notes" />;
+    default:
+      return (
+        <div className="flex items-center justify-center h-48 text-ink-muted text-sm">
+          {section} — coming soon
+        </div>
+      );
   }
-  return (
-    <div className="flex items-center justify-center h-48 text-ink-muted text-sm">
-      Loading {section}...
-    </div>
-  );
 }
