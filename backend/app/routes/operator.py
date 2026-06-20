@@ -104,6 +104,9 @@ def list_clients(_admin: dict = Depends(get_system_admin)):
 async def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
     features = _FEATURE_MAP[payload.service]
+    tc_subs = ["telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"]
+    if "telecalling" in features:
+        features = features + tc_subs
 
     try:
         result = db.auth.admin.create_user({
@@ -181,13 +184,21 @@ async def create_client(payload: CreateClientPayload, _admin: dict = Depends(get
 @router.patch("/clients/{tenant_id}/features")
 def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    valid_features = {"whatsapp", "telecalling", "instagram", "facebook", "telegram"}
+    valid_features = {
+        "whatsapp", "telecalling", "instagram", "facebook", "telegram",
+        "telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes",
+    }
 
     if payload.features is not None:
         invalid = set(payload.features) - valid_features
         if invalid:
             raise HTTPException(status_code=400, detail=f"Invalid features: {', '.join(invalid)}")
-        features = payload.features
+        features = list(payload.features)
+        tc_subs = {"telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"}
+        if "telecalling" in features and not (set(features) & tc_subs):
+            features.extend(tc_subs)
+        if "telecalling" not in features:
+            features = [f for f in features if f not in tc_subs]
     elif payload.service is not None:
         features = _FEATURE_MAP[payload.service]
     else:
@@ -479,7 +490,7 @@ def client_health(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     success_rate = round((delivered_count / sent_count) * 100, 1) if sent_count > 0 else 0
 
     recent_errors = (
-        db.table("messages").select("id, delivery_error, created_at")
+        db.table("messages").select("id, delivery_error_title, created_at")
         .eq("tenant_id", tenant_id).eq("delivery_status", "failed")
         .order("created_at", desc=True).limit(10).execute()
     )
@@ -499,7 +510,7 @@ def client_health(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "success_rate": success_rate,
         },
         "recent_errors": [
-            {"message_id": r["id"], "error": r.get("delivery_error"), "created_at": r["created_at"]}
+            {"message_id": r["id"], "error": r.get("delivery_error_title"), "created_at": r["created_at"]}
             for r in (recent_errors.data or [])
         ],
         "open_incidents": open_incidents.data or [],
@@ -561,6 +572,320 @@ def client_team(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         })
 
     return {"owner": owner_info, "callers": callers}
+
+
+@router.get("/clients/{tenant_id}/dashboard/inbox")
+def client_dashboard_inbox(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    handovers = db.table("chat_handovers").select("id", count="exact").eq("tenant_id", tenant_id).eq("status", "needs_human_attention").execute()
+
+    convos = (
+        db.table("conversations")
+        .select("id, lead_id, last_message, last_message_at, channel")
+        .eq("tenant_id", tenant_id)
+        .order("last_message_at", desc=True)
+        .limit(20)
+        .execute()
+    )
+
+    lead_ids = [c["lead_id"] for c in (convos.data or []) if c.get("lead_id")]
+    leads_map: dict = {}
+    if lead_ids:
+        leads = db.table("leads").select("id, name, phone").in_("id", lead_ids).execute()
+        leads_map = {l["id"]: l for l in (leads.data or [])}
+
+    conversations = []
+    for c in (convos.data or []):
+        lead = leads_map.get(c.get("lead_id"), {})
+        conversations.append({
+            "id": c["id"],
+            "lead_name": lead.get("name", "Unknown"),
+            "lead_phone": lead.get("phone"),
+            "last_message": (c.get("last_message") or "")[:80],
+            "channel": c.get("channel", "whatsapp"),
+            "last_message_at": c.get("last_message_at"),
+        })
+
+    return {"handover_count": handovers.count or 0, "conversations": conversations}
+
+
+@router.get("/clients/{tenant_id}/dashboard/leads")
+def client_dashboard_leads(tenant_id: str, direction: str = "all", _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    base = db.table("leads").select("id", count="exact").eq("tenant_id", tenant_id).is_("deleted_at", "null")
+    total = base.execute()
+    seg_a = db.table("leads").select("id", count="exact").eq("tenant_id", tenant_id).is_("deleted_at", "null").eq("segment", "A").execute()
+    seg_b = db.table("leads").select("id", count="exact").eq("tenant_id", tenant_id).is_("deleted_at", "null").eq("segment", "B").execute()
+    seg_c = db.table("leads").select("id", count="exact").eq("tenant_id", tenant_id).is_("deleted_at", "null").eq("segment", "C").execute()
+    seg_d = db.table("leads").select("id", count="exact").eq("tenant_id", tenant_id).is_("deleted_at", "null").eq("segment", "D").execute()
+
+    q = db.table("leads").select("id, name, phone, segment, score, source, created_at, opt_in_source").eq("tenant_id", tenant_id).is_("deleted_at", "null")
+    if direction == "inbound":
+        q = q.in_("opt_in_source", ["organic", "meta_ads", "instagram", "facebook", "telegram"])
+    elif direction == "outbound":
+        q = q.eq("opt_in_source", "csv")
+    recent = q.order("created_at", desc=True).limit(20).execute()
+
+    return {
+        "total": total.count or 0,
+        "segments": {"A": seg_a.count or 0, "B": seg_b.count or 0, "C": seg_c.count or 0, "D": seg_d.count or 0},
+        "recent": recent.data or [],
+    }
+
+
+@router.get("/clients/{tenant_id}/dashboard/templates")
+def client_dashboard_templates(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    templates = (
+        db.table("meta_templates")
+        .select("id, name, status, category, language, updated_at")
+        .eq("tenant_id", tenant_id)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    data = templates.data or []
+    approved = sum(1 for t in data if t.get("status") == "APPROVED")
+    pending = sum(1 for t in data if t.get("status") == "PENDING")
+
+    return {"total": len(data), "approved": approved, "pending": pending, "templates": data}
+
+
+@router.get("/clients/{tenant_id}/dashboard/numbers")
+def client_dashboard_numbers(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    numbers = (
+        db.table("phone_numbers")
+        .select("id, phone_number, display_name, quality_rating, status, messaging_limit_tier")
+        .eq("tenant_id", tenant_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    data = numbers.data or []
+    active = sum(1 for n in data if n.get("status") == "active")
+
+    return {"total": len(data), "active": active, "numbers": data}
+
+
+@router.get("/clients/{tenant_id}/dashboard/knowledge")
+def client_dashboard_knowledge(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    docs = (
+        db.table("knowledge_documents")
+        .select("id, title, file_type, created_at")
+        .eq("tenant_id", tenant_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    total_chunks = db.table("knowledge_chunks").select("id", count="exact").eq("tenant_id", tenant_id).execute()
+
+    doc_data = []
+    for d in (docs.data or []):
+        chunk_count = db.table("knowledge_chunks").select("id", count="exact").eq("document_id", d["id"]).execute()
+        doc_data.append({**d, "chunk_count": chunk_count.count or 0})
+
+    return {"total_docs": len(docs.data or []), "total_chunks": total_chunks.count or 0, "documents": doc_data}
+
+
+@router.get("/clients/{tenant_id}/dashboard/analytics")
+def client_dashboard_analytics(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    from datetime import datetime, timezone, timedelta
+    db = get_supabase()
+    tenant = db.table("tenants").select("id, enabled_features").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+    total_msgs = db.table("messages").select("id", count="exact").eq("tenant_id", tenant_id).gte("created_at", thirty_days_ago).execute()
+    delivered = db.table("messages").select("id", count="exact").eq("tenant_id", tenant_id).eq("direction", "outbound").eq("delivery_status", "delivered").gte("created_at", thirty_days_ago).execute()
+    sent = db.table("messages").select("id", count="exact").eq("tenant_id", tenant_id).eq("direction", "outbound").gte("created_at", thirty_days_ago).execute()
+    avg_score_rows = db.table("leads").select("score").eq("tenant_id", tenant_id).is_("deleted_at", "null").not_.is_("score", "null").execute()
+
+    sent_count = sent.count or 0
+    delivered_count = delivered.count or 0
+    delivery_rate = round((delivered_count / sent_count) * 100, 1) if sent_count > 0 else 0
+    scores = [r["score"] for r in (avg_score_rows.data or []) if r.get("score") is not None]
+    avg_score = round(sum(scores) / len(scores), 1) if scores else 0
+
+    result: dict = {
+        "messages_30d": total_msgs.count or 0,
+        "delivery_rate": delivery_rate,
+        "avg_score": avg_score,
+    }
+
+    if "telecalling" in (tenant.data.get("enabled_features") or []):
+        calls = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).gte("created_at", thirty_days_ago).execute()
+        connected = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).eq("disposition", "answered").gte("created_at", thirty_days_ago).execute()
+        call_count = calls.count or 0
+        connect_count = connected.count or 0
+        result["total_calls"] = call_count
+        result["connect_rate"] = round((connect_count / call_count) * 100, 1) if call_count > 0 else 0
+
+    return result
+
+
+@router.get("/clients/{tenant_id}/dashboard/telecalling")
+def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin: dict = Depends(get_system_admin)):
+    from datetime import datetime, timezone, timedelta
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    if section == "upload":
+        batches = (
+            db.table("telecalling_upload_batches")
+            .select("id, file_name, lead_count, created_at, status")
+            .eq("tenant_id", tenant_id)
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        total = db.table("telecalling_upload_batches").select("id", count="exact").eq("tenant_id", tenant_id).execute()
+        return {"total_batches": total.count or 0, "batches": batches.data or []}
+
+    elif section == "dialer":
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0).isoformat()
+        calls_today = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).gte("created_at", today).execute()
+        connected_today = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).eq("disposition", "answered").gte("created_at", today).execute()
+        recent_calls = (
+            db.table("call_logs")
+            .select("id, lead_id, caller_id, duration_seconds, disposition, created_at")
+            .eq("tenant_id", tenant_id)
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        call_count = calls_today.count or 0
+        connect_count = connected_today.count or 0
+        return {
+            "calls_today": call_count,
+            "connect_rate": round((connect_count / call_count) * 100, 1) if call_count > 0 else 0,
+            "recent_calls": recent_calls.data or [],
+        }
+
+    elif section == "scheduled":
+        pending = (
+            db.table("follow_up_jobs")
+            .select("id, lead_id, scheduled_for, cadence, created_at")
+            .eq("tenant_id", tenant_id)
+            .eq("status", "pending")
+            .order("scheduled_for")
+            .limit(20)
+            .execute()
+        )
+        total = db.table("follow_up_jobs").select("id", count="exact").eq("tenant_id", tenant_id).eq("status", "pending").execute()
+        return {"pending_count": total.count or 0, "scheduled": pending.data or []}
+
+    elif section == "notes":
+        notes = (
+            db.table("lead_notes")
+            .select("id, lead_id, note, author_name, created_at")
+            .eq("tenant_id", tenant_id)
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        total = db.table("lead_notes").select("id", count="exact").eq("tenant_id", tenant_id).execute()
+        return {"total_notes": total.count or 0, "notes": notes.data or []}
+
+    raise HTTPException(status_code=400, detail="Invalid section. Use: upload, dialer, scheduled, notes")
+
+
+_CLEAR_TABLES: dict[str, list[str]] = {
+    "broadcasts": ["broadcast_recipients", "broadcast_lead_scores", "broadcast_failed_contacts", "broadcast_tags", "scheduled_broadcasts"],
+    "messages": ["messages"],
+    "call_logs": ["call_logs"],
+    "leads": [],
+    "knowledge": ["knowledge_chunks", "knowledge_documents"],
+    "templates": ["meta_templates"],
+    "analytics": ["whatsapp_insights_snapshots"],
+}
+
+
+@router.get("/clients/{tenant_id}/clear/{data_type}/count")
+def clear_count(tenant_id: str, data_type: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    if data_type not in _CLEAR_TABLES:
+        raise HTTPException(status_code=400, detail=f"Invalid data type: {data_type}")
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    if data_type == "leads":
+        count = db.table("leads").select("id", count="exact").eq("tenant_id", tenant_id).is_("deleted_at", "null").execute()
+        return {"count": count.count or 0, "detail": {"leads": count.count or 0}}
+
+    detail: dict = {}
+    total = 0
+    for table in _CLEAR_TABLES[data_type]:
+        c = db.table(table).select("id", count="exact").eq("tenant_id", tenant_id).execute()
+        detail[table] = c.count or 0
+        total += c.count or 0
+    return {"count": total, "detail": detail}
+
+
+@router.post("/clients/{tenant_id}/clear/{data_type}")
+def clear_data(tenant_id: str, data_type: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    if data_type not in _CLEAR_TABLES:
+        raise HTTPException(status_code=400, detail=f"Invalid data type: {data_type}")
+    tenant = db.table("tenants").select("id, name").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    if data_type == "leads":
+        for table in ("messages", "lead_notes", "chat_handovers", "follow_up_jobs", "bookings",
+                       "broadcast_recipients", "broadcast_lead_scores", "broadcast_failed_contacts",
+                       "broadcast_tags", "scheduled_broadcasts"):
+            try:
+                db.table(table).delete().eq("tenant_id", tenant_id).execute()
+            except Exception as e:
+                logger.warning("clear leads: could not clear %s: %s", table, e)
+        result = db.table("leads").delete().eq("tenant_id", tenant_id).execute()
+        deleted = len(result.data or [])
+    else:
+        deleted = 0
+        tables = _CLEAR_TABLES[data_type]
+        for table in tables:
+            try:
+                result = db.table(table).delete().eq("tenant_id", tenant_id).execute()
+                deleted += len(result.data or [])
+            except Exception as e:
+                logger.warning("clear %s: could not clear %s: %s", data_type, table, e)
+
+    logger.warning("OPERATOR CLEAR %s: %d records deleted for tenant %s", data_type, deleted, tenant_id)
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action=f"operator.data_cleared:{data_type}",
+        target_type="tenant",
+        target_id=tenant_id,
+        metadata={"data_type": data_type, "deleted_count": deleted, "tenant_name": tenant.data["name"]},
+    )
+    return {"deleted_count": deleted, "data_type": data_type}
 
 
 @router.get("/scheduler-health")
