@@ -138,12 +138,6 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "View and manage your profile details, passwords and API access.",
     };
   }
-  if (pathname === "/dashboard/inbox") {
-    return {
-      title: "Chat Inbox",
-      description: "Conversations where AI couldn't answer — needs your reply.",
-    };
-  }
   if (pathname === "/dashboard/notes") {
     return {
       title: "Call Notes",

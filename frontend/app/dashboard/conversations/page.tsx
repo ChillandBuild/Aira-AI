@@ -5,10 +5,13 @@ import { getAuthHeaders, API_URL, Lead, api } from "@/lib/api";
 import { ConversationList } from "@/components/conversation-list";
 import { ChatThread } from "@/components/chat-thread";
 import { LeadDetailsPanel } from "@/components/lead-details-panel";
+import { EscalationPanel } from "@/components/escalation-panel";
 import { InboxRail, type InboxFolder } from "@/components/inbox-rail";
 import { ChevronLeft } from "lucide-react";
 import { usePolling } from "@/hooks/usePolling";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 
 function getDetailsPanelDefault(): boolean {
   if (typeof window === "undefined") return true;
@@ -60,18 +63,41 @@ function SharedInboxEmpty() {
 }
 
 export default function ConversationsPage() {
+  const { callerId } = useAuthRole();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selected, setSelected] = useState<Lead | null>(null);
   const [error, setError] = useState(false);
   const [platform, setPlatform] = useState<string>("all");
   const [folder, setFolder] = useState<InboxFolder>("chats");
   const [detailsOpen, setDetailsOpen] = useState(getDetailsPanelDefault);
+  const [escalationCount, setEscalationCount] = useState(0);
 
   const searchParams = useSearchParams();
   const deepLinkLeadId = searchParams.get("lead");
   const deepLinked = useRef(false);
 
+  const fetchEscalationCount = useCallback(async () => {
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/chat-handovers/count`, { headers: auth });
+      if (res.ok) setEscalationCount((await res.json()).count ?? 0);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchEscalationCount();
+    const supabase = createClient();
+    const channel = supabase
+      .channel("escalation-count-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_handovers" }, () => {
+        fetchEscalationCount();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchEscalationCount]);
+
   const load = useCallback(() => {
+    if (folder === "escalations") return;
     fetchConversations(folder)
       .then((loadedLeads) => { setLeads(loadedLeads); setError(false); })
       .catch(() => setError(true));
@@ -150,9 +176,39 @@ export default function ConversationsPage() {
       .catch(() => { toast.error("Failed to block"); load(); });
   }
 
+  const pendingReplyRef = useRef<string | null>(null);
+
+  function handleEscalationReply(leadId: string) {
+    pendingReplyRef.current = leadId;
+    setFolder("chats");
+    setSelected(null);
+  }
+
+  useEffect(() => {
+    if (!pendingReplyRef.current || leads.length === 0) return;
+    const match = leads.find((l) => l.id === pendingReplyRef.current);
+    if (match) {
+      setSelected(match);
+      pendingReplyRef.current = null;
+    }
+  }, [leads]);
+
+  if (folder === "escalations") {
+    return (
+      <div className="h-screen flex relative pl-16">
+        <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
+        <EscalationPanel
+          onReply={handleEscalationReply}
+          onCountChange={setEscalationCount}
+          currentCallerId={callerId}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex relative pl-16">
-      <InboxRail folder={folder} onFolderChange={handleFolderChange} />
+      <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
 
       {/* ── Conversation list ── */}
       <div className="relative flex-shrink-0 w-[440px] max-w-[42vw]">

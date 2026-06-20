@@ -9,21 +9,23 @@ import { cn } from "@/lib/utils";
 import { useLogout } from "@/hooks/useLogout";
 import { toast } from "sonner";
 
-export type InboxFolder = "chats" | "archived" | "blocked";
+export type InboxFolder = "chats" | "escalations" | "archived" | "blocked";
 
 interface InboxRailProps {
   folder: InboxFolder;
   onFolderChange: (folder: InboxFolder) => void;
   onOpenFilter?: () => void;
+  escalationCount?: number;
 }
 
 const FOLDERS: { value: InboxFolder; icon: typeof MessageCircle; label: string }[] = [
   { value: "chats", icon: MessageCircle, label: "Chats" },
+  { value: "escalations", icon: Bell, label: "Escalations" },
   { value: "archived", icon: Archive, label: "Archived" },
   { value: "blocked", icon: Ban, label: "Blocked" },
 ];
 
-export function InboxRail({ folder, onFolderChange, onOpenFilter }: InboxRailProps) {
+export function InboxRail({ folder, onFolderChange, onOpenFilter, escalationCount }: InboxRailProps) {
   const router = useRouter();
   const logout = useLogout();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -93,13 +95,18 @@ export function InboxRail({ folder, onFolderChange, onOpenFilter }: InboxRailPro
           onClick={() => onFolderChange(value)}
           title={label}
           className={cn(
-            railBtn,
+            railBtn, "relative",
             folder === value
               ? "bg-tertiary/10 text-tertiary"
               : "text-on-surface-muted hover:bg-surface-low hover:text-on-surface"
           )}
         >
           <Icon size={19} />
+          {value === "escalations" && !!escalationCount && escalationCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 px-1 min-w-[16px] h-4 rounded-full bg-orange-500 text-white text-[9px] font-bold flex items-center justify-center">
+              {escalationCount}
+            </span>
+          )}
         </button>
       ))}
 

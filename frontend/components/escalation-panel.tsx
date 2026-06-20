@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
-import { MessageSquare, CheckCircle, UserCog } from "lucide-react";
-import Link from "next/link";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { MessageSquare, CheckCircle, UserCog, AlertTriangle } from "lucide-react";
 import { SegmentBadge } from "@/components/segment-badge";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useAuthRole } from "../contexts/AuthRoleContext";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
+import { usePolling } from "@/hooks/usePolling";
 
 type Caller = { id: string; name: string };
 
@@ -28,6 +28,13 @@ type Handover = {
     fb_user_id?: string | null;
   } | null;
 };
+
+interface EscalationPanelProps {
+  onReply: (leadId: string) => void;
+  onCountChange: (count: number) => void;
+  currentCallerId?: string | null;
+  currentCallerName?: string | null;
+}
 
 async function fetchHandovers(): Promise<Handover[]> {
   const auth = await getAuthHeaders();
@@ -62,7 +69,22 @@ async function assignHandover(handoverId: string, callerId: string): Promise<voi
   if (!res.ok) throw new Error("Assignment failed");
 }
 
-export default function InboxPage() {
+const TRIGGER_LABELS: Record<string, { label: string; color: string }> = {
+  "User requested a human agent": { label: "Asked for human", color: "text-blue-600 bg-blue-50" },
+  "AI failed to generate a response": { label: "AI failed", color: "text-red-600 bg-red-50" },
+  "AI gave a generic fallback reply": { label: "Generic reply", color: "text-amber-600 bg-amber-50" },
+  "User repeated the same question": { label: "Repeated question", color: "text-orange-600 bg-orange-50" },
+  "AI indicated team will follow up": { label: "Follow-up needed", color: "text-purple-600 bg-purple-50" },
+};
+
+function channelBadge(source?: string, lead?: Handover["leads"]) {
+  if (source === "telegram") return <span className="text-sky-500">Telegram · @{lead?.tg_username || "unknown"}</span>;
+  if (source === "instagram") return <span className="text-pink-500">Instagram · {lead?.ig_user_id}</span>;
+  if (source === "facebook") return <span className="text-blue-600">Facebook · {lead?.fb_user_id}</span>;
+  return <span>WhatsApp · {lead?.phone}</span>;
+}
+
+export function EscalationPanel({ onReply, onCountChange, currentCallerId, currentCallerName }: EscalationPanelProps) {
   const { role } = useAuthRole();
   const [handovers, setHandovers] = useState<Handover[]>([]);
   const [callers, setCallers] = useState<Caller[]>([]);
@@ -70,17 +92,23 @@ export default function InboxPage() {
   const [reassigningId, setReassigningId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  async function load() {
-    setLoading(true);
+  const visibleHandovers = role === "owner"
+    ? handovers
+    : handovers.filter((h) => !h.assigned_to || h.assigned_to === currentCallerId);
+
+  const load = useCallback(async () => {
     const [hs, cs] = await Promise.all([fetchHandovers(), fetchCallers()]);
     setHandovers(hs);
     setCallers(cs);
     setLoading(false);
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
+  usePolling(load, 15000);
 
-
+  useEffect(() => {
+    if (!loading) onCountChange(visibleHandovers.length);
+  }, [visibleHandovers.length, loading, onCountChange]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -93,13 +121,13 @@ export default function InboxPage() {
   }, []);
 
   async function handleResolve(id: string) {
-    const originalHandovers = handovers;
-    setHandovers((prev) => prev.filter((h) => h.id !== id));
+    const prev = handovers;
+    setHandovers(handovers.filter((h) => h.id !== id));
     try {
       await resolveHandover(id);
-      toast.success("Handover resolved");
+      toast.success("Escalation resolved");
     } catch (err) {
-      setHandovers(originalHandovers);
+      setHandovers(prev);
       toast.error(err instanceof Error ? err.message : "Failed to resolve");
     }
   }
@@ -119,43 +147,66 @@ export default function InboxPage() {
     }
   }
 
-  return (
-    <div>
+  const myName = callers.find((c) => c.id === currentCallerId)?.name ?? currentCallerName ?? "You";
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-grow flex-1 min-w-0 w-full">
-          {loading ? (
-            <div className="card rounded-3xl p-8 text-center font-body text-sm text-ink-muted">Loading…</div>
-          ) : handovers.length === 0 ? (
-            <div className="card rounded-3xl p-12 text-center">
-              <CheckCircle size={32} className="text-green-500 mx-auto mb-3" />
-              <p className="font-display font-bold text-ink">All caught up</p>
-              <p className="font-body text-sm text-ink-muted mt-1">No conversations need your attention right now.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {handovers.map((h) => (
-                <div key={h.id} className="card rounded-2xl p-5 flex items-start gap-4">
+  async function handleClaimAndReply(handover: Handover) {
+    if (currentCallerId && !handover.assigned_to) {
+      const prev = handovers;
+      setHandovers((hs) => hs.map((h) =>
+        h.id === handover.id ? { ...h, assigned_to: currentCallerId, caller_name: myName } : h
+      ));
+      try {
+        await assignHandover(handover.id, currentCallerId);
+        toast.success("Claimed — you're handling this lead");
+      } catch {
+        setHandovers(prev);
+      }
+    }
+    onReply(handover.lead_id);
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      <div className="max-w-3xl mx-auto px-6 py-8">
+        <div className="mb-6">
+          <h2 className="font-display text-xl font-bold text-ink">Escalations</h2>
+          <p className="font-body text-sm text-ink-muted mt-1">
+            Leads that need human attention — AI couldn&apos;t handle the conversation.
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="card rounded-3xl p-8 text-center font-body text-sm text-ink-muted">Loading…</div>
+        ) : visibleHandovers.length === 0 ? (
+          <div className="card rounded-3xl p-12 text-center">
+            <CheckCircle size={36} className="text-green-500 mx-auto mb-3" />
+            <p className="font-display font-bold text-ink text-lg">All caught up</p>
+            <p className="font-body text-sm text-ink-muted mt-1">No conversations need your attention right now.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visibleHandovers.map((h) => {
+              const trigger = TRIGGER_LABELS[h.reason ?? ""] ?? null;
+              const isMine = h.assigned_to === currentCallerId;
+              return (
+                <div key={h.id} className="card rounded-2xl p-5 flex items-start gap-4 hover:shadow-md transition-shadow">
                   <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-                    <MessageSquare size={16} className="text-amber-600" />
+                    <AlertTriangle size={16} className="text-amber-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-label font-semibold text-ink text-sm">
                         {h.leads?.name || "Unknown Lead"}
                       </span>
                       {h.leads?.segment && <SegmentBadge segment={h.leads.segment} />}
+                      {trigger && (
+                        <span className={cn("font-label text-[10px] font-semibold px-1.5 py-0.5 rounded-full", trigger.color)}>
+                          {trigger.label}
+                        </span>
+                      )}
                     </div>
                     <p className="font-body text-xs text-ink-muted mb-1.5 font-medium">
-                      {h.leads?.source === "telegram" ? (
-                        <span className="text-sky-500">Telegram · @{h.leads.tg_username || "unknown"}</span>
-                      ) : h.leads?.source === "instagram" ? (
-                        <span className="text-pink-500">Instagram · {h.leads.ig_user_id}</span>
-                      ) : h.leads?.source === "facebook" ? (
-                        <span className="text-blue-600">Facebook · {h.leads.fb_user_id}</span>
-                      ) : (
-                        <span>WhatsApp · {h.leads?.phone}</span>
-                      )}
+                      {channelBadge(h.leads?.source, h.leads)}
                     </p>
                     {h.reason && (
                       <p className="font-body text-sm text-ink bg-surface-subtle rounded-lg px-3 py-2 mb-3">
@@ -200,25 +251,26 @@ export default function InboxPage() {
                     </div>
                   </div>
                   <div className="flex flex-col gap-2 flex-shrink-0">
-                    <Link
-                      href={`/dashboard/conversations?lead=${h.lead_id}`}
+                    <button
+                      onClick={() => handleClaimAndReply(h)}
                       className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
                     >
-                      <MessageSquare size={12} /> Reply
-                    </Link>
-                    <button
-                      onClick={() => handleResolve(h.id)}
-                      className="text-xs px-3 py-1.5 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center gap-1.5 transition-colors"
-                    >
-                      <CheckCircle size={12} /> Resolve
+                      <MessageSquare size={12} /> {h.assigned_to ? "Reply" : "Pick up"}
                     </button>
+                    {(isMine || role === "owner") && (
+                      <button
+                        onClick={() => handleResolve(h.id)}
+                        className="text-xs px-3 py-1.5 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center gap-1.5 transition-colors"
+                      >
+                        <CheckCircle size={12} /> Resolve
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

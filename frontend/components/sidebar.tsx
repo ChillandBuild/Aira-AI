@@ -7,7 +7,7 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote,
-  Inbox, ChevronDown, ChevronRight, RadioTower, Calendar,
+  ChevronDown, ChevronRight, RadioTower, Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   label: string;
   feature?: string;
-  badgeType?: "inbox" | "scheduled" | "drafts";
+  badgeType?: "scheduled" | "drafts";
 };
 
 const TC_FEATURE_MAP: Record<string, string> = {
@@ -156,27 +156,6 @@ export function Sidebar() {
           </Link>
         )}
 
-        {/* TOP LEVEL: Inbox (Common for all platforms) */}
-        {waEnabled && (
-          <Link
-            href="/dashboard/inbox"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/inbox")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <Inbox size={16} className={pathname.startsWith("/dashboard/inbox") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span className="flex-grow">Inbox</span>
-            {inboxCount > 0 && (
-              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
-                {inboxCount}
-              </span>
-            )}
-          </Link>
-        )}
-
         {/* TOP LEVEL: Conversations (Common for all platforms) */}
         <Link
           href="/dashboard/conversations"
@@ -188,7 +167,12 @@ export function Sidebar() {
           )}
         >
           <MessageSquare size={16} className={pathname.startsWith("/dashboard/conversations") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-          <span>Conversations</span>
+          <span className="flex-grow">Conversations</span>
+          {inboxCount > 0 && (
+            <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
+              {inboxCount}
+            </span>
+          )}
         </Link>
 
         {/* TOP LEVEL: Leads */}
