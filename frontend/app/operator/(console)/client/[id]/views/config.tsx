@@ -17,21 +17,24 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-interface CredentialStatus {
-  provider: string;
-  status: "configured" | "incomplete" | "not_configured";
-  label: string;
-}
-
 interface ConfigData {
-  credentials: CredentialStatus[];
+  enabled_features: string[];
+  credentials_status: Record<string, "configured" | "incomplete" | "not_configured">;
   settings: {
-    ai_auto_reply: boolean;
+    ai_auto_reply_enabled: boolean;
     reengagement_enabled: boolean;
-    booking_enabled: boolean;
     booking_event_name: string | null;
+    booking_ref_prefix: string | null;
+    booking_amount_paise: string | null;
   };
 }
+
+const CRED_LABELS: Record<string, string> = {
+  whatsapp: "WhatsApp (Meta)",
+  telecalling: "TeleCMI",
+  ai: "Groq AI",
+  payments: "Razorpay",
+};
 
 function statusBadge(status: string) {
   switch (status) {
@@ -100,11 +103,11 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           Credential Status
         </h3>
         <div className="grid grid-cols-2 gap-4">
-          {config.credentials.map(cred => (
-            <div key={cred.provider} className="bg-white rounded-card border border-border p-4 shadow-sm">
+          {Object.entries(config.credentials_status).map(([provider, status]) => (
+            <div key={provider} className="bg-white rounded-card border border-border p-4 shadow-sm">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-ink">{cred.label}</p>
-                {statusBadge(cred.status)}
+                <p className="text-sm font-medium text-ink">{CRED_LABELS[provider] || provider}</p>
+                {statusBadge(status)}
               </div>
             </div>
           ))}
@@ -117,8 +120,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         <div className="grid grid-cols-3 gap-4">
           <div className="bg-white rounded-card border border-border p-4 shadow-sm">
             <p className="text-xs text-ink-muted uppercase tracking-wider mb-1">AI Auto-Reply</p>
-            <p className={`text-sm font-medium ${config.settings.ai_auto_reply ? "text-success" : "text-ink-muted"}`}>
-              {config.settings.ai_auto_reply ? "Enabled" : "Disabled"}
+            <p className={`text-sm font-medium ${config.settings.ai_auto_reply_enabled ? "text-success" : "text-ink-muted"}`}>
+              {config.settings.ai_auto_reply_enabled ? "Enabled" : "Disabled"}
             </p>
           </div>
           <div className="bg-white rounded-card border border-border p-4 shadow-sm">
@@ -129,8 +132,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           </div>
           <div className="bg-white rounded-card border border-border p-4 shadow-sm">
             <p className="text-xs text-ink-muted uppercase tracking-wider mb-1">Booking</p>
-            <p className={`text-sm font-medium ${config.settings.booking_enabled ? "text-success" : "text-ink-muted"}`}>
-              {config.settings.booking_enabled ? "Enabled" : "Disabled"}
+            <p className={`text-sm font-medium ${config.settings.booking_event_name ? "text-success" : "text-ink-muted"}`}>
+              {config.settings.booking_event_name ? "Enabled" : "Disabled"}
             </p>
             {config.settings.booking_event_name && (
               <p className="text-xs text-ink-muted mt-1">Event: {config.settings.booking_event_name}</p>

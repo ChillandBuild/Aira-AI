@@ -31,7 +31,7 @@ const PRODUCT_NAV: NavItem[] = [
   { key: "templates", icon: FileCheck, label: "Templates", featureKey: "whatsapp" },
   { key: "numbers", icon: Layers, label: "Numbers Pool", featureKey: "whatsapp" },
   { key: "knowledge", icon: BookOpen, label: "Knowledge Base", alwaysOn: true },
-  { key: "analytics", icon: BarChart2, label: "Analytics", alwaysOn: true },
+  { key: "analytics", icon: BarChart2, label: "Analytics", featureKey: "analytics" },
   { key: "team", icon: Users, label: "Team", alwaysOn: true },
 ];
 

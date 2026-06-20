@@ -187,6 +187,7 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
     valid_features = {
         "whatsapp", "telecalling", "instagram", "facebook", "telegram",
         "telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes",
+        "analytics",
     }
 
     if payload.features is not None:

@@ -17,10 +17,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-interface ChannelHealth {
-  channel: string;
-  healthy: boolean;
-  token_status: "valid" | "expired" | "not_set";
+interface ChannelData {
+  status: "healthy" | "unhealthy" | "not_configured";
+  last_inbound: string | null;
 }
 
 interface DeliveryStats {
@@ -31,9 +30,9 @@ interface DeliveryStats {
 }
 
 interface RecentError {
-  error: string;
-  count: number;
-  last_seen: string;
+  message_id: string;
+  error: string | null;
+  created_at: string;
 }
 
 interface Incident {
@@ -45,8 +44,9 @@ interface Incident {
 }
 
 interface HealthData {
-  channels: ChannelHealth[];
-  delivery_stats_7d: DeliveryStats;
+  channels: Record<string, ChannelData>;
+  token_status: "valid" | "expired" | "not_set";
+  delivery_7d: DeliveryStats;
   recent_errors: RecentError[];
   open_incidents: Incident[];
 }
@@ -96,8 +96,9 @@ export function HealthView({ tenantId }: { tenantId: string }) {
 
   if (!health) return null;
 
-  const ds = health.delivery_stats_7d;
+  const ds = health.delivery_7d;
   const successPct = ds.success_rate;
+  const channelEntries = Object.entries(health.channels);
 
   return (
     <div className="space-y-6">
@@ -108,17 +109,17 @@ export function HealthView({ tenantId }: { tenantId: string }) {
           Channel Health
         </h3>
         <div className="grid grid-cols-4 gap-4">
-          {health.channels.map(ch => (
-            <div key={ch.channel} className="bg-white rounded-card border border-border p-4 shadow-sm">
+          {channelEntries.map(([channel, ch]) => (
+            <div key={channel} className="bg-white rounded-card border border-border p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-2">
-                <span className={`w-2 h-2 rounded-full ${ch.healthy ? "bg-success animate-pulse" : "bg-danger"}`} />
-                <span className="text-sm font-medium text-ink capitalize">{ch.channel}</span>
+                <span className={`w-2 h-2 rounded-full ${ch.status === "healthy" ? "bg-success animate-pulse" : ch.status === "not_configured" ? "bg-ink-muted" : "bg-danger"}`} />
+                <span className="text-sm font-medium text-ink capitalize">{channel}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className={`text-xs font-medium ${ch.healthy ? "text-success" : "text-danger"}`}>
-                  {ch.healthy ? "Healthy" : "Unhealthy"}
+                <span className={`text-xs font-medium ${ch.status === "healthy" ? "text-success" : ch.status === "not_configured" ? "text-ink-muted" : "text-danger"}`}>
+                  {ch.status === "healthy" ? "Healthy" : ch.status === "not_configured" ? "Not Configured" : "Unhealthy"}
                 </span>
-                {tokenBadge(ch.token_status)}
+                {tokenBadge(health.token_status)}
               </div>
             </div>
           ))}
@@ -172,16 +173,14 @@ export function HealthView({ tenantId }: { tenantId: string }) {
             <thead>
               <tr className="bg-surface-mid text-left">
                 <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Error</th>
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Count</th>
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Last Seen</th>
+                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Time</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {health.recent_errors.map((err, i) => (
                 <tr key={i} className="hover:bg-surface-mid/50 transition-colors">
-                  <td className="px-5 py-3 text-ink">{err.error}</td>
-                  <td className="px-5 py-3 text-ink font-medium">{err.count}</td>
-                  <td className="px-5 py-3 text-ink-muted">{new Date(err.last_seen).toLocaleString("en-IN")}</td>
+                  <td className="px-5 py-3 text-ink">{err.error || "Unknown error"}</td>
+                  <td className="px-5 py-3 text-ink-muted">{new Date(err.created_at).toLocaleString("en-IN")}</td>
                 </tr>
               ))}
             </tbody>
