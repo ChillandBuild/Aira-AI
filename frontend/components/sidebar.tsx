@@ -21,7 +21,12 @@ type NavItem = {
   badgeType?: "inbox" | "scheduled" | "drafts";
 };
 
-
+const TC_FEATURE_MAP: Record<string, string> = {
+  "/dashboard/telecalling/upload": "telecalling.upload",
+  "/dashboard/telecalling": "telecalling.dialer",
+  "/dashboard/telecalling/scheduled": "telecalling.scheduled",
+  "/dashboard/notes": "telecalling.notes",
+};
 
 const TELECALLING_ITEMS: NavItem[] = [
   { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload" },
@@ -88,10 +93,19 @@ export function Sidebar() {
   }
 
   // Filter items by enabled features
-  const filterEnabled = (items: NavItem[]) => 
+  const filterEnabled = (items: NavItem[]) =>
     items.filter(item => !item.feature || enabledFeatures.includes(item.feature));
 
-  const tcGroupItems = filterEnabled(TELECALLING_ITEMS).filter(
+  // Gate telecalling sub-items by sub-feature flags with backwards compatibility
+  const hasTcSubFeatures = enabledFeatures.some(f => f.startsWith("telecalling."));
+  const visibleTcItems = hasTcSubFeatures
+    ? TELECALLING_ITEMS.filter(item => {
+        const featureKey = TC_FEATURE_MAP[item.href];
+        return !featureKey || enabledFeatures.includes(featureKey);
+      })
+    : TELECALLING_ITEMS;
+
+  const tcGroupItems = visibleTcItems.filter(
     (item) => item.href !== "/dashboard/telecalling/upload" || role === "owner"
   );
 
