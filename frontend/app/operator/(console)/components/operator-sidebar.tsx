@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, Clock, LogOut } from "lucide-react";
+import { Clock, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV_ITEMS = [
