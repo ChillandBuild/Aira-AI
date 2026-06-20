@@ -107,6 +107,10 @@ async def create_client(payload: CreateClientPayload, _admin: dict = Depends(get
     tc_subs = ["telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"]
     if "telecalling" in features:
         features = features + tc_subs
+    has_channel = any(ch in features for ch in ("whatsapp", "instagram", "facebook", "telegram"))
+    if has_channel:
+        features = features + ["inbound_leads"]
+    features = features + ["analytics"]
 
     try:
         result = db.auth.admin.create_user({
@@ -187,7 +191,7 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
     valid_features = {
         "whatsapp", "telecalling", "instagram", "facebook", "telegram",
         "telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes",
-        "analytics",
+        "analytics", "inbound_leads",
     }
 
     if payload.features is not None:
@@ -584,6 +588,28 @@ def client_team(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     return {"owner": owner_info, "callers": callers}
 
 
+@router.delete("/clients/{tenant_id}/team/{caller_id}")
+def delete_team_member(tenant_id: str, caller_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    caller = (
+        db.table("callers")
+        .select("id, name, user_id")
+        .eq("id", caller_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    if not caller.data:
+        raise HTTPException(status_code=404, detail="Team member not found")
+
+    db.table("callers").delete().eq("id", caller_id).eq("tenant_id", tenant_id).execute()
+
+    if caller.data.get("user_id"):
+        db.table("tenant_users").delete().eq("user_id", caller.data["user_id"]).eq("tenant_id", tenant_id).eq("role", "caller").execute()
+
+    return {"deleted": True, "name": caller.data["name"]}
+
+
 @router.get("/clients/{tenant_id}/dashboard/inbox")
 def client_dashboard_inbox(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
@@ -876,12 +902,14 @@ def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin
 
 
 _CLEAR_TABLES: dict[str, list[str]] = {
-    "broadcasts": ["broadcast_recipients", "broadcast_lead_scores", "broadcast_failed_contacts", "broadcast_tags", "scheduled_broadcasts"],
+    "broadcasts": ["broadcast_recipients", "broadcast_lead_scores", "broadcast_failed_contacts", "scheduled_broadcasts"],
     "messages": ["messages"],
     "call_logs": ["call_logs"],
     "leads": [],
     "knowledge": ["knowledge_chunks", "knowledge_documents"],
     "analytics": ["whatsapp_insights_snapshots"],
+    "tags": ["lead_tag_opt_outs", "broadcast_tags"],
+    "telecalling_uploads": ["telecalling_upload_batches"],
 }
 
 

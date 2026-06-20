@@ -58,9 +58,6 @@ export function Sidebar() {
   }, []);
 
   const waEnabled = enabledFeatures.includes("whatsapp");
-  const anyInboundEnabled = ["whatsapp", "instagram", "facebook", "telegram"].some(
-    (c) => enabledFeatures.includes(c)
-  );
   useEffect(() => {
     if (!waEnabled) return;
     fetchCount();
@@ -198,7 +195,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Inbound Leads */}
-        {role === "owner" && anyInboundEnabled && (
+        {role === "owner" && enabledFeatures.includes("inbound_leads") && (
           <Link
             href="/dashboard/inbound-leads"
             className={cn(

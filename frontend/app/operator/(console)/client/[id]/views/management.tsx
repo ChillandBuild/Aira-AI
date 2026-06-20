@@ -46,6 +46,7 @@ export function ManagementView({
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
   const [wipeLoading, setWipeLoading] = useState(false);
+  const [deletingMember, setDeletingMember] = useState<string | null>(null);
 
   const loadTeam = useCallback(async () => {
     setTeamLoading(true);
@@ -104,6 +105,19 @@ export function ManagementView({
       setError(e instanceof Error ? e.message : "Failed to wipe leads");
     } finally {
       setWipeLoading(false);
+    }
+  }
+
+  async function handleDeleteMember(member: TeamMember) {
+    if (!confirm(`Delete "${member.name}" from this client's team? This permanently removes the caller record.`)) return;
+    setDeletingMember(member.id);
+    try {
+      await apiFetch(`/api/v1/operator/clients/${tenantId}/team/${member.id}`, { method: "DELETE" });
+      setTeam(prev => prev.filter(m => m.id !== member.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete member");
+    } finally {
+      setDeletingMember(null);
     }
   }
 
@@ -233,6 +247,7 @@ export function ManagementView({
                 <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Status</th>
                 <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Score</th>
                 <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Shift</th>
+                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -258,6 +273,18 @@ export function ManagementView({
                       ? `${m.shift_start_hour}:00 - ${m.shift_end_hour}:00`
                       : "Default"
                     }
+                  </td>
+                  <td className="px-5 py-3">
+                    {m.role !== "owner" && (
+                      <button
+                        onClick={() => handleDeleteMember(m)}
+                        disabled={deletingMember === m.id}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-ink-muted hover:text-danger transition-colors disabled:opacity-40"
+                        title={`Delete ${m.name}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

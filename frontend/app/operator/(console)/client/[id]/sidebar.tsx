@@ -28,7 +28,7 @@ const PRODUCT_NAV: NavItem[] = [
   { key: "inbox", icon: Inbox, label: "Inbox", featureKey: "whatsapp" },
   { key: "conversations", icon: MessageSquare, label: "Conversations", alwaysOn: true },
   { key: "segments", icon: Users, label: "Segments", alwaysOn: true },
-  { key: "inbound", icon: RadioTower, label: "Inbound Leads", featureKey: "whatsapp" },
+  { key: "inbound", icon: RadioTower, label: "Inbound Leads", featureKey: "inbound_leads" },
   { key: "outbound", icon: Upload, label: "Outbound Leads", featureKey: "whatsapp" },
   { key: "templates", icon: FileCheck, label: "Templates", featureKey: "whatsapp" },
   { key: "numbers", icon: Layers, label: "Numbers Pool", featureKey: "whatsapp" },

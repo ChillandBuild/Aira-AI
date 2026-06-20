@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import {
   Radio, MessageSquare, PhoneCall, Users,
-  BookOpen, BarChart2,
+  BookOpen, BarChart2, Tag, Upload,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { ConfirmDialog } from "../components/confirm-dialog";
@@ -46,6 +46,16 @@ const DATA_TYPES = [
     key: "knowledge", label: "Knowledge Base", icon: BookOpen,
     color: "text-purple-600", bg: "bg-purple-50",
     desc: "All uploaded knowledge documents and their vector embedding chunks — removes the AI's document-based knowledge for this client.",
+  },
+  {
+    key: "tags", label: "Tags", icon: Tag,
+    color: "text-amber-600", bg: "bg-amber-50",
+    desc: "All broadcast tags and per-lead tag opt-out records used for segmenting outbound campaigns.",
+  },
+  {
+    key: "telecalling_uploads", label: "Telecalling Uploads", icon: Upload,
+    color: "text-teal-600", bg: "bg-teal-50",
+    desc: "All telecalling CSV upload batches — file references, contact counts, and assignment snapshots.",
   },
   {
     key: "analytics", label: "Analytics Data", icon: BarChart2,
@@ -121,7 +131,7 @@ export function DataOpsView({ tenantId, clientName }: { tenantId: string; client
 
       {loading ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+          {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} />)}
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
