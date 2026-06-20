@@ -4,16 +4,6 @@ import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, PowerOff, Power, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
-type ServiceTier =
-  | "whatsapp_only"
-  | "telecalling_only"
-  | "combined"
-  | "whatsapp_instagram"
-  | "whatsapp_facebook"
-  | "whatsapp_telegram"
-  | "omnichannel"
-  | "omnichannel_telecalling";
-
 type Client = {
   id: string;
   name: string;
@@ -22,32 +12,6 @@ type Client = {
   created_at: string;
   owner_user_id: string | null;
 };
-
-const SERVICE_LABELS: Record<ServiceTier, string> = {
-  whatsapp_only:           "WhatsApp Only",
-  telecalling_only:        "Telecalling Only",
-  combined:                "WhatsApp + Telecalling",
-  whatsapp_instagram:      "WhatsApp + Instagram",
-  whatsapp_facebook:       "WhatsApp + Facebook",
-  whatsapp_telegram:       "WhatsApp + Telegram",
-  omnichannel:             "Omnichannel (WA + IG + FB + TG)",
-  omnichannel_telecalling: "Omnichannel + Telecalling",
-};
-
-function featuresToService(features: string[]): ServiceTier {
-  const has = (f: string) => features.includes(f);
-  const wa = has("whatsapp"), tc = has("telecalling");
-  const ig = has("instagram"), fb = has("facebook"), tg = has("telegram");
-  if (wa && tc && ig && fb && tg) return "omnichannel_telecalling";
-  if (wa && ig && fb && tg)       return "omnichannel";
-  if (wa && ig)                   return "whatsapp_instagram";
-  if (wa && fb)                   return "whatsapp_facebook";
-  if (wa && tg)                   return "whatsapp_telegram";
-  if (wa && tc)                   return "combined";
-  if (wa)                         return "whatsapp_only";
-  if (tc)                         return "telecalling_only";
-  return "combined";
-}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -257,9 +221,13 @@ export default function OperatorPage() {
                     <p className="text-xs text-gray-400">{client.id.slice(0, 8)}…</p>
                   </td>
                   <td className="px-5 py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                      {SERVICE_LABELS[featuresToService(client.enabled_features)] ?? "Custom"}
-                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {(client.enabled_features || []).map((f: string) => (
+                        <span key={f} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-700">
+                          {{ whatsapp: "WA", telecalling: "TC", instagram: "IG", facebook: "FB", telegram: "TG" }[f] || f}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${client.status === "active" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
