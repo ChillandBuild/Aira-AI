@@ -1,17 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Pencil, RefreshCw, PowerOff, Power, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, RefreshCw, PowerOff, Power, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-
-type ServiceTier =
-  | "whatsapp_only"
-  | "telecalling_only"
-  | "combined"
-  | "whatsapp_instagram"
-  | "whatsapp_facebook"
-  | "whatsapp_telegram"
-  | "omnichannel"
-  | "omnichannel_telecalling";
 
 type Client = {
   id: string;
@@ -21,32 +12,6 @@ type Client = {
   created_at: string;
   owner_user_id: string | null;
 };
-
-const SERVICE_LABELS: Record<ServiceTier, string> = {
-  whatsapp_only:           "WhatsApp Only",
-  telecalling_only:        "Telecalling Only",
-  combined:                "WhatsApp + Telecalling",
-  whatsapp_instagram:      "WhatsApp + Instagram",
-  whatsapp_facebook:       "WhatsApp + Facebook",
-  whatsapp_telegram:       "WhatsApp + Telegram",
-  omnichannel:             "Omnichannel (WA + IG + FB + TG)",
-  omnichannel_telecalling: "Omnichannel + Telecalling",
-};
-
-function featuresToService(features: string[]): ServiceTier {
-  const has = (f: string) => features.includes(f);
-  const wa = has("whatsapp"), tc = has("telecalling");
-  const ig = has("instagram"), fb = has("facebook"), tg = has("telegram");
-  if (wa && tc && ig && fb && tg) return "omnichannel_telecalling";
-  if (wa && ig && fb && tg)       return "omnichannel";
-  if (wa && ig)                   return "whatsapp_instagram";
-  if (wa && fb)                   return "whatsapp_facebook";
-  if (wa && tg)                   return "whatsapp_telegram";
-  if (wa && tc)                   return "combined";
-  if (wa)                         return "whatsapp_only";
-  if (tc)                         return "telecalling_only";
-  return "combined";
-}
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -62,17 +27,17 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export default function OperatorPage() {
+  const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [editClient, setEditClient] = useState<Client | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tempPw, setTempPw] = useState<{ name: string; pw: string } | null>(null);
 
   const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [service, setService] = useState<ServiceTier>("combined");
+  const [features, setFeatures] = useState<string[]>(["whatsapp", "telecalling"]);
   const [submitting, setSubmitting] = useState(false);
 
   async function load() {
@@ -96,28 +61,15 @@ export default function OperatorPage() {
     try {
       await apiFetch("/api/v1/operator/clients", {
         method: "POST",
-        body: JSON.stringify({ company_name: companyName, email, password, service }),
+        body: JSON.stringify({ company_name: companyName, email, password, features }),
       });
       setShowCreate(false);
-      setCompanyName(""); setEmail(""); setPassword(""); setService("combined");
+      setCompanyName(""); setEmail(""); setPassword(""); setFeatures(["whatsapp", "telecalling"]);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create client");
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleUpdateService(tenantId: string, newService: ServiceTier) {
-    try {
-      await apiFetch(`/api/v1/operator/clients/${tenantId}/features`, {
-        method: "PATCH",
-        body: JSON.stringify({ service: newService }),
-      });
-      setEditClient(null);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update");
     }
   }
 
@@ -218,15 +170,20 @@ export default function OperatorPage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">Service</label>
-                <select
-                  value={service} onChange={e => setService(e.target.value as ServiceTier)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  {(Object.entries(SERVICE_LABELS) as [ServiceTier, string][]).map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
+                <label className="text-sm font-medium text-gray-700 block mb-2">Features</label>
+                <div className="space-y-2">
+                  {(["whatsapp", "telecalling", "instagram", "facebook", "telegram"] as const).map(f => (
+                    <label key={f} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={features.includes(f)}
+                        onChange={() => setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f])}
+                        className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                      <span className="text-sm text-gray-700">{{ whatsapp: "WhatsApp", telecalling: "Telecalling", instagram: "Instagram", facebook: "Facebook", telegram: "Telegram" }[f]}</span>
+                    </label>
                   ))}
-                </select>
+                </div>
               </div>
               <div className="flex gap-2 pt-2">
                 <button type="button" onClick={() => setShowCreate(false)} className="flex-1 px-4 py-2 border border-gray-200 text-sm text-gray-700 rounded-lg hover:bg-gray-50">Cancel</button>
@@ -235,27 +192,6 @@ export default function OperatorPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {editClient && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Edit Service</h2>
-            <p className="text-sm text-gray-500 mb-4">{editClient.name}</p>
-            <div className="space-y-2">
-              {(Object.entries(SERVICE_LABELS) as [ServiceTier, string][]).map(([tier, label]) => (
-                <button
-                  key={tier}
-                  onClick={() => handleUpdateService(editClient.id, tier)}
-                  className="w-full text-left px-4 py-3 rounded-lg border border-gray-200 text-sm hover:border-indigo-400 hover:bg-indigo-50 transition-colors"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button onClick={() => setEditClient(null)} className="mt-4 w-full text-sm text-gray-500 hover:text-gray-700">Cancel</button>
           </div>
         </div>
       )}
@@ -279,15 +215,19 @@ export default function OperatorPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {clients.map(client => (
-                <tr key={client.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={client.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => router.push(`/operator/client/${client.id}`)}>
                   <td className="px-5 py-4">
                     <p className="text-sm font-semibold text-gray-900">{client.name}</p>
                     <p className="text-xs text-gray-400">{client.id.slice(0, 8)}…</p>
                   </td>
                   <td className="px-5 py-4">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
-                      {SERVICE_LABELS[featuresToService(client.enabled_features)] ?? "Custom"}
-                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {(client.enabled_features || []).map((f: string) => (
+                        <span key={f} className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-50 text-indigo-700">
+                          {{ whatsapp: "WA", telecalling: "TC", instagram: "IG", facebook: "FB", telegram: "TG" }[f] || f}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${client.status === "active" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
@@ -299,21 +239,18 @@ export default function OperatorPage() {
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setEditClient(client)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" title="Edit service">
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => handleResetPassword(client)} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" title="Reset password">
+                      <button onClick={(e) => { e.stopPropagation(); handleResetPassword(client); }} className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700" title="Reset password">
                         <RefreshCw size={13} />
                       </button>
                       <button
-                        onClick={() => handleToggleStatus(client)}
+                        onClick={(e) => { e.stopPropagation(); handleToggleStatus(client); }}
                         className={`p-1.5 rounded hover:bg-gray-100 ${client.status === "active" ? "text-gray-400 hover:text-red-500" : "text-gray-400 hover:text-green-600"}`}
                         title={client.status === "active" ? "Suspend" : "Activate"}
                       >
                         {client.status === "active" ? <PowerOff size={13} /> : <Power size={13} />}
                       </button>
                       <button
-                        onClick={() => handleWipeLeads(client)}
+                        onClick={(e) => { e.stopPropagation(); handleWipeLeads(client); }}
                         className="p-1.5 rounded hover:bg-red-50 text-gray-300 hover:text-red-600 transition-colors"
                         title="Wipe all leads"
                       >
