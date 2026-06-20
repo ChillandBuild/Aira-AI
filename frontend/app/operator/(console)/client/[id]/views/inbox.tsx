@@ -27,11 +27,11 @@ function relTime(iso: string): string {
 }
 
 interface Conversation {
-  lead_id: string;
+  id: string;
   lead_name: string | null;
   last_message: string | null;
   channel: string | null;
-  updated_at: string;
+  last_message_at: string;
 }
 
 interface InboxData {
@@ -106,7 +106,7 @@ export function InboxView({ tenantId }: { tenantId: string }) {
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {data.conversations.map((c) => (
-                <tr key={c.lead_id} className="hover:bg-surface-mid/50 transition-colors">
+                <tr key={c.id} className="hover:bg-surface-mid/50 transition-colors">
                   <td className="px-4 py-3 font-medium text-ink">{c.lead_name || "Unknown"}</td>
                   <td className="px-4 py-3 text-ink-secondary truncate max-w-[240px]">
                     {c.last_message ? (c.last_message.length > 60 ? c.last_message.slice(0, 60) + "..." : c.last_message) : "—"}
@@ -118,7 +118,7 @@ export function InboxView({ tenantId }: { tenantId: string }) {
                       </span>
                     ) : "—"}
                   </td>
-                  <td className="px-4 py-3 text-ink-muted text-xs">{relTime(c.updated_at)}</td>
+                  <td className="px-4 py-3 text-ink-muted text-xs">{c.last_message_at ? relTime(c.last_message_at) : "—"}</td>
                 </tr>
               ))}
             </tbody>

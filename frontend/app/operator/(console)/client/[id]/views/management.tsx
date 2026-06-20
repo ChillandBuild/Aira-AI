@@ -23,8 +23,8 @@ interface TeamMember {
   id: string;
   name: string;
   role: string;
-  is_active: boolean;
-  score: number | null;
+  active: boolean;
+  overall_score: number | null;
   shift_start_hour: number | null;
   shift_end_hour: number | null;
 }
@@ -50,8 +50,8 @@ export function ManagementView({
   const loadTeam = useCallback(async () => {
     setTeamLoading(true);
     try {
-      const data = await apiFetch<{ members: TeamMember[] }>(`/api/v1/operator/clients/${tenantId}/team`);
-      setTeam(data.members);
+      const data = await apiFetch<{ owner: Record<string, unknown>; callers: TeamMember[] }>(`/api/v1/operator/clients/${tenantId}/team`);
+      setTeam(data.callers);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load team");
     } finally {
@@ -248,11 +248,11 @@ export function ManagementView({
                   </td>
                   <td className="px-5 py-3">
                     <span className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${m.is_active ? "bg-success" : "bg-ink-muted/30"}`} />
-                      <span className="text-xs text-ink-secondary">{m.is_active ? "Active" : "Inactive"}</span>
+                      <span className={`w-1.5 h-1.5 rounded-full ${m.active ? "bg-success" : "bg-ink-muted/30"}`} />
+                      <span className="text-xs text-ink-secondary">{m.active ? "Active" : "Inactive"}</span>
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-ink">{m.score !== null ? m.score : "—"}</td>
+                  <td className="px-5 py-3 text-ink">{m.overall_score !== null ? m.overall_score : "—"}</td>
                   <td className="px-5 py-3 text-ink-secondary text-xs">
                     {m.shift_start_hour !== null && m.shift_end_hour !== null
                       ? `${m.shift_start_hour}:00 - ${m.shift_end_hour}:00`

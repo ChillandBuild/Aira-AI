@@ -28,8 +28,7 @@ interface CallerRow {
 }
 
 interface TeamData {
-  owner: { user_id: string | null; email: string | null };
-  total_members: number;
+  owner: { user_id: string | null; email: string | null; created_at: string | null };
   callers: CallerRow[];
 }
 
@@ -87,7 +86,7 @@ export function TeamView({ tenantId }: { tenantId: string }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <StatCard icon={<Users size={18} />} label="Total Members" value={data.total_members} />
+        <StatCard icon={<Users size={18} />} label="Total Members" value={data.callers.length} />
         <StatCard icon={<UserCheck size={18} />} label="Active Callers" value={data.callers.filter(c => c.active).length} />
       </div>
 

@@ -30,7 +30,7 @@ function relTime(iso: string): string {
 
 interface UploadBatch {
   id: string;
-  filename: string;
+  file_name: string;
   lead_count: number;
   created_at: string;
   status: string;
@@ -38,7 +38,6 @@ interface UploadBatch {
 
 interface UploadData {
   total_batches: number;
-  total_leads_uploaded: number;
   batches: UploadBatch[];
 }
 
@@ -63,7 +62,6 @@ function UploadSection({ tenantId }: { tenantId: string }) {
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <StatCard icon={<Upload size={18} />} label="Total Batches" value={data.total_batches} />
-        <StatCard icon={<Hash size={18} />} label="Leads Uploaded" value={data.total_leads_uploaded} />
       </div>
       {data.batches.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-ink-muted">
@@ -84,7 +82,7 @@ function UploadSection({ tenantId }: { tenantId: string }) {
             <tbody className="divide-y divide-border-subtle">
               {data.batches.map((b) => (
                 <tr key={b.id} className="hover:bg-surface-mid/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-ink">{b.filename}</td>
+                  <td className="px-4 py-3 font-medium text-ink">{b.file_name}</td>
                   <td className="px-4 py-3 text-ink-secondary">{b.lead_count}</td>
                   <td className="px-4 py-3 text-ink-muted text-xs">{relTime(b.created_at)}</td>
                   <td className="px-4 py-3">
@@ -108,8 +106,8 @@ function UploadSection({ tenantId }: { tenantId: string }) {
 
 interface CallRow {
   id: string;
-  lead_name: string | null;
-  caller_name: string | null;
+  lead_id: string | null;
+  caller_id: string | null;
   duration_seconds: number | null;
   disposition: string | null;
   created_at: string;
@@ -117,7 +115,8 @@ interface CallRow {
 
 interface DialerData {
   calls_today: number;
-  calls: CallRow[];
+  connect_rate: number;
+  recent_calls: CallRow[];
 }
 
 const DISPOSITION_BADGE: Record<string, string> = {
@@ -154,8 +153,11 @@ function DialerSection({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="space-y-6">
-      <StatCard icon={<Phone size={18} />} label="Calls Today" value={data.calls_today} />
-      {data.calls.length === 0 ? (
+      <div className="grid grid-cols-2 gap-4">
+        <StatCard icon={<Phone size={18} />} label="Calls Today" value={data.calls_today} />
+        <StatCard icon={<Hash size={18} />} label="Connect Rate" value={`${data.connect_rate}%`} />
+      </div>
+      {data.recent_calls.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-ink-muted">
           <Phone size={40} className="mb-3 opacity-40" />
           <p className="text-sm">No recent calls</p>
@@ -173,10 +175,10 @@ function DialerSection({ tenantId }: { tenantId: string }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {data.calls.map((c) => (
+              {data.recent_calls.map((c) => (
                 <tr key={c.id} className="hover:bg-surface-mid/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-ink">{c.lead_name || "Unknown"}</td>
-                  <td className="px-4 py-3 text-ink-secondary">{c.caller_name || "—"}</td>
+                  <td className="px-4 py-3 font-medium text-ink font-mono text-xs">{c.lead_id?.slice(0, 8) || "—"}</td>
+                  <td className="px-4 py-3 text-ink-secondary font-mono text-xs">{c.caller_id?.slice(0, 8) || "—"}</td>
                   <td className="px-4 py-3 text-ink-secondary font-mono text-xs">{fmtDuration(c.duration_seconds)}</td>
                   <td className="px-4 py-3">
                     {c.disposition ? (
@@ -200,14 +202,14 @@ function DialerSection({ tenantId }: { tenantId: string }) {
 
 interface ScheduledRow {
   id: string;
-  lead_name: string | null;
-  caller_name: string | null;
+  lead_id: string | null;
   scheduled_for: string;
+  cadence: string | null;
 }
 
 interface ScheduledData {
   pending_count: number;
-  upcoming: ScheduledRow[];
+  scheduled: ScheduledRow[];
 }
 
 function ScheduledSection({ tenantId }: { tenantId: string }) {
@@ -230,7 +232,7 @@ function ScheduledSection({ tenantId }: { tenantId: string }) {
   return (
     <div className="space-y-6">
       <StatCard icon={<Clock size={18} />} label="Pending Callbacks" value={data.pending_count} />
-      {data.upcoming.length === 0 ? (
+      {data.scheduled.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-ink-muted">
           <Calendar size={40} className="mb-3 opacity-40" />
           <p className="text-sm">No scheduled calls</p>
@@ -241,15 +243,15 @@ function ScheduledSection({ tenantId }: { tenantId: string }) {
             <thead>
               <tr className="bg-surface-mid text-ink-secondary uppercase text-xs">
                 <th className="text-left px-4 py-3 font-medium">Lead</th>
-                <th className="text-left px-4 py-3 font-medium">Caller</th>
+                <th className="text-left px-4 py-3 font-medium">Type</th>
                 <th className="text-left px-4 py-3 font-medium">Scheduled For</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {data.upcoming.map((r) => (
+              {data.scheduled.map((r) => (
                 <tr key={r.id} className="hover:bg-surface-mid/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-ink">{r.lead_name || "Unknown"}</td>
-                  <td className="px-4 py-3 text-ink-secondary">{r.caller_name || "—"}</td>
+                  <td className="px-4 py-3 font-medium text-ink font-mono text-xs">{r.lead_id?.slice(0, 8) || "—"}</td>
+                  <td className="px-4 py-3 text-ink-secondary">{r.cadence || "callback"}</td>
                   <td className="px-4 py-3 text-ink-muted text-xs">
                     {new Date(r.scheduled_for).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                   </td>
@@ -267,9 +269,9 @@ function ScheduledSection({ tenantId }: { tenantId: string }) {
 
 interface NoteRow {
   id: string;
-  lead_name: string | null;
-  caller_name: string | null;
-  content: string;
+  lead_id: string | null;
+  author_name: string | null;
+  note: string;
   created_at: string;
 }
 
@@ -309,7 +311,7 @@ function NotesSection({ tenantId }: { tenantId: string }) {
             <thead>
               <tr className="bg-surface-mid text-ink-secondary uppercase text-xs">
                 <th className="text-left px-4 py-3 font-medium">Lead</th>
-                <th className="text-left px-4 py-3 font-medium">Caller</th>
+                <th className="text-left px-4 py-3 font-medium">Author</th>
                 <th className="text-left px-4 py-3 font-medium">Note</th>
                 <th className="text-left px-4 py-3 font-medium">Date</th>
               </tr>
@@ -317,10 +319,10 @@ function NotesSection({ tenantId }: { tenantId: string }) {
             <tbody className="divide-y divide-border-subtle">
               {data.notes.map((n) => (
                 <tr key={n.id} className="hover:bg-surface-mid/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-ink">{n.lead_name || "Unknown"}</td>
-                  <td className="px-4 py-3 text-ink-secondary">{n.caller_name || "—"}</td>
+                  <td className="px-4 py-3 font-medium text-ink font-mono text-xs">{n.lead_id?.slice(0, 8) || "—"}</td>
+                  <td className="px-4 py-3 text-ink-secondary">{n.author_name || "—"}</td>
                   <td className="px-4 py-3 text-ink-secondary truncate max-w-[240px]">
-                    {n.content.length > 80 ? n.content.slice(0, 80) + "..." : n.content}
+                    {(n.note || "").length > 80 ? n.note.slice(0, 80) + "..." : n.note}
                   </td>
                   <td className="px-4 py-3 text-ink-muted text-xs">{relTime(n.created_at)}</td>
                 </tr>

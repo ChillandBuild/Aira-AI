@@ -38,8 +38,8 @@ interface LeadRow {
 
 interface LeadsData {
   total: number;
-  by_segment: { A: number; B: number; C: number; D: number };
-  leads: LeadRow[];
+  segments: { A: number; B: number; C: number; D: number };
+  recent: LeadRow[];
 }
 
 const SEGMENT_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -98,7 +98,7 @@ export function LeadsView({ tenantId, subSection }: { tenantId: string; subSecti
                     {seg} — {style.label}
                   </span>
                 </div>
-                <p className={`text-2xl font-bold ${style.text}`}>{data.by_segment[seg]?.toLocaleString() ?? 0}</p>
+                <p className={`text-2xl font-bold ${style.text}`}>{data.segments[seg]?.toLocaleString() ?? 0}</p>
               </div>
             );
           })}
@@ -106,11 +106,11 @@ export function LeadsView({ tenantId, subSection }: { tenantId: string; subSecti
       ) : (
         <div className="grid grid-cols-2 gap-4">
           <StatCard icon={<TrendingUp size={18} />} label={`${subSection} Leads`} value={data.total} />
-          <StatCard icon={<UserCheck size={18} />} label="Hot (A)" value={data.by_segment.A} />
+          <StatCard icon={<UserCheck size={18} />} label="Hot (A)" value={data.segments.A} />
         </div>
       )}
 
-      {data.leads.length === 0 ? (
+      {data.recent.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-ink-muted">
           <Users size={40} className="mb-3 opacity-40" />
           <p className="text-sm">No leads found</p>
@@ -129,7 +129,7 @@ export function LeadsView({ tenantId, subSection }: { tenantId: string; subSecti
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {data.leads.map((lead) => {
+              {data.recent.map((lead) => {
                 const seg = SEGMENT_STYLES[lead.segment] || SEGMENT_STYLES.D;
                 return (
                   <tr key={lead.id} className="hover:bg-surface-mid/50 transition-colors">

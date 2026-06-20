@@ -33,7 +33,7 @@ interface TemplateRow {
   status: string;
   category: string;
   language: string;
-  last_synced: string | null;
+  updated_at: string | null;
 }
 
 interface TemplatesData {
@@ -101,7 +101,7 @@ function TemplatesSection({ tenantId }: { tenantId: string }) {
                   </td>
                   <td className="px-4 py-3 text-ink-secondary">{t.category}</td>
                   <td className="px-4 py-3 text-ink-secondary">{t.language}</td>
-                  <td className="px-4 py-3 text-ink-muted text-xs">{t.last_synced ? relTime(t.last_synced) : "—"}</td>
+                  <td className="px-4 py-3 text-ink-muted text-xs">{t.updated_at ? relTime(t.updated_at) : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -115,11 +115,11 @@ function TemplatesSection({ tenantId }: { tenantId: string }) {
 /* ---------- Numbers ---------- */
 
 interface NumberRow {
-  number: string;
+  phone_number: string;
   display_name: string | null;
   quality_rating: string | null;
   status: string;
-  messaging_limit: string | null;
+  messaging_limit_tier: string | null;
 }
 
 interface NumbersData {
@@ -176,8 +176,8 @@ function NumbersSection({ tenantId }: { tenantId: string }) {
             </thead>
             <tbody className="divide-y divide-border-subtle">
               {data.numbers.map((n) => (
-                <tr key={n.number} className="hover:bg-surface-mid/50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-ink font-mono">{n.number}</td>
+                <tr key={n.phone_number} className="hover:bg-surface-mid/50 transition-colors">
+                  <td className="px-4 py-3 font-medium text-ink font-mono">{n.phone_number}</td>
                   <td className="px-4 py-3 text-ink-secondary">{n.display_name || "—"}</td>
                   <td className="px-4 py-3">
                     {n.quality_rating ? (
@@ -191,7 +191,7 @@ function NumbersSection({ tenantId }: { tenantId: string }) {
                       {n.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-ink-secondary">{n.messaging_limit || "—"}</td>
+                  <td className="px-4 py-3 text-ink-secondary">{n.messaging_limit_tier || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -207,7 +207,7 @@ function NumbersSection({ tenantId }: { tenantId: string }) {
 interface KnowledgeRow {
   id: string;
   title: string;
-  chunks: number;
+  chunk_count: number;
   file_type: string;
   created_at: string;
 }
@@ -261,7 +261,7 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
               {data.documents.map((doc) => (
                 <tr key={doc.id} className="hover:bg-surface-mid/50 transition-colors">
                   <td className="px-4 py-3 font-medium text-ink">{doc.title}</td>
-                  <td className="px-4 py-3 text-ink-secondary">{doc.chunks}</td>
+                  <td className="px-4 py-3 text-ink-secondary">{doc.chunk_count}</td>
                   <td className="px-4 py-3">
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary-muted text-primary">
                       {doc.file_type}
