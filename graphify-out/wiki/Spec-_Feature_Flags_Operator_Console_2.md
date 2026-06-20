@@ -1,18 +1,23 @@
 # Spec: Feature Flags Operator Console
 
-> 5 nodes · cohesion 0.80
+> 10 nodes · cohesion 0.20
 
 ## Key Concepts
 
-- **Operator Console (System Admin Client Provisioning UI)** (5 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
-- **Feature Flags + Operator Console Plan (2026-05-19)** (4 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
-- **enabled_features (Tenant Feature Flags Array)** (3 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
-- **system_admins Table (Super-Admin Gate)** (3 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
-- **Service Tier (whatsapp_only / telecalling_only / combined)** (3 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Feature Flags + Operator Console Implementation Plan** (9 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **2026-05-19-feature-flags-operator-console.md** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **File Map** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Task 1: DB Migration — tenant features + system admins** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Task 2: Backend — system_admin dependency + updated team/me** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Task 3: Backend — operator routes** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Task 4: Frontend — update AuthRoleContext** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Task 5: Frontend — feature-gated sidebar** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Task 6: Frontend — operator page** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
+- **Self-Review** (1 connections) — `docs/superpowers/plans/2026-05-19-feature-flags-operator-console.md`
 
 ## Relationships
 
-- [[Spec: Production Saas Hardening]] (2 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 

@@ -1,42 +1,44 @@
 # Upload API
 
-> 14 nodes · cohesion 0.25
+> 19 nodes · cohesion 0.15
 
 ## Key Concepts
 
-- **upload.py** (38 connections) — `backend/app/routes/upload.py`
-- **bulk_send()** (17 connections) — `backend/app/routes/upload.py`
-- **_create_csv_signed_url()** (6 connections) — `backend/app/routes/upload.py`
-- **get_csv_signed_url()** (6 connections) — `backend/app/routes/upload.py`
-- **_validate_csv_storage_path()** (5 connections) — `backend/app/routes/upload.py`
-- **_meta_error_detail()** (4 connections) — `backend/app/routes/upload.py`
-- **OptInRequest** (3 connections) — `backend/app/routes/upload.py`
-- **BulkSendRequest** (3 connections) — `backend/app/routes/upload.py`
-- **_retry_fields()** (3 connections) — `backend/app/routes/upload.py`
-- **BulkLeadItem** (2 connections) — `backend/app/routes/upload.py`
-- **_insert_scheduled_broadcast()** (2 connections) — `backend/app/routes/upload.py`
-- **_insert_scheduled_broadcasts()** (2 connections) — `backend/app/routes/upload.py`
-- **validate_optin()** (2 connections) — `backend/app/routes/upload.py`
-- **Human-readable Meta error for the failed CSV — '(#code) message', else trimmed r** (1 connections) — `backend/app/routes/upload.py`
+- **_classify_broadcast_outcomes()** (12 connections) — `backend/app/routes/upload.py`
+- **download_broadcast_tag_csv()** (12 connections) — `backend/app/routes/upload.py`
+- **nearest_status()** (6 connections) — `backend/app/services/delivery_status.py`
+- **delivery_status.py** (5 connections) — `backend/app/services/delivery_status.py`
+- **parse_ts()** (5 connections) — `backend/app/services/delivery_status.py`
+- **nearest_record()** (5 connections) — `backend/app/services/delivery_status.py`
+- **datetime** (4 connections) — `backend/app/services/delivery_status.py`
+- **str** (2 connections) — `backend/app/services/delivery_status.py`
+- **Classify every recipient of one broadcast into sent / delivered / opened / faile** (1 connections) — `backend/app/routes/upload.py`
+- **Per-broadcast segment CSV. OPTED_OUT exports a dedicated opted-out sheet.** (1 connections) — `backend/app/routes/upload.py`
+- **Per-broadcast delivery attribution.  When the same lead receives multiple broadc** (1 connections) — `backend/app/services/delivery_status.py`
+- **Return the record whose timestamp is nearest to `anchor` within the send     win** (1 connections) — `backend/app/services/delivery_status.py`
+- **Delivery status of the message nearest the broadcast send, or None.** (1 connections) — `backend/app/services/delivery_status.py`
+- **Per-broadcast segment CSV. OPTED_OUT exports a dedicated opted-out sheet.** (1 connections) — `backend/app/routes/upload.py`
+- **Classify every recipient of one broadcast into sent / delivered / opened / faile** (1 connections) — `backend/app/routes/upload.py`
+- **Per-broadcast segment CSV. OPTED_OUT exports a dedicated opted-out sheet.** (1 connections) — `backend/app/routes/upload.py`
+- **Classify every recipient of one broadcast into sent / delivered / opened / faile** (1 connections) — `backend/app/routes/upload.py`
+- **Per-broadcast interest CSV: every recipient with their current segment as HOT/WA** (1 connections) — `backend/app/routes/upload.py`
+- **Per-broadcast segment CSV. OPTED_OUT exports a dedicated opted-out sheet.** (1 connections) — `backend/app/routes/upload.py`
 
 ## Relationships
 
-- [[Upload API]] (32 shared connections)
-- [[Meta Cloud API Client]] (4 shared connections)
-- [[Pydantic Schemas]] (3 shared connections)
-- [[CSV Upload & Bulk Send]] (2 shared connections)
-- [[Callers CRUD & Coaching]] (2 shared connections)
-- [[Broadcast Executor & Outbound Router]] (2 shared connections)
-- [[App Entry & Schedulers]] (1 shared connections)
+- [[Upload API]] (5 shared connections)
+- [[CSV Upload & Bulk Send]] (4 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
 
 ## Source Files
 
 - `backend/app/routes/upload.py`
+- `backend/app/services/delivery_status.py`
 
 ## Audit Trail
 
-- EXTRACTED: 86 (91%)
-- INFERRED: 8 (9%)
+- EXTRACTED: 53 (85%)
+- INFERRED: 9 (15%)
 - AMBIGUOUS: 0 (0%)
 
 ---

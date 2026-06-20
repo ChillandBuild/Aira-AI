@@ -24,6 +24,7 @@
 ## Relationships
 
 - [[Spec: Bot Flow Builder]] (2 shared connections)
+- [[Spec: Feature Flags Operator Console]] (1 shared connections)
 
 ## Source Files
 

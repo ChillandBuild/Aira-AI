@@ -19,9 +19,11 @@
 
 ## Relationships
 
-- [[Meta Cloud API Client]] (5 shared connections)
-- [[App Entry & Schedulers]] (1 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
+- [[Meta Cloud API Client]] (3 shared connections)
+- [[Tenant]] (1 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
+- [[Meta Cloud Service]] (1 shared connections)
 
 ## Source Files
 

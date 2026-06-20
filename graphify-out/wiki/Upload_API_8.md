@@ -4,17 +4,16 @@
 
 ## Key Concepts
 
-- **get_failed_csv()** (8 connections) — `backend/app/routes/upload.py`
-- **Generate a CSV of failed contacts for a broadcast.** (1 connections) — `backend/app/routes/upload.py`
-- **Generate a CSV of failed contacts for a broadcast.** (1 connections) — `backend/app/routes/upload.py`
-- **Generate a CSV of all failed/unreached/opted-out contacts for a broadcast.** (1 connections) — `backend/app/routes/upload.py`
-- **Generate a CSV of failed contacts for a broadcast.** (1 connections) — `backend/app/routes/upload.py`
+- **download_broadcast_history_csv()** (7 connections) — `backend/app/routes/upload.py`
+- **Download full broadcast history as CSV.** (1 connections) — `backend/app/routes/upload.py`
+- **Download full broadcast history as CSV.** (1 connections) — `backend/app/routes/upload.py`
+- **Download full broadcast history as CSV.** (1 connections) — `backend/app/routes/upload.py`
+- **Download full broadcast history as CSV.** (1 connections) — `backend/app/routes/upload.py`
 
 ## Relationships
 
-- [[Upload API]] (2 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
-- [[CSV Upload & Bulk Send]] (1 shared connections)
+- [[CSV Upload & Bulk Send]] (2 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
 
 ## Source Files
 
@@ -22,8 +21,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 11 (92%)
-- INFERRED: 1 (8%)
+- EXTRACTED: 10 (91%)
+- INFERRED: 1 (9%)
 - AMBIGUOUS: 0 (0%)
 
 ---

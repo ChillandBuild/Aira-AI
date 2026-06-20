@@ -1,20 +1,19 @@
 # Upload API
 
-> 7 nodes · cohesion 0.29
+> 5 nodes · cohesion 0.40
 
 ## Key Concepts
 
-- **_map_meta_error()** (7 connections) — `backend/app/routes/upload.py`
-- **_meta_error_code()** (5 connections) — `backend/app/routes/upload.py`
-- **int** (3 connections) — `backend/app/routes/upload.py`
-- **Pull the numeric Meta error code out of a raw error string / JSON blob.** (1 connections) — `backend/app/routes/upload.py`
-- **Map Meta API error message to a short failure reason code.** (1 connections) — `backend/app/routes/upload.py`
-- **Map Meta API error message to a short failure reason code.** (1 connections) — `backend/app/routes/upload.py`
-- **Map Meta API error message to a short failure reason code.** (1 connections) — `backend/app/routes/upload.py`
+- **get_broadcast_history()** (7 connections) — `backend/app/routes/upload.py`
+- **Return the last 50 broadcast records with per-broadcast hot/warm/cold counts.** (1 connections) — `backend/app/routes/upload.py`
+- **Return the last 50 broadcast records with per-broadcast hot/warm/cold counts.** (1 connections) — `backend/app/routes/upload.py`
+- **Return the last 50 broadcast records with per-broadcast hot/warm/cold counts.** (1 connections) — `backend/app/routes/upload.py`
+- **Return the last 50 broadcast records with per-broadcast hot/warm/cold counts.** (1 connections) — `backend/app/routes/upload.py`
 
 ## Relationships
 
-- [[Upload API]] (7 shared connections)
+- [[CSV Upload & Bulk Send]] (2 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
 
 ## Source Files
 
@@ -22,8 +21,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 19 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 10 (91%)
+- INFERRED: 1 (9%)
 - AMBIGUOUS: 0 (0%)
 
 ---

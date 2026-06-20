@@ -1,13 +1,20 @@
 # Conversation List UI
 
-> 17 nodes · cohesion 0.20
+> 27 nodes · cohesion 0.13
 
 ## Key Concepts
 
+- **Lead** (28 connections) — `frontend/lib/api.ts`
 - **conversations.py** (26 connections) — `backend/app/routes/conversations.py`
 - **conversation-list.tsx** (23 connections) — `frontend/components/conversation-list.tsx`
-- **list_conversations()** (4 connections) — `backend/app/routes/conversations.py`
+- **page.tsx** (22 connections) — `frontend/app/dashboard/conversations/page.tsx`
+- **LeadAttribution.tsx** (6 connections) — `frontend/app/dashboard/telecalling/components/LeadAttribution.tsx`
+- **formatIST()** (5 connections) — `frontend/lib/utils.ts`
 - **Props** (3 connections) — `frontend/components/conversation-list.tsx`
+- **ConversationList()** (3 connections) — `frontend/components/conversation-list.tsx`
+- **ConversationsPage()** (2 connections) — `frontend/app/dashboard/conversations/page.tsx`
+- **LeadsWithActivityResponse** (2 connections) — `frontend/app/dashboard/notes/page.tsx`
+- **LeadAttributionProps** (2 connections) — `frontend/app/dashboard/telecalling/components/LeadAttribution.tsx`
 - **AVATAR_COLORS** (2 connections) — `frontend/components/conversation-list.tsx`
 - **getAvatarColor()** (2 connections) — `frontend/components/conversation-list.tsx`
 - **getInitials()** (2 connections) — `frontend/components/conversation-list.tsx`
@@ -19,29 +26,40 @@
 - **PlatformIconProps** (2 connections) — `frontend/components/conversation-list.tsx`
 - **PLATFORMS** (2 connections) — `frontend/components/conversation-list.tsx`
 - **SEGMENTS** (2 connections) — `frontend/components/conversation-list.tsx`
-- **int** (1 connections) — `backend/app/routes/conversations.py`
-- **str** (1 connections) — `backend/app/routes/conversations.py`
+- **getDetailsPanelDefault()** (1 connections) — `frontend/app/dashboard/conversations/page.tsx`
+- **togglePinInList()** (1 connections) — `frontend/app/dashboard/conversations/page.tsx`
+- **SharedInboxEmpty()** (1 connections) — `frontend/app/dashboard/conversations/page.tsx`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- [[API Client (frontend)]] (11 shared connections)
-- [[Inboundleadsclient (frontend)]] (5 shared connections)
-- [[Conversations Page]] (3 shared connections)
-- [[Pydantic Schemas]] (2 shared connections)
-- [[Api (frontend)]] (2 shared connections)
-- [[App Entry & Schedulers]] (1 shared connections)
-- [[Knowledge Page]] (1 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
+- [[Leaddetailpanel Component]] (25 shared connections)
+- [[Outbound Leads Page]] (9 shared connections)
+- [[API Client (frontend)]] (9 shared connections)
+- [[Authrolecontext (frontend)]] (3 shared connections)
+- [[Lead Details Panel]] (3 shared connections)
+- [[Shared Component]] (3 shared connections)
+- [[Teamclient (frontend)]] (3 shared connections)
+- [[Leads API]] (2 shared connections)
+- [[Tenant]] (1 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
+- [[AI Reply Pipeline (Groq)]] (1 shared connections)
+- [[Connectchannelspanel (frontend)]] (1 shared connections)
 
 ## Source Files
 
 - `backend/app/routes/conversations.py`
+- `frontend/app/dashboard/conversations/page.tsx`
+- `frontend/app/dashboard/notes/page.tsx`
+- `frontend/app/dashboard/telecalling/components/LeadAttribution.tsx`
 - `frontend/components/conversation-list.tsx`
+- `frontend/lib/api.ts`
+- `frontend/lib/utils.ts`
 
 ## Audit Trail
 
-- EXTRACTED: 79 (99%)
-- INFERRED: 1 (1%)
+- EXTRACTED: 149 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

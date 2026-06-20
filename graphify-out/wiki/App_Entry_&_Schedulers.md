@@ -1,59 +1,47 @@
 # App Entry & Schedulers
 
-> 22 nodes · cohesion 0.10
+> 19 nodes · cohesion 0.12
 
 ## Key Concepts
 
-- **FastAPI** (45 connections) — `backend/app/main.py`
-- **main.py** (15 connections) — `backend/app/main.py`
-- **_check_token_health()** (7 connections) — `backend/app/main.py`
-- **get_current_user()** (4 connections) — `/Users/prem/Documents/Aira Ai/backend/app/dependencies/auth.py`
-- **get_system_admin()** (3 connections) — `/Users/prem/Documents/Aira Ai/backend/app/dependencies/system_admin.py`
-- **_create_token_incident()** (3 connections) — `backend/app/main.py`
-- **_record_scheduler_event()** (3 connections) — `backend/app/main.py`
-- **auth.py** (2 connections) — `/Users/prem/Documents/Aira Ai/backend/app/dependencies/auth.py`
-- **system_admin.py** (2 connections) — `/Users/prem/Documents/Aira Ai/backend/app/dependencies/system_admin.py`
-- **lifespan()** (2 connections) — `backend/app/main.py`
-- **health()** (2 connections) — `backend/app/main.py`
-- **messages.py** (2 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/messages.py`
-- **CtwaLead** (2 connections) — `frontend/lib/api.ts`
-- **HTTPAuthorizationCredentials** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/dependencies/auth.py`
-- **str** (1 connections) — `backend/app/main.py`
-- **trigger_error()** (1 connections) — `backend/app/main.py`
-- **APScheduler daily job: validate Meta tokens for all tenants, create incidents if** (1 connections) — `backend/app/main.py`
-- **Persist every job run to scheduler_runs for the operator Scheduler Health     vi** (1 connections) — `backend/app/main.py`
-- **Message history routes.  This module will expose endpoints for retrieving conver** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/messages.py`
-- **APScheduler daily job: validate Meta tokens for all tenants, create incidents if** (1 connections) — `backend/app/main.py`
-- **APScheduler daily job: validate Meta tokens for all tenants, create incidents if** (1 connections) — `backend/app/main.py`
-- **APScheduler daily job: validate Meta tokens for all tenants, create incidents if** (1 connections) — `backend/app/main.py`
+- **_apply_engagement_decay()** (16 connections) — `backend/app/main.py`
+- **apply_engagement_decay_all()** (11 connections) — `backend/app/services/scoring_engine.py`
+- **score_to_segment()** (8 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **parse_thresholds()** (7 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **segmentation.py** (2 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **APScheduler 6h job: decay scores for leads silent >24h.** (1 connections) — `backend/app/main.py`
+- **Scheduler job: recompute engagement delta and score for all leads     that have** (1 connections) — `backend/app/services/scoring_engine.py`
+- **int** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **SegmentType** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **str** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **Map a 1-10 score to a segment label per CLAUDE.md invariants.      thresholds: o** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **Parse JSON threshold string from app_settings. Returns None on any error.** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
+- **Scheduler job: recompute engagement delta and score for all leads     that have** (1 connections) — `backend/app/services/scoring_engine.py`
+- **APScheduler 6h job: decay scores for leads silent >24h.** (1 connections) — `backend/app/main.py`
+- **APScheduler 6h job: decay scores for leads silent >24h.** (1 connections) — `backend/app/main.py`
+- **APScheduler 6h job: decay scores for leads silent >24h.** (1 connections) — `backend/app/main.py`
+- **Scheduler job: recompute engagement delta and score for all leads     that have** (1 connections) — `backend/app/services/scoring_engine.py`
+- **int** (1 connections) — `backend/app/services/segmentation.py`
+- **str** (1 connections) — `backend/app/services/segmentation.py`
 
 ## Relationships
 
-- [[Callers CRUD & Coaching]] (6 shared connections)
-- [[Meta Cloud API Client]] (3 shared connections)
-- [[Assignment Service]] (3 shared connections)
-- [[App Entry & Schedulers]] (2 shared connections)
-- [[Inbound Lead Reporting]] (2 shared connections)
-- [[App Settings API]] (2 shared connections)
-- [[Facebook / Webhook Verification]] (2 shared connections)
-- [[Instagram Channel]] (2 shared connections)
-- [[Score Engine v2 & Segmentation]] (1 shared connections)
-- [[Broadcast Retry Service]] (1 shared connections)
-- [[Telecaller Assignment Engine]] (1 shared connections)
-- [[Reengagement Service]] (1 shared connections)
+- [[Score Engine v2 & Segmentation]] (10 shared connections)
+- [[Tests: Scoring Engine]] (4 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files
 
-- `/Users/prem/Documents/Aira Ai/backend/app/dependencies/auth.py`
-- `/Users/prem/Documents/Aira Ai/backend/app/dependencies/system_admin.py`
-- `/Users/prem/Documents/Aira Ai/backend/app/routes/messages.py`
+- `/Users/prem/Documents/Aira Ai/backend/app/services/segmentation.py`
 - `backend/app/main.py`
-- `frontend/lib/api.ts`
+- `backend/app/services/scoring_engine.py`
+- `backend/app/services/segmentation.py`
 
 ## Audit Trail
 
-- EXTRACTED: 94 (93%)
-- INFERRED: 7 (7%)
+- EXTRACTED: 45 (78%)
+- INFERRED: 13 (22%)
 - AMBIGUOUS: 0 (0%)
 
 ---

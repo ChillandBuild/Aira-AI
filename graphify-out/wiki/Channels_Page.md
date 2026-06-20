@@ -1,13 +1,16 @@
 # Channels Page
 
-> 19 nodes · cohesion 0.11
+> 22 nodes · cohesion 0.09
 
 ## Key Concepts
 
-- **page.tsx** (24 connections) — `frontend/app/dashboard/channels/page.tsx`
-- **ChannelConfig** (2 connections) — `frontend/app/dashboard/channels/page.tsx`
+- **page.tsx** (25 connections) — `frontend/app/dashboard/channels/page.tsx`
+- **str** (4 connections) — `backend/app/config_dynamic.py`
+- **invalidate_cache()** (4 connections) — `backend/app/config_dynamic.py`
+- **saveSettings()** (3 connections) — `frontend/app/dashboard/channels/page.tsx`
 - **fetchSettings()** (2 connections) — `frontend/app/dashboard/channels/page.tsx`
 - **ChannelsHubPage()** (2 connections) — `frontend/app/dashboard/channels/page.tsx`
+- **ChannelsPage()** (1 connections) — `frontend/app/dashboard/channels/page.tsx`
 - **InstagramIcon()** (1 connections) — `frontend/app/dashboard/channels/page.tsx`
 - **FacebookIcon()** (1 connections) — `frontend/app/dashboard/channels/page.tsx`
 - **Setting** (1 connections) — `frontend/app/dashboard/channels/page.tsx`
@@ -26,20 +29,25 @@
 
 ## Relationships
 
-- [[Inboundleadsclient (frontend)]] (3 shared connections)
-- [[Notes Api (frontend)]] (2 shared connections)
-- [[App Settings API]] (1 shared connections)
-- [[Api (frontend)]] (1 shared connections)
+- [[Outbound Leads Page]] (3 shared connections)
+- [[Connectchannelspanel (frontend)]] (3 shared connections)
+- [[App Settings API]] (2 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
+- [[Ai Tune API]] (1 shared connections)
+- [[Instagram Channel]] (1 shared connections)
+- [[Booking Flow]] (1 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
+- [[Leaddetailpanel Component]] (1 shared connections)
 
 ## Source Files
 
+- `backend/app/config_dynamic.py`
 - `frontend/app/dashboard/channels/page.tsx`
 
 ## Audit Trail
 
-- EXTRACTED: 45 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 54 (96%)
+- INFERRED: 2 (4%)
 - AMBIGUOUS: 0 (0%)
 
 ---

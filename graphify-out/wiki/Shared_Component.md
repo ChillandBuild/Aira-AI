@@ -1,6 +1,6 @@
 # Shared Component
 
-> 56 nodes · cohesion 0.07
+> 53 nodes · cohesion 0.08
 
 ## Key Concepts
 
@@ -8,7 +8,6 @@
 - **NotesClient.tsx** (35 connections) — `frontend/app/dashboard/notes/NotesClient.tsx`
 - **shared.tsx** (33 connections) — `frontend/app/dashboard/notes/components/shared.tsx`
 - **NoteCard.tsx** (19 connections) — `frontend/app/dashboard/notes/components/NoteCard.tsx`
-- **Note** (12 connections) — `frontend/app/dashboard/telecalling/types.ts`
 - **NotesClient()** (9 connections) — `frontend/app/dashboard/notes/NotesClient.tsx`
 - **AiSummaryCard()** (7 connections) — `frontend/app/dashboard/notes/components/shared.tsx`
 - **scoreBadgeColor()** (6 connections) — `frontend/app/dashboard/notes/components/shared.tsx`
@@ -29,16 +28,15 @@
 - **TimelineItem()** (3 connections) — `frontend/app/dashboard/notes/components/shared.tsx`
 - **useLeadsWithActivity()** (3 connections) — `frontend/hooks/useApi.ts`
 - **useNotes()** (3 connections) — `frontend/hooks/useApi.ts`
-- *... and 31 more nodes in this community*
+- **useAllNotes()** (3 connections) — `frontend/hooks/useApi.ts`
+- *... and 28 more nodes in this community*
 
 ## Relationships
 
-- [[API Client (frontend)]] (25 shared connections)
-- [[Notes Api (frontend)]] (12 shared connections)
-- [[Teamclient (frontend)]] (8 shared connections)
-- [[Api (frontend)]] (5 shared connections)
-- [[Winnerbanner (frontend)]] (4 shared connections)
-- [[Knowledge Page]] (1 shared connections)
+- [[Leaddetailpanel Component]] (34 shared connections)
+- [[Teamclient (frontend)]] (9 shared connections)
+- [[API Client (frontend)]] (5 shared connections)
+- [[Conversation List UI]] (3 shared connections)
 
 ## Source Files
 
@@ -46,14 +44,13 @@
 - `frontend/app/dashboard/notes/components/NoteCard.tsx`
 - `frontend/app/dashboard/notes/components/shared.tsx`
 - `frontend/app/dashboard/notes/page.tsx`
-- `frontend/app/dashboard/telecalling/types.ts`
 - `frontend/hooks/useApi.ts`
 - `frontend/lib/api.ts`
 - `frontend/lib/utils.ts`
 
 ## Audit Trail
 
-- EXTRACTED: 275 (100%)
+- EXTRACTED: 259 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

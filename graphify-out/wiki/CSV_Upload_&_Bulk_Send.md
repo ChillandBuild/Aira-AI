@@ -1,42 +1,51 @@
 # CSV Upload & Bulk Send
 
-> 18 nodes · cohesion 0.16
+> 22 nodes · cohesion 0.22
 
 ## Key Concepts
 
-- **_classify_broadcast_outcomes()** (12 connections) — `backend/app/routes/upload.py`
-- **download_broadcast_tag_csv()** (11 connections) — `backend/app/routes/upload.py`
-- **nearest_status()** (6 connections) — `backend/app/services/delivery_status.py`
-- **delivery_status.py** (5 connections) — `backend/app/services/delivery_status.py`
-- **parse_ts()** (5 connections) — `backend/app/services/delivery_status.py`
-- **nearest_record()** (5 connections) — `backend/app/services/delivery_status.py`
-- **datetime** (4 connections) — `backend/app/services/delivery_status.py`
-- **str** (2 connections) — `backend/app/services/delivery_status.py`
-- **Classify every recipient of one broadcast into sent / delivered / opened / faile** (1 connections) — `backend/app/routes/upload.py`
-- **Per-broadcast segment CSV. OPTED_OUT exports a dedicated opted-out sheet.** (1 connections) — `backend/app/routes/upload.py`
-- **Per-broadcast delivery attribution.  When the same lead receives multiple broadc** (1 connections) — `backend/app/services/delivery_status.py`
-- **Return the record whose timestamp is nearest to `anchor` within the send     win** (1 connections) — `backend/app/services/delivery_status.py`
-- **Delivery status of the message nearest the broadcast send, or None.** (1 connections) — `backend/app/services/delivery_status.py`
-- **Classify every recipient of one broadcast into sent / delivered / opened / faile** (1 connections) — `backend/app/routes/upload.py`
-- **Per-broadcast segment CSV. OPTED_OUT exports a dedicated opted-out sheet.** (1 connections) — `backend/app/routes/upload.py`
-- **Classify every recipient of one broadcast into sent / delivered / opened / faile** (1 connections) — `backend/app/routes/upload.py`
-- **Per-broadcast interest CSV: every recipient with their current segment as HOT/WA** (1 connections) — `backend/app/routes/upload.py`
-- **Per-broadcast segment CSV. OPTED_OUT exports a dedicated opted-out sheet.** (1 connections) — `backend/app/routes/upload.py`
+- **upload.py** (38 connections) — `backend/app/routes/upload.py`
+- **str** (28 connections) — `backend/app/routes/upload.py`
+- **bulk_send()** (17 connections) — `backend/app/routes/upload.py`
+- **upload_leads()** (12 connections) — `backend/app/routes/upload.py`
+- **_normalize_phone()** (7 connections) — `backend/app/routes/upload.py`
+- **parse_csv()** (7 connections) — `backend/app/routes/upload.py`
+- **_to_float()** (6 connections) — `backend/app/routes/upload.py`
+- **_create_csv_signed_url()** (6 connections) — `backend/app/routes/upload.py`
+- **get_csv_signed_url()** (6 connections) — `backend/app/routes/upload.py`
+- **_clean_text()** (5 connections) — `backend/app/routes/upload.py`
+- **_validate_csv_storage_path()** (5 connections) — `backend/app/routes/upload.py`
+- **_meta_error_detail()** (4 connections) — `backend/app/routes/upload.py`
+- **_value_for()** (4 connections) — `backend/app/routes/upload.py`
+- **OptInRequest** (3 connections) — `backend/app/routes/upload.py`
+- **BulkSendRequest** (3 connections) — `backend/app/routes/upload.py`
+- **UploadFile** (2 connections) — `backend/app/routes/upload.py`
+- **BulkLeadItem** (2 connections) — `backend/app/routes/upload.py`
+- **_insert_scheduled_broadcast()** (2 connections) — `backend/app/routes/upload.py`
+- **_insert_scheduled_broadcasts()** (2 connections) — `backend/app/routes/upload.py`
+- **validate_optin()** (2 connections) — `backend/app/routes/upload.py`
+- **float** (1 connections) — `backend/app/routes/upload.py`
+- **Human-readable Meta error for the failed CSV — '(#code) message', else trimmed r** (1 connections) — `backend/app/routes/upload.py`
 
 ## Relationships
 
-- [[Upload API]] (9 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
+- [[Upload API]] (40 shared connections)
+- [[Operator Console & Audit]] (8 shared connections)
+- [[Calls API (TeleCMI dialer)]] (4 shared connections)
+- [[Growth Service]] (3 shared connections)
+- [[Leads API]] (3 shared connections)
+- [[Tenant]] (1 shared connections)
+- [[Booking Flow]] (1 shared connections)
+- [[Meta Cloud API Client]] (1 shared connections)
 
 ## Source Files
 
 - `backend/app/routes/upload.py`
-- `backend/app/services/delivery_status.py`
 
 ## Audit Trail
 
-- EXTRACTED: 51 (85%)
-- INFERRED: 9 (15%)
+- EXTRACTED: 146 (90%)
+- INFERRED: 17 (10%)
 - AMBIGUOUS: 0 (0%)
 
 ---

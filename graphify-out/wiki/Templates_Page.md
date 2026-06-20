@@ -33,8 +33,8 @@
 
 ## Relationships
 
-- [[Notes Api (frontend)]] (6 shared connections)
-- [[Api (frontend)]] (5 shared connections)
+- [[Connectchannelspanel (frontend)]] (6 shared connections)
+- [[API Client (frontend)]] (5 shared connections)
 - [[Templates API]] (1 shared connections)
 
 ## Source Files

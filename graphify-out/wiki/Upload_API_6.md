@@ -1,23 +1,21 @@
 # Upload API
 
-> 8 nodes · cohesion 0.25
+> 7 nodes · cohesion 0.29
 
 ## Key Concepts
 
-- **refresh_broadcast_metrics()** (8 connections) — `backend/app/routes/upload.py`
-- **_refresh_delivered_opened_timewindow()** (5 connections) — `backend/app/routes/upload.py`
-- **Update delivered/opened counts via time-window fallback (legacy/compat).** (1 connections) — `backend/app/routes/upload.py`
-- **Re-query delivery status for all broadcasts and update history.** (1 connections) — `backend/app/routes/upload.py`
-- **Update delivered/opened counts via time-window fallback (legacy/compat).** (1 connections) — `backend/app/routes/upload.py`
-- **Re-query delivery status for all broadcasts and update history.** (1 connections) — `backend/app/routes/upload.py`
-- **Update delivered/opened counts via time-window fallback (legacy/compat).** (1 connections) — `backend/app/routes/upload.py`
-- **Re-query delivery status for all broadcasts and update history.** (1 connections) — `backend/app/routes/upload.py`
+- **_map_meta_error()** (7 connections) — `backend/app/routes/upload.py`
+- **_meta_error_code()** (5 connections) — `backend/app/routes/upload.py`
+- **int** (3 connections) — `backend/app/routes/upload.py`
+- **Pull the numeric Meta error code out of a raw error string / JSON blob.** (1 connections) — `backend/app/routes/upload.py`
+- **Map Meta API error message to a short failure reason code.** (1 connections) — `backend/app/routes/upload.py`
+- **Map Meta API error message to a short failure reason code.** (1 connections) — `backend/app/routes/upload.py`
+- **Map Meta API error message to a short failure reason code.** (1 connections) — `backend/app/routes/upload.py`
 
 ## Relationships
 
-- [[Upload API]] (3 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
-- [[CSV Upload & Bulk Send]] (1 shared connections)
+- [[CSV Upload & Bulk Send]] (6 shared connections)
+- [[Upload API]] (1 shared connections)
 
 ## Source Files
 
@@ -25,8 +23,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 18 (95%)
-- INFERRED: 1 (5%)
+- EXTRACTED: 19 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

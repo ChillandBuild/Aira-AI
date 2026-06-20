@@ -18,7 +18,7 @@
 ## Relationships
 
 - [[API Client (frontend)]] (4 shared connections)
-- [[Callers CRUD & Coaching]] (3 shared connections)
+- [[Calls API (TeleCMI dialer)]] (3 shared connections)
 
 ## Source Files
 

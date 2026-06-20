@@ -12,7 +12,7 @@
 
 ## Relationships
 
-- [[Notes Api (frontend)]] (1 shared connections)
+- [[Leaddetailpanel Component]] (1 shared connections)
 
 ## Source Files
 

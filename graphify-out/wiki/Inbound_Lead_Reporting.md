@@ -33,12 +33,12 @@
 
 ## Relationships
 
-- [[Callers CRUD & Coaching]] (3 shared connections)
-- [[Inboundleadsclient (frontend)]] (3 shared connections)
-- [[App Entry & Schedulers]] (2 shared connections)
+- [[Calls API (TeleCMI dialer)]] (3 shared connections)
+- [[Outbound Leads Page]] (3 shared connections)
+- [[Tenant]] (2 shared connections)
 - [[Analytics API]] (1 shared connections)
 - [[Teamclient (frontend)]] (1 shared connections)
-- [[Api (frontend)]] (1 shared connections)
+- [[API Client (frontend)]] (1 shared connections)
 
 ## Source Files
 

@@ -41,6 +41,21 @@ _BOOKING_DEFAULTS = {
 }
 
 
+def _get_booking_types(tenant_id: str | None) -> list[dict]:
+    if not tenant_id:
+        return []
+    try:
+        from app.services.config_dynamic import get_setting
+        import json
+        raw = get_setting("booking_types", None, tenant_id=tenant_id)
+        if raw:
+            types = json.loads(raw)
+            return [t for t in types if isinstance(t, dict) and t.get("name") and t.get("amount_paise")]
+    except Exception as e:
+        logger.warning(f"Failed to read booking_types for tenant {tenant_id}: {e}")
+    return []
+
+
 def _get_booking_settings(tenant_id: str | None) -> dict:
     if not tenant_id:
         return dict(_BOOKING_DEFAULTS)
@@ -173,11 +188,12 @@ async def route_booking_intent(
             except Exception as re_err:
                 logger.warning(f"Rejection patterns check failed: {re_err}")
 
-            # Validate input using LLM
-            is_valid = await _validate_collect_input(current_state, body, tenant_id=tenant_id)
-            if not is_valid:
-                logger.info(f"Booking flow input validation failed for state {current_state}, message: {body}")
-                return False
+            # Validate input using LLM (skip for type selection — numeric check handled in advance_state)
+            if current_state != "selecting_type":
+                is_valid = await _validate_collect_input(current_state, body, tenant_id=tenant_id)
+                if not is_valid:
+                    logger.info(f"Booking flow input validation failed for state {current_state}, message: {body}")
+                    return False
 
             await advance_state(state=conv_state, message=body, phone=phone, db=db)
             return True
@@ -190,8 +206,8 @@ async def route_booking_intent(
 
 
 _BOOKING_COLLECT_STATES = frozenset({
-    "collecting_name", "collecting_rasi", "collecting_nakshatram",
-    "collecting_gotram", "collecting_address",
+    "selecting_type", "collecting_name", "collecting_rasi",
+    "collecting_nakshatram", "collecting_gotram", "collecting_address",
 })
 
 
@@ -364,8 +380,7 @@ async def send_whatsapp_text(phone: str, text: str, tenant_id: str | None = None
             logger.error(f"Failed to log booking flow message for lead {lead_id}: {e}")
 
 
-def _create_draft_booking(lead_id: str, tenant_id: str, db) -> dict:
-    # Check for an existing non-cancelled booking to prevent duplicates on concurrent messages
+def _create_draft_booking(lead_id: str, tenant_id: str, db, booking_type: dict | None = None) -> dict:
     existing = (
         db.table("bookings")
         .select("id, booking_ref, amount_paise")
@@ -379,13 +394,15 @@ def _create_draft_booking(lead_id: str, tenant_id: str, db) -> dict:
     if existing.data:
         return existing.data[0]
     settings = _get_booking_settings(tenant_id)
+    event_name = booking_type["name"] if booking_type else settings["event_name"]
+    amount = booking_type["amount_paise"] if booking_type else settings["amount_paise"]
     result = db.table("bookings").insert({
         "lead_id": lead_id,
         "tenant_id": tenant_id,
-        "event_name": settings["event_name"],
+        "event_name": event_name,
         "booking_ref": _generate_booking_ref(settings["ref_prefix"]),
         "status": "draft",
-        "amount_paise": settings["amount_paise"],
+        "amount_paise": int(amount),
     }).execute()
     return result.data[0]
 
@@ -398,7 +415,29 @@ async def start_booking_flow(
     existing_state: dict | None = None,
 ) -> None:
     db = db or get_supabase()
-    booking = _create_draft_booking(lead_id, tenant_id, db)
+    booking_types = _get_booking_types(tenant_id)
+
+    if len(booking_types) > 1:
+        state = {
+            "id": (existing_state or {}).get("id"),
+            "lead_id": lead_id,
+            "tenant_id": tenant_id,
+            "flow_name": "booking",
+            "state": "selecting_type",
+            "draft_data": {},
+            "booking_id": None,
+        }
+        _upsert_state(state, db)
+        lines = ["🙏 Please choose a booking type:\n"]
+        for i, bt in enumerate(booking_types, 1):
+            amt_display = f"₹{bt['amount_paise'] / 100:,.0f}"
+            lines.append(f"{i}. *{bt['name']}* — {amt_display}")
+        lines.append(f"\nReply with a number (1–{len(booking_types)})")
+        await send_whatsapp_text(phone=phone, text="\n".join(lines), tenant_id=tenant_id, lead_id=lead_id)
+        logger.info(f"Booking type selection started for lead {lead_id} ({len(booking_types)} types)")
+        return
+
+    booking = _create_draft_booking(lead_id, tenant_id, db, booking_types[0] if booking_types else None)
     state = {
         "id": (existing_state or {}).get("id"),
         "lead_id": lead_id,
@@ -418,6 +457,38 @@ async def advance_state(state: dict, message: str, phone: str, db=None) -> None:
     current = state["state"]
 
     if current in ("idle", "awaiting_payment"):
+        return
+
+    if current == "selecting_type":
+        tenant_id = state.get("tenant_id")
+        booking_types = _get_booking_types(tenant_id)
+        try:
+            choice = int(message.strip())
+            if choice < 1 or choice > len(booking_types):
+                raise ValueError("out of range")
+        except (ValueError, TypeError):
+            await send_whatsapp_text(
+                phone=phone,
+                text=f"Please reply with a number between 1 and {len(booking_types)}.",
+                tenant_id=tenant_id,
+                lead_id=state.get("lead_id"),
+            )
+            return
+
+        chosen = booking_types[choice - 1]
+        booking = _create_draft_booking(
+            state["lead_id"], tenant_id, db, chosen
+        )
+        state["booking_id"] = booking["id"]
+        state["draft_data"] = {**state["draft_data"], "booking_type": chosen["name"]}
+        state["state"] = "collecting_name"
+        _upsert_state(state, db)
+        await send_whatsapp_text(
+            phone=phone,
+            text=_get_step_prompt("collecting_name"),
+            tenant_id=tenant_id,
+            lead_id=state.get("lead_id"),
+        )
         return
 
     field = _STATE_TO_FIELD.get(current)

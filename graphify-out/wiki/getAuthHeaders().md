@@ -1,57 +1,57 @@
 # getAuthHeaders()
 
-> God node · 50 connections · `frontend/lib/api.ts`
+> God node · 85 connections · `frontend/lib/api.ts`
 
-**Community:** [[Notes Api (frontend)]]
+**Community:** [[Connectchannelspanel (frontend)]]
 
 ## Connections by Relation
 
 ### calls
-- [[createCallback()]] `EXTRACTED`
 - [[fetchNotes()]] `EXTRACTED`
-- [[saveNote()]] `EXTRACTED`
+- [[createCallback()]] `EXTRACTED`
 - [[fetchTodayCallbacks()]] `EXTRACTED`
+- [[saveNote()]] `EXTRACTED`
 - [[markCallbackDone()]] `EXTRACTED`
 - [[fetchConversations()]] `EXTRACTED`
 - [[assignHandover()]] `EXTRACTED`
 - [[resolveHandover()]] `EXTRACTED`
 - [[fetchAllNotes()]] `EXTRACTED`
 - [[LogoutButton()]] `EXTRACTED`
-- [[saveSettings()]] `EXTRACTED`
 - [[fetchTodayCompletedCallbacks()]] `EXTRACTED`
+- [[saveSettings()]] `EXTRACTED`
 - [[apiFetch()]] `EXTRACTED`
 - [[BookingsPage()]] `EXTRACTED`
-- [[fetchSettings()]] `EXTRACTED`
 - [[fetchHandovers()]] `EXTRACTED`
 - [[fetchCallers()]] `EXTRACTED`
 - [[apiFetch()]] `EXTRACTED`
+- [[fetchBookingTypes()]] `EXTRACTED`
+- [[saveBookingTypes()]] `EXTRACTED`
 - [[fetchSettings()]] `EXTRACTED`
-- [[saveSettings()]] `EXTRACTED`
 
 ### contains
 - [[api.ts]] `EXTRACTED`
 
 ### imports
-- [[page.tsx]] `EXTRACTED`
+- [[performance-view.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[AdminView.tsx]] `EXTRACTED`
+- [[page.tsx]] `EXTRACTED`
+- [[page.tsx]] `EXTRACTED`
+- [[page.tsx]] `EXTRACTED`
 - [[notes-api.ts]] `EXTRACTED`
+- [[page.tsx]] `EXTRACTED`
 - [[LeadsClient.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
+- [[ConnectChannelsPanel.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
+- [[telecalling.tsx]] `EXTRACTED`
+- [[LeadDetailPanel.tsx]] `EXTRACTED`
 - [[lead-details-panel.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
+- [[content.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[sidebar.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
-- [[TelecallingConfigPanel.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
-- [[InboxConfigPanel.tsx]] `EXTRACTED`
 
 ---
 

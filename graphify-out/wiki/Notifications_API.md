@@ -1,22 +1,26 @@
 # Notifications API
 
-> 8 nodes · cohesion 0.25
+> 12 nodes · cohesion 0.17
 
 ## Key Concepts
 
-- **list_pool_items()** (5 connections) — `backend/app/routes/notifications.py`
+- **list_pool_items()** (6 connections) — `backend/app/routes/notifications.py`
+- **mark_notification_read()** (5 connections) — `backend/app/routes/notifications.py`
 - **list_notifications()** (4 connections) — `backend/app/routes/notifications.py`
-- **mark_notification_read()** (4 connections) — `backend/app/routes/notifications.py`
-- **str** (3 connections) — `backend/app/routes/notifications.py`
+- **str** (4 connections) — `backend/app/routes/notifications.py`
+- **mark_all_notifications_read()** (4 connections) — `backend/app/routes/notifications.py`
 - **Fetch unread notifications for the current user.** (1 connections) — `backend/app/routes/notifications.py`
+- **Mark all unread notifications as read for the current user.** (1 connections) — `backend/app/routes/notifications.py`
+- **Mark a specific notification as read.** (1 connections) — `backend/app/routes/notifications.py`
+- **Currently-actionable shared-pool items for the claim banner.      Reflects live** (1 connections) — `backend/app/routes/notifications.py`
 - **Mark a specific notification as read.** (1 connections) — `backend/app/routes/notifications.py`
 - **Currently-actionable shared-pool items for the claim banner.      Reflects live** (1 connections) — `backend/app/routes/notifications.py`
 - **Currently-actionable shared-pool items for the claim banner.      Reflects live** (1 connections) — `backend/app/routes/notifications.py`
 
 ## Relationships
 
-- [[Callers CRUD & Coaching]] (3 shared connections)
-- [[Notes Api (frontend)]] (3 shared connections)
+- [[Calls API (TeleCMI dialer)]] (4 shared connections)
+- [[Leaddetailpanel Component]] (4 shared connections)
 
 ## Source Files
 
@@ -24,8 +28,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 17 (85%)
-- INFERRED: 3 (15%)
+- EXTRACTED: 26 (87%)
+- INFERRED: 4 (13%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -13,8 +13,8 @@
 
 ## Relationships
 
-- [[Api (frontend)]] (1 shared connections)
-- [[Notes Api (frontend)]] (1 shared connections)
+- [[API Client (frontend)]] (1 shared connections)
+- [[Connectchannelspanel (frontend)]] (1 shared connections)
 
 ## Source Files
 

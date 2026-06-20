@@ -1,57 +1,60 @@
 # Leads API
 
-> 40 nodes · cohesion 0.09
+> 72 nodes · cohesion 0.08
 
 ## Key Concepts
 
+- **BaseModel** (63 connections)
 - **leads.py** (35 connections) — `backend/app/routes/leads.py`
 - **str** (23 connections) — `backend/app/routes/leads.py`
 - **UUID** (23 connections) — `backend/app/routes/leads.py`
-- **compose_new_message()** (12 connections) — `backend/app/routes/leads.py`
+- **schemas.py** (19 connections) — `backend/app/models/schemas.py`
+- **Lead** (16 connections) — `backend/app/models/schemas.py`
+- **PaginatedResponse** (16 connections) — `backend/app/models/schemas.py`
+- **LeadUpdate** (15 connections) — `backend/app/models/schemas.py`
+- **Message** (15 connections) — `backend/app/models/schemas.py`
+- **LeadWithMessages** (15 connections) — `backend/app/models/schemas.py`
+- **compose_new_message()** (13 connections) — `backend/app/routes/leads.py`
+- **send_human_message()** (11 connections) — `backend/app/routes/leads.py`
+- **manual_compact()** (10 connections) — `backend/app/routes/leads.py`
 - **update_lead()** (9 connections) — `backend/app/routes/leads.py`
-- **manual_compact()** (9 connections) — `backend/app/routes/leads.py`
+- **clear_chat()** (9 connections) — `backend/app/routes/leads.py`
+- **release_lead()** (9 connections) — `backend/app/routes/leads.py`
+- **PreCallBriefResponse** (8 connections) — `backend/app/routes/leads.py`
+- **ConvertPayload** (8 connections) — `backend/app/routes/leads.py`
+- **AiToggle** (8 connections) — `backend/app/routes/leads.py`
+- **HumanMessage** (8 connections) — `backend/app/routes/leads.py`
+- **AssignPayload** (8 connections) — `backend/app/routes/leads.py`
+- **BulkAssignPayload** (8 connections) — `backend/app/routes/leads.py`
+- **CustomBroadcastRequest** (8 connections) — `backend/app/routes/leads.py`
+- **assign_lead()** (8 connections) — `backend/app/routes/leads.py`
 - **mark_converted()** (8 connections) — `backend/app/routes/leads.py`
-- **clear_chat()** (8 connections) — `backend/app/routes/leads.py`
-- **release_lead()** (8 connections) — `backend/app/routes/leads.py`
-- **toggle_ai()** (7 connections) — `backend/app/routes/leads.py`
-- **assign_lead()** (6 connections) — `backend/app/routes/leads.py`
-- **toggle_archive()** (6 connections) — `backend/app/routes/leads.py`
-- **toggle_block()** (6 connections) — `backend/app/routes/leads.py`
-- **score_history()** (6 connections) — `backend/app/routes/leads.py`
-- **list_leads()** (5 connections) — `backend/app/routes/leads.py`
-- **get_lead()** (5 connections) — `backend/app/routes/leads.py`
-- **toggle_pin()** (5 connections) — `backend/app/routes/leads.py`
-- **delete_lead()** (5 connections) — `backend/app/routes/leads.py`
-- **pre_call_brief()** (5 connections) — `backend/app/routes/leads.py`
-- **get_lead_messages()** (4 connections) — `backend/app/routes/leads.py`
-- **get_lead_call_logs()** (4 connections) — `backend/app/routes/leads.py`
-- **export_leads()** (3 connections) — `backend/app/routes/leads.py`
-- **export_assigned_leads()** (3 connections) — `backend/app/routes/leads.py`
-- **Toggle a conversation's archived state (inbox tidy — does not stop AI).** (1 connections) — `backend/app/routes/leads.py`
-- **Toggle a contact's blocked state — hides from active inbox and stops AI auto-rep** (1 connections) — `backend/app/routes/leads.py`
-- *... and 15 more nodes in this community*
+- *... and 47 more nodes in this community*
 
 ## Relationships
 
-- [[Pydantic Schemas]] (27 shared connections)
-- [[Callers CRUD & Coaching]] (20 shared connections)
-- [[Meta Cloud API Client]] (15 shared connections)
+- [[Calls API (TeleCMI dialer)]] (23 shared connections)
+- [[Operator Console & Audit]] (20 shared connections)
+- [[Notify Service]] (6 shared connections)
 - [[Growth Service]] (6 shared connections)
-- [[Ai Reply Service]] (4 shared connections)
-- [[Telecaller Assignment Engine]] (4 shared connections)
-- [[App Entry & Schedulers]] (1 shared connections)
-- [[Assignment Service]] (1 shared connections)
-- [[AI Reply Pipeline (Groq)]] (1 shared connections)
-- [[Booking Flow]] (1 shared connections)
+- [[Callers CRUD & Coaching]] (5 shared connections)
+- [[App Settings API]] (4 shared connections)
+- [[Templates API]] (4 shared connections)
+- [[AI Reply Pipeline (Groq)]] (4 shared connections)
+- [[Booking Flow]] (4 shared connections)
+- [[Call Scripts API]] (3 shared connections)
+- [[Team API]] (3 shared connections)
+- [[CSV Upload & Bulk Send]] (3 shared connections)
 
 ## Source Files
 
+- `backend/app/models/schemas.py`
 - `backend/app/routes/leads.py`
 
 ## Audit Trail
 
-- EXTRACTED: 165 (74%)
-- INFERRED: 57 (26%)
+- EXTRACTED: 322 (63%)
+- INFERRED: 192 (37%)
 - AMBIGUOUS: 0 (0%)
 
 ---

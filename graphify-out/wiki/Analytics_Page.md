@@ -34,12 +34,12 @@
 ## Relationships
 
 - [[Analytics API]] (4 shared connections)
-- [[Api (frontend)]] (3 shared connections)
+- [[API Client (frontend)]] (3 shared connections)
 - [[Templates API]] (2 shared connections)
-- [[Winnerbanner (frontend)]] (2 shared connections)
-- [[API Client (frontend)]] (1 shared connections)
+- [[Teamclient (frontend)]] (2 shared connections)
+- [[Leaddetailpanel Component]] (1 shared connections)
 - [[Performancekpis Component]] (1 shared connections)
-- [[Knowledge Page]] (1 shared connections)
+- [[Authrolecontext (frontend)]] (1 shared connections)
 
 ## Source Files
 

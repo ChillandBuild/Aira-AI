@@ -1,47 +1,37 @@
 # Analytics API
 
-> 18 nodes · cohesion 0.22
+> 14 nodes · cohesion 0.15
 
 ## Key Concepts
 
-- **analytics.py** (29 connections) — `backend/app/routes/analytics.py`
-- **str** (20 connections) — `backend/app/routes/analytics.py`
-- **_week_start()** (6 connections) — `backend/app/routes/analytics.py`
-- **caller_timeline()** (6 connections) — `backend/app/routes/analytics.py`
-- **template_performance()** (5 connections) — `backend/app/routes/analytics.py`
-- **TemplatePerformanceRow** (5 connections) — `frontend/lib/api.ts`
-- **_today_start()** (4 connections) — `backend/app/routes/analytics.py`
-- **whatsapp_analytics()** (4 connections) — `backend/app/routes/analytics.py`
-- **funnel_analytics()** (4 connections) — `backend/app/routes/analytics.py`
-- **ad_performance_summary()** (4 connections) — `backend/app/routes/analytics.py`
-- **WhatsAppAnalytics** (4 connections) — `frontend/lib/api.ts`
-- **FunnelAnalytics** (4 connections) — `frontend/lib/api.ts`
-- **AdPerformanceSummary** (3 connections) — `frontend/lib/api.ts`
-- **UUID** (2 connections) — `backend/app/routes/analytics.py`
-- **export_telecalling()** (2 connections) — `backend/app/routes/analytics.py`
-- **Per-template broadcast performance: Sent / Read / Replied / Hot leads.** (2 connections) — `backend/app/routes/analytics.py`
-- **Analytics routes — service metrics for WhatsApp, telecalling, and lead funnel.** (1 connections) — `backend/app/routes/analytics.py`
-- **Per-template broadcast performance: Sent / Read / Replied / Hot leads.** (1 connections) — `backend/app/routes/analytics.py`
+- **_window_aggregate()** (9 connections) — `backend/app/routes/analytics.py`
+- **_caller_idle_minutes()** (6 connections) — `backend/app/routes/analytics.py`
+- **datetime** (5 connections) — `backend/app/routes/analytics.py`
+- **_is_connected()** (5 connections) — `backend/app/routes/analytics.py`
+- **int** (3 connections) — `backend/app/routes/analytics.py`
+- **qa_queue()** (3 connections) — `backend/app/routes/analytics.py`
+- **bool** (1 connections) — `backend/app/routes/analytics.py`
+- **float** (1 connections) — `backend/app/routes/analytics.py`
+- **A call is 'connected' if it had talk time or a non-no_answer outcome.** (1 connections) — `backend/app/routes/analytics.py`
+- **Idle minutes for one caller in [window_start, window_end): merged 'active'     i** (1 connections) — `backend/app/routes/analytics.py`
+- **Aggregate metrics for a window, comparable in magnitude to the daily 'today'** (1 connections) — `backend/app/routes/analytics.py`
+- **A call is 'connected' if it had talk time or a non-no_answer outcome.** (1 connections) — `backend/app/routes/analytics.py`
+- **Idle minutes for one caller in [window_start, window_end): merged 'active'     i** (1 connections) — `backend/app/routes/analytics.py`
+- **Aggregate metrics for a window, comparable in magnitude to the daily 'today'** (1 connections) — `backend/app/routes/analytics.py`
 
 ## Relationships
 
-- [[Analytics API]] (25 shared connections)
-- [[Callers CRUD & Coaching]] (6 shared connections)
-- [[Api (frontend)]] (4 shared connections)
-- [[Analytics Page]] (2 shared connections)
-- [[App Entry & Schedulers]] (1 shared connections)
-- [[Meta Cloud API Client]] (1 shared connections)
-- [[Growth Service]] (1 shared connections)
+- [[Analytics API]] (9 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
 
 ## Source Files
 
 - `backend/app/routes/analytics.py`
-- `frontend/lib/api.ts`
 
 ## Audit Trail
 
-- EXTRACTED: 98 (92%)
-- INFERRED: 8 (8%)
+- EXTRACTED: 38 (97%)
+- INFERRED: 1 (3%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -2,15 +2,15 @@
 
 > God node · 33 connections · `frontend/lib/utils.ts`
 
-**Community:** [[API Client (frontend)]]
+**Community:** [[Leaddetailpanel Component]]
 
 ## Connections by Relation
 
 ### calls
 - [[NotesClient()]] `EXTRACTED`
 - [[ScheduledCallsPage()]] `EXTRACTED`
-- [[NotesPage()]] `EXTRACTED`
 - [[AdminView()]] `EXTRACTED`
+- [[NotesPage()]] `EXTRACTED`
 - [[LeadBadge()]] `EXTRACTED`
 - [[LeadDetailPanel()]] `EXTRACTED`
 - [[BriefingModal()]] `EXTRACTED`
@@ -24,23 +24,23 @@
 - [[page.tsx]] `EXTRACTED`
 - [[NotesClient.tsx]] `EXTRACTED`
 - [[performance-view.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
 - [[AdminView.tsx]] `EXTRACTED`
 - [[CallerView.tsx]] `EXTRACTED`
-- [[CallerView.tsx]] `EXTRACTED`
-- [[conversations.py]] `EXTRACTED`
-- [[LeadsClient.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
+- [[LeadsClient.tsx]] `EXTRACTED`
+- [[conversations.py]] `EXTRACTED`
+- [[CallerView.tsx]] `EXTRACTED`
+- [[page.tsx]] `EXTRACTED`
+- [[LeadDetailPanel.tsx]] `EXTRACTED`
 - [[conversation-list.tsx]] `EXTRACTED`
 - [[InboundLeadsClient.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[NoteCard.tsx]] `EXTRACTED`
-- [[LeadDetailPanel.tsx]] `EXTRACTED`
 - [[assignment_log.py]] `EXTRACTED`
 - [[LeadProfileModal.tsx]] `EXTRACTED`
 - [[assignment-log.tsx]] `EXTRACTED`
 - [[briefing-modal.tsx]] `EXTRACTED`
-- [[CallWrapup.tsx]] `EXTRACTED`
+- [[QaReviewFeed.tsx]] `EXTRACTED`
 
 ---
 

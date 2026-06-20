@@ -19,12 +19,13 @@
 
 ## Relationships
 
-- [[App Entry & Schedulers]] (2 shared connections)
+- [[Instagram Channel]] (3 shared connections)
+- [[Tenant]] (2 shared connections)
+- [[Calls API (TeleCMI dialer)]] (2 shared connections)
 - [[Assignment Service]] (2 shared connections)
-- [[Tests: Booking Flow]] (2 shared connections)
+- [[Booking Flow]] (2 shared connections)
 - [[Growth Service]] (2 shared connections)
-- [[Meta Cloud Service]] (1 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
+- [[Config]] (1 shared connections)
 - [[Notify Service]] (1 shared connections)
 
 ## Source Files

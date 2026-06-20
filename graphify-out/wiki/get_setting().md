@@ -1,8 +1,8 @@
 # get_setting()
 
-> God node · 34 connections · `backend/app/config_dynamic.py`
+> God node · 38 connections · `backend/app/config_dynamic.py`
 
-**Community:** [[Meta Cloud Service]]
+**Community:** [[Calls API (TeleCMI dialer)]]
 
 ## Connections by Relation
 
@@ -10,28 +10,29 @@
 - [[get_supabase()]] `INFERRED`
 - [[generate_reply()]] `INFERRED`
 - [[_creds()]] `EXTRACTED`
+- [[get_groq_client()]] `EXTRACTED`
 - [[get_or_create_state()]] `INFERRED`
+- [[telecmi_cdr()]] `EXTRACTED`
 - [[telegram_webhook()]] `EXTRACTED`
+- [[get_knowledge_context()]] `INFERRED`
 - [[upload_template_media()]] `EXTRACTED`
 - [[verify_meta_signature()]] `EXTRACTED`
-- [[get_knowledge_context()]] `INFERRED`
-- [[telecmi_cdr()]] `EXTRACTED`
 - [[CreateTemplate]] `EXTRACTED`
-- [[_auto_generate_rubric()]] `INFERRED`
 - [[InitiateCall]] `EXTRACTED`
 - [[create_template()]] `EXTRACTED`
-- [[initiate_call()]] `EXTRACTED`
-- [[sync_template_status()]] `EXTRACTED`
-- [[sync_templates_from_meta()]] `EXTRACTED`
 - [[send_facebook()]] `INFERRED`
 - [[send_instagram()]] `INFERRED`
 - [[send_telegram()]] `INFERRED`
-- [[setup_telegram_webhook()]] `INFERRED`
+- [[_auto_generate_rubric()]] `INFERRED`
+- [[razorpay_webhook()]] `INFERRED`
+- [[initiate_call()]] `EXTRACTED`
+- [[_verify_telecmi_webhook_secret()]] `EXTRACTED`
 
 ### contains
 - [[config_dynamic.py]] `EXTRACTED`
 
 ### rationale_for
+- [[Read from cache → app_settings table → env var → fallback.]] `EXTRACTED`
 - [[Read from cache → app_settings table → env var → fallback.]] `EXTRACTED`
 
 ### references

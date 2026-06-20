@@ -10,6 +10,7 @@ import ChangePasswordCard from "./ChangePasswordCard";
 import ConnectChannelsPanel from "./ConnectChannelsPanel";
 import { TelecallingConfigPanel } from "./TelecallingConfigPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
+import { BookingConfigPanel } from "./BookingConfigPanel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -840,6 +841,8 @@ export default function SettingsPage() {
                   </div>
                 );
               })()}
+
+              <BookingConfigPanel />
 
               <InboxConfigPanel />
 

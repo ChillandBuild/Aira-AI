@@ -25,8 +25,9 @@
 
 ## Relationships
 
-- [[Score Engine v2 & Segmentation]] (6 shared connections)
+- [[Score Engine v2 & Segmentation]] (4 shared connections)
 - [[Tests: Scoring Engine]] (4 shared connections)
+- [[App Entry & Schedulers]] (2 shared connections)
 
 ## Source Files
 

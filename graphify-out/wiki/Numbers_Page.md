@@ -1,10 +1,11 @@
 # Numbers Page
 
-> 17 nodes · cohesion 0.12
+> 18 nodes · cohesion 0.12
 
 ## Key Concepts
 
 - **page.tsx** (26 connections) — `frontend/app/dashboard/numbers/page.tsx`
+- **apiFetch()** (2 connections) — `frontend/app/dashboard/numbers/page.tsx`
 - **formatTimestamp()** (2 connections) — `frontend/app/dashboard/numbers/page.tsx`
 - **IncidentRow()** (2 connections) — `frontend/app/dashboard/numbers/page.tsx`
 - **PhoneNumber** (1 connections) — `frontend/app/dashboard/numbers/page.tsx`
@@ -24,12 +25,11 @@
 
 ## Relationships
 
-- [[Knowledge Page]] (4 shared connections)
-- [[Notes Api (frontend)]] (2 shared connections)
-- [[Authrolecontext (frontend)]] (1 shared connections)
-- [[Api (frontend)]] (1 shared connections)
+- [[Leaddetailpanel Component]] (4 shared connections)
+- [[Authrolecontext (frontend)]] (2 shared connections)
+- [[Connectchannelspanel (frontend)]] (2 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
-- [[Inboundleadsclient (frontend)]] (1 shared connections)
+- [[Outbound Leads Page]] (1 shared connections)
 
 ## Source Files
 
@@ -37,7 +37,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 44 (100%)
+- EXTRACTED: 46 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

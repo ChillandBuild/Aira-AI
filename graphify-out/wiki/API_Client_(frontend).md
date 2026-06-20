@@ -1,77 +1,70 @@
 # API Client (frontend)
 
-> 64 nodes · cohesion 0.08
+> 85 nodes · cohesion 0.04
 
 ## Key Concepts
 
-- **api** (48 connections) — `frontend/lib/api.ts`
-- **utils.ts** (45 connections) — `frontend/lib/utils.ts`
-- **formatPhone()** (33 connections) — `frontend/lib/utils.ts`
-- **performance-view.tsx** (30 connections) — `frontend/app/dashboard/telecalling/components/performance-view.tsx`
-- **AdminView.tsx** (29 connections) — `frontend/app/dashboard/telecalling/AdminView.tsx`
-- **CallerView.tsx** (28 connections) — `frontend/app/dashboard/telecalling/CallerView.tsx`
-- **Lead** (27 connections) — `frontend/lib/api.ts`
+- **api.ts** (152 connections) — `frontend/lib/api.ts`
+- **page.tsx** (29 connections) — `frontend/app/dashboard/leads/page.tsx`
+- **LeadsClient.tsx** (27 connections) — `frontend/app/dashboard/leads/LeadsClient.tsx`
 - **Caller** (23 connections) — `frontend/lib/api.ts`
-- **timeAgo()** (19 connections) — `frontend/lib/utils.ts`
-- **LeadDetailPanel.tsx** (17 connections) — `frontend/app/dashboard/telecalling/components/LeadDetailPanel.tsx`
+- **page.tsx** (18 connections) — `frontend/app/dashboard/knowledge/page.tsx`
+- **ReengagementBuilder.tsx** (17 connections) — `frontend/app/dashboard/leads/ReengagementBuilder.tsx`
 - **assignment_log.py** (16 connections) — `backend/app/routes/assignment_log.py`
-- **LeadProfileModal.tsx** (14 connections) — `frontend/app/dashboard/telecalling/components/sections/LeadProfileModal.tsx`
 - **assignment-log.tsx** (13 connections) — `frontend/app/dashboard/telecalling/components/assignment-log.tsx`
-- **briefing-modal.tsx** (13 connections) — `frontend/app/dashboard/telecalling/components/briefing-modal.tsx`
-- **CallWrapup.tsx** (12 connections) — `frontend/app/dashboard/telecalling/components/CallWrapup.tsx`
-- **NotesResponse** (12 connections) — `frontend/app/dashboard/telecalling/types.ts`
-- **useActiveCall()** (10 connections) — `frontend/app/dashboard/contexts/ActiveCallContext.tsx`
+- **LiveAgentStatus.tsx** (11 connections) — `frontend/app/dashboard/telecalling/components/sections/LiveAgentStatus.tsx`
 - **ShiftTimeline.tsx** (10 connections) — `frontend/app/dashboard/telecalling/components/sections/ShiftTimeline.tsx`
 - **BulkAssignment.tsx** (9 connections) — `frontend/app/dashboard/telecalling/components/sections/BulkAssignment.tsx`
-- **QaReviewFeed.tsx** (9 connections) — `frontend/app/dashboard/telecalling/components/sections/QaReviewFeed.tsx`
-- **fetchNotes()** (9 connections) — `frontend/app/dashboard/telecalling/lib/notes-api.ts`
-- **LiveAgentStatus.tsx** (8 connections) — `frontend/app/dashboard/telecalling/components/sections/LiveAgentStatus.tsx`
-- **LeadAttribution.tsx** (6 connections) — `frontend/app/dashboard/telecalling/components/LeadAttribution.tsx`
-- **LeadDetailPanelProps** (6 connections) — `frontend/app/dashboard/telecalling/components/LeadDetailPanel.tsx`
-- **AdminView()** (5 connections) — `frontend/app/dashboard/telecalling/AdminView.tsx`
-- *... and 39 more nodes in this community*
+- **AssignButton.tsx** (7 connections) — `frontend/app/dashboard/leads/AssignButton.tsx`
+- **LeadsClient()** (5 connections) — `frontend/app/dashboard/leads/LeadsClient.tsx`
+- **WabaTemplate** (5 connections) — `frontend/lib/api.ts`
+- **TimelineEvent** (5 connections) — `frontend/lib/api.ts`
+- **page.tsx** (4 connections) — `frontend/app/dashboard/onboarding/page.tsx`
+- **CallsPerHour.tsx** (4 connections) — `frontend/app/dashboard/telecalling/components/sections/CallsPerHour.tsx`
+- **AssignButton()** (3 connections) — `frontend/app/dashboard/leads/AssignButton.tsx`
+- **SegmentTemplate** (3 connections) — `frontend/lib/api.ts`
+- **BroadcastHistoryItem** (3 connections) — `frontend/lib/api.ts`
+- **BroadcastResult** (3 connections) — `frontend/lib/api.ts`
+- **apiFetch()** (3 connections) — `frontend/lib/api.ts`
+- **AssignmentLogEntry** (3 connections) — `frontend/lib/api.ts`
+- **AssignButtonProps** (2 connections) — `frontend/app/dashboard/leads/AssignButton.tsx`
+- **pillClass()** (2 connections) — `frontend/app/dashboard/leads/LeadsClient.tsx`
+- *... and 60 more nodes in this community*
 
 ## Relationships
 
-- [[Notes Api (frontend)]] (45 shared connections)
-- [[Api (frontend)]] (40 shared connections)
-- [[Shared Component]] (25 shared connections)
-- [[Teamclient (frontend)]] (21 shared connections)
-- [[Winnerbanner (frontend)]] (18 shared connections)
-- [[Knowledge Page]] (16 shared connections)
-- [[Conversation List UI]] (11 shared connections)
-- [[Inboundleadsclient (frontend)]] (9 shared connections)
-- [[Teamprofilepanel (frontend)]] (5 shared connections)
+- [[Leaddetailpanel Component]] (64 shared connections)
+- [[Teamclient (frontend)]] (27 shared connections)
+- [[Authrolecontext (frontend)]] (20 shared connections)
+- [[Connectchannelspanel (frontend)]] (12 shared connections)
+- [[Outbound Leads Page]] (9 shared connections)
+- [[Conversation List UI]] (9 shared connections)
+- [[Performancekpis Component]] (6 shared connections)
+- [[Teamprofilepanel (frontend)]] (6 shared connections)
+- [[Templates Page]] (6 shared connections)
+- [[Analytics API]] (6 shared connections)
+- [[Shared Component]] (5 shared connections)
 - [[Assignment Log & Leaderboard]] (4 shared connections)
-- [[Performancekpis Component]] (4 shared connections)
-- [[Chat Thread Component]] (4 shared connections)
 
 ## Source Files
 
 - `backend/app/routes/assignment_log.py`
-- `frontend/app/dashboard/contexts/ActiveCallContext.tsx`
+- `frontend/app/dashboard/knowledge/page.tsx`
 - `frontend/app/dashboard/leads/AssignButton.tsx`
+- `frontend/app/dashboard/leads/LeadsClient.tsx`
+- `frontend/app/dashboard/leads/ReengagementBuilder.tsx`
 - `frontend/app/dashboard/leads/page.tsx`
-- `frontend/app/dashboard/telecalling/AdminView.tsx`
-- `frontend/app/dashboard/telecalling/CallerView.tsx`
-- `frontend/app/dashboard/telecalling/components/CallWrapup.tsx`
-- `frontend/app/dashboard/telecalling/components/LeadAttribution.tsx`
-- `frontend/app/dashboard/telecalling/components/LeadDetailPanel.tsx`
-- `frontend/app/dashboard/telecalling/components/NumpadDialer.tsx`
+- `frontend/app/dashboard/onboarding/page.tsx`
 - `frontend/app/dashboard/telecalling/components/assignment-log.tsx`
-- `frontend/app/dashboard/telecalling/components/briefing-modal.tsx`
-- `frontend/app/dashboard/telecalling/components/performance-view.tsx`
 - `frontend/app/dashboard/telecalling/components/sections/BulkAssignment.tsx`
-- `frontend/app/dashboard/telecalling/components/sections/LeadProfileModal.tsx`
+- `frontend/app/dashboard/telecalling/components/sections/CallsPerHour.tsx`
 - `frontend/app/dashboard/telecalling/components/sections/LiveAgentStatus.tsx`
-- `frontend/app/dashboard/telecalling/components/sections/QaReviewFeed.tsx`
 - `frontend/app/dashboard/telecalling/components/sections/ShiftTimeline.tsx`
-- `frontend/app/dashboard/telecalling/lib/notes-api.ts`
-- `frontend/app/dashboard/telecalling/types.ts`
+- `frontend/lib/api.ts`
 
 ## Audit Trail
 
-- EXTRACTED: 525 (100%)
+- EXTRACTED: 451 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

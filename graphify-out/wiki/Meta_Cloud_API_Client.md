@@ -1,17 +1,13 @@
 # Meta Cloud API Client
 
-> 40 nodes · cohesion 0.12
+> 30 nodes · cohesion 0.13
 
 ## Key Concepts
 
-- **HTTPException** (131 connections)
 - **meta_cloud.py** (29 connections) — `backend/app/services/meta_cloud.py`
 - **str** (26 connections) — `backend/app/services/meta_cloud.py`
 - **_creds()** (23 connections) — `backend/app/services/meta_cloud.py`
-- **upload_template_media()** (13 connections) — `backend/app/routes/templates.py`
-- **upload_media_to_meta()** (8 connections) — `backend/app/services/meta_cloud.py`
 - **send_media_message()** (8 connections) — `backend/app/services/meta_cloud.py`
-- **upload_media_for_template()** (8 connections) — `backend/app/services/meta_cloud.py`
 - **send_text_message()** (7 connections) — `backend/app/services/meta_cloud.py`
 - **download_media_from_meta()** (7 connections) — `backend/app/services/meta_cloud.py`
 - **send_template_message()** (7 connections) — `backend/app/services/meta_cloud.py`
@@ -23,38 +19,40 @@
 - **send_location_message()** (5 connections) — `backend/app/services/meta_cloud.py`
 - **send_audio_message()** (5 connections) — `backend/app/services/meta_cloud.py`
 - **get_number_quality()** (5 connections) — `backend/app/services/meta_cloud.py`
-- **bytes** (4 connections) — `backend/app/services/meta_cloud.py`
 - **send_cta_url_message()** (4 connections) — `backend/app/services/meta_cloud.py`
 - **send_interactive_buttons()** (4 connections) — `backend/app/services/meta_cloud.py`
-- **int** (3 connections) — `backend/app/services/meta_cloud.py`
 - **Send an audio message. WhatsApp does not support captions on audio.** (2 connections) — `backend/app/services/meta_cloud.py`
-- **Upload media for template headers using Meta's Resumable Upload API.      Step 1** (2 connections) — `backend/app/services/meta_cloud.py`
-- *... and 15 more nodes in this community*
+- **float** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Send a media message via Meta Cloud API.     wa_type: 'image' | 'document' | 'au** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Send a WhatsApp interactive list message (up to 10 rows across sections).** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Send a WhatsApp product catalog message (product_list interactive type).** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Download media from Meta by media_id.     Returns: (bytes, mime_type, url)** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Fetch all templates from Meta for a WABA, handling pagination.     Returns list** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Delete a template from Meta by name.     Calls DELETE https://graph.facebook.com** (1 connections) — `backend/app/services/meta_cloud.py`
+- *... and 5 more nodes in this community*
 
 ## Relationships
 
-- [[Meta Cloud Service]] (29 shared connections)
-- [[Leads API]] (15 shared connections)
-- [[Templates API]] (13 shared connections)
-- [[App Settings API]] (10 shared connections)
-- [[Callers CRUD & Coaching]] (9 shared connections)
-- [[Upload API]] (8 shared connections)
-- [[Calls API (TeleCMI dialer)]] (6 shared connections)
-- [[Tests: Attendance Service]] (6 shared connections)
-- [[Phone Numbers Pool]] (5 shared connections)
-- [[Chat Handovers (escalation pool)]] (4 shared connections)
-- [[Reengagement API]] (4 shared connections)
-- [[App Entry & Schedulers]] (3 shared connections)
+- [[Meta Cloud Service]] (26 shared connections)
+- [[Operator Console & Audit]] (13 shared connections)
+- [[Templates API]] (4 shared connections)
+- [[Calls API (TeleCMI dialer)]] (3 shared connections)
+- [[Booking Flow]] (3 shared connections)
+- [[Instagram Channel]] (1 shared connections)
+- [[Tenant]] (1 shared connections)
+- [[CSV Upload & Bulk Send]] (1 shared connections)
+- [[Broadcast Executor & Outbound Router]] (1 shared connections)
+- [[Reengagement Service]] (1 shared connections)
+- [[Phone Numbers Pool]] (1 shared connections)
 
 ## Source Files
 
-- `backend/app/routes/templates.py`
 - `backend/app/services/meta_cloud.py`
 
 ## Audit Trail
 
-- EXTRACTED: 217 (63%)
-- INFERRED: 129 (37%)
+- EXTRACTED: 163 (94%)
+- INFERRED: 11 (6%)
 - AMBIGUOUS: 0 (0%)
 
 ---

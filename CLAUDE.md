@@ -59,7 +59,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Settings: webhook health check | ✅ Built — GET /api/v1/settings/webhook-health, health badge per channel |
 | Settings: token expiry alerts | ✅ Built — APScheduler daily job, token_invalid incidents |
 | CTWA referral auto-capture | ✅ Built — referral object parsed in webhook.py, linked to ad_campaign |
-| Bookings table + booking flow state machine | ✅ Built — migrations 029–030, booking_flow.py |
+| Bookings table + booking flow state machine | ✅ Built — migrations 029–030, booking_flow.py, dynamic pricing via booking_types JSON in app_settings |
 | Razorpay payment links | ✅ Built — services/payment_razorpay.py |
 | Admin bookings dashboard | ✅ Built — dashboard/bookings/ |
 | Multi-tenancy (app-layer) | ✅ Built — tenant_id on all tables |
@@ -165,10 +165,10 @@ Parallel pattern: schema + API route + frontend page → all 3 in one message.
 All channel credentials (WhatsApp/Instagram/Facebook/Telegram/TeleCMI/Groq) editable in Settings UI.
 InboxConfigPanel: escalation on/off, per-trigger (A/B/C/D/F). Chat escalation is trigger-only — segment/score escalation and auto-assign-to-telecaller were removed; handovers are a shared pool any telecaller or admin can resolve. (Trigger E "score-hot" dropped.)
 TelecallingConfigPanel: module on/off, auto-assign, per-segment assignment (A/B/C/D), channels, contact recycling (enable/delay/retries/hours), shift time management (common/individual mode + hours).
+BookingConfigPanel: CRUD booking types (name + amount); stored as `booking_types` JSON in app_settings. Multiple types → WhatsApp type-selection step before collection flow. Zero types → default ₹500 flat pricing.
 
 ## Known Tech Debt
-- Enable HIBP leaked-password protection in Supabase dashboard (Auth → Settings → Password Security)
-- `vector` and `pg_trgm` extensions in public schema (low-risk WARN; moving requires rebuilding indexes)
+- lead_scorer.py (legacy two-pass) still called on AI-disabled branch — retire and route through scoring_engine.py
 
 ## Architecture Map (auto-derived)
 Navigable module wiki at `graphify-out/wiki/index.md` — one article per module (callbacks, assignment, AI reply, webhooks, bot-flow, scoring, etc.) with source files + cross-module links. Plain markdown, no tooling needed to read. Pull it when tracing structure; CLAUDE.md remains the source of truth for invariants/decisions.
@@ -199,7 +199,7 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/supabase/migrations/ | All schema migrations 001–114 |
 | frontend/app/dashboard/ | All dashboard pages |
 
-## Migration Index (latest = 114)
+## Migration Index (latest = 115)
 | Migration | What |
 |---|---|
 | 051 | Telegram support — tg_user_id on leads |
@@ -265,6 +265,7 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | 112_caller_shift_hours | callers.shift_start_hour + shift_end_hour (smallint, nullable) — per-caller shift time override |
 | 113_security_and_new_tables_rls | Superseded by 114. Enables RLS on reengagement_steps, reengagement_logs, autopilot_runs, call_scripts, telecalling_upload_batches |
 | 114_rls_launch_blocker | ✅ Applied 2026-06-20. Drops dead faqs/hot_lead_alerts tables; adds tenant_id to conversations + backfill; enables RLS+policies on all 9 remaining tables (conversations, bot_flows, meta_templates, reengagement_steps/logs, call_scripts, telecalling_upload_batches); deny-all on scheduler_runs; revokes anon EXECUTE on security definer helpers; sets search_path on 6 RPC functions |
+| 115_perf_advisor_warnings | ✅ Applied 2026-06-20. 5x auth_rls_initplan (wrap auth.uid() in subselect); 12x multiple_permissive_policies (split FOR ALL into INSERT/UPDATE/DELETE); 1x duplicate_index (drop csl_tenant_idx) |
 
 ## Bot Flow Builder (replaces Automations UI)
 Visual WhatsApp flow builder at /dashboard/automations (sidebar "Bot Flows"). Backend

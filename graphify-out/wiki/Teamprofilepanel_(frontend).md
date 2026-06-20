@@ -1,12 +1,12 @@
 # Teamprofilepanel (frontend)
 
-> 21 nodes · cohesion 0.14
+> 22 nodes · cohesion 0.13
 
 ## Key Concepts
 
 - **TeamProfilePanel.tsx** (14 connections) — `frontend/app/dashboard/team/TeamProfilePanel.tsx`
+- **AttendanceMini.tsx** (11 connections) — `frontend/app/dashboard/team/AttendanceMini.tsx`
 - **TeamAttendanceGrid.tsx** (10 connections) — `frontend/app/dashboard/team/TeamAttendanceGrid.tsx`
-- **AttendanceMini.tsx** (9 connections) — `frontend/app/dashboard/team/AttendanceMini.tsx`
 - **helpers.ts** (9 connections) — `frontend/app/dashboard/team/helpers.ts`
 - **formatDuration()** (4 connections) — `frontend/app/dashboard/team/helpers.ts`
 - **dotColorClass()** (3 connections) — `frontend/app/dashboard/team/helpers.ts`
@@ -16,6 +16,7 @@
 - **initials()** (2 connections) — `frontend/app/dashboard/team/helpers.ts`
 - **AttendanceDay** (2 connections) — `frontend/lib/api.ts`
 - **TeamAttendanceGridData** (2 connections) — `frontend/lib/api.ts`
+- **AttendanceMiniProps** (1 connections) — `frontend/app/dashboard/team/AttendanceMini.tsx`
 - **AttendanceMini()** (1 connections) — `frontend/app/dashboard/team/AttendanceMini.tsx`
 - **TeamAttendanceGridProps** (1 connections) — `frontend/app/dashboard/team/TeamAttendanceGrid.tsx`
 - **TeamAttendanceGrid()** (1 connections) — `frontend/app/dashboard/team/TeamAttendanceGrid.tsx`
@@ -28,8 +29,8 @@
 
 ## Relationships
 
-- [[Api (frontend)]] (5 shared connections)
-- [[API Client (frontend)]] (5 shared connections)
+- [[API Client (frontend)]] (6 shared connections)
+- [[Leaddetailpanel Component]] (5 shared connections)
 - [[Teamclient (frontend)]] (2 shared connections)
 
 ## Source Files
@@ -42,7 +43,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 71 (99%)
+- EXTRACTED: 74 (99%)
 - INFERRED: 1 (1%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,10 +1,10 @@
 # Tests: Scoring Engine
 
-> 13 nodes · cohesion 0.26
+> 14 nodes · cohesion 0.23
 
 ## Key Concepts
 
-- **_apply_segment_lock()** (18 connections) — `backend/app/services/scoring_engine.py`
+- **_apply_segment_lock()** (19 connections) — `backend/app/services/scoring_engine.py`
 - **TestSegmentLock** (10 connections) — `backend/tests/test_scoring_engine.py`
 - **.test_upgrade_c_to_b_is_immediate()** (2 connections) — `backend/tests/test_scoring_engine.py`
 - **.test_upgrade_b_to_a_is_immediate()** (2 connections) — `backend/tests/test_scoring_engine.py`
@@ -17,10 +17,12 @@
 - **.test_same_segment_resets_drop_count()** (2 connections) — `backend/tests/test_scoring_engine.py`
 - **Returns (final_segment, new_drop_count).      Upgrade:            always immedia** (1 connections) — `backend/app/services/scoring_engine.py`
 - **Returns (final_segment, new_drop_count).      Upgrade:            always immedia** (1 connections) — `backend/app/services/scoring_engine.py`
+- **Returns (final_segment, new_drop_count).      Upgrade:            always immedia** (1 connections) — `backend/app/services/scoring_engine.py`
 
 ## Relationships
 
-- [[Score Engine v2 & Segmentation]] (6 shared connections)
+- [[Score Engine v2 & Segmentation]] (4 shared connections)
+- [[App Entry & Schedulers]] (2 shared connections)
 - [[Tests: Scoring Engine]] (2 shared connections)
 
 ## Source Files
@@ -30,8 +32,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 30 (62%)
-- INFERRED: 18 (38%)
+- EXTRACTED: 32 (64%)
+- INFERRED: 18 (36%)
 - AMBIGUOUS: 0 (0%)
 
 ---
