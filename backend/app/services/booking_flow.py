@@ -346,6 +346,8 @@ async def send_whatsapp_text(phone: str, text: str, tenant_id: str | None = None
     from app.services.ai_reply import send_whatsapp
     mid = await send_whatsapp(phone, text, tenant_id=tenant_id)
     if lead_id:
+        if not tenant_id:
+            raise ValueError("tenant_id required when logging booking flow message")
         try:
             db = get_supabase()
             db.table("messages").insert({
@@ -356,7 +358,7 @@ async def send_whatsapp_text(phone: str, text: str, tenant_id: str | None = None
                 "is_ai_generated": True,
                 "reply_source": "ai",
                 "meta_message_id": mid,
-                "tenant_id": tenant_id or "00000000-0000-0000-0000-000000000001",
+                "tenant_id": tenant_id,
             }).execute()
         except Exception as e:
             logger.error(f"Failed to log booking flow message for lead {lead_id}: {e}")

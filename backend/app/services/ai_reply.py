@@ -511,7 +511,9 @@ async def generate_reply(
     if lead_data.get("blocked_at"):
         logger.info(f"Lead {lead_id} is blocked — skipping auto-reply")
         return
-    tenant_id = lead_data.get("tenant_id") or "00000000-0000-0000-0000-000000000001"
+    tenant_id = lead_data.get("tenant_id")
+    if not tenant_id:
+        raise ValueError("tenant_id missing from lead_data")
     segment = lead_data.get("segment") or "C"
 
     # Enforce global AI auto-reply toggle
@@ -606,7 +608,7 @@ async def generate_reply(
     # RAG: retrieve the most relevant knowledge-base chunks for THIS message
     try:
         context_text = await get_knowledge_context(
-            lead_data.get("tenant_id") or "00000000-0000-0000-0000-000000000001",
+            tenant_id,
             query=message,
             campaign_tag_id=campaign_tag_id,
         )
@@ -739,7 +741,7 @@ async def generate_reply(
         "content": reply_text,
         "is_ai_generated": is_ai,
         "reply_source": reply_source,
-        "tenant_id": lead_data.get("tenant_id") or "00000000-0000-0000-0000-000000000001",
+        "tenant_id": tenant_id,
         sid_field: sid,
     }).execute()
 

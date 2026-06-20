@@ -7,6 +7,8 @@ logger = logging.getLogger(__name__)
 
 _CACHE: dict[str, tuple[float, Optional[str]]] = {}
 _TTL = 60.0
+# Bootstrapping fallback for get_setting/save_setting when called without tenant_id
+# (e.g. env-var-based global config reads). Do NOT use elsewhere as a silent default.
 _DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
 
 _ENV_MAP = {

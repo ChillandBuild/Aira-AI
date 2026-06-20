@@ -1,4 +1,9 @@
+import logging
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -26,6 +31,18 @@ class Settings(BaseSettings):
     sentry_dsn: str | None = None
 
     model_config = {"env_file": ".env", "case_sensitive": False, "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _warn_missing_secrets(self) -> "Settings":
+        critical = {
+            "groq_api_key": "AI replies will fail",
+            "meta_app_secret": "Webhook signature verification will reject all inbound",
+            "jina_api_key": "Knowledge base RAG embeddings will fail",
+        }
+        for key, impact in critical.items():
+            if not getattr(self, key):
+                logger.warning("Missing %s — %s", key, impact)
+        return self
 
 
 settings = Settings()
