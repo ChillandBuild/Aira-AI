@@ -585,29 +585,43 @@ def client_dashboard_inbox(tenant_id: str, _admin: dict = Depends(get_system_adm
 
     convos = (
         db.table("conversations")
-        .select("id, lead_id, last_message, last_message_at, channel")
+        .select("id, lead_id, channel, opened_at")
         .eq("tenant_id", tenant_id)
-        .order("last_message_at", desc=True)
+        .order("opened_at", desc=True)
         .limit(20)
         .execute()
     )
 
     lead_ids = [c["lead_id"] for c in (convos.data or []) if c.get("lead_id")]
     leads_map: dict = {}
+    last_msg_map: dict = {}
     if lead_ids:
         leads = db.table("leads").select("id, name, phone").in_("id", lead_ids).execute()
         leads_map = {l["id"]: l for l in (leads.data or [])}
+        msgs = (
+            db.table("messages")
+            .select("lead_id, content, created_at")
+            .in_("lead_id", lead_ids)
+            .eq("tenant_id", tenant_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        for m in (msgs.data or []):
+            lid = m.get("lead_id")
+            if lid and lid not in last_msg_map:
+                last_msg_map[lid] = m
 
     conversations = []
     for c in (convos.data or []):
         lead = leads_map.get(c.get("lead_id"), {})
+        msg = last_msg_map.get(c.get("lead_id"), {})
         conversations.append({
             "id": c["id"],
             "lead_name": lead.get("name", "Unknown"),
             "lead_phone": lead.get("phone"),
-            "last_message": (c.get("last_message") or "")[:80],
+            "last_message": (msg.get("content") or "")[:80],
             "channel": c.get("channel", "whatsapp"),
-            "last_message_at": c.get("last_message_at"),
+            "last_message_at": msg.get("created_at") or c.get("opened_at"),
         })
 
     return {"handover_count": handovers.count or 0, "conversations": conversations}
@@ -649,15 +663,19 @@ def client_dashboard_templates(tenant_id: str, _admin: dict = Depends(get_system
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     templates = (
-        db.table("meta_templates")
-        .select("id, name, status, category, language, updated_at")
+        db.table("message_templates")
+        .select("id, name, status, category, language, submitted_at")
         .eq("tenant_id", tenant_id)
-        .order("updated_at", desc=True)
+        .order("submitted_at", desc=True)
         .execute()
     )
-    data = templates.data or []
-    approved = sum(1 for t in data if t.get("status") == "APPROVED")
-    pending = sum(1 for t in data if t.get("status") == "PENDING")
+    raw = templates.data or []
+    approved = sum(1 for t in raw if t.get("status") == "APPROVED")
+    pending = sum(1 for t in raw if t.get("status") == "PENDING")
+    data = [
+        {**t, "updated_at": t.pop("submitted_at", None)}
+        for t in raw
+    ]
 
     return {"total": len(data), "approved": approved, "pending": pending, "templates": data}
 
@@ -671,13 +689,23 @@ def client_dashboard_numbers(tenant_id: str, _admin: dict = Depends(get_system_a
 
     numbers = (
         db.table("phone_numbers")
-        .select("id, phone_number, display_name, quality_rating, status, messaging_limit_tier")
+        .select("id, number, display_name, quality_rating, status, messaging_tier")
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
         .execute()
     )
-    data = numbers.data or []
-    active = sum(1 for n in data if n.get("status") == "active")
+    raw = numbers.data or []
+    active = sum(1 for n in raw if n.get("status") == "active")
+    data = [
+        {
+            "phone_number": n.get("number"),
+            "display_name": n.get("display_name"),
+            "quality_rating": (n.get("quality_rating") or "").upper() or None,
+            "status": n.get("status"),
+            "messaging_limit_tier": str(n.get("messaging_tier")) if n.get("messaging_tier") else None,
+        }
+        for n in raw
+    ]
 
     return {"total": len(data), "active": active, "numbers": data}
 
@@ -691,7 +719,7 @@ def client_dashboard_knowledge(tenant_id: str, _admin: dict = Depends(get_system
 
     docs = (
         db.table("knowledge_documents")
-        .select("id, title, file_type, created_at")
+        .select("id, name, file_type, created_at")
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
         .execute()
@@ -701,7 +729,7 @@ def client_dashboard_knowledge(tenant_id: str, _admin: dict = Depends(get_system
     doc_data = []
     for d in (docs.data or []):
         chunk_count = db.table("knowledge_chunks").select("id", count="exact").eq("document_id", d["id"]).execute()
-        doc_data.append({**d, "chunk_count": chunk_count.count or 0})
+        doc_data.append({"id": d["id"], "title": d.get("name", ""), "file_type": d.get("file_type", ""), "created_at": d.get("created_at"), "chunk_count": chunk_count.count or 0})
 
     return {"total_docs": len(docs.data or []), "total_chunks": total_chunks.count or 0, "documents": doc_data}
 
@@ -753,16 +781,26 @@ def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     if section == "upload":
-        batches = (
+        raw_batches = (
             db.table("telecalling_upload_batches")
-            .select("id, file_name, lead_count, created_at, status")
+            .select("id, file_name, total_contacts, inserted, created_at")
             .eq("tenant_id", tenant_id)
             .order("created_at", desc=True)
             .limit(20)
             .execute()
         )
         total = db.table("telecalling_upload_batches").select("id", count="exact").eq("tenant_id", tenant_id).execute()
-        return {"total_batches": total.count or 0, "batches": batches.data or []}
+        batches = [
+            {
+                "id": b["id"],
+                "file_name": b.get("file_name"),
+                "lead_count": b.get("total_contacts", 0),
+                "created_at": b.get("created_at"),
+                "status": "completed" if b.get("inserted") is not None else "processing",
+            }
+            for b in (raw_batches.data or [])
+        ]
+        return {"total_batches": total.count or 0, "batches": batches}
 
     elif section == "dialer":
         today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0).isoformat()
@@ -798,16 +836,31 @@ def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin
         return {"pending_count": total.count or 0, "scheduled": pending.data or []}
 
     elif section == "notes":
-        notes = (
+        raw_notes = (
             db.table("lead_notes")
-            .select("id, lead_id, note, author_name, created_at")
+            .select("id, lead_id, caller_id, content, created_at")
             .eq("tenant_id", tenant_id)
             .order("created_at", desc=True)
             .limit(20)
             .execute()
         )
         total = db.table("lead_notes").select("id", count="exact").eq("tenant_id", tenant_id).execute()
-        return {"total_notes": total.count or 0, "notes": notes.data or []}
+        caller_ids = list({n["caller_id"] for n in (raw_notes.data or []) if n.get("caller_id")})
+        callers_map: dict = {}
+        if caller_ids:
+            callers = db.table("callers").select("id, name").in_("id", caller_ids).execute()
+            callers_map = {c["id"]: c.get("name") for c in (callers.data or [])}
+        notes = [
+            {
+                "id": n["id"],
+                "lead_id": n.get("lead_id"),
+                "author_name": callers_map.get(n.get("caller_id")) if n.get("caller_id") else None,
+                "note": n.get("content", ""),
+                "created_at": n.get("created_at"),
+            }
+            for n in (raw_notes.data or [])
+        ]
+        return {"total_notes": total.count or 0, "notes": notes}
 
     raise HTTPException(status_code=400, detail="Invalid section. Use: upload, dialer, scheduled, notes")
 
@@ -818,7 +871,7 @@ _CLEAR_TABLES: dict[str, list[str]] = {
     "call_logs": ["call_logs"],
     "leads": [],
     "knowledge": ["knowledge_chunks", "knowledge_documents"],
-    "templates": ["meta_templates"],
+    "templates": ["message_templates"],
     "analytics": ["whatsapp_insights_snapshots"],
 }
 
