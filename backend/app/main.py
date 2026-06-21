@@ -334,7 +334,7 @@ app.add_middleware(
 )
 
 # Health check (no auth, no prefix)
-@app.get("/health", tags=["system"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["system"])
 async def health():
     from fastapi.responses import JSONResponse
     from datetime import datetime, timezone
