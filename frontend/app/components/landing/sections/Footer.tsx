@@ -17,9 +17,10 @@ export default function Footer() {
             <div className="flex items-center gap-2.5 mb-4">
               <span className="nav-logo-text">Aira</span>
             </div>
-            <p className="text-xs text-ink-secondary leading-relaxed max-w-xs mb-5">
+            <p className="text-xs text-ink-secondary leading-relaxed max-w-xs mb-2">
               We help businesses automate conversations, qualify leads, evaluate telecallers and accelerate revenue.
             </p>
+            <p className="text-[10px] text-ink-muted mb-5">A product of <span className="font-semibold">Bloom Matrix</span></p>
             <div className="flex gap-3">
               {[
                 { Icon: LinkedInIcon, label: "LinkedIn" },
@@ -75,7 +76,7 @@ export default function Footer() {
         <div className="river-separator mb-8"></div>
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-xs text-ink-muted">
-            © {new Date().getFullYear()} Aira AI. All rights reserved.
+            © {new Date().getFullYear()} Bloom Matrix. All rights reserved.
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-ink-muted">Stay Updated</span>
