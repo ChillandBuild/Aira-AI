@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Menu, X } from "lucide-react";
@@ -15,6 +14,12 @@ import IndustriesSection from "./components/landing/sections/IndustriesSection";
 import ContactSection from "./components/landing/sections/ContactSection";
 import Footer from "./components/landing/sections/Footer";
 
+const NAV_LINKS = [
+  { id: "hero", label: "Home" }, { id: "features", label: "Features" },
+  { id: "industries", label: "Industries" }, { id: "platform", label: "Pricing" },
+  { id: "contact", label: "Contact" },
+];
+
 export default function LandingPage() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -23,107 +28,68 @@ export default function LandingPage() {
 
   useEffect(() => {
     const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("visible");
-          }
-        });
-      },
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible"); }),
       { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
     );
-
     document.querySelectorAll(".reveal").forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => setNavScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
+    const h = () => setNavScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", h, { passive: true });
+    return () => window.removeEventListener("scroll", h);
   }, []);
 
-  const scrollToSection = (id: string) => {
-    setMobileMenuOpen(false);
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-  };
+  const scrollTo = (id: string) => { setMobileMenuOpen(false); document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); };
 
   return (
     <div className="landing-page">
-      <div className="noise-overlay" aria-hidden="true"></div>
-
+      <div className="noise-overlay" aria-hidden="true" />
       <div className="fluid-bg" aria-hidden="true">
-        <div className="fluid-orb fluid-orb-1"></div>
-        <div className="fluid-orb fluid-orb-2"></div>
-        <div className="fluid-orb fluid-orb-3"></div>
-        <div className="fluid-orb fluid-orb-4"></div>
+        <div className="fluid-orb fluid-orb-1" /><div className="fluid-orb fluid-orb-2" />
+        <div className="fluid-orb fluid-orb-3" /><div className="fluid-orb fluid-orb-4" />
       </div>
-
       <RiverThread />
 
-      {/* ─── NAVIGATION ─── */}
       <nav className={`nav-landing ${navScrolled ? "scrolled" : ""}`} id="nav-main">
         <div className="max-w-7xl mx-auto px-6 md:px-10 flex justify-between items-center h-[72px]">
-          <button onClick={() => scrollToSection("hero")} className="flex items-center gap-2.5 group">
+          <button onClick={() => scrollTo("hero")} className="flex items-center gap-2.5 group">
             <span className="nav-logo-text">Aira</span>
             <span className="text-ink-muted text-xs font-medium hidden sm:inline ml-1 border-l border-border pl-2.5">AI Revenue Acceleration</span>
           </button>
-
           <div className="hidden md:flex items-center gap-8">
-            <button onClick={() => scrollToSection("hero")} className="nav-link">Home</button>
-            <button onClick={() => scrollToSection("features")} className="nav-link">Features</button>
-            <button onClick={() => scrollToSection("industries")} className="nav-link">Industries</button>
-            <button onClick={() => scrollToSection("platform")} className="nav-link">Pricing</button>
-            <button onClick={() => scrollToSection("contact")} className="nav-link">About Us</button>
-            <button onClick={() => scrollToSection("contact")} className="nav-link">Contact</button>
+            {NAV_LINKS.map((l) => <button key={l.label} onClick={() => scrollTo(l.id)} className="nav-link">{l.label}</button>)}
           </div>
-
           <div className="hidden md:flex items-center gap-3">
-            <button onClick={() => router.push("/login")} id="nav-login-btn" className="btn-login">Login</button>
-            <button onClick={() => scrollToSection("contact")} onPointerDown={ripple} id="nav-demo-btn" className="btn-accent text-sm py-2 px-5 ripple-host">
-              Book a Demo
-              <ArrowRight size={14} />
-            </button>
+            <button onClick={() => router.push("/login")} className="btn-login">Login</button>
+            <button onClick={() => scrollTo("contact")} onPointerDown={ripple} className="btn-accent text-sm py-2 px-5 ripple-host">Book a Demo <ArrowRight size={14} /></button>
           </div>
-
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="md:hidden text-ink-secondary hover:text-ink transition-colors" aria-label="Toggle Menu">
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
-
         {mobileMenuOpen && (
           <div className="mobile-menu-overlay md:hidden">
             <div className="pt-24 px-8 flex flex-col gap-6">
-              {[{id: "hero", label: "Home"}, {id: "features", label: "Features"}, {id: "industries", label: "Industries"}, {id: "platform", label: "Pricing"}, {id: "contact", label: "About Us"}, {id: "contact", label: "Contact"}].map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => scrollToSection(item.id)}
-                  className="text-left text-lg font-medium text-ink-secondary hover:text-ink transition-colors"
-                >
-                  {item.label}
-                </button>
-              ))}
-              <div className="river-separator my-4"></div>
+              {NAV_LINKS.map((l) => <button key={l.label} onClick={() => scrollTo(l.id)} className="text-left text-lg font-medium text-ink-secondary hover:text-ink transition-colors">{l.label}</button>)}
+              <div className="river-separator my-4" />
               <button onClick={() => { setMobileMenuOpen(false); router.push("/login"); }} className="btn-login w-full justify-center">Login</button>
-              <button onClick={() => { setMobileMenuOpen(false); scrollToSection("contact"); }} className="btn-accent w-full justify-center">
-                Book a Demo
-                <ArrowRight size={16} />
-              </button>
+              <button onClick={() => { setMobileMenuOpen(false); scrollTo("contact"); }} className="btn-accent w-full justify-center">Book a Demo <ArrowRight size={16} /></button>
             </div>
           </div>
         )}
       </nav>
 
       <main className="relative z-[2]">
-        <HeroSection scrollToSection={scrollToSection} ripple={ripple} />
+        <HeroSection scrollToSection={scrollTo} ripple={ripple} />
         <ProblemSection />
         <HowItWorksSection />
-        <PlatformSection scrollToSection={scrollToSection} />
+        <PlatformSection scrollToSection={scrollTo} />
         <DemoSection />
         <IndustriesSection />
         <ContactSection />
       </main>
-
       <Footer />
     </div>
   );
