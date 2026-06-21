@@ -6,6 +6,7 @@ import "./landing.css";
 import RiverThread from "./components/landing/RiverThread";
 import { useRipple } from "./components/landing/useRipple";
 import HeroSection from "./components/landing/sections/HeroSection";
+import CapabilityStrip from "./components/landing/sections/CapabilityStrip";
 import ProblemSection from "./components/landing/sections/ProblemSection";
 import HowItWorksSection from "./components/landing/sections/HowItWorksSection";
 import PlatformSection from "./components/landing/sections/PlatformSection";
@@ -83,6 +84,7 @@ export default function LandingPage() {
 
       <main className="relative z-[2]">
         <HeroSection scrollToSection={scrollTo} ripple={ripple} />
+        <CapabilityStrip />
         <ProblemSection />
         <HowItWorksSection />
         <PlatformSection scrollToSection={scrollTo} />

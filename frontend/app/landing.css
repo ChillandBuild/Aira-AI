@@ -1016,6 +1016,37 @@ select.form-input-dark option {
   .delta-arrow { transform: rotate(90deg); padding: 0.4rem 0; }
 }
 
+/* === Capability Strip === */
+.capability-strip {
+  max-height: 100px;
+  overflow: hidden;
+}
+
+.capability-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.capability-icon {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-light, #f5f3ff);
+  border: 1px solid var(--primary-muted, #ede9fe);
+}
+
+@media (max-width: 767px) {
+  .capability-strip {
+    max-height: none;
+  }
+}
+
 /* === Reduced Motion === */
 @media (prefers-reduced-motion: reduce) {
   .fluid-orb,
