@@ -109,7 +109,7 @@ async def create_client(payload: CreateClientPayload, _admin: dict = Depends(get
         features = features + tc_subs
     has_channel = any(ch in features for ch in ("whatsapp", "instagram", "facebook", "telegram"))
     if has_channel:
-        features = features + ["inbound_leads"]
+        features = features + ["inbound_leads", "outbound_leads"]
     features = features + ["analytics"]
 
     try:
@@ -191,7 +191,7 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
     valid_features = {
         "whatsapp", "telecalling", "instagram", "facebook", "telegram",
         "telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes",
-        "analytics", "inbound_leads",
+        "analytics", "inbound_leads", "outbound_leads",
     }
 
     if payload.features is not None:

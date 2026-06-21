@@ -56,21 +56,48 @@ export default function ClientDetailPage() {
   async function handleToggleFeature(feature: string) {
     if (!overview) return;
     setFeatureUpdating(true);
-    const current = overview.tenant.enabled_features;
-    let updated: string[];
+    const current = new Set(overview.tenant.enabled_features);
+    const tcSubs = ["telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"];
+    const outboundDeps = ["whatsapp"];
+    const messagingDeps = ["analytics"];
 
     if (feature === "telecalling") {
-      const tcSubs = ["telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"];
-      if (current.includes("telecalling")) {
-        updated = current.filter(f => f !== "telecalling" && !tcSubs.includes(f));
+      if (current.has("telecalling")) {
+        current.delete("telecalling");
+        tcSubs.forEach(s => current.delete(s));
       } else {
-        updated = [...current, "telecalling", ...tcSubs];
+        current.add("telecalling");
+        tcSubs.forEach(s => current.add(s));
+      }
+    } else if (feature === "outbound_leads") {
+      if (current.has("outbound_leads")) {
+        current.delete("outbound_leads");
+        outboundDeps.forEach(d => current.delete(d));
+      } else {
+        current.add("outbound_leads");
+        outboundDeps.forEach(d => current.add(d));
+      }
+    } else if (feature === "inbound_leads") {
+      if (current.has("inbound_leads")) {
+        current.delete("inbound_leads");
+      } else {
+        current.add("inbound_leads");
       }
     } else {
-      updated = current.includes(feature)
-        ? current.filter(f => f !== feature)
-        : [...current, feature];
+      if (current.has(feature)) {
+        current.delete(feature);
+      } else {
+        current.add(feature);
+      }
     }
+
+    const hasOutbound = current.has("outbound_leads");
+    const hasInbound = current.has("inbound_leads");
+    if (!hasOutbound && !hasInbound) {
+      messagingDeps.forEach(d => current.delete(d));
+    }
+
+    const updated = Array.from(current);
 
     try {
       await apiFetch(`/api/v1/operator/clients/${tenantId}/features`, {

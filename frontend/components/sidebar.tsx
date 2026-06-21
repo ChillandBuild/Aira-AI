@@ -58,6 +58,9 @@ export function Sidebar() {
   }, []);
 
   const waEnabled = enabledFeatures.includes("whatsapp");
+  const outboundOn = enabledFeatures.includes("outbound_leads");
+  const inboundOn = enabledFeatures.includes("inbound_leads");
+  const messagingOn = outboundOn || inboundOn;
   useEffect(() => {
     if (!waEnabled) return;
     fetchCount();
@@ -156,8 +159,8 @@ export function Sidebar() {
           </Link>
         )}
 
-        {/* TOP LEVEL: Conversations (Common for all platforms) */}
-        <Link
+        {/* TOP LEVEL: Conversations */}
+        {messagingOn && <Link
           href="/dashboard/conversations"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
@@ -173,10 +176,10 @@ export function Sidebar() {
               {inboxCount}
             </span>
           )}
-        </Link>
+        </Link>}
 
         {/* TOP LEVEL: Leads */}
-        {role === "owner" && (
+        {role === "owner" && messagingOn && (
           <Link
             href="/dashboard/leads"
             className={cn(
@@ -208,7 +211,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Outbound Leads */}
-        {role === "owner" && waEnabled && (
+        {role === "owner" && outboundOn && (
           <Link
             href="/dashboard/outbound-leads"
             className={cn(
@@ -224,7 +227,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Templates */}
-        {role === "owner" && waEnabled && (
+        {role === "owner" && outboundOn && (
           <Link
             href="/dashboard/templates"
             className={cn(
@@ -240,7 +243,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Numbers Pool */}
-        {role === "owner" && waEnabled && (
+        {role === "owner" && messagingOn && (
           <Link
             href="/dashboard/numbers"
             className={cn(
@@ -255,8 +258,8 @@ export function Sidebar() {
           </Link>
         )}
 
-        {/* TOP LEVEL: Knowledge Base (Common for all platforms) */}
-        {role === "owner" && (
+        {/* TOP LEVEL: Knowledge Base */}
+        {role === "owner" && messagingOn && (
           <Link
             href="/dashboard/knowledge"
             className={cn(
@@ -272,7 +275,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Analytics */}
-        {role === "owner" && (
+        {role === "owner" && messagingOn && (
           <Link
             href="/dashboard/analytics"
             className={cn(

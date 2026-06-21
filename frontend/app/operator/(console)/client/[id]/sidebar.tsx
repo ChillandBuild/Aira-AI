@@ -19,22 +19,22 @@ type NavItem = {
   key: SectionType;
   icon: typeof LayoutDashboard;
   label: string;
-  featureKey?: string;
-  alwaysOn?: boolean;
+  toggleKey?: string;
+  dependsOn?: "outbound" | "messaging";
 };
 
 const PRODUCT_NAV: NavItem[] = [
-  { key: "overview", icon: LayoutDashboard, label: "Dashboard", alwaysOn: true },
-  { key: "inbox", icon: Inbox, label: "Inbox", featureKey: "whatsapp" },
-  { key: "conversations", icon: MessageSquare, label: "Conversations", alwaysOn: true },
-  { key: "segments", icon: Users, label: "Segments", alwaysOn: true },
-  { key: "inbound", icon: RadioTower, label: "Inbound Leads", featureKey: "inbound_leads" },
-  { key: "outbound", icon: Upload, label: "Outbound Leads", featureKey: "whatsapp" },
-  { key: "templates", icon: FileCheck, label: "Templates", featureKey: "whatsapp" },
-  { key: "numbers", icon: Layers, label: "Numbers Pool", featureKey: "whatsapp" },
-  { key: "knowledge", icon: BookOpen, label: "Knowledge Base", alwaysOn: true },
-  { key: "analytics", icon: BarChart2, label: "Analytics", featureKey: "analytics" },
-  { key: "team", icon: Users, label: "Team", alwaysOn: true },
+  { key: "overview", icon: LayoutDashboard, label: "Dashboard" },
+  { key: "inbox", icon: Inbox, label: "Inbox", dependsOn: "messaging" },
+  { key: "conversations", icon: MessageSquare, label: "Conversations", dependsOn: "messaging" },
+  { key: "segments", icon: Users, label: "Segments", dependsOn: "messaging" },
+  { key: "inbound", icon: RadioTower, label: "Inbound Leads", toggleKey: "inbound_leads" },
+  { key: "outbound", icon: Upload, label: "Outbound Leads", toggleKey: "outbound_leads" },
+  { key: "templates", icon: FileCheck, label: "Templates", dependsOn: "outbound" },
+  { key: "numbers", icon: Layers, label: "Numbers Pool", dependsOn: "messaging" },
+  { key: "knowledge", icon: BookOpen, label: "Knowledge Base", dependsOn: "messaging" },
+  { key: "analytics", icon: BarChart2, label: "Analytics", dependsOn: "messaging" },
+  { key: "team", icon: Users, label: "Team" },
 ];
 
 const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; featureKey: string }[] = [
@@ -45,10 +45,10 @@ const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; feature
 ];
 
 const OPERATOR_NAV: NavItem[] = [
-  { key: "config", icon: Wrench, label: "Configuration", alwaysOn: true },
-  { key: "health", icon: Activity, label: "Health", alwaysOn: true },
-  { key: "management", icon: Settings, label: "Management", alwaysOn: true },
-  { key: "data-ops", icon: Database, label: "Data Ops", alwaysOn: true },
+  { key: "config", icon: Wrench, label: "Configuration" },
+  { key: "health", icon: Activity, label: "Health" },
+  { key: "management", icon: Settings, label: "Management" },
+  { key: "data-ops", icon: Database, label: "Data Ops" },
 ];
 
 interface SidebarProps {
@@ -67,6 +67,16 @@ export function ClientDetailSidebar({
   const router = useRouter();
 
   const isEnabled = (key: string) => enabledFeatures.includes(key);
+  const outboundOn = isEnabled("outbound_leads");
+  const inboundOn = isEnabled("inbound_leads");
+  const messagingOn = outboundOn || inboundOn;
+
+  function isItemEnabled(item: NavItem): boolean {
+    if (item.toggleKey) return isEnabled(item.toggleKey);
+    if (item.dependsOn === "outbound") return outboundOn;
+    if (item.dependsOn === "messaging") return messagingOn;
+    return true;
+  }
 
   function FeatureToggle({ featureKey, disabled }: { featureKey: string; disabled?: boolean }) {
     const on = isEnabled(featureKey);
@@ -83,31 +93,48 @@ export function ClientDetailSidebar({
     );
   }
 
-  function NavItemRow({ item, indent }: { item: NavItem | typeof TC_SUB_NAV[0]; indent?: boolean }) {
+  function NavItemRow({ item }: { item: NavItem }) {
     const active = activeSection === item.key;
-    const featureKey = "featureKey" in item ? item.featureKey : undefined;
-    const disabled = featureKey ? !isEnabled(featureKey) : false;
-    const alwaysOn = "alwaysOn" in item && item.alwaysOn;
+    const enabled = isItemEnabled(item);
+
+    return (
+      <div
+        onClick={() => onSectionChange(item.key)}
+        className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 group ${
+          active ? "bg-[#f5f3ff] text-[#5b21b6]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"
+        }`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[#5b21b6]" : ""}`} />
+          <span className={`text-sm font-semibold truncate ${!enabled && !active ? "line-through" : ""}`}>{item.label}</span>
+        </div>
+        {item.toggleKey && <FeatureToggle featureKey={item.toggleKey} />}
+      </div>
+    );
+  }
+
+  function TcSubRow({ item, indent }: { item: typeof TC_SUB_NAV[0]; indent?: boolean }) {
+    const active = activeSection === item.key;
+    const enabled = isEnabled(item.featureKey);
 
     return (
       <div
         onClick={() => onSectionChange(item.key)}
         className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 group ${
           indent ? "ml-4" : ""
-        } ${active ? "bg-[#f5f3ff] text-[#5b21b6]" : disabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"}`}
+        } ${active ? "bg-[#f5f3ff] text-[#5b21b6]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"}`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[#5b21b6]" : ""}`} />
-          <span className={`text-sm font-semibold truncate ${disabled && !active ? "line-through" : ""}`}>{item.label}</span>
+          <span className={`text-sm font-semibold truncate ${!enabled && !active ? "line-through" : ""}`}>{item.label}</span>
         </div>
-        {featureKey && !alwaysOn && <FeatureToggle featureKey={featureKey} disabled={featureKey.startsWith("telecalling.") && !isEnabled("telecalling")} />}
+        <FeatureToggle featureKey={item.featureKey} disabled={!isEnabled("telecalling")} />
       </div>
     );
   }
 
   return (
     <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-30 select-none">
-      {/* Client header */}
       <div className="px-4 py-4 border-b border-[#e8e3db]">
         <button
           onClick={() => router.push("/operator")}
@@ -118,7 +145,6 @@ export function ClientDetailSidebar({
         <p className="text-sm font-bold text-ink truncate">{tenantName}</p>
       </div>
 
-      {/* Navigation */}
       <div className="flex-grow overflow-y-auto px-3 py-3 space-y-0.5 scrollbar-thin">
         {PRODUCT_NAV.map(item => (
           <NavItemRow key={item.key} item={item} />
@@ -145,13 +171,12 @@ export function ClientDetailSidebar({
           {tcExpanded && isEnabled("telecalling") && (
             <div className="mt-0.5 space-y-0.5">
               {TC_SUB_NAV.map(item => (
-                <NavItemRow key={item.key} item={item} indent />
+                <TcSubRow key={item.key} item={item} indent />
               ))}
             </div>
           )}
         </div>
 
-        {/* Divider + Operator sections */}
         <div className="pt-3 mt-3 border-t border-[#e8e3db]">
           <p className="px-3 py-1 text-[10px] font-semibold text-ink-muted uppercase tracking-widest">Operator</p>
           {OPERATOR_NAV.map(item => (
