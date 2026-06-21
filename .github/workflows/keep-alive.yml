@@ -1,0 +1,17 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Every 14 minutes — prevents Render free tier spin-down
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Manual trigger for testing
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping backend health endpoint
+        run: |
+          curl -sf --max-time 120 \
+            "https://aira-ai-5tfr.onrender.com/api/v1/settings/webhook-health" \
+            || echo "Service waking up — cold start expected on first ping"
