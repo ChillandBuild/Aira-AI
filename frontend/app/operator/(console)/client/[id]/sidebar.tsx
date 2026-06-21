@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Inbox, MessageSquare, Users, RadioTower, Upload,
+  LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
   Wrench, Activity, Settings, Database, ChevronDown, ChevronRight,
   ArrowLeft,
@@ -25,7 +25,6 @@ type NavItem = {
 
 const PRODUCT_NAV: NavItem[] = [
   { key: "overview", icon: LayoutDashboard, label: "Dashboard" },
-  { key: "inbox", icon: Inbox, label: "Inbox", dependsOn: "messaging" },
   { key: "conversations", icon: MessageSquare, label: "Conversations", dependsOn: "messaging" },
   { key: "segments", icon: Users, label: "Segments", dependsOn: "messaging" },
   { key: "inbound", icon: RadioTower, label: "Inbound Leads", toggleKey: "inbound_leads" },
