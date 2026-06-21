@@ -2,10 +2,10 @@
 import { cn } from "@/lib/utils";
 
 const SEGMENT_CONFIG = {
-  A: { label: "Hot", bg: "bg-[#ecfdf5]", text: "text-[#059669]", border: "border-[#bbf7d0]", dot: "bg-[#059669]" },
-  B: { label: "Warm", bg: "bg-[#fffbeb]", text: "text-[#d97706]", border: "border-[#fde68a]", dot: "bg-[#d97706]" },
-  C: { label: "Cold", bg: "bg-[#f8fafc]", text: "text-[#64748b]", border: "border-[#e2e8f0]", dot: "bg-[#64748b]" },
-  D: { label: "Disq.", bg: "bg-[#fff1f2]", text: "text-[#e11d48]", border: "border-[#fecdd3]", dot: "bg-[#e11d48]" },
+  A: { label: "Hot", bg: "bg-segment-a-bg", text: "text-segment-a-text", border: "border-segment-a-border", dot: "bg-segment-a-text" },
+  B: { label: "Warm", bg: "bg-segment-b-bg", text: "text-segment-b-text", border: "border-segment-b-border", dot: "bg-segment-b-text" },
+  C: { label: "Cold", bg: "bg-segment-c-bg", text: "text-segment-c-text", border: "border-segment-c-border", dot: "bg-segment-c-text" },
+  D: { label: "Disq.", bg: "bg-segment-d-bg", text: "text-segment-d-text", border: "border-segment-d-border", dot: "bg-segment-d-text" },
 };
 
 export function SegmentBadge({ segment }: { segment: "A" | "B" | "C" | "D" }) {
