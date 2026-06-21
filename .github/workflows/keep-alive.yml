@@ -2,20 +2,20 @@ name: Keep Render Alive
 
 on:
   schedule:
-    # Every 14 minutes — prevents Render free tier spin-down
     - cron: '*/14 * * * *'
-  workflow_dispatch: # Manual trigger for testing
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping backend health endpoint
+      - name: Ping health endpoint
         run: |
-          curl -sf --max-time 120 \
-            "https://aira-ai-5tfr.onrender.com/api/v1/settings/webhook-health" \
-            || echo "Service waking up — cold start expected on first ping"
-          echo "--- System Health ---"
-          curl -sf --max-time 30 \
-            "https://aira-ai-5tfr.onrender.com/health" \
-            || true
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 \
+            "https://aira-ai-5tfr.onrender.com/health")
+          echo "Health check response: $HTTP_CODE"
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 500 ]; then
+            echo "Service is alive"
+          else
+            echo "Service may be starting up (cold start)"
+          fi
