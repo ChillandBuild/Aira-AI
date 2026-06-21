@@ -360,7 +360,7 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
           <div className="px-4 py-4 space-y-5">
             {/* Identity */}
             <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-full bg-tertiary-bg flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-full bg-surface-low flex items-center justify-center shrink-0">
                 <span className="font-display text-sm font-bold text-primary">{initials}</span>
               </div>
               <div className="min-w-0">

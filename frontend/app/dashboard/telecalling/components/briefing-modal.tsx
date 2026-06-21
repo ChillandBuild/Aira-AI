@@ -133,7 +133,7 @@ export default function BriefingModal({
               {BRIEFING_TAGS.map((tag) => (
                 <span
                   key={tag}
-                  className="px-2.5 py-1 bg-tertiary-bg text-primary rounded-full font-label text-xs font-semibold"
+                  className="px-2.5 py-1 bg-surface-low text-primary rounded-full font-label text-xs font-semibold"
                 >
                   {tag}
                 </span>

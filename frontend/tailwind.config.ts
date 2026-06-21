@@ -36,7 +36,6 @@ const config: Config = {
         "secondary-bg": "#f0ece4",
         "secondary-text": "#1c1917",
         tertiary: "#292524",
-        "tertiary-bg": "#faf8f5",
         "on-surface": "#1c1917",
         "on-surface-muted": "#a8a29e",
       },

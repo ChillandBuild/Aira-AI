@@ -533,7 +533,7 @@ export default function KnowledgePage() {
         /* AI Tune Tab */
         <div className="space-y-4 animate-in fade-in duration-200">
           {tuneMsg && (
-            <div className="p-3 rounded-xl bg-tertiary-bg text-primary font-label text-sm">
+            <div className="p-3 rounded-xl bg-surface-low text-primary font-label text-sm">
               {tuneMsg}
             </div>
           )}
