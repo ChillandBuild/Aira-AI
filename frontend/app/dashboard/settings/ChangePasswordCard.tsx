@@ -50,18 +50,20 @@ export default function ChangePasswordCard() {
       return;
     }
 
-    // Re-authenticate to prove the current password before changing it.
-    const { error: reauthError } = await supabase.auth.signInWithPassword({
+    const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password: current,
     });
-    if (reauthError) {
+    if (signInError) {
       setError("Current password is incorrect");
       setState("idle");
       return;
     }
 
-    const { error: updateError } = await supabase.auth.updateUser({ password: next });
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: next,
+      current_password: current,
+    });
     if (updateError) {
       setError(updateError.message);
       setState("idle");
