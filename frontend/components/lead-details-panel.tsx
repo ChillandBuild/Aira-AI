@@ -167,7 +167,7 @@ function ScoreEventCard({ ev }: { ev: ScoreEvent }) {
             <div className="flex items-center gap-1">
               <span className="font-mono text-xs font-semibold text-on-surface-muted">{ev.metadata.prev_score}</span>
               <span className="text-on-surface-muted text-xs">→</span>
-              <span className="font-mono text-sm font-bold text-tertiary">{ev.metadata.new_score}</span>
+              <span className="font-mono text-sm font-bold text-primary">{ev.metadata.new_score}</span>
             </div>
           )}
           {/* Segment change */}
@@ -342,7 +342,7 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
               className={cn(
                 "px-4 py-2 font-label text-xs font-semibold transition-colors border-b-2 -mb-px",
                 activeTab === tab
-                  ? "border-tertiary text-tertiary"
+                  ? "border-primary text-primary"
                   : "border-transparent text-on-surface-muted hover:text-on-surface"
               )}
             >
@@ -361,7 +361,7 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
             {/* Identity */}
             <div className="flex items-start gap-3">
               <div className="w-11 h-11 rounded-full bg-tertiary-bg flex items-center justify-center shrink-0">
-                <span className="font-display text-sm font-bold text-tertiary">{initials}</span>
+                <span className="font-display text-sm font-bold text-primary">{initials}</span>
               </div>
               <div className="min-w-0">
                 <p className="font-body text-sm font-semibold text-on-surface truncate">
@@ -476,7 +476,7 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
                 <button
                   onClick={handleMarkConverted}
                   disabled={converting}
-                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-tertiary text-white font-label text-xs font-semibold hover:bg-tertiary/90 transition-colors disabled:opacity-40"
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-primary text-white font-label text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40"
                 >
                   <CheckCircle2 size={13} />
                   {converting ? "Saving…" : "Mark as Converted"}

@@ -174,13 +174,13 @@ function StepIndicator({ current }: { current: number }) {
         return (
           <div key={label} className="flex-1 flex flex-col items-center relative">
             {i > 0 && (
-              <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${done ? "bg-tertiary" : "bg-surface-mid"}`} />
+              <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${done ? "bg-primary" : "bg-surface-mid"}`} />
             )}
             <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all
-              ${done ? "bg-tertiary text-white" : active ? "bg-tertiary text-white ring-4 ring-tertiary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
+              ${done ? "bg-primary text-white" : active ? "bg-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
               {done ? <Check size={16} /> : step}
             </div>
-            <span className={`mt-2 font-label text-xs text-center whitespace-nowrap ${active ? "text-tertiary font-semibold" : done ? "text-tertiary/50" : "text-on-surface-muted"}`}>
+            <span className={`mt-2 font-label text-xs text-center whitespace-nowrap ${active ? "text-primary font-semibold" : done ? "text-primary/50" : "text-on-surface-muted"}`}>
               {label}
             </span>
           </div>
@@ -301,15 +301,15 @@ function SendingProgress({ names, index, total }: { names: string[]; index: numb
       <div className="rounded-2xl border border-surface-mid bg-surface-low p-5">
         <div className="flex items-center justify-between mb-3">
           <span className="flex items-center gap-2 font-label text-sm font-semibold text-on-surface">
-            <Loader2 size={15} className="animate-spin text-tertiary" />
-            Sending <span className="text-tertiary">{done.toLocaleString()}</span> of {total.toLocaleString()} contacts
+            <Loader2 size={15} className="animate-spin text-primary" />
+            Sending <span className="text-primary">{done.toLocaleString()}</span> of {total.toLocaleString()} contacts
           </span>
-          <span className="font-display text-sm font-bold text-tertiary tabular-nums">{pct}%</span>
+          <span className="font-display text-sm font-bold text-primary tabular-nums">{pct}%</span>
         </div>
 
         <div className="h-2 w-full rounded-full bg-surface-mid overflow-hidden mb-4">
           <div
-            className="h-full rounded-full bg-tertiary transition-[width] duration-300 ease-out"
+            className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -317,7 +317,7 @@ function SendingProgress({ names, index, total }: { names: string[]; index: numb
         <div className="relative overflow-hidden rounded-xl" style={{ height: VISIBLE * ROW }}>
           {/* center focus band */}
           <div
-            className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-xl bg-tertiary/10 border border-tertiary/25 pointer-events-none"
+            className="absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-xl bg-primary/10 border border-primary/25 pointer-events-none"
             style={{ height: ROW }}
           />
           <div
@@ -339,7 +339,7 @@ function SendingProgress({ names, index, total }: { names: string[]; index: numb
                         <Check size={12} strokeWidth={3} className="text-green-600" />
                       </span>
                     ) : state === "current" ? (
-                      <Loader2 size={18} className="animate-spin text-tertiary" />
+                      <Loader2 size={18} className="animate-spin text-primary" />
                     ) : (
                       <span className="block h-2 w-2 rounded-full bg-on-surface-muted/40 ml-1.5" />
                     )}
@@ -417,7 +417,7 @@ function RetryTimeline({ broadcastId }: { broadcastId: string }) {
     <div className="mt-3 pt-3 border-t border-surface-mid/30">
       <button
         onClick={toggle}
-        className="flex items-center gap-1.5 font-label text-[11px] font-bold text-tertiary hover:underline"
+        className="flex items-center gap-1.5 font-label text-[11px] font-bold text-primary hover:underline"
       >
         <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
         {open ? "Hide retry timeline" : "Retry timeline"}
@@ -1231,7 +1231,7 @@ export default function OutboundLeadsPage() {
         const num = parseInt(match[1], 10);
         const mappedVal = variableMapping[num - 1];
         return (
-          <span key={i} className="inline-block px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary font-bold text-[10px] mx-0.5 border border-tertiary/20">
+          <span key={i} className="inline-block px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold text-[10px] mx-0.5 border border-primary/20">
             {mappedVal ? `[${mappedVal}]` : `{{${num}}}`}
           </span>
         );
@@ -1240,7 +1240,7 @@ export default function OutboundLeadsPage() {
     });
   };
 
-  const inputCls = "w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-tertiary outline-none";
+  const inputCls = "w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-primary outline-none";
 
   return (
     <div className="max-w-7xl">
@@ -1260,9 +1260,9 @@ export default function OutboundLeadsPage() {
                 </div>
 
                 <label className={`relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group
-                  ${csvFile ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]"}`}>
+                  ${csvFile ? "border-primary bg-primary/5" : "border-primary/30 hover:border-primary/70 hover:bg-primary/[0.04]"}`}>
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm
-                    ${csvFile ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"}`}>
+                    ${csvFile ? "bg-primary text-white" : "bg-primary/10 text-primary group-hover:bg-primary/20"}`}>
                     {csvFile ? <Check size={28} /> : <Upload size={28} />}
                   </div>
                   <div className="text-center px-4">
@@ -1276,7 +1276,7 @@ export default function OutboundLeadsPage() {
                     </p>
                   </div>
                   {!csvFile && (
-                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-primary/20 w-full justify-center pt-4 mt-1">
                       <span>✓ Auto-detects columns</span>
                       <span>✓ Deduplicates leads</span>
                       <span>✓ Indian numbers formatted</span>
@@ -1287,7 +1287,7 @@ export default function OutboundLeadsPage() {
 
                 {parseLoading && (
                   <div className="flex items-center gap-2 py-2">
-                    <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     <p className="font-body text-sm text-on-surface-muted">Parsing file…</p>
                   </div>
                 )}
@@ -1300,8 +1300,8 @@ export default function OutboundLeadsPage() {
 
                 {parsedData && (
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="p-4 bg-tertiary/5 border border-tertiary/15 rounded-xl text-center">
-                      <p className="font-display text-2xl font-bold text-tertiary">{parsedData.total_rows.toLocaleString()}</p>
+                    <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl text-center">
+                      <p className="font-display text-2xl font-bold text-primary">{parsedData.total_rows.toLocaleString()}</p>
                       <p className="font-label text-xs text-on-surface-muted mt-1">Total Rows</p>
                     </div>
                     <div className={`p-4 rounded-xl text-center border ${parsedData.duplicate_count > 0 ? "bg-amber-50 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
@@ -1317,7 +1317,7 @@ export default function OutboundLeadsPage() {
                       <div className="flex flex-wrap gap-1.5">
                         {parsedData.columns.map(col => (
                           <span key={col} className={`px-2.5 py-0.5 rounded-md text-[10px] font-semibold tracking-wide
-                            ${Object.values(parsedData.suggested_mapping).includes(col) ? "bg-tertiary/10 text-tertiary border border-tertiary/10" : "bg-surface-mid text-on-surface-muted"}`}>
+                            ${Object.values(parsedData.suggested_mapping).includes(col) ? "bg-primary/10 text-primary border border-primary/10" : "bg-surface-mid text-on-surface-muted"}`}>
                             {col}
                           </span>
                         ))}
@@ -1330,7 +1330,7 @@ export default function OutboundLeadsPage() {
                   <button
                     onClick={() => setCurrentStep(2)}
                     disabled={!parsedData}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     Next <ChevronRight size={16} />
                   </button>
@@ -1435,7 +1435,7 @@ export default function OutboundLeadsPage() {
                   <label
                     key={opt.value}
                     className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors
-                      ${optInSource === opt.value ? "border-tertiary bg-tertiary/5" : "border-surface-mid bg-surface-low hover:border-tertiary/40"}`}
+                      ${optInSource === opt.value ? "border-primary bg-primary/5" : "border-surface-mid bg-surface-low hover:border-primary/40"}`}
                   >
                     <input
                       type="radio"
@@ -1443,7 +1443,7 @@ export default function OutboundLeadsPage() {
                       value={opt.value}
                       checked={optInSource === opt.value}
                       onChange={() => handleOptInSelect(opt.value)}
-                      className="mt-0.5 accent-[var(--color-tertiary)]"
+                      className="mt-0.5 accent-[var(--color-primary)]"
                     />
                     <div>
                       <p className="font-label text-sm font-semibold text-on-surface">{opt.label}</p>
@@ -1455,7 +1455,7 @@ export default function OutboundLeadsPage() {
 
               {optInLoading && (
                 <div className="flex items-center gap-2 py-2">
-                  <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                   <p className="font-body text-sm text-on-surface-muted">Validating consent rule…</p>
                 </div>
               )}
@@ -1480,7 +1480,7 @@ export default function OutboundLeadsPage() {
                 <button
                   onClick={() => setCurrentStep(3)}
                   disabled={!optInValidation?.allowed}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                 >
                   Next <ChevronRight size={16} />
                 </button>
@@ -1532,7 +1532,7 @@ export default function OutboundLeadsPage() {
                 </button>
                 <button
                   onClick={() => setCurrentStep(4)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 transition-colors shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
                 >
                   Next <ChevronRight size={16} />
                 </button>
@@ -1648,7 +1648,7 @@ export default function OutboundLeadsPage() {
                               next[idx] = e.target.value;
                               setVariableMapping(next);
                             }}
-                            className="flex-1 bg-surface-low rounded-lg px-2.5 py-1.5 font-body text-xs text-on-surface border-0 focus:outline-none focus:ring-1 focus:ring-tertiary"
+                            className="flex-1 bg-surface-low rounded-lg px-2.5 py-1.5 font-body text-xs text-on-surface border-0 focus:outline-none focus:ring-1 focus:ring-primary"
                           >
                             <option value="">— pick a column —</option>
                             {parsedData.columns.map(c => (
@@ -1667,7 +1667,7 @@ export default function OutboundLeadsPage() {
                       <button
                         type="button"
                         onClick={() => setVariableMapping([...variableMapping, ""])}
-                        className="text-xs font-bold text-tertiary hover:underline flex items-center gap-1 mt-1 pl-1"
+                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1 mt-1 pl-1"
                       >
                         + Add variable mapping
                       </button>
@@ -1684,7 +1684,7 @@ export default function OutboundLeadsPage() {
                       <label
                         key={type}
                         className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors
-                          ${scheduleType === type ? "border-tertiary bg-tertiary/5" : "border-surface-mid bg-surface-low hover:border-tertiary/40"}`}
+                          ${scheduleType === type ? "border-primary bg-primary/5" : "border-surface-mid bg-surface-low hover:border-primary/40"}`}
                       >
                         <input
                           type="radio"
@@ -1692,7 +1692,7 @@ export default function OutboundLeadsPage() {
                           value={type}
                           checked={scheduleType === type}
                           onChange={() => setScheduleType(type)}
-                          className="accent-[var(--color-tertiary)]"
+                          className="accent-[var(--color-primary)]"
                         />
                         <span className="font-label text-xs font-bold text-on-surface">
                           {type === "now" ? "Send Now" : type === "scheduled" ? "Later" : "Drip Days"}
@@ -1752,7 +1752,7 @@ export default function OutboundLeadsPage() {
                       type="checkbox"
                       checked={retryEnabled}
                       onChange={(e) => setRetryEnabled(e.target.checked)}
-                      className="mt-0.5 accent-[var(--color-tertiary)]"
+                      className="mt-0.5 accent-[var(--color-primary)]"
                     />
                     <span>
                       <span className="font-label text-xs font-bold text-on-surface block">Auto-retry undelivered messages</span>
@@ -1803,7 +1803,7 @@ export default function OutboundLeadsPage() {
                   <button
                     onClick={async () => { setCurrentStep(5); await fetchRiskAudit(); }}
                     disabled={!templateName.trim()}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     Next <ChevronRight size={16} />
                   </button>
@@ -1816,7 +1816,7 @@ export default function OutboundLeadsPage() {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-tertiary/10 flex items-center justify-center text-tertiary">
+                      <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                         <Phone size={16} />
                       </div>
                       <h3 className="font-display font-bold text-on-surface text-base">Sender Line</h3>
@@ -1829,7 +1829,7 @@ export default function OutboundLeadsPage() {
 
                   {primaryNumberLoading ? (
                     <div className="py-4 text-center">
-                      <div className="w-5 h-5 border-2 border-tertiary border-t-transparent rounded-full animate-spin mx-auto mb-1" />
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-1" />
                       <p className="font-body text-xs text-on-surface-muted">Fetching line details...</p>
                     </div>
                   ) : primaryNumber ? (
@@ -2004,7 +2004,7 @@ export default function OutboundLeadsPage() {
                 {/* Risk Audit Card */}
                 {riskLoading && (
                   <div className="flex items-center gap-2 p-3.5 bg-surface-low rounded-xl border border-surface-mid font-body text-sm text-on-surface-muted">
-                    <div className="w-4 h-4 border-2 border-tertiary border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     Checking audience health…
                   </div>
                 )}
@@ -2112,7 +2112,7 @@ export default function OutboundLeadsPage() {
                   <button
                     onClick={handleSend}
                     disabled={sendLoading}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     <Upload size={14} />
                     {sendLoading ? "Sending…" : "Confirm & Dispatch"}
@@ -2254,8 +2254,8 @@ export default function OutboundLeadsPage() {
                   <p className="font-display text-3xl font-bold text-gray-600">{sendResult.opted_out_skipped.toLocaleString()}</p>
                   <p className="font-label text-[10px] text-gray-500 mt-1 uppercase tracking-wide font-bold">Opted Out</p>
                 </div>
-                <div className="p-4 bg-tertiary/5 border border-tertiary/15 rounded-xl text-center">
-                  <p className="font-display text-sm font-bold text-tertiary truncate leading-10">{sendResult.number_used}</p>
+                <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl text-center">
+                  <p className="font-display text-sm font-bold text-primary truncate leading-10">{sendResult.number_used}</p>
                   <p className="font-label text-[10px] text-on-surface-muted mt-1 uppercase tracking-wide font-bold">Sender Line</p>
                 </div>
               </div>
@@ -2263,7 +2263,7 @@ export default function OutboundLeadsPage() {
               <div className="flex items-center gap-3 pt-4 border-t border-surface-mid/30">
                 <Link
                   href="/dashboard/conversations"
-                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 transition-colors shadow-sm"
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
                 >
                   <MessageSquare size={16} />
                   View Conversations

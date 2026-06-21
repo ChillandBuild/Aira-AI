@@ -244,7 +244,7 @@ export default function LeadDetailPanel({
                   <span className={`px-2 py-0.5 rounded-md font-label text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
                     callStatus === "connected"
                       ? "bg-emerald-500/30 text-emerald-200 border border-emerald-400/30"
-                      : "bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 animate-pulse"
+                      : "bg-violet-500/30 text-violet-200 border border-violet-400/30 animate-pulse"
                   }`}>
                     {callStatus === "connected" && (
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
@@ -723,11 +723,11 @@ export default function LeadDetailPanel({
                   {timelineItems.map((item) => (
                     <div key={`${item.type}-${item.id}`} className="relative">
                       <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                        item.type === "note" ? "bg-orange-400" : item.type === "call" ? "bg-indigo-400" : "bg-teal-400"
+                        item.type === "note" ? "bg-orange-400" : item.type === "call" ? "bg-violet-400" : "bg-teal-400"
                       }`} />
                       <div className="text-[9px] text-[#a8a29e] font-bold mb-1 flex items-center gap-1">
                         {item.type === "note" && <><StickyNote size={9} className="text-orange-400" /> Note · {timeAgo(item.created_at)}</>}
-                        {item.type === "call" && <><Phone size={9} className="text-indigo-400" /> Call · {timeAgo(item.created_at)}</>}
+                        {item.type === "call" && <><Phone size={9} className="text-violet-400" /> Call · {timeAgo(item.created_at)}</>}
                         {item.type === "message" && <><MessageSquare size={9} className="text-teal-500" /> WhatsApp · {timeAgo(item.created_at)}</>}
                       </div>
                       {item.type === "note" && (
@@ -741,7 +741,7 @@ export default function LeadDetailPanel({
                         </div>
                       )}
                       {item.type === "call" && (
-                        <div className="bg-indigo-50/40 border border-indigo-100 p-3 rounded-xl flex items-center justify-between">
+                        <div className="bg-primary-light/40 border border-primary-muted p-3 rounded-xl flex items-center justify-between">
                           <span className="font-label text-xs font-bold text-[#44403c]">
                             {outcomeLabel[item.outcome ?? ""] ?? "Call logged"}
                           </span>
@@ -795,14 +795,14 @@ export default function LeadDetailPanel({
               {/* Calls only */}
               {noteFilter === "calls" && (
                 selectedLeadCallLogs.length > 0 ? (
-                  <div className="relative border-l-2 border-indigo-100 pl-4 ml-2 space-y-3">
+                  <div className="relative border-l-2 border-primary-muted pl-4 ml-2 space-y-3">
                     {selectedLeadCallLogs.map((log) => (
                       <div key={log.id} className="relative">
-                        <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-indigo-400 border-2 border-white" />
+                        <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-white" />
                         <div className="text-[9px] text-[#a8a29e] font-bold mb-1 flex items-center gap-1">
-                          <Phone size={9} className="text-indigo-400" /> {timeAgo(log.created_at)}
+                          <Phone size={9} className="text-violet-400" /> {timeAgo(log.created_at)}
                         </div>
-                        <div className="bg-indigo-50/40 border border-indigo-100 p-3 rounded-xl flex items-center justify-between">
+                        <div className="bg-primary-light/40 border border-primary-muted p-3 rounded-xl flex items-center justify-between">
                           <span className="font-label text-xs font-bold text-[#44403c]">
                             {outcomeLabel[log.outcome ?? ""] ?? "Call logged"}
                           </span>
@@ -923,7 +923,7 @@ function ScriptPanel() {
       <div className="space-y-3">
         <div className="flex items-center justify-between border-b border-[#e8e3db] pb-2 mb-2">
           <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5">
-            <FileText size={12} className="text-indigo-400 shrink-0" /> Select Script
+            <FileText size={12} className="text-primary shrink-0" /> Select Script
           </h3>
           <span className="text-[10px] text-[#a8a29e] font-bold">
             {activeScripts.length} Active
@@ -938,13 +938,13 @@ function ScriptPanel() {
                 setSelectedScript(s);
                 setCurrentStep(0);
               }}
-              className="w-full bg-white hover:bg-indigo-50/20 border border-[#e8e3db] hover:border-indigo-300 rounded-xl p-3.5 text-left transition-all duration-200 group flex items-start gap-3 shadow-sm hover:shadow"
+              className="w-full bg-white hover:bg-primary-light/40 border border-[#e8e3db] hover:border-primary-muted rounded-xl p-3.5 text-left transition-all duration-200 group flex items-start gap-3 shadow-sm hover:shadow"
             >
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <FileText size={16} className="text-indigo-600" />
+              <div className="w-8 h-8 rounded-lg bg-primary-light border border-primary-muted flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <FileText size={16} className="text-primary" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="font-display text-xs font-bold text-[#292524] truncate group-hover:text-indigo-600 transition-colors">
+                <h4 className="font-display text-xs font-bold text-[#292524] truncate group-hover:text-primary transition-colors">
                   {s.name}
                 </h4>
                 <p className="font-body text-[10px] text-[#a8a29e] mt-0.5">
@@ -967,7 +967,7 @@ function ScriptPanel() {
       <div className="flex items-center justify-between border-b border-[#e8e3db] pb-2 mb-2">
         <button
           onClick={() => setSelectedScript(null)}
-          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 transition-colors uppercase tracking-wider font-label"
+          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-primary hover:text-primary-dark transition-colors uppercase tracking-wider font-label"
         >
           &larr; Back to all scripts
         </button>
@@ -978,13 +978,13 @@ function ScriptPanel() {
 
       <div className="flex items-center justify-between">
         <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5 truncate max-w-[70%]">
-          <FileText size={12} className="text-indigo-400 shrink-0" /> {selectedScript.name}
+          <FileText size={12} className="text-primary shrink-0" /> {selectedScript.name}
         </h3>
       </div>
 
-      <div className="bg-white border-2 border-indigo-100 rounded-2xl p-5 shadow-sm">
+      <div className="bg-white border-2 border-primary-muted rounded-2xl p-5 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="w-7 h-7 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-black text-xs shrink-0">
+          <div className="w-7 h-7 bg-primary-light text-primary rounded-full flex items-center justify-center font-black text-xs shrink-0">
             {step.order}
           </div>
           <div className="flex-1 min-w-0">
@@ -1004,7 +1004,7 @@ function ScriptPanel() {
                   const idx = steps.findIndex((s) => s.order === b.goto);
                   if (idx >= 0) setCurrentStep(idx);
                 }}
-                className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold border border-indigo-200 transition-all flex items-center gap-1"
+                className="px-3 py-1.5 bg-primary-light hover:bg-primary-muted text-primary rounded-lg text-xs font-bold border border-primary-muted transition-all flex items-center gap-1"
               >
                 {b.label} <ChevronRight size={10} />
               </button>
@@ -1024,7 +1024,7 @@ function ScriptPanel() {
         <button
           onClick={() => setCurrentStep(Math.min(steps.length - 1, currentStep + 1))}
           disabled={currentStep === steps.length - 1}
-          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold disabled:opacity-30 transition-all"
+          className="flex-1 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold disabled:opacity-30 transition-all"
         >
           Next Step
         </button>
@@ -1038,14 +1038,14 @@ function ScriptPanel() {
             onClick={() => setCurrentStep(i)}
             className={`w-full text-left px-3 py-2 rounded-lg text-xs font-body transition-all flex items-center gap-2 ${
               i === currentStep
-                ? "bg-indigo-50 text-indigo-700 font-bold border border-indigo-200"
+                ? "bg-primary-light text-primary font-bold border border-primary-muted"
                 : i < currentStep
                 ? "text-[#a8a29e] hover:bg-[#faf8f5]"
                 : "text-[#57534e] hover:bg-[#faf8f5]"
             }`}
           >
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${
-              i === currentStep ? "bg-indigo-600 text-white" : i < currentStep ? "bg-[#e8e3db] text-[#78716c]" : "bg-[#f0ece4] text-[#a8a29e]"
+              i === currentStep ? "bg-primary text-white" : i < currentStep ? "bg-[#e8e3db] text-[#78716c]" : "bg-[#f0ece4] text-[#a8a29e]"
             }`}>
               {s.order}
             </span>

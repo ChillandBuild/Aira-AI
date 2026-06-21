@@ -84,7 +84,7 @@ function ErrorBox({ message }: { message: string }) {
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-      <h2 className="font-display text-base font-bold text-tertiary mb-5">{title}</h2>
+      <h2 className="font-display text-base font-bold text-primary mb-5">{title}</h2>
       {children}
     </div>
   );
@@ -123,7 +123,7 @@ function FunnelSteps({
             </span>
             <div className="flex-1 bg-surface-mid rounded-full h-6 overflow-hidden">
               <div
-                className="h-6 rounded-full bg-indigo-500 transition-all"
+                className="h-6 rounded-full bg-primary transition-all"
                 style={{ width: `${widthPct}%` }}
               />
             </div>
@@ -247,8 +247,8 @@ function OverviewTab({ range }: { range: DateRange }) {
               <AreaChart data={data.daily_leads} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#5b21b6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#5b21b6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
@@ -257,7 +257,7 @@ function OverviewTab({ range }: { range: DateRange }) {
                 <Tooltip
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
                 />
-                <Area type="monotone" dataKey="count" stroke="#6366f1" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
+                <Area type="monotone" dataKey="count" stroke="#5b21b6" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -317,7 +317,7 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
   if (total === 0) return <p className="font-label text-xs text-on-surface-muted">No data</p>;
 
   const segments = [
-    { label: "AI", value: breakdown.ai, color: "bg-indigo-500" },
+    { label: "AI", value: breakdown.ai, color: "bg-primary" },
     { label: "Knowledge Base", value: breakdown.knowledge, color: "bg-blue-400" },
     { label: "Manual", value: breakdown.manual, color: "bg-[#a8a29e]" },
   ];
@@ -378,7 +378,7 @@ function ChannelsTab({ range }: { range: DateRange }) {
             onClick={() => setChannel(id)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-label text-sm font-semibold transition-colors ring-1 ${
               channel === id
-                ? "bg-indigo-50 text-indigo-700 ring-indigo-200"
+                ? "bg-primary-light text-primary ring-primary-muted"
                 : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
             }`}
           >
@@ -581,7 +581,7 @@ function InboundTab({ range }: { range: DateRange }) {
             <Tooltip />
             <Legend />
             <Bar dataKey="organic" stackId="a" fill="#10b981" name="Organic" />
-            <Bar dataKey="ad" stackId="a" fill="#6366f1" name="Ad" />
+            <Bar dataKey="ad" stackId="a" fill="#5b21b6" name="Ad" />
           </BarChart>
         </ResponsiveContainer>
       </SectionCard>
@@ -593,7 +593,7 @@ function InboundTab({ range }: { range: DateRange }) {
               <div key={k} className="flex items-center gap-3">
                 <span className="font-label text-xs text-on-surface-muted w-24 shrink-0">{label}</span>
                 <div className="flex-1 bg-surface-mid rounded-full h-4 overflow-hidden">
-                  <div className="h-4 rounded-full bg-indigo-500" style={{ width: `${Math.round((data.by_segment[k] / segMax) * 100)}%` }} />
+                  <div className="h-4 rounded-full bg-primary" style={{ width: `${Math.round((data.by_segment[k] / segMax) * 100)}%` }} />
                 </div>
                 <span className="font-label text-xs w-8 text-right shrink-0">{data.by_segment[k]}</span>
               </div>
@@ -645,7 +645,7 @@ export default function AnalyticsPage() {
               onClick={() => setActiveTab(tab.id)}
               className={`px-5 py-2 rounded-lg font-label text-sm font-semibold transition-colors ${
                 activeTab === tab.id
-                  ? "bg-surface text-tertiary shadow-card"
+                  ? "bg-surface text-primary shadow-card"
                   : "text-on-surface-muted hover:text-on-surface"
               }`}
             >
@@ -662,7 +662,7 @@ export default function AnalyticsPage() {
               onClick={() => setRange(r.id)}
               className={`px-4 py-2 rounded-lg font-label text-sm font-semibold transition-colors ${
                 range === r.id
-                  ? "bg-surface text-tertiary shadow-card"
+                  ? "bg-surface text-primary shadow-card"
                   : "text-on-surface-muted hover:text-on-surface"
               }`}
             >

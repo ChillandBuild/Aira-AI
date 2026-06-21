@@ -61,7 +61,7 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
     return (
       <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-base font-bold text-tertiary flex items-center gap-2">
+          <h2 className="font-display text-base font-bold text-primary flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-primary/10">
               <Sparkles size={14} className="text-primary" />
             </div>
@@ -105,7 +105,7 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
 
       {/* Header */}
       <div className="relative flex items-center justify-between mb-4">
-        <h2 className="font-display text-base font-bold text-tertiary flex items-center gap-2">
+        <h2 className="font-display text-base font-bold text-primary flex items-center gap-2">
           <div className="p-1.5 rounded-lg bg-primary/10">
             <Sparkles size={14} className="text-primary" />
           </div>

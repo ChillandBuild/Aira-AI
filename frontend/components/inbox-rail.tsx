@@ -97,7 +97,7 @@ export function InboxRail({ folder, onFolderChange, onOpenFilter, escalationCoun
           className={cn(
             railBtn, "relative",
             folder === value
-              ? "bg-tertiary/10 text-tertiary"
+              ? "bg-primary/10 text-primary"
               : "text-on-surface-muted hover:bg-surface-low hover:text-on-surface"
           )}
         >
@@ -130,7 +130,7 @@ export function InboxRail({ folder, onFolderChange, onOpenFilter, escalationCoun
                 >
                   <Icon size={18} className="text-on-surface-muted shrink-0" />
                   <span>{label}</span>
-                  {beta && <span className="font-label text-[11px] font-semibold text-tertiary">(Beta)</span>}
+                  {beta && <span className="font-label text-[11px] font-semibold text-primary">(Beta)</span>}
                 </button>
               </div>
             ))}

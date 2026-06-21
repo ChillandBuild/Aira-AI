@@ -147,8 +147,8 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                       const assignedCaller = callers.find((c) => c.id === lead.assigned_to);
                       const isSelected = cockpit.selectedLeadId === lead.id;
 
-                      let borderAccent = "border-l-indigo-400";
-                      let avatarBg = "bg-indigo-500";
+                      let borderAccent = "border-l-violet-400";
+                      let avatarBg = "bg-violet-500";
                       let callBtnBg = "bg-emerald-500 hover:bg-emerald-600";
                       if (lead.score >= 8) {
                         borderAccent = "border-l-red-500"; avatarBg = "bg-red-500"; callBtnBg = "bg-rose-500 hover:bg-rose-600";
@@ -164,7 +164,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                           onClick={() => cockpit.setSelectedLeadId(lead.id)}
                           className={`rounded-2xl border-y border-r border-l-[6px] transition-all duration-200 cursor-pointer p-3 flex items-center justify-between gap-3 ${borderAccent} ${
                             isSelected
-                              ? "bg-gradient-to-r from-indigo-50/70 to-purple-50/20 border-indigo-200 shadow-[0_4px_15px_rgba(99,102,241,0.06)] ring-1 ring-indigo-500/10 translate-x-1"
+                              ? "bg-gradient-to-r from-primary-light/70 to-purple-50/20 border-primary-muted shadow-[0_4px_15px_rgba(91,33,182,0.06)] ring-1 ring-primary/10 translate-x-1"
                               : "bg-[#faf8f5]/30 border-[#f0ece4] hover:bg-[#faf8f5] hover:shadow-sm"
                           }`}
                         >
@@ -176,7 +176,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="font-body text-sm font-bold text-[#292524] truncate">{lead.name || formatPhone(lead.phone)}</p>
                                 {lead.score >= 7 && <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded font-label text-[8px] font-black uppercase tracking-wider">HOT</span>}
-                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-label text-[8px] font-black uppercase">SEG {lead.segment}</span>
+                                <span className="px-1.5 py-0.5 bg-primary-light text-primary rounded font-label text-[8px] font-black uppercase">SEG {lead.segment}</span>
                               </div>
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <p className="font-label text-xs text-[#78716c]">{lead.name ? formatPhone(lead.phone) + " · " : ""}Score {lead.score}/10</p>
@@ -208,11 +208,11 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
         <div className="col-span-8 flex flex-col min-h-0 bg-[#faf8f5] rounded-3xl border border-[#e8e3db] shadow-sm overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             {!cockpit.selectedLeadId ? (
-              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-indigo-50/10">
+              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-primary-light/10">
                 <div className="relative mb-6">
-                  <div className="absolute inset-0 bg-indigo-400/5 blur-2xl rounded-full scale-150 animate-pulse" />
-                  <div className="relative p-6 rounded-3xl bg-white border border-[#f0ece4] shadow-md text-indigo-500">
-                    <Sparkles size={38} className="text-indigo-500" />
+                  <div className="absolute inset-0 bg-primary/5 blur-2xl rounded-full scale-150 animate-pulse" />
+                  <div className="relative p-6 rounded-3xl bg-white border border-[#f0ece4] shadow-md text-primary">
+                    <Sparkles size={38} className="text-primary" />
                   </div>
                 </div>
                 <h3 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Profile Workspace</h3>

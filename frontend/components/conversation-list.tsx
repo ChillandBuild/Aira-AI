@@ -226,8 +226,8 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
       case "instagram": return "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm";
       case "facebook": return "bg-blue-600 text-white shadow-sm";
       case "telegram": return "bg-sky-500 text-white shadow-sm";
-      case "all": return "bg-tertiary text-white shadow-sm";
-      default: return "bg-tertiary text-white shadow-sm";
+      case "all": return "bg-primary text-white shadow-sm";
+      default: return "bg-primary text-white shadow-sm";
     }
   }
 
@@ -237,11 +237,11 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
         {selectionMode ? (
           /* ── Selection mode bar ── */
           <div className="flex items-center justify-between py-1">
-            <span className="font-display text-sm font-semibold text-tertiary">{selectedIds.size} selected</span>
+            <span className="font-display text-sm font-semibold text-primary">{selectedIds.size} selected</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setSelectedIds(selectedIds.size === visible.length && visible.length > 0 ? new Set() : new Set(visible.map(l => l.id)))}
-                className="text-[11px] font-semibold text-tertiary hover:text-tertiary/80 transition-colors"
+                className="text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
               >
                 {selectedIds.size === visible.length && visible.length > 0 ? "Deselect All" : "Select All"}
               </button>
@@ -294,13 +294,13 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
             {/* ── Search + Filter + Refresh row ── */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1 group">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted group-focus-within:text-tertiary transition-colors" />
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted group-focus-within:text-primary transition-colors" />
                 <input
                   type="text"
                   placeholder="Type and submit to search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-7 py-2 bg-surface-low border border-surface-mid rounded-xl text-[13px] text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary/20 focus:border-tertiary transition-all"
+                  className="w-full pl-8 pr-7 py-2 bg-surface-low border border-surface-mid rounded-xl text-[13px] text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted hover:text-on-surface p-0.5 rounded-full hover:bg-surface-mid transition-colors">
@@ -314,13 +314,13 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                 className={cn(
                   "w-9 h-9 rounded-xl flex items-center justify-center transition-colors shrink-0 relative",
                   filtersOpen
-                    ? "bg-tertiary text-white shadow-sm"
+                    ? "bg-primary text-white shadow-sm"
                     : "bg-surface-low border border-surface-mid text-on-surface-muted hover:bg-surface-mid"
                 )}
               >
                 <Filter size={14} />
                 {(segment !== null || platform !== "all") && !filtersOpen && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-tertiary rounded-full" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
                 )}
               </button>
               <button
@@ -367,7 +367,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                         onClick={() => setSegment(segment === f.value ? null : f.value)}
                         className={cn(
                           "px-2.5 py-1 rounded-lg font-label text-[11px] font-semibold transition-all duration-200 flex items-center gap-1.5",
-                          segment === f.value ? "bg-tertiary text-white shadow-sm" : "bg-surface-low text-on-surface-muted hover:bg-surface-mid hover:text-on-surface"
+                          segment === f.value ? "bg-primary text-white shadow-sm" : "bg-surface-low text-on-surface-muted hover:bg-surface-mid hover:text-on-surface"
                         )}
                       >
                         {f.label}
@@ -401,7 +401,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                   setSegment(null);
                   onPlatformChange("whatsapp");
                 }}
-                className="mt-3 text-[13px] font-semibold text-tertiary hover:underline"
+                className="mt-3 text-[13px] font-semibold text-primary hover:underline"
               >
                 Clear all filters
               </button>
@@ -422,7 +422,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
               className={cn(
                 "w-full text-left px-4 py-3.5 border-b border-surface-mid/40 transition-all duration-150 group flex items-start gap-3 relative cursor-pointer",
                 selectedId === lead.id
-                  ? "bg-surface before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px] before:bg-tertiary"
+                  ? "bg-surface before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px] before:bg-primary"
                   : "hover:bg-surface"
               )}
             >
@@ -432,7 +432,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                     type="checkbox"
                     checked={selectedIds.has(lead.id)}
                     onChange={(e) => toggleSelect(lead.id, e as unknown as React.MouseEvent)}
-                    className="cursor-pointer w-4 h-4 rounded border-surface-mid text-tertiary focus:ring-tertiary"
+                    className="cursor-pointer w-4 h-4 rounded border-surface-mid text-primary focus:ring-primary"
                   />
                 </div>
               )}
@@ -462,7 +462,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                   <div className="flex items-center gap-1 min-w-0">
                     <span className={cn(
                       "font-display text-[13.5px] font-semibold truncate",
-                      selectedId === lead.id ? "text-tertiary" : "text-on-surface"
+                      selectedId === lead.id ? "text-primary" : "text-on-surface"
                     )}>
                       {lead.name || formatPhone(lead.phone) || "Unknown"}
                     </span>
@@ -484,7 +484,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {needsAction && (
-                      <span className="w-[18px] h-[18px] rounded-full bg-tertiary flex items-center justify-center font-label text-[10px] font-bold text-white">!</span>
+                      <span className="w-[18px] h-[18px] rounded-full bg-primary flex items-center justify-center font-label text-[10px] font-bold text-white">!</span>
                     )}
                     <span className="font-label text-[10px] text-on-surface-muted whitespace-nowrap">
                       {formatIST((lead as ConversationLead).last_reply_at || lead.created_at)}
@@ -496,7 +496,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <p className={cn(
                     "font-body text-[12px] truncate leading-snug min-w-0",
-                    isLink ? "text-tertiary" : "text-on-surface-muted"
+                    isLink ? "text-primary" : "text-on-surface-muted"
                   )}>
                     {preview}
                   </p>

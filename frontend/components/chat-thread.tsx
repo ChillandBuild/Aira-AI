@@ -142,11 +142,11 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
       <div className={cn(
         "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5",
         msg.direction === "outbound"
-          ? (msg.is_ai_generated ? "bg-secondary/10" : "bg-tertiary/10")
+          ? (msg.is_ai_generated ? "bg-secondary/10" : "bg-primary/10")
           : "bg-surface-mid"
       )}>
         {msg.direction === "outbound" ? (
-          msg.is_ai_generated ? <Bot size={14} className="text-secondary" /> : <User size={14} className="text-tertiary" />
+          msg.is_ai_generated ? <Bot size={14} className="text-secondary" /> : <User size={14} className="text-primary" />
         ) : (
           <User size={14} className="text-on-surface-muted" />
         )}
@@ -154,7 +154,7 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
       <div className={cn(
         "max-w-[70%] px-4 py-2.5 rounded-2xl font-body text-sm",
         msg.direction === "outbound"
-          ? "bg-tertiary text-white rounded-tr-sm"
+          ? "bg-primary text-white rounded-tr-sm"
           : "bg-surface text-on-surface shadow-card rounded-tl-sm"
       )}>
         {msg.media_type && <MediaBubble msg={msg} />}
@@ -198,8 +198,8 @@ function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={previewUrl} alt={file.name} loading="lazy" decoding="async" className="w-10 h-10 object-cover rounded-lg shrink-0" />
       ) : (
-        <div className="w-10 h-10 bg-tertiary/10 rounded-lg flex items-center justify-center shrink-0">
-          <FileText size={18} className="text-tertiary" />
+        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
+          <FileText size={18} className="text-primary" />
         </div>
       )}
       <div className="flex-1 min-w-0">
@@ -501,7 +501,7 @@ export function ChatThread({
                 if (e.key === "Escape") setEditingName(false);
               }}
               placeholder="Add a name"
-              className="font-body text-sm font-semibold text-on-surface bg-surface-low px-2 py-0.5 rounded border border-tertiary focus:outline-none focus:ring-1 focus:ring-tertiary w-56"
+              className="font-body text-sm font-semibold text-on-surface bg-surface-low px-2 py-0.5 rounded border border-primary focus:outline-none focus:ring-1 focus:ring-primary w-56"
             />
           ) : (
             <button
@@ -559,7 +559,7 @@ export function ChatThread({
                 <button
                   onClick={() => { setDropdownOpen(false); markConverted(); }}
                   disabled={converting}
-                  className="w-full text-left px-4 py-2 text-[13px] font-medium text-tertiary hover:bg-tertiary/5 transition-colors flex items-center gap-2 disabled:opacity-40"
+                  className="w-full text-left px-4 py-2 text-[13px] font-medium text-primary hover:bg-primary/5 transition-colors flex items-center gap-2 disabled:opacity-40"
                 >
                   <CheckCircle2 size={13} /> {converting ? "Saving…" : "Mark Converted"}
                 </button>
@@ -645,7 +645,7 @@ export function ChatThread({
               <button
                 onClick={sendMedia}
                 disabled={sending}
-                className="w-8 h-8 rounded-full bg-tertiary text-white flex items-center justify-center shrink-0 hover:bg-tertiary/90 disabled:opacity-40 transition-colors"
+                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 hover:bg-primary/90 disabled:opacity-40 transition-colors"
               >
                 <Send size={14} />
               </button>
@@ -653,13 +653,13 @@ export function ChatThread({
           </div>
         ) : (
           /* Main input bar */
-          <div className="flex items-center gap-2 bg-surface-low border border-surface-mid rounded-2xl px-3 py-2 focus-within:border-tertiary focus-within:ring-2 focus-within:ring-tertiary/15 transition-all">
+          <div className="flex items-center gap-2 bg-surface-low border border-surface-mid rounded-2xl px-3 py-2 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 transition-all">
             {canSendMedia ? (
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isRecording}
                 title="Attach file"
-                className="p-1 text-on-surface-muted hover:text-tertiary transition-colors disabled:opacity-40 shrink-0"
+                className="p-1 text-on-surface-muted hover:text-primary transition-colors disabled:opacity-40 shrink-0"
               >
                 <Plus size={18} />
               </button>
@@ -691,7 +691,7 @@ export function ChatThread({
                 title={isRecording ? "Stop recording" : "Voice note"}
                 className={cn(
                   "p-1.5 rounded-full transition-colors shrink-0",
-                  isRecording ? "text-red-600 bg-red-50 animate-pulse" : "text-on-surface-muted hover:text-tertiary"
+                  isRecording ? "text-red-600 bg-red-50 animate-pulse" : "text-on-surface-muted hover:text-primary"
                 )}
               >
                 {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
@@ -701,7 +701,7 @@ export function ChatThread({
             <button
               onClick={sendReply}
               disabled={sending || !draft.trim() || isRecording}
-              className="w-8 h-8 rounded-full bg-tertiary text-white flex items-center justify-center shrink-0 hover:bg-tertiary/90 disabled:opacity-40 transition-colors"
+              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 hover:bg-primary/90 disabled:opacity-40 transition-colors"
             >
               <Send size={13} />
             </button>
