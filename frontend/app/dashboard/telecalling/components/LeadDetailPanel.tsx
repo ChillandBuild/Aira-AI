@@ -187,7 +187,7 @@ export default function LeadDetailPanel({
   const ringBgGradient =
     score >= 8 ? "from-rose-500 to-red-600" :
     score >= 6 ? "from-amber-500 to-orange-600" :
-    score >= 4 ? "from-indigo-500 to-purple-600" :
+    score >= 4 ? "from-primary to-purple-600" :
     "from-[#a8a29e] to-[#78716c]";
   const circumference = 2 * Math.PI * 28;
   const strokeDashoffset = circumference - (score / 10) * circumference;
@@ -902,7 +902,7 @@ function ScriptPanel() {
   if (loading) {
     return (
       <div className="p-8 text-center">
-        <div className="animate-spin w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full mx-auto" />
+        <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full mx-auto" />
         <p className="text-xs text-[#a8a29e] mt-2">Loading scripts...</p>
       </div>
     );

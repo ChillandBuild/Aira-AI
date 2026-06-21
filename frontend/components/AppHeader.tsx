@@ -262,7 +262,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 className={cn(
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   (tab === t || (t === "upload" && !tab))
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-[#78716c] hover:text-[#292524]"
                 )}
               >
@@ -285,7 +285,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 className={cn(
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   (tab === t || (t === "upload" && !tab))
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-[#78716c] hover:text-[#292524]"
                 )}
               >
@@ -303,7 +303,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 className={cn(
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   notesPageMode === "by_lead"
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-[#78716c] hover:text-[#292524]"
                 )}
               >
@@ -314,7 +314,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 className={cn(
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   notesPageMode === "all_notes"
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-[#78716c] hover:text-[#292524]"
                 )}
               >
@@ -327,7 +327,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 className={cn(
                   "p-1.5 rounded-xl transition-all",
                   notesViewMode === "grid"
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-[#a8a29e] hover:text-[#44403c]"
                 )}
                 title="Grid view"
@@ -339,7 +339,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 className={cn(
                   "p-1.5 rounded-xl transition-all",
                   notesViewMode === "list"
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-[#a8a29e] hover:text-[#44403c]"
                 )}
                 title="List view"

@@ -369,7 +369,7 @@ export default function SettingsPage() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             activeTab === "general"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -380,7 +380,7 @@ export default function SettingsPage() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             activeTab === "channels"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -391,7 +391,7 @@ export default function SettingsPage() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             activeTab === "telecalling"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -402,7 +402,7 @@ export default function SettingsPage() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             activeTab === "ai"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -413,7 +413,7 @@ export default function SettingsPage() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             activeTab === "automations"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -439,11 +439,11 @@ export default function SettingsPage() {
             <div className="space-y-6">
               {/* Admin Identity Card */}
               <div className="bg-gradient-to-br from-[#1c1917] via-[#292524] to-[#1c1917] rounded-[2rem] p-8 shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-indigo-500/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-primary/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/4" />
 
                 <div className="relative flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shadow-lg shadow-primary/25">
                     <span className="font-display text-3xl font-bold text-white">{initials}</span>
                   </div>
                   <div className="flex-1 min-w-0">

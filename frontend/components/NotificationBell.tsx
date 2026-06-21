@@ -48,8 +48,8 @@ export function NotificationBell() {
       case "callback_taken_over":
       default:
         return {
-          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-indigo-500 dark:bg-[#292524]/30 dark:hover:bg-[#292524]/60 dark:border-[#292524] dark:border-l-indigo-500",
-          iconBg: "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400",
+          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-primary dark:bg-[#292524]/30 dark:hover:bg-[#292524]/60 dark:border-[#292524] dark:border-l-primary",
+          iconBg: "bg-primary-light text-primary dark:bg-primary/20 dark:text-primary",
           icon: <Info size={14} />,
         };
     }
@@ -78,7 +78,7 @@ export function NotificationBell() {
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className="absolute right-0 top-full mt-3 w-80 md:w-96 bg-white/95 dark:bg-[#1c1917]/95 backdrop-blur-xl border border-[#e8e3db]/60 dark:border-[#292524]/60 rounded-3xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in slide-in-from-top-4 duration-200">
             {/* Header */}
-            <div className="px-5 py-4 bg-gradient-to-br from-indigo-50/65 to-purple-50/65 dark:from-[#1c1917] dark:to-[#1c1917] border-b border-[#f0ece4] dark:border-[#292524]/80 flex items-center justify-between">
+            <div className="px-5 py-4 bg-gradient-to-br from-primary-light/65 to-purple-50/65 dark:from-[#1c1917] dark:to-[#1c1917] border-b border-[#f0ece4] dark:border-[#292524]/80 flex items-center justify-between">
               <h3 className="font-display text-sm font-black text-[#292524] dark:text-[#e8e3db] uppercase tracking-wider">
                 Notification Center
               </h3>
@@ -86,7 +86,7 @@ export function NotificationBell() {
                 {notifications.length > 0 && (
                   <button
                     onClick={handleMarkAllRead}
-                    className="p-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/35 rounded-xl transition-all flex items-center gap-1 font-bold"
+                    className="p-1.5 text-xs text-primary dark:text-primary hover:text-primary-dark hover:bg-primary-light/50 dark:hover:bg-primary/10 rounded-xl transition-all flex items-center gap-1 font-bold"
                     title="Mark all as read"
                   >
                     <CheckSquare size={13} />
@@ -219,7 +219,7 @@ export function NotificationBell() {
                               </div>
                               <button
                                 onClick={(e) => handleMarkRead(n.id, e)}
-                                className="shrink-0 self-center p-1.5 text-[#a8a29e] dark:text-[#78716c] hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-[#292524] rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xs"
+                                className="shrink-0 self-center p-1.5 text-[#a8a29e] dark:text-[#78716c] hover:text-primary dark:hover:text-primary hover:bg-white dark:hover:bg-[#292524] rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xs"
                                 title="Dismiss"
                               >
                                 <CheckCircle2 size={16} />

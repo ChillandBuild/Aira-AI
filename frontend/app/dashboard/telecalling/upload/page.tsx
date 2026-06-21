@@ -308,17 +308,17 @@ function StepIndicator({ current }: { current: number }) {
         return (
           <div key={label} className="flex-1 flex flex-col items-center relative">
             {i > 0 && (
-              <div className={cn("absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors", done ? "bg-tertiary" : "bg-surface-mid")} />
+              <div className={cn("absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors", done ? "bg-primary" : "bg-surface-mid")} />
             )}
             <div className={cn(
               "relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all",
-              done ? "bg-tertiary text-white" : active ? "bg-tertiary text-white ring-4 ring-tertiary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"
+              done ? "bg-primary text-white" : active ? "bg-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"
             )}>
               {done ? <Check size={16} /> : step}
             </div>
             <span className={cn(
               "mt-2 font-label text-xs text-center whitespace-nowrap",
-              active ? "text-tertiary font-semibold" : done ? "text-tertiary/50" : "text-on-surface-muted"
+              active ? "text-primary font-semibold" : done ? "text-primary/50" : "text-on-surface-muted"
             )}>
               {label}
             </span>
@@ -506,7 +506,7 @@ function UploadTab() {
             <label
               className={cn(
                 "relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group",
-                file ? "border-tertiary bg-tertiary/5" : "border-tertiary/30 hover:border-tertiary/70 hover:bg-tertiary/[0.04]",
+                file ? "border-primary bg-primary/5" : "border-primary/30 hover:border-primary/70 hover:bg-primary/[0.04]",
                 parseLoading && "pointer-events-none opacity-60"
               )}
               onDrop={handleDrop}
@@ -514,10 +514,10 @@ function UploadTab() {
             >
               <div className={cn(
                 "w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm",
-                file ? "bg-tertiary text-white" : "bg-tertiary/10 text-tertiary group-hover:bg-tertiary/20"
+                file ? "bg-primary text-white" : "bg-primary/10 text-primary group-hover:bg-primary/20"
               )}>
                 {parseLoading ? (
-                  <Loader2 size={28} className="animate-spin text-tertiary" />
+                  <Loader2 size={28} className="animate-spin text-primary" />
                 ) : file ? (
                   <Check size={28} />
                 ) : (
@@ -537,10 +537,10 @@ function UploadTab() {
                 </p>
               </div>
               {!file && !parseLoading && (
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-tertiary/20 w-full justify-center pt-4 mt-1">
-                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Auto-detects columns</span>
-                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Deduplicates leads</span>
-                  <span className="flex items-center gap-1"><Check size={10} className="text-tertiary" /> Indian numbers formatted</span>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-primary/20 w-full justify-center pt-4 mt-1">
+                  <span className="flex items-center gap-1"><Check size={10} className="text-primary" /> Auto-detects columns</span>
+                  <span className="flex items-center gap-1"><Check size={10} className="text-primary" /> Deduplicates leads</span>
+                  <span className="flex items-center gap-1"><Check size={10} className="text-primary" /> Indian numbers formatted</span>
                 </div>
               )}
               <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} disabled={parseLoading} />
@@ -553,7 +553,7 @@ function UploadTab() {
                 className={cn(
                   "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
                   file && !parseLoading
-                    ? "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                    ? "bg-primary text-white hover:bg-primary/90 shadow-md"
                     : "bg-surface-mid text-on-surface-muted cursor-not-allowed"
                 )}
               >
@@ -565,7 +565,7 @@ function UploadTab() {
           {/* Right Column: Template Guide (5 cols) */}
           <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <div className="w-8 h-8 rounded-xl bg-primary-light flex items-center justify-center text-primary">
                 <FileText size={16} />
               </div>
               <h3 className="font-display font-bold text-on-surface text-base">CSV Template</h3>
@@ -615,7 +615,7 @@ function UploadTab() {
           {!uploadResult && !uploadError && parsedData && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-surface-low border border-surface-mid rounded-xl text-center shadow-sm">
-                <p className="font-display text-2xl font-bold text-tertiary">{parsedData.total_rows.toLocaleString()}</p>
+                <p className="font-display text-2xl font-bold text-primary">{parsedData.total_rows.toLocaleString()}</p>
                 <p className="font-label text-xs text-on-surface-muted mt-1">Total Contacts</p>
               </div>
               <div className={`p-4 rounded-xl text-center border shadow-sm ${parsedData.duplicate_count > 0 ? "bg-amber-50/70 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
@@ -632,7 +632,7 @@ function UploadTab() {
                   {parsedData.columns.map(col => (
                     <span key={col} className={`px-2.5 py-1 rounded-md text-[10px] font-semibold tracking-wide border
                       ${col === "phone" || col === "name"
-                        ? "bg-tertiary/10 text-tertiary border-tertiary/20 font-bold"
+                        ? "bg-primary/10 text-primary border-primary/20 font-bold"
                         : "bg-surface-mid text-on-surface-muted border-transparent"}`}>
                       {col}
                     </span>
@@ -646,8 +646,8 @@ function UploadTab() {
           {!uploadResult && !uploadError && !parsedData && (
             <div className="rounded-2xl border border-surface-mid bg-surface-low p-6 space-y-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-tertiary/10 flex items-center justify-center">
-                  <FileText size={20} className="text-tertiary" />
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <FileText size={20} className="text-primary" />
                 </div>
                 <div>
                   <p className="font-label text-sm font-semibold text-on-surface">{file?.name ?? "No file"}</p>
@@ -762,7 +762,7 @@ function UploadTab() {
                   "flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold text-sm transition-all",
                   !file || uploading
                     ? "bg-surface-mid text-on-surface-muted cursor-not-allowed"
-                    : "bg-tertiary text-white hover:bg-tertiary/90 shadow-md"
+                    : "bg-primary text-white hover:bg-primary/90 shadow-md"
                 )}
               >
                 {uploading ? (
@@ -848,7 +848,7 @@ function HistoryTab() {
 
         {historyLoading && history.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-on-surface-muted">
-            <Loader2 size={24} className="animate-spin mr-3 text-tertiary" />
+            <Loader2 size={24} className="animate-spin mr-3 text-primary" />
             <span className="font-body text-sm">Loading history...</span>
           </div>
         ) : history.length === 0 ? (
@@ -890,7 +890,7 @@ function HistoryTab() {
                       <td className="py-4">
                         <button
                           onClick={() => handleDownloadCsv(item.id, item.file_name)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-label font-semibold text-tertiary hover:bg-tertiary/10 transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-label font-semibold text-primary hover:bg-primary/10 transition-colors"
                         >
                           <Download size={13} /> CSV
                         </button>
@@ -1052,7 +1052,7 @@ function ScriptsTab() {
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 bg-tertiary text-white px-4 py-2.5 rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 shadow-md transition-all"
+            className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-label text-sm font-semibold hover:bg-primary/90 shadow-md transition-all"
           >
             <Plus size={16} /> New Script
           </button>
@@ -1060,7 +1060,7 @@ function ScriptsTab() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 size={24} className="animate-spin text-tertiary" />
+            <Loader2 size={24} className="animate-spin text-primary" />
           </div>
         ) : scripts.length === 0 ? (
           <div className="text-center py-16">
@@ -1153,7 +1153,7 @@ function ScriptsTab() {
                   <button 
                     onClick={handleSave} 
                     disabled={saving}
-                    className="flex items-center gap-2 bg-tertiary text-white px-5 py-2.5 rounded-xl font-label text-xs font-semibold hover:bg-tertiary/90 shadow-md disabled:opacity-50 transition-all"
+                    className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-label text-xs font-semibold hover:bg-primary/90 shadow-md disabled:opacity-50 transition-all"
                   >
                     {saving && <Loader2 size={14} className="animate-spin" />}
                     {editingId ? "Save Changes" : "Save & Publish"}
@@ -1176,7 +1176,7 @@ function ScriptsTab() {
                         value={formName} 
                         onChange={(e) => setFormName(e.target.value)} 
                         placeholder="e.g., Cold Calling Outbound Script - Batch A"
-                        className="w-full border border-surface-mid rounded-2xl px-5 py-4 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary transition-all" 
+                        className="w-full border border-surface-mid rounded-2xl px-5 py-4 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary transition-all" 
                       />
                       <p className="text-[11px] text-on-surface-muted mt-2">
                         Give your talk track a clear name so telecallers know when to select it.
@@ -1202,7 +1202,7 @@ function ScriptsTab() {
                         {formSteps.map((step, idx) => (
                           <div key={idx} className="bg-surface-low border border-surface-mid rounded-2xl p-5 relative hover:shadow-sm transition-all group">
                             <div className="flex items-center gap-2.5 mb-4 border-b border-surface-mid/50 pb-2">
-                              <span className="w-6 h-6 rounded-full bg-tertiary/10 text-tertiary flex items-center justify-center text-[10px] font-black shrink-0">
+                              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black shrink-0">
                                 {idx + 1}
                               </span>
                               <span className="font-label text-xs font-bold text-on-surface uppercase tracking-wider">Step {idx + 1} details</span>
@@ -1230,7 +1230,7 @@ function ScriptsTab() {
                                   onChange={(e) => updateStep(idx, { text: e.target.value })} 
                                   placeholder="Hello, is this {{name}}? I'm calling from Aira..." 
                                   rows={3}
-                                  className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary resize-none transition-all" 
+                                  className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary resize-none transition-all" 
                                 />
                               </div>
 
@@ -1243,7 +1243,7 @@ function ScriptsTab() {
                                   value={step.note} 
                                   onChange={(e) => updateStep(idx, { note: e.target.value })} 
                                   placeholder="e.g., Speak slowly and wait for their response."
-                                  className="w-full border border-surface-mid rounded-xl px-4 py-2.5 font-body text-xs text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-tertiary transition-all" 
+                                  className="w-full border border-surface-mid rounded-xl px-4 py-2.5 font-body text-xs text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary transition-all" 
                                 />
                               </div>
 
@@ -1251,11 +1251,11 @@ function ScriptsTab() {
                               <div className="bg-surface rounded-xl p-4 border border-surface-mid">
                                 <div className="flex items-center justify-between mb-3">
                                   <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase flex items-center gap-1.5">
-                                    <GitBranch size={12} className="text-tertiary" /> Conversation Paths &amp; Branches
+                                    <GitBranch size={12} className="text-primary" /> Conversation Paths &amp; Branches
                                   </span>
                                   <button 
                                     onClick={() => addBranch(idx)} 
-                                    className="font-label text-[10px] font-bold text-tertiary hover:text-tertiary/80 flex items-center gap-1 transition-colors"
+                                    className="font-label text-[10px] font-bold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
                                   >
                                     <Plus size={10} /> Add Branch Option
                                   </button>
@@ -1278,7 +1278,7 @@ function ScriptsTab() {
                                             value={br.label} 
                                             onChange={(e) => updateBranch(idx, bi, { label: e.target.value })} 
                                             placeholder="e.g. Yes, tell me more"
-                                            className="w-full border border-surface-mid rounded-md px-2 py-1 font-body text-xs bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-tertiary" 
+                                            className="w-full border border-surface-mid rounded-md px-2 py-1 font-body text-xs bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-primary" 
                                           />
                                         </div>
                                         <div className="w-24">
@@ -1288,7 +1288,7 @@ function ScriptsTab() {
                                           <select
                                             value={br.goto}
                                             onChange={(e) => updateBranch(idx, bi, { goto: parseInt(e.target.value) || 1 })}
-                                            className="w-full border border-surface-mid rounded-md px-2 py-1.5 font-body text-xs bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-tertiary"
+                                            className="w-full border border-surface-mid rounded-md px-2 py-1.5 font-body text-xs bg-surface text-on-surface focus:outline-none focus:ring-1 focus:ring-primary"
                                           >
                                             {formSteps.map((_, sIdx) => (
                                               <option key={sIdx} value={sIdx + 1}>
@@ -1316,7 +1316,7 @@ function ScriptsTab() {
                       <div className="pt-4 border-t border-surface-mid flex justify-center">
                         <button 
                           onClick={() => setFormSteps((prev) => [...prev, emptyFormStep()])}
-                          className="flex items-center gap-2 bg-tertiary/10 text-tertiary px-8 py-3.5 rounded-2xl font-label text-xs font-semibold hover:bg-tertiary/15 transition-all shadow-sm"
+                          className="flex items-center gap-2 bg-primary/10 text-primary px-8 py-3.5 rounded-2xl font-label text-xs font-semibold hover:bg-primary/15 transition-all shadow-sm"
                         >
                           <Plus size={16} /> Add Next Script Step
                         </button>
@@ -1465,7 +1465,7 @@ function ScriptsTab() {
               <div className="flex items-center justify-between p-6 pb-4 border-b border-surface-mid shrink-0">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Eye size={18} className="text-tertiary" />
+                    <Eye size={18} className="text-primary" />
                     <h2 className="font-display text-lg font-bold text-on-surface">Script Preview</h2>
                   </div>
                   <p className="font-body text-xs text-on-surface-muted mt-0.5">{previewScript.name}</p>
@@ -1478,12 +1478,12 @@ function ScriptsTab() {
                   return (
                     <div key={idx} className={cn(
                       "rounded-xl p-4 border-2 transition-all",
-                      isCurrent ? "border-tertiary bg-tertiary/5 shadow-sm" : "border-surface-mid bg-surface"
+                      isCurrent ? "border-primary bg-primary/5 shadow-sm" : "border-surface-mid bg-surface"
                     )}>
                       <div className="flex items-start gap-3">
                         <span className={cn(
                           "shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold",
-                          isCurrent ? "bg-tertiary text-white" : "bg-surface-low text-on-surface-muted"
+                          isCurrent ? "bg-primary text-white" : "bg-surface-low text-on-surface-muted"
                         )}>{step.order}</span>
                         <div className="min-w-0 flex-1">
                           <p className={cn("font-body text-sm", isCurrent ? "text-on-surface font-semibold" : "text-on-surface-muted")}>{step.text}</p>
@@ -1510,7 +1510,7 @@ function ScriptsTab() {
                   <button onClick={() => setPreviewStep((p) => Math.max(0, p - 1))} disabled={previewStep === 0}
                     className="px-4 py-2 rounded-xl font-label text-xs font-semibold text-on-surface-muted hover:bg-surface-low disabled:opacity-40 transition-colors">Back</button>
                   <button onClick={() => setPreviewStep((p) => Math.min(previewScript.steps.length - 1, p + 1))} disabled={previewStep === previewScript.steps.length - 1}
-                    className="flex items-center gap-1 bg-tertiary text-white px-4 py-2 rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40 transition-all">
+                    className="flex items-center gap-1 bg-primary text-white px-4 py-2 rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 transition-all">
                     Next<ChevronRight size={14} />
                   </button>
                 </div>

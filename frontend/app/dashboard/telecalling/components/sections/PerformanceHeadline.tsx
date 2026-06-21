@@ -17,15 +17,15 @@ export default function PerformanceHeadline({ stats, loading, flaggedCount, isTo
   const lead = isTodayView ? "Today" : "Selected range";
 
   return (
-    <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-card p-5 shadow-card text-white">
+    <div className="bg-gradient-to-r from-primary to-violet-600 rounded-card p-5 shadow-card text-white">
       <div className="flex items-center gap-2 mb-1">
-        <Sparkles size={15} className="text-indigo-200" />
-        <span className="font-label text-[10px] uppercase font-bold tracking-widest text-indigo-200">
+        <Sparkles size={15} className="text-primary-muted" />
+        <span className="font-label text-[10px] uppercase font-bold tracking-widest text-primary-muted">
           Today&apos;s Telecalling Report
         </span>
       </div>
       {loading ? (
-        <span className="flex items-center gap-2 text-sm font-medium text-indigo-100">
+        <span className="flex items-center gap-2 text-sm font-medium text-primary-light">
           <Loader2 className="animate-spin" size={16} /> Building today&apos;s summary…
         </span>
       ) : (

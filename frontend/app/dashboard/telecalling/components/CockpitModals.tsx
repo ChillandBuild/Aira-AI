@@ -90,7 +90,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                     const cls = selected
                       ? o.danger
                         ? "bg-red-600 border-red-600 text-white"
-                        : "bg-indigo-600 border-indigo-600 text-white"
+                        : "bg-primary border-primary text-white"
                       : o.danger
                         ? "bg-[#faf8f5] hover:bg-red-50 text-red-700 border-red-200"
                         : "bg-[#faf8f5] hover:bg-[#f0ece4] text-[#44403c] border-[#e8e3db]";
@@ -112,7 +112,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                   onChange={(e) => setWrapupNotes(e.target.value)}
                   placeholder="Summarize customer feedback and key discussion points..."
                   rows={4}
-                  className="w-full px-4 py-3 rounded-2xl bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-indigo-600 resize-none shadow-inner"
+                  className="w-full px-4 py-3 rounded-2xl bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none shadow-inner"
                 />
               </div>
 
@@ -130,8 +130,8 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                         onClick={() => toggleWrapupTag(tag)}
                         className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
                           selected
-                            ? "bg-indigo-600 border-indigo-600 text-white"
-                            : "bg-[#faf8f5] border-[#e8e3db] text-[#57534e] hover:border-indigo-300 hover:text-indigo-600"
+                            ? "bg-primary border-primary text-white"
+                            : "bg-[#faf8f5] border-[#e8e3db] text-[#57534e] hover:border-primary-muted hover:text-primary"
                         }`}
                       >
                         {tag}
@@ -165,7 +165,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                 type="button"
                 onClick={handleWrapupSubmit}
                 disabled={wrapupSaving || !wrapupOutcome}
-                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-label text-xs font-black shadow-md hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
+                className="flex-1 py-3 bg-primary hover:bg-primary-dark text-white rounded-2xl font-label text-xs font-black shadow-md hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
               >
                 {wrapupSaving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
                 <span>Complete Wrap-up</span>
@@ -202,7 +202,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                   </div>
                   <button
                     onClick={() => openWrapupFromLog(log)}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-label text-xs font-bold transition-all shadow-sm shrink-0"
+                    className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl font-label text-xs font-bold transition-all shadow-sm shrink-0"
                   >
                     Wrap Up
                   </button>

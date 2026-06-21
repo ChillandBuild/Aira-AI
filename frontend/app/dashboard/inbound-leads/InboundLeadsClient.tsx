@@ -119,7 +119,7 @@ function StatCard({
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 flex items-center justify-center mb-4 shadow-sm">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-primary-light flex items-center justify-center mb-4 shadow-sm">
         <RadioTower size={28} className="text-violet-400" />
       </div>
       <h3 className="font-bold text-[#44403c] text-lg mb-1">No Inbound Leads Yet</h3>
@@ -356,7 +356,7 @@ export function InboundLeadsClient({
       {/* ── Stats & Actions ────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
         <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-violet-500 to-indigo-600" />
+          <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-violet-500 to-primary" />
           <StatCard label="Showing Now" value={leads.length} icon={Users} gradient="bg-gradient-to-br from-blue-500 to-cyan-600" />
           <StatCard label="Unique Keywords" value={uniqueKeywords} icon={MessageSquare} gradient="bg-gradient-to-br from-amber-500 to-orange-500" />
           <StatCard label="Active Campaigns" value={uniqueCampaigns} icon={Megaphone} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
@@ -401,11 +401,11 @@ export function InboundLeadsClient({
       </div>
 
       {/* ── Info Banner ─────────────────────────────────────────── */}
-      <div className="flex items-start gap-3 bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-3 mb-5">
-        <Smartphone size={14} className="text-indigo-500 mt-0.5 flex-shrink-0" />
-        <p className="font-body text-xs text-indigo-700 leading-relaxed">
+      <div className="flex items-start gap-3 bg-primary-light border border-primary-muted rounded-2xl px-4 py-3 mb-5">
+        <Smartphone size={14} className="text-primary mt-0.5 flex-shrink-0" />
+        <p className="font-body text-xs text-primary leading-relaxed">
           <strong>Origin:</strong> Leads tagged <em>Ad</em> have an{" "}
-          <code className="bg-indigo-100 px-1 rounded text-[10px] font-mono">ad_campaign_id</code> from Meta Ad referral data.
+          <code className="bg-primary-light px-1 rounded text-[10px] font-mono">ad_campaign_id</code> from Meta Ad referral data.
           Leads tagged <em>Organic</em> messaged you directly without an ad click.
           Use the Origin toggle above to filter between the two.
         </p>

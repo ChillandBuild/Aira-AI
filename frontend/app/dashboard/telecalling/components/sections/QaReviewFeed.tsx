@@ -48,7 +48,7 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
 
   return (
     <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-      <h2 className="font-display text-base font-bold text-tertiary mb-1 flex items-center gap-2">
+      <h2 className="font-display text-base font-bold text-primary mb-1 flex items-center gap-2">
         <Award size={16} className="text-purple-600" /> QA Quality Review Feed
       </h2>
       <p className="font-label text-xs text-on-surface-muted mb-4">Listen to call logs, view AI sentiment tags, and evaluate caller scores.</p>
@@ -68,7 +68,7 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
                 <div>
                   <button
                     onClick={() => item.lead_id && onViewLead(item.lead_id)}
-                    className="font-bold text-[#292524] hover:text-indigo-600 text-xs flex items-center gap-1"
+                    className="font-bold text-[#292524] hover:text-primary text-xs flex items-center gap-1"
                   >
                     {item.leads?.name || formatPhone(item.leads?.phone)} <Eye size={12} className="text-[#a8a29e]" />
                   </button>

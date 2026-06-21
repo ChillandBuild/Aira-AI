@@ -79,7 +79,7 @@ export default function BulkAssignment({ callers }: BulkAssignmentProps) {
 
   return (
     <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15 flex flex-col">
-      <h2 className="font-display text-base font-bold text-tertiary mb-1 flex items-center gap-2">
+      <h2 className="font-display text-base font-bold text-primary mb-1 flex items-center gap-2">
         <Users size={16} className="text-sky-600" /> Lead Bulk Assignment
       </h2>
       <p className="font-label text-xs text-on-surface-muted mb-4">Select multiple leads to dispatch or hand off to another agent queue.</p>

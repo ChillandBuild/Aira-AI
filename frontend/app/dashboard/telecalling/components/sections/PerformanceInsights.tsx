@@ -18,7 +18,7 @@ interface Insight {
 const TONE_CLASS: Record<Insight["tone"], string> = {
   good: "bg-emerald-50 border-emerald-200 text-emerald-800",
   warn: "bg-rose-50 border-rose-200 text-rose-800",
-  info: "bg-indigo-50 border-indigo-200 text-indigo-800",
+  info: "bg-primary-light border-primary-muted text-primary-dark",
 };
 
 function buildInsights(stats: TelecallingAnalyticsExtended, showComparison: boolean): Insight[] {

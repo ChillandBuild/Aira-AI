@@ -127,7 +127,7 @@ export function ProfileClient({
     const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
     const quickLinks = [
-      { href: "/dashboard", icon: BarChart2, label: "Dashboard", desc: "Team overview & metrics", color: "from-indigo-500 to-violet-500" },
+      { href: "/dashboard", icon: BarChart2, label: "Dashboard", desc: "Team overview & metrics", color: "from-primary to-violet-500" },
       { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload Contacts", desc: "Import CSV & manage scripts", color: "from-emerald-500 to-teal-500" },
       { href: "/dashboard/telecalling", icon: Phone, label: "Telecalling", desc: "Dialer & lead queue", color: "from-amber-500 to-orange-500" },
       { href: "/dashboard/team", icon: Users, label: "Team", desc: "Manage telecallers", color: "from-blue-500 to-cyan-500" },
@@ -138,17 +138,17 @@ export function ProfileClient({
     return (
       <div>
         <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-tertiary">My Profile</h1>
+          <h1 className="font-display text-3xl font-bold text-primary">My Profile</h1>
           <p className="font-body text-on-surface-muted mt-1">{greeting}, {adminName.split(" ")[0]}</p>
         </div>
 
         {/* Admin Identity Card */}
         <div className="bg-gradient-to-br from-[#1c1917] via-[#292524] to-[#1c1917] rounded-[2rem] p-8 shadow-xl mb-8 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-indigo-500/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-primary/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/4" />
 
           <div className="relative flex items-center gap-6">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-violet-600 flex items-center justify-center shadow-lg shadow-primary/25">
               <span className="font-display text-3xl font-bold text-white">{initials}</span>
             </div>
             <div className="flex-1 min-w-0">
@@ -215,7 +215,7 @@ export function ProfileClient({
     <div>
       {/* Header */}
       <div className="mb-8">
-        <h1 className="font-display text-3xl font-bold text-tertiary">
+        <h1 className="font-display text-3xl font-bold text-primary">
           Overview
         </h1>
         <p className="font-body text-on-surface-muted mt-1">
@@ -359,8 +359,8 @@ export function ProfileClient({
             <div className="flex-1 flex flex-col justify-between h-full min-h-[90px]">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="p-1.5 rounded-lg bg-indigo-50">
-                    <Target size={14} className="text-indigo-600" />
+                  <div className="p-1.5 rounded-lg bg-primary-light">
+                    <Target size={14} className="text-primary" />
                   </div>
                   <span className="font-label text-xs text-on-surface-muted font-bold tracking-wider uppercase">
                     Daily Target
@@ -435,7 +435,7 @@ export function ProfileClient({
 
       {/* Call History */}
       <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-        <h2 className="font-display text-base font-bold text-tertiary mb-4 flex items-center gap-2">
+        <h2 className="font-display text-base font-bold text-primary mb-4 flex items-center gap-2">
           <Phone size={16} className="text-secondary" /> Recent Call History
         </h2>
 

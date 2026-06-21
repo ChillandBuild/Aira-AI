@@ -6,7 +6,7 @@ import { api, ReengagementLog, ReengagementStep, WabaTemplate } from "@/lib/api"
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   sent: { label: "Sent", cls: "bg-emerald-100 text-emerald-700" },
-  sent_fallback: { label: "Sent (template)", cls: "bg-indigo-100 text-indigo-700" },
+  sent_fallback: { label: "Sent (template)", cls: "bg-primary-light text-primary" },
   skipped_window: { label: "Skipped", cls: "bg-amber-100 text-amber-700" },
   failed: { label: "Failed", cls: "bg-red-100 text-red-700" },
 };
@@ -259,7 +259,7 @@ export default function ReengagementBuilder({ type, broadcastId, templates }: Re
                 style={{ left: `${left}%` }}
                 title={`${s.delay_hours}h · ${s.message_type}`}
               >
-                <div className={`h-4 w-4 rounded-full border-2 border-white shadow ${s.message_type === "template" ? "bg-indigo-500" : "bg-emerald-600"}`} />
+                <div className={`h-4 w-4 rounded-full border-2 border-white shadow ${s.message_type === "template" ? "bg-primary" : "bg-emerald-600"}`} />
                 <span className="mt-1 block text-[10px] text-on-surface-muted">{s.delay_hours}h</span>
               </div>
             );

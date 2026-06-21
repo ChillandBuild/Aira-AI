@@ -249,7 +249,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
               <input
                 type="text" placeholder="Search notes, lead name or phone…" value={boardSearch}
                 onChange={(e) => setBoardSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -279,7 +279,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                   onClick={() => setBoardTag(boardTag === t ? null : t)}
                   className={`px-2 py-0.5 rounded-full border font-label text-[10px] font-semibold transition-all ${
                     boardTag === t ? "ring-2 ring-current ring-offset-1" : "opacity-60 hover:opacity-100"
-                  } bg-indigo-50 text-indigo-700 border-indigo-100`}
+                  } bg-primary-light text-primary border-primary-muted`}
                 >
                   {t}
                 </button>
@@ -317,7 +317,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
               <input
                 type="text" placeholder="Search by name or phone…" value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
@@ -330,11 +330,11 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                   onClick={() => setSelected(lead)}
                   className={`w-full text-left rounded-2xl border p-3 flex items-center gap-3 transition-all ${
                     selected?.id === lead.id
-                      ? "bg-white border-indigo-200 shadow-sm ring-1 ring-indigo-500/10"
+                      ? "bg-white border-primary-muted shadow-sm ring-1 ring-primary/10"
                       : "bg-white/60 border-[#f0ece4] hover:bg-white hover:shadow-sm"
                   }`}
                 >
-                  <div className="w-9 h-9 rounded-full bg-indigo-500 text-white flex items-center justify-center font-display text-xs font-bold shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-display text-xs font-bold shrink-0">
                     {lead.name ? lead.name.charAt(0).toUpperCase() : <User size={14} />}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -368,9 +368,9 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
             ) : (
               <>
                 {/* Lead header */}
-                <div className="bg-gradient-to-r from-indigo-50 via-white to-white rounded-2xl border border-[#e8e3db] p-5 shadow-sm flex items-center justify-between">
+                <div className="bg-gradient-to-r from-primary-light via-white to-white rounded-2xl border border-[#e8e3db] p-5 shadow-sm flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white flex items-center justify-center font-display text-base font-bold shrink-0 shadow-sm">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-purple-500 text-white flex items-center justify-center font-display text-base font-bold shrink-0 shadow-sm">
                       {selected.name ? selected.name.charAt(0).toUpperCase() : <User size={18} />}
                     </div>
                     <div className="min-w-0">
@@ -410,14 +410,14 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                           onClick={() => setDetailTab(t.id)}
                           className={`px-6 py-3 font-display text-xs font-black tracking-wider uppercase border-b-2 text-center transition-all flex items-center gap-1.5 ${
                             detailTab === t.id
-                              ? "border-indigo-500 text-indigo-700"
+                              ? "border-primary text-primary"
                               : "border-transparent text-[#a8a29e] hover:text-[#57534e]"
                           }`}
                         >
                           {t.label}
                           {t.count > 0 && (
                             <span className={`px-1.5 py-0.5 rounded-full font-label text-[10px] normal-case font-bold tracking-normal ${
-                              detailTab === t.id ? "bg-indigo-50 text-indigo-600" : "bg-[#f0ece4] text-[#a8a29e]"
+                              detailTab === t.id ? "bg-primary-light text-primary" : "bg-[#f0ece4] text-[#a8a29e]"
                             }`}>
                               {t.count}
                             </span>
@@ -431,12 +431,12 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                     <div className="bg-[#faf8f5] rounded-2xl border border-[#e8e3db] p-4">
                       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                         <h3 className="font-display text-sm font-extrabold text-[#1c1917] flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center">
-                            <StickyNote size={13} className="text-indigo-500" />
+                          <span className="w-6 h-6 rounded-lg bg-primary-light flex items-center justify-center">
+                            <StickyNote size={13} className="text-primary" />
                           </span>
                           Notes
                           {leadNoteItems.length > 0 && (
-                            <span className="px-1.5 py-0.5 rounded-full bg-indigo-50 font-label text-[10px] text-indigo-600">
+                            <span className="px-1.5 py-0.5 rounded-full bg-primary-light font-label text-[10px] text-primary">
                               {leadNoteItems.length}
                             </span>
                           )}
@@ -445,13 +445,13 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {filterTag && (
                               <button onClick={() => setFilterTag(null)}
-                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-indigo-50 font-label text-[10px] text-indigo-600 hover:bg-indigo-100">
+                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-primary-light font-label text-[10px] text-primary hover:bg-primary-light">
                                 <X size={8} /> Clear
                               </button>
                             )}
                             {leadTags.map((t) => (
                               <button key={t} onClick={() => setFilterTag(filterTag === t ? null : t)}
-                                className={`px-2 py-0.5 rounded-full border font-label text-[10px] font-semibold transition-all ${filterTag === t ? "ring-2 ring-current ring-offset-1" : "opacity-60 hover:opacity-100"} bg-indigo-50 text-indigo-700 border-indigo-100`}>
+                                className={`px-2 py-0.5 rounded-full border font-label text-[10px] font-semibold transition-all ${filterTag === t ? "ring-2 ring-current ring-offset-1" : "opacity-60 hover:opacity-100"} bg-primary-light text-primary border-primary-muted`}>
                                 {t}
                               </button>
                             ))}
@@ -516,17 +516,17 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                     {detailTab === "notes" && (
                     <div className="bg-white rounded-2xl border border-[#e8e3db] p-3 space-y-2 shadow-sm">
                       <div className="flex items-center gap-2">
-                        <Plus size={12} className="text-indigo-400 shrink-0" />
+                        <Plus size={12} className="text-primary shrink-0" />
                         <input
                           type="text" value={addTitle} onChange={(e) => setAddTitle(e.target.value)}
                           placeholder="Title (optional)"
-                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-body text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-body text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
                         />
                       </div>
                       <textarea
                         value={addContent} onChange={(e) => setAddContent(e.target.value)}
                         placeholder="Add a new note…" rows={2}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                       />
                       <div className="flex items-center gap-2 flex-wrap">
                         <label className="flex items-center gap-1.5 cursor-pointer select-none">
@@ -553,7 +553,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                             (!addContent.trim() && !addTitle.trim() && addTags.length === 0 &&
                               !(showCallbackPicker && callbackDate && callbackTime))
                           }
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white rounded-lg font-label text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg font-label text-xs font-semibold hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           {adding ? <RefreshCw size={12} className="animate-spin" /> : <Plus size={12} />}
                           {adding ? "Saving…" : showCallbackPicker ? "Schedule Callback" : "Add Note"}

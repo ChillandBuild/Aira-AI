@@ -37,25 +37,25 @@ function togglePinInList(leads: Lead[], leadId: string): Lead[] {
 function SharedInboxEmpty() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-8 text-center select-none">
-      <div className="w-[280px] h-[200px] rounded-2xl bg-gradient-to-br from-tertiary/15 via-tertiary/5 to-transparent border border-tertiary/15 p-4 mb-8 shadow-sm">
+      <div className="w-[280px] h-[200px] rounded-2xl bg-gradient-to-br from-primary/15 via-primary/5 to-transparent border border-primary/15 p-4 mb-8 shadow-sm">
         <div className="flex gap-1.5 mb-4">
-          <span className="w-2 h-2 rounded-full bg-tertiary/40" />
-          <span className="w-2 h-2 rounded-full bg-tertiary/40" />
-          <span className="w-2 h-2 rounded-full bg-tertiary/40" />
+          <span className="w-2 h-2 rounded-full bg-primary/40" />
+          <span className="w-2 h-2 rounded-full bg-primary/40" />
+          <span className="w-2 h-2 rounded-full bg-primary/40" />
         </div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-32 rounded-lg bg-tertiary/20" />
-            <div className="h-6 w-6 rounded-full bg-tertiary/30" />
+            <div className="h-7 w-32 rounded-lg bg-primary/20" />
+            <div className="h-6 w-6 rounded-full bg-primary/30" />
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-full bg-tertiary/40" />
-            <div className="h-7 flex-1 rounded-lg bg-tertiary/15" />
+            <div className="h-7 w-7 rounded-full bg-primary/40" />
+            <div className="h-7 flex-1 rounded-lg bg-primary/15" />
           </div>
-          <div className="h-7 w-3/4 rounded-lg bg-tertiary/10" />
+          <div className="h-7 w-3/4 rounded-lg bg-primary/10" />
         </div>
       </div>
-      <h2 className="font-display text-2xl font-bold text-tertiary mb-2">Shared Inbox</h2>
+      <h2 className="font-display text-2xl font-bold text-primary mb-2">Shared Inbox</h2>
       <p className="font-body text-sm font-semibold text-on-surface mb-1">Connect Multiple Platforms &ndash; all in one inbox!</p>
       <p className="font-body text-sm text-on-surface-muted">Easily manage messages from multiple platforms in a single inbox.</p>
     </div>
@@ -263,7 +263,7 @@ export default function ConversationsPage() {
             <button
               onClick={() => setDetailsOpen(true)}
               title="Show contact details"
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-6 h-12 bg-surface border border-surface-mid border-r-0 rounded-l-lg flex items-center justify-center text-on-surface-muted hover:text-tertiary hover:bg-surface-low transition-colors shadow-md"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-6 h-12 bg-surface border border-surface-mid border-r-0 rounded-l-lg flex items-center justify-center text-on-surface-muted hover:text-primary hover:bg-surface-low transition-colors shadow-md"
             >
               <ChevronLeft size={14} />
             </button>

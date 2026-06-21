@@ -186,7 +186,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
   return (
     <div className="bg-surface rounded-card p-5 shadow-card ring-1 ring-[#c4c7c7]/15">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h2 className="font-display text-sm font-bold text-tertiary flex items-center gap-2">
+        <h2 className="font-display text-sm font-bold text-primary flex items-center gap-2">
           <CalendarCheck size={16} className="text-primary" /> Team Attendance
         </h2>
         <div className="flex items-center gap-2 flex-wrap">
@@ -301,13 +301,13 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
             <span className="text-sky-700 font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Holidays (Range)</span>
           </div>
         </div>
-        <div className="bg-indigo-50 rounded-xl p-3 border border-indigo-100 flex flex-col justify-between shadow-sm">
-          <div className="p-1.5 rounded-lg bg-indigo-100 w-fit mb-1 text-indigo-600"><Percent size={14} /></div>
+        <div className="bg-primary-light rounded-xl p-3 border border-primary-muted flex flex-col justify-between shadow-sm">
+          <div className="p-1.5 rounded-lg bg-primary-light w-fit mb-1 text-primary"><Percent size={14} /></div>
           <div>
             <span className="block text-base font-display font-black text-[#292524] leading-tight">
               {data ? Math.round(data.summary.attendance_rate_month * 100) : 0}%
             </span>
-            <span className="text-indigo-700 font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Attendance (Month)</span>
+            <span className="text-primary font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Attendance (Month)</span>
           </div>
         </div>
       </div>
@@ -374,7 +374,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
       {selectedCallerId && !loading && data && data.callers.length > 0 && (
         <div className="mt-5 pt-4 border-t border-border-subtle bg-[#faf8f5]/30 rounded-xl p-3">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-            <h3 className="font-display text-xs font-bold text-tertiary flex items-center gap-1.5">
+            <h3 className="font-display text-xs font-bold text-primary flex items-center gap-1.5">
               <span className="w-1.5 h-3 bg-primary rounded-full inline-block" />
               6-Month Overview
             </h3>
@@ -395,7 +395,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
                   key={m.key}
                   className="rounded-xl border border-border-subtle/80 bg-surface p-1.5 sm:p-2 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-150"
                 >
-                  <div className="text-center text-[10px] font-label font-bold text-tertiary mb-1.5 tracking-wide bg-[#faf8f5] py-0.5 rounded-md border border-[#f0ece4]">{m.label}</div>
+                  <div className="text-center text-[10px] font-label font-bold text-primary mb-1.5 tracking-wide bg-[#faf8f5] py-0.5 rounded-md border border-[#f0ece4]">{m.label}</div>
                   <div className="grid grid-cols-7 gap-[1.5px] mb-1">
                     {WEEKDAY_LABELS.map((d, i) => (
                       <div key={i} className="text-center text-[7px] font-label font-semibold text-ink-muted/50 uppercase">{d}</div>

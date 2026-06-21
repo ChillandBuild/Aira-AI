@@ -48,7 +48,7 @@ function NameCell({ lead, onUpdate }: { lead: Lead; onUpdate: (l: Lead) => void 
             setEditing(false);
           }
         }}
-        className="font-body text-sm text-on-surface bg-surface-low px-2 py-0.5 rounded border border-tertiary focus:outline-none focus:ring-1 focus:ring-tertiary w-40"
+        className="font-body text-sm text-on-surface bg-surface-low px-2 py-0.5 rounded border border-primary focus:outline-none focus:ring-1 focus:ring-primary w-40"
       />
     );
   }
@@ -109,7 +109,7 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="bg-surface rounded-card shadow-card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-display text-lg font-bold text-tertiary">New WhatsApp Message</h3>
+          <h3 className="font-display text-lg font-bold text-primary">New WhatsApp Message</h3>
           <button onClick={onClose} className="text-on-surface-muted hover:text-on-surface">
             <X size={18} />
           </button>
@@ -125,7 +125,7 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+919876543210"
-              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-tertiary focus:outline-none"
+              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-primary focus:outline-none"
             />
           </div>
 
@@ -137,7 +137,7 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Lead name"
-              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-tertiary focus:outline-none"
+              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-primary focus:outline-none"
             />
           </div>
 
@@ -150,7 +150,7 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
               placeholder="Hello! ..."
-              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-tertiary focus:outline-none resize-none"
+              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-primary focus:outline-none resize-none"
             />
           </div>
 
@@ -177,7 +177,7 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
           <button
             onClick={send}
             disabled={sending}
-            className="flex items-center gap-2 px-4 py-2 bg-tertiary text-white rounded-xl font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50"
           >
             {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
             {sending ? "Sending…" : "Send"}
@@ -470,7 +470,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
                 className={cn(
                   "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
                   tab === seg
-                    ? "bg-white text-indigo-600 shadow-sm"
+                    ? "bg-white text-primary shadow-sm"
                     : "text-[#78716c] hover:text-[#292524]"
                 )}
               >
@@ -489,7 +489,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
                 setSelectedCampaignId("");
                 setSelectedBroadcastId("");
               }}
-              className="bg-transparent font-body text-xs font-semibold text-tertiary focus:outline-none cursor-pointer"
+              className="bg-transparent font-body text-xs font-semibold text-primary focus:outline-none cursor-pointer"
             >
               <option value="ALL">All Leads</option>
               <option value="INBOUND">Inbound Leads</option>
@@ -506,7 +506,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
               <select
                 value={selectedCampaignId}
                 onChange={(e) => setSelectedCampaignId(e.target.value)}
-                className="bg-transparent font-body text-xs font-semibold text-tertiary focus:outline-none max-w-[300px] pr-6 cursor-pointer"
+                className="bg-transparent font-body text-xs font-semibold text-primary focus:outline-none max-w-[300px] pr-6 cursor-pointer"
               >
                 <option value="">Select Campaign</option>
                 {campaigns.map((c) => (
@@ -526,7 +526,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
                 <select
                   value={selectedBroadcastId}
                   onChange={(e) => setSelectedBroadcastId(e.target.value)}
-                  className="bg-transparent font-body text-xs font-semibold text-tertiary focus:outline-none max-w-[340px] pr-6 cursor-pointer"
+                  className="bg-transparent font-body text-xs font-semibold text-primary focus:outline-none max-w-[340px] pr-6 cursor-pointer"
                 >
                   <option value="">Select Broadcast</option>
                   {broadcastHistory.map((h) => (
@@ -560,7 +560,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
 
         <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15 mb-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display text-sm font-bold text-tertiary">
+            <h2 className="font-display text-sm font-bold text-primary">
               {sourceFilter !== "ALL" ? `Action Box — Filtered Leads` : `Action Box — ${SEGMENT_LABELS[tab]} Leads`}
             </h2>
             {lastResult && (
@@ -575,7 +575,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
             placeholder={sourceFilter !== "ALL" ? "Message to broadcast to filtered leads…" : `Message to broadcast to ${SEGMENT_LABELS[tab]} leads…`}
-            className="w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-tertiary resize-none"
+            className="w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-primary resize-none"
           />
           <div className="flex gap-2 mt-3">
             {sourceFilter === "ALL" && (

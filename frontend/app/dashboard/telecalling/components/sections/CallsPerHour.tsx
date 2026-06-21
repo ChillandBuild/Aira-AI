@@ -9,7 +9,7 @@ export default function CallsPerHour({ stats }: { stats: TelecallingAnalyticsExt
 
   return (
     <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-      <h2 className="font-display text-base font-bold text-tertiary mb-1">Calls Per Hour</h2>
+      <h2 className="font-display text-base font-bold text-primary mb-1">Calls Per Hour</h2>
       <p className="font-label text-xs text-on-surface-muted mb-5">Team call volume across the day.</p>
 
       {!hasCalls ? (

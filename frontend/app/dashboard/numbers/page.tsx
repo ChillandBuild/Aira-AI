@@ -214,7 +214,7 @@ function IncidentRow({ incident }: { incident: Incident }) {
   return (
     <div className="flex gap-4 py-5 border-b border-surface-mid/50 last:border-0">
       <div className="flex flex-col items-center gap-1 pt-0.5">
-        <div className="w-2.5 h-2.5 rounded-full bg-tertiary/30 ring-2 ring-tertiary/20 flex-shrink-0" />
+        <div className="w-2.5 h-2.5 rounded-full bg-primary/30 ring-2 ring-primary/20 flex-shrink-0" />
         <div className="flex-1 w-px bg-surface-mid" />
       </div>
       <div className="flex-1 min-w-0 pb-1">
@@ -515,7 +515,7 @@ function NumbersPageContent() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             activeTab === "pool"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -526,7 +526,7 @@ function NumbersPageContent() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             activeTab === "activity"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -541,12 +541,12 @@ function NumbersPageContent() {
 
           <div className="bg-surface rounded-card shadow-card ring-1 ring-[#c4c7c7]/15 p-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display text-lg font-bold text-tertiary">Number Pool</h2>
+              <h2 className="font-display text-lg font-bold text-primary">Number Pool</h2>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleSyncAllMeta}
                   disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-tertiary hover:border-tertiary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
                   title="Sync all configured numbers from Meta"
                 >
                   <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
@@ -554,7 +554,7 @@ function NumbersPageContent() {
                 </button>
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-tertiary text-white rounded-lg font-label text-xs font-semibold hover:bg-tertiary/90 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg font-label text-xs font-semibold hover:bg-primary/90 transition-colors"
                 >
                   <Plus size={13} />
                   Add Number
@@ -597,12 +597,12 @@ function NumbersPageContent() {
                                 if (e.key === "Enter") saveRename(num.id);
                                 if (e.key === "Escape") setEditingId(null);
                               }}
-                              className="px-2.5 py-1.5 rounded-lg bg-surface border border-tertiary font-body text-sm focus:outline-none focus:ring-2 focus:ring-tertiary min-w-0 w-48"
+                              className="px-2.5 py-1.5 rounded-lg bg-surface border border-primary font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-0 w-48"
                             />
                             <button
                               onClick={() => saveRename(num.id)}
                               disabled={saving}
-                              className="p-1.5 rounded-lg bg-tertiary text-white hover:bg-tertiary/90 disabled:opacity-50 transition-colors"
+                              className="p-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
                               title="Save"
                             >
                               <Check size={12} />
@@ -621,7 +621,7 @@ function NumbersPageContent() {
                             className="flex items-center gap-1.5 group min-w-0"
                             title="Click to rename"
                           >
-                            <span className="font-body text-sm font-semibold text-on-surface group-hover:text-tertiary transition-colors truncate">
+                            <span className="font-body text-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">
                               {num.display_name}
                             </span>
                             <Pencil size={11} className="text-on-surface-muted opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
@@ -737,7 +737,7 @@ function NumbersPageContent() {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
               <div className="bg-surface rounded-card p-8 shadow-card w-full max-w-md ring-1 ring-[#c4c7c7]/20">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-display text-lg font-bold text-tertiary">Add Number</h2>
+                  <h2 className="font-display text-lg font-bold text-primary">Add Number</h2>
                   <button
                     onClick={() => setShowAddModal(false)}
                     className="p-1.5 rounded-lg hover:bg-surface-low transition-colors text-on-surface-muted"
@@ -778,7 +778,7 @@ function NumbersPageContent() {
                       placeholder="+919876543210"
                       value={addNumber}
                       onChange={(e) => setAddNumber(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-tertiary"
+                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div>
@@ -788,7 +788,7 @@ function NumbersPageContent() {
                       placeholder="e.g. Aira Main"
                       value={addDisplayName}
                       onChange={(e) => setAddDisplayName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-tertiary"
+                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <div>
@@ -798,13 +798,13 @@ function NumbersPageContent() {
                       placeholder="From Meta Business Manager"
                       value={addMetaId}
                       onChange={(e) => setAddMetaId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-tertiary"
+                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
                   <button
                     onClick={handleAdd}
                     disabled={adding || !addNumber.trim() || !addDisplayName.trim()}
-                    className="w-full py-2.5 bg-tertiary text-white rounded-lg font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="w-full py-2.5 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {adding ? "Adding…" : "Add Number"}
                   </button>
@@ -816,7 +816,7 @@ function NumbersPageContent() {
       ) : (
         <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-display text-lg font-bold text-tertiary">Timeline</h2>
+            <h2 className="font-display text-lg font-bold text-primary">Timeline</h2>
             <div className="flex items-center gap-3">
               <button
                 onClick={async () => {
@@ -827,7 +827,7 @@ function NumbersPageContent() {
                   setIncidentsLoading(false);
                 }}
                 disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-tertiary hover:border-tertiary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
                 title="Sync quality from Meta and log any changes"
               >
                 <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />

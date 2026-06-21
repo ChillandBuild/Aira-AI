@@ -116,7 +116,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
       <Tile
         loading={loading}
         icon={<Phone size={16} />}
-        iconClass="bg-indigo-50 text-indigo-600"
+        iconClass="bg-primary-light text-primary"
         value={formatPct(connectRate)}
         label="Connection Rate"
         tooltip="Connect Rate = answered ÷ dialed"

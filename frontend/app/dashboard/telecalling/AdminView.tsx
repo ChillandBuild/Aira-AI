@@ -122,7 +122,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                         <select
                           value={f.value}
                           onChange={(e) => f.set(e.target.value)}
-                          className="w-full appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-white border border-[#e8e3db]/80 font-body text-[11px] font-semibold text-[#44403c] focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          className="w-full appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-white border border-[#e8e3db]/80 font-body text-[11px] font-semibold text-[#44403c] focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
                         >
                           {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                         </select>

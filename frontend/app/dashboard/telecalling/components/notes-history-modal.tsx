@@ -41,7 +41,7 @@ export default function NotesHistoryModal({ lead, onClose }: Props) {
       <div className="bg-surface rounded-card p-8 shadow-card w-full max-w-lg ring-1 ring-[#c4c7c7]/20 max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between mb-4 shrink-0">
           <div>
-            <h2 className="font-display text-lg font-bold text-tertiary">All Notes</h2>
+            <h2 className="font-display text-lg font-bold text-primary">All Notes</h2>
             <p className="font-label text-xs text-on-surface-muted mt-0.5">
               {lead.name || "Unnamed"} · {notes.length} note{notes.length !== 1 ? "s" : ""}
             </p>

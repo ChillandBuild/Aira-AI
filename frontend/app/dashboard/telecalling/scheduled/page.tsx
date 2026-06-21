@@ -214,7 +214,7 @@ export default function ScheduledCallsPage() {
   const sectionConfig = [
     { key: "overdue" as const, label: "Overdue", icon: AlertTriangle, iconColor: "text-rose-500", bgGradient: "from-rose-50/70 to-red-50/20", borderColor: "border-rose-200/60", badgeColor: "bg-rose-100 text-rose-700" },
     { key: "today" as const, label: "Today", icon: Clock, iconColor: "text-amber-500", bgGradient: "from-amber-50/70 to-orange-50/20", borderColor: "border-amber-200/60", badgeColor: "bg-amber-100 text-amber-700" },
-    { key: "tomorrow" as const, label: "Tomorrow", icon: Calendar, iconColor: "text-indigo-500", bgGradient: "from-indigo-50/70 to-purple-50/20", borderColor: "border-indigo-200/60", badgeColor: "bg-indigo-100 text-indigo-700" },
+    { key: "tomorrow" as const, label: "Tomorrow", icon: Calendar, iconColor: "text-primary", bgGradient: "from-primary-light/70 to-purple-50/20", borderColor: "border-primary-muted/60", badgeColor: "bg-primary-light text-primary" },
     { key: "upcoming" as const, label: "Upcoming", icon: ChevronRight, iconColor: "text-[#78716c]", bgGradient: "from-[#faf8f5]/70 to-gray-50/20", borderColor: "border-[#e8e3db]/60", badgeColor: "bg-[#f0ece4] text-[#57534e]" },
   ];
 
@@ -241,7 +241,7 @@ export default function ScheduledCallsPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-display text-3xl font-extrabold text-[#1c1917] tracking-tight flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-md">
+          <div className="p-2.5 bg-gradient-to-br from-primary to-purple-600 rounded-2xl shadow-md">
             <Calendar size={22} className="text-white" />
           </div>
           Scheduled Calls Board
@@ -253,7 +253,7 @@ export default function ScheduledCallsPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
-          <RefreshCw size={32} className="animate-spin text-indigo-500" />
+          <RefreshCw size={32} className="animate-spin text-primary" />
         </div>
       ) : callbacks.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-3xl border border-[#e8e3db]/60 shadow-sm">
@@ -296,7 +296,7 @@ export default function ScheduledCallsPage() {
                         key={cb.id}
                         className={`flex flex-col md:flex-row md:items-center justify-between bg-white rounded-2xl p-5 shadow-sm border gap-4 transition-all ${
                           isTakeoverEligible
-                            ? "border-indigo-200 hover:border-indigo-300 hover:shadow-indigo-50/50 bg-gradient-to-r from-white to-indigo-50/10"
+                            ? "border-primary-muted hover:border-primary-muted hover:shadow-primary-light/50 bg-gradient-to-r from-white to-primary-light/10"
                             : isAssignedToMe
                               ? "border-emerald-200 bg-gradient-to-r from-white to-emerald-50/10"
                               : "border-[#f0ece4] hover:border-[#e8e3db]"
@@ -321,8 +321,8 @@ export default function ScheduledCallsPage() {
                               </span>
                             )}
                             {isTakeoverEligible && (
-                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full font-label text-[9px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm animate-pulse">
-                                <Zap size={8} className="fill-indigo-500 text-indigo-500" />
+                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full font-label text-[9px] font-bold uppercase tracking-wider bg-primary-light text-primary border border-primary-muted shadow-sm animate-pulse">
+                                <Zap size={8} className="fill-primary text-primary" />
                                 Claimable
                               </span>
                             )}
@@ -337,7 +337,7 @@ export default function ScheduledCallsPage() {
                               isAssignedToMe
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                                 : isClaimed
-                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200/60"
+                                  ? "bg-primary-light text-primary border-primary-muted/60"
                                   : "bg-[#faf8f5] text-[#78716c] border-[#f0ece4]"
                             }`}>
                               {isClaimed ? <Zap size={10} /> : <User size={10} />}
@@ -386,7 +386,7 @@ export default function ScheduledCallsPage() {
                           {!isAssignedToMe && isTakeoverEligible && (
                             <button
                               onClick={() => handleOpenTakeoverHandoff(cb)}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-label text-[10px] font-bold hover:from-indigo-600 hover:to-purple-700 transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-primary to-purple-600 text-white rounded-xl font-label text-[10px] font-bold hover:from-primary-dark hover:to-purple-700 transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                             >
                               <Zap size={12} className="fill-white text-white" /> Claim
                             </button>
@@ -428,7 +428,7 @@ export default function ScheduledCallsPage() {
             <div className="flex items-center justify-between pb-4 border-b border-[#f0ece4] shrink-0">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600">
+                  <span className="p-1.5 bg-primary-light rounded-lg text-primary">
                     <Zap size={18} />
                   </span>
                   <h2 className="font-display text-xl font-bold text-[#292524]">
@@ -475,7 +475,7 @@ export default function ScheduledCallsPage() {
                     <div>
                       <p className="text-[10px] text-[#a8a29e] font-medium uppercase">Lead Score</p>
                       <div className="flex items-center gap-1 mt-0.5">
-                        <Award size={12} className="text-indigo-500" />
+                        <Award size={12} className="text-primary" />
                         <span className="text-xs font-bold text-[#292524]">{handoffCallback.lead.score ?? 0}</span>
                       </div>
                     </div>
@@ -503,7 +503,7 @@ export default function ScheduledCallsPage() {
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <span className="text-[9px] text-[#a8a29e] font-semibold">{timeAgo(note.created_at)}</span>
                             {note.is_pinned && (
-                              <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1 rounded">Pinned</span>
+                              <span className="text-[9px] font-bold text-primary bg-primary-light px-1 rounded">Pinned</span>
                             )}
                           </div>
                           <p className="text-xs text-[#44403c] whitespace-pre-wrap">{note.content}</p>
@@ -565,7 +565,7 @@ export default function ScheduledCallsPage() {
                             <div className="mt-2 bg-white rounded-lg p-2.5 border border-[#e8e3db]/50 space-y-1.5">
                               <div className="flex items-center gap-1 mb-1 pb-1 border-b border-[#f0ece4]">
                                 <span className="text-[9px] font-bold text-[#57534e] flex items-center gap-1">
-                                  <Sparkles size={10} className="text-indigo-500" />
+                                  <Sparkles size={10} className="text-primary" />
                                   AI Evaluation
                                 </span>
                               </div>
@@ -615,7 +615,7 @@ export default function ScheduledCallsPage() {
               <button
                 onClick={() => handleConfirmTakeover(handoffCallback)}
                 disabled={takeoverLoading}
-                className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700 rounded-xl font-label text-[11px] font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-primary to-purple-600 text-white hover:from-primary-dark hover:to-purple-700 rounded-xl font-label text-[11px] font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50"
               >
                 {takeoverLoading ? (
                   <RefreshCw size={12} className="animate-spin" />

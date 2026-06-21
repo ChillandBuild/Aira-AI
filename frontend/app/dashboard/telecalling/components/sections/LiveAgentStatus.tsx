@@ -136,7 +136,7 @@ export default function LiveAgentStatus({
   return (
     <div className="bg-surface rounded-card p-5 shadow-card ring-1 ring-[#c4c7c7]/15">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-3">
-        <h2 className="font-display text-sm font-bold text-tertiary flex items-center gap-2">
+        <h2 className="font-display text-sm font-bold text-primary flex items-center gap-2">
           <Users size={16} className="text-primary" /> Live Agent Status
         </h2>
         <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">

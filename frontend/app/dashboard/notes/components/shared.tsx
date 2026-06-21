@@ -18,7 +18,7 @@ export const PRESET_TAGS = [
 
 export function tagStyle(label: string): string {
   const found = PRESET_TAGS.find((t) => t.label.toLowerCase() === label.toLowerCase());
-  return found?.color ?? "bg-indigo-100 text-indigo-700 border-indigo-200";
+  return found?.color ?? "bg-primary-light text-primary border-primary-muted";
 }
 
 // Keep-style pastel card backgrounds, keyed by a note's first tag
@@ -144,7 +144,7 @@ export function SentimentTrend({ logs }: { logs: CallLog[] }) {
 
 // ─── Timeline rail ───────────────────────────────────────────────────────────────
 export function TimelineItem({
-  color = "bg-indigo-400",
+  color = "bg-primary",
   isLast = false,
   children,
 }: {
@@ -365,7 +365,7 @@ export function AiSummaryCard({
         <div className="mt-3 space-y-2 pt-3 border-t border-[#f0ece4]">
           {s.brief && (
             <div className="p-3 bg-[#faf8f5] border border-[#f0ece4] rounded-xl">
-              <p className="font-label text-[10px] font-bold text-indigo-600 uppercase tracking-wide mb-1">Call Brief</p>
+              <p className="font-label text-[10px] font-bold text-primary uppercase tracking-wide mb-1">Call Brief</p>
               <p className="font-body text-xs text-[#44403c] leading-relaxed font-medium">
                 {s.brief}
               </p>
@@ -398,7 +398,7 @@ export function AiSummaryCard({
                 </span>
               )}
               {s.next_action && (
-                <span className="px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-100 font-label text-[10px] font-semibold">
+                <span className="px-2 py-0.5 rounded-full border bg-primary-light text-primary border-primary-muted font-label text-[10px] font-semibold">
                   Next: {s.next_action}
                 </span>
               )}
@@ -415,7 +415,7 @@ export function AiSummaryCard({
                     type="button"
                     onClick={() => setPlaybackRate(r)}
                     className={`px-1.5 py-0.5 rounded font-label text-[9px] font-bold transition-colors ${
-                      rate === r ? "bg-indigo-600 text-white" : "bg-[#f0ece4] text-[#78716c] hover:bg-[#e8e3db]"
+                      rate === r ? "bg-primary text-white" : "bg-[#f0ece4] text-[#78716c] hover:bg-[#e8e3db]"
                     }`}
                   >
                     {r}x

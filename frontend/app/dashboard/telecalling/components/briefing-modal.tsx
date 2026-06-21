@@ -50,7 +50,7 @@ export default function BriefingModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-surface rounded-card p-8 shadow-card w-full max-w-md ring-1 ring-[#c4c7c7]/20 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-lg font-bold text-tertiary">
+          <h2 className="font-display text-lg font-bold text-primary">
             {viewOnly ? "Lead Notes" : "Pre-Call Briefing"}
           </h2>
           <button
@@ -110,7 +110,7 @@ export default function BriefingModal({
 
                 <button
                   onClick={onViewAllNotes}
-                  className="mt-2 flex items-center gap-1 font-label text-xs text-tertiary hover:underline"
+                  className="mt-2 flex items-center gap-1 font-label text-xs text-primary hover:underline"
                 >
                   <BookOpen size={11} />
                   See all notes
@@ -133,7 +133,7 @@ export default function BriefingModal({
               {BRIEFING_TAGS.map((tag) => (
                 <span
                   key={tag}
-                  className="px-2.5 py-1 bg-tertiary-bg text-tertiary rounded-full font-label text-xs font-semibold"
+                  className="px-2.5 py-1 bg-tertiary-bg text-primary rounded-full font-label text-xs font-semibold"
                 >
                   {tag}
                 </span>
@@ -147,7 +147,7 @@ export default function BriefingModal({
             <button
               onClick={onStartCall}
               disabled={dialing}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-tertiary text-white rounded-lg font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Phone size={14} />
               {dialing ? "Dialing…" : "Start Call"}

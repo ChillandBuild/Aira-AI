@@ -67,7 +67,7 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
     <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
         <div>
-          <h2 className="font-display text-base font-bold text-tertiary">Shift Timeline Visualizer</h2>
+          <h2 className="font-display text-base font-bold text-primary">Shift Timeline Visualizer</h2>
           <p className="font-label text-xs text-on-surface-muted">Analyze live calling activity blocks, status transitions, and gaps.</p>
         </div>
         <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">

@@ -109,7 +109,7 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
       <div className="flex items-center justify-between flex-wrap gap-4 border-b border-border-subtle pb-4 mb-5">
         <div className="flex items-center gap-2">
           <CalendarCheck size={18} className="text-primary" />
-          <h3 className="font-display font-bold text-tertiary text-sm">Attendance Log</h3>
+          <h3 className="font-display font-bold text-primary text-sm">Attendance Log</h3>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -174,15 +174,15 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
           </div>
         </div>
 
-        <div className="bg-indigo-55/40 rounded-xl border border-indigo-100 flex items-center shadow-sm hover:shadow transition-shadow p-3 gap-3">
-          <div className="rounded-lg bg-indigo-100 text-indigo-600 shrink-0 p-2">
+        <div className="bg-primary-light/40 rounded-xl border border-primary-muted flex items-center shadow-sm hover:shadow transition-shadow p-3 gap-3">
+          <div className="rounded-lg bg-primary-light text-primary shrink-0 p-2">
             <Percent size={14} />
           </div>
           <div>
             <span className="block font-display font-black text-[#1c1917] leading-none text-lg">
               {rate}%
             </span>
-            <span className="text-indigo-700 font-label text-[8px] uppercase font-bold tracking-wider mt-0.5 block">
+            <span className="text-primary font-label text-[8px] uppercase font-bold tracking-wider mt-0.5 block">
               Rate
             </span>
           </div>
@@ -237,7 +237,7 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
               key={m.key}
               className="rounded-xl border border-border-subtle/80 bg-surface p-1.5 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-150 max-w-[170px] w-full mx-auto"
             >
-              <div className="text-center text-[9.5px] font-label font-bold text-tertiary mb-1.5 tracking-wide bg-[#faf8f5] py-0.5 rounded-md border border-[#f0ece4]">
+              <div className="text-center text-[9.5px] font-label font-bold text-primary mb-1.5 tracking-wide bg-[#faf8f5] py-0.5 rounded-md border border-[#f0ece4]">
                 {m.label}
               </div>
               <div className="grid grid-cols-7 gap-[1px] mb-1">

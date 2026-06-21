@@ -262,7 +262,7 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
       <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
         <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
           <div>
-            <h2 className="font-display text-base font-bold text-tertiary">Agent Performance Leaderboard</h2>
+            <h2 className="font-display text-base font-bold text-primary">Agent Performance Leaderboard</h2>
             <p className="font-label text-xs text-on-surface-muted">Sort by connect rate, idle time, or quality scores to manage team output.</p>
           </div>
           <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
@@ -417,7 +417,7 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
           className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#faf8f5]/50 transition-colors"
         >
           <div className="text-left">
-            <h2 className="font-display text-base font-bold text-tertiary">Tools</h2>
+            <h2 className="font-display text-base font-bold text-primary">Tools</h2>
             <p className="font-label text-xs text-on-surface-muted">QA call review &amp; bulk lead assignment.</p>
           </div>
           {toolsOpen ? <ChevronUp size={16} className="text-[#a8a29e]" /> : <ChevronDown size={16} className="text-[#a8a29e]" />}

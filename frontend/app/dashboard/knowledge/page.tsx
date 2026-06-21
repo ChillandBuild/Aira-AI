@@ -329,7 +329,7 @@ export default function KnowledgePage() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             tab === "documents"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -342,7 +342,7 @@ export default function KnowledgePage() {
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
             tab === "ai-tune"
-              ? "bg-white text-indigo-600 shadow-sm"
+              ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
@@ -360,7 +360,7 @@ export default function KnowledgePage() {
             placeholder="Search documents..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-surface-mid focus:outline-none focus:ring-2 focus:ring-tertiary font-body text-sm"
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-surface-mid focus:outline-none focus:ring-2 focus:ring-primary font-body text-sm"
           />
         </div>
       )}
@@ -370,8 +370,8 @@ export default function KnowledgePage() {
           {/* Knowledge Search Mode */}
           <div className="bg-surface rounded-card p-5 border border-surface-mid">
             <div className="flex items-center gap-2">
-              <Sparkles size={16} className="text-tertiary" />
-              <h3 className="font-display font-bold text-sm text-tertiary">Knowledge Search Mode</h3>
+              <Sparkles size={16} className="text-primary" />
+              <h3 className="font-display font-bold text-sm text-primary">Knowledge Search Mode</h3>
             </div>
             <p className="font-body text-xs text-on-surface-muted mt-1 mb-4">
               How the AI finds answers in your documents when a lead asks a question.
@@ -386,12 +386,12 @@ export default function KnowledgePage() {
                     disabled={retrievalSaving || active}
                     className={cn(
                       "text-left p-4 rounded-xl border-2 transition-all disabled:cursor-default",
-                      active ? "border-tertiary bg-tertiary/5" : "border-surface-mid hover:border-tertiary/40"
+                      active ? "border-primary bg-primary/5" : "border-surface-mid hover:border-primary/40"
                     )}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-label font-bold text-sm text-on-surface">{m.label}</span>
-                      {active && <CheckCircle2 size={16} className="text-tertiary shrink-0" />}
+                      {active && <CheckCircle2 size={16} className="text-primary shrink-0" />}
                     </div>
                     <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">{m.desc}</p>
                   </button>
@@ -401,12 +401,12 @@ export default function KnowledgePage() {
           </div>
 
           {/* Upload Section */}
-          <div className="bg-surface rounded-card p-6 border border-dashed border-tertiary/30 bg-tertiary/5 text-center space-y-4">
-            <div className="w-12 h-12 bg-tertiary/10 rounded-full flex items-center justify-center mx-auto">
-              <Upload size={24} className="text-tertiary" />
+          <div className="bg-surface rounded-card p-6 border border-dashed border-primary/30 bg-primary/5 text-center space-y-4">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+              <Upload size={24} className="text-primary" />
             </div>
             <div>
-              <h3 className="font-display font-bold text-lg text-tertiary">Upload Knowledge Documents</h3>
+              <h3 className="font-display font-bold text-lg text-primary">Upload Knowledge Documents</h3>
               <p className="font-body text-sm text-on-surface-muted">
                 Supports PDF, DOCX, PPTX, XLSX, CSV, TXT, and Images. AI will extract and index the content.
               </p>
@@ -420,7 +420,7 @@ export default function KnowledgePage() {
                   value={selectedCampaignTag}
                   onChange={(e) => setSelectedCampaignTag(e.target.value)}
                   disabled={uploading}
-                  className="w-full px-3 py-2 rounded-xl border border-tertiary/20 bg-surface font-body text-sm focus:outline-none focus:ring-2 focus:ring-tertiary/30"
+                  className="w-full px-3 py-2 rounded-xl border border-primary/20 bg-surface font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 >
                   <option value="">All campaigns (shared)</option>
                   {campaignTags.map((t) => (
@@ -432,7 +432,7 @@ export default function KnowledgePage() {
                 </p>
               </div>
             )}
-            <label className="inline-flex items-center gap-2 px-6 py-3 bg-tertiary text-white rounded-xl font-label font-semibold shadow-card hover:bg-tertiary/90 transition-all cursor-pointer disabled:opacity-50">
+            <label className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-label font-semibold shadow-card hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50">
               {uploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
               {uploading ? "Uploading & Indexing..." : "Choose File"}
               <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.txt,image/*" onChange={handleFileUpload} disabled={uploading} />
@@ -475,8 +475,8 @@ export default function KnowledgePage() {
                     <tr key={doc.id} className="hover:bg-surface-low transition-all group">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="p-2 bg-tertiary/5 rounded-lg">
-                            <FileText size={18} className="text-tertiary" />
+                          <div className="p-2 bg-primary/5 rounded-lg">
+                            <FileText size={18} className="text-primary" />
                           </div>
                           <div>
                             <p className="font-semibold text-on-surface">{doc.name}</p>
@@ -533,7 +533,7 @@ export default function KnowledgePage() {
         /* AI Tune Tab */
         <div className="space-y-4 animate-in fade-in duration-200">
           {tuneMsg && (
-            <div className="p-3 rounded-xl bg-tertiary-bg text-tertiary font-label text-sm">
+            <div className="p-3 rounded-xl bg-tertiary-bg text-primary font-label text-sm">
               {tuneMsg}
             </div>
           )}
@@ -565,7 +565,7 @@ export default function KnowledgePage() {
 
           <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
             <div className="mb-4">
-              <h2 className="font-display text-lg font-bold text-tertiary">
+              <h2 className="font-display text-lg font-bold text-primary">
                 Active Prompt: {activeName === "whatsapp_reply" ? "WhatsApp" : activeName === "telegram_reply" ? "Telegram" : activeName === "instagram_reply" ? "Instagram" : "Facebook Messenger"}
               </h2>
               <p className="font-body text-sm text-on-surface-muted mt-0.5">
@@ -585,14 +585,14 @@ export default function KnowledgePage() {
               onChange={(e) => setDraft(e.target.value)}
               rows={18}
               spellCheck={false}
-              className="w-full px-5 py-4 rounded-xl bg-surface-low border border-surface-mid font-mono text-base leading-7 focus:outline-none focus:ring-2 focus:ring-tertiary"
+              className="w-full px-5 py-4 rounded-xl bg-surface-low border border-surface-mid font-mono text-base leading-7 focus:outline-none focus:ring-2 focus:ring-primary"
               style={{ fontSize: "15px", lineHeight: "1.7" }}
             />
             <div className="mt-4 flex gap-3">
               <button
                 onClick={savePrompt}
                 disabled={tuneSaving || draft === activePrompt?.content}
-                className="flex items-center gap-2 px-4 py-2 bg-tertiary text-white rounded-lg font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
                 <Save size={14} /> {tuneSaving ? "Saving…" : "Save"}
               </button>
@@ -602,7 +602,7 @@ export default function KnowledgePage() {
           {/* Section A: Scoring Rubric */}
           <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
             <div className="mb-4">
-              <h2 className="font-display text-lg font-bold text-tertiary">Scoring Rubric</h2>
+              <h2 className="font-display text-lg font-bold text-primary">Scoring Rubric</h2>
               <p className="font-body text-sm text-on-surface-muted mt-0.5">
                 Used to score leads 1–10. Auto-generated from your system prompt — edit to customize.
               </p>
@@ -619,13 +619,13 @@ export default function KnowledgePage() {
                 "3-4: Lukewarm — vague interest, one-word replies\n" +
                 "1-2: Low — unresponsive, spam, or out-of-scope"
               }
-              className="w-full px-5 py-4 rounded-xl bg-surface-low border border-surface-mid font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-tertiary"
+              className="w-full px-5 py-4 rounded-xl bg-surface-low border border-surface-mid font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <div className="mt-4 flex gap-3">
               <button
                 onClick={saveRubric}
                 disabled={rubricSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-tertiary text-white rounded-lg font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
                 <Save size={14} /> {rubricSaving ? "Saving…" : "Save Rubric"}
               </button>
@@ -635,7 +635,7 @@ export default function KnowledgePage() {
           {/* Section B: Post-Collection Action */}
           <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
             <div className="mb-4">
-              <h2 className="font-display text-lg font-bold text-tertiary">After Data Collection</h2>
+              <h2 className="font-display text-lg font-bold text-primary">After Data Collection</h2>
               <p className="font-body text-sm text-on-surface-muted mt-0.5">
                 What should Aira do when the AI finishes collecting all required fields?
               </p>
@@ -643,7 +643,7 @@ export default function KnowledgePage() {
             <select
               value={postAction}
               onChange={(e) => setPostAction(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-tertiary"
+              className="w-full px-4 py-3 rounded-xl bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
               <option value="">Do nothing (just save the data)</option>
               <option value="send_payment_link">Send payment link (Razorpay)</option>
@@ -653,7 +653,7 @@ export default function KnowledgePage() {
               <button
                 onClick={savePostAction}
                 disabled={postActionSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-tertiary text-white rounded-lg font-label text-sm font-semibold hover:bg-tertiary/90 disabled:opacity-40"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
                 <Save size={14} /> {postActionSaving ? "Saving…" : "Save"}
               </button>

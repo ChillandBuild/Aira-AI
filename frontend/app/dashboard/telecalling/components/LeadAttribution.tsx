@@ -22,7 +22,7 @@ export default function LeadAttribution({ lead, variant = "full" }: LeadAttribut
 
   if (hasOutbound) {
     return (
-      <div className={`bg-gradient-to-br from-purple-50/50 to-indigo-50/20 border border-purple-100/60 shadow-sm flex flex-col ${
+      <div className={`bg-gradient-to-br from-purple-50/50 to-primary-light/20 border border-purple-100/60 shadow-sm flex flex-col ${
         isCompact ? "rounded-2xl p-4 gap-3" : "rounded-3xl p-5 gap-4"
       }`}>
         <span className={`font-display font-black text-purple-800 uppercase tracking-widest flex items-center gap-1.5 ${

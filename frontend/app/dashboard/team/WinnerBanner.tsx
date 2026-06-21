@@ -34,7 +34,7 @@ function WinnerCard({
 
   const gradientClass = isDaily
     ? "from-amber-400 via-orange-400 to-rose-400"
-    : "from-violet-500 via-purple-500 to-indigo-500";
+    : "from-violet-500 via-purple-500 to-primary";
 
   const avatarClass = isDaily
     ? "bg-white/25 ring-2 ring-white/40"

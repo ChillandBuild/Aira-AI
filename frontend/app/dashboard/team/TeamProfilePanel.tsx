@@ -306,7 +306,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
 
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Clock size={14} className="text-indigo-600" />
+            <Clock size={14} className="text-primary" />
             <h3 className="font-display font-semibold text-ink text-xs">Calls by Hour of Day</h3>
           </div>
           {callLogs.length === 0 ? (

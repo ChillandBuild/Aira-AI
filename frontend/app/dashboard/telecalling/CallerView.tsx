@@ -98,16 +98,16 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                 <button
                   onClick={handleDownloadCSV}
                   disabled={exporting || myLeads.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#e8e3db]/80 rounded-xl font-label text-xs font-bold hover:bg-[#faf8f5] transition-all text-[#44403c] shadow-sm hover:border-indigo-500 hover:text-indigo-600 disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#e8e3db]/80 rounded-xl font-label text-xs font-bold hover:bg-[#faf8f5] transition-all text-[#44403c] shadow-sm hover:border-primary hover:text-primary disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
                   title="Download CSV of all assigned leads"
                 >
-                  {exporting ? <RefreshCw size={12} className="animate-spin text-indigo-600" /> : <Download size={12} />}
+                  {exporting ? <RefreshCw size={12} className="animate-spin text-primary" /> : <Download size={12} />}
                   Export CSV
                 </button>
                 <button
                   onClick={cockpit.handleCallNext}
                   disabled={cockpit.dialingNext || myStatus !== "active"}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl font-label text-xs font-bold transition-all shadow-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-primary to-primary-dark text-white rounded-2xl font-label text-xs font-bold transition-all shadow-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                   title="Call next hot lead in queue"
                 >
                   {cockpit.dialingNext ? <RefreshCw size={12} className="animate-spin mr-1" /> : <Sparkles size={12} className="mr-1 fill-white text-white" />}
@@ -125,7 +125,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                   placeholder="Search by name or phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#faf8f5] border border-[#e8e3db] rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all shadow-inner"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#faf8f5] border border-[#e8e3db] rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all shadow-inner"
                 />
               </div>
             </div>
@@ -178,8 +178,8 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                   if (!lead) return null;
                   const isSelected = cockpit.selectedLeadId === lead.id;
 
-                  let borderAccent = "border-l-indigo-400";
-                  let avatarBg = "bg-indigo-500";
+                  let borderAccent = "border-l-primary";
+                  let avatarBg = "bg-primary";
                   let callBtnBg = "bg-emerald-500 hover:bg-emerald-600";
 
                   if (lead.score >= 8) {
@@ -202,7 +202,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                       onClick={() => cockpit.setSelectedLeadId(lead.id)}
                       className={`rounded-2xl border-y border-r border-l-[6px] transition-all duration-200 cursor-pointer p-3 flex items-center justify-between gap-3 ${borderAccent} ${
                         isSelected
-                          ? "bg-gradient-to-r from-indigo-50/70 to-purple-50/20 border-indigo-200 shadow-[0_4px_15px_rgba(99,102,241,0.06)] ring-1 ring-indigo-500/10 translate-x-1"
+                          ? "bg-gradient-to-r from-primary-light/70 to-purple-50/20 border-primary-muted shadow-[0_4px_15px_rgba(99,102,241,0.06)] ring-1 ring-primary/10 translate-x-1"
                           : "bg-[#faf8f5]/30 border-[#f0ece4] hover:bg-[#faf8f5] hover:shadow-sm"
                       }`}
                     >
@@ -216,7 +216,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                             {lead.score >= 7 && (
                               <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded font-label text-[8px] font-black uppercase tracking-wider">HOT</span>
                             )}
-                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-label text-[8px] font-black uppercase">SEG {lead.segment}</span>
+                            <span className="px-1.5 py-0.5 bg-primary-light text-primary rounded font-label text-[8px] font-black uppercase">SEG {lead.segment}</span>
                             {lead.call_status === "callback" && (
                               <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-label text-[8px] font-black uppercase">CALLBACK</span>
                             )}
@@ -259,11 +259,11 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
         <div className="col-span-8 flex flex-col min-h-0 bg-[#faf8f5] rounded-3xl border border-[#e8e3db] shadow-sm overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             {!cockpit.selectedLeadId ? (
-              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-indigo-50/10">
+              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-primary-light/10">
                 <div className="relative mb-6">
-                  <div className="absolute inset-0 bg-indigo-400/5 blur-2xl rounded-full scale-150 animate-pulse" />
-                  <div className="relative p-6 rounded-3xl bg-white border border-[#f0ece4] shadow-md text-indigo-500">
-                    <Sparkles size={38} className="text-indigo-500" />
+                  <div className="absolute inset-0 bg-primary/5 blur-2xl rounded-full scale-150 animate-pulse" />
+                  <div className="relative p-6 rounded-3xl bg-white border border-[#f0ece4] shadow-md text-primary">
+                    <Sparkles size={38} className="text-primary" />
                   </div>
                 </div>
                 <h3 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Profile Workspace</h3>
