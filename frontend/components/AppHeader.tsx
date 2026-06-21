@@ -4,6 +4,7 @@ import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Clock, RefreshCw, LayoutGrid, List } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 
 import { cn } from "@/lib/utils";
 
@@ -164,8 +165,15 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { role } = useAuthRole();
 
-  const { title, description } = getRouteMetadata(pathname || "", searchParams);
+  let { title, description } = getRouteMetadata(pathname || "", searchParams);
+
+  if (pathname === "/dashboard/profile" && role !== "owner") {
+    title = "Overview";
+    description = "Your performance at a glance";
+  }
+
   const tab = searchParams.get("tab") || "";
 
   // Action states for conditional header buttons

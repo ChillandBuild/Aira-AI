@@ -213,16 +213,6 @@ export function ProfileClient({
 
   return (
     <div>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="font-display text-3xl font-bold text-primary">
-          Overview
-        </h1>
-        <p className="font-body text-on-surface-muted mt-1">
-          Your performance at a glance
-        </p>
-      </div>
-
       {/* Daily Coaching Digest */}
       <CoachingDigest callerId={stats.caller_id} />
 
