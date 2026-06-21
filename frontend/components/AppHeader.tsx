@@ -44,8 +44,8 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/telecalling/scheduled") {
     return {
-      title: "Scheduled Calls",
-      description: "View and manage upcoming scheduled calls for leads.",
+      title: "Scheduled Calls Board",
+      description: "Shared callback queue. When a callback's owner is logged out, on break, or on another call, an overdue call becomes claimable by any teammate.",
     };
   }
   if (pathname === "/dashboard/team") {
