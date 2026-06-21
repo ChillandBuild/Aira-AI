@@ -375,21 +375,25 @@ async def health():
         }
     }
 
+    uptime_s = int((now - _startup_time).total_seconds())
+    d, rem = divmod(uptime_s, 86400)
+    h, rem = divmod(rem, 3600)
+    m = rem // 60
+    uptime_human = f"{d}d {h}h {m}m" if d else (f"{h}h {m}m" if h else f"{m}m")
+
+    base = {
+        "service": "aira-ai",
+        "uptime_seconds": uptime_s,
+        "uptime_human": uptime_human,
+        "started_at": _startup_time.isoformat(),
+        "server_time": now.isoformat(),
+        "details": details,
+    }
+
     if db_ok and sb_ok:
-        return {
-            "status": "healthy",
-            "service": "aira-ai",
-            "details": details
-        }
+        return {**base, "status": "healthy"}
     else:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "unhealthy",
-                "service": "aira-ai",
-                "details": details
-            }
-        )
+        return JSONResponse(status_code=503, content={**base, "status": "unhealthy"})
 
 # Sentry debug route removed
 

@@ -15,3 +15,7 @@ jobs:
           curl -sf --max-time 120 \
             "https://aira-ai-5tfr.onrender.com/api/v1/settings/webhook-health" \
             || echo "Service waking up — cold start expected on first ping"
+          echo "--- System Health ---"
+          curl -sf --max-time 30 \
+            "https://aira-ai-5tfr.onrender.com/health" \
+            || true

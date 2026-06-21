@@ -1034,6 +1034,41 @@ def scheduler_health(_admin: dict = Depends(get_system_admin)):
     }
 
 
+@router.get("/system-health")
+def system_health(_admin: dict = Depends(get_system_admin)):
+    """Platform-level health: uptime, memory, Python version, last keep-alive ping."""
+    import psutil, platform
+    from datetime import datetime, timezone
+    from app.main import _startup_time
+
+    now = datetime.now(timezone.utc)
+    uptime_seconds = (now - _startup_time).total_seconds()
+    process = psutil.Process()
+    mem = process.memory_info()
+
+    return {
+        "status": "healthy",
+        "uptime_seconds": int(uptime_seconds),
+        "uptime_human": _format_uptime(uptime_seconds),
+        "memory_mb": round(mem.rss / (1024 * 1024), 1),
+        "cpu_percent": process.cpu_percent(interval=0.1),
+        "python_version": platform.python_version(),
+        "server_time": now.isoformat(),
+        "started_at": _startup_time.isoformat(),
+    }
+
+
+def _format_uptime(seconds: float) -> str:
+    d = int(seconds // 86400)
+    h = int((seconds % 86400) // 3600)
+    m = int((seconds % 3600) // 60)
+    if d > 0:
+        return f"{d}d {h}h {m}m"
+    if h > 0:
+        return f"{h}h {m}m"
+    return f"{m}m"
+
+
 @router.get("/audit-logs")
 def list_audit_logs(
     page: int = 1,
