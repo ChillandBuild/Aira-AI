@@ -59,10 +59,10 @@ export default function OperatorLoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-2xl font-bold text-ink font-manrope">
+          <p className="text-2xl font-bold text-ink font-display">
             Aira<span className="text-primary">AI</span>
           </p>
-          <p className="text-xs text-ink-muted mt-1.5 uppercase tracking-widest font-semibold font-manrope">
+          <p className="text-xs text-ink-muted mt-1.5 uppercase tracking-widest font-semibold font-label">
             Operator Console
           </p>
         </div>
@@ -70,44 +70,44 @@ export default function OperatorLoginPage() {
         <div className="bg-white rounded-card shadow-card border border-border p-8">
           <form onSubmit={handleLogin} className="space-y-4">
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-manrope">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-body">
                 {error}
               </div>
             )}
             <div>
-              <label className="text-sm font-medium text-ink block mb-1.5 font-manrope">Email</label>
+              <label className="text-sm font-medium text-ink block mb-1.5 font-label">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
                 autoFocus
-                className="w-full px-3 py-2 border border-border rounded-xl text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-manrope"
+                className="w-full px-3 py-2 border border-border rounded-xl text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-body"
                 placeholder="you@airaai.com"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-ink block mb-1.5 font-manrope">Password</label>
+              <label className="text-sm font-medium text-ink block mb-1.5 font-label">Password</label>
               <input
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-border rounded-xl text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-manrope"
+                className="w-full px-3 py-2 border border-border rounded-xl text-ink placeholder-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-body"
                 placeholder="••••••••"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary hover:bg-primary-dark text-white font-medium py-2 rounded-xl transition-colors disabled:opacity-50 font-manrope"
+              className="w-full bg-primary hover:bg-primary-dark text-white font-medium py-2 rounded-xl transition-colors disabled:opacity-50 font-display"
             >
               {loading ? "Verifying..." : "Sign in"}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-ink-muted mt-6 font-manrope">
+        <p className="text-center text-xs text-ink-muted mt-6 font-body">
           Client dashboard?{" "}
           <a href="/login" className="text-primary hover:underline">Login here</a>
         </p>

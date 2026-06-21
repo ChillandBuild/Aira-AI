@@ -49,13 +49,13 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
             <div className="w-16 h-16 bg-[#f5f3ff] text-[#5b21b6] rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
               <Phone size={24} />
             </div>
-            <h3 className="font-manrope text-lg font-bold text-[#292524]">Calling in {dialCountdown}s...</h3>
-            <p className="font-manrope text-sm text-[#78716c] mt-1.5">
+            <h3 className="font-display text-lg font-bold text-[#292524]">Calling in {dialCountdown}s...</h3>
+            <p className="font-body text-sm text-[#78716c] mt-1.5">
               Target: {"lead" in dialTarget ? dialTarget.lead?.name || dialTarget.lead?.phone : dialTarget.phone}
             </p>
             <button
               onClick={cancelDial}
-              className="mt-6 w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-manrope text-sm font-bold rounded-2xl transition-all border border-red-200"
+              className="mt-6 w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 font-label text-sm font-bold rounded-2xl transition-all border border-red-200"
             >
               Cancel Dial
             </button>

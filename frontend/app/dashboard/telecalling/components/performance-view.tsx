@@ -221,7 +221,7 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
       <div className="flex items-center gap-2 text-xs">
         {selectedCallerId ? (
           <>
-            <span className="font-manrope text-[#78716c]">
+            <span className="font-body text-[#78716c]">
               Showing: <span className="font-bold text-[#292524]">{selectedCallerName}</span>
             </span>
             <button
@@ -232,7 +232,7 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
             </button>
           </>
         ) : (
-          <span className="font-manrope text-[#78716c]">
+          <span className="font-body text-[#78716c]">
             Showing: <span className="font-bold text-[#292524]">Team Overview</span>
           </span>
         )}

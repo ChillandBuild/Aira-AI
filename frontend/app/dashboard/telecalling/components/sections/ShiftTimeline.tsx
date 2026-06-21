@@ -71,8 +71,8 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
           <p className="font-label text-xs text-on-surface-muted">Analyze live calling activity blocks, status transitions, and gaps.</p>
         </div>
         <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
-          <span className="font-manrope text-[10px] text-[#78716c] font-bold uppercase pl-1">Date:</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-manrope text-xs text-[#292524] focus:outline-none" />
+          <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Date:</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none" />
         </div>
       </div>
 

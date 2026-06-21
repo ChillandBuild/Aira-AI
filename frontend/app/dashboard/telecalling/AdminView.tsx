@@ -60,8 +60,8 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
             {/* Header: title + Calling as + Config */}
             <div className="flex items-start justify-between mb-4 shrink-0 gap-2">
               <div>
-                <h2 className="font-manrope text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Queue</h2>
-                <p className="font-manrope text-xs text-[#78716c] mt-0.5">
+                <h2 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Queue</h2>
+                <p className="font-label text-xs text-[#78716c] mt-0.5">
                   Calling as <span className="text-[#5b21b6] font-semibold">{selectedCallerName}</span>
                 </p>
               </div>
@@ -71,12 +71,12 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
 
             {/* Calling as selector */}
             <div className="mb-3 shrink-0">
-              <label className="block font-manrope text-[9px] text-[#a8a29e] uppercase tracking-widest mb-1 font-extrabold">Calling as</label>
+              <label className="block font-label text-[9px] text-[#a8a29e] uppercase tracking-widest mb-1 font-extrabold">Calling as</label>
               <div className="relative">
                 <select
                   value={selectedCallerId || ""}
                   onChange={(e) => setSelectedCallerId(e.target.value || null)}
-                  className="w-full appearance-none pl-3 pr-8 py-2 rounded-xl bg-white border border-[#e8e3db]/80 font-manrope text-xs font-semibold text-[#44403c] focus:outline-none focus:ring-2 focus:ring-[#5b21b6] cursor-pointer"
+                  className="w-full appearance-none pl-3 pr-8 py-2 rounded-xl bg-white border border-[#e8e3db]/80 font-body text-xs font-semibold text-[#44403c] focus:outline-none focus:ring-2 focus:ring-[#5b21b6] cursor-pointer"
                 >
                   <option value="">Admin (me)</option>
                   {callers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

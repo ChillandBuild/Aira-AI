@@ -116,7 +116,7 @@ export default function LeadDetailPanel({
     return (
       <div className="py-16 flex flex-col items-center justify-center bg-[#faf8f5] rounded-2xl mx-5 mt-5">
         <RefreshCw size={32} className="animate-spin text-orange-400 mb-2" />
-        <p className="font-manrope text-sm text-amber-700/60 font-medium">Loading lead profile...</p>
+        <p className="font-body text-sm text-amber-700/60 font-medium">Loading lead profile...</p>
       </div>
     );
   }
@@ -125,8 +125,8 @@ export default function LeadDetailPanel({
     return (
       <div className="py-16 flex flex-col items-center justify-center text-center bg-[#faf8f5] rounded-2xl mx-5 mt-5 px-6">
         <User size={32} className="text-[#d6cfc9] mb-2" />
-        <p className="font-manrope text-sm text-[#57534e] font-semibold">Couldn&apos;t load this lead</p>
-        <p className="font-manrope text-xs text-[#a8a29e] mt-1">The request failed. Select the lead again or pick another from the queue.</p>
+        <p className="font-body text-sm text-[#57534e] font-semibold">Couldn&apos;t load this lead</p>
+        <p className="font-body text-xs text-[#a8a29e] mt-1">The request failed. Select the lead again or pick another from the queue.</p>
       </div>
     );
   }
