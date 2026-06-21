@@ -110,3 +110,147 @@ export const INDUSTRIES: Industry[] = [
   { icon: Factory, name: "Manufacturing" },
   { icon: Landmark, name: "Financial Services" },
 ];
+
+/* ── Pricing ────────────────────────────────────────────── */
+
+export interface PricingTier {
+  name: string;
+  monthlyPrice: number | null;
+  annualPrice: number | null;
+  description: string;
+  users: string;
+  extraUserPrice: string;
+  highlight: boolean;
+  badge?: string;
+  features: { text: string; included: boolean }[];
+  cta: string;
+}
+
+export const PRICING_TIERS: PricingTier[] = [
+  {
+    name: "Starter",
+    monthlyPrice: 2499,
+    annualPrice: 1999,
+    description: "For small teams getting started with WhatsApp lead-gen.",
+    users: "3 users included",
+    extraUserPrice: "₹299/user extra",
+    highlight: false,
+    features: [
+      { text: "WhatsApp channel", included: true },
+      { text: "AI conversations (500/mo)", included: true },
+      { text: "Lead management", included: true },
+      { text: "Lead scoring (A/B/C/D)", included: true },
+      { text: "Broadcasts (1,000 contacts/mo)", included: true },
+      { text: "Basic analytics", included: true },
+      { text: "Email support", included: true },
+      { text: "Telecalling", included: false },
+      { text: "Bot flows", included: false },
+      { text: "Knowledge base", included: false },
+      { text: "Call recording & AI coaching", included: false },
+      { text: "Bookings & payments", included: false },
+      { text: "Revenue intelligence", included: false },
+      { text: "Auto-failover", included: false },
+    ],
+    cta: "Start Free Trial",
+  },
+  {
+    name: "Growth",
+    monthlyPrice: 5999,
+    annualPrice: 4799,
+    description: "For growing teams that need multichannel + telecalling.",
+    users: "10 users included",
+    extraUserPrice: "₹249/user extra",
+    highlight: true,
+    badge: "Most Popular",
+    features: [
+      { text: "Everything in Starter +", included: true },
+      { text: "2 channels (WhatsApp + 1 more)", included: true },
+      { text: "AI conversations (3,000/mo)", included: true },
+      { text: "Broadcasts (10,000 contacts/mo)", included: true },
+      { text: "Telecalling (5 callers)", included: true },
+      { text: "Bot flows (3 flows)", included: true },
+      { text: "Knowledge base (50 docs)", included: true },
+      { text: "Full analytics", included: true },
+      { text: "Priority support", included: true },
+      { text: "Call recording & AI coaching", included: false },
+      { text: "Bookings & payments", included: false },
+      { text: "Revenue intelligence", included: false },
+      { text: "Auto-failover", included: false },
+    ],
+    cta: "Start Free Trial",
+  },
+  {
+    name: "Business",
+    monthlyPrice: 11999,
+    annualPrice: 9599,
+    description: "For established teams that need the full platform.",
+    users: "25 users included",
+    extraUserPrice: "₹199/user extra",
+    highlight: false,
+    features: [
+      { text: "Everything in Growth +", included: true },
+      { text: "All 4 channels", included: true },
+      { text: "Unlimited AI conversations", included: true },
+      { text: "Unlimited broadcasts", included: true },
+      { text: "Unlimited callers", included: true },
+      { text: "Unlimited bot flows", included: true },
+      { text: "Full knowledge base", included: true },
+      { text: "Call recording & AI coaching", included: true },
+      { text: "Bookings & payments", included: true },
+      { text: "Revenue intelligence", included: true },
+      { text: "Auto-failover", included: true },
+      { text: "Dedicated support", included: true },
+    ],
+    cta: "Start Free Trial",
+  },
+  {
+    name: "Enterprise",
+    monthlyPrice: null,
+    annualPrice: null,
+    description: "For large organizations with custom requirements.",
+    users: "Unlimited users",
+    extraUserPrice: "",
+    highlight: false,
+    features: [
+      { text: "Everything in Business +", included: true },
+      { text: "Custom integrations", included: true },
+      { text: "White-label option", included: true },
+      { text: "SLA guarantee", included: true },
+      { text: "Dedicated account manager", included: true },
+      { text: "On-premise option", included: true },
+    ],
+    cta: "Contact Sales",
+  },
+];
+
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+export const FAQ_ITEMS: FaqItem[] = [
+  {
+    question: "Do I pay extra for WhatsApp messages?",
+    answer:
+      "Yes — Meta charges per template message (₹1.09 for marketing, ₹0.15 for utility in India). AIRA passes these through at cost with zero markup.",
+  },
+  {
+    question: "Is there a free trial?",
+    answer:
+      "Yes — 14-day free trial on the Growth plan. No credit card required.",
+  },
+  {
+    question: "Can I switch plans anytime?",
+    answer:
+      "Yes — upgrade or downgrade anytime. Changes take effect on your next billing cycle.",
+  },
+  {
+    question: "What about calling charges?",
+    answer:
+      "Voice calling minutes are billed separately through our telephony partner. Rates start at ₹1/minute.",
+  },
+  {
+    question: "Do you offer annual billing?",
+    answer: "Yes — save 20% with annual billing on any plan.",
+  },
+];

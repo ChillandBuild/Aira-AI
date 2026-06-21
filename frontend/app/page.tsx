@@ -10,6 +10,7 @@ import CapabilityStrip from "./components/landing/sections/CapabilityStrip";
 import ProblemSection from "./components/landing/sections/ProblemSection";
 import HowItWorksSection from "./components/landing/sections/HowItWorksSection";
 import PlatformSection from "./components/landing/sections/PlatformSection";
+import PricingSection from "./components/landing/sections/PricingSection";
 import DemoSection from "./components/landing/sections/DemoSection";
 import IndustriesSection from "./components/landing/sections/IndustriesSection";
 import ContactSection from "./components/landing/sections/ContactSection";
@@ -17,7 +18,7 @@ import Footer from "./components/landing/sections/Footer";
 
 const NAV_LINKS = [
   { id: "hero", label: "Home" }, { id: "features", label: "Features" },
-  { id: "industries", label: "Industries" }, { id: "platform", label: "Pricing" },
+  { id: "industries", label: "Industries" }, { id: "pricing", label: "Pricing" },
   { id: "contact", label: "Contact" },
 ];
 
@@ -88,6 +89,7 @@ export default function LandingPage() {
         <ProblemSection />
         <HowItWorksSection />
         <PlatformSection scrollToSection={scrollTo} />
+        <PricingSection scrollToSection={scrollTo} />
         <DemoSection />
         <IndustriesSection />
         <ContactSection />
