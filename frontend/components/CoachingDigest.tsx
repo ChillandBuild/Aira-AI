@@ -48,9 +48,9 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-[#2e1065]/10 mb-8">
+      <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8">
         <div className="flex items-center gap-3">
-          <RefreshCw size={16} className="animate-spin text-[#2e1065]" />
+          <RefreshCw size={16} className="animate-spin text-primary" />
           <span className="font-body text-sm text-on-surface-muted">Loading coaching digest...</span>
         </div>
       </div>
@@ -59,25 +59,24 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
 
   if (!current) {
     return (
-      <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-[#2e1065]/10 mb-8">
+      <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-base font-bold text-[#2e1065] flex items-center gap-2">
-            <div className="p-1.5 rounded-lg text-white" style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}>
-              <Sparkles size={14} />
+          <h2 className="font-display text-base font-bold text-primary flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <Sparkles size={14} className="text-primary" />
             </div>
             AI Coaching
           </h2>
           <button
             onClick={loadTip}
             disabled={tipLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-label text-xs font-semibold text-white transition-all hover:scale-105 disabled:opacity-40"
-            style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 rounded-lg font-label text-xs font-semibold text-primary hover:bg-primary/15 transition-colors disabled:opacity-40"
           >
             <RefreshCw size={12} className={tipLoading ? "animate-spin" : ""} />
             {tip ? "New Tip" : "Get Tip"}
           </button>
         </div>
-        <div className="p-4 bg-white/60 rounded-xl border border-[#2e1065]/5">
+        <div className="p-4 bg-white/60 rounded-xl border border-primary/5">
           <p className="font-body text-sm text-on-surface leading-relaxed">
             {tipLoading
               ? "Generating your personalized coaching tip..."
@@ -101,14 +100,14 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
   const weakestScore = weakest ? current.stats.criteria_avg[weakest] : null;
 
   return (
-    <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-[#2e1065]/10 mb-8 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-[#2e1065]/5 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
+    <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/5 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
 
       {/* Header */}
       <div className="relative flex items-center justify-between mb-4">
-        <h2 className="font-display text-base font-bold text-[#2e1065] flex items-center gap-2">
-          <div className="p-1.5 rounded-lg text-white" style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}>
-            <Sparkles size={14} />
+        <h2 className="font-display text-base font-bold text-primary flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-primary/10">
+            <Sparkles size={14} className="text-primary" />
           </div>
           Daily Coaching Digest
         </h2>
@@ -116,7 +115,7 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
           <button
             onClick={() => setIdx((i) => i + 1)}
             disabled={!hasPrev}
-            className="p-1 rounded-lg hover:bg-[#2e1065]/10 transition-colors disabled:opacity-30"
+            className="p-1 rounded-lg hover:bg-primary/10 transition-colors disabled:opacity-30"
           >
             <ChevronLeft size={16} className="text-[#78716c]" />
           </button>
@@ -124,7 +123,7 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
           <button
             onClick={() => setIdx((i) => i - 1)}
             disabled={!hasNext}
-            className="p-1 rounded-lg hover:bg-[#2e1065]/10 transition-colors disabled:opacity-30"
+            className="p-1 rounded-lg hover:bg-primary/10 transition-colors disabled:opacity-30"
           >
             <ChevronRight size={16} className="text-[#78716c]" />
           </button>
@@ -165,18 +164,18 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
             />
           )}
           {sections.phrase && (
-            <div className="p-3.5 bg-[#2e1065]/5 rounded-xl border border-[#2e1065]/10">
-              <p className="font-label text-[10px] uppercase tracking-wider text-[#2e1065]/60 mb-1">
+            <div className="p-3.5 bg-primary/5 rounded-xl border border-primary/10">
+              <p className="font-label text-[10px] uppercase tracking-wider text-primary/60 mb-1">
                 Try this phrase today
               </p>
-              <p className="font-body text-sm font-semibold text-[#2e1065] leading-relaxed">
+              <p className="font-body text-sm font-semibold text-primary leading-relaxed">
                 &ldquo;{sections.phrase}&rdquo;
               </p>
             </div>
           )}
         </div>
       ) : (
-        <div className="p-4 bg-white/60 rounded-xl border border-[#2e1065]/5">
+        <div className="p-4 bg-white/60 rounded-xl border border-primary/5">
           <p className="font-body text-sm text-on-surface-muted">
             Stats recorded but no coaching report generated for this day.
           </p>
@@ -296,9 +295,9 @@ export function CoachingOneLiner({ callerId }: { callerId: string | null }) {
   if (!phrase) return null;
 
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-[#2e1065]/5 to-[#5b21b6]/5 rounded-xl border border-[#2e1065]/10 mb-4">
-      <Sparkles size={14} className="text-[#2e1065] shrink-0" />
-      <p className="font-body text-sm text-[#2e1065] truncate">
+    <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-[#f5f3ff] to-[#ede9fe] rounded-xl border border-primary/10 mb-4">
+      <Sparkles size={14} className="text-primary shrink-0" />
+      <p className="font-body text-sm text-primary truncate">
         <span className="font-semibold">Try today:</span> &ldquo;{phrase}&rdquo;
       </p>
     </div>
