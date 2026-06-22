@@ -49,9 +49,13 @@ _FEATURE_MAP: dict[str, list[str]] = {
 _SETTING_KEYS: list[tuple[str, bool]] = [
     ("meta_phone_number_id", False), ("meta_access_token", True),
     ("meta_waba_id", False), ("meta_webhook_verify_token", True),
+    ("meta_app_secret", True),
     ("telecmi_user_id", False), ("telecmi_secret", True),
     ("telecmi_callerid", False), ("telecmi_recording_base_url", False),
     ("groq_api_key", True),
+    ("telegram_bot_token", True),
+    ("instagram_page_id", False), ("instagram_access_token", True),
+    ("facebook_page_id", False), ("facebook_access_token", True),
     ("ai_auto_reply_enabled", False),
     ("reengagement_enabled", False),
     ("booking_event_name", False), ("booking_ref_prefix", False), ("booking_amount_paise", False),

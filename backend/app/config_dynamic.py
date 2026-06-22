@@ -61,7 +61,7 @@ def get_setting(key: str, fallback: Optional[str] = None, tenant_id: Optional[st
     except Exception as e:
         logger.warning(f"get_setting({key}, tenant_id={resolved_tenant_id}) DB read failed: {e}")
 
-    if not value:
+    if not value and resolved_tenant_id == _DEFAULT_TENANT_ID:
         value = os.environ.get(_ENV_MAP.get(key, key.upper()))
 
     if not value:

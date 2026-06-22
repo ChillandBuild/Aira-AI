@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.config import settings as env_settings
+from app.config_dynamic import _DEFAULT_TENANT_ID
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.audit_log import record_audit_event
@@ -77,9 +78,12 @@ def _get_setting_value(db, tenant_id: str, key: str) -> str | None:
         .execute()
     )
     db_val = row.data["value"] if row and row.data else None
-    attr = _ENV_ATTRS.get(key)
-    env_val = getattr(env_settings, attr, None) if attr else None
-    return db_val or env_val
+    if db_val:
+        return db_val
+    if tenant_id == _DEFAULT_TENANT_ID:
+        attr = _ENV_ATTRS.get(key)
+        return getattr(env_settings, attr, None) if attr else None
+    return None
 
 
 async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None]:
@@ -116,8 +120,10 @@ async def list_settings(ctx: dict = Depends(require_owner)):
     settings = []
     for row in rows:
         db_value = row["value"]
-        attr = _ENV_ATTRS.get(row["key"])
-        env_value = getattr(env_settings, attr, None) if attr else None
+        env_value = None
+        if not db_value and tenant_id == _DEFAULT_TENANT_ID:
+            attr = _ENV_ATTRS.get(row["key"])
+            env_value = getattr(env_settings, attr, None) if attr else None
         effective_value = db_value or env_value
         is_set = effective_value is not None
         source = "db" if db_value else ("env" if env_value else None)
