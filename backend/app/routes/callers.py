@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_owner
+from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_owner, get_owner_tenant_id
 from app.services.assignment import (
     is_round_robin_enabled,
     set_round_robin_enabled,
@@ -50,7 +50,7 @@ async def get_round_robin(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.patch("/round-robin")
-async def toggle_round_robin(payload: RoundRobinToggle, tenant_id: str = Depends(get_tenant_id)):
+async def toggle_round_robin(payload: RoundRobinToggle, tenant_id: str = Depends(get_owner_tenant_id)):
     """Enable or disable automatic round-robin lead assignment for new inbound leads."""
     set_round_robin_enabled(tenant_id, payload.enabled)
     return {"enabled": payload.enabled}
@@ -266,7 +266,7 @@ async def get_my_stats(ctx: dict = Depends(get_tenant_and_role)):
 
 
 @router.get("/{caller_id}/status-summary")
-async def get_status_summary(caller_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def get_status_summary(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
     """Admin views a caller's status breakdown for today."""
     db = get_supabase()
     now = datetime.now(timezone.utc)
@@ -276,6 +276,7 @@ async def get_status_summary(caller_id: UUID, tenant_id: str = Depends(get_tenan
         db.table("caller_status_logs")
         .select("status,started_at,ended_at")
         .eq("caller_id", str(caller_id))
+        .eq("tenant_id", tenant_id)
         .gte("started_at", today_start)
         .order("started_at")
         .execute()
@@ -359,7 +360,7 @@ async def get_status_summary(caller_id: UUID, tenant_id: str = Depends(get_tenan
 async def get_caller_timeline(
     caller_id: UUID,
     date: str = Query(None),
-    tenant_id: str = Depends(get_tenant_id)
+    tenant_id: str = Depends(get_owner_tenant_id)
 ):
     """Admin views a caller's exact timeline for a specific day."""
     db = get_supabase()
@@ -378,6 +379,7 @@ async def get_caller_timeline(
         db.table("caller_status_logs")
         .select("id,status,started_at,ended_at")
         .eq("caller_id", str(caller_id))
+        .eq("tenant_id", tenant_id)
         .gte("started_at", day_start.isoformat())
         .lt("started_at", day_end.isoformat())
         .order("started_at")
@@ -432,7 +434,7 @@ async def get_caller_timeline(
 
 
 @router.post("/")
-async def create_caller(payload: CreateCaller, tenant_id: str = Depends(get_tenant_id)):
+async def create_caller(payload: CreateCaller, tenant_id: str = Depends(get_owner_tenant_id)):
     db = get_supabase()
     result = db.table("callers").insert({
         "name": payload.name.strip(),
@@ -458,7 +460,7 @@ async def list_callers(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.patch("/{caller_id}")
-async def update_caller(caller_id: UUID, payload: UpdateCaller, tenant_id: str = Depends(get_tenant_id)):
+async def update_caller(caller_id: UUID, payload: UpdateCaller, tenant_id: str = Depends(get_owner_tenant_id)):
     db = get_supabase()
     updates = {}
     if payload.name is not None:
@@ -515,14 +517,14 @@ async def update_caller_target(
 
 
 @router.delete("/{caller_id}")
-async def delete_caller(caller_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def delete_caller(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
     db = get_supabase()
     db.table("callers").update({"active": False}).eq("id", str(caller_id)).eq("tenant_id", tenant_id).execute()
     return {"deleted": True}
 
 
 @router.get("/{caller_id}/logs")
-async def list_caller_logs(caller_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def list_caller_logs(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
     db = get_supabase()
     result = (
         db.table("call_logs")
@@ -540,7 +542,7 @@ async def list_caller_logs(caller_id: UUID, tenant_id: str = Depends(get_tenant_
 
 
 @router.get("/winners")
-async def get_winners(tenant_id: str = Depends(get_tenant_id)):
+async def get_winners(tenant_id: str = Depends(get_owner_tenant_id)):
     """
     Return the daily winner (most conversions today) and monthly winner
     (highest overall_score this month) for the tenant's callers.
@@ -551,6 +553,14 @@ async def get_winners(tenant_id: str = Depends(get_tenant_id)):
 
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Exclude owner from leaderboard (same pattern as list_callers)
+    owner = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
+    owner_user_id = (owner.data or {}).get("user_id")
+    excluded_caller_ids: set[str] = set()
+    if owner_user_id:
+        owner_callers = db.table("callers").select("id").eq("tenant_id", tenant_id).eq("user_id", owner_user_id).execute()
+        excluded_caller_ids = {c["id"] for c in (owner_callers.data or [])}
 
     # ── Daily winner: most conversions today ──────────────────────────────────
     daily_logs = (
@@ -567,7 +577,7 @@ async def get_winners(tenant_id: str = Depends(get_tenant_id)):
         counts: dict[str, int] = {}
         for row in daily_logs.data:
             cid = row.get("caller_id")
-            if cid:
+            if cid and cid not in excluded_caller_ids:
                 counts[cid] = counts.get(cid, 0) + 1
         if counts:
             top_cid = max(counts, key=lambda k: counts[k])
@@ -601,7 +611,7 @@ async def get_winners(tenant_id: str = Depends(get_tenant_id)):
     month_call_counts: dict[str, int] = {}
     for row in (month_logs.data or []):
         cid = row.get("caller_id")
-        if cid:
+        if cid and cid not in excluded_caller_ids:
             month_call_counts[cid] = month_call_counts.get(cid, 0) + 1
 
     # Only callers who have done enough calls this month are eligible.
@@ -643,7 +653,7 @@ async def get_winners(tenant_id: str = Depends(get_tenant_id)):
 @router.get("/{caller_id}/digest")
 async def get_digest(
     caller_id: UUID,
-    tenant_id: str = Depends(get_tenant_id),
+    tenant_id: str = Depends(get_owner_tenant_id),
     days: int = 7,
 ):
     """Return the last N days of coaching digests for a caller."""
@@ -663,7 +673,7 @@ async def get_digest(
 @router.post("/{caller_id}/digest/generate")
 async def trigger_digest(
     caller_id: UUID,
-    tenant_id: str = Depends(get_tenant_id),
+    tenant_id: str = Depends(get_owner_tenant_id),
 ):
     """Manually trigger today's digest for a caller (owner only, for testing)."""
     from datetime import date as _date
@@ -673,7 +683,7 @@ async def trigger_digest(
 
 
 @router.get("/{caller_id}/coaching")
-async def get_coaching(caller_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def get_coaching(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
     db = get_supabase()
     caller = db.table("callers").select("id").eq("id", str(caller_id)).eq("tenant_id", tenant_id).maybe_single().execute()
     if not caller.data:
@@ -682,63 +692,5 @@ async def get_coaching(caller_id: UUID, tenant_id: str = Depends(get_tenant_id))
     return {"caller_id": str(caller_id), "tip": tip}
 
 
-@router.get("/my-calls-today")
-async def my_calls_today(
-    ctx: dict = Depends(get_tenant_and_role)
-):
-    tenant_id = ctx["tenant_id"]
-    caller_id = ctx.get("caller_id")
-    if not caller_id:
-        raise HTTPException(status_code=400, detail="Caller profile not found for current user")
-        
-    db = get_supabase()
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    
-    result = (
-        db.table("call_logs")
-        .select("id,lead_id,call_sid,duration_seconds,outcome,recording_url,score,status,ai_summary,transcript,created_at,leads(phone,name)")
-        .eq("caller_id", caller_id)
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", today_start)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    return {"data": result.data or []}
-
-
-@router.get("/my-performance")
-async def my_performance(
-    ctx: dict = Depends(get_tenant_and_role)
-):
-    tenant_id = ctx["tenant_id"]
-    caller_id = ctx.get("caller_id")
-    if not caller_id:
-        raise HTTPException(status_code=400, detail="Caller profile not found for current user")
-        
-    db = get_supabase()
-    now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    
-    achieved_res = (
-        db.table("call_logs")
-        .select("id", count="exact")
-        .eq("caller_id", caller_id)
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", today_start)
-        .execute()
-    )
-    achieved = achieved_res.count or 0
-    
-    cfg = get_telecalling_config(tenant_id)
-    targets = cfg.get("targets") or {}
-    target = targets.get(str(caller_id)) or targets.get(caller_id) or 0
-    scripts = cfg.get("scripts") or {}
-    
-    return {
-        "achieved": achieved,
-        "target": target,
-        "scripts": scripts
-    }
 
 
