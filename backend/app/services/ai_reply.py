@@ -745,6 +745,8 @@ async def generate_reply(
         sid_field: sid,
     }).execute()
 
+    new_segment = segment  # initialized before [COLLECT_DONE] which may reference it
+
     # Detect [COLLECT_DONE] signal — AI has finished collecting structured data.
     # Parser runs against _raw_reply so the stripped display text doesn't block detection.
     _collect_match = re.match(r'\s*\[COLLECT_DONE\]\s*(\{.*\})\s*$', _raw_reply.strip(), re.DOTALL)
