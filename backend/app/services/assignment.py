@@ -395,7 +395,7 @@ def reassign_backlog(caller_id: str, tenant_id: str) -> None:
         .select("id,segment")
         .eq("tenant_id", tenant_id)
         .is_("assigned_to", "null")
-        .eq("needs_human_intervention", True)
+        .eq("needs_human_attention", True)
         .limit(10)
         .execute()
     )
@@ -411,7 +411,7 @@ def reassign_backlog(caller_id: str, tenant_id: str) -> None:
         db.table("leads").update({
             "assigned_to": caller_id,
             "assigned_at": datetime.now(timezone.utc).isoformat(),
-        }).in_("id", ids_to_assign).execute()
+        }).in_("id", ids_to_assign).is_("assigned_to", "null").execute()
         cn = db.table("callers").select("name").eq("id", caller_id).eq("tenant_id", tenant_id).maybe_single().execute()
         caller_name = (cn.data or {}).get("name") if cn else None
         for lead_id, seg in seg_by_id.items():
