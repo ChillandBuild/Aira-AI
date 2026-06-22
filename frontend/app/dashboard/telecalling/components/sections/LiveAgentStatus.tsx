@@ -33,6 +33,125 @@ function formatHour(h: number): string {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
+function AdminCallerCard({
+  caller, editingAgentIdFor, agentIdInputValue, savingAgentId,
+  onEditAgentId, onSaveAgentId, onCancelEditAgentId, onAgentIdInputChange, onCallersChange,
+}: {
+  caller: Caller;
+  editingAgentIdFor: string | null;
+  agentIdInputValue: string;
+  savingAgentId: string | null;
+  onEditAgentId: (id: string, current: string | null) => void;
+  onSaveAgentId: (id: string) => Promise<void>;
+  onCancelEditAgentId: () => void;
+  onAgentIdInputChange: (v: string) => void;
+  onCallersChange: (updater: (prev: Caller[]) => Caller[]) => void;
+}) {
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState(caller.phone || "");
+  const [savingPhone, setSavingPhone] = useState(false);
+
+  const handleSavePhone = async () => {
+    setSavingPhone(true);
+    try {
+      const trimmed = phoneInput.trim() || undefined;
+      await api.callers.update(caller.id, { phone: trimmed });
+      caller.phone = trimmed ?? null;
+      setEditingPhone(false);
+    } catch {
+      toast.error("Failed to update phone");
+    } finally {
+      setSavingPhone(false);
+    }
+  };
+
+  const needsSetup = !caller.phone && !caller.telecmi_agent_id;
+
+  return (
+    <div className="max-w-sm">
+      <div className="relative p-3 bg-gradient-to-r from-primary/5 to-transparent rounded-xl border border-primary/20 text-xs">
+        <div className="flex items-center justify-between mb-2">
+          <span className="font-bold text-[#292524] text-sm">{caller.name}</span>
+          <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold text-primary bg-primary/10 border-primary/20">
+            Owner
+          </span>
+        </div>
+        {needsSetup && (
+          <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-medium">
+            Set your phone and TeleCMI Agent ID to enable click-to-call
+          </p>
+        )}
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">Phone</span>
+            {editingPhone ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="tel"
+                  value={phoneInput}
+                  onChange={(e) => setPhoneInput(e.target.value)}
+                  autoFocus
+                  placeholder="+919876543210"
+                  className="w-32 px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button onClick={handleSavePhone} disabled={savingPhone}
+                  className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200">
+                  {savingPhone ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
+                </button>
+                <button onClick={() => { setEditingPhone(false); setPhoneInput(caller.phone || ""); }}
+                  className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]">
+                  <X size={10} />
+                </button>
+              </div>
+            ) : (
+              <span className="flex items-center gap-1 text-[#292524]">
+                {caller.phone || <span className="text-[#a8a29e] italic">Not set</span>}
+                <button onClick={() => { setEditingPhone(true); setPhoneInput(caller.phone || ""); }}
+                  className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
+                  title="Edit phone">
+                  <Pencil size={9} />
+                </button>
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">Agent ID</span>
+            {editingAgentIdFor === caller.id ? (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={agentIdInputValue}
+                  onChange={(e) => onAgentIdInputChange(e.target.value)}
+                  autoFocus
+                  placeholder="e.g. 101_33335739"
+                  className="w-32 px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <button onClick={() => onSaveAgentId(caller.id)} disabled={savingAgentId === caller.id}
+                  className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200">
+                  {savingAgentId === caller.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
+                </button>
+                <button onClick={onCancelEditAgentId} disabled={savingAgentId === caller.id}
+                  className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]">
+                  <X size={10} />
+                </button>
+              </div>
+            ) : (
+              <span className="flex items-center gap-1 text-[#292524]">
+                {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
+                <button onClick={() => onEditAgentId(caller.id, caller.telecmi_agent_id || null)}
+                  className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
+                  title="Edit TeleCMI Agent ID">
+                  <Pencil size={9} />
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LiveAgentStatus({
   callers, adminCaller, selectedCallerId, onSelectCaller,
   statsFrom, statsTo, onStatsFromChange, onStatsToChange,
@@ -272,56 +391,18 @@ export default function LiveAgentStatus({
       {adminCaller && (
         <div className="mt-4 mb-1">
           <span className="font-label text-[10px] font-bold text-[#78716c] uppercase tracking-wide">Admin</span>
-          <div className="mt-1.5 max-w-xs">
-            <div className="relative flex items-center justify-between p-2.5 bg-gradient-to-r from-primary/5 to-transparent rounded-xl border border-primary/20 text-xs">
-              <div className="truncate pr-5">
-                <span className="font-bold text-[#292524]">{adminCaller.name}</span>
-                <div className="flex items-center gap-1.5 text-xs text-[#78716c] mt-0.5">
-                  <span>{adminCaller.phone || "—"}</span>
-                  <span className="text-[#d6cfc9]">&middot;</span>
-                  {editingAgentIdFor === adminCaller.id ? (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="text"
-                        value={agentIdInputValue}
-                        onChange={(e) => setAgentIdInputValue(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        autoFocus
-                        className="w-20 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleSaveAgentId(adminCaller.id); }}
-                        disabled={savingAgentId === adminCaller.id}
-                        className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                      >
-                        {savingAgentId === adminCaller.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
-                        disabled={savingAgentId === adminCaller.id}
-                        className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      {adminCaller.telecmi_agent_id || "—"}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(adminCaller.id); setAgentIdInputValue(adminCaller.telecmi_agent_id || ""); }}
-                        className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                        title="Edit TeleCMI Agent ID"
-                      >
-                        <Pencil size={9} />
-                      </button>
-                    </span>
-                  )}
-                </div>
-              </div>
-              <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0 text-primary bg-primary/10 border-primary/20">
-                Owner
-              </span>
-            </div>
+          <div className="mt-1.5">
+            <AdminCallerCard
+              caller={adminCaller}
+              editingAgentIdFor={editingAgentIdFor}
+              agentIdInputValue={agentIdInputValue}
+              savingAgentId={savingAgentId}
+              onEditAgentId={(id, current) => { setEditingAgentIdFor(id); setAgentIdInputValue(current || ""); }}
+              onSaveAgentId={handleSaveAgentId}
+              onCancelEditAgentId={() => { setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
+              onAgentIdInputChange={setAgentIdInputValue}
+              onCallersChange={onCallersChange}
+            />
           </div>
         </div>
       )}
