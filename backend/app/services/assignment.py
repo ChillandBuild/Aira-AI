@@ -182,11 +182,7 @@ def auto_assign_lead(
                 end_h = common_end
         else:
             start_h = common_start
-            if caller.get("shift_start_hour") is not None:
-                start_h = caller.get("shift_start_hour")
             end_h = common_end
-            if caller.get("shift_end_hour") is not None:
-                end_h = caller.get("shift_end_hour")
 
         if start_h <= end_h:
             is_in_shift = (start_h <= current_hour < end_h)
