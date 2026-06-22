@@ -181,7 +181,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
 # ── TeleCMI CDR Webhook ──────────────────────────────────────────────
 # TeleCMI sends JSON CDR to this endpoint after a call completes.
 # Configure this URL in your TeleCMI dashboard → SETTINGS → WEBHOOKS.
-# URL: https://YOUR-RENDER-URL.onrender.com/api/v1/calls/telecmi-cdr
+# URL: https://YOUR-RENDER-URL.onrender.com/api/v1/calls/telecmi-cdr/{tenant_id}
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 
@@ -216,15 +216,16 @@ def _extract_call_log_id(cdr: dict) -> str | None:
     return val
 
 
+@public_router.post("/telecmi-cdr/{path_tenant_id}")
 @public_router.post("/telecmi-cdr")
-async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks):
+async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_tenant_id: str | None = None):
     """Receive Call Detail Record (CDR) from TeleCMI."""
     try:
         cdr = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    tenant_id = request.query_params.get("tenant_id")
+    tenant_id = path_tenant_id or request.query_params.get("tenant_id")
     if not tenant_id:
         call_log_id = _extract_call_log_id(cdr)
         if call_log_id:
