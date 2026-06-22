@@ -94,6 +94,7 @@ export default function KnowledgePage() {
 
   // Scoring Rubric
   const [scoringRubric, setScoringRubric] = useState<string>("");
+  const [savedRubric, setSavedRubric] = useState<string>("");
   const [rubricSaving, setRubricSaving] = useState(false);
 
 
@@ -213,7 +214,9 @@ export default function KnowledgePage() {
       const settings: { key: string; display_value: string }[] = data.settings ?? [];
       const rubric = settings.find((s) => s.key === "scoring_rubric");
       if (rubric) {
-        setScoringRubric(rubric.display_value === "Not set" ? "" : rubric.display_value);
+        const val = rubric.display_value === "Not set" ? "" : rubric.display_value;
+        setScoringRubric(val);
+        setSavedRubric(val);
       }
     } catch {}
   }
@@ -228,6 +231,7 @@ export default function KnowledgePage() {
         body: JSON.stringify({ updates: { scoring_rubric: scoringRubric } }),
       });
       if (!res.ok) throw new Error("Save failed");
+      setSavedRubric(scoringRubric);
       toast.success("Scoring rubric saved.");
     } catch {
       toast.error("Failed to save rubric. Please try again.");
@@ -602,7 +606,7 @@ export default function KnowledgePage() {
             <div className="mt-4 flex gap-3">
               <button
                 onClick={saveRubric}
-                disabled={rubricSaving}
+                disabled={rubricSaving || scoringRubric === savedRubric}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
                 <Save size={14} /> {rubricSaving ? "Saving…" : "Save Rubric"}

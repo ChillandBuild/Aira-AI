@@ -192,6 +192,41 @@ async def update_settings(
         )
         if result.data:
             updated.append(key)
+
+    # Reset status of the channel to "configured" if credentials are changed
+    wa_keys = {"meta_access_token", "meta_phone_number_id", "meta_waba_id", "meta_app_secret", "meta_webhook_verify_token"}
+    ig_keys = {"instagram_access_token", "instagram_page_id"}
+    fb_keys = {"facebook_access_token", "facebook_page_id"}
+
+    reset_wa = any(k in updated for k in wa_keys)
+    reset_ig = any(k in updated for k in ig_keys)
+    reset_fb = any(k in updated for k in fb_keys)
+
+    if reset_wa:
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "whatsapp_status",
+            "value": "configured",
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+    if reset_ig:
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "instagram_status",
+            "value": "configured",
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+    if reset_fb:
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "facebook_status",
+            "value": "configured",
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+
     from app.config_dynamic import invalidate_cache
     invalidate_cache()
     record_audit_event(
@@ -320,6 +355,15 @@ async def activate_channel(
         except Exception as phone_reg_err:
             logger.warning(f"Failed to auto-register phone number on activation: {phone_reg_err}")
 
+        # Save activation status to app_settings
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "whatsapp_status",
+            "value": "live",
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+
         record_audit_event(
             db,
             tenant_id=tenant_id,
@@ -366,6 +410,15 @@ async def activate_channel(
     subscribed = sub_data.get("success", False)
     if "error" in sub_data:
         logger.warning(f"{channel} subscribed_apps failed tenant={tenant_id}: {sub_data['error']}")
+
+    # Save activation status to app_settings
+    db.table("app_settings").upsert({
+        "tenant_id": tenant_id,
+        "key": f"{channel}_status",
+        "value": "live",
+        "is_secret": False,
+        "updated_at": "now()",
+    }, on_conflict="tenant_id,key").execute()
 
     logger.info(f"{channel} activated tenant={tenant_id} page={data.get('name')} subscribed={subscribed}")
     record_audit_event(

@@ -465,7 +465,8 @@ export default function ConnectChannelsPanel() {
     if (!selectedChannel) return false;
     return selectedChannel.fields.some(f => {
       const meta = settings.find(s => s.key === f.key);
-      const draft = drafts[f.key] ?? "";
+      const draft = drafts[f.key];
+      if (draft === undefined) return false;
       if (f.secret) return draft.length > 0;
       const stored = meta?.display_value === "Not set" ? "" : (meta?.display_value ?? "");
       return draft !== stored;
@@ -538,6 +539,7 @@ export default function ConnectChannelsPanel() {
           ].filter(Boolean).join(" · ");
         }
         setActivateResult({ success: true, message: "Validated & connected", detail });
+        await load();
         loadHealth();
       }
     } catch {
@@ -601,14 +603,24 @@ export default function ConnectChannelsPanel() {
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-red-100 text-red-700">
                               Token Invalid
                             </span>
-                          ) : health?.last_event ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-emerald-50 text-emerald-700">
-                              Live
-                            </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-amber-50 text-amber-700">
-                              Configured
-                            </span>
+                            (() => {
+                              const statusSetting = settings.find(s => s.key === `${channel.id}_status`);
+                              const isLive = !channel.hasActivation || statusSetting?.display_value === "live" || !!health?.last_event;
+                              if (isLive) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-emerald-50 text-emerald-700 animate-fade-in">
+                                    Live
+                                  </span>
+                                );
+                              } else {
+                                return (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-amber-50 text-amber-700 animate-fade-in">
+                                    Configured
+                                  </span>
+                                );
+                              }
+                            })()
                           )}
                         </>
                       )}
