@@ -247,7 +247,7 @@ async def telecalling_analytics(
         asyncio.to_thread(logs_today_query.execute),
         asyncio.to_thread(
             db.table("call_logs")
-            .select("id")
+            .select("id,caller_id")
             .eq("tenant_id", tenant_id)
             .gte("created_at", week)
             .execute
@@ -273,6 +273,14 @@ async def telecalling_analytics(
     owner_row = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").limit(1).execute()
     owner_user_id = (owner_row.data[0] if owner_row.data else {}).get("user_id")
     callers_res = [c for c in all_callers if c.get("user_id") != owner_user_id] if owner_user_id else all_callers
+
+    # Exclude the owner/admin's own calls from team aggregates (Invariant 13: admin is
+    # excluded from ALL telecaller metrics). A null caller_id can only be an owner direct
+    # call — telecallers always carry a caller_id — so drop those plus any owner caller-record
+    # calls. Keeps the banner consistent with the owner-excluded leaderboard below.
+    owner_caller_ids = {c["id"] for c in all_callers if c.get("user_id") == owner_user_id}
+    logs_today_res = [l for l in logs_today_res if l.get("caller_id") is not None and l.get("caller_id") not in owner_caller_ids]
+    logs_week_res = [l for l in logs_week_res if l.get("caller_id") is not None and l.get("caller_id") not in owner_caller_ids]
 
     calls_today = len(logs_today_res)
     calls_this_week = len(logs_week_res)
