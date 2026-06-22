@@ -118,5 +118,7 @@ def delete_step(
     if ctx["role"] != "owner":
         raise HTTPException(status_code=403, detail="Only owners can manage re-engagement")
     db = get_supabase()
-    db.table("reengagement_steps").delete().eq("id", step_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    result = db.table("reengagement_steps").delete().eq("id", step_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Step not found")
     return {"success": True}

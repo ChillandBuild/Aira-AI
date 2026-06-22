@@ -1,0 +1,11 @@
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+
+[mcp_servers.render]
+url = "https://mcp.render.com/mcp?ownerId=tea-d7m36fsvikkc73fo8pcg"
+
+[mcp_servers.render.http_headers]
+Authorization = "Bearer rnd_4h6hYf2OzaQGLWMgrOle6Zlnr41X"
