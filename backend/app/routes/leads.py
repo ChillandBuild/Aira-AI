@@ -79,10 +79,10 @@ async def list_leads(
              .neq("whatsapp_undeliverable", True))
     if segment:
         query = query.eq("segment", segment)
-    if assigned_to:
-        query = query.eq("assigned_to", assigned_to)
-    elif ctx.get("role") == "caller" and ctx.get("caller_id"):
+    if ctx.get("role") == "caller" and ctx.get("caller_id"):
         query = query.eq("assigned_to", ctx["caller_id"])
+    elif assigned_to:
+        query = query.eq("assigned_to", assigned_to)
 
     # Apply medium / campaign / broadcast filters
     INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram')
