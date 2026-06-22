@@ -481,13 +481,15 @@ export default function ConnectChannelsPanel() {
     const updates: SettingsMap = {};
     selectedChannel.fields.forEach(f => {
       const draft = drafts[f.key];
+      if (draft === undefined) return;
+      // A never-saved key has no settings row yet; fall back to the field def
+      // so first-time saves (e.g. instagram_app_secret) aren't dropped.
       const current = settingFor(f.key);
-      if (!current) return;
-      if (current.is_secret) {
-        if (draft && draft.length > 0) updates[f.key] = draft;
+      if (f.secret) {
+        if (draft.length > 0) updates[f.key] = draft;
       } else {
-        const stored = current.display_value === "Not set" ? "" : current.display_value;
-        if (draft !== undefined && draft !== stored) updates[f.key] = draft;
+        const stored = current?.display_value === "Not set" ? "" : (current?.display_value ?? "");
+        if (draft !== stored) updates[f.key] = draft;
       }
     });
 
