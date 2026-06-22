@@ -108,7 +108,7 @@ def list_clients(_admin: dict = Depends(get_system_admin)):
 async def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
     features = _FEATURE_MAP[payload.service]
-    tc_subs = ["telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"]
+    tc_subs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"]
     if "telecalling" in features:
         features = features + tc_subs
     has_channel = any(ch in features for ch in ("whatsapp", "instagram", "facebook", "telegram"))
@@ -204,8 +204,9 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
             raise HTTPException(status_code=400, detail=f"Invalid features: {', '.join(invalid)}")
         features = list(payload.features)
         tc_subs = {"telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"}
+        tc_default_subs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"]
         if "telecalling" in features and not (set(features) & tc_subs):
-            features.extend(tc_subs)
+            features.extend(tc_default_subs)
         if "telecalling" not in features:
             features = [f for f in features if f not in tc_subs]
     elif payload.service is not None:
