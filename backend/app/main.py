@@ -33,6 +33,9 @@ from datetime import datetime, timezone, timedelta
 _startup_time = datetime.now(timezone.utc)
 _heartbeats = {
     "scheduled-broadcasts": None,
+    "callback-reassignment": None,
+    "number-quality-sync": None,
+    "daily-digest": None,
 }
 
 
@@ -213,6 +216,65 @@ async def _recycle_contacts() -> None:
         logger.error(f"Contact recycler error: {e}")
 
 
+async def _process_callback_reassignments() -> None:
+    """APScheduler job: reassign overdue callbacks from away callers."""
+    _heartbeats["callback-reassignment"] = datetime.now(timezone.utc)
+    try:
+        from app.services.assignment import process_callback_reassignments
+        count = process_callback_reassignments()
+        if count:
+            logger.info(f"Callback reassignment: reassigned {count} lead(s)")
+    except Exception as e:
+        logger.error(f"Callback reassignment error: {e}")
+
+
+async def _sync_all_number_quality() -> None:
+    """APScheduler daily job: sync phone number quality ratings from Meta API."""
+    _heartbeats["number-quality-sync"] = datetime.now(timezone.utc)
+    try:
+        from app.db.supabase import get_supabase
+        from app.services.meta_cloud import get_number_quality
+        from app.services.failover import update_number_quality
+
+        db = get_supabase()
+        rows = (
+            db.table("phone_numbers")
+            .select("id,meta_phone_number_id,tenant_id")
+            .not_.is_("meta_phone_number_id", "null")
+            .execute()
+        )
+        synced = 0
+        for row in (rows.data or []):
+            try:
+                meta_data = await get_number_quality(
+                    phone_number_id=row["meta_phone_number_id"],
+                    tenant_id=row["tenant_id"],
+                )
+                await update_number_quality(
+                    meta_phone_number_id=row["meta_phone_number_id"],
+                    quality_rating=meta_data.get("quality_rating", "UNKNOWN"),
+                    messaging_tier=meta_data.get("messaging_tier"),
+                )
+                synced += 1
+            except Exception as e:
+                logger.warning(f"Quality sync failed for number {row['id']}: {e}")
+        logger.info(f"Number quality sync complete: {synced}/{len(rows.data or [])} number(s)")
+    except Exception as e:
+        logger.error(f"Number quality sync error: {e}")
+
+
+async def _generate_daily_digests() -> None:
+    """APScheduler cron job: generate daily coaching digests for all callers."""
+    _heartbeats["daily-digest"] = datetime.now(timezone.utc)
+    try:
+        from app.services.call_digest import generate_all_digests
+        from datetime import date
+        ist_date = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date()
+        await generate_all_digests(ist_date)
+    except Exception as e:
+        logger.error(f"Daily digest generation error: {e}")
+
+
 _scheduler = AsyncIOScheduler()
 
 
@@ -298,12 +360,35 @@ async def lifespan(app: FastAPI):
         id="recycle-contacts",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _process_callback_reassignments,
+        trigger="interval",
+        minutes=1,
+        id="callback-reassignment",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        _sync_all_number_quality,
+        trigger="interval",
+        hours=24,
+        id="number-quality-sync",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        _generate_daily_digests,
+        trigger="cron",
+        hour=13,
+        minute=0,
+        timezone="UTC",
+        id="daily-digest",
+        replace_existing=True,
+    )
     _scheduler.add_listener(
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m)")
+    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-reassign(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC)")
 
     yield
 

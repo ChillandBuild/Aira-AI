@@ -557,3 +557,130 @@ def is_caller_on_call(db, caller_id: str, tenant_id: str) -> bool:
         .execute()
     )
     return bool(res.data)
+
+
+def _in_shift_caller_ids(tenant_id: str) -> set[str]:
+    """Return the set of active caller ids currently within their shift hours."""
+    db = get_supabase()
+    cfg = get_telecalling_config(tenant_id)
+    shift_mode = cfg.get("shift_mode", "common")
+    common_start = cfg.get("shift_start_hour", 9)
+    common_end = cfg.get("shift_end_hour", 19)
+
+    from datetime import timedelta
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    current_hour = now_ist.hour
+
+    owner = (
+        db.table("tenant_users")
+        .select("user_id")
+        .eq("tenant_id", tenant_id)
+        .eq("role", "owner")
+        .limit(1)
+        .execute()
+    )
+    owner_user_id = (owner.data[0] if owner.data else {}).get("user_id")
+
+    query = (
+        db.table("callers")
+        .select("id,user_id,shift_start_hour,shift_end_hour")
+        .eq("tenant_id", tenant_id)
+        .eq("active", True)
+    )
+    if owner_user_id:
+        query = query.neq("user_id", owner_user_id)
+    callers = query.execute()
+    if not callers.data:
+        return set()
+
+    ids: set[str] = set()
+    for caller in callers.data:
+        if shift_mode == "individual":
+            start_h = caller.get("shift_start_hour") if caller.get("shift_start_hour") is not None else common_start
+            end_h = caller.get("shift_end_hour") if caller.get("shift_end_hour") is not None else common_end
+        else:
+            start_h = common_start
+            end_h = common_end
+
+        if start_h <= end_h:
+            in_shift = (start_h <= current_hour < end_h)
+        else:
+            in_shift = (current_hour >= start_h or current_hour < end_h)
+        if in_shift:
+            ids.add(caller["id"])
+    return ids
+
+
+def process_callback_reassignments() -> int:
+    """Reassign overdue callbacks from away callers to available ones.
+
+    Returns the number of leads reassigned.
+    """
+    db = get_supabase()
+    now = datetime.now(timezone.utc).isoformat()
+
+    tenants = db.table("app_settings").select("tenant_id").eq("key", "telecalling_config").execute()
+    seen: set[str] = set()
+    total = 0
+
+    for row in (tenants.data or []):
+        tid = row.get("tenant_id")
+        if not tid or tid in seen:
+            continue
+        seen.add(tid)
+
+        cfg = get_telecalling_config(tid)
+        if not cfg.get("enabled"):
+            continue
+
+        try:
+            in_shift_ids = _in_shift_caller_ids(tid)
+
+            overdue = (
+                db.table("follow_up_jobs")
+                .select("id,lead_id,scheduled_by_caller_id")
+                .eq("tenant_id", tid)
+                .eq("cadence", "callback")
+                .eq("status", "pending")
+                .lte("scheduled_for", now)
+                .limit(50)
+                .execute()
+            )
+
+            for job in (overdue.data or []):
+                try:
+                    lead_row = (
+                        db.table("leads")
+                        .select("id,assigned_to,segment")
+                        .eq("id", job["lead_id"])
+                        .eq("tenant_id", tid)
+                        .maybe_single()
+                        .execute()
+                    )
+                    if not lead_row or not lead_row.data:
+                        continue
+
+                    current_caller = lead_row.data.get("assigned_to")
+                    if not current_caller:
+                        continue
+
+                    if current_caller in in_shift_ids:
+                        continue
+
+                    result = auto_assign_lead(
+                        lead_id=job["lead_id"],
+                        tenant_id=tid,
+                        reason="callback_reassign",
+                        segment=lead_row.data.get("segment"),
+                        event_type="reassigned",
+                        prev_caller_id=current_caller,
+                        exclude_caller_ids=[current_caller],
+                    )
+                    if result:
+                        total += 1
+                except Exception as e:
+                    logger.warning(f"Callback reassign failed for job {job['id']}: {e}")
+        except Exception as e:
+            logger.error(f"Callback reassignment failed for tenant {tid}: {e}")
+
+    return total
