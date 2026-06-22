@@ -916,8 +916,8 @@ export const api = {
     remove: (id: string) =>
       apiFetch<{ deleted: boolean }>(`/api/v1/callers/${id}`, { method: "DELETE" }),
     list: async () => {
-      const res = await apiFetch<{ data: Caller[] }>(`/api/v1/callers/`);
-      return res.data || [];
+      const res = await apiFetch<{ data: Caller[]; admin_caller?: Caller | null }>(`/api/v1/callers/`);
+      return { data: res.data || [], admin_caller: res.admin_caller ?? null };
     },
     logs: async (id: string) => {
       const res = await apiFetch<{ data: CallLog[] }>(`/api/v1/callers/${id}/logs`);

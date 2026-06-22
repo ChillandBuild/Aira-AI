@@ -42,13 +42,13 @@ export function useAdminDashboard(fallbackData?: AdminDashboardData) {
   return useSWR<AdminDashboardData>(
     "telecalling/admin-dashboard",
     async () => {
-      const [callers, topLeads, stats] = await Promise.all([
+      const [callersRes, topLeads, stats] = await Promise.all([
         api.callers.list(),
         api.leads.list({ limit: 5 }),
         api.calls.statsToday().catch(() => ({ calls_today: 0, conversions_today: 0 })),
       ]);
       return {
-        callers,
+        callers: callersRes.data,
         topLeads,
         totalCallsToday: stats.calls_today,
         totalConversionsToday: stats.conversions_today,
@@ -88,10 +88,10 @@ export function useTeamList(enabled = true, fallbackData?: { data: TeamMember[] 
 }
 
 export function useCallers(enabled = true, fallbackData?: Caller[]) {
-  return useSWR<Caller[]>(
+  return useSWR<{ data: Caller[]; admin_caller: Caller | null }>(
     enabled ? "callers/list" : null,
     () => api.callers.list(),
-    { ...defaultConfig, fallbackData },
+    { ...defaultConfig, fallbackData: fallbackData ? { data: fallbackData, admin_caller: null } : undefined },
   );
 }
 

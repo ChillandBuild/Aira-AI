@@ -47,7 +47,8 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
     fallbackCallers ?? undefined
   );
 
-  const callers = callersData ?? [];
+  const callers = callersData?.data ?? [];
+  const adminCaller = callersData?.admin_caller ?? null;
 
   async function load() {
     await mutateCallers();
@@ -132,7 +133,7 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
       {tab === "log" ? (
         <AssignmentLog callers={callers} />
       ) : (
-        <PerformanceView callers={callers} />
+        <PerformanceView callers={callers} adminCaller={adminCaller} />
       )}
     </div>
   );

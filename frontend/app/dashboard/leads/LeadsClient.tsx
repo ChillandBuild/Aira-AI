@@ -237,7 +237,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
   const loading = !leadsData;
 
   useEffect(() => {
-    api.callers.list().then((data: Caller[]) => setCallers(data.filter((c) => c.active))).catch(() => {});
+    api.callers.list().then((res) => setCallers((res.data || []).filter((c) => c.active))).catch(() => {});
     api.inboundLeads.campaigns().then(setCampaigns).catch(() => {});
     api.broadcasts.history().then(setBroadcastHistory).catch(() => {});
 

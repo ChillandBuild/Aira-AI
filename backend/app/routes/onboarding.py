@@ -68,6 +68,18 @@ def create_tenant(payload: CreateTenantPayload, user: dict = Depends(get_current
 
     _seed_app_settings(db, tenant_id)
 
+    try:
+        db.table("callers").insert({
+            "tenant_id": tenant_id,
+            "user_id": user["user_id"],
+            "name": "Admin",
+            "active": True,
+            "status": "active",
+            "overall_score": 10.0,
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Failed to seed admin caller for tenant {tenant_id}: {e}")
+
     logger.info(f"Tenant created: {tenant_id} for user {user['user_id']}")
     return {"tenant_id": tenant_id, "already_exists": False}
 

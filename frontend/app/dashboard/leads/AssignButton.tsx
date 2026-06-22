@@ -70,7 +70,7 @@ export function AssignButton({ leadId, currentAssignedTo, callers: callersProp, 
     setFetchingCallers(true);
     api.callers
       .list()
-      .then((data) => setCallers(data.filter((c) => c.active)))
+      .then((res) => setCallers((res.data || []).filter((c) => c.active)))
       .catch(() => setError("Failed to load callers"))
       .finally(() => setFetchingCallers(false));
   }, [open, callers.length]);

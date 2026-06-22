@@ -28,7 +28,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
         api.callers.list(),
         api.leads.list({ assigned_to: callerId || undefined, limit: 1000 }),
       ]);
-      const callers = Array.isArray(rawCallers) ? rawCallers : [];
+      const callers = Array.isArray(rawCallers) ? rawCallers : (rawCallers?.data ?? []);
       const leads = Array.isArray(rawLeads) ? rawLeads : [];
       const me = callers.find((c: Caller) => c.id === callerId) || null;
       if (me) setMyStatus((me.status as "active" | "break" | "logged_out") || "active");

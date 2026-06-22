@@ -22,7 +22,7 @@ import LeadProfileModal from "./sections/LeadProfileModal";
 type SortField =
   | "name" | "calls_today" | "connect_rate" | "avg_talk_seconds" | "idle_minutes_today" | "quality_avg";
 
-export default function PerformanceView({ callers }: { callers: Caller[] }) {
+export default function PerformanceView({ callers, adminCaller }: { callers: Caller[]; adminCaller?: Caller | null }) {
   const [stats, setStats] = useState<TelecallingAnalyticsExtended | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [callersList, setCallersList] = useState<Caller[]>(callers);
@@ -71,8 +71,8 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
 
   const loadCallers = useCallback(async () => {
     try {
-      const data = await api.callers.list();
-      setCallersList(data);
+      const res = await api.callers.list();
+      setCallersList(res.data);
     } catch (err) {
       console.error("Failed to load callers:", err);
     }
@@ -205,6 +205,7 @@ export default function PerformanceView({ callers }: { callers: Caller[] }) {
       {/* Live agent status strip */}
       <LiveAgentStatus
         callers={callersList}
+        adminCaller={adminCaller ?? null}
         selectedCallerId={selectedCallerId}
         onSelectCaller={setSelectedCallerId}
         statsFrom={statsFrom}

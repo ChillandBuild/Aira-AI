@@ -14,6 +14,7 @@ interface ShiftConfig {
 
 interface LiveAgentStatusProps {
   callers: Caller[];
+  adminCaller: Caller | null;
   selectedCallerId: string | null;
   onSelectCaller: (id: string | null) => void;
   statsFrom: string;
@@ -33,7 +34,7 @@ function formatHour(h: number): string {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 export default function LiveAgentStatus({
-  callers, selectedCallerId, onSelectCaller,
+  callers, adminCaller, selectedCallerId, onSelectCaller,
   statsFrom, statsTo, onStatsFromChange, onStatsToChange,
   onCallersChange, onRemoved,
   shiftConfig, onShiftConfigSave,
@@ -266,6 +267,64 @@ export default function LiveAgentStatus({
           </button>
         </div>
       </div>
+
+      {/* Admin caller card — separate from team, non-deletable */}
+      {adminCaller && (
+        <div className="mt-4 mb-1">
+          <span className="font-label text-[10px] font-bold text-[#78716c] uppercase tracking-wide">Admin</span>
+          <div className="mt-1.5 max-w-xs">
+            <div className="relative flex items-center justify-between p-2.5 bg-gradient-to-r from-primary/5 to-transparent rounded-xl border border-primary/20 text-xs">
+              <div className="truncate pr-5">
+                <span className="font-bold text-[#292524]">{adminCaller.name}</span>
+                <div className="flex items-center gap-1.5 text-xs text-[#78716c] mt-0.5">
+                  <span>{adminCaller.phone || "—"}</span>
+                  <span className="text-[#d6cfc9]">&middot;</span>
+                  {editingAgentIdFor === adminCaller.id ? (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="text"
+                        value={agentIdInputValue}
+                        onChange={(e) => setAgentIdInputValue(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                        className="w-20 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleSaveAgentId(adminCaller.id); }}
+                        disabled={savingAgentId === adminCaller.id}
+                        className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
+                      >
+                        {savingAgentId === adminCaller.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
+                        disabled={savingAgentId === adminCaller.id}
+                        className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      {adminCaller.telecmi_agent_id || "—"}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(adminCaller.id); setAgentIdInputValue(adminCaller.telecmi_agent_id || ""); }}
+                        className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
+                        title="Edit TeleCMI Agent ID"
+                      >
+                        <Pencil size={9} />
+                      </button>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold shrink-0 text-primary bg-primary/10 border-primary/20">
+                Owner
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
         {callers.map((c) => {

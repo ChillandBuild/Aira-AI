@@ -455,11 +455,16 @@ async def list_callers(tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
     owner = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
     owner_user_id = (owner.data or {}).get("user_id")
-    query = db.table("callers").select("*").eq("tenant_id", tenant_id).eq("active", True)
-    if owner_user_id:
-        query = query.neq("user_id", owner_user_id)
-    callers = query.order("overall_score", desc=True).execute()
-    return {"data": callers.data or []}
+    all_callers = db.table("callers").select("*").eq("tenant_id", tenant_id).eq("active", True).order("overall_score", desc=True).execute()
+    rows = all_callers.data or []
+    admin_caller = None
+    team = []
+    for c in rows:
+        if owner_user_id and c.get("user_id") == owner_user_id:
+            admin_caller = c
+        else:
+            team.append(c)
+    return {"data": team, "admin_caller": admin_caller}
 
 
 @router.patch("/{caller_id}")
