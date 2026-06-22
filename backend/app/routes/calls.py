@@ -9,7 +9,6 @@ import httpx
 from fastapi import Depends, Query
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import BaseModel, Field
-from app.config import settings
 from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
@@ -62,7 +61,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
     tenant_id = ctx["tenant_id"]
     role = ctx.get("role")
 
-    telecmi_secret = get_setting("telecmi_secret", tenant_id=tenant_id) or settings.telecmi_secret
+    telecmi_secret = get_setting("telecmi_secret", tenant_id=tenant_id)
     if not telecmi_secret:
         raise HTTPException(status_code=400, detail="TeleCMI App Secret not configured. Set it in Settings.")
 
@@ -140,7 +139,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
 
     try:
         # TeleCMI click-to-call: rings the caller first, then bridges to the lead
-        telecmi_callerid = get_setting("telecmi_callerid", tenant_id=tenant_id) or settings.telecmi_callerid or best_number["number"]
+        telecmi_callerid = get_setting("telecmi_callerid", tenant_id=tenant_id) or best_number["number"]
         # Caller's own agent ID takes priority; admin direct calls fall back to global setting
         # Fallback: owner's own caller record agent_id, then global setting
         effective_agent_id = caller_telecmi_agent_id
@@ -151,7 +150,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
                 if owner_caller.data:
                     effective_agent_id = owner_caller.data.get("telecmi_agent_id")
         if not effective_agent_id:
-            effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id) or settings.telecmi_user_id
+            effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
         if not effective_agent_id:
             raise HTTPException(status_code=400, detail="No TeleCMI Agent ID found. Assign one from the Team page.")
         result = await initiate_click2call(
@@ -317,7 +316,7 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks):
     recording_filename = cdr.get("filename")
     if recording_filename:
         appid = cdr.get("appid")
-        secret = get_setting("telecmi_secret", tenant_id=log_row.data.get("tenant_id")) or settings.telecmi_secret
+        secret = get_setting("telecmi_secret", tenant_id=log_row.data.get("tenant_id"))
         if appid and secret:
             # This play URL embeds the TeleCMI secret token, so it must NOT be
             # persisted. Pass it only to the background task, which downloads the

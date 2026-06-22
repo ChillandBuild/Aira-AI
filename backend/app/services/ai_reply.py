@@ -3,7 +3,6 @@ import re
 import time
 import httpx
 from groq import AsyncGroq
-from app.config import settings
 from app.db.supabase import get_supabase
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.segmentation import score_to_segment, parse_thresholds
@@ -237,7 +236,7 @@ async def send_instagram(ig_user_id: str, message: str, tenant_id: str | None = 
     Uses Page Access Token — requires pages_messaging + instagram_manage_messages scope.
     """
     from app.config_dynamic import get_setting
-    access_token = get_setting("instagram_access_token", tenant_id=tenant_id) or settings.meta_page_token
+    access_token = get_setting("instagram_access_token", tenant_id=tenant_id)
     if not access_token:
         logger.error(f"instagram_access_token not configured for tenant {tenant_id} — cannot send Instagram DM")
         return None
@@ -269,7 +268,7 @@ async def send_instagram(ig_user_id: str, message: str, tenant_id: str | None = 
 async def send_telegram(tg_user_id: str, message: str, tenant_id: str | None = None) -> str | None:
     """Send a Telegram message via Bot API. Returns message ID (as string) or None on failure."""
     from app.config_dynamic import get_setting
-    bot_token = get_setting("telegram_bot_token", tenant_id=tenant_id) or settings.telegram_bot_token
+    bot_token = get_setting("telegram_bot_token", tenant_id=tenant_id)
     if not bot_token:
         logger.error(f"telegram_bot_token not configured for tenant {tenant_id} — cannot send Telegram DM")
         return None
@@ -297,7 +296,7 @@ async def send_telegram(tg_user_id: str, message: str, tenant_id: str | None = N
 async def send_facebook(fb_user_id: str, message: str, tenant_id: str | None = None) -> str | None:
     """Send a Facebook Messenger message via Graph API. Returns message id or None on failure."""
     from app.config_dynamic import get_setting
-    access_token = get_setting("facebook_access_token", tenant_id=tenant_id) or settings.facebook_access_token
+    access_token = get_setting("facebook_access_token", tenant_id=tenant_id)
     if not access_token:
         logger.error(f"facebook_access_token not configured for tenant {tenant_id} — cannot send Facebook DM")
         return None
