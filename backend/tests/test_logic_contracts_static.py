@@ -31,13 +31,6 @@ class LogicContractChecks(unittest.TestCase):
         self.assertIn("_TIER_DAILY_LIMITS: dict[int, int] = {1000: 1_000, 10000: 10_000, 100000: 100_000}", router)
         self.assertIn("get_best_number(tenant_id)", upload)
 
-    def test_frontend_bookings_uses_authenticated_backend_api(self):
-        page = read("frontend/app/dashboard/bookings/page.tsx")
-
-        self.assertIn('import { API_URL, getAuthHeaders } from "@/lib/api";', page)
-        self.assertIn("await getAuthHeaders()", page)
-        self.assertIn("`${API_URL}/api/v1/bookings?${params}`", page)
-
     def test_tenant_uniqueness_migration_uses_composite_keys(self):
         migration = read("backend/supabase/migrations/033_tenant_contract_fixes.sql")
 

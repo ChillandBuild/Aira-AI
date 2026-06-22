@@ -62,25 +62,11 @@ class TestIntentDelta(unittest.TestCase):
         delta, reason = _compute_intent_delta("नहीं चाहिए", "idle")
         self.assertEqual(delta, _REJECTION_SENTINEL)
 
-    # ── Active booking flow ───────────────────────────────────────────────
-    def test_collecting_name_state_returns_plus2(self):
-        delta, reason = _compute_intent_delta("My name is Rajan", "collecting_name")
-        self.assertEqual(delta, 2)
-        self.assertEqual(reason, "active_booking_flow")
-
-    def test_collecting_rasi_state_returns_plus2(self):
-        delta, reason = _compute_intent_delta("Rishabam", "collecting_rasi")
-        self.assertEqual(delta, 2)
-
-    def test_awaiting_payment_state_returns_plus2(self):
-        delta, reason = _compute_intent_delta("ok done", "awaiting_payment")
-        self.assertEqual(delta, 2)
-
-    # ── Booking intent keywords ───────────────────────────────────────────
+    # ── High intent keywords ──────────────────────────────────────────────
     def test_book_keyword_returns_positive(self):
         delta, reason = _compute_intent_delta("I want to book the homam", "idle")
         self.assertGreater(delta, 0)
-        self.assertIn("booking_intent", reason)
+        self.assertIn("high_intent", reason)
 
     def test_price_keyword_returns_positive(self):
         delta, reason = _compute_intent_delta("what is the price?", "idle")
@@ -230,11 +216,8 @@ class TestShouldScoreArc(unittest.TestCase):
     def test_fourth_message_does_not_score(self):
         self.assertFalse(_should_score_arc(4, "neutral"))
 
-    def test_booking_intent_on_second_message_scores(self):
-        self.assertTrue(_should_score_arc(2, "booking_intent"))
-
-    def test_active_booking_flow_on_any_message_scores(self):
-        self.assertTrue(_should_score_arc(4, "active_booking_flow"))
+    def test_high_intent_on_second_message_scores(self):
+        self.assertTrue(_should_score_arc(2, "high_intent"))
 
     def test_neutral_on_non_multiple_does_not_score(self):
         self.assertFalse(_should_score_arc(5, "neutral"))

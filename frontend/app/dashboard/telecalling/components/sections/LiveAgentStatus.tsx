@@ -35,7 +35,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function AdminCallerCard({
   caller, editingAgentIdFor, agentIdInputValue, savingAgentId,
-  onEditAgentId, onSaveAgentId, onCancelEditAgentId, onAgentIdInputChange, onCallersChange,
+  onEditAgentId, onSaveAgentId, onCancelEditAgentId, onAgentIdInputChange,
 }: {
   caller: Caller;
   editingAgentIdFor: string | null;
@@ -45,7 +45,6 @@ function AdminCallerCard({
   onSaveAgentId: (id: string) => Promise<void>;
   onCancelEditAgentId: () => void;
   onAgentIdInputChange: (v: string) => void;
-  onCallersChange: (updater: (prev: Caller[]) => Caller[]) => void;
 }) {
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState(caller.phone || "");
@@ -401,7 +400,6 @@ export default function LiveAgentStatus({
               onSaveAgentId={handleSaveAgentId}
               onCancelEditAgentId={() => { setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
               onAgentIdInputChange={setAgentIdInputValue}
-              onCallersChange={onCallersChange}
             />
           </div>
         </div>

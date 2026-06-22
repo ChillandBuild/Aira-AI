@@ -70,7 +70,7 @@ async def test_telegram_webhook_new_lead():
          patch("app.routes.telegram.get_setting", return_value="my-telegram-secret"), \
          patch("app.routes.telegram.record_stage_event") as mock_record_event, \
          patch("app.services.assignment.auto_assign_lead") as mock_auto_assign, \
-         patch("app.services.booking_flow.get_or_create_state", return_value={"message_count": 0}), \
+         patch("app.services.conversation_state.get_or_create_state", return_value={"message_count": 0}), \
          patch("app.services.context_builder.build_scorer_context", return_value="context block"):
 
         response = await telegram_webhook(
