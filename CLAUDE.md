@@ -45,7 +45,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Manual template sync | ✅ Built — POST /api/v1/templates/{id}/sync |
 | Template Quick Reply buttons | ✅ Built — up to 3 buttons |
 | Knowledge base (pgvector RAG, Jina v3 embeddings @512-dim) | ✅ Built — services/knowledge_service.py + services/embeddings.py, migration 087, full-text fallback retained |
-| Reply source badge (Knowledge Base / AI) | ✅ Built — messages.reply_source |
+| Reply source badge (Knowledge Base / AI) | ✅ Built — messages.reply_source ("knowledge" or "ai") |
 | Callback scheduler & reminders | ✅ Built — follow_up_jobs cadence=callback, in-app due reminders + 60s polling |
 | Telecaller multi-tenancy + role-based access | ✅ Built — migration 025 |
 | Hot lead alert system (score ≥7, 5-min escalation) | ⛔ Removed — superseded by trigger-only chat_handover escalation (no score/segment escalation) |
@@ -112,7 +112,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | WhatsApp | Meta Cloud API Direct | — |
 | Voice | TeleCMI click-to-call + recording | services/telecmi_client.py |
 | Payments | Razorpay Payment Links API | services/payment_razorpay.py |
-| Scheduler | APScheduler (AsyncIO) — automations, broadcasts, token health | app/main.py |
+| Scheduler | APScheduler (AsyncIO) — broadcasts, retries, token health, quality sync, assignment, recycling, callbacks, digest, reengagement, decay | app/main.py |
 | Cache | In-process prompt cache (60s TTL) | ai_reply.py:_prompt_cache |
 
 ## Provider Decisions (locked)
@@ -138,9 +138,15 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Job | Interval | Purpose |
 |---|---|---|
 | _process_scheduled_broadcasts | 1 min | Fire pending scheduled_broadcasts rows |
+| _process_broadcast_retries | 5 min | Advance broadcast auto-retry chains |
 | _check_token_health | 24 h | Validate Meta tokens, create token_invalid incidents |
 | _sync_all_number_quality | 24 h | Sync Meta number quality rating & limits |
-| _recycle_contacts | 30 min | Re-queue no_answer leads back to "new" (contact_recycler.recycle_all_tenants) |
+| _apply_engagement_decay | 6 h | Apply engagement score decay to leads |
+| _process_reengagement_rules | 1 min | Execute reengagement step logic |
+| _sweep_unassigned_leads | 2 min | Round-robin assign unassigned leads to callers |
+| _recycle_contacts | 30 min | Re-queue no_answer leads back to "new" (contact_recycler) |
+| _process_callback_reassignments | 1 min | Reassign overdue callbacks from absent callers |
+| _generate_daily_digests | cron 13:00 UTC | Daily coaching digest for all callers (18:30 IST) |
 
 ## Task Router — Read This File Before Acting
 | Task involves | Read first |
@@ -168,7 +174,8 @@ TelecallingConfigPanel: module on/off, auto-assign, per-segment assignment (A/B/
 BookingConfigPanel: CRUD booking types (name + amount); stored as `booking_types` JSON in app_settings. Multiple types → WhatsApp type-selection step before collection flow. Zero types → default ₹500 flat pricing.
 
 ## Known Tech Debt
-- (none currently)
+- Bot Flow Builder DB tables (automations, automation_flow_runs, bot_flows) still exist in schema — source code removed, tables orphaned
+- graphify-out/wiki may reference deleted bot flow modules — regenerate after next big change
 
 ## Architecture Map (auto-derived)
 Navigable module wiki at `graphify-out/wiki/index.md` — one article per module (callbacks, assignment, AI reply, webhooks, bot-flow, scoring, etc.) with source files + cross-module links. Plain markdown, no tooling needed to read. Pull it when tracing structure; CLAUDE.md remains the source of truth for invariants/decisions.
@@ -197,10 +204,8 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | frontend/app/dashboard/profile/ProfileClient.tsx | Profile page — role-based: admin card (owner) vs caller stats (caller) |
 | backend/supabase/migrations/ | All schema migrations 001–114 |
 | frontend/app/dashboard/ | All dashboard pages |
-| backend/app/routes/automations.py | ⛔ Removed — Bot Flow Builder deleted |
-| backend/app/services/automation_engine.py | ⛔ Removed — Bot Flow Builder deleted |
-| backend/app/services/flow_runtime.py | ⛔ Removed — Bot Flow Builder deleted |
-| backend/app/services/agent_runtime.py | ⛔ Removed — Bot Flow Builder deleted |
+| backend/app/services/assignment.py | Telecaller auto-assignment, reassign_backlog, callback reassignment |
+| backend/app/services/call_digest.py | Daily coaching digest generation |
 
 ## Migration Index (latest = 116)
 | Migration | What |
