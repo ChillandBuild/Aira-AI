@@ -312,7 +312,7 @@ function StepIndicator({ current }: { current: number }) {
             )}
             <div className={cn(
               "relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all",
-              done ? "bg-primary text-white" : active ? "bg-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"
+              done ? "bg-gradient-to-br from-[#2e1065] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[#2e1065] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"
             )}>
               {done ? <Check size={16} /> : step}
             </div>
@@ -1416,7 +1416,7 @@ function ScriptsTab() {
                             {formSteps.length > 1 && safeSimStepIdx < formSteps.length - 1 && (
                               <button
                                 onClick={() => setSimStepIdx(safeSimStepIdx + 1)}
-                                className="mt-2 bg-violet-600 hover:bg-violet-700 text-white text-[9px] font-semibold px-2.5 py-1 rounded-lg transition-colors inline-flex items-center gap-0.5 shadow-sm"
+                                className="mt-2 bg-primary hover:bg-primary/90 text-white text-[9px] font-semibold px-2.5 py-1 rounded-lg transition-colors inline-flex items-center gap-0.5 shadow-sm"
                               >
                                 Next Step <ChevronRight size={10} />
                               </button>

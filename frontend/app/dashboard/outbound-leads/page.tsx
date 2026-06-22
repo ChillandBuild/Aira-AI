@@ -177,7 +177,7 @@ function StepIndicator({ current }: { current: number }) {
               <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${step <= current ? "bg-primary" : "bg-surface-mid"}`} />
             )}
             <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all
-              ${done ? "bg-primary text-white" : active ? "bg-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
+              ${done ? "bg-gradient-to-br from-[#2e1065] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[#2e1065] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
               {done ? <Check size={16} /> : step}
             </div>
             <span className={`mt-2 font-label text-xs text-center whitespace-nowrap ${active ? "text-primary font-semibold" : done ? "text-primary/50" : "text-on-surface-muted"}`}>
@@ -2360,7 +2360,7 @@ export default function OutboundLeadsPage() {
                     <span className="font-mono text-xs text-on-surface-muted shrink-0">{customTagColor || newTagColor}</span>
                   </div>
                 </div>
-                <button onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim()} className="px-4 py-2 rounded-xl bg-violet-600 text-white font-label text-sm font-semibold hover:bg-violet-700 disabled:opacity-40 flex items-center gap-2">
+                <button onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim()} className="px-4 py-2 rounded-xl bg-primary text-white font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 flex items-center gap-2">
                   {creatingTag && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}Create
                 </button>
               </div>

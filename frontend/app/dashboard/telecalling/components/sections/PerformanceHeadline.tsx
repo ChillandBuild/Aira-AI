@@ -17,7 +17,7 @@ export default function PerformanceHeadline({ stats, loading, flaggedCount, isTo
   const lead = isTodayView ? "Today" : "Selected range";
 
   return (
-    <div className="bg-gradient-to-r from-primary to-violet-600 rounded-card p-5 shadow-card text-white">
+    <div className="bg-gradient-to-r from-[#2e1065] to-primary rounded-card p-5 shadow-card text-white">
       <div className="flex items-center gap-2 mb-1">
         <Sparkles size={15} className="text-primary-muted" />
         <span className="font-label text-[10px] uppercase font-bold tracking-widest text-primary-muted">

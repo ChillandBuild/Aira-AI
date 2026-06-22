@@ -392,7 +392,7 @@ export function InboundLeadsClient({
           <button
             onClick={handleExport}
             disabled={exporting || leads.length === 0}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-violet-600 text-white rounded-xl font-label text-xs font-bold hover:bg-violet-700 transition-all disabled:opacity-40 shadow-sm"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
           >
             <Download size={12} />
             <span>{exporting ? "Downloading…" : "Download CSV"}</span>
