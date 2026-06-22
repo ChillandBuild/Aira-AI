@@ -174,7 +174,7 @@ function StepIndicator({ current }: { current: number }) {
         return (
           <div key={label} className="flex-1 flex flex-col items-center relative">
             {i > 0 && (
-              <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${done ? "bg-primary" : "bg-surface-mid"}`} />
+              <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${step <= current ? "bg-primary" : "bg-surface-mid"}`} />
             )}
             <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all
               ${done ? "bg-primary text-white" : active ? "bg-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
