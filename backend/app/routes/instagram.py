@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, BackgroundTasks, HTTPException, Response
 from app.db.supabase import get_supabase
-from app.config import settings
 from app.config_dynamic import get_setting
 from app.services.growth import record_stage_event, get_or_create_campaign
 from app.services.ai_reply import generate_reply
@@ -18,8 +17,7 @@ async def verify_instagram_webhook(tenant_id: str, request: Request):
     token = request.query_params.get("hub.verify_token")
     challenge = request.query_params.get("hub.challenge")
 
-    # Retrieve tenant-specific webhook verify token or fallback to global setting
-    verify_token = get_setting("meta_webhook_verify_token", tenant_id=tenant_id) or settings.meta_verify_token
+    verify_token = get_setting("meta_webhook_verify_token", tenant_id=tenant_id)
 
     if mode == "subscribe" and token == verify_token:
         logger.info(f"Instagram webhook verified successfully for tenant {tenant_id}")

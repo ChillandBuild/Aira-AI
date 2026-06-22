@@ -8,6 +8,33 @@ from app.dependencies.auth import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+_SETTING_KEYS: list[tuple[str, bool]] = [
+    ("meta_phone_number_id", False), ("meta_access_token", True),
+    ("meta_waba_id", False), ("meta_webhook_verify_token", True),
+    ("meta_app_secret", True),
+    ("telecmi_user_id", False), ("telecmi_secret", True),
+    ("telecmi_callerid", False), ("telecmi_recording_base_url", False),
+    ("groq_api_key", True),
+    ("telegram_bot_token", True),
+    ("instagram_page_id", False), ("instagram_access_token", True),
+    ("facebook_page_id", False), ("facebook_access_token", True),
+    ("ai_auto_reply_enabled", False),
+    ("reengagement_enabled", False),
+    ("booking_event_name", False), ("booking_ref_prefix", False), ("booking_amount_paise", False),
+    ("razorpay_key_id", False), ("razorpay_key_secret", True),
+    ("razorpay_webhook_secret", True),
+]
+
+
+def _seed_app_settings(db, tenant_id: str) -> None:
+    try:
+        db.table("app_settings").insert([
+            {"tenant_id": tenant_id, "key": k, "value": None, "is_secret": s}
+            for k, s in _SETTING_KEYS
+        ]).execute()
+    except Exception as e:
+        logger.warning(f"Failed to seed app_settings for tenant {tenant_id}: {e}")
+
 
 class CreateTenantPayload(BaseModel):
     name: str
@@ -38,6 +65,8 @@ def create_tenant(payload: CreateTenantPayload, user: dict = Depends(get_current
         "user_id": user["user_id"],
         "role": "owner",
     }).execute()
+
+    _seed_app_settings(db, tenant_id)
 
     logger.info(f"Tenant created: {tenant_id} for user {user['user_id']}")
     return {"tenant_id": tenant_id, "already_exists": False}

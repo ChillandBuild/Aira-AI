@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import require_owner
 

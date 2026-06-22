@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
 interface JobHealth {
@@ -11,6 +11,7 @@ interface JobHealth {
   last_lateness_ms: number | null;
   last_error: string | null;
   errors_24h: number;
+  paused: boolean;
 }
 
 interface SchedulerHealth {
@@ -23,10 +24,13 @@ const JOB_LABELS: Record<string, { name: string; every: string }> = {
   "scheduled-broadcasts": { name: "Scheduled Broadcasts", every: "1 min" },
   "broadcast-retries": { name: "Broadcast Auto-Retry", every: "5 min" },
   "token-health-check": { name: "Meta Token Health", every: "24 h" },
+  "number-quality-sync": { name: "Number Quality Sync", every: "24 h" },
   "engagement-decay": { name: "Engagement Decay", every: "6 h" },
   "reengagement-rules": { name: "Re-engagement Rules", every: "1 min" },
-  "callback-reassignment": { name: "Callback Reassignment", every: "1 min" },
   "assignment-sweep": { name: "Unassigned-Lead Sweep", every: "2 min" },
+  "recycle-contacts": { name: "Contact Recycling", every: "30 min" },
+  "callback-reassignment": { name: "Callback Reassignment", every: "1 min" },
+  "daily-digest": { name: "Daily Caller Digest", every: "18:30 IST" },
 };
 
 function relTime(iso: string | null): string {
@@ -38,9 +42,10 @@ function relTime(iso: string | null): string {
   return ahead ? `in ${fmt}` : `${fmt} ago`;
 }
 
-type Health = "healthy" | "warn" | "down" | "pending";
+type Health = "healthy" | "warn" | "down" | "pending" | "paused";
 
 function jobHealth(j: JobHealth): Health {
+  if (j.paused) return "paused";
   if (j.errors_24h > 0 || j.last_status === "error") return "down";
   if (!j.last_status) return j.next_run ? "pending" : "warn";
   if (j.last_status === "missed") return "warn";
@@ -52,12 +57,14 @@ const HEALTH_STYLE: Record<Health, { ring: string; badge: string; label: string;
   warn: { ring: "border-amber-200", badge: "bg-amber-50 text-amber-700", label: "Late", Icon: AlertTriangle },
   down: { ring: "border-rose-200", badge: "bg-rose-50 text-rose-700", label: "Failing", Icon: XCircle },
   pending: { ring: "border-gray-200", badge: "bg-gray-100 text-gray-500", label: "Awaiting first run", Icon: Clock },
+  paused: { ring: "border-gray-200", badge: "bg-gray-100 text-gray-500", label: "Paused", Icon: Pause },
 };
 
 export default function SchedulerHealthPage() {
   const [data, setData] = useState<SchedulerHealth | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +82,44 @@ export default function SchedulerHealthPage() {
       setLoading(false);
     }
   }, []);
+
+  const toggleJob = useCallback(async (jobId: string) => {
+    if (toggling) return;
+    setToggling(jobId);
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            jobs: prev.jobs.map((j) =>
+              j.id === jobId ? { ...j, paused: !j.paused } : j
+            ),
+          }
+        : prev
+    );
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(
+        `${API_URL}/api/v1/operator/scheduler/${jobId}/toggle`,
+        { method: "POST", headers: { ...auth } }
+      );
+      if (!res.ok) throw new Error(`Toggle failed (${res.status})`);
+      await load();
+    } catch (e) {
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              jobs: prev.jobs.map((j) =>
+                j.id === jobId ? { ...j, paused: !j.paused } : j
+              ),
+            }
+          : prev
+      );
+      setError(e instanceof Error ? e.message : "Toggle failed");
+    } finally {
+      setToggling(null);
+    }
+  }, [toggling, load]);
 
   useEffect(() => {
     load();
@@ -114,14 +159,34 @@ export default function SchedulerHealthPage() {
                   <p className="font-semibold text-gray-900 text-sm">{meta.name}</p>
                   <p className="text-[11px] text-gray-400 font-mono">{j.id} · every {meta.every}</p>
                 </div>
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${style.badge}`}>
-                  <style.Icon size={11} /> {style.label}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${style.badge}`}>
+                    <style.Icon size={11} /> {style.label}
+                  </span>
+                  <button
+                    onClick={() => toggleJob(j.id)}
+                    disabled={toggling === j.id}
+                    aria-label={j.paused ? `Resume ${meta.name}` : `Pause ${meta.name}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      toggling === j.id
+                        ? "bg-gray-200 cursor-wait"
+                        : j.paused
+                          ? "bg-gray-300"
+                          : "bg-[#5b21b6]"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                        j.paused ? "translate-x-0.5" : "translate-x-[18px]"
+                      }`}
+                    />
+                  </button>
+                </div>
               </div>
               <dl className="space-y-1.5 text-xs">
                 <div className="flex justify-between">
                   <dt className="text-gray-400">Next run</dt>
-                  <dd className="text-gray-700 font-medium">{relTime(j.next_run)}</dd>
+                  <dd className="text-gray-700 font-medium">{j.paused ? "Paused" : relTime(j.next_run)}</dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-gray-400">Last run</dt>

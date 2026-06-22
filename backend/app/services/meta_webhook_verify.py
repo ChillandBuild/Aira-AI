@@ -3,7 +3,6 @@ import hmac
 import hashlib
 import logging
 from app.config_dynamic import get_setting
-from app.config import settings as env_settings
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ def verify_meta_signature(raw_body: bytes, signature_header: str | None, tenant_
     Returns True on valid signature. If no app secret is configured, returns False
     (fail-closed) so misconfiguration cannot accept unverified traffic.
     """
-    app_secret = get_setting("meta_app_secret", tenant_id=tenant_id) or env_settings.meta_app_secret
+    app_secret = get_setting("meta_app_secret", tenant_id=tenant_id)
     if not app_secret:
         logger.warning(f"meta_app_secret not configured for tenant {tenant_id} — rejecting webhook")
         return False
