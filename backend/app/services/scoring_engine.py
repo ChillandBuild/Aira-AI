@@ -55,16 +55,27 @@ _REJECTION_PATTERNS = [
 ]
 
 _HIGH_INTENT_PATTERNS = [
+    r"\bbook\b",
+    r"\bconfirm\b",
+    r"\bproceed\b",
+    r"\bpayment\b",
+    r"\bpay\b",
     r"\bprice\b",
     r"\bcost\b",
     r"\bhow much\b",
-    r"\bproceed\b",
     r"\bregister\b",
+    r"\bschedule\b",
+    r"\bslot\b",
     # Tamil
+    r"பதிவு",
     r"விலை",
     r"கட்டணம்",
+    r"book பண்ண",
+    r"confirm பண்ண",
     # Hindi
+    r"बुक करना",
     r"कीमत",
+    r"भुगतान",
 ]
 
 _INFO_PROVIDED_PATTERNS = [
