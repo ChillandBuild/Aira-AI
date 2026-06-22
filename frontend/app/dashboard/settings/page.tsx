@@ -322,9 +322,7 @@ export default function SettingsPage() {
       if (Object.keys(updates).length > 0) await saveSettings(updates);
       setDrafts(prev => {
         const next = { ...prev };
-        Object.keys(updates).forEach(k => {
-          if (settingFor(k)?.is_secret) next[k] = "";
-        });
+        allKeys.forEach(k => delete next[k]);
         return next;
       });
       await load();
@@ -547,6 +545,22 @@ export default function SettingsPage() {
                           />
                         );
                       })}
+                    </div>
+
+                    {/* TeleCMI Webhook URL + Setup Guide */}
+                    <div className="mt-5 p-3.5 rounded-2xl bg-[#faf8f5] border border-[#e8e3db] text-xs font-body space-y-2">
+                      <p className="font-label font-bold text-[#44403c] uppercase text-[10px] tracking-wider">Setup Guide</p>
+                      <ol className="list-decimal list-inside space-y-1 text-[#57534e]">
+                        <li>Log in to your <span className="font-semibold">TeleCMI dashboard</span> → Settings → Webhook</li>
+                        <li>Set CDR Webhook URL to:<br />
+                          <code className="mt-1 inline-block px-2 py-1 bg-white border border-[#e8e3db] rounded text-[11px] text-[#292524] font-mono select-all break-all">
+                            https://aira-ai-5tfr.onrender.com/api/v1/calls/telecmi-cdr
+                          </code>
+                        </li>
+                        <li>If using a Webhook Secret, append it: <code className="px-1 py-0.5 bg-white border border-[#e8e3db] rounded text-[10px] font-mono">?webhook_secret=YOUR_SECRET</code></li>
+                        <li>Set your <span className="font-semibold">App Secret</span> above (from TeleCMI dashboard → API Keys)</li>
+                        <li>Per-caller <span className="font-semibold">Agent IDs</span> are configured on the <span className="font-semibold">Team page</span></li>
+                      </ol>
                     </div>
 
                     <div className="mt-6 flex items-center justify-between border-t border-border-subtle pt-5 gap-3 flex-wrap">
