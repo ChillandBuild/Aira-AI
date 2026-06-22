@@ -23,10 +23,13 @@ const JOB_LABELS: Record<string, { name: string; every: string }> = {
   "scheduled-broadcasts": { name: "Scheduled Broadcasts", every: "1 min" },
   "broadcast-retries": { name: "Broadcast Auto-Retry", every: "5 min" },
   "token-health-check": { name: "Meta Token Health", every: "24 h" },
+  "number-quality-sync": { name: "Number Quality Sync", every: "24 h" },
   "engagement-decay": { name: "Engagement Decay", every: "6 h" },
   "reengagement-rules": { name: "Re-engagement Rules", every: "1 min" },
-  "callback-reassignment": { name: "Callback Reassignment", every: "1 min" },
   "assignment-sweep": { name: "Unassigned-Lead Sweep", every: "2 min" },
+  "recycle-contacts": { name: "Contact Recycling", every: "30 min" },
+  "callback-reassignment": { name: "Callback Reassignment", every: "1 min" },
+  "daily-digest": { name: "Daily Caller Digest", every: "18:30 IST" },
 };
 
 function relTime(iso: string | null): string {
