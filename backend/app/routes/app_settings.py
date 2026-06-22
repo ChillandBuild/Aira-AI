@@ -175,6 +175,7 @@ async def update_settings(
         "razorpay_key_secret",
         "razorpay_webhook_secret",
         "telegram_webhook_secret",
+        "instagram_app_secret",
     }
     updated = []
     for key, value in payload.updates.items():
@@ -195,7 +196,7 @@ async def update_settings(
 
     # Reset status of the channel to "configured" if credentials are changed
     wa_keys = {"meta_access_token", "meta_phone_number_id", "meta_waba_id", "meta_app_secret", "meta_webhook_verify_token"}
-    ig_keys = {"instagram_access_token", "instagram_page_id"}
+    ig_keys = {"instagram_access_token", "instagram_page_id", "instagram_app_secret"}
     fb_keys = {"facebook_access_token", "facebook_page_id"}
 
     reset_wa = any(k in updated for k in wa_keys)

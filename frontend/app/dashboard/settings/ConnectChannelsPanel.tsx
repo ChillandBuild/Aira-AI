@@ -157,6 +157,7 @@ const CHANNELS: ChannelConfig[] = [
     fields: [
       { key: "instagram_page_id", label: "Instagram Page ID / Business Account ID", secret: false, required: true, hint: "Meta Business Manager Page ID or Instagram Business Account ID" },
       { key: "instagram_access_token", label: "Instagram Page Access Token", secret: true, required: true, hint: "Permanent page access token with instagram_manage_messages scope" },
+      { key: "instagram_app_secret", label: "Instagram App Secret", secret: true, required: false, hint: "Only if Instagram uses Instagram-Login (graph.instagram.com): Meta App → Instagram → API setup with Instagram login → App secret. Leave blank to reuse the Meta App Secret." },
     ],
     hasActivation: true,
   },

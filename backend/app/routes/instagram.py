@@ -31,7 +31,7 @@ async def verify_instagram_webhook(tenant_id: str, request: Request):
 async def instagram_webhook(tenant_id: str, request: Request, background_tasks: BackgroundTasks):
     raw_body = await request.body()
     signature = request.headers.get("X-Hub-Signature-256")
-    if not verify_meta_signature(raw_body, signature, tenant_id):
+    if not verify_meta_signature(raw_body, signature, tenant_id, secret_key="instagram_app_secret"):
         # Check if this is an echo of our own outbound message — Meta sends these back
         # signed by a different app. Return 200 so Meta stops retrying.
         try:
