@@ -132,12 +132,15 @@ async def assignment_summary(tenant_id: str = Depends(get_owner_tenant_id)):
         .execute()
     )
     rows = res.data or []
-    by_caller: dict[str, int] = {}
+    by_caller: dict[str, dict] = {}
     by_segment: dict[str, int] = {}
     for r in rows:
         meta = r.get("metadata") or {}
+        cid = meta.get("caller_id") or "unknown"
         name = meta.get("caller_name") or "Unknown"
-        by_caller[name] = by_caller.get(name, 0) + 1
+        if cid not in by_caller:
+            by_caller[cid] = {"caller_name": name, "count": 0}
+        by_caller[cid]["count"] += 1
         seg = r.get("to_segment") or "?"
         by_segment[seg] = by_segment.get(seg, 0) + 1
     return {

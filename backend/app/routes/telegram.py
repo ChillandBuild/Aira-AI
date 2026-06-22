@@ -118,11 +118,6 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
         return {"status": "ok", "detail": "duplicate"}
 
     # Step 3: Insert inbound message
-    _is_first = (
-        db.table("messages").select("id").eq("lead_id", lead_id)
-        .eq("direction", "inbound").limit(1).execute()
-    )
-    is_first_message = not bool(_is_first.data)
     insert_row = {
         "lead_id": lead_id,
         "direction": "inbound",
