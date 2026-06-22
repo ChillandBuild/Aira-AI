@@ -1,4 +1,3 @@
-import os
 import time
 import logging
 from typing import Optional
@@ -7,36 +6,15 @@ logger = logging.getLogger(__name__)
 
 _CACHE: dict[str, tuple[float, Optional[str]]] = {}
 _TTL = 60.0
-# Bootstrapping fallback for get_setting/save_setting when called without tenant_id
-# (e.g. env-var-based global config reads). Do NOT use elsewhere as a silent default.
+# Bootstrapping default for get_setting/save_setting when called without an explicit
+# tenant_id (the two genuinely-global reads: public_base_url + webhook verify fallback).
+# This is NOT a privileged tenant — all credentials resolve per-tenant from app_settings.
 _DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
-
-_ENV_MAP = {
-    "meta_access_token": "META_ACCESS_TOKEN",
-    "meta_phone_number_id": "META_PHONE_NUMBER_ID",
-    "meta_waba_id": "META_WABA_ID",
-    "meta_webhook_verify_token": "META_WEBHOOK_VERIFY_TOKEN",
-    "telecmi_user_id": "TELECMI_USER_ID",
-    "telecmi_secret": "TELECMI_SECRET",
-    "telecmi_callerid": "TELECMI_CALLERID",
-    "telecmi_recording_base_url": "TELECMI_RECORDING_BASE_URL",
-    "telecmi_webhook_secret": "TELECMI_WEBHOOK_SECRET",
-    "razorpay_key_id": "RAZORPAY_KEY_ID",
-    "razorpay_key_secret": "RAZORPAY_KEY_SECRET",
-    "razorpay_webhook_secret": "RAZORPAY_WEBHOOK_SECRET",
-    "ai_auto_reply_enabled": "AI_AUTO_REPLY_ENABLED",
-    "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
-    "instagram_access_token": "INSTAGRAM_ACCESS_TOKEN",
-    "instagram_page_id": "INSTAGRAM_PAGE_ID",
-    "facebook_access_token": "FACEBOOK_ACCESS_TOKEN",
-    "facebook_page_id": "FACEBOOK_PAGE_ID",
-    "meta_app_secret": "META_APP_SECRET",
-    "telegram_webhook_secret": "TELEGRAM_WEBHOOK_SECRET",
-}
 
 
 def get_setting(key: str, fallback: Optional[str] = None, tenant_id: Optional[str] = None) -> Optional[str]:
-    """Read from cache → app_settings table → env var → fallback."""
+    """Read from cache → app_settings table → fallback. No env-var fallback: every
+    tenant (including the first) configures its own credentials in app_settings."""
     now = time.monotonic()
     resolved_tenant_id = tenant_id or _DEFAULT_TENANT_ID
     cache_key = f"{resolved_tenant_id}:{key}"
@@ -60,9 +38,6 @@ def get_setting(key: str, fallback: Optional[str] = None, tenant_id: Optional[st
             value = row.data.get("value")
     except Exception as e:
         logger.warning(f"get_setting({key}, tenant_id={resolved_tenant_id}) DB read failed: {e}")
-
-    if not value and resolved_tenant_id == _DEFAULT_TENANT_ID:
-        value = os.environ.get(_ENV_MAP.get(key, key.upper()))
 
     if not value:
         value = fallback

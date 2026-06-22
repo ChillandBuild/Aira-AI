@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.config import settings as env_settings
-from app.config_dynamic import _DEFAULT_TENANT_ID
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.audit_log import record_audit_event
@@ -18,28 +17,6 @@ from app.services.assignment import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-
-_ENV_ATTRS: dict[str, str] = {
-    "meta_access_token": "meta_access_token",
-    "meta_phone_number_id": "meta_phone_number_id",
-    "meta_waba_id": "meta_waba_id",
-    "meta_webhook_verify_token": "meta_verify_token",
-    "razorpay_key_id": "razorpay_key_id",
-    "razorpay_key_secret": "razorpay_key_secret",
-    "razorpay_webhook_secret": "razorpay_webhook_secret",
-    "telecmi_user_id": "telecmi_user_id",
-    "telecmi_secret": "telecmi_secret",
-    "telecmi_callerid": "telecmi_callerid",
-    "telecmi_recording_base_url": "telecmi_recording_base_url",
-    "groq_api_key": "groq_api_key",
-    "telegram_bot_token": "telegram_bot_token",
-    "instagram_access_token": "instagram_access_token",
-    "instagram_page_id": "instagram_page_id",
-    "facebook_access_token": "facebook_access_token",
-    "facebook_page_id": "facebook_page_id",
-    "meta_app_secret": "meta_app_secret",
-}
-
 
 class SettingsUpdate(BaseModel):
     updates: dict[str, str | None]
@@ -77,13 +54,7 @@ def _get_setting_value(db, tenant_id: str, key: str) -> str | None:
         .maybe_single()
         .execute()
     )
-    db_val = row.data["value"] if row and row.data else None
-    if db_val:
-        return db_val
-    if tenant_id == _DEFAULT_TENANT_ID:
-        attr = _ENV_ATTRS.get(key)
-        return getattr(env_settings, attr, None) if attr else None
-    return None
+    return row.data["value"] if row and row.data else None
 
 
 async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None]:
@@ -120,13 +91,9 @@ async def list_settings(ctx: dict = Depends(require_owner)):
     settings = []
     for row in rows:
         db_value = row["value"]
-        env_value = None
-        if not db_value and tenant_id == _DEFAULT_TENANT_ID:
-            attr = _ENV_ATTRS.get(row["key"])
-            env_value = getattr(env_settings, attr, None) if attr else None
-        effective_value = db_value or env_value
+        effective_value = db_value
         is_set = effective_value is not None
-        source = "db" if db_value else ("env" if env_value else None)
+        source = "db" if db_value else None
         if row["is_secret"] and is_set and effective_value:
             v = str(effective_value)
             if len(v) > 12:

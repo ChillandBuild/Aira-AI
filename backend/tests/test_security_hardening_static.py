@@ -47,8 +47,9 @@ def test_telecmi_callbacks_require_shared_secret():
 
 
 def test_telecmi_webhook_secret_is_dynamic_setting():
-    source = read("app/config_dynamic.py")
-    assert '"telecmi_webhook_secret": "TELECMI_WEBHOOK_SECRET"' in source
+    # Resolved per-tenant from app_settings (no hardcoded constant, no global env fallback).
+    source = read("app/routes/calls.py")
+    assert 'get_setting("telecmi_webhook_secret", tenant_id=tenant_id)' in source
 
 
 def test_owner_only_gated_routers():
