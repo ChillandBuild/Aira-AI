@@ -86,8 +86,8 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
         }).execute()
         
         if not new_lead.data:
-            logger.error("Failed to create new Telegram lead in database")
-            raise HTTPException(status_code=500, detail="Failed to create lead")
+            logger.error(f"Failed to create lead for Telegram user {tg_user_id}")
+            return {"status": "ok", "detail": "lead_create_failed"}
             
         lead_id = new_lead.data[0]["id"]
         record_stage_event(
