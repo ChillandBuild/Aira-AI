@@ -374,13 +374,15 @@ def reassign_backlog(caller_id: str, tenant_id: str) -> None:
 
     db = get_supabase()
 
-    # 1. Fetch unassigned Hot leads
-    hot_res = (
+    segments = cfg.get("segments", ["A"])
+
+    # 1. Fetch unassigned leads matching configured segments
+    seg_res = (
         db.table("leads")
         .select("id,segment")
         .eq("tenant_id", tenant_id)
         .is_("assigned_to", "null")
-        .eq("segment", "A")
+        .in_("segment", segments)
         .limit(10)
         .execute()
     )
@@ -397,7 +399,7 @@ def reassign_backlog(caller_id: str, tenant_id: str) -> None:
     )
 
     seg_by_id: dict = {}
-    for row in (hot_res.data or []):
+    for row in (seg_res.data or []):
         seg_by_id[row["id"]] = row.get("segment")
     for row in (flagged_res.data or []):
         seg_by_id[row["id"]] = row.get("segment")

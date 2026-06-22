@@ -109,7 +109,8 @@ def recycle_leads_for_tenant(tenant_id: str) -> int:
             continue
 
         db.table("leads").update({
-            "call_status": "new"
+            "call_status": "new",
+            "assigned_to": None,
         }).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
 
         recycled_count += 1

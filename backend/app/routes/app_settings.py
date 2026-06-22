@@ -434,7 +434,7 @@ async def patch_inbox_config(payload: InboxConfigUpdate, ctx: dict = Depends(req
         bad = [c for c in patch["channels"] if c not in valid_ch]
         if bad:
             raise HTTPException(status_code=400, detail=f"Invalid channels: {bad}")
-    valid_tr = {"A", "B", "C", "D", "E", "F"}
+    valid_tr = {"A", "B", "C", "D", "F"}
     if "triggers" in patch:
         bad = [t for t in patch["triggers"] if t not in valid_tr]
         if bad:

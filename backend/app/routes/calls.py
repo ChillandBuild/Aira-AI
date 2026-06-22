@@ -919,6 +919,35 @@ async def next_lead(
         raise HTTPException(status_code=404, detail="Telecalling is not enabled")
     segments = cfg.get("segments", ["A"])
 
+    # 1b. Shift-hour gate — reject if caller is outside their shift
+    shift_mode = cfg.get("shift_mode", "common")
+    common_start = cfg.get("shift_start_hour", 9)
+    common_end = cfg.get("shift_end_hour", 19)
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    current_hour = now_ist.hour
+    caller_row = (
+        db.table("callers")
+        .select("shift_start_hour,shift_end_hour")
+        .eq("id", resolved_caller_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    if caller_row and caller_row.data:
+        if shift_mode == "individual":
+            s_h = caller_row.data.get("shift_start_hour")
+            e_h = caller_row.data.get("shift_end_hour")
+            s_h = s_h if s_h is not None else common_start
+            e_h = e_h if e_h is not None else common_end
+        else:
+            s_h, e_h = common_start, common_end
+        if s_h <= e_h:
+            in_shift = s_h <= current_hour < e_h
+        else:
+            in_shift = current_hour >= s_h or current_hour < e_h
+        if not in_shift:
+            return {"lead": None, "reason": "outside_shift_hours"}
+
     # 2. Pull unassigned hot leads in telecalling_config.segments (default ['A']), not D, not converted, sorted by score desc.
     unassigned_res = (
         db.table("leads")
