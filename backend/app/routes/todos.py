@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import date
 from uuid import UUID
 from pydantic import BaseModel
-from app.dependencies.auth import get_current_user
+from app.dependencies.tenant import get_tenant_and_role
 from app.db.supabase import get_supabase
 from app.models.schemas import Todo, TodoCreate, SuccessResponse
 
@@ -13,13 +13,13 @@ router = APIRouter()
 async def get_todos(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
-    current_user: dict = Depends(get_current_user)
+    ctx: dict = Depends(get_tenant_and_role)
 ):
     """
     Fetch todos for the current user, optionally filtered by date range.
     """
     db = get_supabase()
-    query = db.table("employee_todos").select("*").eq("user_id", current_user["user_id"])
+    query = db.table("employee_todos").select("*").eq("user_id", ctx["user_id"]).eq("tenant_id", ctx["tenant_id"])
     
     if start_date:
         query = query.gte("todo_date", start_date.isoformat())
@@ -32,7 +32,7 @@ async def get_todos(
 @router.post("/", response_model=Todo)
 async def create_or_update_todo(
     todo: TodoCreate,
-    current_user: dict = Depends(get_current_user)
+    ctx: dict = Depends(get_tenant_and_role)
 ):
     """
     Create a new todo.
@@ -40,7 +40,8 @@ async def create_or_update_todo(
     db = get_supabase()
     todo_data = todo.model_dump()
     todo_data["todo_date"] = str(todo_data["todo_date"])
-    todo_data["user_id"] = current_user["user_id"]
+    todo_data["user_id"] = ctx["user_id"]
+    todo_data["tenant_id"] = ctx["tenant_id"]
     
     res = db.table("employee_todos").insert(todo_data).execute()
     if not res.data:
@@ -55,7 +56,7 @@ class TodoUpdate(BaseModel):
 async def update_todo(
     todo_id: UUID,
     payload: TodoUpdate,
-    current_user: dict = Depends(get_current_user)
+    ctx: dict = Depends(get_tenant_and_role)
 ):
     """
     Update a specific todo.
@@ -64,11 +65,12 @@ async def update_todo(
     update_data = payload.model_dump(exclude_none=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No update data provided")
-        
+
     res = db.table("employee_todos") \
         .update(update_data) \
         .eq("id", str(todo_id)) \
-        .eq("user_id", current_user["user_id"]) \
+        .eq("user_id", ctx["user_id"]) \
+        .eq("tenant_id", ctx["tenant_id"]) \
         .execute()
         
     if not res.data:
@@ -78,7 +80,7 @@ async def update_todo(
 @router.delete("/{todo_id}")
 async def delete_todo(
     todo_id: UUID,
-    current_user: dict = Depends(get_current_user)
+    ctx: dict = Depends(get_tenant_and_role)
 ):
     """
     Delete a todo.
@@ -87,7 +89,8 @@ async def delete_todo(
     res = db.table("employee_todos") \
         .delete() \
         .eq("id", str(todo_id)) \
-        .eq("user_id", current_user["user_id"]) \
+        .eq("user_id", ctx["user_id"]) \
+        .eq("tenant_id", ctx["tenant_id"]) \
         .execute()
         
     if not res.data:

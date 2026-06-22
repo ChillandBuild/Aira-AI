@@ -1,11 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.config import settings
 from app.db.supabase import get_supabase
+from app.dependencies.tenant import require_owner
 
 router = APIRouter()
 
 
-@router.get("/status")
+@router.get("/status", dependencies=[Depends(require_owner)])
 async def status():
     db = get_supabase()
 
