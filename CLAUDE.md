@@ -45,7 +45,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Manual template sync | ✅ Built — POST /api/v1/templates/{id}/sync |
 | Template Quick Reply buttons | ✅ Built — up to 3 buttons |
 | Knowledge base (pgvector RAG, Jina v3 embeddings @512-dim) | ✅ Built — services/knowledge_service.py + services/embeddings.py, migration 087, full-text fallback retained |
-| Reply source badge (Knowledge Base / AI / Automation) | ✅ Built — messages.reply_source |
+| Reply source badge (Knowledge Base / AI) | ✅ Built — messages.reply_source |
 | Callback scheduler & reminders | ✅ Built — follow_up_jobs cadence=callback, in-app due reminders + 60s polling |
 | Telecaller multi-tenancy + role-based access | ✅ Built — migration 025 |
 | Hot lead alert system (score ≥7, 5-min escalation) | ⛔ Removed — superseded by trigger-only chat_handover escalation (no score/segment escalation) |
@@ -64,7 +64,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Admin bookings dashboard | ✅ Built — dashboard/bookings/ |
 | Multi-tenancy (app-layer) | ✅ Built — tenant_id on all tables |
 | Role-based access | ✅ Built — owner and caller roles |
-| Automations engine | ✅ Built — migration 055, routes/automations.py |
+| Automations engine | ⛔ Removed — Bot Flow Builder (automations UI + engine) deleted |
 | Broadcast history + fail reason tracking | ✅ Built — migration 058_broadcast_fail_reason |
 | Carousel templates (2–10 cards via Meta API) | ✅ Built — migration 060, dashboard/templates/carousel/ |
 | WABA onboarding (self-service) | ✅ Built — WABA ID + Phone Number ID configurable in Settings UI |
@@ -137,7 +137,6 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 ## APScheduler Jobs (all in main.py)
 | Job | Interval | Purpose |
 |---|---|---|
-| _process_automation_waits | 5 min | Resume automation wait-step executions |
 | _process_scheduled_broadcasts | 1 min | Fire pending scheduled_broadcasts rows |
 | _check_token_health | 24 h | Validate Meta tokens, create token_invalid incidents |
 | _sync_all_number_quality | 24 h | Sync Meta number quality rating & limits |
@@ -156,6 +155,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Bookings, booking flow, Razorpay payments | backend/app/services/booking_flow.py + routes/bookings.py |
 | WhatsApp templates, Meta template API | backend/app/routes/templates.py + services/meta_cloud.py |
 | Settings, channel activation, token health | backend/app/routes/app_settings.py |
+| Automations engine | ⛔ Removed — Bot Flow Builder deleted |
 
 ## Agent Dispatch
 Spawn sub-agents automatically for tasks with 2+ independent work units.
@@ -197,6 +197,10 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | frontend/app/dashboard/profile/ProfileClient.tsx | Profile page — role-based: admin card (owner) vs caller stats (caller) |
 | backend/supabase/migrations/ | All schema migrations 001–114 |
 | frontend/app/dashboard/ | All dashboard pages |
+| backend/app/routes/automations.py | ⛔ Removed — Bot Flow Builder deleted |
+| backend/app/services/automation_engine.py | ⛔ Removed — Bot Flow Builder deleted |
+| backend/app/services/flow_runtime.py | ⛔ Removed — Bot Flow Builder deleted |
+| backend/app/services/agent_runtime.py | ⛔ Removed — Bot Flow Builder deleted |
 
 ## Migration Index (latest = 116)
 | Migration | What |
@@ -268,32 +272,16 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | 116_scoring_engagement_decay | leads.score_engagement (smallint, 0..+2) — explicit engagement signal; score_engagement_delta repurposed as bidirectional decay (-4..+3) |
 
 ## Bot Flow Builder (replaces Automations UI)
-Visual WhatsApp flow builder at /dashboard/automations (sidebar "Bot Flows"). Backend
-extends the automations engine IN PLACE (no renames); "Bot Flow" is a UI name only.
-- Engine: `services/automation_engine.py` — resumable step-pointer state machine driven
-  by `automation_flow_runs` (`_drive_run`, `_next_step_id`, `resume_due_flow_runs` with
-  stale-running reaper). `{{var}}` interpolation reads the run's variable bag.
-- Pause-on-reply: `services/flow_runtime.resume_for_inbound` — intercepts inbound in all
-  4 channels (webhook/telegram/instagram/facebook) BEFORE trigger fan-out + generate_reply;
-  user_input/interactive/ai_agent nodes pause as `waiting_reply`. CAS-guarded against double-drive.
-- Blocks: send_message/image/video/audio/file/location, cta_url, template, send_list,
-  send_catalog, add_label, wait, condition, user_input, interactive (N-way button branch
-  = button id), http_api (SSRF-guarded), random, ai_agent. Per-node analytics
-  (sent/delivered/error) on automation_steps.
-- ai_agent block: `services/agent_runtime.py` — a *contained* Groq (llama-3.3-70b, Invariant 10)
-  agent that drives a multi-turn conversation toward declared outcomes; each turn returns
-  STRICT validated JSON (LLM never gets free control), outcomes map to flow branch labels,
-  agent state lives in the run's variable bag (survives pause/resume), hard tool-call caps.
-- Frontend (`frontend/app/dashboard/automations/[id]/flow/`): the **node-graph map canvas
-  (`Canvas.tsx` + `mapLayout.ts`) is the primary and only editor** — pan/zoom, click node →
-  `BlockConfigDrawer`, hover toolbar (edit/delete), inline `+` insert on every edge, trigger
-  node → right-side `TriggerCard` drawer. Left palette sidebar groups blocks Send/Logic/Tools.
-  The old vertical stacked-card renderer (`FlowCanvas.tsx` + `BranchGroup.tsx`) is legacy/
-  orphaned — still on disk, no longer wired into `FlowEditor`.
-- Specs (historical brainstorming records — CLAUDE.md is the living source of truth):
-  docs/superpowers/specs/2026-05-31-bot-flow-builder-design.md (Phase 1; its "vertical stack
-  primary / map view later" UX is now INVERTED — map canvas is primary), -phase2-design.md
-  (run-state, pause-on-reply, power blocks, residual risks), -agent-block-design.md (ai_agent).
+
+> **⛔ REMOVED** — Bot Flow Builder source files have been deleted. This section is retained for historical reference only.
+
+Visual WhatsApp flow builder at /dashboard/automations (sidebar "Bot Flows"). Backend extends the automations engine IN PLACE (no renames); "Bot Flow" is a UI name only.
+- Engine: `services/automation_engine.py` — resumable step-pointer state machine driven by `automation_flow_runs` (`_drive_run`, `_next_step_id`, `resume_due_flow_runs` with stale-running reaper). `{{var}}` interpolation reads the run's variable bag.
+- Pause-on-reply: `services/flow_runtime.resume_for_inbound` — intercepts inbound in all 4 channels (webhook/telegram/instagram/facebook) BEFORE trigger fan-out + generate_reply; user_input/interactive/ai_agent nodes pause as `waiting_reply`. CAS-guarded against double-drive.
+- Blocks: send_message/image/video/audio/file/location, cta_url, template, send_list, send_catalog, add_label, wait, condition, user_input, interactive (N-way button branch = button id), http_api (SSRF-guarded), random, ai_agent. Per-node analytics (sent/delivered/error) on automation_steps.
+- ai_agent block: `services/agent_runtime.py` — a contained Groq (llama-3.3-70b, Invariant 10) agent that drives a multi-turn conversation toward declared outcomes; each turn returns STRICT validated JSON (LLM never gets free control), outcomes map to flow branch labels, agent state lives in the run's variable bag (survives pause/resume), hard tool-call caps.
+- Frontend (`frontend/app/dashboard/automations/[id]/flow/`): the node-graph map canvas (`Canvas.tsx` + `mapLayout.ts`) is the primary and only editor — pan/zoom, click node → `BlockConfigDrawer`, hover toolbar (edit/delete), inline `+` insert on every edge, trigger node → right-side `TriggerCard` drawer. Left palette sidebar groups blocks Send/Logic/Tools. The old vertical stacked-card renderer (`FlowCanvas.tsx` + `BranchGroup.tsx`) is legacy/orphaned — still on disk, no longer wired into `FlowEditor`.
+- Specs (historical brainstorming records): docs/superpowers/specs/2026-05-31-bot-flow-builder-design.md (Phase 1; its "vertical stack primary / map view later" UX is now INVERTED — map canvas is primary), -phase2-design.md (run-state, pause-on-reply, power blocks, residual risks), -agent-block-design.md (ai_agent).
 
 ## Response Style
 - One sentence per progress update while working
