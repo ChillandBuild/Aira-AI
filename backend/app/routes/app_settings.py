@@ -214,7 +214,7 @@ async def update_settings(
                 "value": value,
                 "is_secret": is_secret,
                 "updated_at": "now()",
-            })
+            }, on_conflict="tenant_id,key")
             .execute()
         )
         if result.data:
