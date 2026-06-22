@@ -30,6 +30,7 @@ def _get_key_secret(tenant_id: str | None = None) -> str:
 def _get_webhook_secret(tenant_id: str | None = None) -> str:
     v = get_setting("razorpay_webhook_secret", tenant_id=tenant_id)
     if not v:
+        logger.warning("razorpay_webhook_secret not configured — payment webhook verification will fail")
         raise RuntimeError("razorpay_webhook_secret not configured in app settings")
     return v
 

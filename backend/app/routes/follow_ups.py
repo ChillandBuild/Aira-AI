@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
+from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_owner
 from app.dependencies.auth import get_current_user
 from app.services.ai_reply import generate_reengagement_message, send_whatsapp
 from app.services.growth import build_follow_up_summary, utcnow
@@ -31,7 +31,8 @@ async def summary(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.post("/run")
-async def run_due_follow_ups(limit: int = Query(20, ge=1, le=100), tenant_id: str = Depends(get_tenant_id)):
+async def run_due_follow_ups(limit: int = Query(20, ge=1, le=100), ctx: dict = Depends(require_owner)):
+    tenant_id = ctx["tenant_id"]
     db = get_supabase()
     now = utcnow().isoformat()
     jobs = (

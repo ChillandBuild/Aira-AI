@@ -163,9 +163,10 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         )
         request_id = result.get("request_id", "")
     except Exception as e:
-        logger.error(f"TeleCMI call failed: {e}")
+        err_msg = str(e).replace(telecmi_secret, "***") if telecmi_secret else str(e)
+        logger.error(f"TeleCMI call failed: {err_msg}")
         db.table("call_logs").update({"status": "failed"}).eq("id", call_log_id).execute()
-        raise HTTPException(status_code=502, detail=f"TeleCMI call failed: {e}")
+        raise HTTPException(status_code=502, detail=f"TeleCMI call failed: {err_msg}")
 
     db.table("call_logs").update({"call_sid": request_id}).eq("id", call_log_id).execute()
     await increment_voice_call_count(best_number["id"])

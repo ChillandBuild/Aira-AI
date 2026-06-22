@@ -1,14 +1,15 @@
 import logging
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import require_owner
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_owner)])
 
 
 @router.get("/")
-async def list_incidents(limit: int = 50, offset: int = 0, tenant_id: str = Depends(get_tenant_id)):
+async def list_incidents(limit: int = 50, offset: int = 0, ctx: dict = Depends(require_owner)):
+    tenant_id = ctx["tenant_id"]
     db = get_supabase()
 
     incidents_result = (

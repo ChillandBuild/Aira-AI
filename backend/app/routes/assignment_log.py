@@ -136,8 +136,8 @@ async def assignment_summary(tenant_id: str = Depends(get_owner_tenant_id)):
     by_segment: dict[str, int] = {}
     for r in rows:
         meta = r.get("metadata") or {}
-        name = meta.get("caller_name") or "Unknown"
-        by_caller[name] = by_caller.get(name, 0) + 1
+        cid = meta.get("caller_id") or "unknown"
+        by_caller[cid] = by_caller.get(cid, 0) + 1
         seg = r.get("to_segment") or "?"
         by_segment[seg] = by_segment.get(seg, 0) + 1
     return {
