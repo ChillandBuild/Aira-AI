@@ -12,11 +12,10 @@ router = APIRouter(dependencies=[Depends(require_owner)])
 
 
 class CreatePhoneNumber(BaseModel):
-    provider: str
+    provider: str = "meta_cloud"
     number: str
     display_name: str
     meta_phone_number_id: str | None = None
-    api_key: str | None = None
 
 
 class UpdatePhoneNumber(BaseModel):
@@ -43,6 +42,8 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
 
 @router.post("/")
 async def create_phone_number(payload: CreatePhoneNumber, tenant_id: str = Depends(get_tenant_id)):
+    if payload.provider != "meta_cloud":
+        raise HTTPException(status_code=400, detail="Only meta_cloud provider is supported")
     db = get_supabase()
     insert_data = {
         "provider": payload.provider,
@@ -56,8 +57,6 @@ async def create_phone_number(payload: CreatePhoneNumber, tenant_id: str = Depen
     }
     if payload.meta_phone_number_id is not None:
         insert_data["meta_phone_number_id"] = payload.meta_phone_number_id
-    if payload.api_key is not None:
-        insert_data["api_key"] = payload.api_key
     result = db.table("phone_numbers").insert(insert_data).execute()
     return result.data[0]
 
