@@ -1126,3 +1126,146 @@ def list_audit_logs(
         })
 
     return {"data": logs, "total": result.count or 0, "page": page, "limit": limit}
+
+
+_ALL_TENANT_TABLES = [
+    "messages", "lead_notes", "chat_handovers", "follow_up_jobs", "bookings",
+    "broadcast_recipients", "broadcast_lead_scores", "broadcast_failed_contacts",
+    "broadcast_tags", "scheduled_broadcasts", "lead_stage_events", "lead_tag_opt_outs",
+    "lead_tag_interest", "lead_conversation_state", "automation_flow_runs",
+    "automation_logs", "automation_pending_executions", "automation_steps", "automations",
+    "bot_flows", "call_logs", "call_scripts", "caller_attendance_overrides",
+    "caller_digests", "caller_status_logs", "callers", "conversations",
+    "incidents", "knowledge_chunks", "knowledge_documents", "message_templates",
+    "meta_templates", "phone_number_quality_history", "phone_numbers",
+    "reengagement_logs", "reengagement_steps", "segment_templates",
+    "telecalling_upload_batches", "voice_numbers", "whatsapp_insights_snapshots",
+    "ad_campaigns", "ai_prompts", "ai_tune_suggestions", "app_notifications",
+    "app_audit_logs", "leads", "app_settings", "tenant_users",
+]
+
+
+@router.delete("/clients/{tenant_id}")
+def delete_client(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id, name").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    tenant_name = tenant.data["name"]
+
+    owner_row = (
+        db.table("tenant_users").select("user_id")
+        .eq("tenant_id", tenant_id).eq("role", "owner")
+        .maybe_single().execute()
+    )
+    caller_users = (
+        db.table("callers").select("user_id")
+        .eq("tenant_id", tenant_id)
+        .not_.is_("user_id", "null")
+        .execute()
+    )
+    user_ids_to_delete = []
+    if owner_row.data and owner_row.data.get("user_id"):
+        user_ids_to_delete.append(owner_row.data["user_id"])
+    for c in (caller_users.data or []):
+        if c.get("user_id"):
+            user_ids_to_delete.append(c["user_id"])
+
+    for table in _ALL_TENANT_TABLES:
+        try:
+            db.table(table).delete().eq("tenant_id", tenant_id).execute()
+        except Exception as e:
+            logger.warning("delete_client: could not clear %s: %s", table, e)
+
+    db.table("tenants").delete().eq("id", tenant_id).execute()
+
+    for uid in user_ids_to_delete:
+        try:
+            db.auth.admin.delete_user(uid)
+        except Exception as e:
+            logger.warning("delete_client: could not delete auth user %s: %s", uid, e)
+
+    logger.warning("OPERATOR DELETE CLIENT: %s (%s) — all data purged", tenant_name, tenant_id)
+    return {"deleted": True, "tenant_name": tenant_name}
+
+
+@router.get("/clients/{tenant_id}/audit-logs")
+def client_audit_logs(
+    tenant_id: str,
+    page: int = 1,
+    limit: int = 50,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    _admin: dict = Depends(get_system_admin),
+):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    q = db.table("app_audit_logs").select(
+        "id, actor_user_id, actor_role, action, target_type, target_id, metadata, created_at",
+        count="exact",
+    ).eq("tenant_id", tenant_id)
+
+    if date_from:
+        q = q.gte("created_at", date_from)
+    if date_to:
+        q = q.lte("created_at", date_to + "T23:59:59.999Z")
+
+    offset = (page - 1) * limit
+    result = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+
+    return {"data": result.data or [], "total": result.count or 0, "page": page, "limit": limit}
+
+
+@router.get("/clients/{tenant_id}/audit-logs/csv")
+def client_audit_logs_csv(
+    tenant_id: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    _admin: dict = Depends(get_system_admin),
+):
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    db = get_supabase()
+    tenant = db.table("tenants").select("id, name").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    q = db.table("app_audit_logs").select(
+        "id, actor_user_id, actor_role, action, target_type, target_id, metadata, created_at",
+    ).eq("tenant_id", tenant_id)
+
+    if date_from:
+        q = q.gte("created_at", date_from)
+    if date_to:
+        q = q.lte("created_at", date_to + "T23:59:59.999Z")
+
+    result = q.order("created_at", desc=True).limit(5000).execute()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Time", "Action", "Actor Role", "Target Type", "Target ID", "Details"])
+    for r in (result.data or []):
+        meta = r.get("metadata") or {}
+        details = "; ".join(f"{k}={v}" for k, v in meta.items() if v is not None and v != "********")
+        writer.writerow([
+            r.get("created_at", ""),
+            r.get("action", ""),
+            r.get("actor_role", ""),
+            r.get("target_type", ""),
+            r.get("target_id", ""),
+            details,
+        ])
+
+    buf.seek(0)
+    filename = f"audit-log-{tenant.data['name'].replace(' ', '_')}.csv"
+    return StreamingResponse(
+        buf,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

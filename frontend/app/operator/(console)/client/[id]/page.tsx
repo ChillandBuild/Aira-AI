@@ -14,6 +14,8 @@ import { ConfigView } from "./views/config";
 import { HealthView } from "./views/health";
 import { ManagementView } from "./views/management";
 import { DataOpsView } from "./views/data-ops";
+import { AuditLogsView } from "./views/audit-logs";
+import { DeleteClientView } from "./views/delete-client";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -141,6 +143,8 @@ export default function ClientDetailPage() {
     health: { title: "Health", desc: "Channel health, delivery stats, and incidents." },
     management: { title: "Management", desc: "Owner management and account actions." },
     "data-ops": { title: "Data Operations", desc: "Clear specific data types for this client." },
+    "audit-logs": { title: "Audit Logs", desc: "Track admin activity for this client." },
+    "delete-client": { title: "Delete Client", desc: "Permanently remove this client and all data." },
   };
   const sectionMeta = SECTION_TITLES[section] || { title: section, desc: "" };
 
@@ -240,6 +244,10 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
       return <ManagementView tenantId={tenantId} overview={overview} onReload={onReload} setError={setError} />;
     case "data-ops":
       return <DataOpsView tenantId={tenantId} clientName={overview?.tenant.name || ""} />;
+    case "audit-logs":
+      return <AuditLogsView tenantId={tenantId} clientName={overview?.tenant.name || ""} />;
+    case "delete-client":
+      return <DeleteClientView tenantId={tenantId} clientName={overview?.tenant.name || ""} />;
     default:
       return (
         <div className="flex items-center justify-center h-48 text-ink-muted text-sm">

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
   Wrench, Activity, Settings, Database, ChevronDown, ChevronRight,
-  ArrowLeft,
+  ArrowLeft, FileText, Trash2,
 } from "lucide-react";
 
 export type SectionType =
@@ -13,7 +13,7 @@ export type SectionType =
   | "inbound" | "outbound" | "templates" | "numbers"
   | "knowledge" | "analytics" | "team"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
-  | "config" | "health" | "management" | "data-ops";
+  | "config" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
 
 type NavItem = {
   key: SectionType;
@@ -48,6 +48,8 @@ const OPERATOR_NAV: NavItem[] = [
   { key: "health", icon: Activity, label: "Health" },
   { key: "management", icon: Settings, label: "Management" },
   { key: "data-ops", icon: Database, label: "Data Ops" },
+  { key: "audit-logs", icon: FileText, label: "Audit Logs" },
+  { key: "delete-client", icon: Trash2, label: "Delete Client" },
 ];
 
 interface SidebarProps {
