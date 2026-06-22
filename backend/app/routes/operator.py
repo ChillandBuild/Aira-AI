@@ -1012,6 +1012,7 @@ def scheduler_health(_admin: dict = Depends(get_system_admin)):
         jobs_out.append({
             "id": job.id,
             "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+            "paused": job.next_run_time is None,
             "last_status": last_row["status"] if last_row else None,
             "last_run": last_row["ran_at"] if last_row else None,
             "last_lateness_ms": last_row["lateness_ms"] if last_row else None,
@@ -1032,6 +1033,24 @@ def scheduler_health(_admin: dict = Depends(get_system_admin)):
         "recent_failures": recent_failures.data or [],
         "server_time": now.isoformat(),
     }
+
+
+@router.post("/scheduler/{job_id}/toggle")
+def toggle_scheduler_job(job_id: str, _admin: dict = Depends(get_system_admin)):
+    """Pause a running job or resume a paused one. Operator-only."""
+    from app.main import _scheduler
+
+    job = _scheduler.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+
+    if job.next_run_time is None:
+        _scheduler.resume_job(job_id)
+        job = _scheduler.get_job(job_id)
+        return {"id": job_id, "paused": False, "next_run": job.next_run_time.isoformat() if job.next_run_time else None}
+    else:
+        _scheduler.pause_job(job_id)
+        return {"id": job_id, "paused": True, "next_run": None}
 
 
 @router.get("/system-health")
