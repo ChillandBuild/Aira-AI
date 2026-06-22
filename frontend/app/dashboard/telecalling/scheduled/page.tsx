@@ -238,18 +238,6 @@ export default function ScheduledCallsPage() {
         }
       `}} />
 
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="font-display text-3xl font-extrabold text-[#1c1917] tracking-tight flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-primary to-purple-600 rounded-2xl shadow-md">
-            <Calendar size={22} className="text-white" />
-          </div>
-          Scheduled Calls Board
-        </h1>
-        <p className="font-body text-sm text-[#78716c] mt-1.5">
-          Shared callback queue. When a callback&apos;s owner is logged out, on break, or on another call, an overdue call becomes claimable by any teammate.
-        </p>
-      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-24">
