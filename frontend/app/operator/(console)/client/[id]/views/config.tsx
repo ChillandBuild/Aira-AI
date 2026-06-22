@@ -23,9 +23,6 @@ interface ConfigData {
   settings: {
     ai_auto_reply_enabled: boolean;
     reengagement_enabled: boolean;
-    booking_event_name: string | null;
-    booking_ref_prefix: string | null;
-    booking_amount_paise: string | null;
   };
 }
 
@@ -33,7 +30,6 @@ const CRED_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp (Meta)",
   telecalling: "TeleCMI",
   ai: "Groq AI",
-  payments: "Razorpay",
 };
 
 function statusBadge(status: string) {
@@ -129,15 +125,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
             <p className={`text-sm font-medium ${config.settings.reengagement_enabled ? "text-success" : "text-ink-muted"}`}>
               {config.settings.reengagement_enabled ? "Enabled" : "Disabled"}
             </p>
-          </div>
-          <div className="bg-white rounded-card border border-border p-4 shadow-sm">
-            <p className="text-xs text-ink-muted uppercase tracking-wider mb-1">Booking</p>
-            <p className={`text-sm font-medium ${config.settings.booking_event_name ? "text-success" : "text-ink-muted"}`}>
-              {config.settings.booking_event_name ? "Enabled" : "Disabled"}
-            </p>
-            {config.settings.booking_event_name && (
-              <p className="text-xs text-ink-muted mt-1">Event: {config.settings.booking_event_name}</p>
-            )}
           </div>
         </div>
       </div>

@@ -20,9 +20,6 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("facebook_page_id", False), ("facebook_access_token", True),
     ("ai_auto_reply_enabled", False),
     ("reengagement_enabled", False),
-    ("booking_event_name", False), ("booking_ref_prefix", False), ("booking_amount_paise", False),
-    ("razorpay_key_id", False), ("razorpay_key_secret", True),
-    ("razorpay_webhook_secret", True),
 ]
 
 

@@ -136,16 +136,9 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
     except Exception:
         pass
 
-    # Booking state machine: takes priority over AI.
-    if text:
-        from app.services.booking_flow import route_booking_intent
-        phone = (db.table("leads").select("phone").eq("id", lead_id).maybe_single().execute().data or {}).get("phone", "")
-        if phone and await route_booking_intent(lead_id, tenant_id, phone, text, db):
-            return {"status": "ok"}
-
     # Step 4: Update conversation state counters
     try:
-        from app.services.booking_flow import get_or_create_state
+        from app.services.conversation_state import get_or_create_state
         conv_state = get_or_create_state(lead_id, tenant_id, db)
         new_count = (conv_state.get("message_count") or 0) + 1
         db.table("lead_conversation_state").update({

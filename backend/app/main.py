@@ -9,7 +9,7 @@ from app.dependencies.auth import get_current_user
 
 import os
 from app.config import settings
-from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, bookings, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload
+from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload
 from app.routes.calls import public_router as calls_public_router
 
 # Configure logging
@@ -490,8 +490,6 @@ app.include_router(telegram.router, prefix="/webhook/telegram", tags=["telegram-
 app.include_router(instagram.router, prefix="/webhook/instagram", tags=["instagram-webhook"])
 app.include_router(facebook.router, prefix="/webhook/facebook", tags=["facebook-webhook"])
 app.include_router(calls_public_router, prefix="/api/v1/calls", tags=["calls-telecmi"])
-app.include_router(bookings.public_router, prefix="/api/v1/bookings", tags=["bookings-webhook"])
-
 # API routes — all require auth
 app.include_router(leads.router, prefix="/api/v1/leads", tags=["leads"], dependencies=_auth)
 app.include_router(messages.router, prefix="/api/v1/messages", tags=["messages"], dependencies=_auth)
@@ -515,7 +513,6 @@ app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["onboar
 app.include_router(team.router, prefix="/api/v1/team", tags=["team"], dependencies=_auth)
 app.include_router(media.router, prefix="/api/v1/leads", tags=["media"], dependencies=_auth)
 app.include_router(todos.router, prefix="/api/v1/todos", tags=["todos"], dependencies=_auth)
-app.include_router(bookings.router, prefix="/api/v1/bookings", tags=["bookings"], dependencies=_auth)
 app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"], dependencies=_auth)
 app.include_router(operator.router, prefix="/api/v1/operator", tags=["operator"])
 app.include_router(chat_handovers.router, prefix="/api/v1/chat-handovers", tags=["chat-handovers"], dependencies=_auth)

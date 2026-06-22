@@ -16,10 +16,9 @@ CONVERSATION (most recent first):
 {messages}
 
 Extract and summarize:
-1. Lead's name and contact intent (booking, inquiry, complaint, etc.)
+1. Lead's name and contact intent (inquiry, complaint, purchase, etc.)
 2. Key facts provided (rasi, nakshatram, address, etc.)
-3. Current state in booking flow (if applicable)
-4. Engagement level (high/medium/low based on responsiveness)
+3. Engagement level (high/medium/low based on responsiveness)
 5. Any objections or concerns
 
 Keep summary under 150 words. Be factual, not interpretive.
@@ -34,7 +33,7 @@ NEW MESSAGES (most recent first):
 {new_messages}
 
 Update the summary:
-1. Preserve key facts (name, booking state, payment status, rasi, nakshatram, address, etc.)
+1. Preserve key facts (name, rasi, nakshatram, address, etc.)
 2. Add new information from recent messages
 3. Remove outdated/transient details
 4. Keep under 200 words

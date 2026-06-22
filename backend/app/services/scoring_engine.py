@@ -4,7 +4,7 @@ AIRA Score Engine v2
 Composite score = clamp(arc + intent_delta + engagement + decay, 1, 10)
 
   arc_score        — LLM scores the conversation thread, fires every 3 inbound
-                     messages or on a significant trigger (booking keyword, first message).
+                     messages or on a significant trigger (high-intent keyword, first message).
   intent_delta     — Rule-based instant signal on the current message. -3..+2.
                      Rejection phrases bypass everything → immediate score 1, segment D.
   engagement      — Rule-based engagement signal on message history. 0..+2.
@@ -54,31 +54,17 @@ _REJECTION_PATTERNS = [
     r"बंद करो",
 ]
 
-_BOOKING_PATTERNS = [
-    r"\bbook\b",
-    r"\bconfirm\b",
-    r"\bproceed\b",
-    r"\bpayment\b",
-    r"\bpay\b",
+_HIGH_INTENT_PATTERNS = [
     r"\bprice\b",
     r"\bcost\b",
     r"\bhow much\b",
+    r"\bproceed\b",
     r"\bregister\b",
-    r"\bslot\b",
-    r"\bschedule\b",
-    r"\bdate\b.*\bhomam\b",
-    r"\bbook.*homam\b",
     # Tamil
-    r"பதிவு",
     r"விலை",
     r"கட்டணம்",
-    r"எப்போது",
-    r"book பண்ண",
-    r"confirm பண்ண",
     # Hindi
-    r"बुक करना",
     r"कीमत",
-    r"भुगतान",
 ]
 
 _INFO_PROVIDED_PATTERNS = [
@@ -101,15 +87,6 @@ _INFO_PROVIDED_PATTERNS = [
     r"பின்கோடு",
 ]
 
-_ACTIVE_BOOKING_STATES = {
-    "collecting_name",
-    "collecting_rasi",
-    "collecting_nakshatram",
-    "collecting_gotram",
-    "collecting_address",
-    "awaiting_payment",
-}
-
 _REJECTION_SENTINEL = -99
 
 
@@ -123,16 +100,13 @@ def _compute_intent_delta(message: str, flow_state: str) -> tuple[int, str]:
         if re.search(pat, message, re.IGNORECASE):
             return _REJECTION_SENTINEL, "rejection"
 
-    if flow_state in _ACTIVE_BOOKING_STATES:
-        return 2, "active_booking_flow"
-
     delta = 0
     reasons: list[str] = []
 
-    for pat in _BOOKING_PATTERNS:
+    for pat in _HIGH_INTENT_PATTERNS:
         if re.search(pat, message, re.IGNORECASE):
             delta += 1
-            reasons.append("booking_intent")
+            reasons.append("high_intent")
             break
 
     for pat in _INFO_PROVIDED_PATTERNS:
@@ -206,7 +180,7 @@ def _compute_engagement(lead_id: str, db) -> int:
 
 
 _ARC_RUBRIC_DEFAULT = """
-9-10: High intent — explicitly asked for pricing/booking/payment, completed booking steps, confirmed participation
+9-10: High intent — explicitly asked for pricing/payment, confirmed participation, ready to proceed
 7-8:  Warm — asking detailed questions, comparing options, providing requested info, multiple engaged follow-ups
 5-6:  Neutral — general inquiry, first contact, initial greetings/salutations (e.g. "Hi", "Hello", "Vanakkam", "Namaste"), short acknowledgments with some context
 3-4:  Lukewarm — vague replies, no follow-up to questions, low engagement
@@ -261,7 +235,7 @@ def _should_score_arc(arc_message_count: int, intent_reason: str) -> bool:
         return True
     if arc_message_count % 3 == 0:
         return True
-    if "booking_intent" in intent_reason or "active_booking_flow" in intent_reason:
+    if "high_intent" in intent_reason:
         return True
     return False
 
@@ -342,21 +316,8 @@ async def compute_score(
     arc_msg_count = global_arc_count
     last_inbound_for_decay = _parse_dt(data.get("last_inbound_at"))
 
-    # ── 3. Flow state ──────────────────────────────────────────────────────────
-    try:
-        state_row = (
-            db.table("lead_conversation_state")
-            .select("state")
-            .eq("lead_id", str(lead_id))
-            .limit(1)
-            .execute()
-        )
-        flow_state = state_row.data[0].get("state") if state_row.data else "idle"
-    except Exception:
-        flow_state = "idle"
-
-    # ── 4. Intent delta (instant, rule-based) ─────────────────────────────────
-    intent_delta, intent_reason = _compute_intent_delta(message, flow_state)
+    # ── 3. Intent delta (instant, rule-based) ─────────────────────────────────
+    intent_delta, intent_reason = _compute_intent_delta(message, "idle")
     is_rejection = intent_delta == _REJECTION_SENTINEL
 
     # ── 5. REJECTION: bypass everything, force D for both global + broadcast ───
@@ -370,10 +331,6 @@ async def compute_score(
             "broadcast_negative_reply_at": now_iso,
         }
         db.table("leads").update(rejection_payload).eq("id", str(lead_id)).execute()
-        try:
-            db.table("lead_conversation_state").update({"state": "idle"}).eq("lead_id", str(lead_id)).execute()
-        except Exception as _ce:
-            logger.warning(f"Failed to reset conversation state on rejection for lead {lead_id}: {_ce}")
 
         logger.info(f"Lead {lead_id} rejection detected — immediate D")
         return {

@@ -58,9 +58,6 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("facebook_page_id", False), ("facebook_access_token", True),
     ("ai_auto_reply_enabled", False),
     ("reengagement_enabled", False),
-    ("booking_event_name", False), ("booking_ref_prefix", False), ("booking_amount_paise", False),
-    ("razorpay_key_id", False), ("razorpay_key_secret", True),
-    ("razorpay_webhook_secret", True),
 ]
 
 
@@ -261,7 +258,7 @@ def wipe_leads(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     # Clear dependent tables first (tenant-scoped) to avoid FK violations
     for table in (
         "messages", "lead_notes", "chat_handovers",
-        "follow_up_jobs", "bookings",
+        "follow_up_jobs",
         # Broadcast history — fully wiped per operator request
         "broadcast_recipients", "broadcast_lead_scores",
         "broadcast_failed_contacts", "broadcast_tags", "scheduled_broadcasts",
@@ -438,9 +435,6 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         "settings": {
             "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") == "true",
             "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
-            "booking_event_name": settings_map.get("booking_event_name"),
-            "booking_ref_prefix": settings_map.get("booking_ref_prefix"),
-            "booking_amount_paise": settings_map.get("booking_amount_paise"),
         },
     }
 
@@ -950,7 +944,7 @@ def clear_data(tenant_id: str, data_type: str, _admin: dict = Depends(get_system
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     if data_type == "leads":
-        for table in ("messages", "lead_notes", "chat_handovers", "follow_up_jobs", "bookings",
+        for table in ("messages", "lead_notes", "chat_handovers", "follow_up_jobs",
                        "broadcast_recipients", "broadcast_lead_scores", "broadcast_failed_contacts",
                        "broadcast_tags", "scheduled_broadcasts"):
             try:
@@ -1130,7 +1124,7 @@ def list_audit_logs(
 
 
 _ALL_TENANT_TABLES = [
-    "messages", "lead_notes", "chat_handovers", "follow_up_jobs", "bookings",
+    "messages", "lead_notes", "chat_handovers", "follow_up_jobs",
     "broadcast_recipients", "broadcast_lead_scores", "broadcast_failed_contacts",
     "broadcast_tags", "scheduled_broadcasts", "lead_stage_events", "lead_tag_opt_outs",
     "lead_tag_interest", "lead_conversation_state", "automation_flow_runs",

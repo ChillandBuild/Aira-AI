@@ -40,7 +40,7 @@ const DATA_TYPES = [
   {
     key: "leads", label: "Leads", icon: Users,
     color: "text-success", bg: "bg-success/10",
-    desc: "ALL leads and related data: messages, call notes, chat handovers, follow-up jobs, bookings, broadcast records, and scores.",
+    desc: "ALL leads and related data: messages, call notes, chat handovers, follow-up jobs, broadcast records, and scores.",
   },
   {
     key: "knowledge", label: "Knowledge Base", icon: BookOpen,

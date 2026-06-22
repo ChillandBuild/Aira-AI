@@ -572,20 +572,25 @@ async def generate_reply(
             _score_meta = {
                 "new_score": new_score,
                 "prev_score": lead_data.get("score", 5),
+                "arc_score": _sr["arc_score"],
+                "intent_delta": _sr["intent_delta"],
+                "engagement": _sr["engagement"],
+                "decay": _sr["decay"],
+                "intent_reason": _sr["intent_reason"],
+                "arc_updated": _sr["arc_updated"],
                 "message_snippet": message[:150],
                 "channel": channel,
                 "reason": "ai_disabled_inbound",
             }
-            if new_segment != lead_data.get("segment") or new_score != lead_data.get("score", 5):
-                record_stage_event(
-                    lead_id,
-                    from_segment=lead_data.get("segment"),
-                    to_segment=new_segment,
-                    event_type="segment_changed" if new_segment != lead_data.get("segment") else "score_updated",
-                    metadata=_score_meta,
-                    tenant_id=_tid,
-                    db=db,
-                )
+            record_stage_event(
+                lead_id,
+                from_segment=lead_data.get("segment"),
+                to_segment=new_segment,
+                event_type="segment_changed" if new_segment != lead_data.get("segment") else "score_updated",
+                metadata=_score_meta,
+                tenant_id=_tid,
+                db=db,
+            )
             sync_follow_up_jobs(
                 lead_id,
                 segment=new_segment,
@@ -674,28 +679,6 @@ async def generate_reply(
         if not reply_text:
             reply_text = "Thank you — we've got all your details. We'll be in touch shortly."
 
-        # If the lead asked an off-topic question mid-booking, re-prompt the pending step
-        try:
-            from app.services.booking_flow import (
-                get_or_create_state as _get_bk_state,
-                get_pending_step_prompt as _get_pending_prompt,
-            )
-            from app.services.scoring_engine import _REJECTION_PATTERNS
-            
-            is_rejection = False
-            for pat in _REJECTION_PATTERNS:
-                if re.search(pat, message, re.IGNORECASE):
-                    is_rejection = True
-                    break
-            
-            if not is_rejection:
-                _bk = _get_bk_state(str(lead_id), lead_data.get("tenant_id", tenant_id), db)
-                _pending = _get_pending_prompt(_bk)
-                if _pending:
-                    reply_text = f"{reply_text}\n\n{_pending}"
-        except Exception:
-            pass
-
         # Trigger A: AI gave a generic fallback reply
         if _is_generic_fallback(reply_text):
             escalation_flags.add("A")
@@ -755,48 +738,6 @@ async def generate_reply(
             _collected = _json.loads(_collect_match.group(1))
             db.table("leads").update({"collected_data": _collected}).eq("id", str(lead_id)).execute()
             logger.info(f"[COLLECT_DONE] saved for lead {lead_id}: {list(_collected.keys())}")
-            from app.config_dynamic import get_setting
-            _post_action = get_setting("collect_post_action", tenant_id=tenant_id)
-            if _post_action == "send_payment_link":
-                try:
-                    from app.services.booking_flow import _create_draft_booking
-                    from app.services.payment_razorpay import create_payment_link
-                    # Get or create booking row
-                    _bk = db.table("bookings").select("id,booking_ref,amount_paise") \
-                        .eq("lead_id", str(lead_id)).eq("tenant_id", tenant_id) \
-                        .neq("status", "cancelled").order("created_at", desc=True).limit(1).execute()
-                    _b = _bk.data[0] if _bk.data else _create_draft_booking(str(lead_id), tenant_id, db)
-                    # Write collected fields onto booking row + mark pending_payment
-                    db.table("bookings").update({
-                        "devotee_name": _collected.get("devotee_name") or _collected.get("name") or "",
-                        "rasi": _collected.get("rasi"),
-                        "nakshatram": _collected.get("nakshatram"),
-                        "gotram": _collected.get("gotram"),
-                        "delivery_address": _collected.get("delivery_address") or _collected.get("address"),
-                        "status": "pending_payment",
-                    }).eq("id", _b["id"]).execute()
-                    await create_payment_link(
-                        booking_id=_b["id"],
-                        booking_ref=_b.get("booking_ref", "REF"),
-                        amount_paise=_b.get("amount_paise", 50000),
-                        customer_name=_collected.get("devotee_name") or _collected.get("name") or "",
-                        customer_phone=phone,
-                    )
-                except Exception as _pe:
-                    logger.warning(f"Payment link failed for lead {lead_id}: {_pe}")
-            elif _post_action == "notify_telecaller":
-                try:
-                    _inbox = get_inbox_config(tenant_id)
-                    if should_escalate_hot_lead(_inbox, new_segment, channel):
-                        _trigger_chat_escalation(
-                            lead_id=str(lead_id),
-                            reason=f"Lead collected booking data (segment {new_segment})",
-                            tenant_id=tenant_id,
-                            assigned_to=lead_data.get("assigned_to"),
-                            db=db,
-                        )
-                except Exception as _ae:
-                    logger.warning(f"Telecaller notify failed for lead {lead_id}: {_ae}")
         except Exception as _ce:
             logger.warning(f"[COLLECT_DONE] parse failed for lead {lead_id}: {_ce}")
 
@@ -829,16 +770,15 @@ async def generate_reply(
             "channel": channel,
             "broadcast_id": None,
         }
-        if new_segment != lead_data.get("segment") or new_score != lead_data.get("score", 5):
-            record_stage_event(
-                lead_id,
-                from_segment=lead_data.get("segment"),
-                to_segment=new_segment,
-                event_type="segment_changed" if new_segment != lead_data.get("segment") else "score_updated",
-                metadata=_score_meta,
-                tenant_id=tenant_id,
-                db=db,
-            )
+        record_stage_event(
+            lead_id,
+            from_segment=lead_data.get("segment"),
+            to_segment=new_segment,
+            event_type="segment_changed" if new_segment != lead_data.get("segment") else "score_updated",
+            metadata=_score_meta,
+            tenant_id=tenant_id,
+            db=db,
+        )
         if score_result.get("intent_reason") == "rejection" and lead_data.get("assigned_to"):
             try:
                 db.table("leads").update({"assigned_to": None}).eq("id", str(lead_id)).execute()

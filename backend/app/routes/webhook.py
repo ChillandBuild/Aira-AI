@@ -229,21 +229,8 @@ async def _process_inbound_message_background(
     from app.db.supabase import get_supabase
     db = get_supabase()
     try:
-        # Booking state machine: takes priority over AI.
-        # If a booking is in progress OR booking intent is detected,
-        # the state machine owns this message.
-        if body:
-            from app.services.booking_flow import route_booking_intent
-            if await route_booking_intent(lead_id, tenant_id, phone, body, db):
-                try:
-                    from app.services.scoring_engine import compute_score as _bk_score
-                    await _bk_score(message=body, lead_id=str(lead_id), db=db, tenant_id=tenant_id)
-                except Exception as _bk_se:
-                    logger.warning(f"Booking-flow scoring failed for lead {lead_id}: {_bk_se}")
-                return
-
         # Update conversation state counters
-        from app.services.booking_flow import get_or_create_state
+        from app.services.conversation_state import get_or_create_state
         from datetime import datetime, timezone
         conv_state = get_or_create_state(lead_id, tenant_id, db)
         new_count = (conv_state.get("message_count") or 0) + 1
@@ -470,7 +457,7 @@ async def whatsapp_webhook(
                         except Exception:
                             pass
 
-                    # Delegate booking flow, state machine, compaction, and reply to background task to avoid Meta timeout
+                    # Delegate state tracking, compaction, and reply to background task to avoid Meta timeout
                     background_tasks.add_task(
                         _process_inbound_message_background,
                         lead_id=lead_id,

@@ -303,7 +303,7 @@ export function ManagementView({
         details={overview ? [
           { label: "leads (contacts, scores, segments)", count: overview.stats.total_leads },
           { label: "messages (all channels)", count: overview.stats.messages_sent_30d + overview.stats.messages_received_30d },
-          { label: "call notes, chat handovers, follow-up jobs, bookings, broadcast recipient records", count: 0 },
+          { label: "call notes, chat handovers, follow-up jobs, broadcast recipient records", count: 0 },
         ] : []}
         confirmText={overview?.tenant.name || "CONFIRM"}
         loading={wipeLoading}

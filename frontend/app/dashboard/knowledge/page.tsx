@@ -96,9 +96,7 @@ export default function KnowledgePage() {
   const [scoringRubric, setScoringRubric] = useState<string>("");
   const [rubricSaving, setRubricSaving] = useState(false);
 
-  // Post-Collection Action
-  const [postAction, setPostAction] = useState<string>("");
-  const [postActionSaving, setPostActionSaving] = useState(false);
+
 
   useEffect(() => {
     loadData();
@@ -214,12 +212,8 @@ export default function KnowledgePage() {
       const data = await res.json();
       const settings: { key: string; display_value: string }[] = data.settings ?? [];
       const rubric = settings.find((s) => s.key === "scoring_rubric");
-      const action = settings.find((s) => s.key === "collect_post_action");
       if (rubric) {
         setScoringRubric(rubric.display_value === "Not set" ? "" : rubric.display_value);
-      }
-      if (action) {
-        setPostAction(action.display_value === "Not set" ? "" : action.display_value);
       }
     } catch {}
   }
@@ -242,23 +236,7 @@ export default function KnowledgePage() {
     }
   }
 
-  async function savePostAction() {
-    setPostActionSaving(true);
-    try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ updates: { collect_post_action: postAction } }),
-      });
-      if (!res.ok) throw new Error("Save failed");
-      toast.success("Post-collection action saved.");
-    } catch {
-      toast.error("Failed to save. Please try again.");
-    } finally {
-      setPostActionSaving(false);
-    }
-  }
+
 
   const filteredDocs = documents.filter(d =>
     d.name.toLowerCase().includes(search.toLowerCase())
@@ -613,7 +591,7 @@ export default function KnowledgePage() {
               rows={8}
               spellCheck={false}
               placeholder={
-                "9-10: High intent — asked about pricing, booking, or next steps\n" +
+                "9-10: High intent — asked about pricing or next steps\n" +
                 "7-8: Warm — showed clear interest, asked product questions\n" +
                 "5-6: Neutral — general inquiry, no strong buying signal\n" +
                 "3-4: Lukewarm — vague interest, one-word replies\n" +
@@ -632,33 +610,6 @@ export default function KnowledgePage() {
             </div>
           </div>
 
-          {/* Section B: Post-Collection Action */}
-          <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
-            <div className="mb-4">
-              <h2 className="font-display text-lg font-bold text-primary">After Data Collection</h2>
-              <p className="font-body text-sm text-on-surface-muted mt-0.5">
-                What should Aira do when the AI finishes collecting all required fields?
-              </p>
-            </div>
-            <select
-              value={postAction}
-              onChange={(e) => setPostAction(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="">Do nothing (just save the data)</option>
-              <option value="send_payment_link">Send payment link (Razorpay)</option>
-              <option value="notify_telecaller">Alert assigned telecaller</option>
-            </select>
-            <div className="mt-4 flex gap-3">
-              <button
-                onClick={savePostAction}
-                disabled={postActionSaving}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
-              >
-                <Save size={14} /> {postActionSaving ? "Saving…" : "Save"}
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
