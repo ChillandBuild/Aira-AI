@@ -493,9 +493,9 @@ export default function ConnectChannelsPanel() {
       if (Object.keys(updates).length > 0) await saveSettings(updates);
       setDrafts(prev => {
         const next = { ...prev };
-        Object.keys(updates).forEach(k => {
-          if (settingFor(k)?.is_secret) next[k] = "";
-        });
+        if (selectedChannel) {
+          selectedChannel.fields.forEach(f => delete next[f.key]);
+        }
         return next;
       });
       await load();
