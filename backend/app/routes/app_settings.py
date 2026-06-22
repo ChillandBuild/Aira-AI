@@ -64,6 +64,15 @@ class TelecallingConfigUpdate(BaseModel):
     scripts: dict[str, str] | None = None
     max_call_attempts: int | None = None
     assignment_mode: Literal["push", "pull"] | None = None
+    eval_daily_cap: int | None = None
+    shift_mode: str | None = None
+    shift_start_hour: int | None = None
+    shift_end_hour: int | None = None
+    recycle_enabled: bool | None = None
+    recycle_delay_hours: int | None = None
+    recycle_max_retries: int | None = None
+    recycle_start_hour: int | None = None
+    recycle_end_hour: int | None = None
 
 
 

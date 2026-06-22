@@ -20,11 +20,11 @@ def _get_recycle_config(tenant_id: str) -> dict:
         if row and row.data:
             cfg = json.loads(row.data.get("value") or "{}")
             return {
-                "enabled": cfg.get("enabled", False),
-                "delay_hours": cfg.get("delay_hours", 4),
-                "max_retries": cfg.get("max_retries", 3),
-                "start_hour": cfg.get("start_hour", 9),
-                "end_hour": cfg.get("end_hour", 18),
+                "enabled": cfg.get("recycle_enabled", False),
+                "delay_hours": cfg.get("recycle_delay_hours", 4),
+                "max_retries": cfg.get("recycle_max_retries", 3),
+                "start_hour": cfg.get("recycle_start_hour", 9),
+                "end_hour": cfg.get("recycle_end_hour", 18),
                 "max_call_attempts": cfg.get("max_call_attempts", 4),
             }
     except Exception as e:
