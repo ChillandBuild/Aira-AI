@@ -440,7 +440,7 @@ async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> No
                 async with httpx.AsyncClient(timeout=60.0) as client:
                     resp = await client.get(recording_url)
                     if resp.status_code == 404:
-                        logger.warning(f"Recording not ready yet (attempt {attempt}): {recording_url}")
+                        logger.warning(f"Recording not ready yet (attempt {attempt}) for call {call_log_id}")
                         continue
                     resp.raise_for_status()
                     audio_bytes = resp.content
@@ -460,7 +460,7 @@ async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> No
                 return
 
             except Exception as e:
-                logger.error(f"Recording attempt {attempt} failed for {call_log_id}: {e}")
+                logger.error(f"Recording download failed for call {call_log_id}: {type(e).__name__}")
 
         logger.error(f"All recording attempts failed for {call_log_id}")
 

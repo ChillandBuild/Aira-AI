@@ -5,7 +5,7 @@ this runs once at end of day, picks the 3 most representative transcripts,
 and produces one actionable coaching report.
 """
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from groq import AsyncGroq
 
@@ -112,9 +112,12 @@ def _pick_representative(rows: list[dict]) -> list[dict]:
 async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) -> None:
     """Compute stats + AI coaching report for one caller on for_date, upsert to caller_digests."""
     db = get_supabase()
-    date_str = for_date.isoformat()
-    day_start = f"{date_str}T00:00:00+00:00"
-    day_end = f"{date_str}T23:59:59+00:00"
+    # Use IST-aligned boundaries (UTC+5:30) so calls between 00:00–05:30 IST
+    # are attributed to the correct IST calendar day, not the previous UTC day.
+    ist_offset = timedelta(hours=5, minutes=30)
+    ist_start = datetime(for_date.year, for_date.month, for_date.day, tzinfo=timezone.utc)
+    day_start = (ist_start - ist_offset).isoformat()
+    day_end = (ist_start + timedelta(days=1) - ist_offset).isoformat()
 
     rows_res = (
         db.table("call_logs")

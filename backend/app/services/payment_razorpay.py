@@ -94,8 +94,12 @@ def verify_webhook_signature(raw_body: bytes, received_signature: str, tenant_id
     """Verify Razorpay webhook payload using HMAC-SHA256."""
     try:
         secret = _get_webhook_secret(tenant_id=tenant_id)
+    except RuntimeError:
+        logger.warning("Razorpay webhook secret not configured for tenant — cannot verify signature")
+        return False
+    try:
         expected = hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
         return hmac.compare_digest(expected, received_signature)
     except Exception as e:
-        logger.error(f"Signature verification error: {e}")
+        logger.error(f"Signature verification error: {type(e).__name__}")
         return False

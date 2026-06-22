@@ -191,6 +191,9 @@ async def broadcast_custom_message(
                 return {"sent": 0, "failed": 0, "skipped_window": 0, "total": 0}
             query = query.in_("id", lead_ids)
 
+    # Hard Invariant: bulk-send rejects leads with null opt_in_source
+    query = query.not_.is_("opt_in_source", "null")
+
     result = query.execute()
     targets = result.data or []
     if not targets:
