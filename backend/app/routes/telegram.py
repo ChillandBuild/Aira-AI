@@ -83,6 +83,7 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
             "score": 5,
             "segment": "C",
             "tenant_id": tenant_id,
+            "opt_in_source": "telegram",
         }).execute()
         
         if not new_lead.data:

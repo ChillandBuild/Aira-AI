@@ -10,7 +10,7 @@ from groq import Groq
 from pydantic import BaseModel
 from app.config import settings
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
+from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, get_owner_tenant_id
 from app.models.schemas import Lead, LeadUpdate, LeadWithMessages, Message, PaginatedResponse
 from app.services.ai_reply import send_whatsapp, send_instagram, send_facebook, get_last_send_error
 from app.services.growth import record_stage_event, sync_follow_up_jobs
@@ -467,7 +467,7 @@ async def bulk_assign(
 @router.get("/export")
 async def export_leads(
     segment: str | None = Query(None, pattern="^[ABCD]$"),
-    tenant_id: str = Depends(get_tenant_id),
+    tenant_id: str = Depends(get_owner_tenant_id),
 ):
     db = get_supabase()
     query = db.table("leads").select("id,phone,name,source,score,segment,notes,created_at").eq("tenant_id", tenant_id).is_("deleted_at", "null").neq("opted_out", True).neq("whatsapp_undeliverable", True)

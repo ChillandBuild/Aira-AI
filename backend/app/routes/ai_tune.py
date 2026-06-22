@@ -7,11 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.config import settings
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.ai_reply import invalidate_prompt_cache
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_owner)])
 
 from app.services.groq_client import get_groq_client
 _TUNE_MODEL = "llama-3.3-70b-versatile"

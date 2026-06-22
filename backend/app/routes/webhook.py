@@ -379,6 +379,7 @@ async def whatsapp_webhook(
                             "score": 5,
                             "segment": "C",
                             "tenant_id": tenant_id,
+                            "opt_in_source": "whatsapp",
                         }).execute()
                         lead_id = new_lead.data[0]["id"]
                         record_stage_event(lead_id, to_segment="C", event_type="created", metadata={"source": "whatsapp"}, tenant_id=tenant_id, db=db)

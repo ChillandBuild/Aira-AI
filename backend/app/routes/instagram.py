@@ -121,6 +121,7 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
                     "score": 5,
                     "segment": "C",
                     "tenant_id": tenant_id,
+                    "opt_in_source": "instagram",
                 }).execute()
 
                 if not new_lead.data:
