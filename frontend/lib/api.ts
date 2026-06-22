@@ -578,9 +578,9 @@ export interface FunnelAnalyticsExtended {
 // Transient statuses worth a retry: server waking / restarting / behind a proxy.
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
 // Cold-start (Render spin-up) can take 30–50s; give GETs room, keep mutations tight.
-const GET_TIMEOUT_MS = 30_000;
+const GET_TIMEOUT_MS = 45_000;
 const MUTATION_TIMEOUT_MS = 15_000;
-const RETRY_DELAYS_MS = [600, 1800];
+const RETRY_DELAYS_MS = [2_000, 6_000, 15_000];
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -625,7 +625,9 @@ async function apiFetchOnce<T>(path: string, opts: RequestInit, timeoutMs: numbe
     if (err instanceof DOMException && err.name === "AbortError") {
       throw new RetryableError("Request timed out — server took too long to respond");
     }
-    if (err instanceof TypeError && err.message.toLowerCase().includes("fetch")) {
+    // Safari says "Load failed", Chrome says "Failed to fetch", Firefox says "NetworkError…"
+    // Any TypeError from fetch() is a network-layer failure — always retryable.
+    if (err instanceof TypeError) {
       throw new RetryableError("Cannot reach server — it may be restarting.");
     }
     throw err;

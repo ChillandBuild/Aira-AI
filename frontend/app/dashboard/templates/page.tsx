@@ -248,7 +248,7 @@ export default function TemplatesPage() {
           </div>
           <Link
             href="/dashboard/templates/new"
-            className="w-full py-2.5 bg-[#5b21b6] hover:bg-[#4c1d95] text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
           >
             <Plus size={14} />
             Create Template

@@ -73,10 +73,15 @@ function SkeletonGrid({ cols = 4, rows = 1 }: { cols?: number; rows?: number }) 
   );
 }
 
-function ErrorBox({ message }: { message: string }) {
+function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="rounded-xl bg-red-50 text-red-700 font-label text-sm p-4 ring-1 ring-red-200">
-      {message}
+    <div className="rounded-xl bg-red-50 text-red-700 font-label text-sm p-4 ring-1 ring-red-200 flex items-center justify-between">
+      <span>{message}</span>
+      {onRetry && (
+        <button onClick={onRetry} className="ml-4 px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 font-label text-xs font-bold transition-colors">
+          Retry
+        </button>
+      )}
     </div>
   );
 }
@@ -183,6 +188,7 @@ function OverviewTab({ range }: { range: DateRange }) {
   const [data, setData] = useState<AnalyticsOverviewExtended | null>(null);
   const [funnel, setFunnel] = useState<FunnelAnalyticsExtended | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let isCurrent = true;
@@ -193,18 +199,17 @@ function OverviewTab({ range }: { range: DateRange }) {
       .then((d) => { if (isCurrent) setData(d); })
       .catch((e: unknown) => { if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load"); });
     return () => { isCurrent = false; };
-  }, [range]);
+  }, [range, retryKey]);
 
-  // Pipeline-state metrics (all-time, not range-bound): avg score + hot-lead aging.
   useEffect(() => {
     let isCurrent = true;
     api.analytics.funnelExtended()
       .then((d) => { if (isCurrent) setFunnel(d); })
       .catch(() => {});
     return () => { isCurrent = false; };
-  }, []);
+  }, [retryKey]);
 
-  if (err) return <ErrorBox message={err} />;
+  if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
   if (!data) return <SkeletonGrid cols={6} />;
 
   const total = data.total_leads;
@@ -356,6 +361,7 @@ function ChannelsTab({ range }: { range: DateRange }) {
   const [channel, setChannel] = useState<ChannelFilter>("all");
   const [data, setData] = useState<MessagingAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     let isCurrent = true;
@@ -366,7 +372,7 @@ function ChannelsTab({ range }: { range: DateRange }) {
       .then((d) => { if (isCurrent) setData(d); })
       .catch((e: unknown) => { if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load"); });
     return () => { isCurrent = false; };
-  }, [channel, range]);
+  }, [channel, range, retryKey]);
 
   return (
     <div className="space-y-6">
@@ -388,7 +394,7 @@ function ChannelsTab({ range }: { range: DateRange }) {
         ))}
       </div>
 
-      {err && <ErrorBox message={err} />}
+      {err && <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />}
       {!data && !err && <SkeletonGrid cols={4} />}
 
       {data && (
@@ -472,15 +478,18 @@ function pct(part: number, whole: number): string {
 function TemplatesTab() {
   const [rows, setRows] = useState<TemplatePerformanceRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
+    setErr(null);
+    setRows(null);
     api.analytics
       .templatePerformance()
       .then(setRows)
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : "Failed to load"));
-  }, []);
+  }, [retryKey]);
 
-  if (err) return <ErrorBox message={err} />;
+  if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
   if (!rows) return <SkeletonGrid cols={4} />;
 
   const totals = rows.reduce(
@@ -551,6 +560,7 @@ function TemplatesTab() {
 function InboundTab({ range }: { range: DateRange }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof api.analytics.inbound>> | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     setData(null);
@@ -558,9 +568,9 @@ function InboundTab({ range }: { range: DateRange }) {
     api.analytics.inbound(range)
       .then(setData)
       .catch((e) => setErr(e instanceof Error ? e.message : "Failed to load"));
-  }, [range]);
+  }, [range, retryKey]);
 
-  if (err) return <div className="p-8 text-center text-red-600">{err}</div>;
+  if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
   if (!data) return <div className="p-8 text-center text-on-surface-muted">Loading…</div>;
 
   const segMax = Math.max(data.by_segment.A, data.by_segment.B, data.by_segment.C, data.by_segment.D, 1);
