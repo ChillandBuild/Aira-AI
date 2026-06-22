@@ -617,7 +617,7 @@ def client_dashboard_inbox(tenant_id: str, _admin: dict = Depends(get_system_adm
     if not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    handovers = db.table("chat_handovers").select("id", count="exact").eq("tenant_id", tenant_id).eq("status", "needs_human_attention").execute()
+    handovers = db.table("chat_handovers").select("id", count="exact").eq("tenant_id", tenant_id).eq("status", "pending").execute()
 
     convos = (
         db.table("conversations")
