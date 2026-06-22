@@ -170,12 +170,17 @@ async def update_settings(
     _SECRET_KEYS = {
         "meta_access_token",
         "meta_webhook_verify_token",
+        "meta_app_secret",
         "telecmi_secret",
+        "telecmi_webhook_secret",
         "groq_api_key",
         "razorpay_key_secret",
         "razorpay_webhook_secret",
+        "telegram_bot_token",
         "telegram_webhook_secret",
+        "instagram_access_token",
         "instagram_app_secret",
+        "facebook_access_token",
     }
     updated = []
     for key, value in payload.updates.items():

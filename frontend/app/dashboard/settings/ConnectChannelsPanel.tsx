@@ -774,7 +774,7 @@ export default function ConnectChannelsPanel() {
 
               {/* Modal Footer */}
               <div className="p-6 border-t border-border-subtle bg-surface-low flex items-center justify-between gap-3 flex-wrap">
-                <div>
+                <div className="min-h-[20px]">
                   {saveState === "saved" && (
                     <span className="inline-flex items-center gap-1.5 text-emerald-600 font-body text-sm font-medium animate-fade-in">
                       <CheckCircle2 size={14} /> Saved successfully
@@ -783,7 +783,7 @@ export default function ConnectChannelsPanel() {
                   {!isModalDirty && saveState === "idle" && isChannelConfigured(selectedChannel) && (
                     <span className="text-[11px] text-ink-muted font-body">No unsaved changes</span>
                   )}
-                  {isModalDirty && (
+                  {isModalDirty && saveState !== "saved" && (
                     <span className="text-[11px] text-amber-600 font-body font-medium animate-fade-in">Unsaved changes</span>
                   )}
                 </div>
