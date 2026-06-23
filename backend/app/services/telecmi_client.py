@@ -50,6 +50,6 @@ async def initiate_click2call(
 
 def _normalize_phone(phone: str) -> str:
     cleaned = phone.replace(" ", "").replace("-", "").replace("+", "")
-    if cleaned.startswith("91") and len(cleaned) == 12:
-        cleaned = cleaned[2:]
+    if len(cleaned) == 10:
+        cleaned = f"91{cleaned}"
     return cleaned
