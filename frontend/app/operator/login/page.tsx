@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { API_URL } from "@/lib/api";
+import { AiraLogo } from "@/components/logo";
 
 export default function OperatorLoginPage() {
   const router = useRouter();
@@ -59,9 +60,9 @@ export default function OperatorLoginPage() {
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <p className="text-2xl font-bold text-ink font-display">
-            Aira<span className="text-primary">AI</span>
-          </p>
+          <div className="flex justify-center mb-2">
+            <AiraLogo className="h-7 w-auto text-ink" />
+          </div>
           <p className="text-xs text-ink-muted mt-1.5 uppercase tracking-widest font-semibold font-label">
             Operator Console
           </p>

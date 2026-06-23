@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Clock, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AiraLogo } from "@/components/logo";
 
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },
@@ -40,7 +41,7 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-ink font-display italic">Aira</span>
+            <AiraLogo className="h-5 w-auto text-ink" />
             <span className="text-[10px] font-semibold text-primary uppercase tracking-[0.15em] bg-primary-light rounded px-2 py-0.5">
               Operator
             </span>

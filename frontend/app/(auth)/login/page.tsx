@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff } from "lucide-react";
+import { AiraLogo } from "@/components/logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,7 +31,9 @@ export default function LoginPage() {
   return (
     <div className="w-full max-w-sm relative z-10">
       <div className="card rounded-3xl p-8 backdrop-blur-sm bg-white/90">
-        <h1 className="font-display text-xl font-bold text-ink mb-1">Aira AI</h1>
+        <div className="mb-2">
+          <AiraLogo className="h-7 w-auto text-ink" />
+        </div>
         <p className="font-body text-sm text-ink-muted mb-6">Sign in to your account</p>
 
         {error && (

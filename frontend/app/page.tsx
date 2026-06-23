@@ -33,6 +33,7 @@ import HeroRipple from "./components/landing/HeroRipple";
 import RiverThread from "./components/landing/RiverThread";
 import RiverDelta from "./components/landing/RiverDelta";
 import { useRipple } from "./components/landing/useRipple";
+import { AiraLogo } from "@/components/logo";
 
 // Custom SVG Icons
 function WhatsAppIcon({ size = 20, className = "" }: { size?: number; className?: string }) {
@@ -246,10 +247,9 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 md:px-10 flex justify-between items-center h-[72px]">
           {/* Logo */}
           <button onClick={() => scrollToSection("hero")} className="flex items-center gap-2.5 group">
-            <span className="nav-logo-text">Aira</span>
+            <AiraLogo className="h-6 w-auto text-[#1c1917]" />
             <span className="text-ink-muted text-xs font-medium hidden sm:inline ml-1 border-l border-border pl-2.5">AI Revenue Acceleration</span>
           </button>
-
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
             <button onClick={() => scrollToSection("hero")} className="nav-link">Home</button>
@@ -804,7 +804,7 @@ export default function LandingPage() {
             {/* Brand */}
             <div className="col-span-2">
               <div className="flex items-center gap-2.5 mb-4">
-                <span className="nav-logo-text">Aira</span>
+                <AiraLogo className="h-6 w-auto text-white" />
               </div>
               <p className="text-xs text-ink-secondary leading-relaxed max-w-xs mb-5">
                 We help businesses automate conversations, qualify leads, evaluate telecallers and accelerate revenue.

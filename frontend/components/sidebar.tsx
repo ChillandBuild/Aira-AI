@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
+import { AiraLogo } from "@/components/logo";
 
 type NavItem = {
   href: string;
@@ -117,17 +118,9 @@ export function Sidebar() {
           nav below overflows and would otherwise compress this box under flex
           pressure, lifting the divider above the header's fixed 80px line. */}
       <div className="h-20 shrink-0 flex items-center px-5 border-b border-[#e8e3db]">
-        <span
-          className="text-[#1c1917] leading-none select-none"
-          style={{
-            fontFamily: "var(--font-script), cursive",
-            fontSize: "32px",
-            paddingBottom: "2px",
-          }}
-        >
-          Aira
-        </span>
+        <AiraLogo className="h-7 w-auto text-[#1c1917]" />
       </div>
+
 
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview / Dashboard */}
