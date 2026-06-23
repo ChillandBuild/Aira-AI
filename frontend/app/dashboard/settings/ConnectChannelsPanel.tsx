@@ -179,7 +179,7 @@ const CHANNELS: ChannelConfig[] = [
 
 async function fetchSettings(): Promise<Setting[]> {
   const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}/api/v1/settings`, { headers: auth });
+  const res = await fetch(`${API_URL}/api/v1/settings/`, { headers: auth });
   if (!res.ok) throw new Error("Failed to load settings");
   return (await res.json()).settings;
 }
@@ -188,7 +188,7 @@ async function saveSettings(updates: SettingsMap): Promise<void> {
   const auth = await getAuthHeaders();
   let res: Response;
   try {
-    res = await fetch(`${API_URL}/api/v1/settings`, {
+    res = await fetch(`${API_URL}/api/v1/settings/`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", ...auth },
       body: JSON.stringify({ updates }),

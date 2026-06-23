@@ -163,7 +163,7 @@ export default function KnowledgePage() {
   async function loadRetrievalMode() {
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings`, { headers: auth });
+      const res = await fetch(`${API_URL}/api/v1/settings/`, { headers: auth });
       if (!res.ok) return;
       const data = await res.json();
       const settings: { key: string; display_value?: string }[] = data.settings ?? [];
@@ -178,7 +178,7 @@ export default function KnowledgePage() {
     setRetrievalSaving(true);
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings`, {
+      const res = await fetch(`${API_URL}/api/v1/settings/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ updates: { kb_retrieval_mode: mode } }),
@@ -208,7 +208,7 @@ export default function KnowledgePage() {
   async function loadAiTuneSettings() {
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings`, { headers: auth });
+      const res = await fetch(`${API_URL}/api/v1/settings/`, { headers: auth });
       if (!res.ok) return;
       const data = await res.json();
       const settings: { key: string; display_value: string }[] = data.settings ?? [];
@@ -225,7 +225,7 @@ export default function KnowledgePage() {
     setRubricSaving(true);
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings`, {
+      const res = await fetch(`${API_URL}/api/v1/settings/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ updates: { scoring_rubric: scoringRubric } }),
