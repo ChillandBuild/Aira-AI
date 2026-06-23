@@ -17,7 +17,6 @@ from app.services.call_summarizer import transcribe_recording, analyze_call
 from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call
-from app.services.voice_router import get_best_voice_number, increment_voice_call_count
 from app.services.assignment import get_telecalling_config, record_assignment_event
 
 
@@ -108,25 +107,16 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             except Exception as e:
                 logger.warning(f"Auto-create lead failed for {lead_phone}: {e}")
 
-    # Owners can call directly without a caller record; telecallers require their phone
+    # Resolve caller's phone + TeleCMI agent ID from the callers table
     caller_telecmi_agent_id: str | None = None
-    if role != "owner":
-        caller_phone: str | None = None
-        if payload.caller_id:
-            caller = db.table("callers").select("phone,telecmi_agent_id").eq("id", str(payload.caller_id)).eq("tenant_id", tenant_id).maybe_single().execute()
-            if caller.data:
-                caller_phone = caller.data.get("phone")
-                caller_telecmi_agent_id = caller.data.get("telecmi_agent_id") or None
-        if not caller_phone:
-            raise HTTPException(status_code=400, detail="Caller has no phone number configured")
-    elif payload.caller_id:
-        caller = db.table("callers").select("telecmi_agent_id").eq("id", str(payload.caller_id)).eq("tenant_id", tenant_id).maybe_single().execute()
+    caller_phone: str | None = None
+    if payload.caller_id:
+        caller = db.table("callers").select("phone,telecmi_agent_id").eq("id", str(payload.caller_id)).eq("tenant_id", tenant_id).maybe_single().execute()
         if caller.data:
+            caller_phone = caller.data.get("phone")
             caller_telecmi_agent_id = caller.data.get("telecmi_agent_id") or None
-
-    best_number = await get_best_voice_number(tenant_id)
-    if not best_number:
-        raise HTTPException(status_code=400, detail="No active voice numbers in pool")
+    if role != "owner" and not caller_phone:
+        raise HTTPException(status_code=400, detail="Caller has no phone number configured")
 
     log_insert = db.table("call_logs").insert({
         "lead_id": matched_lead_id,
@@ -138,10 +128,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
     call_log_id = log_insert.data[0]["id"]
 
     try:
-        # TeleCMI click-to-call: rings the caller first, then bridges to the lead
-        telecmi_callerid = get_setting("telecmi_callerid", tenant_id=tenant_id) or best_number["number"]
-        # Caller's own agent ID takes priority; admin direct calls fall back to global setting
-        # Fallback: owner's own caller record agent_id, then global setting
+        # Resolve TeleCMI agent ID: caller's own → owner's → global setting
         effective_agent_id = caller_telecmi_agent_id
         if not effective_agent_id:
             owner_member = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
@@ -153,6 +140,8 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
         if not effective_agent_id:
             raise HTTPException(status_code=400, detail="No TeleCMI Agent ID found. Assign one from the Team page.")
+
+        telecmi_callerid = caller_phone or get_setting("telecmi_callerid", tenant_id=tenant_id) or ""
         result = await initiate_click2call(
             user_id=effective_agent_id,
             secret=telecmi_secret,
@@ -168,7 +157,6 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         raise HTTPException(status_code=502, detail=f"TeleCMI call failed: {err_msg}")
 
     db.table("call_logs").update({"call_sid": request_id}).eq("id", call_log_id).execute()
-    await increment_voice_call_count(best_number["id"])
     return {
         "call_log_id": call_log_id,
         "call_sid": request_id,
