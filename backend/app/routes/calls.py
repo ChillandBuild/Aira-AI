@@ -141,10 +141,14 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         if not effective_agent_id:
             raise HTTPException(status_code=400, detail="No TeleCMI Agent ID found. Assign one from the Team page.")
 
+        telecmi_callerid = caller_phone or get_setting("telecmi_callerid", tenant_id=tenant_id)
+        if not telecmi_callerid:
+            raise HTTPException(status_code=400, detail="No Caller ID configured. Set telecmi_callerid in Settings → TeleCMI.")
         result = await initiate_click2call(
             agent_id=effective_agent_id,
             token=telecmi_secret,
             to=lead_phone,
+            callerid=telecmi_callerid,
             custom=str(call_log_id),
         )
         request_id = result.get("request_id", "")

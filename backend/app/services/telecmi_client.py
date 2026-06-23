@@ -1,7 +1,7 @@
 """
-TeleCMI Click-to-Call client (CHUB India).
+TeleCMI Click-to-Call client.
 
-Docs: https://doc.telecmi.com/chub-india/docs/click-to-call-admin
+Docs: https://doc.telecmi.com/chub/docs/click-to-call-admin
 """
 import logging
 from typing import Any
@@ -10,25 +10,29 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-TELECMI_BASE_URL = "https://piopiy.telecmi.com/v1/adminConnect"
+TELECMI_BASE_URL = "https://rest.telecmi.com/v2/webrtc/click2call"
 
 
 async def initiate_click2call(
     agent_id: str,
     token: str,
     to: str,
+    callerid: str,
     *,
     custom: str | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "agent_id": agent_id,
-        "token": token,
+        "user_id": agent_id,
+        "secret": token,
         "to": _normalize_phone(to),
+        "callerid": callerid,
+        "webrtc": True,
+        "followme": False,
     }
     if custom:
-        payload["custom"] = custom
+        payload["extra_params"] = {"call_log_id": custom}
 
-    logger.info(f"TeleCMI adminConnect: agent_id={agent_id}, to={to}")
+    logger.info(f"TeleCMI click2call: agent_id={agent_id}, to={to}")
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(TELECMI_BASE_URL, json=payload)
