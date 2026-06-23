@@ -24,8 +24,8 @@
 - [[page.tsx]] `EXTRACTED`
 - [[NotesClient.tsx]] `EXTRACTED`
 - [[performance-view.tsx]] `EXTRACTED`
-- [[AdminView.tsx]] `EXTRACTED`
 - [[CallerView.tsx]] `EXTRACTED`
+- [[AdminView.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[LeadsClient.tsx]] `EXTRACTED`
 - [[conversations.py]] `EXTRACTED`

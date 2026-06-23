@@ -33,9 +33,9 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (3 shared connections)
-- [[Outbound Leads Page]] (3 shared connections)
-- [[Tenant]] (2 shared connections)
+- [[Operator Console & Audit]] (3 shared connections)
+- [[Conversation List UI]] (3 shared connections)
+- [[App Entry & Schedulers]] (2 shared connections)
 - [[Analytics API]] (1 shared connections)
 - [[Teamclient (frontend)]] (1 shared connections)
 - [[API Client (frontend)]] (1 shared connections)

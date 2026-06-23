@@ -1,15 +1,14 @@
 # App Settings API
 
-> 27 nodes · cohesion 0.12
+> 27 nodes · cohesion 0.11
 
 ## Key Concepts
 
 - **app_settings.py** (20 connections) — `backend/app/routes/app_settings.py`
-- **get_inbox_config()** (12 connections) — `backend/app/services/assignment.py`
+- **get_inbox_config()** (13 connections) — `backend/app/services/assignment.py`
 - **str** (10 connections) — `backend/app/routes/app_settings.py`
-- **update_settings()** (8 connections) — `backend/app/routes/app_settings.py`
+- **setup_telegram_webhook()** (8 connections) — `backend/app/routes/app_settings.py`
 - **activate_channel()** (8 connections) — `backend/app/routes/app_settings.py`
-- **setup_telegram_webhook()** (7 connections) — `backend/app/routes/app_settings.py`
 - **patch_telecalling_config()** (7 connections) — `backend/app/routes/app_settings.py`
 - **patch_inbox_config()** (6 connections) — `backend/app/routes/app_settings.py`
 - **WebhookHealth** (4 connections) — `frontend/app/dashboard/channels/page.tsx`
@@ -21,8 +20,9 @@
 - **list_settings()** (3 connections) — `backend/app/routes/app_settings.py`
 - **webhook_health()** (2 connections) — `backend/app/routes/app_settings.py`
 - **get_inbox_config_route()** (2 connections) — `backend/app/routes/app_settings.py`
-- **get_telecalling_config_route()** (2 connections) — `backend/app/routes/app_settings.py`
 - **bool** (1 connections) — `backend/app/routes/app_settings.py`
+- **Register Telegram webhook + return generated secret (None if base_url missing).** (1 connections) — `backend/app/routes/app_settings.py`
+- **Return inbox_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
 - **Register Telegram webhook + return generated secret (None if base_url missing).** (1 connections) — `backend/app/routes/app_settings.py`
 - **Return inbox_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
 - **Return inbox_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
@@ -33,16 +33,16 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (6 shared connections)
-- [[Operator Console & Audit]] (6 shared connections)
-- [[Assignment Service]] (4 shared connections)
+- [[Operator Console & Audit]] (12 shared connections)
+- [[Telecaller Assignment Engine]] (5 shared connections)
 - [[Leads API]] (4 shared connections)
-- [[Telecaller Assignment Engine]] (4 shared connections)
-- [[Telecallingconfigpanel (frontend)]] (2 shared connections)
-- [[Channels Page]] (2 shared connections)
-- [[Config]] (1 shared connections)
-- [[Tenant]] (1 shared connections)
-- [[AI Reply Pipeline (Groq)]] (1 shared connections)
+- [[Assignment Service]] (3 shared connections)
+- [[Settings Page]] (2 shared connections)
+- [[Call Coach Service]] (1 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
+- [[Config Dynamic]] (1 shared connections)
+- [[Ai Reply Service]] (1 shared connections)
+- [[Channels Page]] (1 shared connections)
 
 ## Source Files
 
@@ -52,8 +52,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 93 (81%)
-- INFERRED: 22 (19%)
+- EXTRACTED: 92 (84%)
+- INFERRED: 17 (16%)
 - AMBIGUOUS: 0 (0%)
 
 ---

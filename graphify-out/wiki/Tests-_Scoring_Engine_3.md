@@ -1,39 +1,37 @@
 # Tests: Scoring Engine
 
-> 14 nodes · cohesion 0.23
+> 15 nodes · cohesion 0.23
 
 ## Key Concepts
 
-- **_apply_segment_lock()** (19 connections) — `backend/app/services/scoring_engine.py`
-- **TestSegmentLock** (10 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_upgrade_c_to_b_is_immediate()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_upgrade_b_to_a_is_immediate()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_upgrade_d_to_a_is_immediate()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_first_small_drop_holds_segment()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_second_small_drop_allows_downgrade()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_first_small_drop_c_to_b()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_a_to_d_big_drop_is_immediate()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_big_drop_2_segments_immediate()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_same_segment_resets_drop_count()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **Returns (final_segment, new_drop_count).      Upgrade:            always immedia** (1 connections) — `backend/app/services/scoring_engine.py`
-- **Returns (final_segment, new_drop_count).      Upgrade:            always immedia** (1 connections) — `backend/app/services/scoring_engine.py`
-- **Returns (final_segment, new_drop_count).      Upgrade:            always immedia** (1 connections) — `backend/app/services/scoring_engine.py`
+- **TestCompositeScoreLogic** (15 connections) — `backend/tests/test_scoring_engine.py`
+- **._composite()** (11 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_hot_lead_ok_message_stays_high()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_hot_lead_does_not_drop_on_ok()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_booking_keyword_pushes_above_threshold()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_decay_drifts_hot_lead()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_recency_boosts_score()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_engagement_lifts_warm_to_hot()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_score_clamped_at_10()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_score_clamped_at_1()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_rejection_overrides_everything()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_high_intent_stale_lead()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_engagement_decay_drifts_hot_lead()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **Verify composite arithmetic stays correct and clamped.** (1 connections) — `backend/tests/test_scoring_engine.py`
+- **Verify composite arithmetic stays correct and clamped.** (1 connections) — `backend/tests/test_scoring_engine.py`
 
 ## Relationships
 
-- [[Score Engine v2 & Segmentation]] (4 shared connections)
-- [[App Entry & Schedulers]] (2 shared connections)
 - [[Tests: Scoring Engine]] (2 shared connections)
 
 ## Source Files
 
-- `backend/app/services/scoring_engine.py`
 - `backend/tests/test_scoring_engine.py`
 
 ## Audit Trail
 
-- EXTRACTED: 32 (64%)
-- INFERRED: 18 (36%)
+- EXTRACTED: 49 (98%)
+- INFERRED: 1 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

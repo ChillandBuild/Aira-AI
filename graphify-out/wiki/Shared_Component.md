@@ -1,6 +1,6 @@
 # Shared Component
 
-> 53 nodes · cohesion 0.08
+> 55 nodes · cohesion 0.07
 
 ## Key Concepts
 
@@ -29,14 +29,14 @@
 - **useLeadsWithActivity()** (3 connections) — `frontend/hooks/useApi.ts`
 - **useNotes()** (3 connections) — `frontend/hooks/useApi.ts`
 - **useAllNotes()** (3 connections) — `frontend/hooks/useApi.ts`
-- *... and 28 more nodes in this community*
+- *... and 30 more nodes in this community*
 
 ## Relationships
 
 - [[Leaddetailpanel Component]] (34 shared connections)
 - [[Teamclient (frontend)]] (9 shared connections)
 - [[API Client (frontend)]] (5 shared connections)
-- [[Conversation List UI]] (3 shared connections)
+- [[Chat Thread Component]] (3 shared connections)
 
 ## Source Files
 
@@ -50,7 +50,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 259 (100%)
+- EXTRACTED: 263 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

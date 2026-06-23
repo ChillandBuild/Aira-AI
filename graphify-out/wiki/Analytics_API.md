@@ -27,12 +27,11 @@
 
 ## Relationships
 
-- [[Analytics API]] (22 shared connections)
-- [[Calls API (TeleCMI dialer)]] (6 shared connections)
+- [[Analytics API]] (24 shared connections)
+- [[Operator Console & Audit]] (8 shared connections)
 - [[API Client (frontend)]] (4 shared connections)
-- [[Operator Console & Audit]] (2 shared connections)
 - [[Analytics Page]] (2 shared connections)
-- [[Tenant]] (1 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
 - [[Growth Service]] (1 shared connections)
 - [[Leaddetailpanel Component]] (1 shared connections)
 

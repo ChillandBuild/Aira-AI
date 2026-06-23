@@ -19,8 +19,8 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (4 shared connections)
-- [[Leaddetailpanel Component]] (4 shared connections)
+- [[Operator Console & Audit]] (4 shared connections)
+- [[Chat Thread Component]] (4 shared connections)
 
 ## Source Files
 

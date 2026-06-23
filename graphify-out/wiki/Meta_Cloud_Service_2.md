@@ -1,40 +1,42 @@
 # Meta Cloud Service
 
-> 12 nodes · cohesion 0.20
+> 15 nodes · cohesion 0.22
 
 ## Key Concepts
 
-- **send_media_to_lead()** (13 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
-- **get_wa_type_for_mime()** (5 connections) — `backend/app/services/meta_cloud.py`
-- **media.py** (4 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
-- **UUID** (2 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
-- **UUID** (2 connections) — `backend/app/routes/media.py`
-- **UploadFile** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
-- **str** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
-- **Upload a file and send it as a WhatsApp media message to a lead.     Supports: i** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
-- **Return WhatsApp message type for a given MIME type.** (1 connections) — `backend/app/services/meta_cloud.py`
-- **UploadFile** (1 connections) — `backend/app/routes/media.py`
-- **str** (1 connections) — `backend/app/routes/media.py`
-- **Return WhatsApp message type for a given MIME type.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **UpdateTemplate** (16 connections) — `backend/app/routes/templates.py`
+- **update_template()** (11 connections) — `backend/app/routes/templates.py`
+- **submit_template()** (10 connections) — `backend/app/services/meta_cloud.py`
+- **_strip_emojis()** (9 connections) — `backend/app/services/meta_cloud.py`
+- **_build_button_components()** (9 connections) — `backend/app/services/meta_cloud.py`
+- **_sanitize_header_or_footer()** (7 connections) — `backend/app/services/meta_cloud.py`
+- **_extract_variable_examples()** (7 connections) — `backend/app/services/meta_cloud.py`
+- **Edit a REJECTED or PAUSED template. Updates local DB and pushes changes to Meta** (2 connections) — `backend/app/routes/templates.py`
+- **Update a rejected/paused template on Meta.     Calls POST https://graph.facebook** (2 connections) — `backend/app/services/meta_cloud.py`
+- **Drop emoji code points (and ZWJ / variation selectors) from a string.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Meta rejects newlines, formatting characters, and emojis in HEADER/FOOTER     te** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Return placeholder example values for every {{N}} variable in the body.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Shared button-component builder used by main template + carousel cards.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Return placeholder example values for every {{N}} variable in the body.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Shared button-component builder used by main template + carousel cards.** (1 connections) — `backend/app/services/meta_cloud.py`
 
 ## Relationships
 
-- [[Meta Cloud API Client]] (3 shared connections)
-- [[Tenant]] (1 shared connections)
-- [[Calls API (TeleCMI dialer)]] (1 shared connections)
-- [[Operator Console & Audit]] (1 shared connections)
+- [[Meta Cloud API Client]] (16 shared connections)
+- [[Templates API]] (10 shared connections)
+- [[Operator Console & Audit]] (5 shared connections)
+- [[Leads API]] (1 shared connections)
 - [[Meta Cloud Service]] (1 shared connections)
 
 ## Source Files
 
-- `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
-- `backend/app/routes/media.py`
+- `backend/app/routes/templates.py`
 - `backend/app/services/meta_cloud.py`
 
 ## Audit Trail
 
-- EXTRACTED: 27 (82%)
-- INFERRED: 6 (18%)
+- EXTRACTED: 53 (67%)
+- INFERRED: 26 (33%)
 - AMBIGUOUS: 0 (0%)
 
 ---

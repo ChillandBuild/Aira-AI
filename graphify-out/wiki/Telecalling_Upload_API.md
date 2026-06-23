@@ -17,12 +17,10 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (3 shared connections)
-- [[Assignment Service]] (2 shared connections)
-- [[Operator Console & Audit]] (2 shared connections)
-- [[Tenant]] (1 shared connections)
-- [[Telecaller Assignment Engine]] (1 shared connections)
-- [[Notify Service]] (1 shared connections)
+- [[Operator Console & Audit]] (5 shared connections)
+- [[Telecaller Assignment Engine]] (2 shared connections)
+- [[Notify Service]] (2 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files
 

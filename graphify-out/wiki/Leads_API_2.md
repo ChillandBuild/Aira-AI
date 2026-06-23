@@ -1,19 +1,20 @@
 # Leads API
 
-> 5 nodes · cohesion 0.40
+> 6 nodes · cohesion 0.33
 
 ## Key Concepts
 
-- **score_history()** (7 connections) — `backend/app/routes/leads.py`
-- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
-- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
-- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
-- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
+- **release_lead()** (10 connections) — `backend/app/routes/leads.py`
+- **Unassign a lead from its caller — caller marks it as 'done'.     Drops it from t** (1 connections) — `backend/app/routes/leads.py`
+- **Unassign a lead from its caller — caller marks it as 'done'.     Drops it from t** (1 connections) — `backend/app/routes/leads.py`
+- **Unassign a lead from its caller — caller marks it as 'done'.     Drops it from t** (1 connections) — `backend/app/routes/leads.py`
+- **Unassign a lead from its caller — caller marks it as 'done'.     Drops it from t** (1 connections) — `backend/app/routes/leads.py`
+- **Unassign a lead from its caller — caller marks it as 'done'.     Drops it from t** (1 connections) — `backend/app/routes/leads.py`
 
 ## Relationships
 
-- [[Leads API]] (2 shared connections)
-- [[Calls API (TeleCMI dialer)]] (1 shared connections)
+- [[Leads API]] (3 shared connections)
+- [[Operator Console & Audit]] (2 shared connections)
 
 ## Source Files
 
@@ -21,8 +22,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 10 (91%)
-- INFERRED: 1 (9%)
+- EXTRACTED: 13 (87%)
+- INFERRED: 2 (13%)
 - AMBIGUOUS: 0 (0%)
 
 ---

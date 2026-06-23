@@ -33,13 +33,13 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (8 shared connections)
-- [[Config]] (2 shared connections)
-- [[Tenant]] (1 shared connections)
-- [[Operator Console & Audit]] (1 shared connections)
-- [[Razorpay Payments]] (1 shared connections)
-- [[Call Coach Service]] (1 shared connections)
-- [[AI Reply Pipeline (Groq)]] (1 shared connections)
+- [[Operator Console & Audit]] (7 shared connections)
+- [[Call Coach Service]] (2 shared connections)
+- [[AI Reply Pipeline (Groq)]] (2 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
+- [[Config Dynamic]] (1 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
+- [[Ai Reply Service]] (1 shared connections)
 
 ## Source Files
 

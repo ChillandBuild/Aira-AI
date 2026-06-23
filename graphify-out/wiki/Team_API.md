@@ -23,11 +23,10 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (8 shared connections)
-- [[Operator Console & Audit]] (7 shared connections)
+- [[Operator Console & Audit]] (15 shared connections)
 - [[Attendance Service]] (5 shared connections)
 - [[Leads API]] (3 shared connections)
-- [[Tenant]] (1 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files
 

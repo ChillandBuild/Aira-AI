@@ -1,19 +1,19 @@
 # FastAPI
 
-> God node · 47 connections · `backend/app/main.py`
+> God node · 46 connections · `backend/app/main.py`
 
-**Community:** [[Tenant]]
+**Community:** [[App Entry & Schedulers]]
 
 ## Connections by Relation
 
 ### imports_from
 - [[upload.py]] `EXTRACTED`
 - [[leads.py]] `EXTRACTED`
+- [[operator.py]] `EXTRACTED`
 - [[analytics.py]] `EXTRACTED`
 - [[meta_cloud.py]] `EXTRACTED`
 - [[callers.py]] `EXTRACTED`
 - [[conversations.py]] `EXTRACTED`
-- [[operator.py]] `EXTRACTED`
 - [[calls.py]] `EXTRACTED`
 - [[app_settings.py]] `EXTRACTED`
 - [[templates.py]] `EXTRACTED`

@@ -21,14 +21,14 @@
 ## Relationships
 
 - [[Config (frontend)]] (4 shared connections)
-- [[Sidebar (frontend)]] (4 shared connections)
-- [[Outbound Leads Page]] (3 shared connections)
-- [[Connectchannelspanel (frontend)]] (2 shared connections)
+- [[Data Ops (frontend)]] (4 shared connections)
+- [[Conversation List UI]] (3 shared connections)
+- [[Settings Page]] (2 shared connections)
 - [[Content (frontend)]] (2 shared connections)
 - [[Inbox (frontend)]] (2 shared connections)
 - [[Team (frontend)]] (2 shared connections)
 - [[Telecalling (frontend)]] (2 shared connections)
-- [[Data Ops (frontend)]] (1 shared connections)
+- [[Audit Logs (frontend)]] (1 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
 - [[Leaddetailpanel Component]] (1 shared connections)
 

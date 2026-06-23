@@ -1,32 +1,38 @@
 # Tests: Scoring Engine
 
-> 10 nodes · cohesion 0.33
+> 13 nodes · cohesion 0.35
 
 ## Key Concepts
 
-- **TestCompositeScoreLogic** (10 connections) — `backend/tests/test_scoring_engine.py`
-- **._composite()** (7 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_hot_lead_ok_message_stays_high()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_hot_lead_does_not_drop_on_ok()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_booking_keyword_pushes_above_threshold()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_engagement_decay_drifts_hot_lead()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_score_clamped_at_10()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_score_clamped_at_1()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **.test_rejection_overrides_everything()** (2 connections) — `backend/tests/test_scoring_engine.py`
-- **Verify composite arithmetic stays correct and clamped.** (1 connections) — `backend/tests/test_scoring_engine.py`
+- **_compute_decay()** (15 connections) — `backend/app/services/scoring_engine.py`
+- **TestDecay** (11 connections) — `backend/tests/test_scoring_engine.py`
+- **._hours_ago()** (10 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_within_1_hour_is_plus3()** (3 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_6_hours_ago_is_plus1()** (3 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_18_hours_ago_is_zero()** (3 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_2_days_silent_is_minus1()** (3 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_5_days_silent_is_minus2()** (3 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_10_days_silent_is_minus3()** (3 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_45_days_silent_is_minus4()** (3 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_none_last_inbound_is_zero()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **.test_naive_datetime_handled()** (2 connections) — `backend/tests/test_scoring_engine.py`
+- **Bidirectional time-decay: +3 (very recent) to -4 (stale).** (1 connections) — `backend/app/services/scoring_engine.py`
 
 ## Relationships
 
-- [[Tests: Scoring Engine]] (2 shared connections)
+- [[Score Engine v2 & Segmentation]] (4 shared connections)
+- [[Tests: Scoring Engine]] (3 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files
 
+- `backend/app/services/scoring_engine.py`
 - `backend/tests/test_scoring_engine.py`
 
 ## Audit Trail
 
-- EXTRACTED: 31 (97%)
-- INFERRED: 1 (3%)
+- EXTRACTED: 44 (71%)
+- INFERRED: 18 (29%)
 - AMBIGUOUS: 0 (0%)
 
 ---

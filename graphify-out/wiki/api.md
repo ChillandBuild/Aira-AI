@@ -1,8 +1,8 @@
 # api
 
-> God node · 47 connections · `frontend/lib/api.ts`
+> God node · 48 connections · `frontend/lib/api.ts`
 
-**Community:** [[Leaddetailpanel Component]]
+**Community:** [[Chat Thread Component]]
 
 ## Connections by Relation
 
@@ -16,8 +16,9 @@
 - [[NotesClient.tsx]] `EXTRACTED`
 - [[performance-view.tsx]] `EXTRACTED`
 - [[shared.tsx]] `EXTRACTED`
-- [[AdminView.tsx]] `EXTRACTED`
 - [[CallerView.tsx]] `EXTRACTED`
+- [[AdminView.tsx]] `EXTRACTED`
+- [[page.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[LeadsClient.tsx]] `EXTRACTED`
 - [[conversations.py]] `EXTRACTED`
@@ -27,7 +28,6 @@
 - [[useCallingCockpit.ts]] `EXTRACTED`
 - [[conversation-list.tsx]] `EXTRACTED`
 - [[lead-details-panel.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
 - [[InboundLeadsClient.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 

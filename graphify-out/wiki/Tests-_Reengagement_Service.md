@@ -24,7 +24,7 @@
 
 ## Relationships
 
-- [[Razorpay Payments]] (1 shared connections)
+- [[AI Reply Pipeline (Groq)]] (1 shared connections)
 
 ## Source Files
 

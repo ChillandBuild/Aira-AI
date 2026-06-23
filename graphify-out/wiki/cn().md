@@ -1,8 +1,8 @@
 # cn()
 
-> God node · 61 connections · `frontend/lib/utils.ts`
+> God node · 63 connections · `frontend/lib/utils.ts`
 
-**Community:** [[Outbound Leads Page]]
+**Community:** [[Conversation List UI]]
 
 ## Connections by Relation
 
@@ -21,18 +21,17 @@
 - [[InboxRail()]] `EXTRACTED`
 - [[Sidebar()]] `EXTRACTED`
 - [[InboundLeadsPage()]] `EXTRACTED`
-- [[InboxPage()]] `EXTRACTED`
 - [[DashboardPage()]] `EXTRACTED`
 - [[SettingsPage()]] `EXTRACTED`
 - [[CalendarPanel()]] `EXTRACTED`
 - [[ConversationList()]] `EXTRACTED`
 - [[ScoreEvent]] `EXTRACTED`
+- [[ScoreEventCard()]] `EXTRACTED`
 
 ### contains
 - [[utils.ts]] `EXTRACTED`
 
 ### imports
-- [[page.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
@@ -42,16 +41,17 @@
 - [[ConnectChannelsPanel.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
+- [[page.tsx]] `EXTRACTED`
 - [[conversation-list.tsx]] `EXTRACTED`
 - [[lead-details-panel.tsx]] `EXTRACTED`
 - [[InboundLeadsClient.tsx]] `EXTRACTED`
 - [[chat-thread.tsx]] `EXTRACTED`
+- [[escalation-panel.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
 - [[sidebar.tsx]] `EXTRACTED`
 - [[page.tsx]] `EXTRACTED`
-- [[page.tsx]] `EXTRACTED`
 - [[DashboardClient.tsx]] `EXTRACTED`
-- [[stat-card.tsx]] `EXTRACTED`
+- [[CoachingDigest.tsx]] `EXTRACTED`
 
 ---
 

@@ -4,23 +4,23 @@
 
 ## Key Concepts
 
-- **page.tsx** (9 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
-- **JobHealth** (1 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
-- **SchedulerHealth** (1 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
-- **JOB_LABELS** (1 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
-- **relTime()** (1 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
-- **Health** (1 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
-- **HEALTH_STYLE** (1 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
-- **SchedulerHealthPage()** (1 connections) — `frontend/app/operator/(console)/scheduler/page.tsx`
+- **page.tsx** (9 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
+- **AuditEntry** (1 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
+- **AuditResponse** (1 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
+- **ACTION_COLORS** (1 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
+- **actionColor()** (1 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
+- **relTime()** (1 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
+- **formatMeta()** (1 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
+- **AuditLogPage()** (1 connections) — `frontend/app/operator/(console)/audit-log/page.tsx`
 
 ## Relationships
 
 - [[API Client (frontend)]] (1 shared connections)
-- [[Connectchannelspanel (frontend)]] (1 shared connections)
+- [[Settings Page]] (1 shared connections)
 
 ## Source Files
 
-- `frontend/app/operator/(console)/scheduler/page.tsx`
+- `frontend/app/operator/(console)/audit-log/page.tsx`
 
 ## Audit Trail
 

@@ -1,42 +1,42 @@
 # Meta Cloud Service
 
-> 14 nodes · cohesion 0.22
+> 15 nodes · cohesion 0.15
 
 ## Key Concepts
 
-- **UpdateTemplate** (16 connections) — `backend/app/routes/templates.py`
-- **update_template()** (11 connections) — `backend/app/routes/templates.py`
-- **_strip_emojis()** (9 connections) — `backend/app/services/meta_cloud.py`
-- **_build_button_components()** (9 connections) — `backend/app/services/meta_cloud.py`
-- **_sanitize_header_or_footer()** (7 connections) — `backend/app/services/meta_cloud.py`
-- **_extract_variable_examples()** (7 connections) — `backend/app/services/meta_cloud.py`
-- **Edit a REJECTED or PAUSED template. Updates local DB and pushes changes to Meta** (2 connections) — `backend/app/routes/templates.py`
-- **Update a rejected/paused template on Meta.     Calls POST https://graph.facebook** (2 connections) — `backend/app/services/meta_cloud.py`
-- **Drop emoji code points (and ZWJ / variation selectors) from a string.** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Meta rejects newlines, formatting characters, and emojis in HEADER/FOOTER     te** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Return placeholder example values for every {{N}} variable in the body.** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Shared button-component builder used by main template + carousel cards.** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Return placeholder example values for every {{N}} variable in the body.** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Shared button-component builder used by main template + carousel cards.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **send_media_to_lead()** (13 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
+- **upload_media_to_meta()** (8 connections) — `backend/app/services/meta_cloud.py`
+- **get_wa_type_for_mime()** (5 connections) — `backend/app/services/meta_cloud.py`
+- **media.py** (4 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
+- **UUID** (2 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
+- **UUID** (2 connections) — `backend/app/routes/media.py`
+- **UploadFile** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
+- **str** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
+- **Upload a file and send it as a WhatsApp media message to a lead.     Supports: i** (1 connections) — `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
+- **Return WhatsApp message type for a given MIME type.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Upload a file to Meta's media hosting and return the media ID.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **UploadFile** (1 connections) — `backend/app/routes/media.py`
+- **str** (1 connections) — `backend/app/routes/media.py`
+- **Return WhatsApp message type for a given MIME type.** (1 connections) — `backend/app/services/meta_cloud.py`
+- **Upload a file to Meta's media hosting and return the media ID.** (1 connections) — `backend/app/services/meta_cloud.py`
 
 ## Relationships
 
-- [[Meta Cloud API Client]] (13 shared connections)
-- [[Templates API]] (10 shared connections)
-- [[Calls API (TeleCMI dialer)]] (2 shared connections)
-- [[Operator Console & Audit]] (2 shared connections)
-- [[Leads API]] (1 shared connections)
+- [[Meta Cloud API Client]] (6 shared connections)
+- [[Operator Console & Audit]] (3 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
 - [[Meta Cloud Service]] (1 shared connections)
 
 ## Source Files
 
-- `backend/app/routes/templates.py`
+- `/Users/prem/Documents/Aira Ai/backend/app/routes/media.py`
+- `backend/app/routes/media.py`
 - `backend/app/services/meta_cloud.py`
 
 ## Audit Trail
 
-- EXTRACTED: 45 (65%)
-- INFERRED: 24 (35%)
+- EXTRACTED: 36 (84%)
+- INFERRED: 7 (16%)
 - AMBIGUOUS: 0 (0%)
 
 ---

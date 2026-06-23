@@ -30,7 +30,7 @@
 
 - [[CSV Upload & Bulk Send]] (8 shared connections)
 - [[Upload API]] (4 shared connections)
-- [[Calls API (TeleCMI dialer)]] (2 shared connections)
+- [[Operator Console & Audit]] (2 shared connections)
 
 ## Source Files
 

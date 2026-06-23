@@ -1,31 +1,35 @@
 # App Entry & Schedulers
 
-> 7 nodes · cohesion 0.29
+> 10 nodes · cohesion 0.20
 
 ## Key Concepts
 
-- **_process_scheduled_broadcasts()** (7 connections) — `backend/app/main.py`
-- **_process_automation_waits()** (3 connections) — `backend/app/main.py`
-- **APScheduler job: fire scheduled_broadcasts rows whose fire_at has passed.** (2 connections) — `backend/app/main.py`
-- **APScheduler job: fire scheduled_broadcasts rows whose fire_at has passed.** (1 connections) — `backend/app/main.py`
-- **APScheduler job: fire scheduled_broadcasts rows whose fire_at has passed.** (1 connections) — `backend/app/main.py`
-- **APScheduler job: resume automation wait-step executions that are due.** (1 connections) — `backend/app/main.py`
-- **APScheduler job: fire scheduled_broadcasts rows whose fire_at has passed.** (1 connections) — `backend/app/main.py`
+- **sweep_unassigned_leads()** (9 connections) — `backend/app/services/assignment.py`
+- **_sweep_unassigned_leads()** (6 connections) — `backend/app/main.py`
+- **APScheduler job: state-based safety net that assigns any unassigned lead     who** (1 connections) — `backend/app/main.py`
+- **State-based safety net for auto-assignment.      Assigns any UNASSIGNED lead who** (1 connections) — `backend/app/services/assignment.py`
+- **APScheduler job: state-based safety net that assigns any unassigned lead     who** (1 connections) — `backend/app/main.py`
+- **State-based safety net for auto-assignment.      Assigns any UNASSIGNED lead who** (1 connections) — `backend/app/services/assignment.py`
+- **State-based safety net for auto-assignment.      Assigns any UNASSIGNED lead who** (1 connections) — `backend/app/services/assignment.py`
+- **APScheduler job: state-based safety net that assigns any unassigned lead     who** (1 connections) — `backend/app/main.py`
+- **APScheduler job: state-based safety net that assigns any unassigned lead     who** (1 connections) — `backend/app/main.py`
+- **State-based safety net for auto-assignment.      Assigns any UNASSIGNED lead who** (1 connections) — `backend/app/services/assignment.py`
 
 ## Relationships
 
-- [[App Entry & Schedulers]] (2 shared connections)
-- [[Calls API (TeleCMI dialer)]] (1 shared connections)
-- [[Broadcast Executor & Outbound Router]] (1 shared connections)
+- [[Telecaller Assignment Engine]] (3 shared connections)
+- [[App Entry & Schedulers]] (1 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
 
 ## Source Files
 
 - `backend/app/main.py`
+- `backend/app/services/assignment.py`
 
 ## Audit Trail
 
-- EXTRACTED: 14 (88%)
-- INFERRED: 2 (12%)
+- EXTRACTED: 20 (87%)
+- INFERRED: 3 (13%)
 - AMBIGUOUS: 0 (0%)
 
 ---

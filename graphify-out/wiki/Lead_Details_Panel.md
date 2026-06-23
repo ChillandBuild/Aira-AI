@@ -24,11 +24,11 @@
 
 ## Relationships
 
-- [[Outbound Leads Page]] (4 shared connections)
-- [[Conversation List UI]] (3 shared connections)
+- [[Conversation List UI]] (4 shared connections)
+- [[Chat Thread Component]] (3 shared connections)
 - [[Leaddetailpanel Component]] (2 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
-- [[Connectchannelspanel (frontend)]] (1 shared connections)
+- [[Settings Page]] (1 shared connections)
 
 ## Source Files
 

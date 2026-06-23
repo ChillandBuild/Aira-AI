@@ -33,8 +33,8 @@
 
 ## Relationships
 
-- [[Connectchannelspanel (frontend)]] (5 shared connections)
-- [[Outbound Leads Page]] (2 shared connections)
+- [[Settings Page]] (5 shared connections)
+- [[Conversation List UI]] (2 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
 - [[Leaddetailpanel Component]] (1 shared connections)
 

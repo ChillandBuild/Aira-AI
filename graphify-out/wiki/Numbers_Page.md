@@ -25,11 +25,11 @@
 
 ## Relationships
 
-- [[Leaddetailpanel Component]] (4 shared connections)
-- [[Authrolecontext (frontend)]] (2 shared connections)
-- [[Connectchannelspanel (frontend)]] (2 shared connections)
+- [[Chat Thread Component]] (5 shared connections)
+- [[Settings Page]] (2 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
-- [[Outbound Leads Page]] (1 shared connections)
+- [[Leaddetailpanel Component]] (1 shared connections)
+- [[Conversation List UI]] (1 shared connections)
 
 ## Source Files
 

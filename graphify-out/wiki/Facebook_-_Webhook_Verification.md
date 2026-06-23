@@ -4,7 +4,7 @@
 
 ## Key Concepts
 
-- **facebook_webhook()** (17 connections) — `backend/app/routes/facebook.py`
+- **facebook_webhook()** (16 connections) — `backend/app/routes/facebook.py`
 - **facebook.py** (5 connections) — `backend/app/routes/facebook.py`
 - **verify_facebook_webhook()** (5 connections) — `backend/app/routes/facebook.py`
 - **test_facebook.py** (4 connections) — `backend/tests/test_facebook.py`
@@ -19,13 +19,14 @@
 
 ## Relationships
 
-- [[Instagram Channel]] (3 shared connections)
-- [[Tenant]] (2 shared connections)
-- [[Calls API (TeleCMI dialer)]] (2 shared connections)
-- [[Assignment Service]] (2 shared connections)
-- [[Booking Flow]] (2 shared connections)
+- [[Config Dynamic]] (2 shared connections)
+- [[App Entry & Schedulers]] (2 shared connections)
+- [[Telecaller Assignment Engine]] (2 shared connections)
 - [[Growth Service]] (2 shared connections)
-- [[Config]] (1 shared connections)
+- [[Meta Webhook Verify Service]] (2 shared connections)
+- [[Call Coach Service]] (1 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
+- [[Conversation Compactor Service]] (1 shared connections)
 - [[Notify Service]] (1 shared connections)
 
 ## Source Files
@@ -35,8 +36,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 29 (63%)
-- INFERRED: 17 (37%)
+- EXTRACTED: 29 (64%)
+- INFERRED: 16 (36%)
 - AMBIGUOUS: 0 (0%)
 
 ---

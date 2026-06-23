@@ -1,41 +1,44 @@
 # Call Coach Service
 
-> 7 nodes · cohesion 0.38
+> 9 nodes · cohesion 0.28
 
 ## Key Concepts
 
-- **get_groq_client()** (19 connections) — `backend/app/services/groq_client.py`
+- **config.py** (22 connections) — `backend/app/config.py`
 - **coaching_tip()** (6 connections) — `backend/app/services/call_coach.py`
+- **Settings** (3 connections) — `backend/app/config.py`
 - **call_coach.py** (3 connections) — `backend/app/services/call_coach.py`
 - **_summarize_logs()** (3 connections) — `backend/app/services/call_coach.py`
+- **supabase.py** (2 connections) — `/Users/prem/Documents/Aira Ai/backend/app/db/supabase.py`
 - **str** (2 connections) — `backend/app/services/call_coach.py`
-- **str** (1 connections) — `backend/app/services/groq_client.py`
-- **bool** (1 connections) — `backend/app/services/groq_client.py`
+- **BaseSettings** (1 connections)
+- **._warn_missing_secrets()** (1 connections) — `backend/app/config.py`
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (2 shared connections)
-- [[Ai Tune API]] (2 shared connections)
+- [[Operator Console & Audit]] (3 shared connections)
+- [[App Entry & Schedulers]] (2 shared connections)
 - [[AI Reply Pipeline (Groq)]] (2 shared connections)
-- [[Booking Flow]] (2 shared connections)
-- [[Call Summarizer Service]] (2 shared connections)
-- [[Config]] (1 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
-- [[Leads API]] (1 shared connections)
-- [[Caller Daily Digest]] (1 shared connections)
-- [[Razorpay Payments]] (1 shared connections)
+- [[Knowledge Base (pgvector RAG)]] (2 shared connections)
+- [[Auth]] (1 shared connections)
+- [[Ai Tune API]] (1 shared connections)
+- [[App Settings API]] (1 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
+- [[Facebook / Webhook Verification]] (1 shared connections)
 - [[Instagram Channel]] (1 shared connections)
-- [[Knowledge Base (pgvector RAG)]] (1 shared connections)
+- [[Leads API]] (1 shared connections)
+- [[WhatsApp Inbound Webhook]] (1 shared connections)
 
 ## Source Files
 
+- `/Users/prem/Documents/Aira Ai/backend/app/db/supabase.py`
+- `backend/app/config.py`
 - `backend/app/services/call_coach.py`
-- `backend/app/services/groq_client.py`
 
 ## Audit Trail
 
-- EXTRACTED: 17 (49%)
-- INFERRED: 18 (51%)
+- EXTRACTED: 40 (93%)
+- INFERRED: 3 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---

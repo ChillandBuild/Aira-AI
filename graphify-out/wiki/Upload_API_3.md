@@ -1,26 +1,25 @@
 # Upload API
 
-> 11 nodes · cohesion 0.18
+> 10 nodes · cohesion 0.20
 
 ## Key Concepts
 
-- **clear_negative_reply()** (9 connections) — `backend/app/routes/upload.py`
-- **risk_audit()** (8 connections) — `backend/app/routes/upload.py`
-- **RiskAuditRequest** (4 connections) — `backend/app/routes/upload.py`
-- **_retry_fields()** (3 connections) — `backend/app/routes/upload.py`
-- **Retry config to merge onto an original scheduled_broadcasts row. {} when disable** (2 connections) — `backend/app/routes/upload.py`
-- **Return risk counts for a set of leads before a broadcast is confirmed.** (1 connections) — `backend/app/routes/upload.py`
-- **Clear broadcast_negative_reply_at for a list of leads (re-include them in future** (1 connections) — `backend/app/routes/upload.py`
-- **Clear broadcast_negative_reply_at for a list of leads (re-include them in future** (1 connections) — `backend/app/routes/upload.py`
-- **Return risk counts for a set of leads before a broadcast is confirmed.** (1 connections) — `backend/app/routes/upload.py`
-- **Clear broadcast_negative_reply_at for a list of leads (re-include them in future** (1 connections) — `backend/app/routes/upload.py`
-- **Clear broadcast_negative_reply_at for a list of leads (re-include them in future** (1 connections) — `backend/app/routes/upload.py`
+- **download_tag_csv()** (10 connections) — `backend/app/routes/upload.py`
+- **download_broadcast_scores_csv()** (7 connections) — `backend/app/routes/upload.py`
+- **Download per-lead interest CSV for a specific broadcast (product-specific scorin** (2 connections) — `backend/app/routes/upload.py`
+- **Download per-lead interest CSV for a specific broadcast (product-specific scorin** (1 connections) — `backend/app/routes/upload.py`
+- **Per-tag CSV grouped by broadcast.      Normal segment exports include only succe** (1 connections) — `backend/app/routes/upload.py`
+- **Per-tag CSV grouped by broadcast.      Normal segment exports include only succe** (1 connections) — `backend/app/routes/upload.py`
+- **Download per-lead interest CSV for a specific broadcast (product-specific scorin** (1 connections) — `backend/app/routes/upload.py`
+- **Per-tag CSV grouped by broadcast.      Normal segment exports include only succe** (1 connections) — `backend/app/routes/upload.py`
+- **Download per-lead interest CSV for a specific broadcast (product-specific scorin** (1 connections) — `backend/app/routes/upload.py`
+- **Per-tag CSV grouped by broadcast: name, phone, template, broadcast_id, HOT, WARM** (1 connections) — `backend/app/routes/upload.py`
 
 ## Relationships
 
-- [[CSV Upload & Bulk Send]] (9 shared connections)
-- [[Calls API (TeleCMI dialer)]] (2 shared connections)
-- [[Leads API]] (1 shared connections)
+- [[CSV Upload & Bulk Send]] (4 shared connections)
+- [[Operator Console & Audit]] (2 shared connections)
+- [[Upload API]] (2 shared connections)
 
 ## Source Files
 
@@ -28,8 +27,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 30 (94%)
-- INFERRED: 2 (6%)
+- EXTRACTED: 24 (92%)
+- INFERRED: 2 (8%)
 - AMBIGUOUS: 0 (0%)
 
 ---

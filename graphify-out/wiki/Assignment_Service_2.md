@@ -1,48 +1,40 @@
 # Assignment Service
 
-> 14 nodes · cohesion 0.14
+> 13 nodes · cohesion 0.18
 
 ## Key Concepts
 
-- **get_telecalling_config()** (27 connections) — `backend/app/services/assignment.py`
-- **_process_callback_reassignments()** (9 connections) — `backend/app/main.py`
-- **should_escalate_to_inbox()** (8 connections) — `backend/app/services/assignment.py`
-- **get_my_performance()** (3 connections) — `backend/app/routes/callers.py`
-- **get_assignment_mode()** (2 connections) — `backend/app/routes/calls.py`
-- **Return telecalling_config from app_settings, merged with defaults.** (2 connections) — `backend/app/services/assignment.py`
-- **Return True if this trigger should create an inbox handover.     Trigger C alway** (1 connections) — `backend/app/services/assignment.py`
-- **Return telecalling_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
-- **APScheduler job: escalate overdue callbacks from inactive/busy callers (no auto-** (1 connections) — `backend/app/main.py`
-- **APScheduler job: escalate overdue callbacks from inactive/busy callers (no auto-** (1 connections) — `backend/app/main.py`
-- **Return telecalling_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this trigger should create an inbox handover.     Trigger C alway** (1 connections) — `backend/app/services/assignment.py`
-- **Return telecalling_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this trigger should create an inbox handover.     Trigger C alway** (1 connections) — `backend/app/services/assignment.py`
+- **is_round_robin_enabled()** (14 connections) — `backend/app/services/assignment.py`
+- **save_telecalling_config()** (12 connections) — `backend/app/services/assignment.py`
+- **set_round_robin_enabled()** (7 connections) — `backend/app/services/assignment.py`
+- **bool** (6 connections) — `backend/app/services/assignment.py`
+- **Flip the single auto-assign switch (telecalling_config.enabled).** (2 connections) — `backend/app/services/assignment.py`
+- **Whether auto-assign to telecallers is on.      Single source of truth: telecalli** (1 connections) — `backend/app/services/assignment.py`
+- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Check app_settings for round_robin_enabled flag. Defaults to True.** (1 connections) — `backend/app/services/assignment.py`
+- **Upsert the round_robin_enabled flag in app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
 
 ## Relationships
 
-- [[Telecaller Assignment Engine]] (10 shared connections)
-- [[Calls API (TeleCMI dialer)]] (8 shared connections)
-- [[App Settings API]] (4 shared connections)
-- [[Callers CRUD & Coaching]] (2 shared connections)
-- [[Telecalling Upload API]] (2 shared connections)
-- [[AI Reply Pipeline (Groq)]] (2 shared connections)
-- [[Assignment Service]] (2 shared connections)
-- [[App Entry & Schedulers]] (1 shared connections)
-- [[Contact Recycler Service]] (1 shared connections)
-- [[Notify Service]] (1 shared connections)
+- [[Assignment Service]] (8 shared connections)
+- [[Telecaller Assignment Engine]] (6 shared connections)
+- [[Callers API]] (3 shared connections)
+- [[Operator Console & Audit]] (2 shared connections)
+- [[App Settings API]] (1 shared connections)
+- [[Callers CRUD & Coaching]] (1 shared connections)
 
 ## Source Files
 
-- `backend/app/main.py`
-- `backend/app/routes/callers.py`
-- `backend/app/routes/calls.py`
 - `backend/app/services/assignment.py`
 
 ## Audit Trail
 
-- EXTRACTED: 36 (61%)
-- INFERRED: 23 (39%)
+- EXTRACTED: 42 (86%)
+- INFERRED: 7 (14%)
 - AMBIGUOUS: 0 (0%)
 
 ---

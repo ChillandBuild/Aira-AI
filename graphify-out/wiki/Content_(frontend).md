@@ -23,10 +23,10 @@
 ## Relationships
 
 - [[Config (frontend)]] (2 shared connections)
-- [[Sidebar (frontend)]] (2 shared connections)
+- [[Data Ops (frontend)]] (2 shared connections)
 - [[Leads (frontend)]] (2 shared connections)
-- [[Connectchannelspanel (frontend)]] (2 shared connections)
-- [[Data Ops (frontend)]] (1 shared connections)
+- [[Settings Page]] (2 shared connections)
+- [[Audit Logs (frontend)]] (1 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
 
 ## Source Files
