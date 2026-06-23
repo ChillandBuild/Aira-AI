@@ -68,12 +68,15 @@ def _get_setting_value(db, tenant_id: str, key: str) -> str | None:
 
 
 async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None]:
-    """Register Telegram webhook + return generated secret (None if base_url missing)."""
+    """Register Telegram webhook + return generated secret.
+
+    Always generates a secret_token so the webhook handler can validate
+    inbound updates even if the setWebhook call to Telegram needs to be
+    retried later.
+    """
     from app.config_dynamic import get_setting
-    base_url = get_setting("public_base_url") or env_settings.public_base_url
-    if not base_url:
-        logger.warning("public_base_url not set — cannot register Telegram webhook")
-        return True, None
+    _RENDER_BASE_URL = "https://aira-ai-5tfr.onrender.com"
+    base_url = get_setting("public_base_url") or env_settings.public_base_url or _RENDER_BASE_URL
     webhook_url = f"{base_url.rstrip('/')}/webhook/telegram/{tenant_id}"
     secret_token = secrets.token_urlsafe(32)
     try:

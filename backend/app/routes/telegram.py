@@ -20,7 +20,7 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
             logger.warning(f"Telegram webhook secret mismatch for tenant {tenant_id}")
             return Response(content="Forbidden", status_code=403)
     else:
-        logger.warning(f"Telegram webhook secret not configured for tenant {tenant_id} — rejecting")
+        logger.warning(f"Telegram webhook secret not configured for tenant {tenant_id} — re-save the Telegram bot token in Settings to generate it")
         return Response(content="Forbidden", status_code=403)
 
     try:
