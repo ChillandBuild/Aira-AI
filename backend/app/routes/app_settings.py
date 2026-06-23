@@ -67,13 +67,8 @@ def _get_setting_value(db, tenant_id: str, key: str) -> str | None:
     return row.data["value"] if row and row.data else None
 
 
-async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None]:
-    """Register Telegram webhook + return generated secret.
-
-    Always generates a secret_token so the webhook handler can validate
-    inbound updates even if the setWebhook call to Telegram needs to be
-    retried later.
-    """
+async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None, str | None]:
+    """Register Telegram webhook + return (success, secret_token, error_detail)."""
     from app.config_dynamic import get_setting
     _RENDER_BASE_URL = "https://aira-ai-5tfr.onrender.com"
     base_url = get_setting("public_base_url") or env_settings.public_base_url or _RENDER_BASE_URL
@@ -87,12 +82,21 @@ async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, 
                 json={"url": webhook_url, "secret_token": secret_token},
                 timeout=10.0,
             )
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                try:
+                    data = resp.json()
+                    desc = data.get("description", resp.text)
+                except Exception:
+                    desc = resp.text
+                return False, None, f"Telegram API error ({resp.status_code}): {desc}"
             logger.info(f"Telegram webhook set to {webhook_url} for tenant {tenant_id}")
-            return True, secret_token
+            return True, secret_token, None
+    except httpx.RequestError as req_err:
+        logger.error(f"Telegram webhook connection error: {req_err}")
+        return False, None, f"Network error connecting to Telegram: {str(req_err)}"
     except Exception as e:
         logger.error(f"Failed to set Telegram webhook: {e}")
-        return False, None
+        return False, None, str(e)
 
 
 @router.get("/")
@@ -150,11 +154,11 @@ async def update_settings(
                     status_code=400,
                     detail="Invalid Telegram bot token. Copy the full token from @BotFather — it looks like 123456789:AA... (you may have pasted only the part after the colon).",
                 )
-            success, secret_token = await setup_telegram_webhook(tg_token, tenant_id)
+            success, secret_token, err_msg = await setup_telegram_webhook(tg_token, tenant_id)
             if not success:
                 raise HTTPException(
                     status_code=400,
-                    detail="Telegram rejected this bot token. Re-copy the full token from @BotFather and try again.",
+                    detail=f"Telegram rejected this bot token. Error details: {err_msg or 'Unknown error'}. Re-copy the full token from @BotFather and try again.",
                 )
             if secret_token:
                 # Persist webhook secret so the route can validate inbound updates
@@ -177,6 +181,9 @@ async def update_settings(
                         "value": secret_token,
                         "is_secret": True,
                     }).execute()
+        else:
+            # Token is cleared/empty. Scrub the webhook secret.
+            db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", "telegram_webhook_secret").execute()
 
     _SECRET_KEYS = {
         "meta_access_token",

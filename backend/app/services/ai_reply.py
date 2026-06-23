@@ -283,11 +283,20 @@ async def send_telegram(tg_user_id: str, message: str, tenant_id: str | None = N
                 },
                 timeout=15.0,
             )
-            resp.raise_for_status()
+            if resp.status_code != 200:
+                try:
+                    desc = resp.json().get("description", resp.text)
+                except Exception:
+                    desc = resp.text
+                logger.error(f"Telegram API send error ({resp.status_code}) to {tg_user_id}: {desc}")
+                return None
             data = resp.json()
             mid = str(data.get("result", {}).get("message_id"))
             logger.info(f"Telegram sent to {tg_user_id}: mid={mid}")
             return mid
+    except httpx.RequestError as req_err:
+        logger.error(f"Telegram network send error to {tg_user_id}: {req_err}")
+        return None
     except Exception as e:
         logger.error(f"Telegram send failed to {tg_user_id}: {e}")
         return None
