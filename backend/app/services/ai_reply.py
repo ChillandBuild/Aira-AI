@@ -192,12 +192,23 @@ def get_last_send_error() -> str | None:
     return _LAST_SEND_ERROR
 
 
-async def send_whatsapp(to_phone: str, message: str, tenant_id: str | None = None) -> str | None:
-    """Send a WhatsApp message via Meta Cloud API. Returns message ID or None on failure."""
+async def send_whatsapp(
+    to_phone: str,
+    message: str,
+    tenant_id: str | None = None,
+    phone_number_id: str | None = None,
+) -> str | None:
+    """Send a WhatsApp message via Meta Cloud API. Returns message ID or None on failure.
+
+    phone_number_id pins the sending number to the one that received the inbound
+    message; when None, meta_cloud falls back to the tenant's default.
+    """
     global _LAST_SEND_ERROR
     try:
         from app.services.meta_cloud import send_text_message
-        data = await send_text_message(to_number=to_phone, text=message, tenant_id=tenant_id)
+        data = await send_text_message(
+            to_number=to_phone, text=message, tenant_id=tenant_id, phone_number_id=phone_number_id
+        )
         mid = (data.get("messages") or [{}])[0].get("id")
         logger.info(f"Meta sent to {to_phone}: id={mid}")
         _LAST_SEND_ERROR = None
@@ -497,6 +508,7 @@ async def generate_reply(
     context_block: str | None = None,
     tg_user_id: str | None = None,
     fb_user_id: str | None = None,
+    phone_number_id: str | None = None,
 ) -> None:
     """
     Core pipeline:
@@ -714,7 +726,7 @@ async def generate_reply(
         sid = await send_facebook(fb_user_id, reply_text, tenant_id=lead_data.get("tenant_id")) if fb_user_id else None
     else:
         _wa_phone = phone or lead_data.get("phone")
-        sid = await send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id")) if _wa_phone else None
+        sid = await send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id) if _wa_phone else None
 
     # Step 4: Store outbound message
     if channel == "telegram":

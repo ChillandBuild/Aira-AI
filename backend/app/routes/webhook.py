@@ -225,6 +225,7 @@ async def _process_inbound_message_background(
     phone: str,
     body: str,
     msg_type: str,
+    meta_phone_number_id: str = "",
 ) -> None:
     from app.db.supabase import get_supabase
     db = get_supabase()
@@ -259,6 +260,7 @@ async def _process_inbound_message_background(
                     message=body,
                     phone=phone,
                     context_block=context_block,
+                    phone_number_id=meta_phone_number_id or None,
                 )
             except Exception as e:
                 logger.error(f"Reply routing failed for lead {lead_id}: {e}")
@@ -464,7 +466,8 @@ async def whatsapp_webhook(
                         tenant_id=tenant_id,
                         phone=phone,
                         body=body,
-                        msg_type=msg_type
+                        msg_type=msg_type,
+                        meta_phone_number_id=meta_phone_number_id,
                     )
 
                 # Handle message status updates (delivered, read, failed)
