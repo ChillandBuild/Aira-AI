@@ -64,7 +64,7 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 | Admin bookings dashboard | ✅ Built — dashboard/bookings/ |
 | Multi-tenancy (app-layer) | ✅ Built — tenant_id on all tables |
 | Role-based access | ✅ Built — owner and caller roles |
-| Automations engine | ✅ Built — migration 055, routes/automations.py |
+| Automations engine | ⛔ Removed — Bot Flow Builder (automations UI + engine) deleted |
 | Broadcast history + fail reason tracking | ✅ Built — migration 058_broadcast_fail_reason |
 | Carousel templates (2–10 cards via Meta API) | ✅ Built — migration 060, dashboard/templates/carousel/ |
 | WABA onboarding (self-service) | ✅ Built — WABA ID + Phone Number ID configurable in Settings UI |
@@ -137,11 +137,16 @@ Solo dev. Terse. Code over prose. No trailing summaries. No explanations unless 
 ## APScheduler Jobs (all in main.py)
 | Job | Interval | Purpose |
 |---|---|---|
-| _process_automation_waits | 5 min | Resume automation wait-step executions |
 | _process_scheduled_broadcasts | 1 min | Fire pending scheduled_broadcasts rows |
+| _process_broadcast_retries | 5 min | Advance broadcast auto-retry chains |
 | _check_token_health | 24 h | Validate Meta tokens, create token_invalid incidents |
 | _sync_all_number_quality | 24 h | Sync Meta number quality rating & limits |
-| _recycle_contacts | 30 min | Re-queue no_answer leads back to "new" (contact_recycler.recycle_all_tenants) |
+| _apply_engagement_decay | 6 h | Apply engagement score decay to leads |
+| _process_reengagement_rules | 1 min | Execute reengagement step logic |
+| _sweep_unassigned_leads | 2 min | Round-robin assign unassigned leads to callers |
+| _recycle_contacts | 30 min | Re-queue no_answer leads back to "new" (contact_recycler) |
+| _process_callback_reassignments | 1 min | Reassign overdue callbacks from absent callers |
+| _generate_daily_digests | cron 13:00 UTC | Daily coaching digest for all callers (18:30 IST) |
 
 ## Task Router — Read This File Before Acting
 | Task involves | Read first |
@@ -195,10 +200,10 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/app/routes/call_scripts.py | Call scripts CRUD (segment-based, branching steps) |
 | backend/app/services/contact_recycler.py | Contact recycling — re-queue no_answer leads |
 | frontend/app/dashboard/profile/ProfileClient.tsx | Profile page — role-based: admin card (owner) vs caller stats (caller) |
-| backend/supabase/migrations/ | All schema migrations 001–114 |
+| backend/supabase/migrations/ | All schema migrations 001–119 |
 | frontend/app/dashboard/ | All dashboard pages |
 
-## Migration Index (latest = 116)
+## Migration Index (latest = 119)
 | Migration | What |
 |---|---|
 | 051 | Telegram support — tg_user_id on leads |
@@ -266,6 +271,10 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | 114_rls_launch_blocker | ✅ Applied 2026-06-20. Drops dead faqs/hot_lead_alerts tables; adds tenant_id to conversations + backfill; enables RLS+policies on all 9 remaining tables (conversations, bot_flows, meta_templates, reengagement_steps/logs, call_scripts, telecalling_upload_batches); deny-all on scheduler_runs; revokes anon EXECUTE on security definer helpers; sets search_path on 6 RPC functions |
 | 115_perf_advisor_warnings | ✅ Applied 2026-06-20. 5x auth_rls_initplan (wrap auth.uid() in subselect); 12x multiple_permissive_policies (split FOR ALL into INSERT/UPDATE/DELETE); 1x duplicate_index (drop csl_tenant_idx) |
 | 116_scoring_engagement_decay | leads.score_engagement (smallint, 0..+2) — explicit engagement signal; score_engagement_delta repurposed as bidirectional decay (-4..+3) |
+| 117_opt_in_source_channels | opt_in_source verification gates per channel |
+| 118_fix_secret_flags | Fix is_secret flag configurations on settings key credentials |
+| 119_telecmi_agent_password | telecmi_agent_password credential support in callers table |
+
 
 ## Bot Flow Builder (replaces Automations UI)
 ⛔ Removed — deprecated/deleted by design.

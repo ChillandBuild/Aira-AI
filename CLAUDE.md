@@ -202,12 +202,12 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | backend/app/routes/call_scripts.py | Call scripts CRUD (segment-based, branching steps) |
 | backend/app/services/contact_recycler.py | Contact recycling — re-queue no_answer leads |
 | frontend/app/dashboard/profile/ProfileClient.tsx | Profile page — role-based: admin card (owner) vs caller stats (caller) |
-| backend/supabase/migrations/ | All schema migrations 001–114 |
+| backend/supabase/migrations/ | All schema migrations 001–119 |
 | frontend/app/dashboard/ | All dashboard pages |
 | backend/app/services/assignment.py | Telecaller auto-assignment, reassign_backlog, callback reassignment |
 | backend/app/services/call_digest.py | Daily coaching digest generation |
 
-## Migration Index (latest = 116)
+## Migration Index (latest = 119)
 | Migration | What |
 |---|---|
 | 051 | Telegram support — tg_user_id on leads |
@@ -271,10 +271,13 @@ Regenerate after big changes: `/graphify . --update` then rebuild the wiki. Live
 | 103_reengagement_target_sources | reengagement_steps.target_sources jsonb — filter re-engagement by acquisition source (organic/meta_ads/csv/telegram/instagram/facebook); NULL = all |
 | 111_telecalling_upload_scripts | call_scripts table (segment-based, steps jsonb, is_default, active) + telecalling_upload_batches table (upload history, assignment_snapshot jsonb) |
 | 112_caller_shift_hours | callers.shift_start_hour + shift_end_hour (smallint, nullable) — per-caller shift time override |
-| 113_security_and_new_tables_rls | Superseded by 114. Enables RLS on reengagement_steps, reengagement_logs, autopilot_runs, call_scripts, telecalling_upload_batches |
+| 113_security_and_new_tables_rls | Enables RLS on reengagement_steps, reengagement_logs, autopilot_runs, call_scripts, telecalling_upload_batches |
 | 114_rls_launch_blocker | ✅ Applied 2026-06-20. Drops dead faqs/hot_lead_alerts tables; adds tenant_id to conversations + backfill; enables RLS+policies on all 9 remaining tables (conversations, bot_flows, meta_templates, reengagement_steps/logs, call_scripts, telecalling_upload_batches); deny-all on scheduler_runs; revokes anon EXECUTE on security definer helpers; sets search_path on 6 RPC functions |
 | 115_perf_advisor_warnings | ✅ Applied 2026-06-20. 5x auth_rls_initplan (wrap auth.uid() in subselect); 12x multiple_permissive_policies (split FOR ALL into INSERT/UPDATE/DELETE); 1x duplicate_index (drop csl_tenant_idx) |
 | 116_scoring_engagement_decay | leads.score_engagement (smallint, 0..+2) — explicit engagement signal; score_engagement_delta repurposed as bidirectional decay (-4..+3) |
+| 117_opt_in_source_channels | opt_in_source verification gates per channel |
+| 118_fix_secret_flags | Fix is_secret flag configurations on settings key credentials |
+| 119_telecmi_agent_password | telecmi_agent_password credential support in callers table |
 
 ## Bot Flow Builder (replaces Automations UI)
 
