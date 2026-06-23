@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jina_api_key: str | None = None
     telecmi_user_id: str | None = None
     telecmi_secret: str | None = None
+    telecmi_agent_password: str | None = None
     telecmi_callerid: str | None = None
     telecmi_recording_base_url: str | None = None
     public_base_url: str | None = None

@@ -28,6 +28,7 @@ class UpdateCaller(BaseModel):
     name: str | None = None
     phone: str | None = None
     telecmi_agent_id: str | None = None
+    telecmi_agent_password: str | None = None
     shift_start_hour: int | None = None
     shift_end_hour: int | None = None
 
@@ -460,6 +461,8 @@ async def list_callers(tenant_id: str = Depends(get_tenant_id)):
     admin_caller = None
     team = []
     for c in rows:
+        # surface whether a password is set, but never expose the value itself
+        c["has_telecmi_agent_password"] = bool(c.pop("telecmi_agent_password", None))
         if owner_user_id and c.get("user_id") == owner_user_id:
             admin_caller = c
         else:
@@ -477,6 +480,8 @@ async def update_caller(caller_id: UUID, payload: UpdateCaller, tenant_id: str =
         updates["phone"] = payload.phone.strip()
     if payload.telecmi_agent_id is not None:
         updates["telecmi_agent_id"] = payload.telecmi_agent_id.strip() or None
+    if payload.telecmi_agent_password is not None:
+        updates["telecmi_agent_password"] = payload.telecmi_agent_password.strip() or None
     if payload.shift_start_hour is not None:
         updates["shift_start_hour"] = payload.shift_start_hour if 0 <= payload.shift_start_hour <= 23 else None
     if payload.shift_end_hour is not None:
@@ -486,7 +491,9 @@ async def update_caller(caller_id: UUID, payload: UpdateCaller, tenant_id: str =
     result = db.table("callers").update(updates).eq("id", str(caller_id)).eq("tenant_id", tenant_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Caller not found")
-    return result.data[0]
+    row = result.data[0]
+    row["has_telecmi_agent_password"] = bool(row.pop("telecmi_agent_password", None))
+    return row
 
 
 class TargetUpdate(BaseModel):

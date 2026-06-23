@@ -60,9 +60,8 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
     tenant_id = ctx["tenant_id"]
     role = ctx.get("role")
 
+    # App secret is only used for recording playback, not for India click-to-call.
     telecmi_secret = get_setting("telecmi_secret", tenant_id=tenant_id)
-    if not telecmi_secret:
-        raise HTTPException(status_code=400, detail="TeleCMI App Secret not configured. Set it in Settings.")
 
     if not payload.lead_id and not payload.phone:
         raise HTTPException(status_code=400, detail="Provide either lead_id or phone")
@@ -107,14 +106,16 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             except Exception as e:
                 logger.warning(f"Auto-create lead failed for {lead_phone}: {e}")
 
-    # Resolve caller's phone + TeleCMI agent ID from the callers table
+    # Resolve caller's phone + TeleCMI agent credentials from the callers table
     caller_telecmi_agent_id: str | None = None
+    caller_telecmi_agent_password: str | None = None
     caller_phone: str | None = None
     if payload.caller_id:
-        caller = db.table("callers").select("phone,telecmi_agent_id").eq("id", str(payload.caller_id)).eq("tenant_id", tenant_id).maybe_single().execute()
+        caller = db.table("callers").select("phone,telecmi_agent_id,telecmi_agent_password").eq("id", str(payload.caller_id)).eq("tenant_id", tenant_id).maybe_single().execute()
         if caller.data:
             caller_phone = caller.data.get("phone")
             caller_telecmi_agent_id = caller.data.get("telecmi_agent_id") or None
+            caller_telecmi_agent_password = caller.data.get("telecmi_agent_password") or None
     if role != "owner" and not caller_phone:
         raise HTTPException(status_code=400, detail="Caller has no phone number configured")
 
@@ -128,32 +129,34 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
     call_log_id = log_insert.data[0]["id"]
 
     try:
-        # Resolve TeleCMI agent ID: caller's own → owner's → global setting
+        # Resolve TeleCMI agent credentials: caller's own → owner's → global setting.
+        # India agentConnect rings the agent's registered mobile, so each caller
+        # needs their own id+password (the lead sees the agent's provisioned number).
         effective_agent_id = caller_telecmi_agent_id
+        effective_agent_password = caller_telecmi_agent_password
         if not effective_agent_id:
             owner_member = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
             if owner_member.data:
-                owner_caller = db.table("callers").select("telecmi_agent_id").eq("user_id", owner_member.data["user_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
+                owner_caller = db.table("callers").select("telecmi_agent_id,telecmi_agent_password").eq("user_id", owner_member.data["user_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
                 if owner_caller.data:
                     effective_agent_id = owner_caller.data.get("telecmi_agent_id")
+                    effective_agent_password = owner_caller.data.get("telecmi_agent_password")
         if not effective_agent_id:
             effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
-        if not effective_agent_id:
-            raise HTTPException(status_code=400, detail="No TeleCMI Agent ID found. Assign one from the Team page.")
+            effective_agent_password = get_setting("telecmi_agent_password", tenant_id=tenant_id)
+        if not effective_agent_id or not effective_agent_password:
+            raise HTTPException(status_code=400, detail="No TeleCMI agent id + password found. Set them on the caller in the Team page.")
 
-        telecmi_callerid = caller_phone or get_setting("telecmi_callerid", tenant_id=tenant_id)
-        if not telecmi_callerid:
-            raise HTTPException(status_code=400, detail="No Caller ID configured. Set telecmi_callerid in Settings → TeleCMI.")
         result = await initiate_click2call(
+            tenant_id=tenant_id,
             agent_id=effective_agent_id,
-            token=telecmi_secret,
+            password=effective_agent_password,
             to=lead_phone,
-            callerid=telecmi_callerid,
             custom=str(call_log_id),
         )
         request_id = result.get("request_id", "")
     except Exception as e:
-        err_msg = str(e).replace(telecmi_secret, "***") if telecmi_secret else str(e)
+        err_msg = str(e).replace(effective_agent_password, "***") if effective_agent_password else str(e)
         logger.error(f"TeleCMI call failed: {err_msg}")
         db.table("call_logs").update({"status": "failed"}).eq("id", call_log_id).execute()
         raise HTTPException(status_code=502, detail=f"TeleCMI call failed: {err_msg}")

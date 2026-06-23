@@ -172,6 +172,7 @@ async def update_settings(
         "meta_webhook_verify_token",
         "meta_app_secret",
         "telecmi_secret",
+        "telecmi_agent_password",
         "telecmi_webhook_secret",
         "groq_api_key",
         "razorpay_key_secret",
