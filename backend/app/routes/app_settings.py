@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Literal
 import secrets
 import httpx
@@ -139,11 +140,18 @@ async def update_settings(
         if tg_token:
             tg_token = tg_token.strip()
             payload.updates["telegram_bot_token"] = tg_token
+            # BotFather tokens are "<bot_id>:<hash>" — reject the common paste error
+            # (only the hash, missing the "123456789:" prefix) before hitting Telegram.
+            if not re.fullmatch(r"\d+:[A-Za-z0-9_-]+", tg_token):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid Telegram bot token. Copy the full token from @BotFather — it looks like 123456789:AA... (you may have pasted only the part after the colon).",
+                )
             success, secret_token = await setup_telegram_webhook(tg_token, tenant_id)
             if not success:
                 raise HTTPException(
                     status_code=400,
-                    detail="Failed to set Telegram webhook. Please verify your Bot Token is correct."
+                    detail="Telegram rejected this bot token. Re-copy the full token from @BotFather and try again.",
                 )
             if secret_token:
                 # Persist webhook secret so the route can validate inbound updates

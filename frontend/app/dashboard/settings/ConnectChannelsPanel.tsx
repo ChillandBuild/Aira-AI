@@ -186,12 +186,22 @@ async function fetchSettings(): Promise<Setting[]> {
 
 async function saveSettings(updates: SettingsMap): Promise<void> {
   const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}/api/v1/settings`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...auth },
-    body: JSON.stringify({ updates }),
-  });
-  if (!res.ok) throw new Error("Failed to save settings");
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/v1/settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...auth },
+      body: JSON.stringify({ updates }),
+    });
+  } catch {
+    // Raw fetch rejects with a cryptic "Load failed" (Safari) on any network hiccup.
+    throw new Error("Cannot reach the server. Check your connection and try again.");
+  }
+  if (!res.ok) {
+    // Surface the backend's specific reason (e.g. invalid Telegram token) instead of a generic string.
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || "Failed to save settings");
+  }
 }
 
 function CopyButton({ text }: { text: string }) {
