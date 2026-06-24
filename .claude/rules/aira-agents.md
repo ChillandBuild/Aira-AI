@@ -37,10 +37,10 @@ Sequential only.
 Subagents start cold — they see none of CLAUDE.md, memory, or this chat. Paste their context inline.
 Each agent prompt must include:
 1. The specific task (1–2 sentences)
-2. `.claude/context/invariants.md` (the hard invariants — paste whole, it's short)
+2. The Hard Invariants from `.agents/context/stack-and-rules.md` (paste the section — it's short)
 3. The relevant `graphify-out/wiki/<Module>.md` article for the domain (copy the section, don't make the agent go read it)
-4. Relevant Build State rows from CLAUDE.md
-5. NOT the full CLAUDE.md
+4. Relevant rows from `.agents/decisions/log.md` or `.agents/projects/active-backlog.md` if they apply
+5. NOT the full CLAUDE.md / .agents tree
 
 ## Agent Prompt Template
 ```
@@ -52,7 +52,7 @@ Context:
 <paste relevant graphify-out/wiki/<Module>.md section>
 
 Constraints:
-<paste .claude/context/invariants.md (whole file)>
+<paste the Hard Invariants section from .agents/context/stack-and-rules.md>
 
 Write code only. No explanations. No trailing summaries.
 ```

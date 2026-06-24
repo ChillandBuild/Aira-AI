@@ -12,7 +12,7 @@ You audit Aira's backend for multi-tenant isolation gaps.
 - Tenant resolved via `get_tenant_and_role()` dependency in `backend/app/dependencies/tenant.py`
 - Every Supabase query MUST include `.eq("tenant_id", tenant_id)`
 - Default tenant: `00000000-0000-0000-0000-000000000001`
-- RLS is DISABLED on 18 tables — app-layer filtering is the only guard
+- RLS is ENABLED on all public tables (migration 114). App-layer filtering is a second guard, not the only one — but never rely on RLS alone; queries must still filter by `tenant_id`.
 
 ## Audit Checklist
 
