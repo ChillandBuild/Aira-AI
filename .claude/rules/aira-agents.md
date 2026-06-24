@@ -34,11 +34,12 @@ Sequential only.
 **Backend service + frontend hook:** Both parallel if interface is known upfront.
 
 ## Context Scoping Rules
+Subagents start cold — they see none of CLAUDE.md, memory, or this chat. Paste their context inline.
 Each agent prompt must include:
 1. The specific task (1–2 sentences)
-2. Key sections from .claude/context/*.md (copy inline)
-3. Hard Invariants that apply
-4. Relevant Build State rows
+2. `.claude/context/invariants.md` (the hard invariants — paste whole, it's short)
+3. The relevant `graphify-out/wiki/<Module>.md` article for the domain (copy the section, don't make the agent go read it)
+4. Relevant Build State rows from CLAUDE.md
 5. NOT the full CLAUDE.md
 
 ## Agent Prompt Template
@@ -48,10 +49,10 @@ Task: <1-2 sentence description>
 Stack: FastAPI (backend/app/), Next.js 14 (frontend/app/dashboard/), Supabase, Groq.
 
 Context:
-<paste relevant .claude/context/*.md sections>
+<paste relevant graphify-out/wiki/<Module>.md section>
 
 Constraints:
-<paste relevant Hard Invariants>
+<paste .claude/context/invariants.md (whole file)>
 
 Write code only. No explanations. No trailing summaries.
 ```
