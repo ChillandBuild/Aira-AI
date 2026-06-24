@@ -5,11 +5,9 @@
 pre-commit:
   parallel: true
   jobs:
-    - name: frontend-typecheck
-      glob: "frontend/**/*.{ts,tsx}"
-      run: cd frontend && npx tsc --noEmit --pretty false
-      fail_text: "TypeScript errors — fix before committing"
-
+    # Fast checks only — keep commits snappy. The full frontend typecheck is the
+    # heavy gate and runs at pre-push instead (no point paying ~20s on every commit;
+    # Claude's PostToolUse hook already typechecks on each frontend edit).
     - name: backend-syntax
       glob: "backend/app/**/*.py"
       run: python3 -m py_compile {staged_files}
