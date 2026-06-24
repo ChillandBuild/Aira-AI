@@ -12,8 +12,8 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (2 shared connections)
-- [[Calls API]] (1 shared connections)
+- [[Calls API]] (2 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
 
 ## Source Files
 

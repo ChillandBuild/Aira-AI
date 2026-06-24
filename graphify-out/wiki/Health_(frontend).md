@@ -17,10 +17,9 @@
 
 ## Relationships
 
-- [[Config (frontend)]] (2 shared connections)
-- [[Data Ops (frontend)]] (2 shared connections)
-- [[Settings Page]] (2 shared connections)
-- [[Audit Logs (frontend)]] (1 shared connections)
+- [[Inbox (frontend)]] (3 shared connections)
+- [[Sidebar (frontend)]] (2 shared connections)
+- [[Escalation Panel Component]] (2 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
 
 ## Source Files

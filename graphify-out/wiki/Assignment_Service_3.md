@@ -4,18 +4,18 @@
 
 ## Key Concepts
 
-- **should_assign_to_telecalling()** (9 connections) — `backend/app/services/assignment.py`
-- **Return True if this event should auto-assign to a telecaller.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this event should auto-assign to a telecaller.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this event should auto-assign to a telecaller.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this event should auto-assign to a telecaller.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this event should auto-assign to a telecaller.** (1 connections) — `backend/app/services/assignment.py`
+- **save_inbox_config()** (9 connections) — `backend/app/services/assignment.py`
+- **Persist inbox_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist inbox_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist inbox_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist inbox_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
+- **Persist inbox_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
 
 ## Relationships
 
-- [[Assignment Service]] (2 shared connections)
-- [[Ai Reply Service]] (1 shared connections)
-- [[Telecaller Assignment Engine]] (1 shared connections)
+- [[Telecaller Assignment Engine]] (2 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
+- [[App Settings API]] (1 shared connections)
 
 ## Source Files
 
@@ -23,8 +23,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 13 (93%)
-- INFERRED: 1 (7%)
+- EXTRACTED: 12 (86%)
+- INFERRED: 2 (14%)
 - AMBIGUOUS: 0 (0%)
 
 ---

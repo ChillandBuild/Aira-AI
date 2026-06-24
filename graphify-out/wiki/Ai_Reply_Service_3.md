@@ -1,21 +1,30 @@
 # Ai Reply Service
 
-> 5 nodes · cohesion 0.40
+> 14 nodes · cohesion 0.14
 
 ## Key Concepts
 
-- **send_instagram()** (10 connections) — `backend/app/services/ai_reply.py`
-- **Send an Instagram DM via Facebook Graph API (Messenger Platform for Instagram).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Send an Instagram DM via Facebook Graph API (Messenger Platform for Instagram).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Send an Instagram DM via Facebook Graph API (Messenger Platform for Instagram).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Send an Instagram DM via Facebook Graph API (Messenger Platform for Instagram).** (1 connections) — `backend/app/services/ai_reply.py`
+- **_is_similar()** (10 connections) — `backend/app/services/ai_reply.py`
+- **_trigger_chat_escalation()** (10 connections) — `backend/app/services/ai_reply.py`
+- **_is_generic_fallback()** (4 connections) — `backend/app/services/ai_reply.py`
+- **bool** (3 connections) — `backend/app/services/ai_reply.py`
+- **float** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
 
 ## Relationships
 
-- [[Ai Reply Service]] (2 shared connections)
-- [[AI Reply Pipeline (Groq)]] (2 shared connections)
-- [[Config Dynamic]] (1 shared connections)
-- [[Leads API]] (1 shared connections)
+- [[AI Reply Pipeline (Groq)]] (6 shared connections)
+- [[Ai Reply Service]] (3 shared connections)
+- [[Assignment Service]] (1 shared connections)
+- [[Notify Service]] (1 shared connections)
 
 ## Source Files
 
@@ -23,8 +32,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 11 (79%)
-- INFERRED: 3 (21%)
+- EXTRACTED: 35 (95%)
+- INFERRED: 2 (5%)
 - AMBIGUOUS: 0 (0%)
 
 ---

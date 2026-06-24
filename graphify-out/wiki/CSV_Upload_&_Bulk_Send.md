@@ -35,7 +35,7 @@
 - [[Upload API]] (39 shared connections)
 - [[Operator Console & Audit]] (12 shared connections)
 - [[Growth Service]] (3 shared connections)
-- [[Leads API]] (3 shared connections)
+- [[Pydantic Schemas]] (3 shared connections)
 - [[Broadcast Executor & Outbound Router]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 - [[Ai Reply Service]] (1 shared connections)

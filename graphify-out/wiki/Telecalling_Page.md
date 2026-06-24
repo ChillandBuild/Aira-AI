@@ -33,10 +33,10 @@
 
 ## Relationships
 
-- [[Settings Page]] (5 shared connections)
+- [[Escalation Panel Component]] (5 shared connections)
 - [[Conversation List UI]] (2 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
-- [[Leaddetailpanel Component]] (1 shared connections)
+- [[Liveagentstatus Component]] (1 shared connections)
 
 ## Source Files
 

@@ -17,7 +17,8 @@
 
 ## Relationships
 
-- [[Callers CRUD & Coaching]] (6 shared connections)
+- [[Callers CRUD & Coaching]] (4 shared connections)
+- [[Callers API]] (2 shared connections)
 - [[Operator Console & Audit]] (1 shared connections)
 - [[Caller Daily Digest]] (1 shared connections)
 

@@ -18,7 +18,7 @@
 ## Relationships
 
 - [[Operator Console & Audit]] (5 shared connections)
-- [[Telecaller Assignment Engine]] (2 shared connections)
+- [[Assignment Service]] (2 shared connections)
 - [[Notify Service]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 

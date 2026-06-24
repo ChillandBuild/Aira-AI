@@ -1,6 +1,6 @@
 # Broadcast Tags
 
-> 11 nodes · cohesion 0.29
+> 10 nodes · cohesion 0.31
 
 ## Key Concepts
 
@@ -9,7 +9,6 @@
 - **create_tag()** (5 connections) — `backend/app/routes/tags.py`
 - **update_tag()** (5 connections) — `backend/app/routes/tags.py`
 - **get_tag_stats()** (5 connections) — `backend/app/routes/tags.py`
-- **delete_tag()** (4 connections) — `backend/app/routes/tags.py`
 - **TagCreate** (3 connections) — `backend/app/routes/tags.py`
 - **TagUpdate** (3 connections) — `backend/app/routes/tags.py`
 - **list_tags()** (3 connections) — `backend/app/routes/tags.py`
@@ -19,7 +18,7 @@
 ## Relationships
 
 - [[Operator Console & Audit]] (8 shared connections)
-- [[Leads API]] (2 shared connections)
+- [[Pydantic Schemas]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files
@@ -28,8 +27,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 35 (81%)
-- INFERRED: 8 (19%)
+- EXTRACTED: 33 (85%)
+- INFERRED: 6 (15%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -19,7 +19,7 @@
 
 - [[CSV Upload & Bulk Send]] (8 shared connections)
 - [[Operator Console & Audit]] (2 shared connections)
-- [[Leads API]] (1 shared connections)
+- [[Pydantic Schemas]] (1 shared connections)
 
 ## Source Files
 

@@ -1,19 +1,22 @@
 # Ai Reply Service
 
-> 5 nodes · cohesion 0.40
+> 6 nodes · cohesion 0.33
 
 ## Key Concepts
 
-- **_detect_lang()** (7 connections) — `backend/app/services/ai_reply.py`
-- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
-- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
-- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
-- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
+- **send_facebook()** (11 connections) — `backend/app/services/ai_reply.py`
+- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
+- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
+- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
+- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
+- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
 
 ## Relationships
 
+- [[Ai Reply Service]] (2 shared connections)
 - [[AI Reply Pipeline (Groq)]] (2 shared connections)
-- [[Ai Reply Service]] (1 shared connections)
+- [[Templates API]] (1 shared connections)
+- [[Leads API]] (1 shared connections)
 
 ## Source Files
 
@@ -21,8 +24,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 11 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 13 (81%)
+- INFERRED: 3 (19%)
 - AMBIGUOUS: 0 (0%)
 
 ---

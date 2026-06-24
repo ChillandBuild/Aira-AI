@@ -1,6 +1,6 @@
 # Performancekpis Component
 
-> 29 nodes · cohesion 0.12
+> 31 nodes · cohesion 0.11
 
 ## Key Concepts
 
@@ -11,6 +11,7 @@
 - **OutcomeBreakdown.tsx** (5 connections) — `frontend/app/dashboard/telecalling/components/sections/OutcomeBreakdown.tsx`
 - **PerformanceHeadline.tsx** (5 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceHeadline.tsx`
 - **PerformanceKpis()** (5 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceKpis.tsx`
+- **CallsPerHour.tsx** (4 connections) — `frontend/app/dashboard/telecalling/components/sections/CallsPerHour.tsx`
 - **DeltaRow()** (4 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceKpis.tsx`
 - **formatTalk()** (4 connections) — `frontend/app/dashboard/telecalling/components/sections/performance-format.ts`
 - **computeDelta()** (4 connections) — `frontend/app/dashboard/telecalling/components/sections/performance-format.ts`
@@ -25,20 +26,20 @@
 - **PerformanceInsights()** (2 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceInsights.tsx`
 - **PerformanceKpisProps** (2 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceKpis.tsx`
 - **TileDeltas** (2 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceKpis.tsx`
+- **CallsPerHour()** (1 connections) — `frontend/app/dashboard/telecalling/components/sections/CallsPerHour.tsx`
 - **OUTCOMES** (1 connections) — `frontend/app/dashboard/telecalling/components/sections/OutcomeBreakdown.tsx`
 - **OutcomeBreakdown()** (1 connections) — `frontend/app/dashboard/telecalling/components/sections/OutcomeBreakdown.tsx`
-- **PerformanceHeadline()** (1 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceHeadline.tsx`
-- **Insight** (1 connections) — `frontend/app/dashboard/telecalling/components/sections/PerformanceInsights.tsx`
-- *... and 4 more nodes in this community*
+- *... and 6 more nodes in this community*
 
 ## Relationships
 
-- [[Leaddetailpanel Component]] (7 shared connections)
+- [[Liveagentstatus Component]] (8 shared connections)
 - [[API Client (frontend)]] (6 shared connections)
 - [[Analytics Page]] (1 shared connections)
 
 ## Source Files
 
+- `frontend/app/dashboard/telecalling/components/sections/CallsPerHour.tsx`
 - `frontend/app/dashboard/telecalling/components/sections/OutcomeBreakdown.tsx`
 - `frontend/app/dashboard/telecalling/components/sections/PerformanceHeadline.tsx`
 - `frontend/app/dashboard/telecalling/components/sections/PerformanceInsights.tsx`
@@ -48,7 +49,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 108 (100%)
+- EXTRACTED: 113 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

@@ -1,10 +1,11 @@
 # Shared Component
 
-> 55 nodes · cohesion 0.07
+> 57 nodes · cohesion 0.07
 
 ## Key Concepts
 
 - **page.tsx** (46 connections) — `frontend/app/dashboard/notes/page.tsx`
+- **useApi.ts** (38 connections) — `frontend/hooks/useApi.ts`
 - **NotesClient.tsx** (35 connections) — `frontend/app/dashboard/notes/NotesClient.tsx`
 - **shared.tsx** (33 connections) — `frontend/app/dashboard/notes/components/shared.tsx`
 - **NoteCard.tsx** (19 connections) — `frontend/app/dashboard/notes/components/NoteCard.tsx`
@@ -28,15 +29,18 @@
 - **TimelineItem()** (3 connections) — `frontend/app/dashboard/notes/components/shared.tsx`
 - **useLeadsWithActivity()** (3 connections) — `frontend/hooks/useApi.ts`
 - **useNotes()** (3 connections) — `frontend/hooks/useApi.ts`
-- **useAllNotes()** (3 connections) — `frontend/hooks/useApi.ts`
-- *... and 30 more nodes in this community*
+- *... and 32 more nodes in this community*
 
 ## Relationships
 
-- [[Leaddetailpanel Component]] (34 shared connections)
-- [[Teamclient (frontend)]] (9 shared connections)
-- [[API Client (frontend)]] (5 shared connections)
-- [[Chat Thread Component]] (3 shared connections)
+- [[Leaddetailpanel Component]] (31 shared connections)
+- [[API Client (frontend)]] (12 shared connections)
+- [[Liveagentstatus Component]] (12 shared connections)
+- [[Dashboardclient (frontend)]] (10 shared connections)
+- [[Coachingdigest Component]] (5 shared connections)
+- [[Teamclient (frontend)]] (4 shared connections)
+- [[Conversation List UI]] (3 shared connections)
+- [[Inbound Lead Reporting]] (1 shared connections)
 
 ## Source Files
 
@@ -50,7 +54,7 @@
 
 ## Audit Trail
 
-- EXTRACTED: 263 (100%)
+- EXTRACTED: 302 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

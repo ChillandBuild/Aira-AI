@@ -17,7 +17,7 @@
 
 ## Relationships
 
-- [[API Client (frontend)]] (4 shared connections)
+- [[Liveagentstatus Component]] (4 shared connections)
 - [[Operator Console & Audit]] (3 shared connections)
 
 ## Source Files

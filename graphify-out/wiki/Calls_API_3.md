@@ -1,18 +1,22 @@
 # Calls API
 
-> 5 nodes · cohesion 0.40
+> 8 nodes · cohesion 0.25
 
 ## Key Concepts
 
-- **_process_telecmi_recording()** (8 connections) — `backend/app/routes/calls.py`
-- **Download TeleCMI recording and run AI summarization.** (1 connections) — `backend/app/routes/calls.py`
-- **Download TeleCMI recording and run AI summarization.** (1 connections) — `backend/app/routes/calls.py`
-- **Download TeleCMI recording and run AI summarization.** (1 connections) — `backend/app/routes/calls.py`
-- **Download TeleCMI recording and run AI summarization.** (1 connections) — `backend/app/routes/calls.py`
+- **backfill_summaries()** (9 connections) — `backend/app/routes/calls.py`
+- **BackgroundTasks** (2 connections) — `backend/app/routes/calls.py`
+- **int** (2 connections) — `backend/app/routes/calls.py`
+- **Re-run summarization on call logs that have recording_url but no ai_summary.** (1 connections) — `backend/app/routes/calls.py`
+- **Re-run summarization on call logs that have recording_url but no ai_summary.** (1 connections) — `backend/app/routes/calls.py`
+- **Re-run summarization on call logs that have recording_url but no ai_summary.** (1 connections) — `backend/app/routes/calls.py`
+- **Re-run summarization on call logs that have recording_url but no ai_summary.** (1 connections) — `backend/app/routes/calls.py`
+- **Re-run summarization on call logs that have recording_url but no ai_summary.** (1 connections) — `backend/app/routes/calls.py`
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (3 shared connections)
+- [[Calls API]] (2 shared connections)
+- [[Calls API (TeleCMI dialer)]] (1 shared connections)
 - [[Operator Console & Audit]] (1 shared connections)
 
 ## Source Files
@@ -21,8 +25,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 11 (92%)
-- INFERRED: 1 (8%)
+- EXTRACTED: 17 (94%)
+- INFERRED: 1 (6%)
 - AMBIGUOUS: 0 (0%)
 
 ---

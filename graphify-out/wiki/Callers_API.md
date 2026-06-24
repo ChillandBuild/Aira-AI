@@ -17,9 +17,10 @@
 
 ## Relationships
 
-- [[Callers CRUD & Coaching]] (5 shared connections)
-- [[Assignment Service]] (3 shared connections)
-- [[Leads API]] (1 shared connections)
+- [[Callers API]] (3 shared connections)
+- [[Telecaller Assignment Engine]] (3 shared connections)
+- [[Callers CRUD & Coaching]] (2 shared connections)
+- [[Pydantic Schemas]] (1 shared connections)
 
 ## Source Files
 

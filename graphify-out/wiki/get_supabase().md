@@ -19,8 +19,8 @@
 - [[facebook_webhook()]] `INFERRED`
 - [[UpdateTemplate]] `INFERRED`
 - [[instagram_webhook()]] `INFERRED`
-- [[compose_new_message()]] `INFERRED`
 - [[telegram_webhook()]] `INFERRED`
+- [[compose_new_message()]] `INFERRED`
 - [[is_round_robin_enabled()]] `INFERRED`
 - [[build_scorer_context()]] `INFERRED`
 - [[record_stage_event()]] `INFERRED`

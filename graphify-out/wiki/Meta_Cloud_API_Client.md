@@ -1,43 +1,43 @@
 # Meta Cloud API Client
 
-> 27 nodes · cohesion 0.15
+> 55 nodes · cohesion 0.08
 
 ## Key Concepts
 
 - **meta_cloud.py** (29 connections) — `backend/app/services/meta_cloud.py`
 - **str** (26 connections) — `backend/app/services/meta_cloud.py`
 - **_creds()** (23 connections) — `backend/app/services/meta_cloud.py`
+- **UpdateTemplate** (16 connections) — `backend/app/routes/templates.py`
+- **upload_template_media()** (13 connections) — `backend/app/routes/templates.py`
+- **update_template()** (11 connections) — `backend/app/routes/templates.py`
+- **submit_template()** (10 connections) — `backend/app/services/meta_cloud.py`
+- **_strip_emojis()** (9 connections) — `backend/app/services/meta_cloud.py`
+- **_build_button_components()** (9 connections) — `backend/app/services/meta_cloud.py`
+- **upload_media_to_meta()** (8 connections) — `backend/app/services/meta_cloud.py`
 - **send_media_message()** (8 connections) — `backend/app/services/meta_cloud.py`
+- **upload_media_for_template()** (8 connections) — `backend/app/services/meta_cloud.py`
+- **_sanitize_header_or_footer()** (7 connections) — `backend/app/services/meta_cloud.py`
 - **send_text_message()** (7 connections) — `backend/app/services/meta_cloud.py`
 - **download_media_from_meta()** (7 connections) — `backend/app/services/meta_cloud.py`
 - **send_template_message()** (7 connections) — `backend/app/services/meta_cloud.py`
+- **_extract_variable_examples()** (7 connections) — `backend/app/services/meta_cloud.py`
 - **send_list_message()** (6 connections) — `backend/app/services/meta_cloud.py`
 - **send_catalog_message()** (6 connections) — `backend/app/services/meta_cloud.py`
 - **get_number_quality()** (6 connections) — `backend/app/services/meta_cloud.py`
+- **list_all_templates()** (6 connections) — `backend/app/services/meta_cloud.py`
 - **delete_template_from_meta()** (6 connections) — `backend/app/services/meta_cloud.py`
 - **update_template_on_meta()** (6 connections) — `backend/app/services/meta_cloud.py`
 - **send_location_message()** (5 connections) — `backend/app/services/meta_cloud.py`
 - **send_audio_message()** (5 connections) — `backend/app/services/meta_cloud.py`
-- **send_cta_url_message()** (4 connections) — `backend/app/services/meta_cloud.py`
-- **send_interactive_buttons()** (4 connections) — `backend/app/services/meta_cloud.py`
-- **Send an audio message. WhatsApp does not support captions on audio.** (2 connections) — `backend/app/services/meta_cloud.py`
-- **float** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Send a media message via Meta Cloud API.     wa_type: 'image' | 'document' | 'au** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Send a WhatsApp interactive list message (up to 10 rows across sections).** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Send a WhatsApp product catalog message (product_list interactive type).** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Download media from Meta by media_id.     Returns: (bytes, mime_type, url)** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Delete a template from Meta by name.     Calls DELETE https://graph.facebook.com** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Send a media message via Meta Cloud API.     wa_type: 'image' | 'document' | 'au** (1 connections) — `backend/app/services/meta_cloud.py`
-- **Send an audio message. WhatsApp does not support captions on audio.** (1 connections) — `backend/app/services/meta_cloud.py`
-- *... and 2 more nodes in this community*
+- *... and 30 more nodes in this community*
 
 ## Relationships
 
-- [[Meta Cloud Service]] (29 shared connections)
-- [[Operator Console & Audit]] (14 shared connections)
-- [[Templates API]] (4 shared connections)
-- [[Config Dynamic]] (2 shared connections)
+- [[Operator Console & Audit]] (21 shared connections)
+- [[Templates API]] (19 shared connections)
+- [[Meta Cloud Service]] (4 shared connections)
 - [[App Entry & Schedulers]] (2 shared connections)
+- [[Pydantic Schemas]] (1 shared connections)
 - [[WhatsApp Inbound Webhook]] (1 shared connections)
 - [[Ai Reply Service]] (1 shared connections)
 - [[CSV Upload & Bulk Send]] (1 shared connections)
@@ -47,12 +47,13 @@
 
 ## Source Files
 
+- `backend/app/routes/templates.py`
 - `backend/app/services/meta_cloud.py`
 
 ## Audit Trail
 
-- EXTRACTED: 156 (93%)
-- INFERRED: 11 (7%)
+- EXTRACTED: 254 (86%)
+- INFERRED: 43 (14%)
 - AMBIGUOUS: 0 (0%)
 
 ---

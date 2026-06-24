@@ -4,16 +4,17 @@
 
 ## Key Concepts
 
-- **get_my_status()** (6 connections) — `backend/app/routes/callers.py`
-- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
-- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
-- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
-- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
+- **get_status_summary()** (8 connections) — `backend/app/routes/callers.py`
+- **Admin views a caller's status breakdown for today.** (1 connections) — `backend/app/routes/callers.py`
+- **Admin views a caller's status breakdown for today.** (1 connections) — `backend/app/routes/callers.py`
+- **Admin views a caller's status breakdown for today.** (1 connections) — `backend/app/routes/callers.py`
+- **Admin views a caller's active/idle time breakdown for today.** (1 connections) — `backend/app/routes/callers.py`
 
 ## Relationships
 
+- [[Callers CRUD & Coaching]] (2 shared connections)
 - [[Operator Console & Audit]] (1 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
+- [[Callers API]] (1 shared connections)
 
 ## Source Files
 
@@ -21,8 +22,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 9 (90%)
-- INFERRED: 1 (10%)
+- EXTRACTED: 11 (92%)
+- INFERRED: 1 (8%)
 - AMBIGUOUS: 0 (0%)
 
 ---

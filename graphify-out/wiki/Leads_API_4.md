@@ -4,17 +4,17 @@
 
 ## Key Concepts
 
-- **clear_chat()** (10 connections) — `backend/app/routes/leads.py`
-- **Delete all messages for a lead and reset AI to enabled. The lead itself is prese** (1 connections) — `backend/app/routes/leads.py`
-- **Delete all messages for a lead and reset AI to enabled. The lead itself is prese** (1 connections) — `backend/app/routes/leads.py`
-- **Delete all messages for a lead and reset AI to enabled. The lead itself is prese** (1 connections) — `backend/app/routes/leads.py`
-- **Delete all messages for a lead and reset AI to enabled. The lead itself is prese** (1 connections) — `backend/app/routes/leads.py`
-- **Delete all messages for a lead and reset AI to enabled. The lead itself is prese** (1 connections) — `backend/app/routes/leads.py`
+- **score_history()** (8 connections) — `backend/app/routes/leads.py`
+- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
+- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
+- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
+- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
+- **Return score change events for a lead, newest first. Max 20.** (1 connections) — `backend/app/routes/leads.py`
 
 ## Relationships
 
-- [[Leads API]] (3 shared connections)
-- [[Operator Console & Audit]] (2 shared connections)
+- [[Leads API]] (2 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
 
 ## Source Files
 
@@ -22,8 +22,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 13 (87%)
-- INFERRED: 2 (13%)
+- EXTRACTED: 12 (92%)
+- INFERRED: 1 (8%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -1,38 +1,35 @@
 # Ai Reply Service
 
-> 18 nodes · cohesion 0.12
+> 16 nodes · cohesion 0.12
 
 ## Key Concepts
 
-- **generate_reply()** (36 connections) — `backend/app/services/ai_reply.py`
-- **_is_similar()** (9 connections) — `backend/app/services/ai_reply.py`
-- **_trigger_chat_escalation()** (9 connections) — `backend/app/services/ai_reply.py`
-- **_is_generic_fallback()** (4 connections) — `backend/app/services/ai_reply.py`
-- **bool** (3 connections) — `backend/app/services/ai_reply.py`
-- **float** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
-- **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
-- **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
+- **generate_reply()** (37 connections) — `backend/app/services/ai_reply.py`
+- **_detect_lang()** (7 connections) — `backend/app/services/ai_reply.py`
+- **_resolve_campaign()** (6 connections) — `backend/app/services/ai_reply.py`
+- **Resolve the campaign this lead most recently belongs to, from lead_tag_interest** (1 connections) — `backend/app/services/ai_reply.py`
+- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
 - **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
 - **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **Resolve the campaign this lead most recently belongs to, from lead_tag_interest** (1 connections) — `backend/app/services/ai_reply.py`
+- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
+- **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
+- **Resolve the campaign this lead most recently belongs to, from lead_tag_interest** (1 connections) — `backend/app/services/ai_reply.py`
+- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
+- **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
+- **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
+- **Return dominant language code based on Unicode block frequency.** (1 connections) — `backend/app/services/ai_reply.py`
 - **Core pipeline:     1. Inject knowledge base context     2. Call Groq for reply** (1 connections) — `backend/app/services/ai_reply.py`
 
 ## Relationships
 
-- [[AI Reply Pipeline (Groq)]] (13 shared connections)
-- [[Ai Reply Service]] (5 shared connections)
-- [[Telecaller Assignment Engine]] (4 shared connections)
+- [[AI Reply Pipeline (Groq)]] (11 shared connections)
+- [[Ai Reply Service]] (7 shared connections)
 - [[Assignment Service]] (3 shared connections)
+- [[Telecaller Assignment Engine]] (3 shared connections)
 - [[WhatsApp Inbound Webhook]] (2 shared connections)
 - [[Growth Service]] (2 shared connections)
-- [[Notify Service]] (1 shared connections)
-- [[Config Dynamic]] (1 shared connections)
+- [[Templates API]] (1 shared connections)
 - [[Operator Console & Audit]] (1 shared connections)
 - [[App Settings API]] (1 shared connections)
 - [[Knowledge Base (pgvector RAG)]] (1 shared connections)
@@ -44,8 +41,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 57 (77%)
-- INFERRED: 17 (23%)
+- EXTRACTED: 48 (76%)
+- INFERRED: 15 (24%)
 - AMBIGUOUS: 0 (0%)
 
 ---

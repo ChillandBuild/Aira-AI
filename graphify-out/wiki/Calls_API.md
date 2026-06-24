@@ -1,6 +1,6 @@
 # Calls API
 
-> 13 nodes · cohesion 0.18
+> 12 nodes · cohesion 0.20
 
 ## Key Concepts
 
@@ -8,7 +8,6 @@
 - **telecmi_live_events()** (9 connections) — `backend/app/routes/calls.py`
 - **_verify_telecmi_webhook_secret()** (8 connections) — `backend/app/routes/calls.py`
 - **Request** (3 connections) — `backend/app/routes/calls.py`
-- **bool** (3 connections) — `backend/app/routes/calls.py`
 - **Receive Call Detail Record (CDR) from TeleCMI.** (1 connections) — `backend/app/routes/calls.py`
 - **Receive live call events from TeleCMI (optional — for real-time UI updates).** (1 connections) — `backend/app/routes/calls.py`
 - **Receive Call Detail Record (CDR) from TeleCMI.** (1 connections) — `backend/app/routes/calls.py`
@@ -20,11 +19,11 @@
 
 ## Relationships
 
-- [[Calls API (TeleCMI dialer)]] (7 shared connections)
+- [[Calls API]] (5 shared connections)
 - [[Operator Console & Audit]] (5 shared connections)
-- [[Config Dynamic]] (2 shared connections)
-- [[Calls API]] (2 shared connections)
-- [[Telecaller Assignment Engine]] (1 shared connections)
+- [[Calls API (TeleCMI dialer)]] (3 shared connections)
+- [[Templates API]] (2 shared connections)
+- [[Assignment Service]] (1 shared connections)
 - [[Notify Service]] (1 shared connections)
 
 ## Source Files
@@ -33,8 +32,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 39 (81%)
-- INFERRED: 9 (19%)
+- EXTRACTED: 36 (80%)
+- INFERRED: 9 (20%)
 - AMBIGUOUS: 0 (0%)
 
 ---

@@ -22,7 +22,7 @@
 
 - [[Calls API (TeleCMI dialer)]] (2 shared connections)
 - [[AI Reply Pipeline (Groq)]] (2 shared connections)
-- [[Call Coach Service]] (1 shared connections)
+- [[Config]] (1 shared connections)
 
 ## Source Files
 

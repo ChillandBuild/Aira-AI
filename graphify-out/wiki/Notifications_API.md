@@ -20,7 +20,7 @@
 ## Relationships
 
 - [[Operator Console & Audit]] (4 shared connections)
-- [[Chat Thread Component]] (4 shared connections)
+- [[Authrolecontext (frontend)]] (4 shared connections)
 
 ## Source Files
 

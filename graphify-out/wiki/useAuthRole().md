@@ -2,7 +2,7 @@
 
 > God node · 54 connections · `frontend/app/dashboard/contexts/AuthRoleContext.tsx`
 
-**Community:** [[Chat Thread Component]]
+**Community:** [[Authrolecontext (frontend)]]
 
 ## Connections by Relation
 

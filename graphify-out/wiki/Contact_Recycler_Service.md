@@ -18,7 +18,7 @@
 
 - [[Operator Console & Audit]] (3 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
-- [[Notify Service]] (1 shared connections)
+- [[Assignment Service]] (1 shared connections)
 
 ## Source Files
 

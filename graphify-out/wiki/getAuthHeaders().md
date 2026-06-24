@@ -2,7 +2,7 @@
 
 > God node · 84 connections · `frontend/lib/api.ts`
 
-**Community:** [[Settings Page]]
+**Community:** [[Escalation Panel Component]]
 
 ## Connections by Relation
 

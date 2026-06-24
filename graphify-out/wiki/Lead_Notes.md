@@ -21,7 +21,7 @@
 ## Relationships
 
 - [[Operator Console & Audit]] (9 shared connections)
-- [[Leads API]] (2 shared connections)
+- [[Pydantic Schemas]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files

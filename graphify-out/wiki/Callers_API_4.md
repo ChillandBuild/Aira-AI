@@ -1,19 +1,22 @@
 # Callers API
 
-> 5 nodes · cohesion 0.40
+> 6 nodes · cohesion 0.33
 
 ## Key Concepts
 
-- **get_winners()** (7 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
+- **update_my_status()** (9 connections) — `backend/app/routes/callers.py`
+- **StatusToggle** (3 connections) — `backend/app/routes/callers.py`
+- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
+- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
+- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
+- **Caller toggles their own idle/active status.** (1 connections) — `backend/app/routes/callers.py`
 
 ## Relationships
 
-- [[Callers CRUD & Coaching]] (2 shared connections)
-- [[Operator Console & Audit]] (1 shared connections)
+- [[Callers API]] (2 shared connections)
+- [[Operator Console & Audit]] (2 shared connections)
+- [[Pydantic Schemas]] (1 shared connections)
+- [[Assignment Service]] (1 shared connections)
 
 ## Source Files
 
@@ -21,8 +24,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 10 (91%)
-- INFERRED: 1 (9%)
+- EXTRACTED: 13 (81%)
+- INFERRED: 3 (19%)
 - AMBIGUOUS: 0 (0%)
 
 ---

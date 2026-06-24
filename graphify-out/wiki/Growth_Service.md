@@ -34,7 +34,8 @@
 - [[Facebook / Webhook Verification]] (2 shared connections)
 - [[Instagram Channel]] (2 shared connections)
 - [[WhatsApp Inbound Webhook]] (2 shared connections)
-- [[Calls API (TeleCMI dialer)]] (2 shared connections)
+- [[Calls API]] (2 shared connections)
+- [[Templates API]] (1 shared connections)
 - [[Analytics API]] (1 shared connections)
 
 ## Source Files

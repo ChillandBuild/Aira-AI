@@ -34,11 +34,11 @@
 ## Relationships
 
 - [[Analytics API]] (4 shared connections)
-- [[API Client (frontend)]] (3 shared connections)
+- [[API Client (frontend)]] (4 shared connections)
 - [[Templates API]] (2 shared connections)
-- [[Teamclient (frontend)]] (2 shared connections)
-- [[Chat Thread Component]] (2 shared connections)
+- [[Dashboardclient (frontend)]] (2 shared connections)
 - [[Performancekpis Component]] (1 shared connections)
+- [[Authrolecontext (frontend)]] (1 shared connections)
 
 ## Source Files
 

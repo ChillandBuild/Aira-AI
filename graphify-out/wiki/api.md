@@ -2,7 +2,7 @@
 
 > God node · 48 connections · `frontend/lib/api.ts`
 
-**Community:** [[Chat Thread Component]]
+**Community:** [[API Client (frontend)]]
 
 ## Connections by Relation
 

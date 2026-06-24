@@ -29,7 +29,7 @@
 
 - [[Operator Console & Audit]] (3 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
-- [[Call Coach Service]] (1 shared connections)
+- [[Config]] (1 shared connections)
 - [[Callers API]] (1 shared connections)
 - [[AI Reply Pipeline (Groq)]] (1 shared connections)
 

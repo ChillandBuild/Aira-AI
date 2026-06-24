@@ -21,7 +21,7 @@
 ## Relationships
 
 - [[Operator Console & Audit]] (3 shared connections)
-- [[Call Coach Service]] (1 shared connections)
+- [[Config]] (1 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files

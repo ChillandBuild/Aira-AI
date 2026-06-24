@@ -4,16 +4,16 @@
 
 ## Key Concepts
 
-- **get_my_stats()** (7 connections) — `backend/app/routes/callers.py`
-- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
-- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
-- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
-- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
+- **get_my_status()** (6 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
 
 ## Relationships
 
-- [[Operator Console & Audit]] (2 shared connections)
-- [[Callers CRUD & Coaching]] (1 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
+- [[Callers API]] (1 shared connections)
 
 ## Source Files
 
@@ -21,8 +21,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 9 (82%)
-- INFERRED: 2 (18%)
+- EXTRACTED: 9 (90%)
+- INFERRED: 1 (10%)
 - AMBIGUOUS: 0 (0%)
 
 ---
