@@ -8,7 +8,7 @@ The user wants to refresh the architecture wiki. Argument: `$ARGUMENTS`
 Run from the repo root (`/Users/prem/Documents/Aira AI`) via Bash. Pick by argument:
 
 - **empty or `refresh`** → `make wiki-refresh`
-  (re-extract code with `graphify update .` (AST, no LLM) → rebuild wiki). This is the default and the right choice after code changes.
+  (re-extract code with `graphify update . --force` (AST, no LLM) → rebuild wiki). This is the default and the right choice after code changes. `--force` prunes nodes for DELETED files — without it, removed modules linger as ghosts in the graph forever.
 
 - **`fast` or `labels`** → `make wiki`
   (rebuild wiki from the existing `graph.json` only — use when only labels in `scripts/build_wiki.py` changed, or nothing changed). Fast, no extraction.

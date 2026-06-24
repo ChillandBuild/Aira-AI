@@ -10,8 +10,10 @@ wiki:
 	$(PY) scripts/build_wiki.py
 
 # Re-extract code (AST only, no LLM) → rebuild graph.json → regenerate the wiki.
-# Catches code changes. NOTE: changed docs/specs (markdown) need LLM re-extraction —
+# Catches code changes. --force prunes nodes for DELETED files (AST is deterministic,
+# so a smaller graph means real deletions, not a bad run). Without it, deleted modules
+# linger as ghosts forever. NOTE: changed docs/specs (markdown) need LLM re-extraction —
 # for those run `/graphify . --update` in Claude instead, then `make wiki`.
 wiki-refresh:
-	graphify update .
+	graphify update . --force
 	$(PY) scripts/build_wiki.py
