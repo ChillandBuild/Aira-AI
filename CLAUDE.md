@@ -27,4 +27,7 @@ To prevent context dilution, general invariants and rules have been split into m
 4.  **Active Roadmap & Technical Debt**:
     *   Location: [.agents/projects/active-backlog.md](file:///Users/prem/Documents/Aira%20AI/.agents/projects/active-backlog.md)
     *   Read when: Checking current backlog tasks or reviewing known tech debt (e.g., orphaned tables).
+5.  **Subsystem Notes & Load-Bearing Gotchas**:
+    *   Location: [.agents/context/subsystem-notes.md](file:///Users/prem/Documents/Aira%20AI/.agents/context/subsystem-notes.md)
+    *   Read when: Editing broadcasts/delivery, scoring, call evaluation, knowledge RAG, frontend perf, telecalling, chat escalation, or operator console — holds the *why* and the traps the wiki can't.
 

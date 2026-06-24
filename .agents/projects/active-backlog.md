@@ -5,7 +5,12 @@
 - **Stale Wiki References**: ✅ Cleared 2026-06-24. The graph carried 183 ghost nodes for deleted bot-flow modules because `graphify update` refuses to shrink the graph without `--force`. Ran `graphify update . --force` (4285 nodes, ghosts pruned) + `make wiki` (182 articles). `make wiki-refresh` now uses `--force` permanently, so deletions self-prune going forward.
 
 ## Active Backlog
-*Currently empty. System architecture and features are fully stable and built as described in [stack-and-rules.md](file:///Users/prem/Documents/Aira%20AI/.agents/context/stack-and-rules.md).*
+- **QA audit — 20 fixes parked on branches** (`qa/critical` 3, `qa/high` 9, `qa/medium` 4, `qa/low` 2). The full 58-finding audit (2026-06-22) was reverted from main after a fix broke lead creation (the `opt_in_source` CHECK didn't allow the added `"whatsapp"` value); 12 safe fixes + the env-var leak fix were re-applied. Safety tag `pre-revert-backup` preserves the old HEAD. **Merge one branch at a time, test after each** ([[feedback_qa_revert]]).
+- **Number spam / blocking — open product problem** (boss-raised 2026-04-21, unsolved). WhatsApp API numbers get Meta-blocked after ~10–20 reports; manual caller numbers get Truecaller/carrier spam-flagged. Naive "swap dead number" isn't seamless. Treat number-health monitoring + multi-number pooling + branded caller-ID (Truecaller for Business, Exotel/Knowlarity) as a first-class subsystem, not an afterthought — it gates the core lead-gen value prop.
+- **Shared UI primitives** — no Button/Input/Badge/Tabs components yet; ~50+ buttons / ~20 inputs / ~8 tab groups are inline. Next planned design step.
+- **Retire `lead_scorer.py`** (legacy two-pass scorer) — still called only on the AI-disabled branch; route that branch through `compute_score` instead. Low priority.
+- **Render free → Starter ($7/mo)** — fixes cold-start tail and makes in-process APScheduler reliable (free tier sleeps after 15min → jobs skip). User action.
+- **`feature/scoring-booking-refactor` branch** — unmerged; contains booking state-machine removal + `[COLLECT_DONE]` pattern (migration 072 already applied). Dynamic pricing is already on main; the state-machine removal is NOT.
 
 ---
 
