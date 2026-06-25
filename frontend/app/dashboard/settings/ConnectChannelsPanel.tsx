@@ -144,7 +144,7 @@ const CHANNELS: ChannelConfig[] = [
     fields: [
       { key: "telegram_bot_token", label: "Telegram Bot Token", secret: true, required: true, hint: "Obtain this token from @BotFather on Telegram" },
     ],
-    hasActivation: false,
+    hasActivation: true,
   },
   {
     id: "instagram",
@@ -326,6 +326,18 @@ function WebhookConfigGuide({ channelId, tenantId }: { channelId: string; tenant
         <p>3. Set the Verify Token to the same value as your <strong>Webhook Verify Token</strong> configured below.</p>
         <p>4. Subscribe to <strong>messages</strong> and <strong>message_status_updates</strong> fields.</p>
         <p>5. After saving credentials, click <strong>Validate &amp; Activate</strong> to verify your token and subscribe the webhook.</p>
+      </div>
+    );
+  }
+
+  if (channelId === "telegram") {
+    return (
+      <div className="p-5 rounded-2xl bg-surface-subtle border border-border-subtle font-body text-xs text-ink-secondary space-y-2.5">
+        <p className="font-semibold text-ink text-sm">Telegram Bot Configuration Guide:</p>
+        <p>1. In Telegram, open <strong>@BotFather</strong> and send <strong>/newbot</strong> (or pick an existing bot).</p>
+        <p>2. Copy the bot token it gives you — it looks like <span className="font-mono">123456789:AA…</span>.</p>
+        <p>3. Paste it below and click <strong>Save Changes</strong>. Saving automatically registers the webhook with Telegram — no callback URL to copy.</p>
+        <p>4. Click <strong>Validate &amp; Activate</strong> any time to re-verify the connection and confirm which bot is linked (e.g. after rotating the token).</p>
       </div>
     );
   }

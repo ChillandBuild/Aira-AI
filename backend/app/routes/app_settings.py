@@ -24,7 +24,7 @@ class SettingsUpdate(BaseModel):
 
 
 class ActivateChannelRequest(BaseModel):
-    channel: str  # whatsapp | instagram | facebook
+    channel: str  # whatsapp | instagram | facebook | telegram
 
 
 class InboxConfigUpdate(BaseModel):
@@ -70,8 +70,15 @@ def _get_setting_value(db, tenant_id: str, key: str) -> str | None:
 async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None, str | None]:
     """Register Telegram webhook + return (success, secret_token, error_detail)."""
     from app.config_dynamic import get_setting
+    # public_base_url is the host of the single shared deployment (global, not per-tenant);
+    # only the webhook *path* is tenant-scoped. Source order: dynamic setting → env → last-resort default.
     _RENDER_BASE_URL = "https://aira-ai-5tfr.onrender.com"
     base_url = get_setting("public_base_url") or env_settings.public_base_url or _RENDER_BASE_URL
+    if base_url == _RENDER_BASE_URL:
+        logger.warning(
+            "Telegram webhook base URL fell back to the hardcoded default — "
+            "set PUBLIC_BASE_URL so webhooks register against the correct host."
+        )
     webhook_url = f"{base_url.rstrip('/')}/webhook/telegram/{tenant_id}"
     secret_token = secrets.token_urlsafe(32)
     try:
@@ -181,9 +188,19 @@ async def update_settings(
                         "value": secret_token,
                         "is_secret": True,
                     }).execute()
+            # Saving a valid token already registers the webhook with Telegram, so the
+            # channel is live immediately (unlike Meta channels, which need a separate activate).
+            db.table("app_settings").upsert({
+                "tenant_id": tenant_id,
+                "key": "telegram_status",
+                "value": "live",
+                "is_secret": False,
+                "updated_at": "now()",
+            }, on_conflict="tenant_id,key").execute()
         else:
-            # Token is cleared/empty. Scrub the webhook secret.
+            # Token is cleared/empty. Scrub the webhook secret and status.
             db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", "telegram_webhook_secret").execute()
+            db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", "telegram_status").execute()
 
     _SECRET_KEYS = {
         "meta_access_token",
@@ -278,7 +295,7 @@ async def webhook_health(ctx: dict = Depends(require_owner)):
     db = get_supabase()
     health: dict = {}
 
-    for channel in ("whatsapp", "instagram", "facebook"):
+    for channel in ("whatsapp", "instagram", "facebook", "telegram"):
         row = (
             db.table("messages")
             .select("created_at")
@@ -324,10 +341,73 @@ async def activate_channel(
     tenant_id = ctx["tenant_id"]
     """Validate Meta credentials and auto-subscribe webhook for whatsapp / instagram / facebook."""
     channel = payload.channel
-    if channel not in ("whatsapp", "instagram", "facebook"):
-        raise HTTPException(status_code=400, detail="Invalid channel. Must be whatsapp, instagram, or facebook.")
+    if channel not in ("whatsapp", "instagram", "facebook", "telegram"):
+        raise HTTPException(status_code=400, detail="Invalid channel. Must be whatsapp, instagram, facebook, or telegram.")
 
     db = get_supabase()
+
+    if channel == "telegram":
+        token = _get_setting_value(db, tenant_id, "telegram_bot_token")
+        if not token:
+            raise HTTPException(status_code=400, detail="Save your Telegram bot token first.")
+
+        # Re-register the webhook (refreshes the secret) without forcing the user to re-paste the token.
+        success, secret_token, err_msg = await setup_telegram_webhook(token, tenant_id)
+        if not success:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Telegram rejected this bot token. Error details: {err_msg or 'Unknown error'}. Re-copy the full token from @BotFather and try again.",
+            )
+        if secret_token:
+            db.table("app_settings").upsert({
+                "tenant_id": tenant_id,
+                "key": "telegram_webhook_secret",
+                "value": secret_token,
+                "is_secret": True,
+                "updated_at": "now()",
+            }, on_conflict="tenant_id,key").execute()
+
+        # Confirm the bot identity to show the user which bot is connected.
+        bot_name = None
+        bot_id = None
+        try:
+            async with httpx.AsyncClient() as client:
+                me_r = await client.get(f"https://api.telegram.org/bot{token}/getMe", timeout=10.0)
+            me = me_r.json()
+            if me.get("ok"):
+                result = me.get("result", {})
+                username = result.get("username")
+                bot_name = f"@{username}" if username else result.get("first_name")
+                bot_id = str(result.get("id")) if result.get("id") is not None else None
+        except Exception as me_err:
+            logger.warning(f"Telegram getMe failed for tenant {tenant_id}: {me_err}")
+
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "telegram_status",
+            "value": "live",
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+
+        from app.config_dynamic import invalidate_cache
+        invalidate_cache()
+        record_audit_event(
+            db,
+            tenant_id=tenant_id,
+            actor_user_id=user.get("user_id"),
+            actor_role="tenant_user",
+            action="settings.channel_activated",
+            target_type="channel",
+            target_id="telegram",
+            metadata={"channel": "telegram", "subscribed": True},
+        )
+        return {
+            "channel": "telegram",
+            "page_name": bot_name,
+            "page_id": bot_id,
+            "subscribed": True,
+        }
 
     if channel == "whatsapp":
         token = _get_setting_value(db, tenant_id, "meta_access_token")
