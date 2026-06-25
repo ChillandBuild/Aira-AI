@@ -1,30 +1,29 @@
 # Ai Reply Service
 
-> 14 nodes · cohesion 0.14
+> 9 nodes · cohesion 0.25
 
 ## Key Concepts
 
-- **_is_similar()** (10 connections) — `backend/app/services/ai_reply.py`
-- **_trigger_chat_escalation()** (10 connections) — `backend/app/services/ai_reply.py`
-- **_is_generic_fallback()** (4 connections) — `backend/app/services/ai_reply.py`
-- **bool** (3 connections) — `backend/app/services/ai_reply.py`
-- **float** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
-- **Create a pending chat handover into the shared escalation pool.      The handove** (1 connections) — `backend/app/services/ai_reply.py`
-- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **ai_reply.py** (24 connections) — `backend/app/services/ai_reply.py`
+- **_fetch_conversation_summary()** (6 connections) — `backend/app/services/ai_reply.py`
+- **_get_prompt()** (4 connections) — `backend/app/services/ai_reply.py`
+- **Fetch the compacted conversation_summary from lead_conversation_state.     Retur** (2 connections) — `backend/app/services/ai_reply.py`
+- **Fetch the compacted conversation_summary from lead_conversation_state.     Retur** (1 connections) — `backend/app/services/ai_reply.py`
+- **# NOTE: This is the generic fallback. Every tenant should configure their own pr** (1 connections) — `backend/app/services/ai_reply.py`
+- **# NOTE: This is the generic fallback. Every tenant should configure their own pr** (1 connections) — `backend/app/services/ai_reply.py`
+- **Fetch the compacted conversation_summary from lead_conversation_state.     Retur** (1 connections) — `backend/app/services/ai_reply.py`
+- **# NOTE: This is the generic fallback. Every tenant should configure their own pr** (1 connections) — `backend/app/services/ai_reply.py`
 
 ## Relationships
 
-- [[AI Reply Pipeline (Groq)]] (6 shared connections)
-- [[Ai Reply Service]] (3 shared connections)
-- [[Assignment Service]] (1 shared connections)
-- [[Notify Service]] (1 shared connections)
+- [[Ai Reply Service]] (13 shared connections)
+- [[AI Reply Pipeline (Groq)]] (4 shared connections)
+- [[Call Coach Service]] (1 shared connections)
+- [[Settings Page]] (1 shared connections)
+- [[Leads API]] (1 shared connections)
+- [[Ai Tune API]] (1 shared connections)
+- [[Segments API]] (1 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
 
 ## Source Files
 
@@ -32,8 +31,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 35 (95%)
-- INFERRED: 2 (5%)
+- EXTRACTED: 40 (98%)
+- INFERRED: 1 (2%)
 - AMBIGUOUS: 0 (0%)
 
 ---

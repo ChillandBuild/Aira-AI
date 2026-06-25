@@ -2,7 +2,7 @@
 
 > God node · 33 connections · `frontend/lib/utils.ts`
 
-**Community:** [[Liveagentstatus Component]]
+**Community:** [[Leaddetailpanel Component]]
 
 ## Connections by Relation
 

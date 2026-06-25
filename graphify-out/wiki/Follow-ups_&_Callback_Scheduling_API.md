@@ -31,7 +31,7 @@
 - [[Operator Console & Audit]] (8 shared connections)
 - [[Leaddetailpanel Component]] (5 shared connections)
 - [[Growth Service]] (3 shared connections)
-- [[Pydantic Schemas]] (2 shared connections)
+- [[Leads API]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 
 ## Source Files

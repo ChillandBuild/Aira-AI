@@ -30,10 +30,10 @@
 
 - [[Tests: Scoring Engine]] (20 shared connections)
 - [[App Entry & Schedulers]] (10 shared connections)
-- [[Config]] (1 shared connections)
-- [[Templates API]] (1 shared connections)
-- [[AI Reply Pipeline (Groq)]] (1 shared connections)
+- [[Call Coach Service]] (1 shared connections)
+- [[Config Dynamic]] (1 shared connections)
 - [[Ai Reply Service]] (1 shared connections)
+- [[AI Reply Pipeline (Groq)]] (1 shared connections)
 
 ## Source Files
 

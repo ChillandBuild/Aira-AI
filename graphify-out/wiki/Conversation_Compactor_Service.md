@@ -22,12 +22,12 @@
 
 - [[WhatsApp Inbound Webhook]] (3 shared connections)
 - [[Operator Console & Audit]] (2 shared connections)
-- [[Config]] (1 shared connections)
+- [[Call Coach Service]] (1 shared connections)
 - [[Leads API]] (1 shared connections)
-- [[AI Reply Pipeline (Groq)]] (1 shared connections)
+- [[Ai Reply Service]] (1 shared connections)
 - [[Facebook / Webhook Verification]] (1 shared connections)
 - [[Instagram Channel]] (1 shared connections)
-- [[Templates API]] (1 shared connections)
+- [[Telegram Channel]] (1 shared connections)
 
 ## Source Files
 

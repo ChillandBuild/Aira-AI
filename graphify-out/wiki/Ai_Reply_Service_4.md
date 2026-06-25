@@ -1,22 +1,22 @@
 # Ai Reply Service
 
-> 6 nodes · cohesion 0.33
+> 8 nodes · cohesion 0.25
 
 ## Key Concepts
 
-- **send_facebook()** (11 connections) — `backend/app/services/ai_reply.py`
-- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
-- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
-- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
-- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
-- **Send a Facebook Messenger message via Graph API. Returns message id or None on f** (1 connections) — `backend/app/services/ai_reply.py`
+- **_is_similar()** (11 connections) — `backend/app/services/ai_reply.py`
+- **float** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
+- **True if two messages share ≥threshold fraction of words (rough duplicate check).** (1 connections) — `backend/app/services/ai_reply.py`
 
 ## Relationships
 
-- [[Ai Reply Service]] (2 shared connections)
-- [[AI Reply Pipeline (Groq)]] (2 shared connections)
-- [[Templates API]] (1 shared connections)
-- [[Leads API]] (1 shared connections)
+- [[Ai Reply Service]] (3 shared connections)
+- [[AI Reply Pipeline (Groq)]] (1 shared connections)
 
 ## Source Files
 
@@ -24,8 +24,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 13 (81%)
-- INFERRED: 3 (19%)
+- EXTRACTED: 18 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

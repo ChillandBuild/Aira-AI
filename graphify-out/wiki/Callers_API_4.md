@@ -1,22 +1,19 @@
 # Callers API
 
-> 6 nodes · cohesion 0.33
+> 5 nodes · cohesion 0.40
 
 ## Key Concepts
 
-- **update_my_status()** (9 connections) — `backend/app/routes/callers.py`
-- **StatusToggle** (3 connections) — `backend/app/routes/callers.py`
-- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
-- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
-- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
-- **Caller toggles their own idle/active status.** (1 connections) — `backend/app/routes/callers.py`
+- **get_my_status()** (6 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
+- **Get the current caller's status.** (1 connections) — `backend/app/routes/callers.py`
 
 ## Relationships
 
-- [[Callers API]] (2 shared connections)
-- [[Operator Console & Audit]] (2 shared connections)
-- [[Pydantic Schemas]] (1 shared connections)
-- [[Assignment Service]] (1 shared connections)
+- [[Operator Console & Audit]] (1 shared connections)
+- [[Callers CRUD & Coaching]] (1 shared connections)
 
 ## Source Files
 
@@ -24,8 +21,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 13 (81%)
-- INFERRED: 3 (19%)
+- EXTRACTED: 9 (90%)
+- INFERRED: 1 (10%)
 - AMBIGUOUS: 0 (0%)
 
 ---

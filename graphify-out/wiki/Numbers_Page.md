@@ -26,10 +26,9 @@
 ## Relationships
 
 - [[Authrolecontext (frontend)]] (5 shared connections)
-- [[Escalation Panel Component]] (2 shared connections)
+- [[Settings Page]] (2 shared connections)
+- [[Conversation List UI]] (2 shared connections)
 - [[API Client (frontend)]] (1 shared connections)
-- [[Liveagentstatus Component]] (1 shared connections)
-- [[Conversation List UI]] (1 shared connections)
 
 ## Source Files
 

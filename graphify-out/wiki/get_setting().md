@@ -2,7 +2,7 @@
 
 > God node · 31 connections · `backend/app/config_dynamic.py`
 
-**Community:** [[Templates API]]
+**Community:** [[Config Dynamic]]
 
 ## Connections by Relation
 
@@ -13,18 +13,18 @@
 - [[telecmi_cdr()]] `EXTRACTED`
 - [[get_groq_client()]] `EXTRACTED`
 - [[telegram_webhook()]] `EXTRACTED`
+- [[send_telegram()]] `INFERRED`
 - [[get_knowledge_context()]] `INFERRED`
 - [[verify_meta_signature()]] `EXTRACTED`
 - [[upload_template_media()]] `EXTRACTED`
-- [[CreateTemplate]] `EXTRACTED`
 - [[send_facebook()]] `INFERRED`
+- [[CreateTemplate]] `EXTRACTED`
 - [[send_instagram()]] `INFERRED`
-- [[send_telegram()]] `INFERRED`
+- [[setup_telegram_webhook()]] `INFERRED`
 - [[InitiateCall]] `EXTRACTED`
 - [[create_template()]] `EXTRACTED`
 - [[_score_arc()]] `INFERRED`
 - [[_auto_generate_rubric()]] `INFERRED`
-- [[setup_telegram_webhook()]] `INFERRED`
 - [[initiate_call()]] `EXTRACTED`
 - [[_verify_telecmi_webhook_secret()]] `EXTRACTED`
 

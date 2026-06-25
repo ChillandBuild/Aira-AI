@@ -24,10 +24,11 @@
 
 ## Relationships
 
-- [[Templates API]] (3 shared connections)
+- [[Config Dynamic]] (2 shared connections)
 - [[Facebook / Webhook Verification]] (2 shared connections)
 - [[Instagram Channel]] (2 shared connections)
-- [[Config]] (1 shared connections)
+- [[Call Coach Service]] (1 shared connections)
+- [[Templates API]] (1 shared connections)
 - [[WhatsApp Inbound Webhook]] (1 shared connections)
 - [[Operator Console & Audit]] (1 shared connections)
 

@@ -29,10 +29,9 @@
 
 ## Relationships
 
-- [[API Client (frontend)]] (8 shared connections)
-- [[Coachingdigest Component]] (2 shared connections)
-- [[Liveagentstatus Component]] (2 shared connections)
-- [[Leaddetailpanel Component]] (1 shared connections)
+- [[Teamclient (frontend)]] (6 shared connections)
+- [[API Client (frontend)]] (5 shared connections)
+- [[Leaddetailpanel Component]] (2 shared connections)
 
 ## Source Files
 

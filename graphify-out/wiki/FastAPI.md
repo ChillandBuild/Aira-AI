@@ -1,6 +1,6 @@
 # FastAPI
 
-> God node · 46 connections · `backend/app/main.py`
+> God node · 47 connections · `backend/app/main.py`
 
 **Community:** [[App Entry & Schedulers]]
 
@@ -24,9 +24,9 @@
 - [[follow_ups.py]] `EXTRACTED`
 - [[team.py]] `EXTRACTED`
 - [[webhook.py]] `EXTRACTED`
+- [[test_telegram_settings.py]] `EXTRACTED`
 - [[call_scripts.py]] `EXTRACTED`
 - [[ai_tune.py]] `EXTRACTED`
-- [[inbound_leads.py]] `EXTRACTED`
 
 ### references
 - [[lifespan()]] `EXTRACTED`

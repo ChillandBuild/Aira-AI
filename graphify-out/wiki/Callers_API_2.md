@@ -4,23 +4,22 @@
 
 ## Key Concepts
 
-- **get_digest()** (9 connections) — `backend/app/routes/callers.py`
-- **trigger_digest()** (8 connections) — `backend/app/routes/callers.py`
-- **Return the last N days of coaching digests for a caller.** (2 connections) — `backend/app/routes/callers.py`
-- **int** (1 connections) — `backend/app/routes/callers.py`
-- **Return the last N days of coaching digests for a caller.** (1 connections) — `backend/app/routes/callers.py`
-- **Manually trigger today's digest for a caller (owner only, for testing).** (1 connections) — `backend/app/routes/callers.py`
-- **Manually trigger today's digest for a caller (owner only, for testing).** (1 connections) — `backend/app/routes/callers.py`
-- **Return the last N days of coaching digests for a caller.** (1 connections) — `backend/app/routes/callers.py`
-- **Return the last N days of coaching digests for a caller.** (1 connections) — `backend/app/routes/callers.py`
-- **Manually trigger today's digest for a caller (owner only, for testing).** (1 connections) — `backend/app/routes/callers.py`
+- **toggle_round_robin()** (9 connections) — `backend/app/routes/callers.py`
+- **get_round_robin()** (7 connections) — `backend/app/routes/callers.py`
+- **RoundRobinToggle** (3 connections) — `backend/app/routes/callers.py`
+- **Return whether auto round-robin assignment is currently enabled.** (2 connections) — `backend/app/routes/callers.py`
+- **Return whether auto round-robin assignment is currently enabled.** (1 connections) — `backend/app/routes/callers.py`
+- **Enable or disable automatic round-robin lead assignment for new inbound leads.** (1 connections) — `backend/app/routes/callers.py`
+- **Return whether auto round-robin assignment is currently enabled.** (1 connections) — `backend/app/routes/callers.py`
+- **Enable or disable automatic round-robin lead assignment for new inbound leads.** (1 connections) — `backend/app/routes/callers.py`
+- **Enable or disable automatic round-robin lead assignment for new inbound leads.** (1 connections) — `backend/app/routes/callers.py`
+- **Return whether auto round-robin assignment is currently enabled.** (1 connections) — `backend/app/routes/callers.py`
 
 ## Relationships
 
-- [[Callers CRUD & Coaching]] (4 shared connections)
-- [[Callers API]] (2 shared connections)
-- [[Operator Console & Audit]] (1 shared connections)
-- [[Caller Daily Digest]] (1 shared connections)
+- [[Callers CRUD & Coaching]] (5 shared connections)
+- [[Assignment Service]] (3 shared connections)
+- [[Leads API]] (1 shared connections)
 
 ## Source Files
 
@@ -28,8 +27,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 24 (92%)
-- INFERRED: 2 (8%)
+- EXTRACTED: 24 (89%)
+- INFERRED: 3 (11%)
 - AMBIGUOUS: 0 (0%)
 
 ---

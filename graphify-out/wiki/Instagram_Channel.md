@@ -16,12 +16,12 @@
 
 ## Relationships
 
-- [[Templates API]] (2 shared connections)
+- [[Config Dynamic]] (2 shared connections)
 - [[App Entry & Schedulers]] (2 shared connections)
-- [[Assignment Service]] (2 shared connections)
+- [[Telecaller Assignment Engine]] (2 shared connections)
 - [[Growth Service]] (2 shared connections)
 - [[Meta Webhook Verify Service]] (2 shared connections)
-- [[Config]] (1 shared connections)
+- [[Call Coach Service]] (1 shared connections)
 - [[Operator Console & Audit]] (1 shared connections)
 - [[Conversation Compactor Service]] (1 shared connections)
 - [[Notify Service]] (1 shared connections)

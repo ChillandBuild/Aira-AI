@@ -2,7 +2,7 @@
 
 > God node · 31 connections · `backend/app/services/assignment.py`
 
-**Community:** [[Assignment Service]]
+**Community:** [[Telecaller Assignment Engine]]
 
 ## Connections by Relation
 

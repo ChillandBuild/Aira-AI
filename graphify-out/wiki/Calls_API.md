@@ -22,8 +22,8 @@
 - [[Calls API]] (5 shared connections)
 - [[Operator Console & Audit]] (5 shared connections)
 - [[Calls API (TeleCMI dialer)]] (3 shared connections)
-- [[Templates API]] (2 shared connections)
-- [[Assignment Service]] (1 shared connections)
+- [[Config Dynamic]] (2 shared connections)
+- [[Telecaller Assignment Engine]] (1 shared connections)
 - [[Notify Service]] (1 shared connections)
 
 ## Source Files

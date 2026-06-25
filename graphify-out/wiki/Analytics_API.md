@@ -33,7 +33,7 @@
 - [[Analytics Page]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 - [[Growth Service]] (1 shared connections)
-- [[Liveagentstatus Component]] (1 shared connections)
+- [[Leaddetailpanel Component]] (1 shared connections)
 
 ## Source Files
 

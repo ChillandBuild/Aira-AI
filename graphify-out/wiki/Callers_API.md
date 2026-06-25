@@ -1,35 +1,40 @@
 # Callers API
 
-> 10 nodes · cohesion 0.20
+> 12 nodes · cohesion 0.17
 
 ## Key Concepts
 
-- **toggle_round_robin()** (9 connections) — `backend/app/routes/callers.py`
-- **get_round_robin()** (7 connections) — `backend/app/routes/callers.py`
-- **RoundRobinToggle** (3 connections) — `backend/app/routes/callers.py`
-- **Return whether auto round-robin assignment is currently enabled.** (2 connections) — `backend/app/routes/callers.py`
-- **Return whether auto round-robin assignment is currently enabled.** (1 connections) — `backend/app/routes/callers.py`
-- **Enable or disable automatic round-robin lead assignment for new inbound leads.** (1 connections) — `backend/app/routes/callers.py`
-- **Return whether auto round-robin assignment is currently enabled.** (1 connections) — `backend/app/routes/callers.py`
-- **Enable or disable automatic round-robin lead assignment for new inbound leads.** (1 connections) — `backend/app/routes/callers.py`
-- **Enable or disable automatic round-robin lead assignment for new inbound leads.** (1 connections) — `backend/app/routes/callers.py`
-- **Return whether auto round-robin assignment is currently enabled.** (1 connections) — `backend/app/routes/callers.py`
+- **reassign_backlog()** (12 connections) — `backend/app/services/assignment.py`
+- **update_my_status()** (9 connections) — `backend/app/routes/callers.py`
+- **StatusToggle** (3 connections) — `backend/app/routes/callers.py`
+- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
+- **Check for any unassigned Hot leads or flagged leads and assign them     to this** (1 connections) — `backend/app/services/assignment.py`
+- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
+- **Check for any unassigned Hot leads or flagged leads and assign them     to this** (1 connections) — `backend/app/services/assignment.py`
+- **Caller toggles their own status.** (1 connections) — `backend/app/routes/callers.py`
+- **Check for any unassigned Hot leads or flagged leads and assign them     to this** (1 connections) — `backend/app/services/assignment.py`
+- **Check for any unassigned Hot leads or flagged leads and assign them     to this** (1 connections) — `backend/app/services/assignment.py`
+- **Caller toggles their own idle/active status.** (1 connections) — `backend/app/routes/callers.py`
+- **Check for any unassigned Hot leads or flagged leads and assign them     to this** (1 connections) — `backend/app/services/assignment.py`
 
 ## Relationships
 
-- [[Callers API]] (3 shared connections)
+- [[Operator Console & Audit]] (3 shared connections)
 - [[Telecaller Assignment Engine]] (3 shared connections)
 - [[Callers CRUD & Coaching]] (2 shared connections)
-- [[Pydantic Schemas]] (1 shared connections)
+- [[Leads API]] (1 shared connections)
+- [[Assignment Service]] (1 shared connections)
+- [[Notify Service]] (1 shared connections)
 
 ## Source Files
 
 - `backend/app/routes/callers.py`
+- `backend/app/services/assignment.py`
 
 ## Audit Trail
 
-- EXTRACTED: 24 (89%)
-- INFERRED: 3 (11%)
+- EXTRACTED: 28 (85%)
+- INFERRED: 5 (15%)
 - AMBIGUOUS: 0 (0%)
 
 ---

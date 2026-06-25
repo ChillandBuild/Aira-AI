@@ -21,10 +21,10 @@
 
 ## Relationships
 
-- [[Calls API]] (12 shared connections)
-- [[Operator Console & Audit]] (4 shared connections)
+- [[Calls API]] (11 shared connections)
+- [[Operator Console & Audit]] (5 shared connections)
 - [[Call Summarizer Service]] (2 shared connections)
-- [[Assignment Service]] (1 shared connections)
+- [[Telecaller Assignment Engine]] (1 shared connections)
 - [[Knowledge Base (pgvector RAG)]] (1 shared connections)
 
 ## Source Files

@@ -36,7 +36,7 @@
 - [[Operator Console & Audit]] (5 shared connections)
 - [[App Entry & Schedulers]] (2 shared connections)
 - [[CSV Upload & Bulk Send]] (2 shared connections)
-- [[AI Reply Pipeline (Groq)]] (1 shared connections)
+- [[Ai Reply Service]] (1 shared connections)
 - [[Meta Cloud API Client]] (1 shared connections)
 
 ## Source Files

@@ -1,6 +1,6 @@
 # CSV Upload & Bulk Send
 
-> 25 nodes · cohesion 0.18
+> 22 nodes · cohesion 0.22
 
 ## Key Concepts
 
@@ -15,12 +15,10 @@
 - **get_csv_signed_url()** (6 connections) — `backend/app/routes/upload.py`
 - **_clean_text()** (5 connections) — `backend/app/routes/upload.py`
 - **_validate_csv_storage_path()** (5 connections) — `backend/app/routes/upload.py`
-- **get_retry_timeline()** (5 connections) — `backend/app/routes/upload.py`
 - **_meta_error_detail()** (4 connections) — `backend/app/routes/upload.py`
 - **_value_for()** (4 connections) — `backend/app/routes/upload.py`
 - **OptInRequest** (3 connections) — `backend/app/routes/upload.py`
 - **BulkSendRequest** (3 connections) — `backend/app/routes/upload.py`
-- **_retry_fields()** (3 connections) — `backend/app/routes/upload.py`
 - **UploadFile** (2 connections) — `backend/app/routes/upload.py`
 - **BulkLeadItem** (2 connections) — `backend/app/routes/upload.py`
 - **_insert_scheduled_broadcast()** (2 connections) — `backend/app/routes/upload.py`
@@ -28,17 +26,16 @@
 - **validate_optin()** (2 connections) — `backend/app/routes/upload.py`
 - **float** (1 connections) — `backend/app/routes/upload.py`
 - **Human-readable Meta error for the failed CSV — '(#code) message', else trimmed r** (1 connections) — `backend/app/routes/upload.py`
-- **Per-attempt delivery metrics for a broadcast's auto-retry chain.** (1 connections) — `backend/app/routes/upload.py`
 
 ## Relationships
 
-- [[Upload API]] (39 shared connections)
+- [[Upload API]] (40 shared connections)
 - [[Operator Console & Audit]] (12 shared connections)
 - [[Growth Service]] (3 shared connections)
-- [[Pydantic Schemas]] (3 shared connections)
+- [[Leads API]] (3 shared connections)
 - [[Broadcast Executor & Outbound Router]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
-- [[Ai Reply Service]] (1 shared connections)
+- [[Segments API]] (1 shared connections)
 - [[Meta Cloud API Client]] (1 shared connections)
 
 ## Source Files
@@ -47,8 +44,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 153 (89%)
-- INFERRED: 19 (11%)
+- EXTRACTED: 146 (90%)
+- INFERRED: 17 (10%)
 - AMBIGUOUS: 0 (0%)
 
 ---

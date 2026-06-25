@@ -24,12 +24,12 @@
 
 ## Relationships
 
-- [[Conversation List UI]] (4 shared connections)
+- [[Conversation List UI]] (5 shared connections)
 - [[Authrolecontext (frontend)]] (2 shared connections)
-- [[API Client (frontend)]] (2 shared connections)
-- [[Escalation Panel Component]] (1 shared connections)
+- [[API Client (frontend)]] (1 shared connections)
+- [[Teamclient (frontend)]] (1 shared connections)
+- [[Settings Page]] (1 shared connections)
 - [[Leaddetailpanel Component]] (1 shared connections)
-- [[Liveagentstatus Component]] (1 shared connections)
 
 ## Source Files
 

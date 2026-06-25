@@ -16,7 +16,7 @@
 ## Relationships
 
 - [[API Client (frontend)]] (1 shared connections)
-- [[Escalation Panel Component]] (1 shared connections)
+- [[Settings Page]] (1 shared connections)
 
 ## Source Files
 

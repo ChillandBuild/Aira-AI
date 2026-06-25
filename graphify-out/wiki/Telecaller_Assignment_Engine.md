@@ -1,54 +1,61 @@
 # Telecaller Assignment Engine
 
-> 38 nodes · cohesion 0.07
+> 27 nodes · cohesion 0.12
 
 ## Key Concepts
 
+- **get_telecalling_config()** (31 connections) — `backend/app/services/assignment.py`
+- **auto_assign_lead()** (20 connections) — `backend/app/services/assignment.py`
 - **assignment.py** (19 connections) — `backend/app/services/assignment.py`
 - **str** (17 connections) — `backend/app/services/assignment.py`
-- **is_round_robin_enabled()** (14 connections) — `backend/app/services/assignment.py`
-- **save_telecalling_config()** (12 connections) — `backend/app/services/assignment.py`
-- **should_escalate_to_inbox()** (9 connections) — `backend/app/services/assignment.py`
-- **should_escalate_hot_lead()** (9 connections) — `backend/app/services/assignment.py`
-- **should_assign_to_telecalling()** (9 connections) — `backend/app/services/assignment.py`
-- **set_round_robin_enabled()** (7 connections) — `backend/app/services/assignment.py`
-- **bool** (6 connections) — `backend/app/services/assignment.py`
+- **maybe_assign_lead()** (16 connections) — `backend/app/services/assignment.py`
+- **process_callback_reassignments()** (8 connections) — `backend/app/services/assignment.py`
 - **get_caller_id_for_user()** (6 connections) — `backend/app/services/assignment.py`
+- **int** (6 connections) — `backend/app/services/assignment.py`
 - **_in_shift_caller_ids()** (6 connections) — `backend/app/services/assignment.py`
-- **Flip the single auto-assign switch (telecalling_config.enabled).** (2 connections) — `backend/app/services/assignment.py`
-- **Return telecalling_config from app_settings, merged with defaults.** (2 connections) — `backend/app/services/assignment.py`
-- **Whether auto-assign to telecallers is on.      Single source of truth: telecalli** (1 connections) — `backend/app/services/assignment.py`
+- **_open_lead_count()** (5 connections) — `backend/app/services/assignment.py`
+- **get_my_performance()** (3 connections) — `backend/app/routes/callers.py`
+- **get_assignment_mode()** (2 connections) — `backend/app/routes/calls.py`
 - **Return callers.id for this auth user, or None if not a caller.** (1 connections) — `backend/app/services/assignment.py`
-- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this trigger should create an inbox handover.     Trigger C alway** (1 connections) — `backend/app/services/assignment.py`
-- **Segment-driven hot lead escalation. Used by score ≥ 7 events     in both AI and** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this event should auto-assign to a telecaller.** (1 connections) — `backend/app/services/assignment.py`
+- **Active workload for a caller = assigned leads that are still open.      Excludes** (1 connections) — `backend/app/services/assignment.py`
+- **Assign lead to the active caller with the fewest OPEN leads (least-loaded     ro** (1 connections) — `backend/app/services/assignment.py`
+- **Single gated entry point for auto-assignment.      Assigns iff the lead's CURREN** (1 connections) — `backend/app/services/assignment.py`
+- **Return telecalling_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
 - **Return the set of active caller ids currently within their shift hours.** (1 connections) — `backend/app/services/assignment.py`
-- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this trigger should create an inbox handover.     Trigger C alway** (1 connections) — `backend/app/services/assignment.py`
-- **Segment-driven hot lead escalation. Used by score ≥ 7 events     in both AI and** (1 connections) — `backend/app/services/assignment.py`
-- **Return True if this event should auto-assign to a telecaller.** (1 connections) — `backend/app/services/assignment.py`
-- **Persist telecalling_config to app_settings.** (1 connections) — `backend/app/services/assignment.py`
-- *... and 13 more nodes in this community*
+- **Reassign overdue callbacks from away callers to available ones.      Returns the** (1 connections) — `backend/app/services/assignment.py`
+- **Single gated entry point for auto-assignment.      Assigns iff the lead's CURREN** (1 connections) — `backend/app/services/assignment.py`
+- **Single gated entry point for auto-assignment.      Assigns iff the lead's CURREN** (1 connections) — `backend/app/services/assignment.py`
+- **Return telecalling_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
+- **Single gated entry point for auto-assignment.      Assigns iff the lead's CURREN** (1 connections) — `backend/app/services/assignment.py`
+- **Return telecalling_config from app_settings, merged with defaults.** (1 connections) — `backend/app/services/assignment.py`
+- **Return callers.id for this auth user, or None if not a caller.** (1 connections) — `backend/app/services/assignment.py`
+- *... and 2 more nodes in this community*
 
 ## Relationships
 
-- [[Assignment Service]] (21 shared connections)
-- [[Operator Console & Audit]] (5 shared connections)
-- [[Callers API]] (4 shared connections)
-- [[App Settings API]] (3 shared connections)
-- [[Leads API]] (3 shared connections)
-- [[Ai Reply Service]] (3 shared connections)
-- [[Notify Service]] (2 shared connections)
+- [[Assignment Service]] (24 shared connections)
+- [[Operator Console & Audit]] (7 shared connections)
+- [[Calls API]] (5 shared connections)
+- [[Notify Service]] (5 shared connections)
+- [[App Settings API]] (4 shared connections)
+- [[Callers API]] (3 shared connections)
+- [[App Entry & Schedulers]] (3 shared connections)
+- [[AI Reply Pipeline (Groq)]] (3 shared connections)
+- [[Callers CRUD & Coaching]] (2 shared connections)
+- [[Facebook / Webhook Verification]] (2 shared connections)
+- [[Instagram Channel]] (2 shared connections)
+- [[Telegram Channel]] (2 shared connections)
 
 ## Source Files
 
+- `backend/app/routes/callers.py`
+- `backend/app/routes/calls.py`
 - `backend/app/services/assignment.py`
 
 ## Audit Trail
 
-- EXTRACTED: 130 (91%)
-- INFERRED: 13 (9%)
+- EXTRACTED: 116 (75%)
+- INFERRED: 38 (25%)
 - AMBIGUOUS: 0 (0%)
 
 ---

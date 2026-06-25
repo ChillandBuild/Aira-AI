@@ -33,7 +33,7 @@
 
 ## Relationships
 
-- [[Escalation Panel Component]] (6 shared connections)
+- [[Settings Page]] (6 shared connections)
 - [[API Client (frontend)]] (5 shared connections)
 - [[Templates API]] (1 shared connections)
 

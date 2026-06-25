@@ -20,7 +20,7 @@
 ## Relationships
 
 - [[Operator Console & Audit]] (12 shared connections)
-- [[Pydantic Schemas]] (2 shared connections)
+- [[Leads API]] (2 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 - [[Meta Cloud API Client]] (1 shared connections)
 

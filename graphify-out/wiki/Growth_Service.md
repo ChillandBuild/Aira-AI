@@ -28,15 +28,15 @@
 - [[Operator Console & Audit]] (6 shared connections)
 - [[Leads API]] (6 shared connections)
 - [[Follow-ups & Callback Scheduling API]] (3 shared connections)
-- [[Ai Reply Service]] (3 shared connections)
 - [[CSV Upload & Bulk Send]] (3 shared connections)
-- [[AI Reply Pipeline (Groq)]] (2 shared connections)
+- [[Ai Reply Service]] (2 shared connections)
 - [[Facebook / Webhook Verification]] (2 shared connections)
 - [[Instagram Channel]] (2 shared connections)
 - [[WhatsApp Inbound Webhook]] (2 shared connections)
 - [[Calls API]] (2 shared connections)
-- [[Templates API]] (1 shared connections)
-- [[Analytics API]] (1 shared connections)
+- [[AI Reply Pipeline (Groq)]] (2 shared connections)
+- [[Segments API]] (1 shared connections)
+- [[Telegram Channel]] (1 shared connections)
 
 ## Source Files
 

@@ -22,7 +22,7 @@
 
 ## Relationships
 
-- [[Pydantic Schemas]] (7 shared connections)
+- [[Leads API]] (7 shared connections)
 - [[Operator Console & Audit]] (7 shared connections)
 - [[App Entry & Schedulers]] (1 shared connections)
 

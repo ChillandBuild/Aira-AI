@@ -1,44 +1,73 @@
 # Teamclient (frontend)
 
-> 15 nodes · cohesion 0.18
+> 67 nodes · cohesion 0.06
 
 ## Key Concepts
 
+- **api** (48 connections) — `frontend/lib/api.ts`
+- **useApi.ts** (38 connections) — `frontend/hooks/useApi.ts`
 - **TeamClient.tsx** (25 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
+- **page.tsx** (19 connections) — `frontend/app/dashboard/team/page.tsx`
+- **page.tsx** (19 connections) — `frontend/app/dashboard/telecalling/page.tsx`
+- **page.tsx** (17 connections) — `frontend/app/dashboard/page.tsx`
+- **ProfileClient.tsx** (16 connections) — `frontend/app/dashboard/profile/ProfileClient.tsx`
+- **DashboardClient.tsx** (13 connections) — `frontend/app/dashboard/DashboardClient.tsx`
+- **serverFetchJson()** (13 connections) — `frontend/lib/serverApi.ts`
+- **page.tsx** (11 connections) — `frontend/app/dashboard/profile/page.tsx`
+- **server.ts** (11 connections) — `frontend/lib/supabase/server.ts`
+- **createClient()** (11 connections) — `frontend/lib/supabase/server.ts`
+- **TelecallingView.tsx** (9 connections) — `frontend/app/dashboard/telecalling/TelecallingView.tsx`
+- **serverApi.ts** (9 connections) — `frontend/lib/serverApi.ts`
+- **layout.tsx** (8 connections) — `frontend/app/dashboard/layout.tsx`
+- **WinnerBanner.tsx** (8 connections) — `frontend/app/dashboard/team/WinnerBanner.tsx`
+- **ProfileClient()** (7 connections) — `frontend/app/dashboard/profile/ProfileClient.tsx`
+- **AdminDashboardData** (7 connections) — `frontend/hooks/useApi.ts`
+- **DashboardClient()** (5 connections) — `frontend/app/dashboard/DashboardClient.tsx`
 - **TeamClient()** (5 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
+- **CallerStats** (5 connections) — `frontend/lib/api.ts`
+- **AnalyticsOverview** (5 connections) — `frontend/lib/api.ts`
 - **TeamMember** (5 connections) — `frontend/lib/api.ts`
-- **TeamClientProps** (3 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **useTeamList()** (3 connections) — `frontend/hooks/useApi.ts`
-- **useCallers()** (3 connections) — `frontend/hooks/useApi.ts`
-- **TeamProfilePanel()** (3 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **formatDuration()** (2 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **initials()** (2 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **StatusSummary** (1 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **GapEvent** (1 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **DisplayEvent** (1 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **OUTCOME_COLORS** (1 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **OUTCOME_LABELS** (1 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
-- **InlineEditCell()** (1 connections) — `frontend/app/dashboard/team/TeamClient.tsx`
+- **TimelineEvent** (5 connections) — `frontend/lib/api.ts`
+- **route.ts** (3 connections) — `frontend/app/auth/callback/route.ts`
+- *... and 42 more nodes in this community*
 
 ## Relationships
 
-- [[Liveagentstatus Component]] (5 shared connections)
-- [[Shared Component]] (4 shared connections)
-- [[Authrolecontext (frontend)]] (3 shared connections)
-- [[Dashboardclient (frontend)]] (3 shared connections)
-- [[API Client (frontend)]] (3 shared connections)
-- [[Leaddetailpanel Component]] (1 shared connections)
+- [[API Client (frontend)]] (38 shared connections)
+- [[Leaddetailpanel Component]] (33 shared connections)
+- [[Authrolecontext (frontend)]] (28 shared connections)
+- [[Conversation List UI]] (24 shared connections)
+- [[Shared Component]] (12 shared connections)
+- [[Teamprofilepanel (frontend)]] (6 shared connections)
+- [[Analytics Page]] (3 shared connections)
+- [[Sidebar Component]] (2 shared connections)
+- [[Inbound Lead Reporting]] (1 shared connections)
+- [[Outbound Leads Page]] (1 shared connections)
+- [[Lead Details Panel]] (1 shared connections)
 
 ## Source Files
 
+- `frontend/app/auth/callback/route.ts`
+- `frontend/app/dashboard/ClientLayout.tsx`
+- `frontend/app/dashboard/DashboardClient.tsx`
+- `frontend/app/dashboard/layout.tsx`
+- `frontend/app/dashboard/page.tsx`
+- `frontend/app/dashboard/profile/ProfileClient.tsx`
+- `frontend/app/dashboard/profile/page.tsx`
 - `frontend/app/dashboard/team/TeamClient.tsx`
+- `frontend/app/dashboard/team/WinnerBanner.tsx`
+- `frontend/app/dashboard/team/page.tsx`
+- `frontend/app/dashboard/telecalling/TelecallingView.tsx`
+- `frontend/app/dashboard/telecalling/page.tsx`
 - `frontend/hooks/useApi.ts`
 - `frontend/lib/api.ts`
+- `frontend/lib/serverApi.ts`
+- `frontend/lib/supabase/server.ts`
 
 ## Audit Trail
 
-- EXTRACTED: 57 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 394 (100%)
+- INFERRED: 1 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

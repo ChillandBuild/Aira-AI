@@ -4,16 +4,15 @@
 
 ## Key Concepts
 
-- **get_winners()** (7 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
-- **Return the daily winner (most conversions today) and monthly winner     (highest** (1 connections) — `backend/app/routes/callers.py`
+- **get_my_stats()** (7 connections) — `backend/app/routes/callers.py`
+- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
+- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
+- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
+- **Return the current caller's performance stats.** (1 connections) — `backend/app/routes/callers.py`
 
 ## Relationships
 
-- [[Operator Console & Audit]] (1 shared connections)
-- [[Callers API]] (1 shared connections)
+- [[Operator Console & Audit]] (2 shared connections)
 - [[Callers CRUD & Coaching]] (1 shared connections)
 
 ## Source Files
@@ -22,8 +21,8 @@
 
 ## Audit Trail
 
-- EXTRACTED: 10 (91%)
-- INFERRED: 1 (9%)
+- EXTRACTED: 9 (82%)
+- INFERRED: 2 (18%)
 - AMBIGUOUS: 0 (0%)
 
 ---

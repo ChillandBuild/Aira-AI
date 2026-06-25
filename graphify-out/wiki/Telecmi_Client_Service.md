@@ -17,7 +17,7 @@
 
 ## Relationships
 
-- [[AI Reply Pipeline (Groq)]] (2 shared connections)
+- [[Ai Reply Service]] (2 shared connections)
 
 ## Source Files
 
