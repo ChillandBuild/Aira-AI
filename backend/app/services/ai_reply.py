@@ -300,6 +300,14 @@ async def send_telegram(tg_user_id: str, message: str, tenant_id: str | None = N
                 except Exception:
                     desc = resp.text
                 logger.error(f"Telegram API send error ({resp.status_code}) to {tg_user_id}: {desc}")
+                # 401 = the bot token itself is invalid/revoked → surface in Settings.
+                # 403 ("bot was blocked by the user") is per-recipient, NOT a token problem — never flag it.
+                if resp.status_code == 401 and tenant_id:
+                    try:
+                        from app.services.incidents import create_token_incident
+                        create_token_incident(get_supabase(), tenant_id, "telegram", desc or "Telegram token invalid")
+                    except Exception as inc_err:
+                        logger.error(f"Failed to record Telegram token incident: {inc_err}")
                 return None
             data = resp.json()
             mid = str(data.get("result", {}).get("message_id"))
