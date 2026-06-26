@@ -18,5 +18,9 @@ Review the session and route each learning by type — do NOT dump everything in
 - memory/: delete anything no longer true, merge duplicates, keep it to user + feedback only, update MEMORY.md to match.
 - If you wrote to `.agents/`, make sure it's staged for commit.
 
-## Step 3 — Refresh the architecture map if code changed
-If the session changed code (especially deletions), run `/wiki` so `graphify-out/wiki/` stays current. The Stop hook will also warn if >15 source files drifted.
+## Step 3 — Refresh the architecture map if code changed (automatic)
+Check whether code changed this session:
+`find backend/app frontend/app -type f \( -name '*.py' -o -name '*.ts' -o -name '*.tsx' \) -newer graphify-out/manifest.json 2>/dev/null | head -1`
+- If it returns ANY file → run `make wiki-refresh` (AST `--force` re-extract + rebuild; fast, no LLM). The wiki is git-ignored (local-only), so this never creates a commit. Report the new article count.
+- If it returns nothing → skip (no code changed).
+Do this as part of `/aira-status` so the user never has to run `/wiki` separately.
