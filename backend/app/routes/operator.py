@@ -1100,6 +1100,10 @@ def list_audit_logs(
         "id, tenant_id, actor_user_id, actor_role, action, target_type, target_id, metadata, created_at",
         count="exact",
     )
+    # Global operator audit shows only developer/operator activity. Tenant-user
+    # events are surfaced separately via the per-tenant audit view
+    # (/clients/{tenant_id}/audit-logs), which reads the same table by tenant_id.
+    q = q.eq("actor_role", "system_admin")
     if tenant_id:
         q = q.eq("tenant_id", tenant_id)
     if action:
