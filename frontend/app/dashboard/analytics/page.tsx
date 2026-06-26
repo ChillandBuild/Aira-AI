@@ -48,9 +48,9 @@ function KpiCard({
   valueClass?: string;
 }) {
   return (
-    <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15 flex flex-col gap-1">
+    <div className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
       <p className="font-label text-xs text-on-surface-muted uppercase tracking-wider">{label}</p>
-      <p className={`font-display text-3xl font-bold text-on-surface mt-1 ${valueClass ?? ""}`}>{value}</p>
+      <p className={`mt-1 font-display text-2xl font-bold text-on-surface sm:text-3xl ${valueClass ?? ""}`}>{value}</p>
       {sub && <p className="font-label text-xs text-on-surface-muted">{sub}</p>}
     </div>
   );
@@ -64,7 +64,7 @@ const COL_CLASS: Record<number, string> = {
 function SkeletonGrid({ cols = 4, rows = 1 }: { cols?: number; rows?: number }) {
   return (
     <div className="space-y-6">
-      <div className={`${COL_CLASS[cols] ?? "grid-cols-4"} gap-6`}>
+      <div className={`grid ${COL_CLASS[cols] ?? "grid-cols-4"} gap-4 sm:gap-6`}>
         {Array.from({ length: cols * rows }).map((_, i) => (
           <div key={i} className="h-36 rounded-card bg-surface-mid animate-pulse" />
         ))}
@@ -88,8 +88,8 @@ function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void 
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">
-      <h2 className="font-display text-base font-bold text-primary mb-5">{title}</h2>
+    <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+      <h2 className="mb-4 font-display text-base font-bold text-primary sm:mb-5">{title}</h2>
       {children}
     </div>
   );
@@ -644,16 +644,17 @@ export default function AnalyticsPage() {
   const [range, setRange] = useState<DateRange>("7d");
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
       {/* Page header: tabs & date pills inline */}
-      <div className="flex items-center justify-between gap-4 border-b border-[#e8e3db] pb-4 flex-wrap">
+      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 lg:flex-row lg:items-center lg:justify-between">
         {/* Tab row */}
-        <nav className="flex gap-1 bg-surface-low rounded-xl p-1 w-fit ring-1 ring-[#c4c7c7]/15">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2 rounded-lg font-label text-sm font-semibold transition-colors ${
+              className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
                 activeTab === tab.id
                   ? "bg-surface text-primary shadow-card"
                   : "text-on-surface-muted hover:text-on-surface"
@@ -663,14 +664,15 @@ export default function AnalyticsPage() {
             </button>
           ))}
         </nav>
+        </div>
 
         {/* Date range pills */}
-        <div className="flex gap-1 bg-surface-low rounded-xl p-1 ring-1 ring-[#c4c7c7]/15">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15 sm:flex sm:w-fit">
           {RANGES.map((r) => (
             <button
               key={r.id}
               onClick={() => setRange(r.id)}
-              className={`px-4 py-2 rounded-lg font-label text-sm font-semibold transition-colors ${
+              className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
                 range === r.id
                   ? "bg-surface text-primary shadow-card"
                   : "text-on-surface-muted hover:text-on-surface"

@@ -88,7 +88,7 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       {showInvite && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl shadow-card-hover w-full max-w-md p-6">
@@ -110,22 +110,24 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
       )}
 
       {/* View tabs and actions in a single line */}
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
-        <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start w-fit">
+      <div className="mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:overflow-visible sm:p-0">
+        <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:w-fit">
           <button onClick={() => setTab("performance")}
-            className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5 ${
               tab === "performance" ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]"
             }`}>
             <TrendingUp size={14} /> Team & Performance
           </button>
           <button onClick={() => setTab("log")}
-            className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5 ${
               tab === "log" ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]"
             }`}>
             <ClipboardList size={14} /> Assignment Log
           </button>
         </div>
-        <button onClick={() => setShowInvite(true)} className="btn-primary">
+        </div>
+        <button onClick={() => setShowInvite(true)} className="btn-primary w-full justify-center sm:w-auto">
           <UserPlus size={14} /> Add Telecaller
         </button>
       </div>

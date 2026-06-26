@@ -371,13 +371,14 @@ export default function SettingsPage() {
   const aiConfigured = aiSection.fields.filter(f => f.required !== false).every(f => settingFor(f.key)?.is_set);
 
   return (
-    <div>
+    <div className="min-w-0">
       {/* Curved Tab Switcher */}
-      <div className="mb-6 flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl self-start w-fit">
+      <div className="-mx-1 mb-5 overflow-x-auto px-1 pb-1 sm:mx-0 sm:mb-6 sm:overflow-visible sm:p-0">
+      <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:w-fit">
         <button
           onClick={() => router.push(`${pathname}?tab=general`)}
           className={cn(
-            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
             activeTab === "general"
               ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
@@ -388,7 +389,7 @@ export default function SettingsPage() {
         <button
           onClick={() => router.push(`${pathname}?tab=channels`)}
           className={cn(
-            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
             activeTab === "channels"
               ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
@@ -399,7 +400,7 @@ export default function SettingsPage() {
         <button
           onClick={() => router.push(`${pathname}?tab=telecalling`)}
           className={cn(
-            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
             activeTab === "telecalling"
               ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
@@ -410,7 +411,7 @@ export default function SettingsPage() {
         <button
           onClick={() => router.push(`${pathname}?tab=ai`)}
           className={cn(
-            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
             activeTab === "ai"
               ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
@@ -421,7 +422,7 @@ export default function SettingsPage() {
         <button
           onClick={() => router.push(`${pathname}?tab=automations`)}
           className={cn(
-            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
             activeTab === "automations"
               ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
@@ -429,6 +430,7 @@ export default function SettingsPage() {
         >
           Automations
         </button>
+      </div>
       </div>
 
       {error && (
@@ -448,26 +450,26 @@ export default function SettingsPage() {
           {activeTab === "general" && (
             <div className="space-y-6">
               {/* Admin Identity Card */}
-              <div className="bg-gradient-to-br from-[#1c1917] via-[#292524] to-[#1c1917] rounded-[2rem] p-8 shadow-xl relative overflow-hidden">
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1c1917] via-[#292524] to-[#1c1917] p-5 shadow-xl sm:rounded-[2rem] sm:p-8">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-bl from-primary/10 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/4" />
 
-                <div className="relative flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#2e1065] to-primary flex items-center justify-center shadow-lg shadow-primary/25">
-                    <span className="font-display text-3xl font-bold text-white">{initials}</span>
+                <div className="relative flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#2e1065] to-primary shadow-lg shadow-primary/25 sm:h-20 sm:w-20">
+                    <span className="font-display text-2xl font-bold text-white sm:text-3xl">{initials}</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <h2 className="font-display text-2xl font-bold text-white">{fullName}</h2>
+                      <h2 className="break-words font-display text-xl font-bold text-white sm:text-2xl">{fullName}</h2>
                       <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30">
                         <Crown size={12} className="text-amber-400" />
                         <span className="font-label text-xs font-bold text-amber-300 uppercase tracking-wider">Admin</span>
                       </span>
                     </div>
                     {email && (
-                      <p className="font-body text-sm text-[#a8a29e] mt-1">{email}</p>
+                      <p className="mt-1 break-all font-body text-sm text-[#a8a29e]">{email}</p>
                     )}
-                    <div className="flex items-center gap-4 mt-3">
+                    <div className="mt-3 flex flex-wrap items-center gap-3 sm:gap-4">
                       {memberSince && (
                         <span className="font-label text-xs text-[#78716c]">Member since {memberSince}</span>
                       )}

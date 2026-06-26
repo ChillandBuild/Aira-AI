@@ -425,7 +425,7 @@ function RetryTimeline({ broadcastId }: { broadcastId: string }) {
 
       {open && !loading && data && hasRetries && (
         <div className="mt-2.5 space-y-1.5">
-          <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr] gap-2 font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider px-2">
+          <div className="hidden grid-cols-[1.6fr_1fr_1fr_1fr] gap-2 px-2 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted sm:grid">
             <span>Attempt</span><span className="text-right">Targeted</span><span className="text-right">Delivered</span><span className="text-right">Still failed</span>
           </div>
           {data.attempts.map((a) => {
@@ -434,16 +434,16 @@ function RetryTimeline({ broadcastId }: { broadcastId: string }) {
             const sentOk = a.status === "done" && a.targeted > 0;
             return (
               <div key={a.attempt} className="bg-surface-low rounded-lg px-2 py-1.5">
-                <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr] gap-2 items-center font-body text-xs">
+                <div className="grid grid-cols-2 items-center gap-2 font-body text-xs sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
                   <span className="flex items-center gap-1.5 min-w-0">
                     <span className="font-semibold text-on-surface truncate" title={a.sent_at || ""}>{a.label}</span>
                     {failed && <span className="shrink-0 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-red-100 text-red-700">Failed</span>}
                     {inFlight && <span className="shrink-0 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-blue-100 text-blue-700">{a.status === "pending" ? "Queued" : "Sending"}</span>}
                     {sentOk && <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-green-100 text-green-700"><Check size={9} strokeWidth={3} />Sent</span>}
                   </span>
-                  <span className="text-right text-on-surface-muted">{a.targeted}</span>
-                  <span className="text-right text-green-600 font-semibold">{a.delivered}</span>
-                  <span className="text-right text-amber-600 font-semibold">{a.undelivered}</span>
+                  <span className="text-right text-on-surface-muted"><span className="sm:hidden">Targeted </span>{a.targeted}</span>
+                  <span className="text-right font-semibold text-green-600"><span className="font-normal text-on-surface-muted sm:hidden">Delivered </span>{a.delivered}</span>
+                  <span className="text-right font-semibold text-amber-600"><span className="font-normal text-on-surface-muted sm:hidden">Failed </span>{a.undelivered}</span>
                 </div>
                 {failed && a.error && (
                   <p className="mt-1 font-body text-[10.5px] text-red-600 leading-snug">{a.error} — will retry at the next window.</p>
@@ -1243,7 +1243,7 @@ export default function OutboundLeadsPage() {
   const inputCls = "w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-primary outline-none";
 
   return (
-    <div className="max-w-7xl">
+    <div className="min-w-0 max-w-7xl">
       {/* Upload Wizard */}
       {activeTab === "upload" && (
         <div className="flex min-h-[600px] flex-col rounded-2xl bg-surface p-4 shadow-lg ring-1 ring-[#c4c7c7]/20 animate-slide-up md:rounded-[2rem] md:p-8">
@@ -1312,7 +1312,7 @@ export default function OutboundLeadsPage() {
                       <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
                       <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
                     </div>
-                    <div className="col-span-3 p-3 bg-surface-low rounded-xl">
+                    <div className="rounded-xl bg-surface-low p-3 sm:col-span-3">
                       <p className="font-label text-xs text-on-surface-muted mb-1.5">Columns detected</p>
                       <div className="flex flex-wrap gap-1.5">
                         {parsedData.columns.map(col => (
@@ -2339,7 +2339,7 @@ export default function OutboundLeadsPage() {
                 </div>
                 <div>
                   <label className="font-label text-xs text-on-surface-muted mb-1 block">Color</label>
-                  <div className="flex items-center gap-1.5 flex-wrap max-w-[420px]">
+                  <div className="flex max-w-full flex-wrap items-center gap-1.5 sm:max-w-[420px]">
                     {PRESET_COLORS.map((c) => (
                       <button
                         key={c}
@@ -2493,7 +2493,7 @@ export default function OutboundLeadsPage() {
                     placeholder="Search…"
                     value={historySearch}
                     onChange={(e) => setHistorySearch(e.target.value)}
-                    className="w-full min-w-40 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                    className="w-full min-w-0 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all sm:min-w-40"
                   />
                 </div>
                 <button
@@ -2562,7 +2562,7 @@ export default function OutboundLeadsPage() {
                 {/* Campaign Info Bar */}
                 <div className="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100 flex-wrap xl:flex-nowrap">
                   {/* Date */}
-                  <div className="flex items-center gap-1.5 shrink-0 min-w-[140px]">
+                  <div className="flex min-w-0 items-center gap-1.5 sm:min-w-[140px] sm:shrink-0">
                     <Calendar size={14} className="text-gray-400 shrink-0" />
                     <span className="font-display text-xs font-semibold text-gray-800">
                       {new Date(item.timestamp).toLocaleString("en-IN", { 
@@ -2592,7 +2592,7 @@ export default function OutboundLeadsPage() {
                   )}
                   
                   {/* Spacer */}
-                  <div className="flex-1 min-w-[20px]" />
+                  <div className="hidden min-w-[20px] flex-1 sm:block" />
                   
                   {/* Phone Number */}
                   <div className="flex items-center gap-1.5 shrink-0">

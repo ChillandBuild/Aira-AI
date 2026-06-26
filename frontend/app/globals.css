@@ -36,6 +36,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -250,6 +264,13 @@ body {
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--ink-muted);
+  }
+}
+
+@media (max-width: 767px) {
+  .card {
+    padding: 1rem;
+    border-radius: 1rem;
   }
 }
 

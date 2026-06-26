@@ -363,7 +363,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
   }
 
   return (
-    <div>
+    <div className="min-w-0">
       {composing && (
         <ComposeModal
           onClose={() => setComposing(false)}
@@ -374,8 +374,8 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
       )}
 
       {/* Tabs and Actions merged in a single row */}
-      <div className="mb-6 flex items-center justify-between border-b border-[#e8e3db] pb-3">
-        <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
+      <div className="mb-5 flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:flex sm:w-fit">
           <button
             onClick={() => setPageView("leads")}
             className={pillClass(pageView === "leads")}
@@ -390,10 +390,10 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <button
             onClick={() => setComposing(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-[#1c1917] hover:bg-[#292524] text-white rounded-xl font-label text-xs font-bold transition-all shadow-sm"
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] sm:px-4"
           >
             <Plus size={14} />
             New Message
@@ -407,7 +407,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
                 toast.error(err instanceof Error ? err.message : "Export failed");
               }
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] rounded-xl font-label text-xs font-bold transition-all shadow-sm"
+            className="flex items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4] sm:px-4"
           >
             <Download size={14} />
             Export {SEGMENT_LABELS[tab]}
@@ -461,15 +461,16 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
 
       {pageView === "leads" && (
       <div>
-        <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
           {/* Segment tabs */}
-          <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 w-fit">
+          <div className="-mx-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:overflow-visible sm:p-0">
+          <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:w-fit">
             {SEGMENTS.map((seg) => (
               <button
                 key={seg}
                 onClick={() => setTab(seg)}
                 className={cn(
-                  "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
+                  "shrink-0 rounded-xl px-4 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
                   tab === seg
                     ? "bg-white text-primary shadow-sm"
                     : "text-[#78716c] hover:text-[#292524]"
@@ -479,10 +480,11 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
               </button>
             ))}
           </div>
+          </div>
 
           {/* Source Filter Dropdown */}
-          <div className="flex items-center gap-2 bg-surface p-2.5 rounded-xl border border-surface-mid/80 shadow-sm">
-            <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider">Source:</span>
+          <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm sm:w-auto">
+            <span className="shrink-0 font-label text-xs font-bold uppercase tracking-wider text-on-surface-muted">Source:</span>
             <select
               value={sourceFilter}
               onChange={(e) => {
@@ -490,7 +492,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
                 setSelectedCampaignId("");
                 setSelectedBroadcastId("");
               }}
-              className="bg-transparent font-body text-xs font-semibold text-primary focus:outline-none cursor-pointer"
+              className="min-w-0 flex-1 cursor-pointer bg-transparent font-body text-xs font-semibold text-primary focus:outline-none sm:flex-none"
             >
               <option value="ALL">All Leads</option>
               <option value="INBOUND">Inbound Leads</option>
@@ -502,12 +504,12 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
 
           {/* Conditional Campaign Dropdown */}
           {sourceFilter === "META_ADS" && campaigns.length > 0 && (
-            <div className="flex items-center gap-2 bg-surface p-2.5 rounded-xl border border-surface-mid/80 shadow-sm animate-slide-up">
+            <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm animate-slide-up sm:w-auto">
               <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Campaign:</span>
               <select
                 value={selectedCampaignId}
                 onChange={(e) => setSelectedCampaignId(e.target.value)}
-                className="bg-transparent font-body text-xs font-semibold text-primary focus:outline-none max-w-[300px] pr-6 cursor-pointer"
+                className="min-w-0 flex-1 cursor-pointer bg-transparent pr-6 font-body text-xs font-semibold text-primary focus:outline-none sm:max-w-[300px]"
               >
                 <option value="">Select Campaign</option>
                 {campaigns.map((c) => (
@@ -521,13 +523,13 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
 
           {/* Conditional Broadcast Dropdown */}
           {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
-            <div className="flex flex-wrap items-center gap-3 animate-slide-up">
-              <div className="flex items-center gap-2 bg-surface p-2.5 rounded-xl border border-surface-mid/80 shadow-sm">
+            <div className="flex w-full min-w-0 flex-wrap items-center gap-3 animate-slide-up sm:w-auto">
+              <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm sm:w-auto">
                 <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Broadcast:</span>
                 <select
                   value={selectedBroadcastId}
                   onChange={(e) => setSelectedBroadcastId(e.target.value)}
-                  className="bg-transparent font-body text-xs font-semibold text-primary focus:outline-none max-w-[340px] pr-6 cursor-pointer"
+                  className="min-w-0 flex-1 cursor-pointer bg-transparent pr-6 font-body text-xs font-semibold text-primary focus:outline-none sm:max-w-[340px]"
                 >
                   <option value="">Select Broadcast</option>
                   {broadcastHistory.map((h) => (
@@ -559,8 +561,8 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
           )}
         </div>
 
-        <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15 mb-6">
-          <div className="flex items-center justify-between mb-3">
+        <div className="mb-5 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:mb-6 sm:p-6">
+          <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-display text-sm font-bold text-primary">
               {sourceFilter !== "ALL" ? `Action Box — Filtered Leads` : `Action Box — ${SEGMENT_LABELS[tab]} Leads`}
             </h2>
@@ -578,7 +580,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
             placeholder={sourceFilter !== "ALL" ? "Message to broadcast to filtered leads…" : `Message to broadcast to ${SEGMENT_LABELS[tab]} leads…`}
             className="w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-primary resize-none"
           />
-          <div className="flex gap-2 mt-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             {sourceFilter === "ALL" && (
               <button
                 onClick={saveTemplate}

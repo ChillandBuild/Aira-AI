@@ -208,19 +208,19 @@ export default function TemplatesPage() {
   const countRejected = templates.filter((t) => t.status === "REJECTED" || t.status === "PAUSED").length;
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
       {/* Stats and Action Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
         {[
           { label: "Approved Templates", count: countApproved, color: "#10b981", bg: "bg-emerald-50/50", border: "border-emerald-100" },
           { label: "Pending Review", count: countPending, color: "#f59e0b", bg: "bg-amber-50/50", border: "border-amber-100" },
           { label: "Rejected / Paused", count: countRejected, color: "#ef4444", bg: "bg-red-50/50", border: "border-red-100" },
         ].map((s) => (
-          <div key={s.label} className={`card p-4 rounded-2xl border ${s.border} ${s.bg} flex items-center gap-4 shadow-sm`}>
-            <div className="w-12 h-12 rounded-xl bg-white border border-border-subtle flex items-center justify-center font-bold text-lg" style={{ color: s.color }}>
+          <div key={s.label} className={`card flex items-center gap-3 rounded-2xl border p-4 shadow-sm ${s.border} ${s.bg} sm:gap-4`}>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-lg font-bold sm:h-12 sm:w-12" style={{ color: s.color }}>
               {s.count}
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="font-body text-xs text-ink-muted uppercase tracking-wider font-bold">{s.label}</p>
               <p className="font-display font-semibold text-ink text-sm mt-0.5">templates loaded</p>
             </div>
@@ -264,9 +264,9 @@ export default function TemplatesPage() {
       )}
 
       {/* Filter and View Controls Bar */}
-      <div className="flex flex-row items-center justify-between gap-3 p-4 bg-white border border-border-subtle rounded-2xl shadow-sm overflow-x-auto whitespace-nowrap">
+      <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border-subtle bg-white p-3 shadow-sm sm:p-4 lg:flex-row lg:items-center lg:justify-between">
         {/* Search input */}
-        <div className="relative shrink-0 w-64">
+        <div className="relative w-full lg:w-64 lg:shrink-0">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             value={searchQuery}
@@ -278,13 +278,13 @@ export default function TemplatesPage() {
         </div>
 
         {/* Dropdowns & Toggle */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-1">
+        <div className="grid min-w-0 grid-cols-[1fr_1fr_auto] items-center gap-2 lg:flex lg:shrink-0 lg:gap-2.5">
+          <div className="flex min-w-0 items-center gap-1">
             <Filter size={13} className="text-ink-muted hidden md:inline" />
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="input text-xs py-1.5 px-3 min-w-[120px] max-w-[150px] bg-white cursor-pointer"
+              className="input min-w-0 cursor-pointer bg-white px-2 py-1.5 text-xs sm:px-3 lg:min-w-[120px] lg:max-w-[150px]"
             >
               <option value="ALL">All Types</option>
               <option value="MARKETING">Marketing</option>
@@ -296,7 +296,7 @@ export default function TemplatesPage() {
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="input text-xs py-1.5 px-3 min-w-[120px] max-w-[150px] bg-white cursor-pointer"
+            className="input min-w-0 cursor-pointer bg-white px-2 py-1.5 text-xs sm:px-3 lg:min-w-[120px] lg:max-w-[150px]"
           >
             <option value="ALL">All Statuses</option>
             <option value="APPROVED">Approved</option>

@@ -6,7 +6,6 @@ import { useState } from "react";
 import {
   BarChart2,
   BookOpen,
-  FileCheck,
   Grid3X3,
   Home,
   Inbox,
@@ -15,6 +14,7 @@ import {
   MessageSquare,
   Phone,
   Settings,
+  SquarePen,
   Upload,
   Users,
   X,
@@ -35,13 +35,13 @@ const PRIMARY_ITEMS: MobileNavItem[] = [
   { href: "/dashboard", icon: Home, label: "Home", ownerOnly: true },
   { href: "/dashboard/conversations", icon: MessageSquare, label: "Inbox", anyFeature: ["outbound_leads", "inbound_leads"] },
   { href: "/dashboard/leads", icon: Users, label: "Leads", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
+  { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", ownerOnly: true, feature: "outbound_leads" },
+  { href: "/dashboard/templates", icon: SquarePen, label: "Templates", ownerOnly: true, feature: "outbound_leads" },
   { href: "/dashboard/telecalling", icon: Phone, label: "Calls", feature: "telecalling" },
 ];
 
 const MORE_ITEMS: MobileNavItem[] = [
   { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", ownerOnly: true, feature: "inbound_leads" },
-  { href: "/dashboard/outbound-leads", icon: Upload, label: "Outbound Leads", ownerOnly: true, feature: "outbound_leads" },
-  { href: "/dashboard/templates", icon: FileCheck, label: "Templates", ownerOnly: true, feature: "outbound_leads" },
   { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
   { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
   { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
@@ -117,8 +117,8 @@ export function MobileDashboardNav() {
       )}
 
       <nav className="fixed inset-x-0 bottom-0 z-[60] h-[calc(4.75rem+env(safe-area-inset-bottom))] border-t border-border bg-white/95 px-3 pt-2 shadow-[0_-10px_30px_rgba(28,25,23,0.08)] backdrop-blur md:hidden">
-        <div className="mx-auto grid h-14 max-w-md grid-cols-5 gap-1 pb-0">
-          {primaryItems.slice(0, 4).map((item) => {
+        <div className="mx-auto grid h-14 max-w-lg grid-cols-7 gap-0.5 pb-0">
+          {primaryItems.slice(0, 6).map((item) => {
             const Icon = item.icon;
             const active = isActive(pathname, item.href);
             return (
@@ -126,11 +126,11 @@ export function MobileDashboardNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-extrabold leading-none",
+                  "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-0.5 text-[9px] font-extrabold leading-none",
                   active ? "bg-primary-light text-primary" : "text-ink-secondary"
                 )}
               >
-                <Icon size={18} strokeWidth={2.1} />
+                <Icon size={16} strokeWidth={2.1} />
                 <span className="max-w-full truncate">{item.label}</span>
               </Link>
             );
@@ -140,11 +140,11 @@ export function MobileDashboardNav() {
             type="button"
             onClick={() => setIsMoreOpen(true)}
             className={cn(
-              "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-extrabold leading-none",
+              "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-0.5 text-[9px] font-extrabold leading-none",
               moreItems.some((item) => isActive(pathname, item.href)) ? "bg-primary-light text-primary" : "text-ink-secondary"
             )}
           >
-            <Menu size={18} strokeWidth={2.1} />
+            <Menu size={16} strokeWidth={2.1} />
             <span>More</span>
           </button>
         </div>
