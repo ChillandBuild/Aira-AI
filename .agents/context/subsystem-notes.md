@@ -53,3 +53,8 @@
 
 ## Operator console (separate from /dashboard)
 - Multi-tenant management at `/operator/login`. `system_admins` table (migration 042), dedicated account `developer@airaai.com` (no tenant). `tenants.enabled_features text[]` + `status` (migration 041) drive sidebar feature-gating (whatsapp vs telecalling items) and suspension 403s (`get_tenant_id`/`get_tenant_and_role` check `status=='suspended'`). System health card polls `GET /api/v1/operator/system-health` (psutil) every 60s.
+
+## PWA support
+- Frontend PWA is intentionally conservative: `components/PwaRegistrar.tsx` registers `/sw.js` only in production, `app/manifest.ts` starts installed users at `/dashboard`, and `app/offline/page.tsx` is the navigation fallback.
+- `public/sw.js` must not cache `/api/*`, `/auth/*`, mutations, tenant data, lead data, conversations, or dashboard JSON. Keep authenticated/product data network-first; only cache install icons, offline fallback, and static build assets.
+- Do not enable service worker registration in development unless actively debugging cache behavior; stale dev caches make frontend work confusing.

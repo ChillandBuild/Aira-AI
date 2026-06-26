@@ -19,3 +19,6 @@
 - **Shift Time Overrides**: Multi-tenant shift hour schedules per caller (Migration 112) + ShiftTimeline ranges.
 - **Call Scripts Cockpit integration**: Segment-based routing, branch outcomes, and scripts cockpit panel (Migration 111).
 - **Contact Recycling Engine**: Automatic APScheduler recycling job to re-queue unreachable voice leads (Migration 111).
+
+## Tooling Follow-ups
+- **Local wiki refresh toolchain on Windows**: `graphify-out/` is now ignored/local-only, but this machine currently lacks `make` and `graphify` on PATH, so `/aira-wiki` cannot rebuild the wiki after a fresh clone/pull. Install/expose graphify + make, or add a Windows-friendly script target.
