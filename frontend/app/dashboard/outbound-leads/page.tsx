@@ -166,13 +166,13 @@ const STEPS = ["Upload", "Opt-in", "Preview", "Template", "Confirm", "Done"];
 
 function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="flex items-start w-full mb-10">
+    <div className="-mx-1 mb-8 flex w-[calc(100%+0.5rem)] items-start overflow-x-auto px-1 pb-2 md:mb-10 md:w-full md:overflow-visible">
       {STEPS.map((label, i) => {
         const step = i + 1;
         const done = step < current;
         const active = step === current;
         return (
-          <div key={label} className="flex-1 flex flex-col items-center relative">
+          <div key={label} className="relative flex min-w-[72px] flex-1 flex-col items-center">
             {i > 0 && (
               <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${step <= current ? "bg-primary" : "bg-surface-mid"}`} />
             )}
@@ -180,7 +180,7 @@ function StepIndicator({ current }: { current: number }) {
               ${done ? "bg-gradient-to-br from-[#2e1065] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[#2e1065] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
               {done ? <Check size={16} /> : step}
             </div>
-            <span className={`mt-2 font-label text-xs text-center whitespace-nowrap ${active ? "text-primary font-semibold" : done ? "text-primary/50" : "text-on-surface-muted"}`}>
+            <span className={`mt-2 font-label text-[10px] text-center whitespace-nowrap md:text-xs ${active ? "text-primary font-semibold" : done ? "text-primary/50" : "text-on-surface-muted"}`}>
               {label}
             </span>
           </div>
@@ -1246,7 +1246,7 @@ export default function OutboundLeadsPage() {
     <div className="max-w-7xl">
       {/* Upload Wizard */}
       {activeTab === "upload" && (
-        <div className="bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 flex flex-col min-h-[600px] animate-slide-up">
+        <div className="flex min-h-[600px] flex-col rounded-2xl bg-surface p-4 shadow-lg ring-1 ring-[#c4c7c7]/20 animate-slide-up md:rounded-[2rem] md:p-8">
           <StepIndicator current={currentStep} />
 
           {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
@@ -1299,7 +1299,7 @@ export default function OutboundLeadsPage() {
                 )}
 
                 {parsedData && (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl text-center">
                       <p className="font-display text-2xl font-bold text-primary">{parsedData.total_rows.toLocaleString()}</p>
                       <p className="font-label text-xs text-on-surface-muted mt-1">Total Rows</p>
@@ -2379,7 +2379,46 @@ export default function OutboundLeadsPage() {
             </div>
           ) : (
             <div className="bg-surface rounded-2xl shadow-card ring-1 ring-[#c4c7c7]/15 overflow-hidden">
-              <table className="w-full">
+              <div className="space-y-3 p-3 md:hidden">
+                {filteredTagsList.map((tag) => {
+                  const s = tagStats[tag.id];
+                  const style = getTagStyle(tag.color);
+                  return (
+                    <div key={tag.id} className="rounded-2xl p-4 shadow-sm" style={{ background: style.background }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className={cn("truncate font-label text-base font-bold drop-shadow-sm", style.colorClass)}>{tag.name}</p>
+                          <p className={cn("mt-1 font-label text-xs drop-shadow-sm", style.colorClass)}>
+                            {(s?.total_sent ?? 0).toLocaleString()} sent
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <SegmentDropdown tagId={tag.id} dark={style.colorClass === "text-white"} />
+                          <button onClick={() => handleDeleteTag(tag)} disabled={deletingTagId === tag.id} className={cn("rounded-lg p-2 transition-colors disabled:opacity-40", style.colorClass === "text-white" ? "text-white/80 hover:bg-white/20 hover:text-white" : "text-gray-600 hover:bg-red-50 hover:text-red-600")}>
+                            {deletingTagId === tag.id ? <div className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <Trash2 size={15} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        {[
+                          ["Hot", s?.hot ?? 0],
+                          ["Warm", s?.warm ?? 0],
+                          ["Cold", s?.cold ?? 0],
+                          ["DQ", s?.disqualified ?? 0],
+                          ["Opted Out", s?.opted_out ?? 0],
+                          ["Failed", s?.failed ?? 0],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-xl bg-white/25 px-2 py-2 text-center backdrop-blur-sm">
+                            <p className={cn("font-label text-[10px] font-bold uppercase", style.colorClass)}>{label}</p>
+                            <p className={cn("mt-0.5 font-display text-lg font-bold", style.colorClass)}>{value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <table className="hidden w-full md:table">
                 <thead>
                   <tr className="border-b border-surface-mid">
                     {["Tag", "Sent", "Hot", "Warm", "Cold"].map((h) => (
@@ -2426,11 +2465,11 @@ export default function OutboundLeadsPage() {
       )}
 
       {activeTab === "history" && (
-      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-        <div className="bg-gradient-to-r from-emerald-50 to-white border-b border-emerald-100 px-8 py-5">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+        <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-4 py-5 md:px-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 shadow-sm md:h-12 md:w-12">
                 <Clock size={22} className="text-emerald-600" />
               </div>
               <div>
@@ -2446,7 +2485,7 @@ export default function OutboundLeadsPage() {
               </div>
             </div>
             {!historyLoading && broadcastHistory.length > 0 && (
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <div className="relative">
                   <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -2454,7 +2493,7 @@ export default function OutboundLeadsPage() {
                     placeholder="Search…"
                     value={historySearch}
                     onChange={(e) => setHistorySearch(e.target.value)}
-                    className="w-40 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
+                    className="w-full min-w-40 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all"
                   />
                 </div>
                 <button
@@ -2519,7 +2558,7 @@ export default function OutboundLeadsPage() {
         ) : (
           <div className="divide-y divide-gray-100">
             {filteredHistory.map((item, i) => (
-              <div key={i} className="p-6 first:pt-4 last:pb-4">
+              <div key={i} className="p-4 first:pt-4 last:pb-4 md:p-6">
                 {/* Campaign Info Bar */}
                 <div className="flex items-center gap-3 mb-5 pb-4 border-b border-gray-100 flex-wrap xl:flex-nowrap">
                   {/* Date */}
@@ -2634,7 +2673,7 @@ export default function OutboundLeadsPage() {
                 )}
 
                 {/* Metrics Grid - 4 Equal Columns */}
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {/* Sent */}
                   <div className="bg-blue-50/50 rounded-xl p-3 border border-blue-100/50">
                     <div className="flex items-center gap-2 mb-2">

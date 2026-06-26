@@ -428,7 +428,53 @@ export default function KnowledgePage() {
 
           {/* Document List */}
           <div className="bg-surface rounded-card border border-surface-mid overflow-hidden">
-            <table className="w-full text-left font-body text-sm">
+            <div className="space-y-3 p-3 md:hidden">
+              {loading ? (
+                <div className="py-10 text-center text-on-surface-muted">
+                  <Loader2 size={24} className="mx-auto mb-2 animate-spin" />
+                  Loading documents...
+                </div>
+              ) : filteredDocs.length === 0 ? (
+                <div className="py-10 text-center text-on-surface-muted">No documents uploaded yet.</div>
+              ) : (
+                filteredDocs.map((doc) => (
+                  <div key={doc.id} className="rounded-2xl border border-surface-mid bg-white p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-xl bg-primary/5 p-2">
+                        <FileText size={18} className="text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-on-surface">{doc.name}</p>
+                        <p className="mt-1 text-xs text-on-surface-muted">
+                          {doc.file_type.split("/")[1]?.toUpperCase() || "FILE"} · {(doc.size_bytes / 1024).toFixed(1)} KB · {new Date(doc.created_at).toLocaleDateString()}
+                        </p>
+                        {doc.status === "failed" && (
+                          <p className="mt-2 line-clamp-2 text-xs text-red-500">
+                            {doc.error_message || "Indexing failed — delete and re-upload"}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => deleteDocument(doc.id)}
+                        className="rounded-lg p-2 text-on-surface-muted transition-all hover:bg-red-50 hover:text-red-500"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <div className={cn(
+                      "mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-label text-[10px] font-bold uppercase",
+                      doc.status === "indexed" ? "bg-green-100 text-green-700" :
+                      doc.status === "processing" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"
+                    )}>
+                      {doc.status === "indexed" ? <CheckCircle2 size={12} /> :
+                       doc.status === "processing" ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />}
+                      {doc.status}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <table className="hidden w-full text-left font-body text-sm md:table">
               <thead className="bg-surface-low border-b border-surface-mid">
                 <tr>
                   <th className="px-6 py-4 font-label font-semibold text-xs text-on-surface-muted uppercase">Document</th>

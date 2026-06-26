@@ -10,6 +10,7 @@ import { AssignButton } from "./AssignButton";
 import ReengagementBuilder from "./ReengagementBuilder";
 import { useLeads } from "@/hooks/useApi";
 import { useSearchParams, useRouter } from "next/navigation";
+import { MobileRecordCard, MobileRecordField, MobileRecordGrid, MobileRecordHeader } from "@/components/MobileRecord";
 
 function pillClass(active: boolean) {
   return `px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
@@ -605,7 +606,63 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
           ) : leads.length === 0 ? (
             <div className="p-8 text-center font-body text-on-surface-muted">No leads found for these filters</div>
           ) : (
-            <table className="w-full">
+            <>
+            <div className="space-y-3 p-3 md:hidden">
+              {leads.map((lead) => (
+                <MobileRecordCard key={lead.id}>
+                  <MobileRecordHeader
+                    title={lead.phone ? formatPhone(lead.phone) : (lead.name || "No contact")}
+                    subtitle={<NameCell lead={lead} onUpdate={(updated) => mutate(leads.map((l) => (l.id === updated.id ? updated : l)), false)} />}
+                    aside={
+                      <span className="rounded-full bg-primary/10 px-2.5 py-1 font-label text-[11px] font-bold text-primary">
+                        {SEGMENT_LABELS[lead.segment] ?? lead.segment}
+                      </span>
+                    }
+                  />
+                  <MobileRecordGrid>
+                    <MobileRecordField
+                      label="Score"
+                      value={
+                        <span className="flex items-center gap-2">
+                          <span className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-mid">
+                            <span className="block h-full rounded-full bg-secondary" style={{ width: `${lead.score * 10}%` }} />
+                          </span>
+                          {lead.score}/10
+                        </span>
+                      }
+                    />
+                    <MobileRecordField
+                      label="Assigned"
+                      value={lead.assigned_to ? (callers.find((c) => c.id === lead.assigned_to)?.name ?? "Caller") : "Unassigned"}
+                    />
+                    <MobileRecordField label="Source" value={<span className="capitalize">{lead.source}</span>} />
+                    <MobileRecordField label="24h Window" value={format24hWindow(lead.last_inbound_at)} />
+                    <MobileRecordField label="Added" value={timeAgo(lead.created_at)} />
+                    {sourceFilter === "BROADCAST" && (
+                      <MobileRecordField label="Broadcast" value={lead.broadcast_sent_at ? timeAgo(lead.broadcast_sent_at) : "Not sent"} />
+                    )}
+                  </MobileRecordGrid>
+                  {role === "owner" && (
+                    <div className="mt-4 flex justify-end">
+                      <AssignButton
+                        leadId={lead.id}
+                        currentAssignedTo={lead.assigned_to}
+                        callers={callers}
+                        onAssigned={(callerId) => {
+                          mutate(
+                            leads.map((l) =>
+                              l.id === lead.id ? { ...l, assigned_to: callerId } : l
+                            ),
+                            false
+                          );
+                        }}
+                      />
+                    </div>
+                  )}
+                </MobileRecordCard>
+              ))}
+            </div>
+            <table className="hidden w-full md:table">
               <thead>
                 <tr className="border-b border-surface-mid">
                   <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Contact/ID</th>
@@ -693,6 +750,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
                 ))}
               </tbody>
             </table>
+            </>
           )}
         </div>
       </div>

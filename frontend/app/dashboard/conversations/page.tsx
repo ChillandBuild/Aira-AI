@@ -195,8 +195,10 @@ export default function ConversationsPage() {
 
   if (folder === "escalations") {
     return (
-      <div className="h-screen flex relative pl-16">
-        <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
+      <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-16">
+        <div className="hidden md:block">
+          <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
+        </div>
         <EscalationPanel
           onReply={handleEscalationReply}
           onCountChange={setEscalationCount}
@@ -207,11 +209,13 @@ export default function ConversationsPage() {
   }
 
   return (
-    <div className="h-screen flex relative pl-16">
-      <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
+    <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-16">
+      <div className="hidden md:block">
+        <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
+      </div>
 
       {/* ── Conversation list ── */}
-      <div className="relative flex-shrink-0 w-[440px] max-w-[42vw]">
+      <div className={`relative w-full flex-shrink-0 md:block md:w-[440px] md:max-w-[42vw] ${selected ? "hidden" : "block"}`}>
         <ConversationList
           leads={leads}
           selectedId={selected?.id ?? null}
@@ -237,6 +241,7 @@ export default function ConversationsPage() {
       {selected ? (
         <ChatThread
           lead={selected}
+          onBack={() => setSelected(null)}
           onDeleted={(id) => {
             setLeads((prev) => prev.filter((l) => l.id !== id));
             setSelected(null);
@@ -244,7 +249,9 @@ export default function ConversationsPage() {
           onLeadUpdate={(updated) => setSelected(updated)}
         />
       ) : (
-        <SharedInboxEmpty />
+        <div className="hidden flex-1 md:flex">
+          <SharedInboxEmpty />
+        </div>
       )}
       {error && !selected && (
         <p className="absolute bottom-4 left-1/2 -translate-x-1/2 font-body text-sm text-red-500">Failed to load conversations. Retrying…</p>
@@ -254,16 +261,18 @@ export default function ConversationsPage() {
       {selected && (
         <>
           {detailsOpen ? (
-            <LeadDetailsPanel
-              lead={selected}
-              onCollapse={() => setDetailsOpen(false)}
-              onLeadUpdate={(updated) => setSelected(updated)}
-            />
+            <div className="hidden xl:block">
+              <LeadDetailsPanel
+                lead={selected}
+                onCollapse={() => setDetailsOpen(false)}
+                onLeadUpdate={(updated) => setSelected(updated)}
+              />
+            </div>
           ) : (
             <button
               onClick={() => setDetailsOpen(true)}
               title="Show contact details"
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-30 w-6 h-12 bg-surface border border-surface-mid border-r-0 rounded-l-lg flex items-center justify-center text-on-surface-muted hover:text-primary hover:bg-surface-low transition-colors shadow-md"
+              className="absolute right-0 top-1/2 z-30 hidden h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-lg border border-r-0 border-surface-mid bg-surface text-on-surface-muted shadow-md transition-colors hover:bg-surface-low hover:text-primary xl:flex"
             >
               <ChevronLeft size={14} />
             </button>

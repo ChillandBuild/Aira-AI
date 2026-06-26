@@ -394,12 +394,12 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
               <p className="font-display font-semibold text-[15px] text-on-surface">No conversations found</p>
               <p className="text-[13px] mt-1.5 leading-relaxed">Try adjusting your search query or switching filters to find what you&apos;re looking for.</p>
             </div>
-            {(searchQuery || segment || platform !== "whatsapp") && (
+            {(searchQuery || segment || platform !== "all") && (
               <button
                 onClick={() => {
                   setSearchQuery("");
                   setSegment(null);
-                  onPlatformChange("whatsapp");
+                  onPlatformChange("all");
                 }}
                 className="mt-3 text-[13px] font-semibold text-primary hover:underline"
               >
@@ -527,7 +527,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                   <div className="relative shrink-0" data-card-menu onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => setCardMenuId(cardMenuId === lead.id ? null : lead.id)}
-                      className="p-1 rounded-md text-on-surface-muted opacity-0 group-hover:opacity-100 hover:bg-surface-mid transition-all"
+                      className="rounded-md p-1 text-on-surface-muted transition-all hover:bg-surface-mid md:opacity-0 md:group-hover:opacity-100"
                     >
                       <MoreHorizontal size={15} />
                     </button>

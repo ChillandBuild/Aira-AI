@@ -539,10 +539,10 @@ function NumbersPageContent() {
           {/* Messaging Tier Guide */}
           <TierGuide />
 
-          <div className="bg-surface rounded-card shadow-card ring-1 ring-[#c4c7c7]/15 p-8">
-            <div className="flex items-center justify-between mb-6">
+          <div className="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 md:rounded-card md:p-8">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-display text-lg font-bold text-primary">Number Pool</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleSyncAllMeta}
                   disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
@@ -584,7 +584,7 @@ function NumbersPageContent() {
                       className="rounded-xl border border-surface-mid bg-surface-low/40 p-4 hover:bg-surface-low transition-colors"
                     >
                       {/* Row 1: name + role + status + quality */}
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="mb-3 flex flex-wrap items-center gap-3">
                         {/* Inline-editable name */}
                         {isEditing ? (
                           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -650,9 +650,9 @@ function NumbersPageContent() {
                       </div>
 
                       {/* Row 2: sends bar + warm-up + actions */}
-                      <div className="flex items-center gap-4">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                         {/* Daily sends bar */}
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <span className="font-label text-[11px] text-on-surface-muted whitespace-nowrap">
                             {num.daily_send_count.toLocaleString()} / {num.messaging_tier.toLocaleString()} today
                           </span>

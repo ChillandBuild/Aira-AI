@@ -65,6 +65,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 </>
               )}
               {children}
+              <MobileDashboardNav />
             </div>
             <CalendarPanel isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
           </NotificationProvider>

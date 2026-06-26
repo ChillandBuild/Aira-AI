@@ -9,6 +9,7 @@ import {
 import { cn, formatPhone } from "@/lib/utils";
 import { SegmentBadge } from "@/components/segment-badge";
 import { toast } from "sonner";
+import { MobileRecordCard, MobileRecordField, MobileRecordGrid, MobileRecordHeader } from "@/components/MobileRecord";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -422,7 +423,43 @@ export function InboundLeadsClient({
           <EmptyState />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="space-y-3 p-3 md:hidden">
+              {leads.map((lead) => (
+                <MobileRecordCard key={lead.id}>
+                  <MobileRecordHeader
+                    title={lead.name !== "â€”" ? lead.name : formatPhone(lead.phone)}
+                    subtitle={lead.phone !== "â€”" ? formatPhone(lead.phone) : "No phone"}
+                    aside={<ChannelBadge source={lead.source} />}
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className={cn(
+                      "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+                      lead.origin === "ad"
+                        ? "border-violet-200 bg-violet-50 text-violet-700"
+                        : "border-[#e8e3db] bg-[#f0ece4] text-[#57534e]"
+                    )}>
+                      {lead.origin.charAt(0).toUpperCase() + lead.origin.slice(1)}
+                    </span>
+                    <SegmentBadge segment={lead.segment as "A" | "B" | "C" | "D"} />
+                  </div>
+                  <MobileRecordGrid>
+                    <MobileRecordField label="Score" value={<ScoreBar score={lead.score} />} />
+                    <MobileRecordField label="Joined" value={formatDate(lead.created_at)} />
+                    <MobileRecordField
+                      label="Keyword"
+                      className="col-span-2"
+                      value={lead.keyword !== "â€”" ? <span className="line-clamp-2 text-xs leading-snug">&ldquo;{lead.keyword}&rdquo;</span> : "No message yet"}
+                    />
+                    <MobileRecordField
+                      label="Campaign"
+                      className="col-span-2"
+                      value={<span className="line-clamp-2 text-xs leading-snug">{lead.campaign_name}</span>}
+                    />
+                  </MobileRecordGrid>
+                </MobileRecordCard>
+              ))}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-surface-mid bg-surface-low/60">
@@ -519,7 +556,7 @@ export function InboundLeadsClient({
             </div>
 
             {/* Table footer */}
-            <div className="px-5 py-3 border-t border-surface-mid bg-surface-low/40 flex items-center justify-between">
+            <div className="flex items-center justify-between border-t border-surface-mid bg-surface-low/40 px-4 py-3 md:px-5">
               <p className="font-label text-xs text-on-surface-muted">
                 Showing <strong className="text-on-surface">{leads.length}</strong> of{" "}
                 <strong className="text-on-surface">{total}</strong> inbound leads

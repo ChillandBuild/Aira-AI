@@ -10,6 +10,7 @@ import {
   AlertTriangle, Pencil, MessageCircle, Trash2,
   Plus, Mic, MicOff, FileText, Image as ImageIcon,
   Music, Video, Download, X, Eraser, MoreVertical,
+  ArrowLeft,
 } from "lucide-react";
 
 const AVATAR_COLORS = [
@@ -152,7 +153,7 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
         )}
       </div>
       <div className={cn(
-        "max-w-[70%] px-4 py-2.5 rounded-2xl font-body text-sm",
+        "max-w-[82%] md:max-w-[70%] px-4 py-2.5 rounded-2xl font-body text-sm",
         msg.direction === "outbound"
           ? "bg-primary text-white rounded-tr-sm"
           : "bg-surface text-on-surface shadow-card rounded-tl-sm"
@@ -218,10 +219,12 @@ export function ChatThread({
   lead,
   onDeleted,
   onLeadUpdate,
+  onBack,
 }: {
   lead: Lead;
   onDeleted?: (id: string) => void;
   onLeadUpdate?: (updated: Lead) => void;
+  onBack?: () => void;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
@@ -480,9 +483,19 @@ export function ChatThread({
   const outsideWindow = hoursSinceInbound > 24;
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col h-full min-w-0">
       {/* Header */}
-      <div className="px-5 py-3 border-b border-surface-mid bg-surface flex items-center gap-3">
+      <div className="px-3 py-3 md:px-5 border-b border-surface-mid bg-surface flex items-center gap-3">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-low text-on-surface hover:bg-surface-mid md:hidden"
+            title="Back to conversations"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        )}
         {/* Avatar */}
         <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0 select-none", getAvatarColor(lead.id))}>
           {getInitials(current.name, current.phone)}
@@ -585,7 +598,7 @@ export function ChatThread({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3 bg-background">
+      <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 space-y-3 bg-background">
         {loading ? (
           <div className="flex items-center justify-center h-full text-on-surface-muted font-body text-sm">
             Loading messages…
@@ -601,7 +614,7 @@ export function ChatThread({
       </div>
 
       {/* Input area */}
-      <div className="border-t border-surface-mid bg-surface px-4 py-3">
+      <div className="border-t border-surface-mid bg-surface px-3 py-3 md:px-4">
         {outsideWindow && isWhatsApp && (
           <div className="mb-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />

@@ -368,7 +368,35 @@ export default function TemplatesPage() {
       ) : (
         /* Table View */
         <div className="bg-white border border-border-subtle rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          <div className="space-y-3 p-3 md:hidden">
+            {filteredTemplates.map((t) => {
+              const statusColors = STATUS_COLORS[t.status] || { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" };
+              return (
+                <div key={t.id} className="rounded-2xl border border-border-subtle bg-white p-4 shadow-sm" onClick={() => setSelectedTemplate(t)}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-mono text-sm font-semibold text-ink">{t.name}</p>
+                      <p className="mt-1 text-xs text-ink-secondary">
+                        {t.category} · {LANGUAGES.find((l) => l.code === t.language)?.label || t.language}
+                      </p>
+                    </div>
+                    <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 font-label text-[10px] font-semibold ${statusColors.bg} ${statusColors.text}`}>
+                      <span className={`h-1 w-1 rounded-full ${statusColors.dot}`} />
+                      {t.status}
+                    </span>
+                  </div>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => setSelectedTemplate(t)} className="rounded-lg bg-surface-subtle p-2 text-ink-muted hover:text-ink" title="View Preview"><Eye size={14} /></button>
+                    <button onClick={(e) => handleSyncSingle(t.id, e)} disabled={syncingId === t.id} className="rounded-lg bg-surface-subtle p-2 text-ink-muted hover:text-ink disabled:opacity-50" title="Sync Status"><RefreshCw size={14} className={syncingId === t.id ? "animate-spin" : ""} /></button>
+                    <button onClick={(e) => openVariationsModal(t.id, e)} className="rounded-lg bg-violet-50 p-2 text-violet-600" title="Rotate Variations"><Shuffle size={14} /></button>
+                    <button onClick={() => router.push(`/dashboard/templates/${t.id}`)} className="rounded-lg bg-emerald-50 p-2 text-emerald-600" title="Open Detail/Editor"><ChevronRight size={14} /></button>
+                    <button onClick={(e) => handleDelete(t.id, e)} className="rounded-lg bg-red-50 p-2 text-red-500" title="Delete"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-subtle border-b border-border-subtle text-ink-muted text-[11px] font-bold uppercase tracking-wider">

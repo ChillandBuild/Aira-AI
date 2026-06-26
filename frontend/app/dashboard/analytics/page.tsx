@@ -223,7 +223,7 @@ function OverviewTab({ range }: { range: DateRange }) {
   return (
     <div className="space-y-6">
       {/* KPI row */}
-      <div className="grid grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6 xl:gap-4">
         <KpiCard label="Total Leads" value={total.toLocaleString()} sub={channelSub} />
         <KpiCard
           label="Hot Leads"
@@ -245,7 +245,7 @@ function OverviewTab({ range }: { range: DateRange }) {
       </div>
 
       {/* Charts row 1 */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         <SectionCard title="New Leads per Day">
           <div role="img" aria-label="New leads per day chart">
             <ResponsiveContainer width="100%" height={200}>
@@ -285,7 +285,7 @@ function OverviewTab({ range }: { range: DateRange }) {
       </div>
 
       {/* Charts row 2 */}
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         <SectionCard title="Conversion Funnel">
           <FunnelSteps funnel={data.funnel} />
         </SectionCard>
@@ -400,7 +400,7 @@ function ChannelsTab({ range }: { range: DateRange }) {
       {data && (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
             <KpiCard label="Sent Today" value={data.sent_today.toLocaleString()} />
             <KpiCard label="Received Today" value={data.received_today.toLocaleString()} />
             <KpiCard
@@ -415,7 +415,7 @@ function ChannelsTab({ range }: { range: DateRange }) {
           </div>
 
           {/* Charts */}
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
             <SectionCard title="Message Volume">
               <div role="img" aria-label="Message volume chart">
                 <ResponsiveContainer width="100%" height={220}>
@@ -504,7 +504,7 @@ function TemplatesTab() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <KpiCard label="Total Sent" value={totals.sent.toLocaleString()} />
         <KpiCard label="Read Rate" value={pct(totals.read, totals.sent)} sub={`${totals.read.toLocaleString()} read`} />
         <KpiCard label="Reply Rate" value={pct(totals.replied, totals.sent)} sub={`${totals.replied.toLocaleString()} replied`} />
@@ -577,7 +577,7 @@ function InboundTab({ range }: { range: DateRange }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
         <KpiCard label="New Leads Today" value={data.kpis.today.total.toLocaleString()} sub={`Organic ${data.kpis.today.organic} · Ad ${data.kpis.today.ad}`} />
         <KpiCard label="New Leads (range)" value={data.kpis.range.total.toLocaleString()} sub={`Organic ${data.kpis.range.organic} · Ad ${data.kpis.range.ad}`} />
         <KpiCard label="Ad Share" value={`${data.kpis.range.total ? Math.round((data.kpis.range.ad / data.kpis.range.total) * 100) : 0}%`} sub="of inbound in range" />
@@ -596,7 +596,7 @@ function InboundTab({ range }: { range: DateRange }) {
         </ResponsiveContainer>
       </SectionCard>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
         <SectionCard title="By Segment (inbound only)">
           <div className="space-y-3">
             {([["A", "Hot"], ["B", "Warm"], ["C", "Cold"], ["D", "Disqualified"]] as const).map(([k, label]) => (
