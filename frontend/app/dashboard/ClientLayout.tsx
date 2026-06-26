@@ -8,6 +8,7 @@ import { CalendarPanel } from "@/components/CalendarPanel";
 import { SessionTracker } from "@/components/SessionTracker";
 import { AppHeader } from "@/components/AppHeader";
 import { ClaimBanner } from "@/components/ClaimBanner";
+import { MobileDashboardNav } from "@/components/MobileDashboardNav";
 import { API_URL } from "@/lib/api";
 import { NotificationProvider } from "@/hooks/useNotifications";
 
@@ -78,17 +79,21 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         <NotificationProvider>
           <SessionTracker />
           <div className="flex min-h-screen bg-background">
-            <Sidebar />
+            <div className="hidden md:block">
+              <Sidebar />
+            </div>
 
-            <main className="ml-[220px] flex-1 min-h-screen flex flex-col">
+            <main className="flex-1 min-h-screen flex flex-col md:ml-[220px]">
               <Suspense fallback={<div className="h-20 bg-[#faf8f5] border-b border-[#e8e3db]" />}>
                 <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
               </Suspense>
               <ClaimBanner />
-              <div className="p-7 max-w-[1400px] w-full">
+              <div className="w-full max-w-[1400px] p-4 pb-28 md:p-7">
                 {children}
               </div>
             </main>
+
+            <MobileDashboardNav />
 
             <CalendarPanel
               isOpen={isCalendarOpen}

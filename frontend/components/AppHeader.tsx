@@ -242,23 +242,23 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   };
 
   return (
-    <header className="sticky top-0 z-40 h-20 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]">
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:h-20 md:gap-4 md:px-7">
       {/* Left side: title and description */}
       <div className="flex flex-col justify-center select-none">
-        <h1 className="font-display text-lg font-bold text-on-surface leading-tight">
+        <h1 className="font-display text-base font-bold leading-tight text-on-surface md:text-lg">
           {title}
         </h1>
         {description && (
-          <p className="font-body text-xs text-on-surface-muted mt-0.5 max-w-[650px] truncate">
+          <p className="mt-0.5 hidden max-w-[650px] truncate font-body text-xs text-on-surface-muted sm:block">
             {description}
           </p>
         )}
       </div>
 
       {/* Right side actions */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
         {pathname === "/dashboard/outbound-leads" && (
-          <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl mr-2">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["upload", "history", "tags"] as const).map((t) => (
               <button
                 key={t}
@@ -281,7 +281,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/telecalling/upload" && (
-          <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl mr-2">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["upload", "history", "scripts"] as const).map((t) => (
               <button
                 key={t}
@@ -305,7 +305,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/notes" && (
           <>
-            <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl">
+            <div className="hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
               <button
                 onClick={() => changeNotesPageMode("by_lead")}
                 className={cn(
@@ -329,7 +329,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 All Notes
               </button>
             </div>
-            <div className="flex gap-1 p-1 bg-[#e8e3db]/60 rounded-2xl mr-2">
+            <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
               <button
                 onClick={() => changeNotesViewMode("grid")}
                 className={cn(
@@ -364,7 +364,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           <button
             onClick={onRefreshHealth}
             disabled={channelsLoading}
-            className="flex items-center gap-2 h-[34px] px-3.5 rounded-lg font-label text-xs font-semibold border border-[#e8e3db] text-[#78716c] hover:text-[#292524] transition-all bg-white disabled:opacity-40 shadow-sm"
+            className="hidden h-[34px] items-center gap-2 rounded-lg border border-[#e8e3db] bg-white px-3.5 font-label text-xs font-semibold text-[#78716c] shadow-sm transition-all hover:text-[#292524] disabled:opacity-40 md:flex"
           >
             <RefreshCw size={13} className={channelsLoading ? "animate-spin" : ""} />
             <span>Refresh Health</span>
@@ -373,7 +373,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         <button
           onClick={onOpenCalendar}
-          className="flex items-center gap-1.5 h-[34px] px-3 transition-all text-[#1c1917] font-mono text-[13px] font-semibold tracking-wide hover:bg-[#f0ece4] bg-transparent border border-[#e8e3db] rounded-lg"
+          className="hidden h-[34px] items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-transparent px-3 font-mono text-[13px] font-semibold tracking-wide text-[#1c1917] transition-all hover:bg-[#f0ece4] sm:flex"
           title="Schedule & Notes"
         >
           <Clock size={13} className="opacity-50" />

@@ -83,12 +83,12 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
     closedLeads;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-transparent">
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col bg-transparent xl:h-[calc(100vh-4rem)]">
       <CoachingOneLiner callerId={callerId} />
-      <div className="flex-1 grid grid-cols-12 gap-4 min-h-0 pb-4">
+      <div className="grid flex-1 grid-cols-1 gap-4 pb-4 xl:grid-cols-12 xl:min-h-0">
         {/* Left Side: Lead List (4/12) */}
-        <div className="col-span-4 flex flex-col gap-5 min-h-0 pr-1">
-          <div className="flex-1 bg-[#faf8f5] rounded-3xl p-5 shadow-sm border border-[#e8e3db] flex flex-col min-h-0">
+        <div className="flex flex-col gap-5 pr-0 xl:col-span-4 xl:min-h-0 xl:pr-1">
+          <div className="flex flex-1 flex-col rounded-3xl border border-[#e8e3db] bg-[#faf8f5] p-4 shadow-sm xl:min-h-0 xl:p-5">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <div>
                 <h2 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Queue</h2>
@@ -256,7 +256,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
         </div>
 
         {/* Right Side: Lead Profile (8/12) */}
-        <div className="col-span-8 flex flex-col min-h-0 bg-[#faf8f5] rounded-3xl border border-[#e8e3db] shadow-sm overflow-hidden">
+        <div className="flex min-h-[380px] flex-col overflow-hidden rounded-3xl border border-[#e8e3db] bg-[#faf8f5] shadow-sm xl:col-span-8 xl:min-h-0">
           <div className="flex-1 overflow-y-auto">
             {!cockpit.selectedLeadId ? (
               <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-primary-light/10">
