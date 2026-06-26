@@ -78,7 +78,7 @@ export function MobileDashboardNav() {
             className="absolute inset-0 bg-black/35"
             onClick={() => setIsMoreOpen(false)}
           />
-          <div className="absolute inset-x-3 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] rounded-3xl border border-border bg-white p-3 shadow-2xl">
+          <div className="absolute inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] rounded-2xl border border-border bg-white p-3 shadow-2xl">
             <div className="mb-2 flex items-center justify-between px-2">
               <div className="font-display text-sm font-extrabold text-ink">More</div>
               <button
@@ -100,7 +100,7 @@ export function MobileDashboardNav() {
                     href={item.href}
                     onClick={() => setIsMoreOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 rounded-2xl border px-3 py-3 text-sm font-bold",
+                      "flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-bold",
                       active
                         ? "border-primary-muted bg-primary-light text-primary"
                         : "border-border-subtle bg-surface-low text-ink hover:border-border"
@@ -116,8 +116,8 @@ export function MobileDashboardNav() {
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-[60] border-t border-border bg-white/95 px-3 pt-2 shadow-[0_-10px_30px_rgba(28,25,23,0.08)] backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1 pb-[calc(0.65rem+env(safe-area-inset-bottom))]">
+      <nav className="fixed inset-x-0 bottom-0 z-[60] h-[calc(4.75rem+env(safe-area-inset-bottom))] border-t border-border bg-white/95 px-3 pt-2 shadow-[0_-10px_30px_rgba(28,25,23,0.08)] backdrop-blur md:hidden">
+        <div className="mx-auto grid h-14 max-w-md grid-cols-5 gap-1 pb-0">
           {primaryItems.slice(0, 4).map((item) => {
             const Icon = item.icon;
             const active = isActive(pathname, item.href);
@@ -126,12 +126,12 @@ export function MobileDashboardNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[10px] font-extrabold",
+                  "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-extrabold leading-none",
                   active ? "bg-primary-light text-primary" : "text-ink-secondary"
                 )}
               >
-                <Icon size={19} strokeWidth={2.2} />
-                <span className="truncate">{item.label}</span>
+                <Icon size={18} strokeWidth={2.1} />
+                <span className="max-w-full truncate">{item.label}</span>
               </Link>
             );
           })}
@@ -140,11 +140,11 @@ export function MobileDashboardNav() {
             type="button"
             onClick={() => setIsMoreOpen(true)}
             className={cn(
-              "flex min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-[10px] font-extrabold",
+              "flex h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[10px] font-extrabold leading-none",
               moreItems.some((item) => isActive(pathname, item.href)) ? "bg-primary-light text-primary" : "text-ink-secondary"
             )}
           >
-            <Menu size={19} strokeWidth={2.2} />
+            <Menu size={18} strokeWidth={2.1} />
             <span>More</span>
           </button>
         </div>

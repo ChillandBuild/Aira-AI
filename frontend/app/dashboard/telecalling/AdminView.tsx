@@ -205,7 +205,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
         </div>
 
         {/* Right Side: Lead Profile (8/12) — identical to telecaller cockpit */}
-        <div className="flex min-h-[380px] flex-col overflow-hidden rounded-3xl border border-[#e8e3db] bg-[#faf8f5] shadow-sm xl:col-span-8 xl:min-h-0">
+        <div className="hidden min-h-[380px] flex-col overflow-hidden rounded-3xl border border-[#e8e3db] bg-[#faf8f5] shadow-sm xl:col-span-8 xl:flex xl:min-h-0">
           <div className="flex-1 overflow-y-auto">
             {!cockpit.selectedLeadId ? (
               <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-primary-light/10">
