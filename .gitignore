@@ -1,7 +1,7 @@
-# Graphify knowledge graph (generated)
-graphify-out/*
-# ...but commit the human/agent-readable wiki so a fresh clone has the architecture map
-!graphify-out/wiki/
+# Graphify knowledge graph (generated, including the wiki — regenerable from code via `make wiki-refresh`).
+# Kept local-only so the ~130-file wiki refresh after every code change never pollutes git history.
+# A fresh clone rebuilds it with one `/wiki` run.
+graphify-out/
 
 # Environment variables
 .env
