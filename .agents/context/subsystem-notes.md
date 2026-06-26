@@ -58,3 +58,4 @@
 - Frontend PWA is intentionally conservative: `components/PwaRegistrar.tsx` registers `/sw.js` only in production, `app/manifest.ts` starts installed users at `/dashboard`, and `app/offline/page.tsx` is the navigation fallback.
 - `public/sw.js` must not cache `/api/*`, `/auth/*`, mutations, tenant data, lead data, conversations, or dashboard JSON. Keep authenticated/product data network-first; only cache install icons, offline fallback, and static build assets.
 - Do not enable service worker registration in development unless actively debugging cache behavior; stale dev caches make frontend work confusing.
+- Mobile dashboard UX is intentionally separate from desktop: `ClientLayout.tsx` hides `Sidebar` below `md`, adds `MobileDashboardNav`, and gives content bottom padding for the fixed nav. Preserve this split when changing dashboard navigation.
