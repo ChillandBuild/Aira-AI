@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aira Status"
+  short_description: "Session-end Aira repo status workflow"
+  default_prompt: "Use $aira-status to close the session and refresh local project context."

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Aira AI icon</title>
+  <rect width="512" height="512" rx="112" fill="#faf8f5"/>
+  <rect x="54" y="54" width="404" height="404" rx="90" fill="#ffffff"/>
+  <path d="M256 102c12 0 23 7 29 18l120 236c6 12-3 26-16 26h-62c-7 0-13-4-16-10l-55-116-55 116c-3 6-9 10-16 10h-62c-13 0-22-14-16-26l120-236c6-11 17-18 29-18Z" fill="#2e1065"/>
+  <path d="M256 191 216 276h80l-40-85Z" fill="#5b21b6"/>
+  <circle cx="256" cy="407" r="24" fill="#059669"/>
+</svg>

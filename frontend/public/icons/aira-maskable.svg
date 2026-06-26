@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Aira AI maskable icon</title>
+  <rect width="512" height="512" fill="#faf8f5"/>
+  <circle cx="256" cy="256" r="214" fill="#ffffff"/>
+  <path d="M256 96c13 0 24 7 30 19l124 246c6 13-3 28-18 28h-64c-8 0-15-4-18-11l-54-116-54 116c-3 7-10 11-18 11h-64c-15 0-24-15-18-28l124-246c6-12 17-19 30-19Z" fill="#2e1065"/>
+  <path d="M256 186 215 277h82l-41-91Z" fill="#5b21b6"/>
+  <circle cx="256" cy="416" r="25" fill="#059669"/>
+</svg>

@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Manrope, JetBrains_Mono, Dancing_Script } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
+import { PwaRegistrar } from "@/components/PwaRegistrar";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -26,8 +27,32 @@ const dancingScript = Dancing_Script({
 });
 
 export const metadata: Metadata = {
-  title: "Aira AI — Lead Intelligence",
+  title: {
+    default: "Aira AI - Lead Intelligence",
+    template: "%s | Aira AI",
+  },
   description: "WhatsApp lead management for education consultancies",
+  manifest: "/manifest.webmanifest",
+  applicationName: "Aira AI",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Aira AI",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#5b21b6",
 };
 
 export default function RootLayout({
@@ -39,6 +64,7 @@ export default function RootLayout({
         {children}
         <Toaster position="top-right" richColors closeButton />
         <SpeedInsights />
+        <PwaRegistrar />
       </body>
     </html>
   );
