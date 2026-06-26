@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#faf8f5] relative overflow-hidden">
       {/* Left Column: Visual/Branding panel (visible on desktop) */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#2e1065] to-[#5b21b6] p-12 lg:p-20 flex-col justify-between text-white relative z-10 overflow-hidden select-none">
+      <div className="hidden lg:flex lg:w-1/2 lg:h-screen lg:sticky lg:top-0 bg-gradient-to-br from-[#2e1065] to-[#5b21b6] p-10 lg:pt-12 lg:pb-8 lg:px-16 flex-col justify-between text-white relative z-10 overflow-hidden select-none">
         {/* Subtle background glow decorative elements */}
         <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[#7c3aed] opacity-20 blur-[120px] pointer-events-none"></div>
         <div className="absolute -bottom-40 -right-20 w-96 h-96 rounded-full bg-[#c084fc] opacity-20 blur-[100px] pointer-events-none"></div>
@@ -41,7 +41,7 @@ export default function LoginPage() {
           <AiraLogo className="text-white h-7 w-auto" />
         </div>
 
-        <div className="space-y-10 my-auto">
+        <div className="space-y-6 lg:space-y-8 my-auto">
           <div className="space-y-4">
             <h2 className="text-5xl font-bold tracking-tight text-white leading-tight font-display">
               Automate.<br />
