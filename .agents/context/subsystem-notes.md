@@ -59,3 +59,4 @@
 - `public/sw.js` must not cache `/api/*`, `/auth/*`, mutations, tenant data, lead data, conversations, or dashboard JSON. Keep authenticated/product data network-first; only cache install icons, offline fallback, and static build assets.
 - Do not enable service worker registration in development unless actively debugging cache behavior; stale dev caches make frontend work confusing.
 - Mobile dashboard UX is intentionally separate from desktop: `ClientLayout.tsx` hides `Sidebar` below `md`, adds `MobileDashboardNav`, and gives content bottom padding for the fixed nav. Preserve this split when changing dashboard navigation.
+- Inner dashboard pages follow the same split: keep desktop tables/panels for `md+`, but use mobile-specific cards/flows for phone screens. `components/MobileRecord.tsx` is the shared pattern for dense mobile records; conversations intentionally hide the inbox rail on phone and switch list -> chat with a back action.
