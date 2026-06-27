@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "@/lib/api";
+import { createClient } from "@/lib/supabase/client";
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -25,6 +26,12 @@ export function isPushSupported() {
 export async function syncPushSubscription() {
   if (!isPushSupported() || Notification.permission !== "granted") {
     return { enabled: false, reason: "permission" as const };
+  }
+
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return { enabled: false, reason: "unauthenticated" as const };
   }
 
   const { public_key: publicKey } = await api.push.publicKey();

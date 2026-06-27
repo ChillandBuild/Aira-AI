@@ -6,6 +6,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
 from app.services.web_push import vapid_public_key
 
+public_router = APIRouter()
 router = APIRouter()
 
 
@@ -19,7 +20,7 @@ class PushSubscriptionIn(BaseModel):
     keys: PushKeys
 
 
-@router.get("/public-key")
+@public_router.get("/public-key")
 async def get_public_key():
     return {"public_key": vapid_public_key()}
 
