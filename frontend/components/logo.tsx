@@ -1,16 +1,18 @@
 import { SVGProps } from "react";
 
 export function AiraLogo(props: SVGProps<SVGSVGElement>) {
-  const { width, height = 36, ...rest } = props;
+  const { width, height = 36, style, ...rest } = props;
   const calculatedWidth = width ?? (typeof height === "number" ? Math.round(height * (1167 / 265)) : undefined);
 
   return (
     <svg
       width={calculatedWidth}
       height={height}
-      viewBox="600 588 1167 265"
+      viewBox="588 580 1192 282"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="xMidYMid meet"
+      style={{ overflow: "visible", ...style }}
       {...rest}
     >
       <path d="M600.9,846.17L742.29,598.11C743.5,596.58 747.31,592.36 751.24,590.4C755.2,588.42 759.31,588.07 761.26,588.03C763.02,587.94 767.39,588.1 771.82,590.59C775.63,592.72 779.32,597.45 780.26,598.94C827.37,682.98 871.51,762.14 918.45,845.9C920.28,849.17 917.92,853.21 914.17,853.21L870.37,853.21C868.79,853.21 867.33,852.35 866.56,850.97L761.18,660.67L656.57,850.41C655.81,851.8 654.35,852.66 652.76,852.66L604.67,852.66C601.34,852.67 599.24,849.08 600.88,846.18L600.9,846.17Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />

@@ -5,6 +5,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useRouter } from "next/navigation";
 import { isPushSupported, requestAndSyncPushSubscription } from "@/lib/push";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 
 export function NotificationBell() {
   const router = useRouter();
@@ -45,7 +46,16 @@ export function NotificationBell() {
         toast.success("Mobile push notifications enabled");
       } else {
         setPushPermission(Notification.permission);
-        toast.error(result.reason === "missing_key" ? "Push keys are not configured yet" : "Push permission was not granted");
+        if (result.reason === "missing_key") {
+          const status = await api.push.status().catch(() => null);
+          if (status && !status.public_key_configured && !status.private_key_configured) {
+            toast.error("Push keys are missing on the server");
+          } else {
+            toast.error("Push keys are not configured correctly on the server");
+          }
+        } else {
+          toast.error("Push permission was not granted");
+        }
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to enable push notifications");
@@ -103,7 +113,7 @@ export function NotificationBell() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="absolute right-0 top-full mt-3 w-80 md:w-96 bg-white/95 backdrop-blur-xl border border-[#e8e3db]/60 rounded-3xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top))] bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex flex-col overflow-hidden rounded-3xl border border-[#e8e3db]/60 bg-white/95 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200 md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:max-h-[80vh] md:w-96">
             {/* Header */}
             <div className="px-5 py-4 bg-gradient-to-br from-primary-light/65 to-purple-50/65 border-b border-[#f0ece4] flex items-center justify-between">
               <h3 className="font-display text-sm font-black text-[#292524] uppercase tracking-wider">
@@ -232,7 +242,8 @@ export function NotificationBell() {
                           const handleAlertClick = () => {
                             if (leadId) {
                               setIsOpen(false);
-                              router.push(`/dashboard/conversations?lead_id=${leadId}`);
+                              const telecallingAlert = ["lead_assigned", "lead_reassigned", "sim_call_handoff"].includes(n.type);
+                              router.push(telecallingAlert ? `/dashboard/telecalling?lead_id=${leadId}` : `/dashboard/conversations?lead_id=${leadId}`);
                             }
                           };
 

@@ -1049,6 +1049,18 @@ export const api = {
       apiFetch<Lead>(`/api/v1/calls/next-lead${callerId ? `?caller_id=${callerId}` : ""}`),
     assignmentMode: () =>
       apiFetch<{ mode: "push" | "pull"; enabled: boolean; calling_provider: "telecmi" | "sim_basic" }>(`/api/v1/calls/assignment-mode`),
+    sendToMobile: (leadId: string, callerId?: string | null) =>
+      apiFetch<{
+        sent: boolean;
+        lead_id: string;
+        caller_id: string | null;
+        push_url: string;
+        push_configured: boolean;
+        subscription_count: number;
+      }>(`/api/v1/calls/send-to-mobile`, {
+        method: "POST",
+        body: JSON.stringify({ lead_id: leadId, caller_id: callerId || undefined }),
+      }),
   },
   notes: {
     leadsWithActivity: () =>
@@ -1322,13 +1334,27 @@ export const api = {
         body: JSON.stringify({ name }),
       }),
   },
+  operator: {
+    getCallingProvider: (tenantId: string) =>
+      apiFetch<{ tenant_id: string; calling_provider: "telecmi" | "sim_basic"; telecalling_enabled: boolean }>(
+        `/api/v1/operator/clients/${tenantId}/calling-provider`
+      ),
+    updateCallingProvider: (tenantId: string, callingProvider: "telecmi" | "sim_basic") =>
+      apiFetch<{ tenant_id: string; calling_provider: "telecmi" | "sim_basic" }>(
+        `/api/v1/operator/clients/${tenantId}/calling-provider`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ calling_provider: callingProvider }),
+        }
+      ),
+  },
   team: {
     me: () => apiFetch<MyProfile>("/api/v1/team/me"),
     list: () => apiFetch<{ data: TeamMember[] }>("/api/v1/team/"),
-    invite: (email: string, password: string, name?: string, phone?: string, telecmiAgentId?: string) =>
+    invite: (email: string, password: string, name?: string, phone?: string, telecmiAgentId?: string, telecmiAgentPassword?: string) =>
       apiFetch<{ invited: boolean; email: string; user_id: string }>("/api/v1/team/invite", {
         method: "POST",
-        body: JSON.stringify({ email, password, name, phone, telecmi_agent_id: telecmiAgentId }),
+        body: JSON.stringify({ email, password, name, phone, telecmi_agent_id: telecmiAgentId, telecmi_agent_password: telecmiAgentPassword }),
       }),
     remove: (userId: string) =>
       apiFetch<{ removed: boolean }>(`/api/v1/team/${userId}`, { method: "DELETE" }),
@@ -1444,6 +1470,7 @@ export const api = {
   },
   push: {
     publicKey: () => apiFetch<{ public_key: string | null }>("/api/v1/push/public-key"),
+    status: () => apiFetch<{ supported_by_server: boolean; public_key_configured: boolean; private_key_configured: boolean; subscription_count: number }>("/api/v1/push/status"),
     saveSubscription: (subscription: PushSubscriptionJSON) =>
       apiFetch<{ saved: boolean }>("/api/v1/push/subscriptions", {
         method: "POST",

@@ -6,6 +6,7 @@ from pydantic import BaseModel, EmailStr
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
+from app.services.assignment import get_telecalling_config
 from app.services.attendance import build_attendance_map, compute_team_summary, date_range
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ class InvitePayload(BaseModel):
     name: str | None = None
     phone: str | None = None
     telecmi_agent_id: str | None = None
+    telecmi_agent_password: str | None = None
 
 
 class AttendancePayload(BaseModel):
@@ -139,6 +141,16 @@ async def invite_member(payload: InvitePayload, ctx: dict = Depends(get_tenant_a
         raise HTTPException(status_code=403, detail="Only owners can invite members")
 
     db = get_supabase()
+    calling_provider = get_telecalling_config(ctx["tenant_id"]).get("calling_provider", "telecmi")
+    phone = (payload.phone or "").strip() or None
+    telecmi_agent_id = (payload.telecmi_agent_id or "").strip() or None
+    telecmi_agent_password = (payload.telecmi_agent_password or "").strip() or None
+
+    if calling_provider == "sim_basic" and not phone:
+        raise HTTPException(status_code=400, detail="Phone number is required for SIM Basic telecallers")
+    if calling_provider == "telecmi" and (not telecmi_agent_id or not telecmi_agent_password):
+        raise HTTPException(status_code=400, detail="TeleCMI agent id and password are required for TeleCMI telecallers")
+
     try:
         result = db.auth.admin.create_user({
             "email": payload.email,
@@ -183,11 +195,12 @@ async def invite_member(payload: InvitePayload, ctx: dict = Depends(get_tenant_a
                 "tenant_id": ctx["tenant_id"],
                 "user_id": invited_user_id,
                 "name": payload.name or payload.email.split("@")[0],
-                "phone": payload.phone,
+                "phone": phone,
                 "active": True,
             }
-            if payload.telecmi_agent_id:
-                caller_row["telecmi_agent_id"] = payload.telecmi_agent_id
+            if calling_provider == "telecmi":
+                caller_row["telecmi_agent_id"] = telecmi_agent_id
+                caller_row["telecmi_agent_password"] = telecmi_agent_password
             db.table("callers").insert(caller_row).execute()
     except Exception as e:
         logger.error(f"tenant_users/callers insert failed: {e}")

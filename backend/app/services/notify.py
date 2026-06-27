@@ -1,4 +1,5 @@
 import logging
+import re
 
 from app.db.supabase import get_supabase
 
@@ -43,11 +44,12 @@ def notify_user(
         }).execute()
         try:
             from app.services.web_push import send_user_push
+            push_body = re.sub(r"\s*\[(lead_id|handover_id):.*?\]", "", message)
             send_user_push(
                 tenant_id,
                 user_id,
                 title=title,
-                body=message.replace(f" [lead_id:{dedupe_lead_id}]", "") if dedupe_lead_id else message,
+                body=push_body,
                 url=push_url or "/dashboard",
                 tag=f"{type}:{dedupe_lead_id}" if dedupe_lead_id else type,
                 data={"type": type, "lead_id": dedupe_lead_id},

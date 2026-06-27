@@ -9,6 +9,7 @@ import httpx
 from fastapi import Depends, Query
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from app.config import settings
 from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
@@ -46,6 +47,11 @@ class InitiateCall(BaseModel):
     callback_job_id: UUID | None = None
 
 
+class SendToMobilePayload(BaseModel):
+    lead_id: UUID
+    caller_id: UUID | None = None
+
+
 
 class OutcomeUpdate(BaseModel):
     outcome: str | None = None
@@ -56,6 +62,76 @@ class OutcomeUpdate(BaseModel):
     manual_started_at: datetime | None = None
     manual_ended_at: datetime | None = None
     duration_seconds: int | None = Field(default=None, ge=0, le=24 * 60 * 60)
+
+
+@router.post("/send-to-mobile")
+async def send_lead_to_mobile(payload: SendToMobilePayload, ctx: dict = Depends(get_tenant_and_role)):
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+
+    lead = (
+        db.table("leads")
+        .select("id,name,phone")
+        .eq("id", str(payload.lead_id))
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    if not lead.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    target_user_id = ctx.get("user_id")
+    target_caller_id = str(payload.caller_id) if payload.caller_id else ctx.get("caller_id")
+    if payload.caller_id:
+        caller = (
+            db.table("callers")
+            .select("user_id")
+            .eq("id", str(payload.caller_id))
+            .eq("tenant_id", tenant_id)
+            .maybe_single()
+            .execute()
+        )
+        target_user_id = (caller.data or {}).get("user_id")
+        if not target_user_id:
+            raise HTTPException(status_code=404, detail="Selected caller has no mobile login user")
+    if not target_user_id:
+        raise HTTPException(status_code=401, detail="Missing mobile target user")
+
+    subscription_count = 0
+    if target_user_id:
+        try:
+            subs = (
+                db.table("push_subscriptions")
+                .select("id", count="exact")
+                .eq("tenant_id", tenant_id)
+                .eq("user_id", target_user_id)
+                .execute()
+            )
+            subscription_count = subs.count or 0
+        except Exception:
+            subscription_count = 0
+
+    from app.services.notify import notify_user
+
+    lead_name = lead.data.get("name") or lead.data.get("phone") or "Lead"
+    push_url = f"/dashboard/telecalling?lead_id={payload.lead_id}"
+    notify_user(
+        tenant_id,
+        target_user_id,
+        "sim_call_handoff",
+        "Open lead on mobile",
+        f"Call '{lead_name}' from your SIM phone. [lead_id:{payload.lead_id}]",
+        db=db,
+        push_url=push_url,
+    )
+    return {
+        "sent": True,
+        "lead_id": str(payload.lead_id),
+        "caller_id": target_caller_id,
+        "push_url": push_url,
+        "push_configured": bool(settings.vapid_public_key and settings.vapid_private_key),
+        "subscription_count": subscription_count,
+    }
 
 
 @router.post("/initiate")

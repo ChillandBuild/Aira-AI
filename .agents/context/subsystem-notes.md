@@ -60,3 +60,11 @@
 - Do not enable service worker registration in development unless actively debugging cache behavior; stale dev caches make frontend work confusing.
 - Mobile dashboard UX is intentionally separate from desktop: `ClientLayout.tsx` hides `Sidebar` below `md`, adds `MobileDashboardNav`, and gives content bottom padding for the fixed nav. Preserve this split when changing dashboard navigation.
 - Inner dashboard pages follow the same split: keep desktop tables/panels for `md+`, but use mobile-specific cards/flows for phone screens. `components/MobileRecord.tsx` is the shared pattern for dense mobile records; conversations intentionally hide the inbox rail on phone and switch list -> chat with a back action.
+
+## Telecalling provider split
+- `telecalling_config.calling_provider` is the tenant-level switch: `telecmi` uses API click-to-call plus CDR/recording webhook; `sim_basic` creates a manual call log, opens `tel:`, and requires manual wrap-up. Keep lead queue/profile/notes/callbacks/analytics shared; only call execution and evidence source differ.
+- SIM Basic analytics truth: `call_logs.provider='sim_basic'` and `feedback_source='manual'`. Duration comes from caller-confirmed start/end time, notes from short manual summary. Do not promise PWA-native call recording or automatic SIM call-log access.
+- Telecaller invite/setup should be provider-aware: TeleCMI requires agent id/password; SIM Basic needs only name, email, password, mobile number, plus optional SIM label, shift hours, or targets.
+
+## Web Push
+- Web Push is permission-gated from the notification bell and stored in `push_subscriptions`. Backend delivery is best-effort via VAPID keys and must not block assignments if a subscription is stale or push config is missing.

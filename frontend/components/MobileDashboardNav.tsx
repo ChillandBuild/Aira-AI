@@ -6,6 +6,7 @@ import { useState } from "react";
 import {
   BarChart2,
   BookOpen,
+  Calendar,
   Grid3X3,
   Home,
   Inbox,
@@ -15,6 +16,7 @@ import {
   Phone,
   Settings,
   SquarePen,
+  StickyNote,
   Upload,
   Users,
   X,
@@ -41,6 +43,8 @@ const PRIMARY_ITEMS: MobileNavItem[] = [
 ];
 
 const MORE_ITEMS: MobileNavItem[] = [
+  { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", feature: "telecalling.scheduled" },
+  { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes", feature: "telecalling.notes" },
   { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", ownerOnly: true, feature: "inbound_leads" },
   { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
   { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
@@ -90,8 +94,13 @@ export function MobileDashboardNav() {
                 <X size={18} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {moreItems.map((item) => {
+            {moreItems.length === 0 ? (
+              <div className="rounded-xl border border-border-subtle bg-surface-low px-3 py-4 text-center font-body text-sm text-ink-muted">
+                No more sections are available for this account.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {moreItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(pathname, item.href);
                 return (
@@ -110,8 +119,9 @@ export function MobileDashboardNav() {
                     <span className="min-w-0 truncate">{item.label}</span>
                   </Link>
                 );
-              })}
-            </div>
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

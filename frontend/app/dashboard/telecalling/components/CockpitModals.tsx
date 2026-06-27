@@ -1,5 +1,7 @@
 "use client";
-import { AlertCircle, Check, Phone, RefreshCw, Star } from "lucide-react";
+import { AlertCircle, Check, Copy, Phone, RefreshCw, Send, Star, X } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { toast } from "sonner";
 import { formatPhone } from "@/lib/utils";
 import { QUICK_NOTE_TAGS } from "./LeadDetailPanel";
 import type { CallingCockpit } from "../lib/useCallingCockpit";
@@ -38,6 +40,10 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     pendingWrapups,
     openWrapupFromLog,
     blockingWrapups,
+    simHandoffLead,
+    setSimHandoffLead,
+    simHandoffSending,
+    sendSimHandoffToMobile,
     activeCallProvider,
     wrapupStartedAt,
     setWrapupStartedAt,
@@ -50,6 +56,19 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     const seconds = Math.round((new Date(wrapupEndedAt).getTime() - new Date(wrapupStartedAt).getTime()) / 1000);
     return Number.isFinite(seconds) ? Math.max(0, seconds) : null;
   })();
+  const simHandoffUrl = simHandoffLead && typeof window !== "undefined"
+    ? `${window.location.origin}/dashboard/telecalling?lead_id=${simHandoffLead.id}`
+    : "";
+
+  const copySimNumber = async () => {
+    if (!simHandoffLead?.phone) return;
+    try {
+      await navigator.clipboard.writeText(simHandoffLead.phone);
+      toast.success("Phone number copied");
+    } catch {
+      toast.error("Could not copy phone number");
+    }
+  };
 
   return (
     <>
@@ -70,6 +89,75 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
             >
               Cancel Dial
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* SIM Basic desktop handoff */}
+      {simHandoffLead && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1917]/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-[#e8e3db] bg-white shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-start justify-between gap-4 border-b border-[#f0ece4] px-6 py-5">
+              <div>
+                <span className="rounded-full bg-primary-light px-3 py-1 font-label text-[10px] font-black uppercase tracking-wider text-primary">
+                  SIM Basic
+                </span>
+                <h3 className="mt-3 font-display text-xl font-extrabold text-[#1c1917]">Open this lead on mobile</h3>
+                <p className="mt-1 font-body text-sm leading-relaxed text-[#78716c]">
+                  This tenant uses SIM calling. Open this lead on your phone to call using your SIM.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSimHandoffLead(null)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#78716c] hover:bg-[#f0ece4] hover:text-[#292524]"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-5 px-6 py-5">
+              <div className="rounded-2xl border border-[#e8e3db] bg-[#faf8f5] p-4">
+                <p className="font-label text-[10px] font-black uppercase tracking-wider text-[#a8a29e]">Lead</p>
+                <p className="mt-1 font-display text-base font-bold text-[#1c1917]">{simHandoffLead.name || "Unnamed Lead"}</p>
+                <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2">
+                  <span className="font-mono text-sm font-bold text-[#292524]">{formatPhone(simHandoffLead.phone)}</span>
+                  <button
+                    type="button"
+                    onClick={copySimNumber}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e3db] px-2.5 py-1.5 font-label text-[11px] font-bold text-[#57534e] hover:border-primary-muted hover:text-primary"
+                  >
+                    <Copy size={12} />
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center rounded-3xl border border-primary-muted bg-primary-light/40 p-5">
+                {simHandoffUrl && (
+                  <QRCodeSVG
+                    value={simHandoffUrl}
+                    size={168}
+                    bgColor="#ffffff"
+                    fgColor="#1c1917"
+                    level="M"
+                    includeMargin
+                    className="rounded-2xl bg-white p-2 shadow-sm"
+                  />
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={sendSimHandoffToMobile}
+                disabled={simHandoffSending}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 font-label text-sm font-black text-white shadow-md transition-all hover:bg-primary-dark disabled:opacity-50"
+              >
+                {simHandoffSending ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}
+                Send to my mobile
+              </button>
+            </div>
           </div>
         </div>
       )}

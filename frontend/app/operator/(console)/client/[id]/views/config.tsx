@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CheckCircle2, AlertTriangle, XCircle, Shield } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, RadioTower, Shield, Smartphone, XCircle } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
 
@@ -24,6 +24,12 @@ interface ConfigData {
     ai_auto_reply_enabled: boolean;
     reengagement_enabled: boolean;
   };
+}
+
+interface CallingProviderData {
+  tenant_id: string;
+  calling_provider: "telecmi" | "sim_basic";
+  telecalling_enabled: boolean;
 }
 
 const CRED_LABELS: Record<string, string> = {
@@ -57,15 +63,40 @@ function statusBadge(status: string) {
 
 export function ConfigView({ tenantId }: { tenantId: string }) {
   const [config, setConfig] = useState<ConfigData | null>(null);
+  const [provider, setProvider] = useState<CallingProviderData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [providerSaving, setProviderSaving] = useState<"telecmi" | "sim_basic" | null>(null);
 
   useEffect(() => {
-    apiFetch<ConfigData>(`/api/v1/operator/clients/${tenantId}/config`)
-      .then(setConfig)
+    Promise.all([
+      apiFetch<ConfigData>(`/api/v1/operator/clients/${tenantId}/config`),
+      apiFetch<CallingProviderData>(`/api/v1/operator/clients/${tenantId}/calling-provider`),
+    ])
+      .then(([configData, providerData]) => {
+        setConfig(configData);
+        setProvider(providerData);
+      })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load config"))
       .finally(() => setLoading(false));
   }, [tenantId]);
+
+  async function updateProvider(callingProvider: "telecmi" | "sim_basic") {
+    if (!provider || provider.calling_provider === callingProvider) return;
+    setProviderSaving(callingProvider);
+    setError(null);
+    try {
+      const saved = await apiFetch<{ tenant_id: string; calling_provider: "telecmi" | "sim_basic" }>(
+        `/api/v1/operator/clients/${tenantId}/calling-provider`,
+        { method: "PATCH", body: JSON.stringify({ calling_provider: callingProvider }) },
+      );
+      setProvider({ ...provider, calling_provider: saved.calling_provider });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update calling provider");
+    } finally {
+      setProviderSaving(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -92,6 +123,60 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="space-y-6">
+      {/* Calling Provider */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <RadioTower size={16} className="text-ink-muted" />
+          Calling Provider
+        </h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          {[
+            {
+              id: "telecmi" as const,
+              title: "TeleCMI",
+              desc: "API calling with automatic call logs, duration, recordings, and webhooks.",
+              icon: RadioTower,
+            },
+            {
+              id: "sim_basic" as const,
+              title: "SIM Basic",
+              desc: "Mobile SIM calling with manual wrap-up, duration, and notes.",
+              icon: Smartphone,
+            },
+          ].map((option) => {
+            const Icon = option.icon;
+            const selected = provider?.calling_provider === option.id;
+            const saving = providerSaving === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => updateProvider(option.id)}
+                disabled={!!providerSaving}
+                className={`rounded-card border p-4 text-left shadow-sm transition-all ${
+                  selected
+                    ? "border-primary bg-primary-light text-ink ring-1 ring-primary/10"
+                    : "border-border bg-white hover:border-primary-muted"
+                } ${providerSaving ? "opacity-70" : ""}`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${selected ? "bg-white text-primary" : "bg-surface-mid text-ink-muted"}`}>
+                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-ink">{option.title}</p>
+                      {selected && statusBadge("configured")}
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-muted">{option.desc}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Credential Status */}
       <div>
         <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">

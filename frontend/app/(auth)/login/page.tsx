@@ -30,7 +30,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col lg:flex-row bg-[#faf8f5] relative overflow-hidden">
+    <div className="min-h-[100dvh] w-full flex flex-col lg:flex-row bg-[#faf8f5] relative overflow-x-hidden overflow-y-auto lg:overflow-hidden">
       {/* Left Column: Visual/Branding panel (visible on desktop) */}
       <div className="hidden lg:flex lg:w-1/2 lg:h-screen lg:sticky lg:top-0 bg-gradient-to-br from-[#2e1065] to-[#5b21b6] p-10 lg:pt-12 lg:pb-8 lg:px-16 flex-col justify-between text-white relative z-10 overflow-hidden select-none">
         {/* Subtle background glow decorative elements */}
@@ -97,13 +97,13 @@ export default function LoginPage() {
       </div>
 
       {/* Right Column: Centered Login Form with canvas animation */}
-      <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-12 relative min-h-screen">
+      <div className="flex-1 flex flex-col justify-center items-center px-5 py-8 sm:p-12 relative min-h-[100dvh]">
         <BackgroundAnimation />
 
         <div className="w-full max-w-sm relative z-10">
           {/* Mobile logo header (hidden on desktop) */}
           <div className="lg:hidden flex flex-col items-center mb-8">
-            <AiraLogo className="h-7 w-auto text-ink mb-2" />
+            <AiraLogo width={196} height={45} className="text-ink mb-2" />
             <p className="text-[10px] tracking-[0.15em] font-semibold text-ink-muted uppercase flex items-center gap-1.5 font-label">
               Automate <span className="w-1 h-1 rounded-full bg-stone-300"></span> <span className="text-primary">Convert</span> <span className="w-1 h-1 rounded-full bg-stone-300"></span> Grow
             </p>
@@ -130,7 +130,11 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="input"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  autoComplete="email"
+                  className="input text-base sm:text-sm"
                   placeholder="you@example.com"
                 />
               </div>
@@ -142,7 +146,8 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="input pr-10"
+                    autoComplete="current-password"
+                    className="input pr-10 text-base sm:text-sm"
                     placeholder="••••••••"
                   />
                   <button

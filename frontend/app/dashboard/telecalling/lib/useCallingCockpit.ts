@@ -72,6 +72,8 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   const [callStatus, setCallStatus] = useState<"ringing" | "connected" | "ended" | null>(null);
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
   const [activeCallProvider, setActiveCallProvider] = useState<"telecmi" | "sim_basic">("telecmi");
+  const [simHandoffLead, setSimHandoffLead] = useState<Lead | null>(null);
+  const [simHandoffSending, setSimHandoffSending] = useState(false);
 
   // Mandatory wrap-up
   const [showWrapupModal, setShowWrapupModal] = useState(false);
@@ -136,6 +138,11 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setShowWrapupModal(true);
   }
 
+  function isMobileDialSurface() {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
+  }
+
   // Initial cockpit-owned data (queue is loaded by the page itself).
   useEffect(() => {
     loadCallbacks();
@@ -168,8 +175,12 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   }
 
   async function executeDial(leadId: string, lead: Lead) {
-    setDialing(leadId);
     setSelectedLeadId(leadId);
+    if (callingProvider === "sim_basic" && !isMobileDialSurface()) {
+      setSimHandoffLead(lead);
+      return;
+    }
+    setDialing(leadId);
     try {
       const res = await api.calls.initiate(
         { leadId, callbackJobId: selectedCallbackJobId ?? undefined },
@@ -199,6 +210,10 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   }
 
   async function executeManualDial(phone: string) {
+    if (callingProvider === "sim_basic" && !isMobileDialSurface()) {
+      toast.info("Open Aira on your mobile to place SIM calls.");
+      return;
+    }
     setManualDialing(true);
     try {
       const res = await api.calls.initiate({ phone }, callerId ?? undefined);
@@ -444,6 +459,25 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setWrapupEndedAt("");
   }
 
+  async function sendSimHandoffToMobile() {
+    if (!simHandoffLead) return;
+    setSimHandoffSending(true);
+    try {
+      const result = await api.calls.sendToMobile(simHandoffLead.id, callerId ?? undefined);
+      if (!result.push_configured) {
+        toast.error("Push keys are not configured on the server yet");
+      } else if (result.subscription_count === 0) {
+        toast.error("No mobile subscription found. Open Aira on the phone and enable alerts.");
+      } else {
+        toast.success("Sent to mobile");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send to mobile");
+    } finally {
+      setSimHandoffSending(false);
+    }
+  }
+
   const toggleWrapupTag = useCallback((tag: string) => {
     setWrapupTags((tags) => (tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]));
   }, []);
@@ -590,6 +624,10 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     dialWithGuard,
     // active call
     activeCallCtx,
+    simHandoffLead,
+    setSimHandoffLead,
+    simHandoffSending,
+    sendSimHandoffToMobile,
     // lead detail panel
     leadDetailProps,
     // modal state (CockpitModals)

@@ -73,10 +73,12 @@ export function TelecallingConfigPanel() {
     setSaveState("saving");
     try {
       const auth = await getAuthHeaders();
+      const clientEditableDraft = { ...draft };
+      delete clientEditableDraft.calling_provider;
       const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(clientEditableDraft),
       });
       if (!res.ok) throw new Error("Save failed");
       const saved = await res.json();
@@ -139,51 +141,28 @@ export function TelecallingConfigPanel() {
           <div>
             <div className="font-label text-sm font-semibold text-ink mb-1">Calling Provider</div>
             <div className="font-body text-xs text-ink-muted mb-3">
-              Choose the infrastructure for call execution. The dialer, lead profile, notes, callbacks, and analytics remain the same.
+              This is configured by the developer console. The dialer, lead profile, notes, callbacks, and analytics remain the same.
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              {[
-                {
-                  id: "telecmi" as const,
-                  title: "TeleCMI",
-                  desc: "Premium API calling with automatic call logs, duration, recordings, and webhook updates.",
-                  icon: RadioTower,
-                },
-                {
-                  id: "sim_basic" as const,
-                  title: "SIM Basic",
-                  desc: "Low-cost mobile SIM dialing. Call result, duration, and summary are captured manually after each call.",
-                  icon: Smartphone,
-                },
-              ].map((provider) => {
-                const Icon = provider.icon;
-                const selected = (draft.calling_provider ?? "telecmi") === provider.id;
-                return (
-                  <button
-                    key={provider.id}
-                    type="button"
-                    onClick={() => setDraft({ ...draft, calling_provider: provider.id })}
-                    className={`rounded-2xl border p-4 text-left transition-all ${
-                      selected
-                        ? "border-primary bg-primary-light/70 shadow-sm ring-1 ring-primary/10"
-                        : "border-border bg-surface-subtle hover:border-primary-muted"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${selected ? "bg-white text-primary" : "bg-white text-ink-muted"}`}>
-                        <Icon size={18} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-display text-sm font-bold text-ink">{provider.title}</p>
-                          {selected && <span className="badge badge-green">Active</span>}
-                        </div>
-                        <p className="mt-1 font-body text-xs leading-relaxed text-ink-muted">{provider.desc}</p>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="rounded-2xl border border-primary-muted bg-primary-light/60 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-primary">
+                  {(draft.calling_provider ?? "telecmi") === "sim_basic" ? <Smartphone size={18} /> : <RadioTower size={18} />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-display text-sm font-bold text-ink">
+                      {(draft.calling_provider ?? "telecmi") === "sim_basic" ? "SIM Basic" : "TeleCMI"}
+                    </p>
+                    <span className="badge badge-green">Active</span>
+                    <span className="badge badge-gray">Developer managed</span>
+                  </div>
+                  <p className="mt-1 font-body text-xs leading-relaxed text-ink-muted">
+                    {(draft.calling_provider ?? "telecmi") === "sim_basic"
+                      ? "Mobile SIM dialing is active. Telecallers log duration, outcome, and notes manually after each call."
+                      : "TeleCMI API calling is active. Call logs, durations, recordings, and webhook updates are handled automatically."}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

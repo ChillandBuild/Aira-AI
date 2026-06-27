@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr
 from app.db.supabase import get_supabase
 from app.dependencies.auth import get_current_user
 from app.dependencies.system_admin import get_system_admin
+from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,10 @@ class UpdateFeaturesPayload(BaseModel):
 
 class UpdateStatusPayload(BaseModel):
     status: Literal["active", "suspended"]
+
+
+class CallingProviderPayload(BaseModel):
+    calling_provider: Literal["telecmi", "sim_basic"]
 
 
 @router.get("/clients")
@@ -245,6 +250,48 @@ def update_status(tenant_id: str, payload: UpdateStatusPayload, _admin: dict = D
         metadata={"old_status": (current.data or {}).get("status"), "new_status": payload.status},
     )
     return {"tenant_id": tenant_id, "status": payload.status}
+
+
+@router.get("/clients/{tenant_id}/calling-provider")
+def get_calling_provider(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id, enabled_features").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    cfg = get_telecalling_config(tenant_id)
+    return {
+        "tenant_id": tenant_id,
+        "calling_provider": cfg.get("calling_provider", "telecmi"),
+        "telecalling_enabled": "telecalling" in (tenant.data.get("enabled_features") or []),
+    }
+
+
+@router.patch("/clients/{tenant_id}/calling-provider")
+def update_calling_provider(
+    tenant_id: str,
+    payload: CallingProviderPayload,
+    _admin: dict = Depends(get_system_admin),
+):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    current = get_telecalling_config(tenant_id)
+    old_provider = current.get("calling_provider", "telecmi")
+    merged = {**current, "calling_provider": payload.calling_provider}
+    save_telecalling_config(tenant_id, merged)
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.calling_provider_updated",
+        target_type="tenant",
+        target_id=tenant_id,
+        metadata={"old_provider": old_provider, "new_provider": payload.calling_provider},
+    )
+    return {"tenant_id": tenant_id, "calling_provider": payload.calling_provider}
 
 
 @router.post("/clients/{tenant_id}/wipe-leads")
