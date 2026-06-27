@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Phone, ChevronDown, Save, Loader2, CheckCircle2 } from "lucide-react";
+import { Phone, ChevronDown, Save, Loader2, CheckCircle2, Smartphone, RadioTower } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 
 type TelecallingConfig = {
   enabled: boolean;
+  calling_provider?: "telecmi" | "sim_basic";
   segments: string[];
   channels: string[];
   max_call_attempts?: number;
@@ -19,6 +20,7 @@ type TelecallingConfig = {
 
 const DEFAULT: TelecallingConfig = {
   enabled: false,
+  calling_provider: "telecmi",
   segments: ["A"],
   channels: ["whatsapp"],
   max_call_attempts: 4,
@@ -132,6 +134,58 @@ export function TelecallingConfigPanel() {
               <div className="font-body text-xs text-ink-muted mt-0.5">Automatically assign qualifying leads to the active telecaller with fewest leads on segment change</div>
             </div>
           </label>
+
+          {/* Calling Provider */}
+          <div>
+            <div className="font-label text-sm font-semibold text-ink mb-1">Calling Provider</div>
+            <div className="font-body text-xs text-ink-muted mb-3">
+              Choose the infrastructure for call execution. The dialer, lead profile, notes, callbacks, and analytics remain the same.
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                {
+                  id: "telecmi" as const,
+                  title: "TeleCMI",
+                  desc: "Premium API calling with automatic call logs, duration, recordings, and webhook updates.",
+                  icon: RadioTower,
+                },
+                {
+                  id: "sim_basic" as const,
+                  title: "SIM Basic",
+                  desc: "Low-cost mobile SIM dialing. Call result, duration, and summary are captured manually after each call.",
+                  icon: Smartphone,
+                },
+              ].map((provider) => {
+                const Icon = provider.icon;
+                const selected = (draft.calling_provider ?? "telecmi") === provider.id;
+                return (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, calling_provider: provider.id })}
+                    className={`rounded-2xl border p-4 text-left transition-all ${
+                      selected
+                        ? "border-primary bg-primary-light/70 shadow-sm ring-1 ring-primary/10"
+                        : "border-border bg-surface-subtle hover:border-primary-muted"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${selected ? "bg-white text-primary" : "bg-white text-ink-muted"}`}>
+                        <Icon size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-display text-sm font-bold text-ink">{provider.title}</p>
+                          {selected && <span className="badge badge-green">Active</span>}
+                        </div>
+                        <p className="mt-1 font-body text-xs leading-relaxed text-ink-muted">{provider.desc}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Segments */}
           <div>

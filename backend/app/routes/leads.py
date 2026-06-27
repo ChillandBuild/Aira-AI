@@ -461,6 +461,7 @@ async def bulk_assign(
                     "New Leads Assigned",
                     f"You have been assigned {count} leads by Admin." if count > 1 else f"You have been assigned a lead by Admin.",
                     db=db,
+                    push_url="/dashboard/telecalling",
                 )
         except Exception as e:
             logger.warning(f"Bulk assign notification failed: {e}")

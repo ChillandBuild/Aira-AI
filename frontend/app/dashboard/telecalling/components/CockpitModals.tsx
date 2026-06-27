@@ -38,7 +38,18 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     pendingWrapups,
     openWrapupFromLog,
     blockingWrapups,
+    activeCallProvider,
+    wrapupStartedAt,
+    setWrapupStartedAt,
+    wrapupEndedAt,
+    setWrapupEndedAt,
   } = cockpit;
+
+  const simDurationSeconds = (() => {
+    if (!wrapupStartedAt || !wrapupEndedAt) return null;
+    const seconds = Math.round((new Date(wrapupEndedAt).getTime() - new Date(wrapupStartedAt).getTime()) / 1000);
+    return Number.isFinite(seconds) ? Math.max(0, seconds) : null;
+  })();
 
   return (
     <>
@@ -69,7 +80,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
           <div className="bg-white rounded-3xl p-7 max-w-lg w-full shadow-2xl border border-[#e8e3db] animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="text-center mb-6">
               <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-label text-[10px] font-black uppercase tracking-wider">
-                Call Completed
+                {activeCallProvider === "sim_basic" ? "SIM Call Feedback" : "Call Completed"}
               </span>
               <h3 className="font-display text-xl font-bold text-[#1c1917] mt-2">Mandatory Call Wrap-up</h3>
               <p className="font-body text-xs text-[#a8a29e] mt-1">
@@ -79,6 +90,46 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
             </div>
 
             <div className="space-y-4">
+              {activeCallProvider === "sim_basic" && (
+                <div className="rounded-2xl border border-primary-muted bg-primary-light/40 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-label text-[10px] font-black uppercase tracking-wider text-primary">
+                        Manual Call Timing
+                      </p>
+                      <p className="mt-0.5 font-body text-[11px] text-[#78716c]">
+                        Aira cannot read SIM call duration, so confirm the time before saving.
+                      </p>
+                    </div>
+                    <span className="rounded-xl bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#292524]">
+                      {simDurationSeconds !== null
+                        ? `${Math.floor(simDurationSeconds / 60)}m ${simDurationSeconds % 60}s`
+                        : "0m"}
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#a8a29e]">Started</span>
+                      <input
+                        type="datetime-local"
+                        value={wrapupStartedAt}
+                        onChange={(e) => setWrapupStartedAt(e.target.value)}
+                        className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#a8a29e]">Ended</span>
+                      <input
+                        type="datetime-local"
+                        value={wrapupEndedAt}
+                        onChange={(e) => setWrapupEndedAt(e.target.value)}
+                        className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-2">
                   Call Outcome / Disposition *
@@ -105,12 +156,12 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
 
               <div>
                 <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
-                  Interaction Note / Comments
+                  {activeCallProvider === "sim_basic" ? "Call Summary / Notes" : "Interaction Note / Comments"}
                 </label>
                 <textarea
                   value={wrapupNotes}
                   onChange={(e) => setWrapupNotes(e.target.value)}
-                  placeholder="Summarize customer feedback and key discussion points..."
+                  placeholder={activeCallProvider === "sim_basic" ? "Brief the call in 1-2 lines, e.g. asked price, wants callback tomorrow..." : "Summarize customer feedback and key discussion points..."}
                   rows={4}
                   className="w-full px-4 py-3 rounded-2xl bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none shadow-inner"
                 />

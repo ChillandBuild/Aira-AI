@@ -14,6 +14,7 @@ def notify_user(
     *,
     db=None,
     dedupe_lead_id: str | None = None,
+    push_url: str | None = None,
 ) -> None:
     """Insert a single notification for one user. Best-effort: never raises."""
     if not user_id:
@@ -40,6 +41,20 @@ def notify_user(
             "title": title,
             "message": message,
         }).execute()
+        try:
+            from app.services.web_push import send_user_push
+            send_user_push(
+                tenant_id,
+                user_id,
+                title=title,
+                body=message.replace(f" [lead_id:{dedupe_lead_id}]", "") if dedupe_lead_id else message,
+                url=push_url or "/dashboard",
+                tag=f"{type}:{dedupe_lead_id}" if dedupe_lead_id else type,
+                data={"type": type, "lead_id": dedupe_lead_id},
+                db=db,
+            )
+        except Exception as push_err:
+            logger.warning("notify_user push failed (type=%s user=%s): %s", type, user_id, push_err)
     except Exception as e:
         logger.warning(f"notify_user failed (type={type} user={user_id}): {e}")
 
@@ -79,6 +94,7 @@ def notify_assigned_caller_of_reply(lead_id: str, tenant_id: str, *, db=None) ->
             f"'{data.get('name') or 'Your lead'}' just replied.",
             db=db,
             dedupe_lead_id=lead_id,
+            push_url=f"/dashboard/conversations?lead_id={lead_id}",
         )
     except Exception as e:
         logger.warning(f"notify_assigned_caller_of_reply failed (lead={lead_id}): {e}")

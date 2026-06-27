@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     facebook_page_id: str | None = None
     meta_app_secret: str | None = None
     sentry_dsn: str | None = None
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str | None = None
 
     model_config = {"env_file": ".env", "case_sensitive": False, "extra": "ignore"}
 

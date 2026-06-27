@@ -250,8 +250,10 @@ def auto_assign_lead(
                 chosen["user_id"],
                 "lead_assigned",
                 "New lead assigned",
-                f"You've been assigned '{lead_name or 'a new lead'}'.",
+                f"You've been assigned '{lead_name or 'a new lead'}'. [lead_id:{lead_id}]",
                 db=db,
+                dedupe_lead_id=lead_id,
+                push_url=f"/dashboard/telecalling?lead_id={lead_id}",
             )
     except Exception:
         pass
@@ -431,6 +433,7 @@ _INBOX_CONFIG_DEFAULT: dict = {
 
 _TELECALLING_CONFIG_DEFAULT: dict = {
     "enabled": False,
+    "calling_provider": "telecmi",
     "segments": ["A"],
     "channels": ["whatsapp"],
     "targets": {},

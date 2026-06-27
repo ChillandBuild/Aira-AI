@@ -150,6 +150,11 @@ export interface CallLog {
   } | null;
   evaluation: CallEvaluation | null;
   quality_rating: number | null;
+  notes?: string | null;
+  provider?: "telecmi" | "sim_basic";
+  feedback_source?: "automatic" | "manual";
+  manual_started_at?: string | null;
+  manual_ended_at?: string | null;
   transcript: string | null;
   created_at: string;
   leads?: { phone: string | null; name: string | null } | null;
@@ -486,6 +491,15 @@ export interface TelecallingAnalytics {
   longest_idle_seconds?: number | null;
   speed_to_lead_min?: number | null;
   quality_avg?: number | null;
+}
+
+export interface TelecallingConfig {
+  enabled?: boolean;
+  calling_provider?: "telecmi" | "sim_basic";
+  segments?: string[];
+  channels?: string[];
+  scripts?: Record<string, string>;
+  assignment_mode?: "push" | "pull";
 }
 
 export interface FunnelAnalytics {
@@ -972,14 +986,14 @@ export const api = {
   },
   calls: {
     initiate: (target: { leadId?: string; phone?: string; callbackJobId?: string }, callerId?: string) =>
-      apiFetch<{ call_log_id: string; call_sid: string; status: string; lead_id: string | null; lead_name: string | null }>(
+      apiFetch<{ call_log_id: string; call_sid: string; status: string; provider: "telecmi" | "sim_basic"; lead_id: string | null; lead_name: string | null; phone?: string | null }>(
         `/api/v1/calls/initiate`,
         { method: "POST", body: JSON.stringify({ lead_id: target.leadId, phone: target.phone, caller_id: callerId, callback_job_id: target.callbackJobId }) }
       ),
     setOutcome: (
       callLogId: string,
       outcome: NonNullable<CallLog["outcome"]>,
-      opts?: { callbackTime?: string; notes?: string; qualityRating?: number }
+      opts?: { callbackTime?: string; notes?: string; qualityRating?: number; durationSeconds?: number; manualStartedAt?: string; manualEndedAt?: string }
     ) =>
       apiFetch<{
         call_log_id: string;
@@ -993,6 +1007,9 @@ export const api = {
           callback_time: opts?.callbackTime ?? null,
           notes: opts?.notes ?? null,
           quality_rating: opts?.qualityRating ?? null,
+          duration_seconds: opts?.durationSeconds ?? null,
+          manual_started_at: opts?.manualStartedAt ?? null,
+          manual_ended_at: opts?.manualEndedAt ?? null,
         }),
       }),
     setDisposition: (
@@ -1031,7 +1048,7 @@ export const api = {
     nextLead: (callerId?: string) =>
       apiFetch<Lead>(`/api/v1/calls/next-lead${callerId ? `?caller_id=${callerId}` : ""}`),
     assignmentMode: () =>
-      apiFetch<{ mode: "push" | "pull"; enabled: boolean }>(`/api/v1/calls/assignment-mode`),
+      apiFetch<{ mode: "push" | "pull"; enabled: boolean; calling_provider: "telecmi" | "sim_basic" }>(`/api/v1/calls/assignment-mode`),
   },
   notes: {
     leadsWithActivity: () =>
@@ -1247,7 +1264,7 @@ export const api = {
   },
   settings: {
     getTelecallingConfig: () =>
-      apiFetch<{ scripts?: Record<string, string> }>(`/api/v1/settings/telecalling-config`),
+      apiFetch<TelecallingConfig>(`/api/v1/settings/telecalling-config`),
   },
   upload: {
     leads: async (
@@ -1423,6 +1440,18 @@ export const api = {
     markAllRead: () =>
       apiFetch<{ success: boolean }>("/api/v1/notifications/read", {
         method: "PATCH",
+      }),
+  },
+  push: {
+    publicKey: () => apiFetch<{ public_key: string | null }>("/api/v1/push/public-key"),
+    saveSubscription: (subscription: PushSubscriptionJSON) =>
+      apiFetch<{ saved: boolean }>("/api/v1/push/subscriptions", {
+        method: "POST",
+        body: JSON.stringify(subscription),
+      }),
+    deleteSubscription: (endpoint: string) =>
+      apiFetch<{ deleted: boolean }>(`/api/v1/push/subscriptions?endpoint=${encodeURIComponent(endpoint)}`, {
+        method: "DELETE",
       }),
   },
   chatHandovers: {

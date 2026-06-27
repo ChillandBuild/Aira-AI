@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { syncPushSubscription } from "@/lib/push";
 
 const SERVICE_WORKER_PATH = "/sw.js";
 
@@ -19,6 +20,7 @@ export function PwaRegistrar() {
         await navigator.serviceWorker.register(SERVICE_WORKER_PATH, {
           scope: "/",
         });
+        void syncPushSubscription().catch(() => {});
       } catch (error) {
         console.warn("Aira PWA service worker registration failed.", error);
       }

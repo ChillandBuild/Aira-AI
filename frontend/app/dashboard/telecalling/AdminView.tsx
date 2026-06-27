@@ -10,8 +10,11 @@ import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import NumpadDialer from "./components/NumpadDialer";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
+import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 
 export default function AdminView({ fallbackData }: { fallbackData?: AdminDashboardData }) {
+  const searchParams = useSearchParams();
   const { data: dashboard, mutate: refreshDashboard } = useAdminDashboard(fallbackData);
   const callers: Caller[] = dashboard?.callers ?? [];
 
@@ -40,6 +43,11 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
   }, [refreshQueueLeads, refreshDashboard]);
 
   const cockpit = useCallingCockpit({ callerId: selectedCallerId, blockingWrapups: false, refreshQueue });
+
+  useEffect(() => {
+    const leadId = searchParams.get("lead_id");
+    if (leadId) cockpit.setSelectedLeadId(leadId);
+  }, [searchParams, cockpit.setSelectedLeadId]);
 
   const filteredQueueLeads = (queueLeadsData ?? []).filter((lead) => {
     if (queueStatus !== "all" && lead.call_status !== queueStatus) return false;

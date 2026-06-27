@@ -9,7 +9,7 @@ from app.dependencies.auth import get_current_user
 
 import os
 from app.config import settings
-from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload
+from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push
 from app.routes.calls import public_router as calls_public_router
 
 # Configure logging
@@ -521,6 +521,7 @@ app.include_router(inbound_leads.router, prefix="/api/v1/inbound-leads", tags=["
 app.include_router(reengagement.router, prefix="/api/v1/reengagement", tags=["reengagement"], dependencies=_auth)
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"], dependencies=_auth)
 app.include_router(assignment_log.router, prefix="/api/v1/assignment-log", tags=["assignment-log"], dependencies=_auth)
+app.include_router(push.router, prefix="/api/v1/push", tags=["push"], dependencies=_auth)
 app.include_router(call_scripts.router, prefix="/api/v1/call-scripts", tags=["call-scripts"], dependencies=_auth)
 app.include_router(telecalling_upload.router, prefix="/api/v1/telecalling-upload", tags=["telecalling-upload"], dependencies=_auth)
 

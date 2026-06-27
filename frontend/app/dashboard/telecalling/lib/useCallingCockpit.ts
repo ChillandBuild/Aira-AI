@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api, Lead, CallLog, Message } from "@/lib/api";
+import { api, Lead, CallLog, Message, TelecallingConfig } from "@/lib/api";
 import type { NotesResponse, CallbackJob } from "../types";
 import { useActiveCall } from "../../contexts/ActiveCallContext";
 import { fetchNotes, fetchTodayCallbacks, saveNote, createCallback } from "./notes-api";
@@ -70,6 +70,8 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   // Live call card
   const [callDuration, setCallDuration] = useState<number>(0);
   const [callStatus, setCallStatus] = useState<"ringing" | "connected" | "ended" | null>(null);
+  const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
+  const [activeCallProvider, setActiveCallProvider] = useState<"telecmi" | "sim_basic">("telecmi");
 
   // Mandatory wrap-up
   const [showWrapupModal, setShowWrapupModal] = useState(false);
@@ -78,10 +80,12 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   const [wrapupSaving, setWrapupSaving] = useState(false);
   const [wrapupTags, setWrapupTags] = useState<string[]>([]);
   const [wrapupQualityRating, setWrapupQualityRating] = useState(0);
+  const [wrapupStartedAt, setWrapupStartedAt] = useState("");
+  const [wrapupEndedAt, setWrapupEndedAt] = useState("");
   const [pendingWrapups, setPendingWrapups] = useState<CallLog[]>([]);
 
   // Live script panel
-  const [telecallingConfig, setTelecallingConfig] = useState<{ scripts?: Record<string, string> } | null>(null);
+  const [telecallingConfig, setTelecallingConfig] = useState<TelecallingConfig | null>(null);
   const [scriptExpanded, setScriptExpanded] = useState(true);
 
   const loadCallbacks = useCallback(() => {
@@ -99,11 +103,38 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
 
   const loadTelecallingConfig = useCallback(async () => {
     try {
-      setTelecallingConfig(await api.settings.getTelecallingConfig());
+      const [config, assignmentMode] = await Promise.all([
+        api.settings.getTelecallingConfig().catch(() => null),
+        api.calls.assignmentMode().catch(() => null),
+      ]);
+      if (config) setTelecallingConfig(config);
+      setCallingProvider(assignmentMode?.calling_provider ?? (config?.calling_provider as "telecmi" | "sim_basic" | undefined) ?? "telecmi");
     } catch (err) {
       console.error("Failed to load telecalling config:", err);
     }
   }, []);
+
+  function toDateTimeInput(date: Date) {
+    const offsetMs = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+  }
+
+  function inputToIso(value: string) {
+    return value ? new Date(value).toISOString() : undefined;
+  }
+
+  function secondsBetween(start: string, end: string) {
+    if (!start || !end) return undefined;
+    const diff = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000);
+    return Number.isFinite(diff) ? Math.max(0, diff) : undefined;
+  }
+
+  function primeSimWrapup(startedAt: Date) {
+    setWrapupStartedAt(toDateTimeInput(startedAt));
+    setWrapupEndedAt(toDateTimeInput(new Date()));
+    setCallStatus("ended");
+    setShowWrapupModal(true);
+  }
 
   // Initial cockpit-owned data (queue is loaded by the page itself).
   useEffect(() => {
@@ -150,8 +181,16 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         phone: lead.phone,
         callLogId: res.call_log_id ?? null,
       });
+      setActiveCallProvider(res.provider ?? callingProvider);
       generatePreCallBrief(leadId);
-      toast.success(`Calling ${lead.name || lead.phone}...`);
+      if (res.provider === "sim_basic") {
+        const startedAt = new Date();
+        toast.success(`Opening phone dialer for ${lead.name || lead.phone}...`);
+        window.location.href = `tel:${lead.phone}`;
+        window.setTimeout(() => primeSimWrapup(startedAt), 2500);
+      } else {
+        toast.success(`Calling ${lead.name || lead.phone}...`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Call failed");
     } finally {
@@ -169,8 +208,16 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         phone,
         callLogId: res.call_log_id ?? null,
       });
+      setActiveCallProvider(res.provider ?? callingProvider);
       setManualPhone("");
-      toast.success(`Calling ${phone}...`);
+      if (res.provider === "sim_basic") {
+        const startedAt = new Date();
+        toast.success(`Opening phone dialer for ${phone}...`);
+        window.location.href = `tel:${phone}`;
+        window.setTimeout(() => primeSimWrapup(startedAt), 2500);
+      } else {
+        toast.success(`Calling ${phone}...`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Call failed");
     } finally {
@@ -207,6 +254,9 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       setCallDuration(0);
       return;
     }
+    if (activeCallProvider === "sim_basic") {
+      return;
+    }
     setCallStatus("ringing");
     setCallDuration(0);
 
@@ -231,7 +281,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     }, 3000);
 
     return () => clearInterval(pollInterval);
-  }, [activeCallCtx, setActiveCallCtx]);
+  }, [activeCallCtx, activeCallProvider, setActiveCallCtx]);
 
   // Call duration timer
   useEffect(() => {
@@ -390,6 +440,8 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setWrapupNotes("");
     setWrapupTags([]);
     setWrapupQualityRating(0);
+    setWrapupStartedAt("");
+    setWrapupEndedAt("");
   }
 
   const toggleWrapupTag = useCallback((tag: string) => {
@@ -403,6 +455,11 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       phone: log.leads?.phone || null,
       callLogId: log.id,
     });
+    setActiveCallProvider(log.provider ?? "telecmi");
+    if (log.provider === "sim_basic") {
+      setWrapupStartedAt(log.manual_started_at ? toDateTimeInput(new Date(log.manual_started_at)) : toDateTimeInput(new Date(log.created_at)));
+      setWrapupEndedAt(log.manual_ended_at ? toDateTimeInput(new Date(log.manual_ended_at)) : toDateTimeInput(new Date()));
+    }
     setCallStatus("ended");
     setShowWrapupModal(true);
   }
@@ -418,6 +475,9 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       await api.calls.setOutcome(activeCallCtx.callLogId, wrapupOutcome as NonNullable<CallLog["outcome"]>, {
         notes: wrapupNotes.trim() || undefined,
         qualityRating: wrapupQualityRating || undefined,
+        durationSeconds: activeCallProvider === "sim_basic" ? secondsBetween(wrapupStartedAt, wrapupEndedAt) : undefined,
+        manualStartedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupStartedAt) : undefined,
+        manualEndedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupEndedAt) : undefined,
       });
 
       if (wrapupOutcome === "converted" && activeCallCtx.leadId) {
@@ -428,6 +488,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
 
       toast.success("Wrap-up completed");
       resetWrapup();
+      setActiveCallProvider("telecmi");
       setActiveCallCtx(null);
       refreshQueueRef.current();
       loadCallbacks();
@@ -532,6 +593,8 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     // lead detail panel
     leadDetailProps,
     // modal state (CockpitModals)
+    callingProvider,
+    activeCallProvider,
     dialCountdown,
     dialTarget,
     cancelDial,
@@ -544,6 +607,10 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     toggleWrapupTag,
     wrapupQualityRating,
     setWrapupQualityRating,
+    wrapupStartedAt,
+    setWrapupStartedAt,
+    wrapupEndedAt,
+    setWrapupEndedAt,
     wrapupSaving,
     handleWrapupSubmit,
     pendingWrapups,

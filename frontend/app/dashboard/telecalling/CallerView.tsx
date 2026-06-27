@@ -10,8 +10,10 @@ import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
 import { CoachingOneLiner } from "@/components/CoachingDigest";
+import { useSearchParams } from "next/navigation";
 
 export default function CallerView({ callerId }: { callerId: string | null }) {
+  const searchParams = useSearchParams();
   // caller profile + my assigned queue
   const [myStatus, setMyStatus] = useState<"active" | "break" | "logged_out">("active");
   const [myLeads, setMyLeads] = useState<Lead[]>([]);
@@ -47,6 +49,11 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
   useEffect(() => { loadQueue(); }, [loadQueue]);
 
   const cockpit = useCallingCockpit({ callerId, blockingWrapups: true, refreshQueue: loadQueue });
+
+  useEffect(() => {
+    const leadId = searchParams.get("lead_id");
+    if (leadId) cockpit.setSelectedLeadId(leadId);
+  }, [searchParams, cockpit.setSelectedLeadId]);
 
   async function handleDownloadCSV() {
     setExporting(true);

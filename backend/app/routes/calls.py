@@ -53,12 +53,17 @@ class OutcomeUpdate(BaseModel):
     notes: str | None = None
     callback_time: datetime | None = None
     quality_rating: int | None = Field(default=None, ge=1, le=5)
+    manual_started_at: datetime | None = None
+    manual_ended_at: datetime | None = None
+    duration_seconds: int | None = Field(default=None, ge=0, le=24 * 60 * 60)
 
 
 @router.post("/initiate")
 async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_and_role)):
     tenant_id = ctx["tenant_id"]
     role = ctx.get("role")
+    cfg = get_telecalling_config(tenant_id)
+    calling_provider = cfg.get("calling_provider", "telecmi")
 
     # App secret is only used for recording playback, not for India click-to-call.
     telecmi_secret = get_setting("telecmi_secret", tenant_id=tenant_id)
@@ -122,11 +127,27 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
     log_insert = db.table("call_logs").insert({
         "lead_id": matched_lead_id,
         "caller_id": str(payload.caller_id) if payload.caller_id else None,
-        "status": "initiated",
+        "status": "sim_started" if calling_provider == "sim_basic" else "initiated",
         "tenant_id": tenant_id,
         "follow_up_job_id": str(payload.callback_job_id) if payload.callback_job_id else None,
+        "provider": calling_provider,
+        "feedback_source": "manual" if calling_provider == "sim_basic" else "automatic",
+        "manual_started_at": datetime.now(timezone.utc).isoformat() if calling_provider == "sim_basic" else None,
     }).execute()
     call_log_id = log_insert.data[0]["id"]
+
+    if calling_provider == "sim_basic":
+        if matched_lead_id:
+            db.table("leads").update({"call_status": "in_progress"}).eq("id", matched_lead_id).eq("tenant_id", tenant_id).execute()
+        return {
+            "call_log_id": call_log_id,
+            "call_sid": "",
+            "status": "sim_started",
+            "provider": "sim_basic",
+            "lead_id": matched_lead_id,
+            "lead_name": matched_lead_name,
+            "phone": lead_phone,
+        }
 
     try:
         # Resolve TeleCMI agent credentials: caller's own → owner's → global setting.
@@ -166,8 +187,10 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         "call_log_id": call_log_id,
         "call_sid": request_id,
         "status": "initiated",
+        "provider": "telecmi",
         "lead_id": matched_lead_id,
         "lead_name": matched_lead_name,
+        "phone": lead_phone,
     }
 
 
@@ -615,7 +638,7 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
     db = get_supabase()
     log = (
         db.table("call_logs")
-        .select("caller_id,duration_seconds,lead_id,follow_up_job_id")
+        .select("caller_id,duration_seconds,lead_id,follow_up_job_id,provider")
         .eq("id", call_log_id)
         .eq("tenant_id", ctx["tenant_id"])
         .maybe_single()
@@ -654,6 +677,16 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         log_updates["notes"] = payload.notes.strip()
     if payload.quality_rating is not None:
         log_updates["quality_rating"] = payload.quality_rating
+    if payload.duration_seconds is not None:
+        log_updates["duration_seconds"] = payload.duration_seconds
+    if payload.manual_started_at is not None:
+        log_updates["manual_started_at"] = payload.manual_started_at.isoformat()
+    if payload.manual_ended_at is not None:
+        log_updates["manual_ended_at"] = payload.manual_ended_at.isoformat()
+    if log.data.get("provider") == "sim_basic":
+        log_updates["feedback_source"] = "manual"
+        if payload.outcome or payload.disposition:
+            log_updates["status"] = "completed"
     score = None
     if effective_outcome is not None:
         score = score_from_outcome(effective_outcome, log.data.get("duration_seconds"))
@@ -1050,6 +1083,7 @@ async def get_assignment_mode(ctx: dict = Depends(get_tenant_and_role)):
     return {
         "mode": cfg.get("assignment_mode", "push"),
         "enabled": cfg.get("enabled", False),
+        "calling_provider": cfg.get("calling_provider", "telecmi"),
     }
 
 

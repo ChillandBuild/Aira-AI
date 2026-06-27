@@ -1,13 +1,24 @@
 "use client";
-import { useState } from "react";
-import { Bell, X, Clock, AlertCircle, Info, CheckCircle2, CheckSquare } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, X, Clock, AlertCircle, Info, CheckCircle2, CheckSquare, Smartphone } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useRouter } from "next/navigation";
+import { isPushSupported, requestAndSyncPushSubscription } from "@/lib/push";
+import { toast } from "sonner";
 
 export function NotificationBell() {
   const router = useRouter();
   const { notifications, callbacks, markRead, markAllRead } = useNotifications();
   const [isOpen, setIsOpen] = useState(false);
+  const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setPushPermission("unsupported");
+      return;
+    }
+    setPushPermission(Notification.permission);
+  }, []);
 
   const handleMarkRead = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -24,6 +35,22 @@ export function NotificationBell() {
   };
 
   const totalUnread = notifications.length + callbacks.length;
+  const canEnablePush = pushPermission === "default";
+
+  const handleEnablePush = async () => {
+    try {
+      const result = await requestAndSyncPushSubscription();
+      if (result.enabled) {
+        setPushPermission("granted");
+        toast.success("Mobile push notifications enabled");
+      } else {
+        setPushPermission(Notification.permission);
+        toast.error(result.reason === "missing_key" ? "Push keys are not configured yet" : "Push permission was not granted");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to enable push notifications");
+    }
+  };
 
   const getAlertStyle = (type: string) => {
     switch (type) {
@@ -104,6 +131,25 @@ export function NotificationBell() {
 
             {/* Combined Content List */}
             <div className="overflow-y-auto flex-1 p-3.5 space-y-3">
+              {canEnablePush && (
+                <button
+                  type="button"
+                  onClick={handleEnablePush}
+                  className="w-full rounded-2xl border border-primary-muted bg-primary-light/60 p-3 text-left transition hover:bg-primary-light"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-primary">
+                      <Smartphone size={16} />
+                    </div>
+                    <div>
+                      <p className="font-display text-xs font-black text-[#292524]">Enable phone alerts</p>
+                      <p className="mt-0.5 font-body text-[11px] leading-relaxed text-[#57534e]">
+                        Get notified when a new lead is assigned while Aira is in the background.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              )}
               {totalUnread === 0 ? (
                 <div className="py-16 text-center text-sm text-[#a8a29e] font-body flex flex-col items-center gap-2">
                   <CheckCircle2 size={32} className="text-[#d6cfc9]" />

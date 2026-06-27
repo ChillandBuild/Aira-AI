@@ -37,6 +37,7 @@ class InboxConfigUpdate(BaseModel):
 
 class TelecallingConfigUpdate(BaseModel):
     enabled: bool | None = None
+    calling_provider: Literal["telecmi", "sim_basic"] | None = None
     segments: list[str] | None = None
     channels: list[str] | None = None
     targets: dict[str, int] | None = None
@@ -601,6 +602,9 @@ async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict =
     if "assignment_mode" in patch:
         if patch["assignment_mode"] not in ("push", "pull"):
             raise HTTPException(status_code=400, detail="Invalid assignment mode")
+    if "calling_provider" in patch:
+        if patch["calling_provider"] not in ("telecmi", "sim_basic"):
+            raise HTTPException(status_code=400, detail="Invalid calling provider")
     merged = {**current, **patch}
     save_telecalling_config(tenant_id, merged)
     return merged
