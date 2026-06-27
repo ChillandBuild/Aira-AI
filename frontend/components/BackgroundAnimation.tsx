@@ -2,13 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-type BackgroundAnimationProps = {
-  className?: string;
-};
-
-export default function BackgroundAnimation({
-  className = "fixed inset-0 pointer-events-none z-0",
-}: BackgroundAnimationProps) {
+export default function BackgroundAnimation() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -26,8 +20,8 @@ export default function BackgroundAnimation({
     let isVisible = true;
 
     const resize = () => {
-      canvas.width = canvas.clientWidth || window.innerWidth;
-      canvas.height = canvas.clientHeight || window.innerHeight;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
       initParticles();
     };
 
@@ -132,7 +126,7 @@ export default function BackgroundAnimation({
   return (
     <canvas
       ref={canvasRef}
-      className={className}
+      className="fixed inset-0 pointer-events-none z-0"
     />
   );
 }

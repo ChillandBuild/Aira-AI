@@ -1,20 +1,21 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff, Bot, Target, TrendingUp } from "lucide-react";
 import { AiraLogo } from "@/components/logo";
+import BackgroundAnimation from "@/components/BackgroundAnimation";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const email = String(form.get("email") ?? "").trim();
-    const password = String(form.get("password") ?? "");
-
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -24,7 +25,8 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    window.location.assign("/dashboard");
+    router.push("/dashboard");
+    router.refresh();
   }
 
   return (
@@ -94,16 +96,11 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Column: Centered Login Form */}
-      <div className="flex-1 flex flex-col justify-center items-center px-5 py-8 sm:p-12 relative min-h-[100dvh] isolate overflow-hidden bg-gradient-to-br from-[#faf8f5] via-white to-[#f5f3ff]">
-        <div className="pointer-events-none absolute inset-0 z-0 opacity-70">
-          <div className="absolute right-[10%] top-[10%] h-40 w-40 rounded-full border border-[#ede9fe]" />
-          <div className="absolute bottom-[12%] left-[18%] h-32 w-32 rounded-full border border-[#e8e3db]" />
-          <div className="absolute right-[22%] bottom-[22%] h-px w-48 rotate-[-22deg] bg-[#ede9fe]" />
-          <div className="absolute left-[22%] top-[28%] h-px w-36 rotate-[-38deg] bg-[#ede9fe]" />
-        </div>
+      {/* Right Column: Centered Login Form with canvas animation */}
+      <div className="flex-1 flex flex-col justify-center items-center px-5 py-8 sm:p-12 relative min-h-[100dvh]">
+        <BackgroundAnimation />
 
-        <div className="w-full max-w-sm relative z-20 pointer-events-auto">
+        <div className="w-full max-w-sm relative z-10">
           {/* Mobile logo header (hidden on desktop) */}
           <div className="lg:hidden flex flex-col items-center mb-8">
             <AiraLogo width={196} height={45} className="text-ink mb-2" />
@@ -113,7 +110,7 @@ export default function LoginPage() {
           </div>
 
           {/* Login Card */}
-          <div className="card rounded-3xl p-8 backdrop-blur-sm bg-white/90 shadow-2xl border border-stone-200/50 pointer-events-auto">
+          <div className="card rounded-3xl p-8 backdrop-blur-sm bg-white/90 shadow-2xl border border-stone-200/50">
             <div className="mb-6">
               <h3 className="font-display text-2xl font-bold text-ink">Welcome back</h3>
               <p className="font-body text-sm text-ink-muted mt-1">Sign in to your account</p>
@@ -127,30 +124,30 @@ export default function LoginPage() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="login-email" className="font-body text-sm font-medium text-ink mb-1.5 block">Email</label>
+                <label className="font-body text-sm font-medium text-ink mb-1.5 block">Email</label>
                 <input
-                  id="login-email"
-                  name="email"
                   type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   inputMode="email"
                   autoCapitalize="none"
                   autoCorrect="off"
                   autoComplete="email"
-                  className="input text-base sm:text-sm pointer-events-auto"
+                  className="input text-base sm:text-sm"
                   placeholder="you@example.com"
                 />
               </div>
               <div>
-                <label htmlFor="login-password" className="font-body text-sm font-medium text-ink mb-1.5 block">Password</label>
+                <label className="font-body text-sm font-medium text-ink mb-1.5 block">Password</label>
                 <div className="relative">
                   <input
-                    id="login-password"
-                    name="password"
                     type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                     autoComplete="current-password"
-                    className="input pr-10 text-base sm:text-sm pointer-events-auto"
+                    className="input pr-10 text-base sm:text-sm"
                     placeholder="••••••••"
                   />
                   <button
@@ -166,8 +163,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                aria-busy={loading}
-                className="btn-primary w-full justify-center pointer-events-auto"
+                className="btn-primary w-full justify-center"
               >
                 {loading ? "Signing in…" : "Sign in"}
               </button>
