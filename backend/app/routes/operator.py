@@ -15,6 +15,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _is_connected_call(log: dict) -> bool:
+    manual_status = log.get("manual_status")
+    if manual_status in {"connected", "interested", "not_interested", "callback"}:
+        return True
+    if manual_status in {"not_picked", "busy", "wrong_number"}:
+        return False
+    disposition = log.get("disposition")
+    if disposition in {"answered", "followup_required"}:
+        return True
+    if disposition in {"no_answer", "busy", "switched_off"}:
+        return False
+    return (log.get("duration_seconds") or 0) > 0 or (
+        log.get("outcome") is not None and log.get("outcome") != "no_answer"
+    )
+
+
 @router.get("/me")
 def operator_me(user: dict = Depends(get_current_user)):
     """Verify the caller is a system admin. No tenant required."""
@@ -844,10 +860,16 @@ def client_dashboard_analytics(tenant_id: str, _admin: dict = Depends(get_system
     }
 
     if "telecalling" in (tenant.data.get("enabled_features") or []):
-        calls = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).gte("created_at", thirty_days_ago).execute()
-        connected = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).eq("disposition", "answered").gte("created_at", thirty_days_ago).execute()
-        call_count = calls.count or 0
-        connect_count = connected.count or 0
+        calls = (
+            db.table("call_logs")
+            .select("id,duration_seconds,outcome,disposition,manual_status")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", thirty_days_ago)
+            .execute()
+        )
+        call_rows = calls.data or []
+        call_count = len(call_rows)
+        connect_count = sum(1 for row in call_rows if _is_connected_call(row))
         result["total_calls"] = call_count
         result["connect_rate"] = round((connect_count / call_count) * 100, 1) if call_count > 0 else 0
 
@@ -886,18 +908,24 @@ def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin
 
     elif section == "dialer":
         today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0).isoformat()
-        calls_today = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).gte("created_at", today).execute()
-        connected_today = db.table("call_logs").select("id", count="exact").eq("tenant_id", tenant_id).eq("disposition", "answered").gte("created_at", today).execute()
+        calls_today = (
+            db.table("call_logs")
+            .select("id,duration_seconds,outcome,disposition,manual_status")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", today)
+            .execute()
+        )
         recent_calls = (
             db.table("call_logs")
-            .select("id, lead_id, caller_id, duration_seconds, disposition, created_at")
+            .select("id, lead_id, caller_id, duration_seconds, disposition, manual_status, provider, feedback_source, created_at")
             .eq("tenant_id", tenant_id)
             .order("created_at", desc=True)
             .limit(20)
             .execute()
         )
-        call_count = calls_today.count or 0
-        connect_count = connected_today.count or 0
+        call_rows = calls_today.data or []
+        call_count = len(call_rows)
+        connect_count = sum(1 for row in call_rows if _is_connected_call(row))
         return {
             "calls_today": call_count,
             "connect_rate": round((connect_count / call_count) * 100, 1) if call_count > 0 else 0,

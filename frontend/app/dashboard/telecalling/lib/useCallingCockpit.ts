@@ -5,6 +5,7 @@ import { api, Lead, CallLog, Message, TelecallingConfig } from "@/lib/api";
 import type { NotesResponse, CallbackJob } from "../types";
 import { useActiveCall } from "../../contexts/ActiveCallContext";
 import { fetchNotes, fetchTodayCallbacks, saveNote, createCallback } from "./notes-api";
+import { isMobileDialSurface, openNativeDialer } from "./sim-dialer";
 import type { LeadDetailPanelProps } from "../components/LeadDetailPanel";
 
 interface UseCallingCockpitArgs {
@@ -138,11 +139,6 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setShowWrapupModal(true);
   }
 
-  function isMobileDialSurface() {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 767px), (pointer: coarse)").matches;
-  }
-
   // Initial cockpit-owned data (queue is loaded by the page itself).
   useEffect(() => {
     loadCallbacks();
@@ -196,8 +192,11 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       generatePreCallBrief(leadId);
       if (res.provider === "sim_basic") {
         const startedAt = new Date();
+        if (!openNativeDialer(lead.phone)) {
+          toast.error("This lead has no callable phone number.");
+          return;
+        }
         toast.success(`Opening phone dialer for ${lead.name || lead.phone}...`);
-        window.location.href = `tel:${lead.phone}`;
         window.setTimeout(() => primeSimWrapup(startedAt), 2500);
       } else {
         toast.success(`Calling ${lead.name || lead.phone}...`);
@@ -227,8 +226,11 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       setManualPhone("");
       if (res.provider === "sim_basic") {
         const startedAt = new Date();
+        if (!openNativeDialer(phone)) {
+          toast.error("Enter a valid phone number first.");
+          return;
+        }
         toast.success(`Opening phone dialer for ${phone}...`);
-        window.location.href = `tel:${phone}`;
         window.setTimeout(() => primeSimWrapup(startedAt), 2500);
       } else {
         toast.success(`Calling ${phone}...`);
@@ -388,6 +390,70 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     }
   }
 
+  function startImmediateSimLeadDial(leadId: string, lead: Lead) {
+    if (!openNativeDialer(lead.phone)) {
+      toast.error("This lead has no callable phone number.");
+      return;
+    }
+
+    const startedAt = new Date();
+    setSelectedLeadId(leadId);
+    setDialing(leadId);
+    toast.success(`Opening phone dialer for ${lead.name || lead.phone}...`);
+
+    void api.calls.initiate(
+      { leadId, callbackJobId: selectedCallbackJobId ?? undefined },
+      callerId ?? undefined,
+    ).then((res) => {
+      const provider = res.provider ?? "sim_basic";
+      setActiveCallCtx({
+        leadId: res.lead_id ?? leadId,
+        name: res.lead_name ?? lead.name,
+        phone: lead.phone,
+        callLogId: res.call_log_id ?? null,
+      });
+      setActiveCallProvider(provider);
+      generatePreCallBrief(leadId);
+      if (provider === "sim_basic") {
+        window.setTimeout(() => primeSimWrapup(startedAt), 2500);
+      }
+    }).catch((err) => {
+      toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+    }).finally(() => {
+      setDialing(null);
+    });
+  }
+
+  function startImmediateSimManualDial(phone: string) {
+    if (!openNativeDialer(phone)) {
+      toast.error("Enter a valid phone number first.");
+      return;
+    }
+
+    const startedAt = new Date();
+    setManualDialing(true);
+    toast.success(`Opening phone dialer for ${phone}...`);
+
+    void api.calls.initiate({ phone }, callerId ?? undefined).then((res) => {
+      const provider = res.provider ?? "sim_basic";
+      setActiveCallCtx({
+        leadId: res.lead_id ?? null,
+        name: res.lead_name ?? null,
+        phone,
+        callLogId: res.call_log_id ?? null,
+      });
+      setActiveCallProvider(provider);
+      setManualPhone("");
+      if (provider === "sim_basic") {
+        window.setTimeout(() => primeSimWrapup(startedAt), 2500);
+      }
+    }).catch((err) => {
+      toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+    }).finally(() => {
+      setManualDialing(false);
+    });
+  }
+
   async function handleRelease(leadId: string) {
     if (confirmRelease !== leadId) {
       setConfirmRelease(leadId);
@@ -407,17 +473,25 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
 
   const dialWithGuard = useCallback((leadId: string, lead: Lead) => {
     if (dialCountdown !== null) return;
+    if (callingProvider === "sim_basic" && isMobileDialSurface()) {
+      startImmediateSimLeadDial(leadId, lead);
+      return;
+    }
     setDialTarget({ leadId, lead });
     setDialCountdown(3);
-  }, [dialCountdown]);
+  }, [callingProvider, dialCountdown]);
 
   const manualDialWithGuard = useCallback(() => {
     if (dialCountdown !== null) return;
     const phone = manualPhone.trim();
     if (!phone) return;
+    if (callingProvider === "sim_basic" && isMobileDialSurface()) {
+      startImmediateSimManualDial(phone);
+      return;
+    }
     setDialTarget({ phone });
     setDialCountdown(3);
-  }, [dialCountdown, manualPhone]);
+  }, [callingProvider, dialCountdown, manualPhone]);
 
   const cancelDial = useCallback(() => {
     setDialCountdown(null);
@@ -435,6 +509,10 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         toast.success(`Claimed lead: ${nextLd.name || nextLd.phone}`);
       }
       setSelectedLeadId(nextLd.id);
+      if (callingProvider === "sim_basic" && isMobileDialSurface()) {
+        startImmediateSimLeadDial(nextLd.id, nextLd);
+        return;
+      }
       setDialTarget({ leadId: nextLd.id, lead: nextLd });
       setDialCountdown(3);
     } catch (err: unknown) {
@@ -465,9 +543,9 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     try {
       const result = await api.calls.sendToMobile(simHandoffLead.id, callerId ?? undefined);
       if (!result.push_configured) {
-        toast.error("Push keys are not configured on the server yet");
+        toast.info("Mobile push is not configured yet. Use the QR code or copy the number to open this lead on your phone.");
       } else if (result.subscription_count === 0) {
-        toast.error("No mobile subscription found. Open Aira on the phone and enable alerts.");
+        toast.info("No mobile push subscription found. Open Aira on the phone, enable alerts, or use the QR code.");
       } else {
         toast.success("Sent to mobile");
       }
@@ -506,9 +584,23 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     }
     setWrapupSaving(true);
     try {
-      await api.calls.setOutcome(activeCallCtx.callLogId, wrapupOutcome as NonNullable<CallLog["outcome"]>, {
+      const simOutcomeMap: Record<string, NonNullable<CallLog["outcome"]>> = {
+        connected: "in_progress",
+        not_picked: "no_answer",
+        busy: "no_answer",
+        wrong_number: "in_progress",
+        interested: "interested",
+        not_interested: "not_interested",
+        callback: "callback",
+      };
+      const outcomeToSubmit = activeCallProvider === "sim_basic"
+        ? simOutcomeMap[wrapupOutcome]
+        : wrapupOutcome as NonNullable<CallLog["outcome"]>;
+
+      await api.calls.setOutcome(activeCallCtx.callLogId, outcomeToSubmit, {
         notes: wrapupNotes.trim() || undefined,
         qualityRating: wrapupQualityRating || undefined,
+        manualStatus: activeCallProvider === "sim_basic" ? wrapupOutcome as NonNullable<CallLog["manual_status"]> : undefined,
         durationSeconds: activeCallProvider === "sim_basic" ? secondsBetween(wrapupStartedAt, wrapupEndedAt) : undefined,
         manualStartedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupStartedAt) : undefined,
         manualEndedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupEndedAt) : undefined,

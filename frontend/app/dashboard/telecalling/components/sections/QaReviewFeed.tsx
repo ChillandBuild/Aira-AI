@@ -76,6 +76,7 @@ export default function QaReviewFeed({ onViewLead }: QaReviewFeedProps) {
                 </div>
                 <span className={`px-2 py-0.5 rounded-full font-bold text-[9px] uppercase border ${
                   item.outcome === "converted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                  item.outcome === "interested" ? "bg-cyan-50 text-cyan-700 border-cyan-200" :
                   item.outcome === "callback" ? "bg-amber-50 text-amber-700 border-amber-200" :
                   "bg-[#f0ece4] text-[#57534e] border-[#e8e3db]"
                 }`}>

@@ -25,6 +25,7 @@ interface LiveAgentStatusProps {
   onRemoved: () => Promise<void> | void;
   shiftConfig: ShiftConfig;
   onShiftConfigSave: (config: ShiftConfig) => Promise<void>;
+  callingProvider: "telecmi" | "sim_basic";
 }
 
 function formatHour(h: number): string {
@@ -36,6 +37,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 function AdminCallerCard({
   caller, editingAgentIdFor, agentIdInputValue, agentPwdInputValue, savingAgentId,
   onEditAgentId, onSaveAgentId, onCancelEditAgentId, onAgentIdInputChange, onAgentPwdInputChange,
+  callingProvider,
 }: {
   caller: Caller;
   editingAgentIdFor: string | null;
@@ -47,6 +49,7 @@ function AdminCallerCard({
   onCancelEditAgentId: () => void;
   onAgentIdInputChange: (v: string) => void;
   onAgentPwdInputChange: (v: string) => void;
+  callingProvider: "telecmi" | "sim_basic";
 }) {
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState(caller.phone || "");
@@ -66,7 +69,10 @@ function AdminCallerCard({
     }
   };
 
-  const needsSetup = !caller.phone && !caller.telecmi_agent_id;
+  const isTelecmi = callingProvider === "telecmi";
+  const needsSetup = isTelecmi
+    ? !caller.phone || !caller.telecmi_agent_id
+    : !caller.phone;
 
   return (
     <div className="max-w-sm">
@@ -79,7 +85,9 @@ function AdminCallerCard({
         </div>
         {needsSetup && (
           <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-medium">
-            Set your phone and TeleCMI Agent ID to enable click-to-call
+            {isTelecmi
+              ? "Set your phone and TeleCMI Agent ID to enable click-to-call"
+              : "Set your phone number to enable SIM calling"}
           </p>
         )}
         <div className="space-y-1.5">
@@ -115,6 +123,7 @@ function AdminCallerCard({
               </span>
             )}
           </div>
+          {isTelecmi && (
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">Agent ID</span>
             {editingAgentIdFor === caller.id ? (
@@ -157,6 +166,7 @@ function AdminCallerCard({
               </span>
             )}
           </div>
+          )}
         </div>
       </div>
     </div>
@@ -168,6 +178,7 @@ export default function LiveAgentStatus({
   statsFrom, statsTo, onStatsFromChange, onStatsToChange,
   onCallersChange, onRemoved,
   shiftConfig, onShiftConfigSave,
+  callingProvider,
 }: LiveAgentStatusProps) {
   const [editingAgentIdFor, setEditingAgentIdFor] = useState<string | null>(null);
   const [agentIdInputValue, setAgentIdInputValue] = useState<string>("");
@@ -425,6 +436,7 @@ export default function LiveAgentStatus({
               onCancelEditAgentId={() => { setEditingAgentIdFor(null); setAgentIdInputValue(""); setAgentPwdInputValue(""); }}
               onAgentIdInputChange={setAgentIdInputValue}
               onAgentPwdInputChange={setAgentPwdInputValue}
+              callingProvider={callingProvider}
             />
           </div>
         </div>
@@ -470,8 +482,8 @@ export default function LiveAgentStatus({
                 )}
                 <div className="flex items-center gap-1.5 text-xs text-[#78716c] mt-0.5">
                   <span>{c.phone || "—"}</span>
-                  <span className="text-[#d6cfc9]">&middot;</span>
-                  {editingAgentIdFor === c.id ? (
+                  {callingProvider === "telecmi" && <span className="text-[#d6cfc9]">&middot;</span>}
+                  {callingProvider === "telecmi" && (editingAgentIdFor === c.id ? (
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="text"
@@ -521,7 +533,7 @@ export default function LiveAgentStatus({
                         <Pencil size={9} />
                       </button>
                     </span>
-                  )}
+                  ))}
                 </div>
                 {/* Shift time display (read-only) */}
                 <div className="flex items-center gap-1 mt-0.5">
