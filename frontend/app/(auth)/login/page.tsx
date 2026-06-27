@@ -3,17 +3,18 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff, Bot, Target, TrendingUp } from "lucide-react";
 import { AiraLogo } from "@/components/logo";
-import BackgroundAnimation from "@/components/BackgroundAnimation";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const email = String(form.get("email") ?? "").trim();
+    const password = String(form.get("password") ?? "");
+
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -93,9 +94,14 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Right Column: Centered Login Form with canvas animation */}
-      <div className="flex-1 flex flex-col justify-center items-center px-5 py-8 sm:p-12 relative min-h-[100dvh] isolate overflow-hidden">
-        <BackgroundAnimation className="absolute inset-0 z-0 h-full w-full pointer-events-none" />
+      {/* Right Column: Centered Login Form */}
+      <div className="flex-1 flex flex-col justify-center items-center px-5 py-8 sm:p-12 relative min-h-[100dvh] isolate overflow-hidden bg-gradient-to-br from-[#faf8f5] via-white to-[#f5f3ff]">
+        <div className="pointer-events-none absolute inset-0 z-0 opacity-70">
+          <div className="absolute right-[10%] top-[10%] h-40 w-40 rounded-full border border-[#ede9fe]" />
+          <div className="absolute bottom-[12%] left-[18%] h-32 w-32 rounded-full border border-[#e8e3db]" />
+          <div className="absolute right-[22%] bottom-[22%] h-px w-48 rotate-[-22deg] bg-[#ede9fe]" />
+          <div className="absolute left-[22%] top-[28%] h-px w-36 rotate-[-38deg] bg-[#ede9fe]" />
+        </div>
 
         <div className="w-full max-w-sm relative z-20 pointer-events-auto">
           {/* Mobile logo header (hidden on desktop) */}
@@ -126,8 +132,6 @@ export default function LoginPage() {
                   id="login-email"
                   name="email"
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                   required
                   inputMode="email"
                   autoCapitalize="none"
@@ -144,8 +148,6 @@ export default function LoginPage() {
                     id="login-password"
                     name="password"
                     type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
                     required
                     autoComplete="current-password"
                     className="input pr-10 text-base sm:text-sm pointer-events-auto"
