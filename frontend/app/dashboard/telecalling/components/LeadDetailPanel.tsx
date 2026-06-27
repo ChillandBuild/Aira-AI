@@ -147,7 +147,6 @@ export default function LeadDetailPanel({
   // Call attempt trail
   const outcomeStyle: Record<string, string> = {
     converted: "bg-emerald-500 ring-emerald-200",
-    interested: "bg-cyan-500 ring-cyan-200",
     callback: "bg-amber-400 ring-amber-200",
     not_interested: "bg-[#a8a29e] ring-[#e8e3db]",
     no_answer: "bg-rose-400 ring-rose-200",
@@ -157,7 +156,6 @@ export default function LeadDetailPanel({
   };
   const outcomeLabel: Record<string, string> = {
     converted: "Converted",
-    interested: "Interested",
     callback: "Callback",
     not_interested: "Not Interested",
     no_answer: "No Answer",

@@ -6,24 +6,13 @@ import { formatPhone } from "@/lib/utils";
 import { QUICK_NOTE_TAGS } from "./LeadDetailPanel";
 import type { CallingCockpit } from "../lib/useCallingCockpit";
 
-const TELECMI_OUTCOMES: { value: string; label: string; danger?: boolean }[] = [
+const OUTCOMES: { value: string; label: string; danger?: boolean }[] = [
   { value: "converted", label: "Converted" },
   { value: "in_progress", label: "In Progress" },
-  { value: "interested", label: "Interested" },
   { value: "not_interested", label: "Not Interested (Nurture)" },
   { value: "no_answer", label: "No Answer" },
   { value: "do_not_call", label: "Do Not Call", danger: true },
   { value: "do_not_contact", label: "Do Not Contact at All", danger: true },
-];
-
-const SIM_MANUAL_STATUSES: { value: string; label: string; danger?: boolean }[] = [
-  { value: "connected", label: "Connected" },
-  { value: "not_picked", label: "Not picked" },
-  { value: "busy", label: "Busy" },
-  { value: "wrong_number", label: "Wrong number", danger: true },
-  { value: "interested", label: "Interested" },
-  { value: "not_interested", label: "Not interested" },
-  { value: "callback", label: "Callback" },
 ];
 
 /**
@@ -234,7 +223,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                   Call Outcome / Disposition *
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(activeCallProvider === "sim_basic" ? SIM_MANUAL_STATUSES : TELECMI_OUTCOMES).map((o) => {
+                  {OUTCOMES.map((o) => {
                     const selected = wrapupOutcome === o.value;
                     const base = "px-3 py-2.5 rounded-xl font-label text-xs font-bold border transition-all text-center";
                     const cls = selected

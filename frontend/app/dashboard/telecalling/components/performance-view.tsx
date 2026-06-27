@@ -49,7 +49,6 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
   const [shiftConfig, setShiftConfig] = useState<{ shift_mode: "common" | "individual"; shift_start_hour: number; shift_end_hour: number }>({
     shift_mode: "common", shift_start_hour: 9, shift_end_hour: 19,
   });
-  const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
 
   // Lead profile modal
   const [viewingLeadId, setViewingLeadId] = useState<string | null>(null);
@@ -97,7 +96,6 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
             shift_start_hour: data.shift_start_hour ?? 9,
             shift_end_hour: data.shift_end_hour ?? 19,
           });
-          setCallingProvider((data.calling_provider as "telecmi" | "sim_basic" | undefined) ?? "telecmi");
         }
       } catch {}
     })();
@@ -218,7 +216,6 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         onRemoved={loadCallers}
         shiftConfig={shiftConfig}
         onShiftConfigSave={handleShiftConfigSave}
-        callingProvider={callingProvider}
       />
 
       {/* Selection indicator */}

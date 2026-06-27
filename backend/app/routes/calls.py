@@ -25,9 +25,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 public_router = APIRouter()  # No auth — TeleCMI calls these directly
 
-Outcome = Literal["converted", "interested", "callback", "not_interested", "no_answer"]
+Outcome = Literal["converted", "callback", "not_interested", "no_answer"]
 Disposition = Literal["answered", "no_answer", "busy", "switched_off", "followup_required"]
-ManualStatus = Literal["connected", "not_picked", "busy", "wrong_number", "interested", "not_interested", "callback"]
 
 # Map a connection-state disposition to the business outcome that drives scoring/segments.
 # "answered" alone implies no business result (caller may set outcome separately), so it
@@ -38,26 +37,6 @@ _DISPOSITION_TO_OUTCOME: dict[str, str | None] = {
     "busy": "no_answer",
     "switched_off": "no_answer",
     "followup_required": "callback",
-}
-
-_MANUAL_STATUS_TO_DISPOSITION: dict[str, str] = {
-    "connected": "answered",
-    "not_picked": "no_answer",
-    "busy": "busy",
-    "wrong_number": "answered",
-    "interested": "answered",
-    "not_interested": "answered",
-    "callback": "followup_required",
-}
-
-_MANUAL_STATUS_TO_OUTCOME: dict[str, str | None] = {
-    "connected": None,
-    "not_picked": "no_answer",
-    "busy": "no_answer",
-    "wrong_number": None,
-    "interested": "interested",
-    "not_interested": "not_interested",
-    "callback": "callback",
 }
 
 
@@ -77,7 +56,6 @@ class SendToMobilePayload(BaseModel):
 class OutcomeUpdate(BaseModel):
     outcome: str | None = None
     disposition: Disposition | None = None
-    manual_status: ManualStatus | None = None
     notes: str | None = None
     callback_time: datetime | None = None
     quality_rating: int | None = Field(default=None, ge=1, le=5)
@@ -745,27 +723,18 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
     if not log.data:
         raise HTTPException(status_code=404, detail="Call log not found")
 
-    if not payload.outcome and not payload.disposition and not payload.manual_status:
-        raise HTTPException(status_code=400, detail="Provide an outcome, disposition, or manual status")
+    if not payload.outcome and not payload.disposition:
+        raise HTTPException(status_code=400, detail="Provide an outcome or a disposition")
 
-    if payload.outcome not in ("converted", "interested", "callback", "not_interested", "no_answer", "do_not_call", "do_not_contact", "in_progress", None):
+    if payload.outcome not in ("converted", "callback", "not_interested", "no_answer", "do_not_call", "do_not_contact", "in_progress", None):
         raise HTTPException(status_code=400, detail="Invalid outcome value")
 
     # Intercept DNC outcomes to handle them as lead-level actions
     dnc_outcome = None
-    wrong_number = payload.manual_status == "wrong_number"
     if payload.outcome in ("do_not_call", "do_not_contact"):
         dnc_outcome = payload.outcome
         payload.outcome = None
         payload.disposition = "answered"
-    elif wrong_number:
-        dnc_outcome = "wrong_number"
-        payload.outcome = None
-        payload.disposition = "answered"
-
-    if payload.manual_status and not dnc_outcome:
-        payload.disposition = _MANUAL_STATUS_TO_DISPOSITION[payload.manual_status]  # type: ignore[assignment]
-        payload.outcome = _MANUAL_STATUS_TO_OUTCOME[payload.manual_status]
 
     # "in_progress" is a call_status, not a call_logs.outcome (CHECK-constrained) —
     # record it as an "answered" disposition with no business outcome.
@@ -778,8 +747,6 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
     effective_outcome = payload.outcome or _DISPOSITION_TO_OUTCOME.get(payload.disposition or "")
 
     log_updates: dict = {}
-    if payload.manual_status is not None:
-        log_updates["manual_status"] = payload.manual_status
     if payload.disposition is not None:
         log_updates["disposition"] = payload.disposition
     if payload.notes is not None and payload.notes.strip():
@@ -794,12 +761,11 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         log_updates["manual_ended_at"] = payload.manual_ended_at.isoformat()
     if log.data.get("provider") == "sim_basic":
         log_updates["feedback_source"] = "manual"
-        if payload.outcome or payload.disposition or payload.manual_status:
+        if payload.outcome or payload.disposition:
             log_updates["status"] = "completed"
     score = None
     if effective_outcome is not None:
-        score_duration = log_updates.get("duration_seconds", log.data.get("duration_seconds"))
-        score = score_from_outcome(effective_outcome, score_duration)
+        score = score_from_outcome(effective_outcome, log.data.get("duration_seconds"))
         log_updates["outcome"] = effective_outcome
         log_updates["score"] = score
     if log_updates:
@@ -810,7 +776,7 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         new_caller_score = recompute_caller_score(log.data["caller_id"], db)
 
     lead_id = log.data.get("lead_id")
-    if lead_id and (effective_outcome is not None or dnc_outcome is not None or in_progress or payload.manual_status == "connected"):
+    if lead_id and (effective_outcome is not None or dnc_outcome is not None or in_progress):
         lead = (
             db.table("leads")
             .select("segment,phone,ai_enabled,converted_at,tenant_id,assigned_to")
@@ -830,17 +796,12 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
                 lead_updates["do_not_call"] = True
                 lead_updates["opted_out"] = True
                 lead_updates["call_status"] = "dnc"
-            elif dnc_outcome == "wrong_number":
-                lead_updates["do_not_call"] = True
-                lead_updates["call_status"] = "dnc"
             elif in_progress:
                 lead_updates["call_status"] = "in_progress"
             elif effective_outcome == "converted":
                 lead_updates["call_status"] = "converted"
                 lead_updates["converted_at"] = datetime.now(timezone.utc).isoformat()
                 event_type = "converted"
-            elif effective_outcome == "interested":
-                lead_updates["call_status"] = "in_progress"
             elif effective_outcome == "callback":
                 lead_updates["call_status"] = "callback"
             elif effective_outcome == "not_interested":
@@ -881,16 +842,15 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
                 to_segment=lead_data.get("segment"),
                 event_type=event_type,
                 metadata={
-                    "outcome": dnc_outcome or ("in_progress" if in_progress else effective_outcome or payload.manual_status),
+                    "outcome": dnc_outcome or ("in_progress" if in_progress else effective_outcome),
                     "disposition": payload.disposition,
-                    "manual_status": payload.manual_status,
                     "call_status": lead_updates.get("call_status"),
                 },
                 tenant_id=lead_data.get("tenant_id"),
                 db=db,
             )
 
-            outcome_reason = "in_progress" if in_progress else (effective_outcome or payload.manual_status)
+            outcome_reason = "in_progress" if in_progress else effective_outcome
 
             if dnc_outcome is not None:
                 # Explicitly cancel all pending follow-up jobs
@@ -953,7 +913,6 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         "call_log_id": call_log_id,
         "outcome": effective_outcome,
         "disposition": payload.disposition,
-        "manual_status": payload.manual_status,
         "score": score,
         "caller_overall_score": new_caller_score,
     }

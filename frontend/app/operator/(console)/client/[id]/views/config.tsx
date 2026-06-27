@@ -67,7 +67,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [providerSaving, setProviderSaving] = useState<"telecmi" | "sim_basic" | null>(null);
-  const [pendingProvider, setPendingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -98,18 +97,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       setProviderSaving(null);
     }
   }
-
-  const pendingProviderCopy = pendingProvider === "sim_basic"
-    ? {
-        title: "Switch to SIM Basic?",
-        description: "This client will use mobile SIM calling with manual call wrap-up. TeleCMI agent credentials, automatic recordings, and exact provider call duration will no longer drive new calls.",
-        confirm: "Switch to SIM Basic",
-      }
-    : {
-        title: "Switch to TeleCMI?",
-        description: "This client will use TeleCMI click-to-call. Telecallers need TeleCMI agent ID/password, and recordings/durations come from TeleCMI webhooks.",
-        confirm: "Switch to TeleCMI",
-      };
 
   if (loading) {
     return (
@@ -164,9 +151,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               <button
                 key={option.id}
                 type="button"
-                onClick={() => {
-                  if (provider?.calling_provider !== option.id) setPendingProvider(option.id);
-                }}
+                onClick={() => updateProvider(option.id)}
                 disabled={!!providerSaving}
                 className={`rounded-card border p-4 text-left shadow-sm transition-all ${
                   selected
@@ -191,44 +176,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           })}
         </div>
       </div>
-
-      {pendingProvider && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-card bg-white p-6 shadow-xl">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning">
-                <AlertTriangle size={20} />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-ink">{pendingProviderCopy.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-ink-secondary">{pendingProviderCopy.description}</p>
-              </div>
-            </div>
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setPendingProvider(null)}
-                disabled={!!providerSaving}
-                className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-mid disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const next = pendingProvider;
-                  await updateProvider(next);
-                  setPendingProvider(null);
-                }}
-                disabled={!!providerSaving}
-                className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
-              >
-                {providerSaving ? <Loader2 size={16} className="mx-auto animate-spin" /> : pendingProviderCopy.confirm}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Credential Status */}
       <div>

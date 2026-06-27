@@ -38,7 +38,6 @@ def _build_stats_text(stats: dict) -> str:
     text = (
         f"Total calls: {stats['total_calls']} | "
         f"Conversions: {stats['converted']} | "
-        f"Interested: {stats['interested']} | "
         f"Callbacks: {stats['callbacks']} | "
         f"Not interested: {stats['not_interested']} | "
         f"No answer: {stats['no_answer']} | "
@@ -136,7 +135,6 @@ async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) 
     # ── Aggregate stats ───────────────────────────────────────────────
     total = len(rows)
     converted = sum(1 for r in rows if r.get("outcome") == "converted")
-    interested = sum(1 for r in rows if r.get("outcome") == "interested")
     callbacks = sum(1 for r in rows if r.get("outcome") == "callback")
     not_interested = sum(1 for r in rows if r.get("outcome") == "not_interested")
     no_answer = sum(1 for r in rows if r.get("outcome") == "no_answer")
@@ -148,7 +146,6 @@ async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) 
     stats = {
         "total_calls": total,
         "converted": converted,
-        "interested": interested,
         "callbacks": callbacks,
         "not_interested": not_interested,
         "no_answer": no_answer,

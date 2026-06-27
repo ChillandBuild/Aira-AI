@@ -4,7 +4,6 @@ logger = logging.getLogger(__name__)
 
 OUTCOME_SCORES: dict[str, float] = {
     "converted": 10.0,
-    "interested": 8.0,
     "callback": 7.5,
     "not_interested": 3.5,
     "no_answer": 2.0,

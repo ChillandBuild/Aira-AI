@@ -24,7 +24,6 @@ import {
 import { api, CallbackBoardItem, CallLog } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import { fetchAllNotes, markCallbackDone } from "../lib/notes-api";
-import { isMobileDialSurface, openNativeDialer } from "../lib/sim-dialer";
 import type { Note } from "../types";
 import { usePolling } from "@/hooks/usePolling";
 import { useActiveCall } from "../../contexts/ActiveCallContext";
@@ -64,7 +63,6 @@ export default function ScheduledCallsPage() {
   const [callbacks, setCallbacks] = useState<CallbackBoardItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingDone, setMarkingDone] = useState<string | null>(null);
-  const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
   const { setActiveCall: setActiveCallCtx } = useActiveCall();
   const { role, callerId } = useAuthRole();
 
@@ -77,12 +75,8 @@ export default function ScheduledCallsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [res, assignmentMode] = await Promise.all([
-        api.followUps.callbacksBoard(),
-        api.calls.assignmentMode().catch(() => null),
-      ]);
+      const res = await api.followUps.callbacksBoard();
       setCallbacks(Array.isArray(res?.data) ? res.data : []);
-      setCallingProvider(assignmentMode?.calling_provider ?? "telecmi");
     } catch {
       toast.error("Failed to load scheduled calls");
     } finally {
@@ -115,33 +109,15 @@ export default function ScheduledCallsPage() {
       toast.error("No caller profile found");
       return;
     }
-    const phone = cb.lead.phone ?? "";
-    const openedNativeDialer = callingProvider === "sim_basic" && isMobileDialSurface()
-      ? openNativeDialer(phone)
-      : false;
-
-    if (callingProvider === "sim_basic" && isMobileDialSurface() && !openedNativeDialer) {
-      toast.error("This lead has no callable phone number.");
-      return;
-    }
-
     try {
       const res = await api.calls.initiate({ leadId: cb.lead_id, callbackJobId: cb.id }, callerId);
       setActiveCallCtx({
         leadId: res.lead_id ?? cb.lead_id,
         name: res.lead_name ?? cb.lead.name ?? null,
-        phone,
+        phone: cb.lead.phone ?? "",
         callLogId: res.call_log_id ?? null,
       });
-      if (res.provider === "sim_basic") {
-        if (!openedNativeDialer && !openNativeDialer(phone)) {
-          toast.error("This lead has no callable phone number.");
-          return;
-        }
-        toast.success(`Opening phone dialer for ${cb.lead.name || phone}...`);
-      } else {
-        toast.success(`Calling ${cb.lead.name || phone}...`);
-      }
+      toast.success(`Calling ${cb.lead.name || cb.lead.phone}...`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Call failed");
     }
@@ -558,7 +534,6 @@ export default function ScheduledCallsPage() {
                           <div className="flex items-center justify-between">
                             <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase ${
                               log.outcome === "converted" ? "bg-emerald-50 text-emerald-700" :
-                              log.outcome === "interested" ? "bg-cyan-50 text-cyan-700" :
                               log.outcome === "callback" ? "bg-amber-50 text-amber-700" :
                               log.outcome === "not_interested" ? "bg-rose-50 text-rose-700" :
                               "bg-[#e8e3db] text-[#57534e]"

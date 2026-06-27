@@ -110,9 +110,6 @@ interface CallRow {
   caller_id: string | null;
   duration_seconds: number | null;
   disposition: string | null;
-  manual_status: string | null;
-  provider?: "telecmi" | "sim_basic";
-  feedback_source?: "automatic" | "manual";
   created_at: string;
 }
 
@@ -128,12 +125,6 @@ const DISPOSITION_BADGE: Record<string, string> = {
   busy: "bg-red-50 text-danger",
   switched_off: "bg-stone-100 text-ink-muted",
   followup_required: "bg-blue-50 text-blue-600",
-  connected: "bg-green-50 text-success",
-  not_picked: "bg-amber-50 text-warning",
-  wrong_number: "bg-red-50 text-danger",
-  interested: "bg-cyan-50 text-cyan-700",
-  not_interested: "bg-rose-50 text-rose-700",
-  callback: "bg-blue-50 text-blue-600",
 };
 
 function DialerSection({ tenantId }: { tenantId: string }) {
@@ -190,9 +181,9 @@ function DialerSection({ tenantId }: { tenantId: string }) {
                   <td className="px-4 py-3 text-ink-secondary font-mono text-xs">{c.caller_id?.slice(0, 8) || "—"}</td>
                   <td className="px-4 py-3 text-ink-secondary font-mono text-xs">{fmtDuration(c.duration_seconds)}</td>
                   <td className="px-4 py-3">
-                    {c.manual_status || c.disposition ? (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${DISPOSITION_BADGE[c.manual_status || c.disposition || ""] || "bg-surface-mid text-ink-muted"}`}>
-                        {(c.manual_status || c.disposition || "").replace(/_/g, " ")}
+                    {c.disposition ? (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${DISPOSITION_BADGE[c.disposition] || "bg-surface-mid text-ink-muted"}`}>
+                        {c.disposition.replace(/_/g, " ")}
                       </span>
                     ) : "—"}
                   </td>

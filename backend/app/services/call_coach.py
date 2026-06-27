@@ -17,7 +17,6 @@ def _summarize_logs(logs: list[dict]) -> str:
         return "No call history yet."
     total = len(logs)
     converted = sum(1 for l in logs if l.get("outcome") == "converted")
-    interested = sum(1 for l in logs if l.get("outcome") == "interested")
     not_interested = sum(1 for l in logs if l.get("outcome") == "not_interested")
     no_answer = sum(1 for l in logs if l.get("outcome") == "no_answer")
     avg_duration = sum((l.get("duration_seconds") or 0) for l in logs) / total
@@ -26,7 +25,6 @@ def _summarize_logs(logs: list[dict]) -> str:
     parts = [
         f"Calls: {total}",
         f"Conversions: {converted}",
-        f"Interested: {interested}",
         f"Not interested: {not_interested}",
         f"No answer: {no_answer}",
         f"Avg duration: {avg_duration:.0f}s",
