@@ -24,4 +24,4 @@
 - **Local wiki refresh toolchain on Windows**: `graphify-out/` is now ignored/local-only, but this machine currently lacks `make` and `graphify` on PATH, so `/aira-wiki` cannot rebuild the wiki after a fresh clone/pull. Install/expose graphify + make, or add a Windows-friendly script target.
 
 ## Session Follow-ups
-- **SIM Basic rollout checklist**: apply migration `120_calling_provider_and_push.sql`, configure `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`, and make telecaller invite fields conditional: TeleCMI requires agent id/password; SIM Basic should ask only name/email/password/mobile plus optional SIM label/shift/target.
+- **SIM Basic rollout checklist**: apply migration `120_calling_provider_and_push.sql`, configure `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`, verify `pywebpush` is installed in production, then manually test Developer Console provider switching, provider-aware telecaller invite fields, desktop SIM handoff QR/send-to-mobile, mobile `tel:` dialer launch, and push deep-link opening `/dashboard/telecalling?lead_id=...`.

@@ -61,6 +61,9 @@
 - Mobile dashboard UX is intentionally separate from desktop: `ClientLayout.tsx` hides `Sidebar` below `md`, adds `MobileDashboardNav`, and gives content bottom padding for the fixed nav. Preserve this split when changing dashboard navigation.
 - Inner dashboard pages follow the same split: keep desktop tables/panels for `md+`, but use mobile-specific cards/flows for phone screens. `components/MobileRecord.tsx` is the shared pattern for dense mobile records; conversations intentionally hide the inbox rail on phone and switch list -> chat with a back action.
 
+## Auth login
+- `/login` deliberately uses a static right-panel background and native uncontrolled email/password fields. Do not reintroduce the animated canvas around the credential form or controlled password state unless you verify desktop Chrome focus/typing behavior; it previously caused flicker and blocked password entry.
+
 ## Telecalling provider split
 - `telecalling_config.calling_provider` is the tenant-level switch: `telecmi` uses API click-to-call plus CDR/recording webhook; `sim_basic` creates a manual call log, opens `tel:`, and requires manual wrap-up. Keep lead queue/profile/notes/callbacks/analytics shared; only call execution and evidence source differ.
 - SIM Basic analytics truth: `call_logs.provider='sim_basic'` and `feedback_source='manual'`. Duration comes from caller-confirmed start/end time, notes from short manual summary. Do not promise PWA-native call recording or automatic SIM call-log access.
