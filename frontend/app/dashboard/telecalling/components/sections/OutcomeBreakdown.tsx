@@ -4,6 +4,7 @@ import type { TelecallingAnalyticsExtended } from "@/lib/api";
 
 const OUTCOMES: { key: keyof TelecallingAnalyticsExtended["outcome_breakdown"]; label: string; bar: string }[] = [
   { key: "converted", label: "Converted", bar: "bg-emerald-500" },
+  { key: "interested", label: "Interested", bar: "bg-cyan-500" },
   { key: "callback", label: "Callback", bar: "bg-blue-500" },
   { key: "not_interested", label: "Not Interested", bar: "bg-rose-500" },
   { key: "no_answer", label: "No Answer", bar: "bg-amber-400" },

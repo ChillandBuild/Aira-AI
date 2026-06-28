@@ -140,7 +140,6 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   }
 
 
-
   // Initial cockpit-owned data (queue is loaded by the page itself).
   useEffect(() => {
     loadCallbacks();
@@ -545,9 +544,9 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     try {
       const result = await api.calls.sendToMobile(simHandoffLead.id, callerId ?? undefined);
       if (!result.push_configured) {
-        toast.error("Push keys are not configured on the server yet");
+        toast.info("Mobile push is not configured yet. Use the QR code or copy the number to open this lead on your phone.");
       } else if (result.subscription_count === 0) {
-        toast.error("No mobile subscription found. Open Aira on the phone and enable alerts.");
+        toast.info("No mobile push subscription found. Open Aira on the phone, enable alerts, or use the QR code.");
       } else {
         toast.success("Sent to mobile");
       }
@@ -586,9 +585,23 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     }
     setWrapupSaving(true);
     try {
-      await api.calls.setOutcome(activeCallCtx.callLogId, wrapupOutcome as NonNullable<CallLog["outcome"]>, {
+      const simOutcomeMap: Record<string, NonNullable<CallLog["outcome"]>> = {
+        connected: "in_progress",
+        not_picked: "no_answer",
+        busy: "no_answer",
+        wrong_number: "in_progress",
+        interested: "interested",
+        not_interested: "not_interested",
+        callback: "callback",
+      };
+      const outcomeToSubmit = activeCallProvider === "sim_basic"
+        ? simOutcomeMap[wrapupOutcome]
+        : wrapupOutcome as NonNullable<CallLog["outcome"]>;
+
+      await api.calls.setOutcome(activeCallCtx.callLogId, outcomeToSubmit, {
         notes: wrapupNotes.trim() || undefined,
         qualityRating: wrapupQualityRating || undefined,
+        manualStatus: activeCallProvider === "sim_basic" ? wrapupOutcome as NonNullable<CallLog["manual_status"]> : undefined,
         durationSeconds: activeCallProvider === "sim_basic" ? secondsBetween(wrapupStartedAt, wrapupEndedAt) : undefined,
         manualStartedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupStartedAt) : undefined,
         manualEndedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupEndedAt) : undefined,

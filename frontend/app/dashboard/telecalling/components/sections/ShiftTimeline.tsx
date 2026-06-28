@@ -99,6 +99,7 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                 if (event.type === "call") {
                   let color = "bg-primary border-primary-dark";
                   if (event.outcome === "converted") color = "bg-emerald-500 border-emerald-600";
+                  else if (event.outcome === "interested") color = "bg-cyan-500 border-cyan-600";
                   else if (event.outcome === "callback") color = "bg-amber-500 border-amber-600";
                   else if (event.outcome === "no_answer") color = "bg-rose-450 border-rose-500";
                   return (
@@ -156,6 +157,7 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                   {event.type === "call" && (
                     <span className={`px-2 py-0.5 rounded font-bold text-[9px] uppercase border ${
                       event.outcome === "converted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                      event.outcome === "interested" ? "bg-cyan-50 text-cyan-700 border-cyan-200" :
                       event.outcome === "callback" ? "bg-amber-50 text-amber-700 border-amber-200" :
                       "bg-[#f0ece4] text-[#57534e] border-[#e8e3db]"
                     }`}>

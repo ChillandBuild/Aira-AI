@@ -49,9 +49,9 @@ export function NotificationBell() {
         if (result.reason === "missing_key") {
           const status = await api.push.status().catch(() => null);
           if (status && !status.public_key_configured && !status.private_key_configured) {
-            toast.error("Push keys are missing on the server");
+            toast.info("Push alerts are not configured on the server yet. In-app notifications still work.");
           } else {
-            toast.error("Push keys are not configured correctly on the server");
+            toast.info("Push alerts need server setup. In-app notifications still work.");
           }
         } else {
           toast.error("Push permission was not granted");

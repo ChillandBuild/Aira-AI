@@ -89,6 +89,8 @@ export interface CallerStats {
 }
 
 export type Disposition = "answered" | "no_answer" | "busy" | "switched_off" | "followup_required";
+export type ManualCallStatus = "connected" | "not_picked" | "busy" | "wrong_number" | "interested" | "not_interested" | "callback";
+export type CallOutcome = "converted" | "interested" | "callback" | "not_interested" | "no_answer" | "do_not_call" | "do_not_contact" | "in_progress";
 
 export interface TemplatePerformanceRow {
   template_name: string;
@@ -134,8 +136,9 @@ export interface CallLog {
   lead_id: string | null;
   call_sid: string | null;
   duration_seconds: number | null;
-  outcome: "converted" | "callback" | "not_interested" | "no_answer" | "do_not_call" | "do_not_contact" | "in_progress" | null;
+  outcome: CallOutcome | null;
   disposition: string | null;
+  manual_status?: ManualCallStatus | null;
   recording_url: string | null;
   score: number | null;
   status: string;
@@ -467,7 +470,8 @@ export interface TelecallingAnalytics {
   calls_today: number;
   calls_this_week: number;
   avg_duration_seconds: number | null;
-  outcome_breakdown: { converted: number; callback: number; not_interested: number; no_answer: number };
+  outcome_breakdown: { converted: number; interested: number; callback: number; not_interested: number; no_answer: number };
+  manual_status_breakdown?: Record<ManualCallStatus, number>;
   per_caller: {
     caller_id: string;
     name: string;
@@ -545,7 +549,16 @@ export interface TelecallingAnalyticsExtended {
   calls_this_week: number;
   avg_duration_seconds: number | null;
   total_minutes_today: number;
-  outcome_breakdown: { converted: number; callback: number; not_interested: number; no_answer: number };
+  calls_attempted?: number;
+  connected_calls?: number;
+  not_picked_calls?: number;
+  busy_calls?: number;
+  wrong_number_calls?: number;
+  interested_leads?: number;
+  followups_scheduled?: number;
+  outcome_breakdown: { converted: number; interested: number; callback: number; not_interested: number; no_answer: number };
+  manual_status_breakdown: Record<ManualCallStatus, number>;
+  manual_status_all_time_breakdown?: Record<ManualCallStatus, number>;
   conversions_today?: number;
   per_caller: {
     caller_id: string;
@@ -993,7 +1006,7 @@ export const api = {
     setOutcome: (
       callLogId: string,
       outcome: NonNullable<CallLog["outcome"]>,
-      opts?: { callbackTime?: string; notes?: string; qualityRating?: number; durationSeconds?: number; manualStartedAt?: string; manualEndedAt?: string }
+      opts?: { callbackTime?: string; notes?: string; qualityRating?: number; durationSeconds?: number; manualStartedAt?: string; manualEndedAt?: string; manualStatus?: ManualCallStatus }
     ) =>
       apiFetch<{
         call_log_id: string;
@@ -1004,6 +1017,7 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({
           outcome,
+          manual_status: opts?.manualStatus ?? null,
           callback_time: opts?.callbackTime ?? null,
           notes: opts?.notes ?? null,
           quality_rating: opts?.qualityRating ?? null,

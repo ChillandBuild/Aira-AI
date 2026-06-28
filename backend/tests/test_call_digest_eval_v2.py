@@ -54,7 +54,7 @@ class AggregateEvaluationsTests(unittest.TestCase):
 class BuildStatsTextTests(unittest.TestCase):
     def test_build_stats_text_includes_weakest_criterion(self):
         stats = {
-            "total_calls": 5, "converted": 1, "callbacks": 1, "not_interested": 2, "no_answer": 1,
+            "total_calls": 5, "converted": 1, "interested": 0, "callbacks": 1, "not_interested": 2, "no_answer": 1,
             "avg_duration_seconds": 120, "avg_score": 6.5,
             "criteria_avg": {"objection_handling": 4.2, "greeting_quality": 8.0},
             "weakest_criterion": "objection_handling",
@@ -65,7 +65,7 @@ class BuildStatsTextTests(unittest.TestCase):
 
     def test_build_stats_text_without_weakest_criterion(self):
         stats = {
-            "total_calls": 0, "converted": 0, "callbacks": 0, "not_interested": 0, "no_answer": 0,
+            "total_calls": 0, "converted": 0, "interested": 0, "callbacks": 0, "not_interested": 0, "no_answer": 0,
             "avg_duration_seconds": 0, "avg_score": None,
             "criteria_avg": {}, "weakest_criterion": None, "outcome_mismatches": 0,
         }
