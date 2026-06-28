@@ -171,3 +171,26 @@
 
 - **Decision**: The `/login` page should avoid animated canvas work around the credential form and keep email/password as native uncontrolled inputs, reading credentials through `FormData` on submit.
 - **Rationale**: Desktop Chrome showed flicker/focus loss while typing the password. Removing the animated auth background and avoiding per-keystroke React state keeps browser credential entry stable while preserving the responsive mobile login layout.
+
+---
+
+## 2026-06-28 - Push public key auth split
+
+- **Decision**: `GET /api/v1/push/public-key` is mounted on `push.public_router` without the global auth dependency; `/api/v1/push/status` and `/api/v1/push/subscriptions` remain auth-gated.
+- **Rationale**: The VAPID public key is non-sensitive and the production PWA registrar can touch push setup from anonymous pages. Keeping only subscription/status routes authenticated stops repeated 401s without exposing user subscription data.
+
+---
+
+## 2026-06-28 - SIM Basic fixes reverted (Updated)
+
+- **Decision**: Commit `e1f8cec3ebf9a411558a4b55a34b561c416974de` (`sim based fixes`) was reverted by `3cd5abde3b208aa30c4a43863cd3a1ef721af559` on `main`.
+- **Rationale**: The pushed batch had failing backend checks and a Vercel authorization failure. Treat the extra SIM Basic manual-call status work, migration `121_sim_manual_call_statuses.sql`, graceful push UX, provider-switch confirmation, provider-aware Live Agent Status, and mobile `tel:` dialer changes as not present on `main`; continue from the simpler provider split baseline unless a new branch reintroduces those changes deliberately.
+
+---
+
+## 2026-06-28 - Restored SIM Basic fixes & resolved test errors
+
+- **Decision**: Restored the full set of SIM Based manual statuses, configurations, and dashboards by reverting the revert commit `3cd5abde3b208aa30c4a43863cd3a1ef721af559`.
+- **Rationale**: The user requested all SIM Basic manual status features, outcome tracking, config selectors, and performance panels to be restored. 
+- **Decision**: Added missing test stats fields and modified Windows tests to force UTF-8 encoding.
+- **Rationale**: The unit test `test_call_digest_eval_v2.py` was failing because the new `interested` key was missing from its test stats mock. The static check files were failing on Windows environments due to local charmap decoder limits. Restoring the fixes along with these test adjustments ensures a 100% green test run across all platforms.

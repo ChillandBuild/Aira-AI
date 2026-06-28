@@ -66,8 +66,10 @@
 
 ## Telecalling provider split
 - `telecalling_config.calling_provider` is the tenant-level switch: `telecmi` uses API click-to-call plus CDR/recording webhook; `sim_basic` creates a manual call log, opens `tel:`, and requires manual wrap-up. Keep lead queue/profile/notes/callbacks/analytics shared; only call execution and evidence source differ.
+- On mobile view, SIM Basic calls bypass the 3-second dial countdown and launch the native phone dialer synchronously (via the `openNativeDialer` utility in `sim-dialer.ts`) to avoid browser security policy blocks on delayed/asynchronous redirects.
 - SIM Basic analytics truth: `call_logs.provider='sim_basic'` and `feedback_source='manual'`. Duration comes from caller-confirmed start/end time, notes from short manual summary. Do not promise PWA-native call recording or automatic SIM call-log access.
 - Telecaller invite/setup should be provider-aware: TeleCMI requires agent id/password; SIM Basic needs only name, email, password, mobile number, plus optional SIM label, shift hours, or targets.
 
 ## Web Push
 - Web Push is permission-gated from the notification bell and stored in `push_subscriptions`. Backend delivery is best-effort via VAPID keys and must not block assignments if a subscription is stale or push config is missing.
+- `GET /api/v1/push/public-key` is intentionally public (`push.public_router`); it returns only the VAPID public key. Subscription save/delete/status routes stay auth-gated. Frontend `syncPushSubscription()` must no-op when there is no Supabase session so anonymous pages do not spam 401s or redirect back to `/login`.
