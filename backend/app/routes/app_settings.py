@@ -154,46 +154,24 @@ async def update_settings(
         if tg_token:
             tg_token = tg_token.strip()
             payload.updates["telegram_bot_token"] = tg_token
-            # BotFather tokens are "<bot_id>:<hash>" — reject the common paste error
-            # (only the hash, missing the "123456789:" prefix) before hitting Telegram.
+            # Validate token format locally — no outbound call (avoids Render proxy
+            # timeout killing the response). Webhook registration is deferred to the
+            # Activate button (same pattern as WhatsApp / Instagram / Facebook).
             if not re.fullmatch(r"\d+:[A-Za-z0-9_-]+", tg_token):
                 raise HTTPException(
                     status_code=400,
                     detail="Invalid Telegram bot token. Copy the full token from @BotFather — it looks like 123456789:AA... (you may have pasted only the part after the colon).",
                 )
-            success, secret_token, err_msg = await setup_telegram_webhook(tg_token, tenant_id)
-            if not success:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Telegram rejected this bot token. Error details: {err_msg or 'Unknown error'}. Re-copy the full token from @BotFather and try again.",
-                )
-            if secret_token:
-                # Persist webhook secret so the route can validate inbound updates
-                existing = (
-                    db.table("app_settings")
-                    .select("id")
-                    .eq("tenant_id", tenant_id)
-                    .eq("key", "telegram_webhook_secret")
-                    .maybe_single()
-                    .execute()
-                )
-                if existing and existing.data:
-                    db.table("app_settings").update(
-                        {"value": secret_token, "updated_at": "now()"}
-                    ).eq("tenant_id", tenant_id).eq("key", "telegram_webhook_secret").execute()
-                else:
-                    db.table("app_settings").insert({
-                        "tenant_id": tenant_id,
-                        "key": "telegram_webhook_secret",
-                        "value": secret_token,
-                        "is_secret": True,
-                    }).execute()
-            # Saving a valid token already registers the webhook with Telegram, so the
-            # channel is live immediately (unlike Meta channels, which need a separate activate).
+            # Clear the old webhook secret when the token changes so a stale
+            # secret can't accidentally validate inbound updates for the new token.
+            db.table("app_settings").delete() \
+                .eq("tenant_id", tenant_id) \
+                .eq("key", "telegram_webhook_secret") \
+                .execute()
             db.table("app_settings").upsert({
                 "tenant_id": tenant_id,
                 "key": "telegram_status",
-                "value": "live",
+                "value": "configured",
                 "is_secret": False,
                 "updated_at": "now()",
             }, on_conflict="tenant_id,key").execute()
