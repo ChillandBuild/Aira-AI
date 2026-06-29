@@ -606,13 +606,35 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   }
 
   async function handleWrapupSubmit() {
-    if (!activeCallCtx || !activeCallCtx.callLogId) return;
+    if (!activeCallCtx) return;
     if (!wrapupOutcome) {
       toast.error("Outcome is required");
       return;
     }
     setWrapupSaving(true);
     try {
+      let callLogId = activeCallCtx.callLogId;
+      if (!callLogId) {
+        toast.info("Logging call on server first...");
+        try {
+          const res = await api.calls.initiate(
+            {
+              leadId: activeCallCtx.leadId ?? undefined,
+              phone: activeCallCtx.phone ?? undefined,
+              callbackJobId: selectedCallbackJobId ?? undefined,
+            },
+            callerId ?? undefined,
+          );
+          callLogId = res.call_log_id;
+          setActiveCallCtx({
+            ...activeCallCtx,
+            callLogId: res.call_log_id,
+          });
+        } catch (initErr) {
+          throw new Error("Failed to create call log on server: " + (initErr instanceof Error ? initErr.message : String(initErr)));
+        }
+      }
+
       const simOutcomeMap: Record<string, NonNullable<CallLog["outcome"]>> = {
         connected: "in_progress",
         not_picked: "no_answer",
@@ -626,7 +648,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         ? simOutcomeMap[wrapupOutcome]
         : wrapupOutcome as NonNullable<CallLog["outcome"]>;
 
-      await api.calls.setOutcome(activeCallCtx.callLogId, outcomeToSubmit, {
+      await api.calls.setOutcome(callLogId, outcomeToSubmit, {
         notes: wrapupNotes.trim() || undefined,
         qualityRating: wrapupQualityRating || undefined,
         manualStatus: activeCallProvider === "sim_basic" ? wrapupOutcome as NonNullable<CallLog["manual_status"]> : undefined,
