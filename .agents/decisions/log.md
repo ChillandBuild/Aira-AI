@@ -194,3 +194,31 @@
 - **Rationale**: The user requested all SIM Basic manual status features, outcome tracking, config selectors, and performance panels to be restored. 
 - **Decision**: Added missing test stats fields and modified Windows tests to force UTF-8 encoding.
 - **Rationale**: The unit test `test_call_digest_eval_v2.py` was failing because the new `interested` key was missing from its test stats mock. The static check files were failing on Windows environments due to local charmap decoder limits. Restoring the fixes along with these test adjustments ensures a 100% green test run across all platforms.
+
+---
+
+## 2026-06-29 - Mobile SIM dialer backgrounding fixes
+
+- **Decision**: Added `keepalive: true` to `api.calls.initiate` POST request and softened catch handlers in `useCallingCockpit.ts` to suppress `TypeError` / "Cannot reach server" toasts caused by PWA backgrounding when opening the native phone dialer.
+- **Rationale**: Mobile browsers suspend the JavaScript engine when the PWA backgrounds to launch `tel:` links, causing active fetch requests to abort. `keepalive` delegates the request to the browser's background process; the softened catch prevents the error toast from flashing on return.
+
+- **Decision**: Moved `setActiveCallCtx` and `primeSimWrapup` timeout scheduling from inside the async `.then()` callback to synchronous execution immediately when the user taps "Call" in `useCallingCockpit.ts`.
+- **Rationale**: The wrap-up modal gate (`showWrapupModal && activeCallCtx`) was never satisfied because `activeCallCtx` was only set after the API response resolved — which never happened while the browser was suspended. Setting context synchronously guarantees the modal renders on return.
+
+- **Decision**: Added a lazy/fallback call log creation path inside `handleWrapupSubmit()`. If `callLogId` is null when the user submits the wrap-up, the app creates the call log in the foreground first, then saves the outcome.
+- **Rationale**: The background `api.calls.initiate` request could fail or be aborted during backgrounding, leaving `callLogId` as null. The previous code silently returned without any feedback when `callLogId` was missing.
+
+## 2026-06-29 - Applied migrations 120 & 121 to live Supabase
+
+- **Decision**: Manually applied migrations `120_calling_provider_and_push.sql` and `121_sim_manual_call_statuses.sql` to the live Supabase database (`ayftynkgmfkaqmmnlmoc`) via the Supabase MCP SQL tool. Ran `NOTIFY pgrst, 'reload schema'` to force PostgREST cache refresh.
+- **Rationale**: These migrations were present in the codebase but had never been applied to the production database (likely due to the earlier revert cycle). The missing `feedback_source` column was causing a `PGRST204` error on every call log write.
+
+## 2026-06-29 - Mobile wrap-up modal bottom-sheet layout
+
+- **Decision**: Changed the wrap-up modal from a centered overlay to a mobile bottom-sheet layout (`items-end`, `rounded-t-3xl`, `z-[60]`, `safe-area-inset-bottom` padding) on small screens, keeping centered behavior on `sm:` and above.
+- **Rationale**: The modal was overlapping with the bottom navigation bar on mobile, making the "Complete Wrap-up" button partially hidden and the form hard to interact with.
+
+## 2026-06-29 - VAPID keys generated and configured
+
+- **Decision**: Generated VAPID key pair via `npx web-push generate-vapid-keys` and added `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` to `backend/.env`. These must also be manually added to Render environment variables for production push notifications.
+- **Rationale**: The Python backend's `pywebpush` integration reads these from environment variables. `.env` is git-ignored, so production requires separate Render Dashboard configuration.
