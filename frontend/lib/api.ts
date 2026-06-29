@@ -1001,7 +1001,7 @@ export const api = {
     initiate: (target: { leadId?: string; phone?: string; callbackJobId?: string }, callerId?: string) =>
       apiFetch<{ call_log_id: string; call_sid: string; status: string; provider: "telecmi" | "sim_basic"; lead_id: string | null; lead_name: string | null; phone?: string | null }>(
         `/api/v1/calls/initiate`,
-        { method: "POST", body: JSON.stringify({ lead_id: target.leadId, phone: target.phone, caller_id: callerId, callback_job_id: target.callbackJobId }) }
+        { method: "POST", keepalive: true, body: JSON.stringify({ lead_id: target.leadId, phone: target.phone, caller_id: callerId, callback_job_id: target.callbackJobId }) }
       ),
     setOutcome: (
       callLogId: string,

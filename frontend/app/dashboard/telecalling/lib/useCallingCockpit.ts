@@ -419,7 +419,11 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         window.setTimeout(() => primeSimWrapup(startedAt), 2500);
       }
     }).catch((err) => {
-      toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+      if (err instanceof TypeError || (err instanceof Error && err.message.includes("Cannot reach server"))) {
+        console.warn("Call initiated, but backend logging was interrupted by app backgrounding:", err);
+      } else {
+        toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+      }
     }).finally(() => {
       setDialing(null);
     });
@@ -449,7 +453,11 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         window.setTimeout(() => primeSimWrapup(startedAt), 2500);
       }
     }).catch((err) => {
-      toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+      if (err instanceof TypeError || (err instanceof Error && err.message.includes("Cannot reach server"))) {
+        console.warn("Call initiated, but backend logging was interrupted by app backgrounding:", err);
+      } else {
+        toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+      }
     }).finally(() => {
       setManualDialing(false);
     });
