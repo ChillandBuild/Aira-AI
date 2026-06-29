@@ -402,22 +402,32 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setDialing(leadId);
     toast.success(`Opening phone dialer for ${lead.name || lead.phone}...`);
 
+    // Synchronously set initial activeCallCtx and activeCallProvider so modal can render immediately
+    setActiveCallCtx({
+      leadId,
+      name: lead.name,
+      phone: lead.phone,
+      callLogId: null,
+    });
+    setActiveCallProvider("sim_basic");
+
+    // Synchronously schedule wrap-up modal to pre-open after 2.5 seconds
+    window.setTimeout(() => primeSimWrapup(startedAt), 2500);
+
     void api.calls.initiate(
       { leadId, callbackJobId: selectedCallbackJobId ?? undefined },
       callerId ?? undefined,
     ).then((res) => {
       const provider = res.provider ?? "sim_basic";
+      // Update activeCallCtx with actual callLogId from the server
       setActiveCallCtx({
         leadId: res.lead_id ?? leadId,
         name: res.lead_name ?? lead.name,
-        phone: lead.phone,
+        phone: res.phone ?? lead.phone,
         callLogId: res.call_log_id ?? null,
       });
       setActiveCallProvider(provider);
       generatePreCallBrief(leadId);
-      if (provider === "sim_basic") {
-        window.setTimeout(() => primeSimWrapup(startedAt), 2500);
-      }
     }).catch((err) => {
       if (err instanceof TypeError || (err instanceof Error && err.message.includes("Cannot reach server"))) {
         console.warn("Call initiated, but backend logging was interrupted by app backgrounding:", err);
@@ -439,19 +449,29 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setManualDialing(true);
     toast.success(`Opening phone dialer for ${phone}...`);
 
+    // Synchronously set initial activeCallCtx and activeCallProvider so modal can render immediately
+    setActiveCallCtx({
+      leadId: null,
+      name: null,
+      phone,
+      callLogId: null,
+    });
+    setActiveCallProvider("sim_basic");
+
+    // Synchronously schedule wrap-up modal to pre-open after 2.5 seconds
+    window.setTimeout(() => primeSimWrapup(startedAt), 2500);
+
     void api.calls.initiate({ phone }, callerId ?? undefined).then((res) => {
       const provider = res.provider ?? "sim_basic";
+      // Update activeCallCtx with actual callLogId from the server
       setActiveCallCtx({
         leadId: res.lead_id ?? null,
         name: res.lead_name ?? null,
-        phone,
+        phone: res.phone ?? phone,
         callLogId: res.call_log_id ?? null,
       });
       setActiveCallProvider(provider);
       setManualPhone("");
-      if (provider === "sim_basic") {
-        window.setTimeout(() => primeSimWrapup(startedAt), 2500);
-      }
     }).catch((err) => {
       if (err instanceof TypeError || (err instanceof Error && err.message.includes("Cannot reach server"))) {
         console.warn("Call initiated, but backend logging was interrupted by app backgrounding:", err);
