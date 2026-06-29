@@ -85,7 +85,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     <>
       {/* Accidental-dial guard countdown */}
       {dialCountdown !== null && dialTarget && (
-        <div className="fixed inset-0 bg-[#1c1917]/70 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-[#1c1917]/70 backdrop-blur-sm flex items-center justify-center z-[70]">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl border border-[#e8e3db] text-center animate-in fade-in zoom-in-95">
             <div className="w-16 h-16 bg-[#f5f3ff] text-[#5b21b6] rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
               <Phone size={24} />
@@ -106,7 +106,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
 
       {/* SIM Basic desktop handoff */}
       {simHandoffLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1917]/75 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#1c1917]/75 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-3xl border border-[#e8e3db] bg-white shadow-2xl animate-in fade-in zoom-in-95">
             <div className="flex items-start justify-between gap-4 border-b border-[#f0ece4] px-6 py-5">
               <div>
@@ -175,7 +175,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
 
       {/* Mandatory wrap-up form */}
       {showWrapupModal && activeCallCtx && (
-        <div className="fixed inset-0 bg-[#1c1917]/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
+        <div className="fixed inset-0 bg-[#1c1917]/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[70] p-0 sm:p-4">
           <div className="bg-white sm:rounded-3xl rounded-t-3xl p-5 sm:p-7 max-w-lg w-full shadow-2xl border border-[#e8e3db] animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 max-h-[85vh] sm:max-h-[90vh] overflow-y-auto pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-7">
             <div className="text-center mb-6">
               <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-label text-[10px] font-black uppercase tracking-wider">
@@ -327,7 +327,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
 
       {/* Blocking pending-wrap-ups list (telecaller discipline gate only) */}
       {blockingWrapups && pendingWrapups.length > 0 && !showWrapupModal && (
-        <div className="fixed inset-0 bg-[#1c1917]/85 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in">
+        <div className="fixed inset-0 bg-[#1c1917]/85 backdrop-blur-md flex items-center justify-center z-[70] p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl p-8 max-w-2xl w-full max-h-[80vh] shadow-2xl flex flex-col border border-[#e8e3db]">
             <div className="text-center mb-6 shrink-0">
               <div className="w-12 h-12 bg-amber-50 border border-amber-200 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-3">
