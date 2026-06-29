@@ -175,8 +175,8 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
 
       {/* Mandatory wrap-up form */}
       {showWrapupModal && activeCallCtx && (
-        <div className="fixed inset-0 bg-[#1c1917]/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-7 max-w-lg w-full shadow-2xl border border-[#e8e3db] animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-[#1c1917]/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[60] p-0 sm:p-4">
+          <div className="bg-white sm:rounded-3xl rounded-t-3xl p-5 sm:p-7 max-w-lg w-full shadow-2xl border border-[#e8e3db] animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 max-h-[85vh] sm:max-h-[90vh] overflow-y-auto pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-7">
             <div className="text-center mb-6">
               <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-label text-[10px] font-black uppercase tracking-wider">
                 {activeCallProvider === "sim_basic" ? "SIM Call Feedback" : "Call Completed"}
