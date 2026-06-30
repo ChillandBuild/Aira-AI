@@ -189,9 +189,9 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
   );
 }
 
-export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null }) {
+export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads: Lead[] | null; initialTab?: typeof SEGMENTS[number] }) {
   const { role } = useAuthRole();
-  const [tab, setTab] = useState<typeof SEGMENTS[number]>("A");
+  const [tab, setTab] = useState<typeof SEGMENTS[number]>(initialTab);
   const [templates, setTemplates] = useState<Record<string, SegmentTemplate>>({});
   const [draft, setDraft] = useState("");
   const [savingTpl, setSavingTpl] = useState(false);
@@ -231,7 +231,7 @@ export function LeadsClient({ fallbackLeads }: { fallbackLeads: Lead[] | null })
       broadcast_id: (sourceFilter === "BROADCAST" && selectedBroadcastId) ? selectedBroadcastId : undefined,
     },
     true,
-    (tab === "A" && sourceFilter === "ALL") ? (fallbackLeads ?? undefined) : undefined
+    (tab === initialTab && sourceFilter === "ALL") ? (fallbackLeads ?? undefined) : undefined
   );
 
   const leads = leadsData ?? [];
