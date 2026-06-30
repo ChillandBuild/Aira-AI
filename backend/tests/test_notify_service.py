@@ -110,3 +110,76 @@ def test_notify_assigned_caller_of_reply_notifies_assigned_caller():
     assert len(captured) == 1
     assert captured[0]["user_id"] == "u-caller-1"
     assert captured[0]["type"] == "lead_replied"
+
+
+def test_notify_user_skips_push_when_disabled():
+    from app.services import notify
+    captured = []
+    db = _make_db(captured)
+    with patch.object(notify, "get_supabase", return_value=db), \
+         patch("app.services.notification_config.push_allowed", return_value=False), \
+         patch("app.services.web_push.send_user_push") as push:
+        notify.notify_user("t-1", "u-1", "callback_due", "Due", "Call now", db=db)
+    assert len(captured) == 1           # in-app row still written
+    push.assert_not_called()            # push suppressed
+
+
+def test_notify_user_sends_push_when_allowed():
+    from app.services import notify
+    captured = []
+    db = _make_db(captured)
+    with patch.object(notify, "get_supabase", return_value=db), \
+         patch("app.services.notification_config.push_allowed", return_value=True), \
+         patch("app.services.web_push.send_user_push") as push:
+        notify.notify_user("t-1", "u-1", "callback_due", "Due", "Call now", db=db)
+    push.assert_called_once()
+
+
+def test_enrolled_caller_ids_ignores_status():
+    from app.services import notify
+    db = MagicMock()
+    t = MagicMock()
+    t.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+        {"user_id": "u-active"}, {"user_id": "u-loggedout"}, {"user_id": None},
+    ]
+    db.table.return_value = t
+    assert set(notify._enrolled_caller_user_ids(db, "t-1")) == {"u-active", "u-loggedout"}
+
+
+def test_notify_callback_claimable_audience_admin_only():
+    from app.services import notify
+    sent = []
+    db = MagicMock()
+    with patch.object(notify, "_enrolled_caller_user_ids", return_value=["u-c1", "u-c2"]), \
+         patch.object(notify, "_owner_user_id", return_value="u-owner"), \
+         patch.object(notify, "notify_user", side_effect=lambda t, u, *a, **k: sent.append(u)):
+        notify.notify_callback_claimable("t-1", title="x", message="y", lead_id="l-1",
+                                         audience="admin_only", db=db)
+    assert sent == ["u-owner"]
+
+
+def test_notify_callback_claimable_excludes_owner():
+    from app.services import notify
+    sent = []
+    db = MagicMock()
+    with patch.object(notify, "_enrolled_caller_user_ids", return_value=["u-c1", "u-c2"]), \
+         patch.object(notify, "_owner_user_id", return_value="u-owner"), \
+         patch.object(notify, "notify_user", side_effect=lambda t, u, *a, **k: sent.append(u)):
+        notify.notify_callback_claimable("t-1", title="x", message="y", lead_id="l-1",
+                                         audience="telecallers_and_admin",
+                                         exclude_user_ids=["u-c1"], db=db)
+    assert set(sent) == {"u-c2", "u-owner"}
+
+
+def test_notify_callback_claimable_specific_callers_only():
+    from app.services import notify
+    sent = []
+    db = MagicMock()
+    with patch.object(notify, "_enrolled_caller_user_ids", return_value=["u-c1", "u-c2", "u-c3"]), \
+         patch.object(notify, "_caller_user_ids_by_ids", return_value=["u-c2", "u-c3"]) as by_ids, \
+         patch.object(notify, "_owner_user_id", return_value="u-owner"), \
+         patch.object(notify, "notify_user", side_effect=lambda t, u, *a, **k: sent.append(u)):
+        notify.notify_callback_claimable("t-1", title="x", message="y", lead_id="l-1",
+                                         audience="specific", caller_ids=["c2", "c3"], db=db)
+    assert set(sent) == {"u-c2", "u-c3"}   # only the chosen callers; no owner
+    by_ids.assert_called_once()

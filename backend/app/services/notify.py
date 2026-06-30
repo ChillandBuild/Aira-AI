@@ -43,18 +43,20 @@ def notify_user(
             "message": message,
         }).execute()
         try:
-            from app.services.web_push import send_user_push
-            push_body = re.sub(r"\s*\[(lead_id|handover_id):.*?\]", "", message)
-            send_user_push(
-                tenant_id,
-                user_id,
-                title=title,
-                body=push_body,
-                url=push_url or "/dashboard",
-                tag=f"{type}:{dedupe_lead_id}" if dedupe_lead_id else type,
-                data={"type": type, "lead_id": dedupe_lead_id},
-                db=db,
-            )
+            from app.services.notification_config import push_allowed
+            if push_allowed(tenant_id, type, db=db):
+                from app.services.web_push import send_user_push
+                push_body = re.sub(r"\s*\[(lead_id|handover_id):.*?\]", "", message)
+                send_user_push(
+                    tenant_id,
+                    user_id,
+                    title=title,
+                    body=push_body,
+                    url=push_url or "/dashboard",
+                    tag=f"{type}:{dedupe_lead_id}" if dedupe_lead_id else type,
+                    data={"type": type, "lead_id": dedupe_lead_id},
+                    db=db,
+                )
         except Exception as push_err:
             logger.warning("notify_user push failed (type=%s user=%s): %s", type, user_id, push_err)
     except Exception as e:
@@ -124,6 +126,81 @@ def _owner_user_id(db, tenant_id: str) -> str | None:
         .execute()
     )
     return (owner.data[0] if owner.data else {}).get("user_id")
+
+
+def _enrolled_caller_user_ids(db, tenant_id: str) -> list[str]:
+    """user_ids of every enrolled caller (active=True), regardless of online status.
+
+    Push reaches anyone with a push_subscriptions row (app installed), so we must
+    NOT filter on caller.status — a logged-out caller with the app still gets push.
+    """
+    callers = (
+        db.table("callers")
+        .select("user_id")
+        .eq("tenant_id", tenant_id)
+        .eq("active", True)
+        .execute()
+    )
+    return [c["user_id"] for c in (callers.data or []) if c.get("user_id")]
+
+
+def _caller_user_ids_by_ids(db, tenant_id: str, caller_ids: list[str]) -> list[str]:
+    """user_ids for a specific set of active caller IDs (for the 'specific' audience)."""
+    if not caller_ids:
+        return []
+    res = (
+        db.table("callers")
+        .select("user_id")
+        .eq("tenant_id", tenant_id)
+        .eq("active", True)
+        .in_("id", caller_ids)
+        .execute()
+    )
+    return [c["user_id"] for c in (res.data or []) if c.get("user_id")]
+
+
+def notify_callback_claimable(
+    tenant_id: str,
+    *,
+    title: str,
+    message: str,
+    lead_id: str,
+    audience: str = "telecallers_and_admin",
+    caller_ids: list[str] | None = None,
+    exclude_user_ids: list[str] | None = None,
+    db=None,
+) -> None:
+    """Broadcast a claimable callback (in-app + push) to the configured audience.
+
+    audience:
+      "telecallers_and_admin" → all enrolled callers + owner
+      "telecallers_only"      → all enrolled callers
+      "admin_only"            → owner
+      "specific"              → only the callers in caller_ids (owner NOT auto-added)
+    Reuses notify_user so each recipient gets bell + push (push still subject to
+    push_allowed). Dedupe across re-runs is handled by claimable_notified_at, so
+    we do NOT pass dedupe_lead_id. Best-effort: never raises.
+    """
+    db = db or get_supabase()
+    exclude = set(exclude_user_ids or [])
+    try:
+        recipients: set[str] = set()
+        if audience == "specific":
+            recipients |= set(_caller_user_ids_by_ids(db, tenant_id, caller_ids or []))
+        else:
+            if audience in ("telecallers_and_admin", "telecallers_only"):
+                recipients |= set(_enrolled_caller_user_ids(db, tenant_id))
+            if audience in ("telecallers_and_admin", "admin_only"):
+                owner = _owner_user_id(db, tenant_id)
+                if owner:
+                    recipients.add(owner)
+        for uid in recipients - exclude:
+            notify_user(
+                tenant_id, uid, "callback_claimable", title, message,
+                db=db, push_url="/dashboard/telecalling/scheduled",
+            )
+    except Exception as e:
+        logger.warning(f"notify_callback_claimable failed (lead={lead_id}): {e}")
 
 
 def notify_pool(
