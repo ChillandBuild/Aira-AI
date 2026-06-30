@@ -1,13 +1,35 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import get_tenant_id, require_owner
 from app.dependencies.auth import get_current_user
+from app.services.notification_config import (
+    get_notification_config,
+    save_notification_config,
+    _NOTIFICATION_CONFIG_DEFAULT,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+_VALID_AUDIENCE = {"telecallers_and_admin", "telecallers_only", "admin_only", "specific"}
+
+
+class QuietHours(BaseModel):
+    enabled: bool = False
+    start_hour: int = Field(22, ge=0, le=23)
+    end_hour: int = Field(8, ge=0, le=23)
+
+
+class NotificationConfigIn(BaseModel):
+    push_enabled: bool = True
+    events: dict[str, bool] = {}
+    claimable_threshold_minutes: int = Field(15, ge=1, le=120)
+    claimable_audience: str = "telecallers_and_admin"
+    claimable_caller_ids: list[str] = []
+    quiet_hours: QuietHours = QuietHours()
 
 @router.get("/")
 async def list_notifications(
@@ -97,3 +119,32 @@ async def list_pool_items(
         logger.warning(f"pool handovers fetch failed (transient?): {e}")
 
     return {"data": items}
+
+
+@router.get("/config")
+async def get_config(ctx: dict = Depends(require_owner)):
+    return get_notification_config(ctx["tenant_id"])
+
+
+@router.put("/config")
+async def update_config(payload: NotificationConfigIn, ctx: dict = Depends(require_owner)):
+    if payload.claimable_audience not in _VALID_AUDIENCE:
+        raise HTTPException(status_code=422, detail="Invalid claimable_audience")
+    # Whitelist event keys to the known set; ignore unknown keys.
+    allowed_events = set(_NOTIFICATION_CONFIG_DEFAULT["events"].keys())
+    events = {k: bool(v) for k, v in payload.events.items() if k in allowed_events}
+    # caller_ids only meaningful for the "specific" audience; store [] otherwise.
+    caller_ids = (
+        [str(c) for c in payload.claimable_caller_ids]
+        if payload.claimable_audience == "specific" else []
+    )
+    config = {
+        "push_enabled": payload.push_enabled,
+        "events": {**_NOTIFICATION_CONFIG_DEFAULT["events"], **events},
+        "claimable_threshold_minutes": payload.claimable_threshold_minutes,
+        "claimable_audience": payload.claimable_audience,
+        "claimable_caller_ids": caller_ids,
+        "quiet_hours": payload.quiet_hours.model_dump(),
+    }
+    save_notification_config(ctx["tenant_id"], config)
+    return config
