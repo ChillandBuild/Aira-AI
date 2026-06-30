@@ -8,6 +8,7 @@
 - **QA audit — 20 fixes parked on branches** (`qa/critical` 3, `qa/high` 9, `qa/medium` 4, `qa/low` 2). The full 58-finding audit (2026-06-22) was reverted from main after a fix broke lead creation (the `opt_in_source` CHECK didn't allow the added `"whatsapp"` value); 12 safe fixes + the env-var leak fix were re-applied. Safety tag `pre-revert-backup` preserves the old HEAD. **Merge one branch at a time, test after each** ([[feedback_qa_revert]]).
 - **Number spam / blocking — open product problem** (boss-raised 2026-04-21, unsolved). WhatsApp API numbers get Meta-blocked after ~10–20 reports; manual caller numbers get Truecaller/carrier spam-flagged. Naive "swap dead number" isn't seamless. Treat number-health monitoring + multi-number pooling + branded caller-ID (Truecaller for Business, Exotel/Knowlarity) as a first-class subsystem, not an afterthought — it gates the core lead-gen value prop.
 - **Shared UI primitives** — no Button/Input/Badge/Tabs components yet; ~50+ buttons / ~20 inputs / ~8 tab groups are inline. Next planned design step.
+- **Callback-notifications deferred polish** (non-blocking, from 2026-07-01 final review): lazy-load `api.callers.list()` only when `claimable_audience==='specific'` in `NotificationConfigPanel`; remove dead `cfg.events[key] ?? true` fallback; `push_allowed` reads `notification_config` on every `notify_user` (add a short TTL cache if it gets hot); add a tenant-wide "X of Y team members have push enabled" indicator (per-user `push/status` exists, needs a tenant rollup endpoint); push-tag collapse for simultaneous same-type pushes is a known v1 limitation.
 - **Retire `lead_scorer.py`** (legacy two-pass scorer) — still called only on the AI-disabled branch; route that branch through `compute_score` instead. Low priority.
 - **Render free → Starter ($7/mo)** — fixes cold-start tail and makes in-process APScheduler reliable (free tier sleeps after 15min → jobs skip). User action.
 - **`feature/scoring-booking-refactor` branch** — unmerged; contains booking state-machine removal + `[COLLECT_DONE]` pattern (migration 072 already applied). Dynamic pricing is already on main; the state-machine removal is NOT.
@@ -15,12 +16,14 @@
 ---
 
 ## Recently Completed Features
+- **Callback notifications + configurable push (Migration 122, 2026-07-01)**: claimable-only model (auto-reassignment removed), due/claimable/claim pushes, tenant `notification_config` (per-event push toggles, threshold, audience incl. specific callers, quiet hours), admin "Notifications" settings tab. Merged to `main`; migration applied to live Supabase + verified. Plan: `docs/superpowers/plans/2026-06-30-callback-notifications.md`.
 - **Security & Multi-Tenancy**: RLS launch blocker (Migration 114) + performance checks (Migration 115).
 - **Shift Time Overrides**: Multi-tenant shift hour schedules per caller (Migration 112) + ShiftTimeline ranges.
 - **Call Scripts Cockpit integration**: Segment-based routing, branch outcomes, and scripts cockpit panel (Migration 111).
 - **Contact Recycling Engine**: Automatic APScheduler recycling job to re-queue unreachable voice leads (Migration 111).
 
 ## Tooling Follow-ups
+- **Workspace root MUST be `Aira.AI\Aira-Ai` (inner), not the outer `Aira.AI`**: the git repo, `.claude/commands`, `.agents/`, `Makefile`, and all code live in the inner `Aira-Ai`. Opening Claude Code / the IDE at the outer `Aira.AI` makes `/aira-status` etc. invisible (Claude scans `<cwd>/.claude/commands`, which doesn't exist at the outer level) and breaks the commands' relative paths. The outer folder has its own separate (near-empty) `.git`/`.agents` — ignore it. Always open at the inner folder.
 - **Local wiki refresh toolchain on Windows**: `graphify-out/` is now ignored/local-only, but this machine currently lacks `make` and `graphify` on PATH, so `/aira-wiki` cannot rebuild the wiki after a fresh clone/pull. Install/expose graphify + make, or add a Windows-friendly script target.
 
 ## Session Follow-ups

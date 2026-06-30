@@ -236,3 +236,14 @@
 
 - **Decision**: Modified `CallerView.tsx` to automatically map a push notification's `lead_id` parameter to its exact sub-tab state (`queueSubTab`).
 - **Rationale**: Clicking a push notification loaded `/dashboard/telecalling?lead_id=...` which selected the lead but did not switch the active background tab, meaning returning from the lead detail panel would leave the user in the wrong queue tab. The app now tracks `lastProcessedLeadId` in a React `useRef` to perform a one-time tab switch to "new", "callback", "in_progress", or "closed" whenever a new `lead_id` is loaded via URL.
+
+---
+
+## 2026-07-01 - Callback notifications (claimable-only) + configurable push (Migration 122)
+
+- **Decision**: Replaced the callback **auto-reassignment** pipeline with a **claimable-only** model. New 1-min scheduler job `callback-notifications` (`services/callback_notifications.py`) does two passes: (1) DUE — pushes the assigned caller a "callback due now" reminder at the scheduled slot; (2) CLAIMABLE — after a configurable threshold (default 15 min, **no shift check** — out-of-shift owners included) broadcasts a "claimable" push to the configured audience. Deleted `process_callback_reassignments` + the `callback-reassignment` job (renamed/replaced in `main.py`). The claim path (`POST /leads/{id}/takeover`) now also pushes the previous owner (`callback_taken_over`).
+- **Rationale**: User wanted a single manual-pull model — an overdue callback opens to everyone rather than being silently auto-moved. See [subsystem-notes.md](../context/subsystem-notes.md) → Callback notifications.
+- **Decision**: Added tenant `notification_config` (`app_settings` key) gating push at one chokepoint — `notify_user` skips `send_user_push` per master switch / per-event toggle / quiet hours, but ALWAYS writes the in-app `app_notifications` row. `push_allowed` is **fail-open** (config read error → push allowed). Owner-only `GET/PUT /api/v1/notifications/config`; admin "Notifications" settings tab (per-event toggles, claimable threshold, claimable audience incl. a "specific" caller picker, quiet hours).
+- **Rationale**: Admins need org-wide control of which pushes fire and to whom, without ever losing the in-app record.
+- **Migration 122_callback_notification_guards**: `follow_up_jobs.due_notified_at`, `claimable_notified_at` (timestamptz, once-only fire guards; reset by `reschedule_callback`) + index `idx_follow_up_jobs_callback_scan(tenant_id, cadence, status, scheduled_for)`. **Applied to live Supabase (`ayftynkgmfkaqmmnlmoc`) 2026-07-01 and verified.** Built via subagent-driven SDD; plan at `docs/superpowers/plans/2026-06-30-callback-notifications.md`.
+- **Also (2026-07-01)**: Segments page (`/dashboard/leads`) now lands on the first **non-empty** segment tab instead of always "Hot/A" — an admin with no telecaller (leads sitting in Cold) no longer sees an empty default tab. Segmentation was never telecaller-gated; only the default tab was misleading.
