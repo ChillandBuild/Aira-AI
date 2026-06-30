@@ -1236,13 +1236,16 @@ async def takeover_lead(lead_id: UUID, ctx: dict = Depends(get_tenant_and_role))
     )
 
     if prev_caller_user_id:
-        db.table("app_notifications").insert({
-            "tenant_id": tenant_id,
-            "user_id": prev_caller_user_id,
-            "type": "callback_taken_over",
-            "title": "Callback Claimed",
-            "message": f"{me_name} claimed your callback for '{lead_data.get('name') or 'Unknown'}'.",
-        }).execute()
+        from app.services.notify import notify_user
+        notify_user(
+            tenant_id,
+            prev_caller_user_id,
+            "callback_taken_over",
+            "Callback claimed",
+            f"{me_name} claimed your callback for '{lead_data.get('name') or 'Unknown'}'.",
+            db=db,
+            push_url="/dashboard/telecalling/scheduled",
+        )
 
     try:
         from app.services.notify import clear_pool_notifications_for_lead
