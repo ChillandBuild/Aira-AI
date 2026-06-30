@@ -222,3 +222,17 @@
 
 - **Decision**: Generated VAPID key pair via `npx web-push generate-vapid-keys` and added `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` to `backend/.env`. These must also be manually added to Render environment variables for production push notifications.
 - **Rationale**: The Python backend's `pywebpush` integration reads these from environment variables. `.env` is git-ignored, so production requires separate Render Dashboard configuration.
+
+---
+
+## 2026-06-30 - Fix mobile modal Z-index overlap
+
+- **Decision**: Increased the `z-index` of all `CockpitModals` from `z-[60]` and `z-50` to `z-[70]`.
+- **Rationale**: The mobile bottom navigation bar (`MobileDashboardNav.tsx`) has a `z-[60]` setting and appears later in the DOM structure. When the wrap-up modal was displayed on mobile, the navigation bar was overlapping the bottom of the modal, hiding the submit button. `z-[70]` forces the modal to strictly render on top.
+
+---
+
+## 2026-06-30 - Mobile deep-linking to specific tabs
+
+- **Decision**: Modified `CallerView.tsx` to automatically map a push notification's `lead_id` parameter to its exact sub-tab state (`queueSubTab`).
+- **Rationale**: Clicking a push notification loaded `/dashboard/telecalling?lead_id=...` which selected the lead but did not switch the active background tab, meaning returning from the lead detail panel would leave the user in the wrong queue tab. The app now tracks `lastProcessedLeadId` in a React `useRef` to perform a one-time tab switch to "new", "callback", "in_progress", or "closed" whenever a new `lead_id` is loaded via URL.
