@@ -12,7 +12,7 @@ When this skill is invoked, do the following in order. Report each step as a one
 ## Step 2 — Scheduler health
 Fetch the operator scheduler-health view (`GET /api/v1/operator/scheduler-health`) or query `scheduler_runs`.
 Verify all 10 jobs have run within their interval + grace:
-- 1-min jobs: `scheduled-broadcasts`, `reengagement-rules`, `callback-reassignment`
+- 1-min jobs: `scheduled-broadcasts`, `reengagement-rules`, `callback-notifications`
 - `assignment-sweep` (2m), `broadcast-retries` (5m), `recycle-contacts` (30m)
 - `engagement-decay` (6h), `token-health-check` (24h), `number-quality-sync` (24h)
 - `caller coaching digest` (daily 13:00)
