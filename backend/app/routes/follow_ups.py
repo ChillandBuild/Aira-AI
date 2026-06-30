@@ -378,7 +378,9 @@ async def reschedule_callback(
         db.table("follow_up_jobs")
         .update({
             "scheduled_for": payload.scheduled_for,
-            "status": "pending"
+            "status": "pending",
+            "due_notified_at": None,
+            "claimable_notified_at": None,
         })
         .eq("id", job_id)
         .eq("tenant_id", tenant_id)
