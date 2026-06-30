@@ -86,14 +86,21 @@ def push_allowed(tenant_id: str, event_type: str, *, db=None) -> bool:
     Gates on master switch, per-event toggle (unknown types default allowed),
     and quiet hours (IST). In-app notifications are NEVER gated by this.
     """
-    cfg = get_notification_config(tenant_id, db=db)
-    if not cfg.get("push_enabled"):
-        return False
-    if not cfg.get("events", {}).get(event_type, True):
-        return False
-    quiet = cfg.get("quiet_hours", {})
-    if quiet.get("enabled"):
-        ist_hour = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).hour
-        if _in_quiet_hours(quiet, ist_hour):
+    # Fail open: if the config can't be read/evaluated, allow the push rather
+    # than silently dropping it — push is best-effort and the in-app row is
+    # already written regardless.
+    try:
+        cfg = get_notification_config(tenant_id, db=db)
+        if not cfg.get("push_enabled"):
             return False
-    return True
+        if not cfg.get("events", {}).get(event_type, True):
+            return False
+        quiet = cfg.get("quiet_hours", {})
+        if quiet.get("enabled"):
+            ist_hour = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).hour
+            if _in_quiet_hours(quiet, ist_hour):
+                return False
+        return True
+    except Exception as e:
+        logger.warning(f"push_allowed check failed for {tenant_id}/{event_type}: {e}")
+        return True
