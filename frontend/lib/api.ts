@@ -710,6 +710,15 @@ export interface PoolItem {
   created_at: string;
 }
 
+export type NotificationConfig = {
+  push_enabled: boolean;
+  events: Record<string, boolean>;
+  claimable_threshold_minutes: number;
+  claimable_audience: "telecallers_and_admin" | "telecallers_only" | "admin_only" | "specific";
+  claimable_caller_ids: string[];
+  quiet_hours: { enabled: boolean; start_hour: number; end_hour: number };
+};
+
 export interface TimelineEvent {
   type: "status" | "call";
   id: string;
@@ -1480,6 +1489,12 @@ export const api = {
     markAllRead: () =>
       apiFetch<{ success: boolean }>("/api/v1/notifications/read", {
         method: "PATCH",
+      }),
+    getConfig: () => apiFetch<NotificationConfig>("/api/v1/notifications/config"),
+    saveConfig: (config: NotificationConfig) =>
+      apiFetch<NotificationConfig>("/api/v1/notifications/config", {
+        method: "PUT",
+        body: JSON.stringify(config),
       }),
   },
   push: {
