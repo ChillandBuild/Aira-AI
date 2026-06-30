@@ -10,6 +10,7 @@ import ChangePasswordCard from "./ChangePasswordCard";
 import ConnectChannelsPanel from "./ConnectChannelsPanel";
 import { TelecallingConfigPanel } from "./TelecallingConfigPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
+import { NotificationConfigPanel } from "./NotificationConfigPanel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -429,6 +430,17 @@ export default function SettingsPage() {
           )}
         >
           Automations
+        </button>
+        <button
+          onClick={() => router.push(`${pathname}?tab=notifications`)}
+          className={cn(
+            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
+            activeTab === "notifications"
+              ? "bg-white text-primary shadow-sm"
+              : "text-[#78716c] hover:text-[#292524]"
+          )}
+        >
+          Notifications
         </button>
       </div>
       </div>
@@ -880,6 +892,13 @@ export default function SettingsPage() {
               <InboxConfigPanel />
 
               <TelecallingConfigPanel />
+            </div>
+          )}
+
+          {/* TAB 6: Notifications */}
+          {activeTab === "notifications" && (
+            <div className="space-y-6">
+              <NotificationConfigPanel />
             </div>
           )}
         </div>
