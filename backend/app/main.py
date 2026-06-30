@@ -33,7 +33,7 @@ from datetime import datetime, timezone, timedelta
 _startup_time = datetime.now(timezone.utc)
 _heartbeats = {
     "scheduled-broadcasts": None,
-    "callback-reassignment": None,
+    "callback-notifications": None,
     "number-quality-sync": None,
     "daily-digest": None,
 }
@@ -216,16 +216,16 @@ async def _recycle_contacts() -> None:
         logger.error(f"Contact recycler error: {e}")
 
 
-async def _process_callback_reassignments() -> None:
-    """APScheduler job: reassign overdue callbacks from away callers."""
-    _heartbeats["callback-reassignment"] = datetime.now(timezone.utc)
+async def _process_callback_notifications() -> None:
+    """APScheduler job: callback 'due' reminders and 'claimable' broadcasts."""
+    _heartbeats["callback-notifications"] = datetime.now(timezone.utc)
     try:
-        from app.services.assignment import process_callback_reassignments
-        count = process_callback_reassignments()
-        if count:
-            logger.info(f"Callback reassignment: reassigned {count} lead(s)")
+        from app.services.callback_notifications import process_callback_notifications
+        result = process_callback_notifications()
+        if result.get("due") or result.get("claimable"):
+            logger.info(f"Callback notifications: {result['due']} due, {result['claimable']} claimable")
     except Exception as e:
-        logger.error(f"Callback reassignment error: {e}")
+        logger.error(f"Callback notifications error: {e}")
 
 
 async def _sync_all_number_quality() -> None:
@@ -361,10 +361,10 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     _scheduler.add_job(
-        _process_callback_reassignments,
+        _process_callback_notifications,
         trigger="interval",
         minutes=1,
-        id="callback-reassignment",
+        id="callback-notifications",
         replace_existing=True,
     )
     _scheduler.add_job(
@@ -388,7 +388,7 @@ async def lifespan(app: FastAPI):
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-reassign(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC)")
+    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC)")
 
     yield
 
