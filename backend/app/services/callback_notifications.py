@@ -53,11 +53,10 @@ def process_callback_notifications() -> dict:
             audience = ncfg.get("claimable_audience", "telecallers_and_admin")
             audience_caller_ids = ncfg.get("claimable_caller_ids") or []
             claimable_cutoff_iso = (now - timedelta(minutes=threshold)).isoformat()
-            jobs_table = db.table("follow_up_jobs")
 
             # ── DUE PASS ──
             due_jobs = (
-                jobs_table
+                db.table("follow_up_jobs")
                 .select("id,lead_id")
                 .eq("tenant_id", tid).eq("cadence", "callback").eq("status", "pending")
                 .lte("scheduled_for", now_iso).is_("due_notified_at", "null")
@@ -77,7 +76,7 @@ def process_callback_notifications() -> dict:
                             f"Your scheduled callback with '{ld.get('name') or 'your lead'}' is due now.",
                             db=db, push_url="/dashboard/telecalling/scheduled",
                         )
-                    jobs_table.update({"due_notified_at": now_iso}) \
+                    db.table("follow_up_jobs").update({"due_notified_at": now_iso}) \
                         .eq("id", job["id"]).eq("tenant_id", tid).execute()
                     due_count += 1
                 except Exception as e:
@@ -85,7 +84,7 @@ def process_callback_notifications() -> dict:
 
             # ── CLAIMABLE PASS (no shift check) ──
             claimable_jobs = (
-                jobs_table
+                db.table("follow_up_jobs")
                 .select("id,lead_id")
                 .eq("tenant_id", tid).eq("cadence", "callback").eq("status", "pending")
                 .lte("scheduled_for", claimable_cutoff_iso).is_("claimable_notified_at", "null")
@@ -113,7 +112,7 @@ def process_callback_notifications() -> dict:
                         exclude_user_ids=exclude,
                         db=db,
                     )
-                    jobs_table.update({"claimable_notified_at": now_iso}) \
+                    db.table("follow_up_jobs").update({"claimable_notified_at": now_iso}) \
                         .eq("id", job["id"]).eq("tenant_id", tid).execute()
                     claimable_count += 1
                 except Exception as e:

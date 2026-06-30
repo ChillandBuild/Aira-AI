@@ -2,7 +2,13 @@ from unittest.mock import MagicMock, patch
 
 
 def _build_db(due_jobs, claimable_jobs, leads, callers, updates):
-    def table_selector(name):
+    # Memoize one mock per table name: the real supabase client returns fresh
+    # builder objects per .table() call but a stable session/path per table, so
+    # the two separate db.table("follow_up_jobs") selects must share one
+    # side_effect list (due first, then claimable).
+    cache: dict = {}
+
+    def make_table(name):
         t = MagicMock()
         if name == "app_settings":
             t.select.return_value.eq.return_value.execute.return_value.data = [{"tenant_id": "t-1"}]
@@ -35,6 +41,11 @@ def _build_db(due_jobs, claimable_jobs, leads, callers, updates):
                 return inner
             t.select.return_value.eq.side_effect = _eq
         return t
+
+    def table_selector(name):
+        if name not in cache:
+            cache[name] = make_table(name)
+        return cache[name]
 
     db = MagicMock(); db.table.side_effect = table_selector
     return db
