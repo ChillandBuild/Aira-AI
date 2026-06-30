@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -536,6 +537,16 @@ async def delete_caller(caller_id: UUID, tenant_id: str = Depends(get_owner_tena
     db = get_supabase()
     db.table("callers").update({"active": False}).eq("id", str(caller_id)).eq("tenant_id", tenant_id).execute()
     return {"deleted": True}
+
+
+@router.post("/{caller_id}/sync-token")
+async def generate_sync_token(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
+    db = get_supabase()
+    token = secrets.token_urlsafe(32)
+    result = db.table("callers").update({"sync_token": token}).eq("id", str(caller_id)).eq("tenant_id", tenant_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Caller not found")
+    return {"sync_token": token}
 
 
 @router.get("/{caller_id}/logs")
