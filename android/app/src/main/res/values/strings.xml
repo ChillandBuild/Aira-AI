@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Aira Sync</string>
+    <string name="server_url_hint">Server URL</string>
+    <string name="sync_token_hint">Sync Token</string>
+    <string name="save_connect">Save &amp; Connect</string>
+    <string name="sync_now">Sync Now</string>
+</resources>

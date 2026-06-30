@@ -86,6 +86,18 @@ class OutcomeUpdate(BaseModel):
     duration_seconds: int | None = Field(default=None, ge=0, le=24 * 60 * 60)
 
 
+class SimCallEntry(BaseModel):
+    phone_number: str            # CallLog.Calls.NUMBER
+    call_type: int               # CallLog.Calls.TYPE — 1=incoming, 2=outgoing, 3=missed
+    timestamp: int               # CallLog.Calls.DATE — epoch milliseconds (phone clock)
+    duration: int                # CallLog.Calls.DURATION — seconds, 0 if not answered
+    entry_id: str                # CallLog.Calls._ID — dedup key, stored in call_logs.call_sid
+
+
+class SimCdrPayload(BaseModel):
+    calls: list[SimCallEntry] = Field(default_factory=list)
+
+
 @router.post("/send-to-mobile")
 async def send_lead_to_mobile(payload: SendToMobilePayload, ctx: dict = Depends(get_tenant_and_role)):
     tenant_id = ctx["tenant_id"]
@@ -492,6 +504,248 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
                 logger.warning(f"Failed to verify milestone target completed: {milestone_err}")
 
     return {"ok": True}
+
+
+# ── SIM-based Call Tracking (Android sync app) ────────────────────────
+# The Aira Sync APK reads the phone's native call log and POSTs new entries
+# here in batches, authenticated by a per-caller sync_token. No cloud
+# telephony involved — calls are placed on the caller's own SIM.
+
+def _normalize_sim_phone(phone: str) -> str:
+    """Normalize an Android call-log number for lead matching.
+
+    Strips spaces, dashes, parens and a leading '+', then drops a leading
+    '91' India country code when the remaining number is 12 digits, so
+    '+91 98765 43210', '9198765 43210' and '9876543210' all match the same
+    lead. Mirrors telecmi_client._normalize_phone's intent.
+    """
+    digits = re.sub(r"[^\d]", "", phone or "")
+    if len(digits) == 12 and digits.startswith("91"):
+        digits = digits[2:]
+    return digits
+
+
+def _sim_status_from_type(call_type: int, duration: int) -> tuple[str, str | None, str | None]:
+    """Map an Android CallLog type + duration to (status, disposition, outcome)."""
+    # 2 = outgoing, 1 = incoming, 3 = missed (rejected/blocked/voicemail → failed)
+    if call_type in (1, 2) and duration > 0:
+        return "completed", "answered", None
+    if call_type == 2 and duration == 0:
+        return "no_answer", "no_answer", "no_answer"
+    if call_type == 3:
+        return "no_answer", "no_answer", "no_answer"
+    return "failed", None, None
+
+
+def _resolve_sim_caller(request: Request) -> dict:
+    """Authenticate a SIM sync request via the X-Sync-Token header.
+
+    Returns the caller row {id, tenant_id} or raises 401. The token is a
+    per-caller secret minted by POST /callers/{id}/sync-token.
+    """
+    token = request.headers.get("X-Sync-Token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing sync token")
+    db = get_supabase()
+    caller = (
+        db.table("callers")
+        .select("id,tenant_id,active")
+        .eq("sync_token", token)
+        .maybe_single()
+        .execute()
+    )
+    if not caller or not caller.data or not caller.data.get("active"):
+        raise HTTPException(status_code=401, detail="Invalid sync token")
+    return caller.data
+
+
+@public_router.post("/sim-cdr")
+async def sim_cdr(payload: SimCdrPayload, request: Request, background_tasks: BackgroundTasks):
+    """Ingest a batch of native call-log entries from the Aira Sync APK.
+
+    Idempotent: each entry is deduped on (caller_id, call_sid=entry_id) so
+    re-syncs and WorkManager retries never create duplicate call_logs.
+    """
+    caller = _resolve_sim_caller(request)
+    caller_id = caller["id"]
+    tenant_id = caller["tenant_id"]
+    db = get_supabase()
+
+    results: list[dict] = []
+    for entry in payload.calls:
+        try:
+            results.append(_ingest_sim_call(db, caller_id, tenant_id, entry))
+        except Exception as e:
+            logger.warning(f"sim-cdr: failed to ingest entry {entry.entry_id}: {e}")
+            results.append({"entry_id": entry.entry_id, "error": "ingest_failed"})
+
+    synced = sum(1 for r in results if r.get("call_log_id"))
+    return {"synced": synced, "received": len(payload.calls), "results": results}
+
+
+@public_router.get("/sim-lead-numbers")
+async def sim_lead_numbers(request: Request):
+    """Return the caller's assigned-lead phone numbers for on-device filtering.
+
+    The APK fetches this set and only uploads call-log entries whose number is
+    in it — so personal calls never leave the phone. Numbers are normalized the
+    same way the ingest path normalizes them, so the device can compare directly.
+    """
+    caller = _resolve_sim_caller(request)
+    caller_id = caller["id"]
+    tenant_id = caller["tenant_id"]
+    db = get_supabase()
+
+    rows = (
+        db.table("leads")
+        .select("phone")
+        .eq("tenant_id", tenant_id)
+        .eq("assigned_to", caller_id)
+        .is_("deleted_at", "null")
+        .not_.is_("phone", "null")
+        .execute()
+    )
+    numbers = sorted({
+        n for r in (rows.data or [])
+        if (n := _normalize_sim_phone(r.get("phone") or ""))
+    })
+    return {"numbers": numbers, "count": len(numbers)}
+
+
+# How far back to look for a PWA-created "sim_started" row to enrich. The PWA
+# writes the row at dial time, moments before the call — a 12h window safely
+# covers a shift without matching stale rows from previous days.
+_SIM_ENRICH_WINDOW_HOURS = 12
+
+
+def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") -> dict:
+    """Record one native call-log entry, enriching a PWA-created row if present.
+
+    The PWA (the reliable baseline) creates a `sim_started` row when the caller
+    taps "Call". This APK path is best-effort: it COMPLETES that row with the
+    real duration/disposition (and later, the recording) instead of inserting a
+    duplicate. If no pending row exists — e.g. the caller dialled straight from
+    contacts, or the PWA call wasn't logged — it creates a fresh row so the call
+    is still tracked.
+    """
+    # 1. Idempotency — already synced this exact call-log entry? Return as-is.
+    existing = (
+        db.table("call_logs")
+        .select("id,lead_id")
+        .eq("caller_id", caller_id)
+        .eq("call_sid", entry.entry_id)
+        .eq("provider", "sim_basic")
+        .maybe_single()
+        .execute()
+    )
+    if existing and existing.data:
+        return {
+            "entry_id": entry.entry_id,
+            "call_log_id": existing.data["id"],
+            "lead_id": existing.data.get("lead_id"),
+            "deduped": True,
+        }
+
+    # 2. Resolve / auto-create the lead by normalized phone.
+    dialed = _normalize_sim_phone(entry.phone_number)
+    lead_id = None
+    lead_name = None
+    is_new_lead = False
+    if dialed:
+        match = (
+            db.table("leads")
+            .select("id,name")
+            .eq("phone", dialed)
+            .eq("tenant_id", tenant_id)
+            .maybe_single()
+            .execute()
+        )
+        if match and match.data:
+            lead_id = match.data["id"]
+            lead_name = match.data.get("name")
+        else:
+            new_lead = db.table("leads").insert({
+                "phone": dialed, "source": "manual", "score": 5,
+                "segment": "C", "tenant_id": tenant_id,
+                "call_status": "in_progress",
+            }).execute()
+            if new_lead.data:
+                lead_id = new_lead.data[0]["id"]
+                is_new_lead = True
+
+    status, disposition, outcome = _sim_status_from_type(entry.call_type, entry.duration)
+    call_dt = datetime.fromtimestamp(entry.timestamp / 1000, tz=timezone.utc)
+
+    # 3. Reconcile: find a recent PWA-created row for this caller+lead that's
+    #    still awaiting completion (sim_started/initiated, no call_sid yet).
+    pending_id = None
+    pending_outcome = None
+    if lead_id:
+        window_start = (call_dt - timedelta(hours=_SIM_ENRICH_WINDOW_HOURS)).isoformat()
+        pending = (
+            db.table("call_logs")
+            .select("id,outcome")
+            .eq("caller_id", caller_id)
+            .eq("lead_id", lead_id)
+            .eq("provider", "sim_basic")
+            .is_("call_sid", "null")
+            .in_("status", ["sim_started", "initiated"])
+            .gte("created_at", window_start)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if pending and pending.data:
+            pending_id = pending.data[0]["id"]
+            pending_outcome = pending.data[0].get("outcome")
+
+    # 4a. Enrich the existing PWA row, or 4b. create a fresh one.
+    updates: dict = {
+        "call_sid": entry.entry_id,
+        "status": status,
+        "disposition": disposition,
+        "duration_seconds": entry.duration,
+    }
+    # Only stamp the APK-derived outcome when the caller hasn't already tagged
+    # one via the wrap-up form — never clobber a human's outcome.
+    apply_outcome = outcome if (outcome and not pending_outcome) else None
+    if apply_outcome:
+        updates["outcome"] = apply_outcome
+
+    if pending_id:
+        db.table("call_logs").update(updates).eq("id", pending_id).execute()
+        call_log_id = pending_id
+        action = "enriched"
+    else:
+        row = {
+            "lead_id": lead_id,
+            "caller_id": caller_id,
+            "tenant_id": tenant_id,
+            "provider": "sim_basic",
+            "feedback_source": "automatic",
+            "created_at": call_dt.isoformat(),
+            **updates,
+        }
+        inserted = db.table("call_logs").insert(row).execute()
+        call_log_id = inserted.data[0]["id"] if inserted.data else None
+        action = "created"
+
+    # 5. Score terminal statuses — but not if a manual outcome already owns the
+    #    row (the wrap-up flow scores those). Refresh the caller's rolling score.
+    if call_log_id and status in ("completed", "no_answer") and not pending_outcome:
+        score = score_from_outcome(apply_outcome, entry.duration)
+        db.table("call_logs").update({"score": score}).eq("id", call_log_id).execute()
+        recompute_caller_score(caller_id, db)
+
+    return {
+        "entry_id": entry.entry_id,
+        "call_log_id": call_log_id,
+        "lead_id": lead_id,
+        "lead_name": lead_name,
+        "is_new_lead": is_new_lead,
+        "action": action,
+        "deduped": False,
+    }
 
 
 # ── TeleCMI Live Events Webhook ───────────────────────────────────────
