@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Phone, RefreshCw, Download, Inbox, User, Sparkles, Search, Clock } from "lucide-react";
 import { api, Caller, Lead } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
@@ -50,10 +50,27 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
 
   const cockpit = useCallingCockpit({ callerId, blockingWrapups: true, refreshQueue: loadQueue });
 
+  const lastProcessedLeadId = useRef<string | null>(null);
+
   useEffect(() => {
     const leadId = searchParams.get("lead_id");
-    if (leadId) cockpit.setSelectedLeadId(leadId);
-  }, [searchParams, cockpit.setSelectedLeadId]);
+    if (leadId && leadId !== lastProcessedLeadId.current) {
+      cockpit.setSelectedLeadId(leadId);
+      const lead = myLeads.find((l) => l.id === leadId);
+      if (lead) {
+        lastProcessedLeadId.current = leadId;
+        if (!lead.call_status || lead.call_status === "new") {
+          setQueueSubTab("new");
+        } else if (lead.call_status === "callback") {
+          setQueueSubTab("callback");
+        } else if (lead.call_status === "in_progress") {
+          setQueueSubTab("in_progress");
+        } else if (["converted", "not_interested", "dnc", "unreachable"].includes(lead.call_status)) {
+          setQueueSubTab("closed");
+        }
+      }
+    }
+  }, [searchParams, cockpit.setSelectedLeadId, myLeads]);
 
   async function handleDownloadCSV() {
     setExporting(true);
