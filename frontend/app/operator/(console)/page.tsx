@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Activity, Clock, Cpu, HardDrive } from "lucide-react";
+import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, Activity, Clock, Cpu, HardDrive } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { OnboardingWizard } from "./components/onboarding-wizard";
+import { ActionConfirm } from "./components/action-confirm";
 
 type Client = {
   id: string;
@@ -130,6 +131,10 @@ export default function OperatorPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tempPw, setTempPw] = useState<{ name: string; pw: string } | null>(null);
+  const [pwRevealed, setPwRevealed] = useState(false);
+  const [pwCopied, setPwCopied] = useState(false);
+  const [resetTarget, setResetTarget] = useState<Client | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
@@ -195,17 +200,33 @@ export default function OperatorPage() {
     }
   }
 
-  async function handleResetPassword(client: Client) {
-    if (!confirm(`Reset password for ${client.name}?`)) return;
+  function handleResetPassword(client: Client) {
+    setResetTarget(client);
+  }
+
+  async function confirmResetPassword() {
+    if (!resetTarget) return;
+    setResetLoading(true);
     try {
       const res = await apiFetch<{ temp_password: string }>(
-        `/api/v1/operator/clients/${client.id}/reset-password`,
+        `/api/v1/operator/clients/${resetTarget.id}/reset-password`,
         { method: "POST" }
       );
-      setTempPw({ name: client.name, pw: res.temp_password });
+      setPwRevealed(false);
+      setPwCopied(false);
+      setTempPw({ name: resetTarget.name, pw: res.temp_password });
+      setResetTarget(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to reset password");
+    } finally {
+      setResetLoading(false);
     }
+  }
+
+  function copyPw(pw: string) {
+    navigator.clipboard.writeText(pw);
+    setPwCopied(true);
+    setTimeout(() => setPwCopied(false), 2000);
   }
 
   function copyId(id: string) {
@@ -291,12 +312,43 @@ export default function OperatorPage() {
       {tempPw && (
         <div className="mb-4 p-4 bg-green-50 border border-success/20 rounded-lg">
           <p className="text-sm font-medium text-success">Password reset for {tempPw.name}</p>
-          <p className="text-sm text-success mt-1">
-            Temp password: <code className="font-mono bg-green-100 px-2 py-0.5 rounded">{tempPw.pw}</code>
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-success">Temp password:</p>
+            <code className="font-mono bg-green-100 px-2 py-0.5 rounded text-success tracking-wider">
+              {pwRevealed ? tempPw.pw : "•".repeat(tempPw.pw.length)}
+            </code>
+            <button
+              onClick={() => setPwRevealed(v => !v)}
+              className="p-1 rounded hover:bg-green-100 text-success transition-colors"
+              title={pwRevealed ? "Hide password" : "Reveal password"}
+              aria-label={pwRevealed ? "Hide password" : "Reveal password"}
+            >
+              {pwRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+            </button>
+            <button
+              onClick={() => copyPw(tempPw.pw)}
+              className="p-1 rounded hover:bg-green-100 text-success transition-colors"
+              title="Copy password"
+              aria-label="Copy password"
+            >
+              {pwCopied ? <Check size={13} /> : <Copy size={13} />}
+            </button>
+          </div>
           <button onClick={() => setTempPw(null)} className="text-xs text-success mt-2 underline">Dismiss</button>
         </div>
       )}
+
+      {/* Reset password confirmation */}
+      <ActionConfirm
+        open={resetTarget !== null}
+        onClose={() => setResetTarget(null)}
+        onConfirm={confirmResetPassword}
+        title="Reset password?"
+        description={`This will generate a new temporary password for ${resetTarget?.name ?? "this client"}. Their current password will stop working immediately.`}
+        confirmText="Reset"
+        tone="primary"
+        loading={resetLoading}
+      />
 
       {/* Create modal */}
       {showCreate && (

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { ActionConfirm } from "../components/action-confirm";
 
 interface JobHealth {
   id: string;
@@ -33,6 +34,14 @@ const JOB_LABELS: Record<string, { name: string; every: string }> = {
   "daily-digest": { name: "Daily Caller Digest", every: "18:30 IST" },
 };
 
+const CRITICAL_JOB_IDS = new Set([
+  "scheduled-broadcasts",
+  "broadcast-retries",
+  "reengagement-rules",
+  "assignment-sweep",
+  "callback-reassignment",
+]);
+
 function relTime(iso: string | null): string {
   if (!iso) return "—";
   const diff = Date.now() - new Date(iso).getTime();
@@ -56,8 +65,8 @@ const HEALTH_STYLE: Record<Health, { ring: string; badge: string; label: string;
   healthy: { ring: "border-emerald-200", badge: "bg-emerald-50 text-emerald-700", label: "Healthy", Icon: CheckCircle2 },
   warn: { ring: "border-amber-200", badge: "bg-amber-50 text-amber-700", label: "Late", Icon: AlertTriangle },
   down: { ring: "border-rose-200", badge: "bg-rose-50 text-rose-700", label: "Failing", Icon: XCircle },
-  pending: { ring: "border-gray-200", badge: "bg-gray-100 text-gray-500", label: "Awaiting first run", Icon: Clock },
-  paused: { ring: "border-gray-200", badge: "bg-gray-100 text-gray-500", label: "Paused", Icon: Pause },
+  pending: { ring: "border-border", badge: "bg-surface-mid text-ink-muted", label: "Awaiting first run", Icon: Clock },
+  paused: { ring: "border-border", badge: "bg-surface-mid text-ink-muted", label: "Paused", Icon: Pause },
 };
 
 export default function SchedulerHealthPage() {
@@ -65,6 +74,7 @@ export default function SchedulerHealthPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [pauseConfirmJob, setPauseConfirmJob] = useState<JobHealth | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -121,6 +131,22 @@ export default function SchedulerHealthPage() {
     }
   }, [toggling, load]);
 
+  const requestToggle = useCallback((job: JobHealth) => {
+    const isPausing = !job.paused;
+    if (isPausing && CRITICAL_JOB_IDS.has(job.id)) {
+      setPauseConfirmJob(job);
+      return;
+    }
+    toggleJob(job.id);
+  }, [toggleJob]);
+
+  const confirmPause = useCallback(() => {
+    if (!pauseConfirmJob) return;
+    const jobId = pauseConfirmJob.id;
+    setPauseConfirmJob(null);
+    toggleJob(jobId);
+  }, [pauseConfirmJob, toggleJob]);
+
   useEffect(() => {
     load();
     const id = setInterval(load, 30_000);
@@ -130,15 +156,15 @@ export default function SchedulerHealthPage() {
   return (
     <div className="max-w-6xl mx-auto px-8 py-8">
       <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-bold text-gray-900">Scheduler Health</h1>
+        <h1 className="text-2xl font-bold text-ink">Scheduler Health</h1>
         <button
           onClick={load}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"
+          className="flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink"
         >
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
         </button>
       </div>
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-ink-muted mb-6">
         Platform-wide background jobs (run once for all tenants). Auto-refreshes every 30s.
       </p>
 
@@ -156,23 +182,23 @@ export default function SchedulerHealthPage() {
             <div key={j.id} className={`bg-white rounded-2xl border ${style.ring} p-5 shadow-sm`}>
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div>
-                  <p className="font-semibold text-gray-900 text-sm">{meta.name}</p>
-                  <p className="text-[11px] text-gray-400 font-mono">{j.id} · every {meta.every}</p>
+                  <p className="font-semibold text-ink text-sm">{meta.name}</p>
+                  <p className="text-[11px] text-ink-muted font-mono">{j.id} · every {meta.every}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${style.badge}`}>
                     <style.Icon size={11} /> {style.label}
                   </span>
                   <button
-                    onClick={() => toggleJob(j.id)}
+                    onClick={() => requestToggle(j)}
                     disabled={toggling === j.id}
                     aria-label={j.paused ? `Resume ${meta.name}` : `Pause ${meta.name}`}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                       toggling === j.id
-                        ? "bg-gray-200 cursor-wait"
+                        ? "bg-surface-mid cursor-wait"
                         : j.paused
-                          ? "bg-gray-300"
-                          : "bg-[#5b21b6]"
+                          ? "bg-border"
+                          : "bg-primary"
                     }`}
                   >
                     <span
@@ -185,27 +211,27 @@ export default function SchedulerHealthPage() {
               </div>
               <dl className="space-y-1.5 text-xs">
                 <div className="flex justify-between">
-                  <dt className="text-gray-400">Next run</dt>
-                  <dd className="text-gray-700 font-medium">{j.paused ? "Paused" : relTime(j.next_run)}</dd>
+                  <dt className="text-ink-muted">Next run</dt>
+                  <dd className="text-ink-secondary font-medium">{j.paused ? "Paused" : relTime(j.next_run)}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-400">Last run</dt>
-                  <dd className="text-gray-700 font-medium">
+                  <dt className="text-ink-muted">Last run</dt>
+                  <dd className="text-ink-secondary font-medium">
                     {relTime(j.last_run)}
                     {lateSec != null && lateSec > 1 && (
-                      <span className="text-amber-600"> (+{lateSec}s late)</span>
+                      <span className="text-warning"> (+{lateSec}s late)</span>
                     )}
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-400">Errors (24h)</dt>
-                  <dd className={j.errors_24h > 0 ? "text-rose-600 font-bold" : "text-gray-700 font-medium"}>
+                  <dt className="text-ink-muted">Errors (24h)</dt>
+                  <dd className={j.errors_24h > 0 ? "text-danger font-bold" : "text-ink-secondary font-medium"}>
                     {j.errors_24h}
                   </dd>
                 </div>
               </dl>
               {j.last_error && (
-                <p className="mt-3 text-[11px] text-rose-600 bg-rose-50 rounded-lg p-2 break-words line-clamp-3">
+                <p className="mt-3 text-[11px] text-danger bg-red-50 rounded-lg p-2 break-words line-clamp-3">
                   {j.last_error}
                 </p>
               )}
@@ -215,28 +241,39 @@ export default function SchedulerHealthPage() {
       </div>
 
       {!loading && (data?.jobs?.length ?? 0) === 0 && (
-        <p className="text-sm text-gray-400 py-12 text-center">No jobs reported.</p>
+        <p className="text-sm text-ink-muted py-12 text-center">No jobs reported.</p>
       )}
 
       {(data?.recent_failures?.length ?? 0) > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-bold text-gray-700 mb-3">Recent failures</h2>
-          <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100">
+          <h2 className="text-sm font-bold text-ink-secondary mb-3">Recent failures</h2>
+          <div className="bg-white rounded-2xl border border-border divide-y divide-border-subtle">
             {data!.recent_failures.map((f, i) => (
               <div key={i} className="px-4 py-3 flex items-start justify-between gap-4 text-xs">
                 <div className="min-w-0">
-                  <span className="font-mono text-gray-700">{f.job_id}</span>
-                  <span className={`ml-2 font-semibold ${f.status === "error" ? "text-rose-600" : "text-amber-600"}`}>
+                  <span className="font-mono text-ink-secondary">{f.job_id}</span>
+                  <span className={`ml-2 font-semibold ${f.status === "error" ? "text-danger" : "text-warning"}`}>
                     {f.status}
                   </span>
-                  {f.error && <p className="text-gray-400 truncate mt-0.5">{f.error}</p>}
+                  {f.error && <p className="text-ink-muted truncate mt-0.5">{f.error}</p>}
                 </div>
-                <span className="text-gray-400 whitespace-nowrap shrink-0">{relTime(f.ran_at)}</span>
+                <span className="text-ink-muted whitespace-nowrap shrink-0">{relTime(f.ran_at)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      <ActionConfirm
+        open={pauseConfirmJob !== null}
+        onClose={() => setPauseConfirmJob(null)}
+        onConfirm={confirmPause}
+        title={`Pause ${pauseConfirmJob ? (JOB_LABELS[pauseConfirmJob.id]?.name ?? pauseConfirmJob.id) : "job"}?`}
+        description={`This is a platform-critical job that runs once for every tenant. Pausing it will halt "${pauseConfirmJob ? (JOB_LABELS[pauseConfirmJob.id]?.name ?? pauseConfirmJob.id) : ""}" for all clients until it is resumed.`}
+        confirmText="Pause job"
+        tone="warning"
+        loading={toggling === pauseConfirmJob?.id}
+      />
     </div>
   );
 }
