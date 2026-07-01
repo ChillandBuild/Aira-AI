@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -62,12 +63,22 @@ export function EntitlementToggle({
     onChange(!checked);
   };
 
-  const progress = usage && usage.included > 0 ? usage.used / usage.included : 0;
+  const progress = usage && usage.included > 0
+    ? Math.min(1, Math.max(0, usage.used / usage.included))
+    : 0;
   const strokeColor = usage && METERED_COLORS.danger(usage)
     ? "#dc2626"
     : usage && METERED_COLORS.warning(usage)
     ? "#d97706"
     : "#059669";
+
+  // Proportional progress ring geometry (r=8 within a 24x24 viewBox).
+  const RING_RADIUS = 8;
+  const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+  const ringOffset = RING_CIRCUMFERENCE * (1 - progress);
+
+  const showMeteredRing = state === "metered" && !!usage;
+  const showCheck = checked && !showMeteredRing;
 
   return (
     <div className="flex items-center gap-3">
@@ -84,17 +95,36 @@ export function EntitlementToggle({
           )}
           style={knobStyle}
         >
-          {state === "metered" && usage ? (
+          {showMeteredRing ? (
             <svg
-              className={cn(size === "md" ? "h-3 w-3" : "h-2.5 w-2.5")}
+              className={cn(size === "md" ? "h-3.5 w-3.5" : "h-3 w-3")}
               viewBox="0 0 24 24"
               fill="none"
-              stroke={strokeColor}
-              strokeWidth="3"
             >
-              <circle cx="12" cy="12" r="8" />
+              {/* Track */}
+              <circle
+                cx="12"
+                cy="12"
+                r={RING_RADIUS}
+                stroke="currentColor"
+                className="text-ink-muted/25"
+                strokeWidth="3"
+              />
+              {/* Proportional progress arc — starts at 12 o'clock, fills clockwise */}
+              <circle
+                cx="12"
+                cy="12"
+                r={RING_RADIUS}
+                stroke={strokeColor}
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray={RING_CIRCUMFERENCE}
+                strokeDashoffset={ringOffset}
+                transform="rotate(-90 12 12)"
+                style={prefersReducedMotion ? undefined : { transition: "stroke-dashoffset 0.4s ease, stroke 0.2s ease" }}
+              />
             </svg>
-          ) : checked ? (
+          ) : showCheck ? (
             <svg
               className={cn(
                 "text-primary transition-opacity",
@@ -131,9 +161,13 @@ export function EntitlementToggle({
       {priceLabel && (
         <span
           className={cn(
-            "text-xs px-2 py-0.5 rounded-full bg-primary-light text-primary font-medium",
-            !prefersReducedMotion && "transition-all duration-200",
-            isHovered ? "opacity-100 translate-x-0" : "opacity-90"
+            "text-xs px-2 py-0.5 rounded-full bg-primary-light text-primary font-medium whitespace-nowrap",
+            !prefersReducedMotion && "transition-all duration-300 ease-out",
+            isHovered
+              ? "opacity-100 translate-x-0"
+              : prefersReducedMotion
+              ? "opacity-90"
+              : "opacity-0 translate-x-1"
           )}
         >
           {priceLabel}
@@ -165,17 +199,26 @@ export function EntitlementCard({
   usage?: Usage;
   dependencyNote?: string;
 }) {
+  const locked = state === "locked";
   return (
-    <div className="bg-white rounded-card border border-border p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div className={cn(
+      "bg-white rounded-card border border-border p-4 shadow-sm transition-shadow",
+      locked ? "opacity-75" : "hover:shadow-md"
+    )}>
       <div className="flex items-start gap-3 mb-3">
         <div className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-          state === "locked" ? "bg-surface-mid text-ink-muted" : "bg-primary-light text-primary"
+          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
+          locked ? "bg-surface-mid text-ink-muted" : "bg-primary-light text-primary"
         )}>
           <Icon size={20} />
+          {locked && (
+            <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-ink-muted text-white ring-2 ring-white">
+              <Lock size={9} strokeWidth={2.5} />
+            </span>
+          )}
         </div>
         <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-semibold text-ink">{name}</h4>
+          <h4 className={cn("text-sm font-semibold", locked ? "text-ink-secondary" : "text-ink")}>{name}</h4>
           <p className="text-xs text-ink-muted mt-1">{description}</p>
         </div>
       </div>
