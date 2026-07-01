@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause, Play, Check } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { relTime } from "@/lib/operator";
 import { ActionConfirm } from "../components/action-confirm";
@@ -68,6 +68,8 @@ export default function SchedulerHealthPage() {
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
   const [pauseConfirmJob, setPauseConfirmJob] = useState<JobHealth | null>(null);
+  const [running, setRunning] = useState<string | null>(null);
+  const [justRan, setJustRan] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -140,6 +142,30 @@ export default function SchedulerHealthPage() {
     toggleJob(jobId);
   }, [pauseConfirmJob, toggleJob]);
 
+  const runJob = useCallback(async (jobId: string) => {
+    if (running) return;
+    setRunning(jobId);
+    setError(null);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(
+        `${API_URL}/api/v1/operator/scheduler/${jobId}/run`,
+        { method: "POST", headers: { ...auth } }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || `Run failed (${res.status})`);
+      }
+      setJustRan(jobId);
+      setTimeout(() => setJustRan((prev) => (prev === jobId ? null : prev)), 2500);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Run failed");
+    } finally {
+      setRunning(null);
+    }
+  }, [running, load]);
+
   useEffect(() => {
     load();
     const id = setInterval(load, 30_000);
@@ -182,6 +208,20 @@ export default function SchedulerHealthPage() {
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${style.badge}`}>
                     <style.Icon size={11} /> {style.label}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => runJob(j.id)}
+                    disabled={j.paused || running === j.id}
+                    aria-label={`Run ${meta.name} now`}
+                    title={j.paused ? "Resume the job before running it" : "Run now"}
+                    className="flex items-center justify-center w-6 h-6 rounded-full text-ink-muted hover:text-ink hover:bg-surface-mid disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+                  >
+                    {justRan === j.id ? (
+                      <Check size={13} className="text-emerald-600" />
+                    ) : (
+                      <Play size={13} className={running === j.id ? "animate-pulse" : ""} />
+                    )}
+                  </button>
                   <OperatorToggle
                     checked={!j.paused}
                     onChange={() => requestToggle(j)}

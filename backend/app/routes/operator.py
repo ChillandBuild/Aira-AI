@@ -1444,6 +1444,58 @@ def toggle_scheduler_job(job_id: str, _admin: dict = Depends(get_system_admin)):
         return {"id": job_id, "paused": True, "next_run": None}
 
 
+def _resolve_scheduler_run(job_id: str, job) -> dict:
+    """Pure decision logic for `POST /scheduler/{job_id}/run`.
+
+    Given the job_id requested and the APScheduler `Job` looked up for it
+    (or `None` if unknown), decide whether the run can proceed. Raises the
+    same `HTTPException`s the route returns so this can be unit-tested
+    without a live scheduler. Does NOT mutate the job — the caller applies
+    `job.modify(next_run_time=...)` only after this returns cleanly.
+    """
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    if job.next_run_time is None:
+        raise HTTPException(status_code=409, detail="Job is paused — resume it before running")
+    return {"id": job_id}
+
+
+@router.post("/scheduler/{job_id}/run")
+def run_scheduler_job(job_id: str, _admin: dict = Depends(get_system_admin)):
+    """Trigger an immediate run of a scheduled job without disturbing its
+    regular schedule. Operator-only.
+
+    Implementation note: this does NOT call the job function synchronously
+    in the request thread. It nudges APScheduler's `next_run_time` to now,
+    so the job runs ASAP on the scheduler's own executor; APScheduler then
+    recomputes the next scheduled run from the job's trigger as usual.
+    Paused jobs (`next_run_time is None`) are rejected rather than silently
+    resumed, to keep Task 2's pause semantics intact.
+    """
+    from app.main import _scheduler
+
+    job = _scheduler.get_job(job_id)
+    _resolve_scheduler_run(job_id, job)
+
+    job.modify(next_run_time=datetime.now(timezone.utc))
+    job = _scheduler.get_job(job_id)
+
+    logger.warning(
+        "Manual scheduler run triggered job_id=%s admin_id=%s",
+        job_id,
+        _admin.get("user_id"),
+    )
+    # Scheduler jobs are platform-wide (no tenant_id), so this is skipped
+    # rather than forcing a tenant scope onto record_audit_event; the
+    # warning log above is the audit trail for this action.
+
+    return {
+        "id": job_id,
+        "triggered": True,
+        "next_run": job.next_run_time.isoformat() if job and job.next_run_time else None,
+    }
+
+
 @router.get("/system-health")
 def system_health(_admin: dict = Depends(get_system_admin)):
     """Platform-level health: uptime, memory, Python version, last keep-alive ping."""
