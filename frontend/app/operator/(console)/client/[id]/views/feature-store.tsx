@@ -146,7 +146,7 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
 
   function handleToggle(feature: FeatureCatalogItem, enabled: boolean) {
     const state = getToggleState(feature);
-    if (state === "locked") return;
+    if (state === "locked" || state === "metered") return;
 
     if (enabled && feature.monthly_price > 0 && !feature.is_metered) {
       const currentMrr = subscription?.mrr || 0;

@@ -17,6 +17,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/me")
+def operator_me(user: dict = Depends(get_current_user)):
+    """Verify the caller is a system admin. No tenant required."""
+    db = get_supabase()
+    result = (
+        db.table("system_admins")
+        .select("user_id")
+        .eq("user_id", user["user_id"])
+        .maybe_single()
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=403, detail="Access denied.")
+    return {"is_system_admin": True, "user_id": user["user_id"]}
+
+
 def _is_connected_call(log: dict) -> bool:
     manual_status = log.get("manual_status")
     if manual_status in {"connected", "interested", "not_interested", "callback"}:
@@ -192,7 +208,8 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
     user_id = user.user.id if hasattr(user, "user") else None
     if not user_id:
         raise HTTPException(status_code=500, detail="Failed to create user")
-    
+
+    tenant_id = None
     try:
         # Create tenant
         tenant = db.table("tenants").insert({
@@ -285,6 +302,25 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
         }).execute()
     except Exception as e:
         logger.error(f"Tenant setup failed for user {user_id}, cleaning up: {e}")
+        if tenant_id:
+            # Best-effort: subscriptions/usage counters cascade via `on delete cascade`,
+            # but tenant_users/app_settings/callers may not, so clean those up explicitly.
+            try:
+                db.table("tenants").delete().eq("id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned tenant {tenant_id}: {cleanup_err}")
+            try:
+                db.table("tenant_users").delete().eq("tenant_id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned tenant_users for {tenant_id}: {cleanup_err}")
+            try:
+                db.table("app_settings").delete().eq("tenant_id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned app_settings for {tenant_id}: {cleanup_err}")
+            try:
+                db.table("callers").delete().eq("tenant_id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned callers for {tenant_id}: {cleanup_err}")
         try:
             db.auth.admin.delete_user(user_id)
         except Exception as cleanup_err:
@@ -340,12 +376,15 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
     period = datetime.now(timezone.utc).strftime("%Y-%m")
     if tenant_ids:
         counters = db.table("tenant_usage_counters").select(
-            "tenant_id, metric, used"
+            "tenant_id, metric, used, included"
         ).in_("tenant_id", tenant_ids).eq("period", period).execute()
         for c in (counters.data or []):
             if c["tenant_id"] not in counters_by_tenant:
                 counters_by_tenant[c["tenant_id"]] = {}
-            counters_by_tenant[c["tenant_id"]][c["metric"]] = c["used"] or 0
+            counters_by_tenant[c["tenant_id"]][c["metric"]] = {
+                "used": c["used"] or 0,
+                "included": c["included"] or 0,
+            }
     
     from datetime import timedelta
     thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
@@ -360,11 +399,14 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
     result = []
     for t in (tenants.data or []):
         tid = t["id"]
-        ai_used = counters_by_tenant.get(tid, {}).get("ai_reply", 0)
+        ai_reply_counter = counters_by_tenant.get(tid, {}).get("ai_reply", {"used": 0, "included": 0})
+        ai_used = ai_reply_counter.get("used", 0)
+        ai_included = ai_reply_counter.get("included", 0)
+        ai_usage = round(ai_used / ai_included * 100) if ai_included > 0 else 0
         sub = subscriptions.get(tid, {})
         mrr = sub.get("mrr", 0) or 0
         msgs = msg_counts.get(tid, 0)
-        
+
         result.append({
             "id": tid,
             "name": t["name"],
@@ -373,7 +415,7 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
             "created_at": t.get("created_at"),
             "mrr": mrr,
             "messages_30d": msgs,
-            "ai_usage": ai_used,
+            "ai_usage": ai_usage,
             "health": "healthy" if t.get("status") == "active" else "warning",
             "last_activity": None,
         })

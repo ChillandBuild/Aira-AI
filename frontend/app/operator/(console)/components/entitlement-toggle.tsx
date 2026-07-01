@@ -59,7 +59,7 @@ export function EntitlementToggle({
       };
 
   const handleClick = () => {
-    if (state === "locked") return;
+    if (state === "locked" || state === "metered") return;
     onChange(!checked);
   };
 
