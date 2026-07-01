@@ -638,7 +638,7 @@ async function apiFetchOnce<T>(path: string, opts: RequestInit, timeoutMs: numbe
     });
     if (!res.ok) {
       if (res.status === 401 && typeof window !== "undefined") {
-        window.location.href = "/login";
+        window.location.href = "/aira/login";
       }
       if (RETRYABLE_STATUS.has(res.status)) {
         throw new RetryableError(`Server unavailable (${res.status})`);

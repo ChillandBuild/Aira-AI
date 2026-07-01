@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { syncPushSubscription } from "@/lib/push";
 
-const SERVICE_WORKER_PATH = "/sw.js";
+const SERVICE_WORKER_PATH = "/aira/sw.js";
 
 export function PwaRegistrar() {
   useEffect(() => {
@@ -18,7 +18,7 @@ export function PwaRegistrar() {
     const registerServiceWorker = async () => {
       try {
         await navigator.serviceWorker.register(SERVICE_WORKER_PATH, {
-          scope: "/",
+          scope: "/aira/",
         });
         void syncPushSubscription().catch(() => {});
       } catch (error) {
