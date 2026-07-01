@@ -354,16 +354,41 @@ def get_features_catalog(_admin: dict = Depends(get_system_admin)):
     return {"data": catalog.data or []}
 
 
+def compute_fleet_health(
+    *,
+    ai_usage: int,
+    near_cap: bool,
+    no_activity_14d: bool,
+    token_expired: bool = False,
+    channel_unhealthy: bool = False,
+) -> str:
+    """Pure, DB-free health scoring for a fleet client.
+
+    Tiers (first match wins):
+      - critical: ai_usage >= 100, or a messaging token has expired/is unset,
+        or a configured channel is unhealthy.
+      - warning: near_cap (ai_usage >= 80) or no activity in 14 days while active.
+      - healthy: otherwise.
+    """
+    if ai_usage >= 100 or token_expired or channel_unhealthy:
+        return "critical"
+    if near_cap or no_activity_14d:
+        return "warning"
+    return "healthy"
+
+
 @router.get("/fleet")
 def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
+    from datetime import timedelta
+
     db = get_supabase()
-    
+
     tenants = db.table("tenants").select(
         "id, name, enabled_features, status, created_at"
     ).execute()
-    
+
     tenant_ids = [t["id"] for t in (tenants.data or [])]
-    
+
     subscriptions: dict = {}
     if tenant_ids:
         subs = db.table("tenant_subscriptions").select(
@@ -371,7 +396,7 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
         ).in_("tenant_id", tenant_ids).execute()
         for s in (subs.data or []):
             subscriptions[s["tenant_id"]] = s
-    
+
     counters_by_tenant: dict = {}
     period = datetime.now(timezone.utc).strftime("%Y-%m")
     if tenant_ids:
@@ -385,17 +410,44 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
                 "used": c["used"] or 0,
                 "included": c["included"] or 0,
             }
-    
-    from datetime import timedelta
-    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    
+
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = (now - timedelta(days=30)).isoformat()
+    fourteen_days_ago = now - timedelta(days=14)
+
+    # Fleet-wide token health: two bulk queries (not per-tenant), same batching
+    # pattern as subscriptions/counters above. Per-channel health (as derived by
+    # GET /clients/{tenant_id}/health) needs 4 queries per tenant and is deferred —
+    # doing that for every fleet row would turn this endpoint into an N*4 fan-out.
+    # channel_unhealthy is therefore always False here for now.
+    token_incident_tenant_ids: set = set()
+    tenant_has_token: dict = {}
+    if tenant_ids:
+        incidents = db.table("incidents").select(
+            "tenant_id"
+        ).in_("tenant_id", tenant_ids).eq("type", "token_invalid").execute()
+        token_incident_tenant_ids = {i["tenant_id"] for i in (incidents.data or [])}
+
+        settings_rows = db.table("app_settings").select(
+            "tenant_id, key, value"
+        ).in_("tenant_id", tenant_ids).eq("key", "meta_access_token").execute()
+        for r in (settings_rows.data or []):
+            if r.get("value"):
+                tenant_has_token[r["tenant_id"]] = True
+
     msg_counts: dict = {}
+    last_activity_by_tenant: dict = {}
     for tid in tenant_ids:
         count_res = db.table("messages").select(
             "id", count="exact"
         ).eq("tenant_id", tid).eq("direction", "outbound").gte("created_at", thirty_days_ago).execute()
         msg_counts[tid] = count_res.count or 0
-    
+
+        last_msg = db.table("messages").select(
+            "created_at"
+        ).eq("tenant_id", tid).order("created_at", desc=True).limit(1).execute()
+        last_activity_by_tenant[tid] = (last_msg.data or [{}])[0].get("created_at")
+
     result = []
     for t in (tenants.data or []):
         tid = t["id"]
@@ -406,20 +458,48 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
         sub = subscriptions.get(tid, {})
         mrr = sub.get("mrr", 0) or 0
         msgs = msg_counts.get(tid, 0)
+        status = t.get("status", "active")
+        last_activity = last_activity_by_tenant.get(tid)
+
+        near_cap = ai_usage >= 80
+        no_activity_14d = status == "active" and (
+            last_activity is None
+            or datetime.fromisoformat(last_activity.replace("Z", "+00:00")) < fourteen_days_ago
+        )
+        # Only flag a missing/expired messaging token when the client has WhatsApp
+        # (or another messaging channel) enabled — tenants that never set one up
+        # aren't "expired", they're simply not using it.
+        messaging_enabled = bool(set(t.get("enabled_features", []) or []) & {"whatsapp", "instagram", "facebook", "telegram"})
+        token_expired = messaging_enabled and (
+            tid in token_incident_tenant_ids or not tenant_has_token.get(tid, False)
+        )
+        channel_unhealthy = False
+
+        health = compute_fleet_health(
+            ai_usage=ai_usage,
+            near_cap=near_cap,
+            no_activity_14d=no_activity_14d,
+            token_expired=token_expired,
+            channel_unhealthy=channel_unhealthy,
+        )
 
         result.append({
             "id": tid,
             "name": t["name"],
             "enabled_features": t.get("enabled_features", []) or [],
-            "status": t.get("status", "active"),
+            "status": status,
             "created_at": t.get("created_at"),
             "mrr": mrr,
             "messages_30d": msgs,
             "ai_usage": ai_usage,
-            "health": "healthy" if t.get("status") == "active" else "warning",
-            "last_activity": None,
+            "health": health,
+            "last_activity": last_activity,
+            "near_cap": near_cap,
+            "no_activity_14d": no_activity_14d,
+            "token_expired": token_expired,
+            "channel_unhealthy": channel_unhealthy,
         })
-    
+
     return {"data": result}
 
 
