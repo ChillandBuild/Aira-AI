@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Activity, Clock, Cpu, HardDrive } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { OnboardingWizard } from "./components/onboarding-wizard";
 
 type Client = {
   id: string;
@@ -28,8 +29,6 @@ const FEATURE_DISPLAY: Record<string, string> = {
   facebook: "Facebook",
   telegram: "Telegram",
 };
-
-const ALL_FEATURES = ["whatsapp", "telecalling", "instagram", "facebook", "telegram"] as const;
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -141,12 +140,6 @@ export default function OperatorPage() {
   const [tempPw, setTempPw] = useState<{ name: string; pw: string } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const [companyName, setCompanyName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [features, setFeatures] = useState<string[]>(["whatsapp", "telecalling"]);
-  const [submitting, setSubmitting] = useState(false);
-
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [operatorHealth, setOperatorHealth] = useState<OperatorHealth | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
@@ -196,25 +189,6 @@ export default function OperatorPage() {
     const id = setInterval(loadHealth, 60_000);
     return () => clearInterval(id);
   }, [loadHealth]);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await apiFetch("/api/v1/operator/clients", {
-        method: "POST",
-        body: JSON.stringify({ company_name: companyName, email, password, features }),
-      });
-      setShowCreate(false);
-      setCompanyName(""); setEmail(""); setPassword(""); setFeatures(["whatsapp", "telecalling"]);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create client");
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   async function handleToggleStatus(client: Client) {
     const newStatus = client.status === "active" ? "suspended" : "active";
@@ -334,72 +308,7 @@ export default function OperatorPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-card shadow-xl w-full max-w-md p-6">
-            <h2 className="text-lg font-bold text-ink mb-4">New Client</h2>
-            <form onSubmit={handleCreate} className="space-y-3">
-              <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-1">Company Name *</label>
-                <input
-                  value={companyName} onChange={e => setCompanyName(e.target.value)} required
-                  className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  placeholder="ABC Coaching"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-1">Owner Email *</label>
-                <input
-                  type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                  className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  placeholder="owner@client.com"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-1">Temporary Password *</label>
-                <input
-                  type="text" value={password} onChange={e => setPassword(e.target.value)} required
-                  className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  placeholder="Aira@123456"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-2">Features</label>
-                <div className="flex flex-wrap gap-2">
-                  {ALL_FEATURES.map(f => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setFeatures(prev => prev.includes(f) ? prev.filter(x => x !== f) : [...prev, f])}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                        features.includes(f)
-                          ? "bg-primary text-white shadow-sm"
-                          : "bg-surface-mid text-ink-secondary hover:text-ink"
-                      }`}
-                    >
-                      {FEATURE_DISPLAY[f]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="flex-1 px-4 py-2 border border-border text-sm text-ink-secondary rounded-lg hover:bg-surface-mid transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-dark disabled:opacity-50 transition-colors"
-                >
-                  {submitting ? "Creating…" : "Create"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <OnboardingWizard open={showCreate} onClose={() => setShowCreate(false)} onComplete={load} />
       )}
 
       {/* Content */}

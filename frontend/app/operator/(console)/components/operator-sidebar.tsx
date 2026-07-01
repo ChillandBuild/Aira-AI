@@ -7,6 +7,7 @@ import { AiraLogo } from "@/components/logo";
 
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },
+  { href: "/operator/fleet", label: "Fleet" },
   { href: "/operator/scheduler", label: "Schedulers" },
   { href: "/operator/audit-log", label: "Audit Log" },
 ];

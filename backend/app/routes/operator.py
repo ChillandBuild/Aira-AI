@@ -1,6 +1,7 @@
 import logging
 import secrets
 from typing import Literal
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
@@ -10,9 +11,26 @@ from app.dependencies.auth import get_current_user
 from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
+from app.services.entitlements import resolve_entitlements
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+@router.get("/me")
+def operator_me(user: dict = Depends(get_current_user)):
+    """Verify the caller is a system admin. No tenant required."""
+    db = get_supabase()
+    result = (
+        db.table("system_admins")
+        .select("user_id")
+        .eq("user_id", user["user_id"])
+        .maybe_single()
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=403, detail="Access denied.")
+    return {"is_system_admin": True, "user_id": user["user_id"]}
 
 
 def _is_connected_call(log: dict) -> bool:
@@ -31,34 +49,13 @@ def _is_connected_call(log: dict) -> bool:
     )
 
 
-@router.get("/me")
-def operator_me(user: dict = Depends(get_current_user)):
-    """Verify the caller is a system admin. No tenant required."""
-    db = get_supabase()
-    result = (
-        db.table("system_admins")
-        .select("user_id")
-        .eq("user_id", user["user_id"])
-        .maybe_single()
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=403, detail="Access denied.")
-    return {"is_system_admin": True, "user_id": user["user_id"]}
-
-ServiceTier = Literal[
-    "whatsapp_only", "telecalling_only", "combined",
-    "whatsapp_instagram", "whatsapp_facebook", "whatsapp_telegram",
-    "omnichannel", "omnichannel_telecalling",
-]
-
-_FEATURE_MAP: dict[str, list[str]] = {
+_SERVICE_CATALOG: dict[str, list[str]] = {
     "whatsapp_only":         ["whatsapp"],
     "telecalling_only":      ["telecalling"],
     "combined":              ["whatsapp", "telecalling"],
     "whatsapp_instagram":    ["whatsapp", "instagram"],
     "whatsapp_facebook":     ["whatsapp", "facebook"],
-    "whatsapp_telegram":     ["whatsapp", "telegram"],
+    "whatsapp_telegram":    ["whatsapp", "telegram"],
     "omnichannel":           ["whatsapp", "instagram", "facebook", "telegram"],
     "omnichannel_telecalling": ["whatsapp", "instagram", "facebook", "telegram", "telecalling"],
 }
@@ -80,159 +77,47 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
 
 class CreateClientPayload(BaseModel):
     company_name: str
+    business_type: str
+    contact_name: str
+    contact_phone: str
+    billing_region: str | None = None
     email: EmailStr
     password: str
-    service: ServiceTier = "combined"
+    messaging_plan_id: str | None = None
+    telecalling_plan_id: str | None = None
+    ai_tier: Literal["off", "basic", "standard", "premium", "byo"] = "off"
 
 
 class UpdateFeaturesPayload(BaseModel):
-    service: ServiceTier | None = None
     features: list[str] | None = None
-
-
-class UpdateStatusPayload(BaseModel):
-    status: Literal["active", "suspended"]
-
-
-class CallingProviderPayload(BaseModel):
-    calling_provider: Literal["telecmi", "sim_basic"]
-
-
-@router.get("/clients")
-def list_clients(_admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-    tenants = (
-        db.table("tenants")
-        .select("id, name, enabled_features, status, created_at")
-        .order("created_at", desc=True)
-        .execute()
-    )
-    tenant_ids = [t["id"] for t in (tenants.data or [])]
-    owners_map: dict[str, str] = {}
-    if tenant_ids:
-        owners_rows = (
-            db.table("tenant_users")
-            .select("tenant_id, user_id")
-            .in_("tenant_id", tenant_ids)
-            .eq("role", "owner")
-            .execute()
-        )
-        owners_map = {r["tenant_id"]: r["user_id"] for r in (owners_rows.data or [])}
-    result = [{**t, "owner_user_id": owners_map.get(t["id"])} for t in (tenants.data or [])]
-    return {"data": result}
-
-
-@router.post("/clients", status_code=201)
-async def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-    features = _FEATURE_MAP[payload.service]
-    tc_subs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"]
-    if "telecalling" in features:
-        features = features + tc_subs
-    has_channel = any(ch in features for ch in ("whatsapp", "instagram", "facebook", "telegram"))
-    if has_channel:
-        features = features + ["inbound_leads", "outbound_leads"]
-    features = features + ["analytics"]
-
-    try:
-        result = db.auth.admin.create_user({
-            "email": payload.email,
-            "password": payload.password,
-            "email_confirm": True,
-        })
-        user = result.user
-        new_user_id = user.id if hasattr(user, "id") else user["id"]
-    except Exception as e:
-        msg = str(e)
-        if "already" in msg.lower() or "duplicate" in msg.lower():
-            raise HTTPException(status_code=400, detail="A user with this email already exists")
-        raise HTTPException(status_code=400, detail=f"Failed to create user: {msg}")
-
-    try:
-        tenant_result = db.table("tenants").insert({
-            "name": payload.company_name,
-            "enabled_features": features,
-            "status": "active",
-        }).execute()
-        tenant_id = tenant_result.data[0]["id"]
-
-        db.table("app_settings").insert([
-            {"tenant_id": tenant_id, "key": k, "value": None, "is_secret": s}
-            for k, s in _SETTING_KEYS
-        ]).execute()
-
-        db.table("tenant_users").insert({
-            "tenant_id": tenant_id,
-            "user_id": new_user_id,
-            "role": "owner",
-        }).execute()
-
-        db.table("callers").insert({
-            "tenant_id": tenant_id,
-            "user_id": new_user_id,
-            "name": "Admin",
-            "active": True,
-            "overall_score": 7.0,
-        }).execute()
-    except Exception as e:
-        logger.error(f"Tenant setup failed for new user {new_user_id}, cleaning up: {e}")
-        try:
-            db.auth.admin.delete_user(new_user_id)
-        except Exception as cleanup_err:
-            logger.error(f"Failed to delete orphaned auth user {new_user_id}: {cleanup_err}")
-        raise HTTPException(status_code=500, detail="Client setup failed; user account cleaned up.")
-
-    logger.info(f"Operator created client: {payload.company_name} ({tenant_id}), service={payload.service}")
-    record_audit_event(
-        db,
-        tenant_id=tenant_id,
-        actor_user_id=_admin.get("user_id"),
-        actor_role="system_admin",
-        action="operator.client_created",
-        target_type="tenant",
-        target_id=tenant_id,
-        metadata={
-            "company_name": payload.company_name,
-            "email": payload.email,
-            "service": payload.service,
-            "enabled_features": features,
-        },
-    )
-    return {
-        "tenant_id": tenant_id,
-        "company_name": payload.company_name,
-        "email": payload.email,
-        "service": payload.service,
-        "enabled_features": features,
-    }
+    custom_overrides: dict | None = None
 
 
 @router.patch("/clients/{tenant_id}/features")
 def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    valid_features = {
-        "whatsapp", "telecalling", "instagram", "facebook", "telegram",
-        "telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes",
-        "analytics", "inbound_leads", "outbound_leads",
-    }
-
+    
+    features: list[str] | None = None
+    if payload.features is None and payload.custom_overrides is None:
+        raise HTTPException(status_code=400, detail="Provide 'features' or 'custom_overrides'")
+    
+    update: dict = {}
     if payload.features is not None:
-        invalid = set(payload.features) - valid_features
-        if invalid:
-            raise HTTPException(status_code=400, detail=f"Invalid features: {', '.join(invalid)}")
-        features = list(payload.features)
         tc_subs = {"telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"}
         tc_default_subs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"]
+        features = list(payload.features)
         if "telecalling" in features and not (set(features) & tc_subs):
             features.extend(tc_default_subs)
         if "telecalling" not in features:
             features = [f for f in features if f not in tc_subs]
-    elif payload.service is not None:
-        features = _FEATURE_MAP[payload.service]
-    else:
-        raise HTTPException(status_code=400, detail="Provide 'features' or 'service'")
-
-    result = db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
+        update["enabled_features"] = features
+    
+    if payload.custom_overrides is not None:
+        sub_res = db.table("tenant_subscriptions").select("custom_overrides").eq("tenant_id", tenant_id).maybe_single().execute()
+        existing = sub_res.data.get("custom_overrides", {}) if sub_res.data else {}
+        update["custom_overrides"] = {**existing, **payload.custom_overrides}
+    
+    result = db.table("tenants").update(update).eq("id", tenant_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
     record_audit_event(
@@ -243,9 +128,319 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
         action="operator.features_updated",
         target_type="tenant",
         target_id=tenant_id,
-        metadata={"features": features, "service": payload.service},
+        metadata={"features": features, "custom_overrides": payload.custom_overrides},
     )
-    return {"tenant_id": tenant_id, "enabled_features": features}
+    return {"tenant_id": tenant_id, "enabled_features": features or []}
+
+
+@router.post("/clients/{tenant_id}/reset-password")
+async def reset_password(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    owner = (
+        db.table("tenant_users")
+        .select("user_id")
+        .eq("tenant_id", tenant_id)
+        .eq("role", "owner")
+        .maybe_single()
+        .execute()
+    )
+    if not owner.data:
+        raise HTTPException(status_code=404, detail="No owner found for this tenant")
+    temp_pw = "Aira@" + secrets.token_urlsafe(10)
+    db.auth.admin.update_user_by_id(owner.data["user_id"], {"password": temp_pw})
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.password_reset",
+        target_type="tenant_owner",
+        target_id=owner.data["user_id"],
+        metadata={"tenant_id": tenant_id},
+    )
+    return {"temp_password": temp_pw}
+
+
+@router.get("/clients")
+def list_clients(_admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    clients = db.table("tenants").select(
+        "id, name, enabled_features, status, created_at"
+    ).execute()
+    result = []
+    for c in (clients.data or []):
+        owner = (
+            db.table("tenant_users")
+            .select("user_id, email")
+            .eq("tenant_id", c["id"])
+            .eq("role", "owner")
+            .maybe_single()
+            .execute()
+        )
+        owner_email = None
+        if owner.data and owner.data.get("user_id"):
+            try:
+                user = db.auth.admin.get_user_by_id(owner.data["user_id"])
+                owner_email = user.user.email if hasattr(user, "user") else None
+            except Exception:
+                pass
+        result.append({
+            "id": c["id"],
+            "name": c["name"],
+            "enabled_features": c.get("enabled_features", []) or [],
+            "status": c.get("status", "active"),
+            "created_at": c.get("created_at"),
+            "owner_user_id": owner_email,
+        })
+    return {"data": result}
+
+
+@router.post("/clients")
+def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    
+    # Create auth user
+    user = db.auth.admin.create_user({
+        "email": payload.email,
+        "password": payload.password,
+        "email_confirm": True,
+    })
+    user_id = user.user.id if hasattr(user, "user") else None
+    if not user_id:
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+    tenant_id = None
+    try:
+        # Create tenant
+        tenant = db.table("tenants").insert({
+            "name": payload.company_name,
+            "status": "active",
+            "business_type": payload.business_type,
+            "contact_name": payload.contact_name,
+            "contact_phone": payload.contact_phone,
+            "billing_region": payload.billing_region,
+        }).execute()
+        tenant_id = tenant.data[0]["id"] if tenant.data else None
+
+        # Create tenant user (owner)
+        db.table("tenant_users").insert({
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "role": "owner",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+
+        # Seed app_settings
+        db.table("app_settings").insert([
+            {"tenant_id": tenant_id, "key": k, "value": None, "is_secret": s}
+            for k, s in _SETTING_KEYS
+        ]).execute()
+
+        # Create subscription record
+        mrr = 0
+        if payload.messaging_plan_id:
+            plan = db.table("plans").select("monthly_price").eq("id", payload.messaging_plan_id).maybe_single().execute()
+            mrr += plan.data["monthly_price"] if plan.data else 0
+        if payload.telecalling_plan_id:
+            plan = db.table("plans").select("monthly_price").eq("id", payload.telecalling_plan_id).maybe_single().execute()
+            mrr += plan.data["monthly_price"] if plan.data else 0
+        if payload.ai_tier and payload.ai_tier not in ("off", "byo"):
+            ai_prices = {"basic": 500, "standard": 900, "premium": 1500}
+            mrr += ai_prices.get(payload.ai_tier, 0)
+        elif payload.ai_tier == "byo":
+            mrr += 999
+
+        db.table("tenant_subscriptions").insert({
+            "tenant_id": tenant_id,
+            "status": "trial",
+            "messaging_plan_id": payload.messaging_plan_id,
+            "telecalling_plan_id": payload.telecalling_plan_id,
+            "ai_tier": payload.ai_tier,
+            "mrr": mrr,
+            "trial_ends": None,
+        }).execute()
+
+        # Resolve entitlements now that the subscription exists, and seed
+        # enabled_features + usage counters so the console is usable immediately.
+        ent = resolve_entitlements(db, tenant_id)
+
+        features = list(ent["features"])
+        if payload.messaging_plan_id:
+            features.extend(["whatsapp", "inbound_leads", "outbound_leads", "analytics"])
+        if payload.telecalling_plan_id:
+            features.extend([
+                "telecalling", "telecalling.dialer", "telecalling.scheduled", "telecalling.notes",
+            ])
+        features = list(dict.fromkeys(features))
+
+        db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
+
+        quotas = ent["quotas"]
+        period = datetime.now(timezone.utc).strftime("%Y-%m")
+        usage_metrics = {
+            "message_sent": quotas.get("messages", 0),
+            "ai_reply": quotas.get("ai_replies", 0),
+            "call_minute": quotas.get("call_minutes", 0),
+            "team_seat_active": 0,
+            "storage_gb": 0,
+            "ai_call_summary": 0,
+            "ai_call_scoring": 0,
+        }
+        db.table("tenant_usage_counters").insert([
+            {"tenant_id": tenant_id, "period": period, "metric": metric, "used": 0, "included": included}
+            for metric, included in usage_metrics.items()
+        ]).execute()
+
+        # Seed default caller
+        db.table("callers").insert({
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "name": payload.contact_name,
+            "active": True,
+            "status": "active",
+            "overall_score": 10.0,
+        }).execute()
+    except Exception as e:
+        logger.error(f"Tenant setup failed for user {user_id}, cleaning up: {e}")
+        if tenant_id:
+            # Best-effort: subscriptions/usage counters cascade via `on delete cascade`,
+            # but tenant_users/app_settings/callers may not, so clean those up explicitly.
+            try:
+                db.table("tenants").delete().eq("id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned tenant {tenant_id}: {cleanup_err}")
+            try:
+                db.table("tenant_users").delete().eq("tenant_id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned tenant_users for {tenant_id}: {cleanup_err}")
+            try:
+                db.table("app_settings").delete().eq("tenant_id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned app_settings for {tenant_id}: {cleanup_err}")
+            try:
+                db.table("callers").delete().eq("tenant_id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned callers for {tenant_id}: {cleanup_err}")
+        try:
+            db.auth.admin.delete_user(user_id)
+        except Exception as cleanup_err:
+            logger.error(f"Failed to delete orphaned auth user {user_id}: {cleanup_err}")
+        raise HTTPException(status_code=500, detail="Client setup failed; user account cleaned up.")
+
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.client_created",
+        target_type="tenant",
+        target_id=tenant_id,
+        metadata={
+            "company_name": payload.company_name,
+            "business_type": payload.business_type,
+            "billing_region": payload.billing_region,
+        },
+    )
+
+    return {"tenant_id": tenant_id, "user_id": user_id, "mrr": mrr}
+
+
+@router.get("/features/catalog")
+def get_features_catalog(_admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    catalog = db.table("feature_catalog").select(
+        "feature_key, display_name, category, pillar, monthly_price, is_metered, usage_metric, included_qty"
+    ).order("category").order("sort_order").execute()
+    return {"data": catalog.data or []}
+
+
+@router.get("/fleet")
+def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    
+    tenants = db.table("tenants").select(
+        "id, name, enabled_features, status, created_at"
+    ).execute()
+    
+    tenant_ids = [t["id"] for t in (tenants.data or [])]
+    
+    subscriptions: dict = {}
+    if tenant_ids:
+        subs = db.table("tenant_subscriptions").select(
+            "tenant_id, mrr, ai_tier"
+        ).in_("tenant_id", tenant_ids).execute()
+        for s in (subs.data or []):
+            subscriptions[s["tenant_id"]] = s
+    
+    counters_by_tenant: dict = {}
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    if tenant_ids:
+        counters = db.table("tenant_usage_counters").select(
+            "tenant_id, metric, used, included"
+        ).in_("tenant_id", tenant_ids).eq("period", period).execute()
+        for c in (counters.data or []):
+            if c["tenant_id"] not in counters_by_tenant:
+                counters_by_tenant[c["tenant_id"]] = {}
+            counters_by_tenant[c["tenant_id"]][c["metric"]] = {
+                "used": c["used"] or 0,
+                "included": c["included"] or 0,
+            }
+    
+    from datetime import timedelta
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    
+    msg_counts: dict = {}
+    for tid in tenant_ids:
+        count_res = db.table("messages").select(
+            "id", count="exact"
+        ).eq("tenant_id", tid).eq("direction", "outbound").gte("created_at", thirty_days_ago).execute()
+        msg_counts[tid] = count_res.count or 0
+    
+    result = []
+    for t in (tenants.data or []):
+        tid = t["id"]
+        ai_reply_counter = counters_by_tenant.get(tid, {}).get("ai_reply", {"used": 0, "included": 0})
+        ai_used = ai_reply_counter.get("used", 0)
+        ai_included = ai_reply_counter.get("included", 0)
+        ai_usage = round(ai_used / ai_included * 100) if ai_included > 0 else 0
+        sub = subscriptions.get(tid, {})
+        mrr = sub.get("mrr", 0) or 0
+        msgs = msg_counts.get(tid, 0)
+
+        result.append({
+            "id": tid,
+            "name": t["name"],
+            "enabled_features": t.get("enabled_features", []) or [],
+            "status": t.get("status", "active"),
+            "created_at": t.get("created_at"),
+            "mrr": mrr,
+            "messages_30d": msgs,
+            "ai_usage": ai_usage,
+            "health": "healthy" if t.get("status") == "active" else "warning",
+            "last_activity": None,
+        })
+    
+    return {"data": result}
+
+
+@router.get("/plans")
+def list_plans(_admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    plans = db.table("plans").select("id, name, pillar, tier, monthly_price, ai_tier, included").eq("active", True).execute()
+    return {"data": plans.data or []}
+
+
+class FeatureTogglePayload(BaseModel):
+    feature_key: str
+    enabled: bool
+
+
+class UpdateStatusPayload(BaseModel):
+    status: Literal["active", "suspended"]
+
+
+class CallingProviderPayload(BaseModel):
+    calling_provider: Literal["telecmi", "sim_basic"]
 
 
 @router.patch("/clients/{tenant_id}/status")
@@ -357,32 +552,50 @@ def wipe_leads(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     return {"deleted": deleted, "tenant_id": tenant_id}
 
 
-@router.post("/clients/{tenant_id}/reset-password")
-async def reset_password(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+@router.post("/clients/{tenant_id}/features/toggle")
+def toggle_feature(tenant_id: str, payload: FeatureTogglePayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    owner = (
-        db.table("tenant_users")
-        .select("user_id")
-        .eq("tenant_id", tenant_id)
-        .eq("role", "owner")
-        .maybe_single()
-        .execute()
-    )
-    if not owner.data:
-        raise HTTPException(status_code=404, detail="No owner found for this tenant")
-    temp_pw = "Aira@" + secrets.token_urlsafe(10)
-    db.auth.admin.update_user_by_id(owner.data["user_id"], {"password": temp_pw})
-    record_audit_event(
-        db,
-        tenant_id=tenant_id,
-        actor_user_id=_admin.get("user_id"),
-        actor_role="system_admin",
-        action="operator.password_reset",
-        target_type="tenant_owner",
-        target_id=owner.data["user_id"],
-        metadata={"tenant_id": tenant_id},
-    )
-    return {"temp_password": temp_pw}
+    
+    tenant = db.table("tenants").select("enabled_features").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    
+    features = tenant.data.get("enabled_features", []) or []
+    
+    if payload.enabled:
+        if payload.feature_key not in features:
+            features.append(payload.feature_key)
+    else:
+        features = [f for f in features if f != payload.feature_key]
+    
+    db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
+    
+    return {"tenant_id": tenant_id, "enabled_features": features}
+
+
+@router.get("/clients/{tenant_id}/subscription")
+def get_subscription(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    
+    sub = db.table("tenant_subscriptions").select(
+        "messaging_plan_id, telecalling_plan_id, ai_tier, mrr, custom_overrides"
+    ).eq("tenant_id", tenant_id).maybe_single().execute()
+    
+    return {"data": sub.data or {}}
+
+
+@router.get("/clients/{tenant_id}/usage")
+def get_client_usage(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    from datetime import datetime, timezone
+    db = get_supabase()
+    
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    
+    counters = db.table("tenant_usage_counters").select(
+        "metric, used, included, hard_cap"
+    ).eq("tenant_id", tenant_id).eq("period", period).execute()
+    
+    return {"data": counters.data or [], "period": period}
 
 
 @router.get("/clients/{tenant_id}/overview")

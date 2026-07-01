@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
-  Wrench, Activity, Settings, Database, ChevronDown, ChevronRight,
-  ArrowLeft, FileText, Trash2,
+  Wrench, Activity, Settings, Settings2, Database, ChevronDown, ChevronRight,
+  ArrowLeft, FileText, Trash2, CreditCard,
 } from "lucide-react";
 
 export type SectionType =
@@ -13,7 +13,7 @@ export type SectionType =
   | "inbound" | "outbound" | "templates" | "numbers"
   | "knowledge" | "analytics" | "team"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
-  | "config" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
+  | "config" | "feature-store" | "billing" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
 
 type NavItem = {
   key: SectionType;
@@ -45,6 +45,8 @@ const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; feature
 
 const OPERATOR_NAV: NavItem[] = [
   { key: "config", icon: Wrench, label: "Configuration" },
+  { key: "feature-store", icon: Settings2, label: "Feature Store" },
+  { key: "billing", icon: CreditCard, label: "Billing & Usage" },
   { key: "health", icon: Activity, label: "Health" },
   { key: "management", icon: Settings, label: "Management" },
   { key: "data-ops", icon: Database, label: "Data Ops" },

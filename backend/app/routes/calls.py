@@ -1,6 +1,7 @@
 import asyncio
 import hmac
 import logging
+import math
 import re
 from datetime import datetime, timezone, timedelta
 from typing import Literal
@@ -15,6 +16,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
 from app.services.call_scorer import score_from_outcome, recompute_caller_score
 from app.services.call_summarizer import transcribe_recording, analyze_call
+from app.services.entitlements import meter
 from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call
@@ -458,6 +460,14 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
 
     if updates:
         db.table("call_logs").update(updates).eq("id", call_log_id).execute()
+
+    # Track-only usage metering: TeleCMI-provider calls only (never the SIM path,
+    # which uses the client's own SIM and isn't billed per-minute). Best-effort —
+    # never blocks/caps the webhook response.
+    if updates.get("status") == "completed" and updates.get("duration_seconds"):
+        _tenant_id_for_meter = log_row.data.get("tenant_id")
+        if _tenant_id_for_meter:
+            meter(db, _tenant_id_for_meter, "call_minute", math.ceil(updates["duration_seconds"] / 60))
 
     # Recompute caller score on terminal statuses
     if updates.get("status") in ("completed", "no_answer"):
