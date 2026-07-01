@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { OperatorSidebar } from "./components/operator-sidebar";
 import { BackendUnreachable } from "./components/backend-unreachable";
+import { CommandPalette } from "./components/command-palette";
 
 const ME_FETCH_TIMEOUT_MS = 8000;
 
@@ -52,6 +53,7 @@ export default async function OperatorLayout({ children }: { children: React.Rea
   return (
     <div className="min-h-screen bg-background">
       <OperatorSidebar userEmail={user.email || ""} />
+      <CommandPalette />
       <main className="min-h-[calc(100vh-4rem)]">
         {children}
       </main>
