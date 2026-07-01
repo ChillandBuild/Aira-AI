@@ -48,6 +48,7 @@ export function EntitlementToggle({
     state === "off" && "bg-ink-muted/20",
     state === "locked" && "bg-ink-muted/10",
     state === "metered" && "bg-gradient-to-r from-primary to-violet-500",
+    disabled && "cursor-not-allowed opacity-50",
     !prefersReducedMotion && state === "on" && "shadow-[0_0_12px_rgba(91,33,182,0.15)]"
   );
 
@@ -59,7 +60,7 @@ export function EntitlementToggle({
       };
 
   const handleClick = () => {
-    if (state === "locked" || state === "metered") return;
+    if (disabled || state === "locked" || state === "metered") return;
     onChange(!checked);
   };
 

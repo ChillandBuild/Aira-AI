@@ -202,7 +202,7 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
                   {["messaging", "telecalling", "both"].map(p => (
                     <button
                       key={p} type="button"
-                      onClick={() => setSelectedPillar(p as any)}
+                      onClick={() => setSelectedPillar(p as "messaging" | "telecalling" | "both")}
                       className={cn(
                         "flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all",
                         selectedPillar === p ? "bg-primary text-white" : "bg-surface-mid text-ink-secondary hover:bg-border"
@@ -221,7 +221,7 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
                     {["basic", "standard", "pro"].map(t => (
                       <button
                         key={t} type="button"
-                        onClick={() => setMessagingTier(t as any)}
+                        onClick={() => setMessagingTier(t as "basic" | "standard" | "pro")}
                         className={cn(
                           "p-3 rounded-xl border text-center transition-all",
                           messagingTier === t ? "border-primary bg-primary-light" : "border-border bg-white hover:border-primary-muted"
@@ -242,7 +242,7 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
                     {["basic", "standard", "pro"].map(t => (
                       <button
                         key={t} type="button"
-                        onClick={() => setTelecallingTier(t as any)}
+                        onClick={() => setTelecallingTier(t as "basic" | "standard" | "pro")}
                         className={cn(
                           "p-3 rounded-xl border text-center transition-all",
                           telecallingTier === t ? "border-primary bg-primary-light" : "border-border bg-white hover:border-primary-muted"

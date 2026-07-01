@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { Users, MessageSquare, Phone, Activity, AlertTriangle, Calendar, CreditCard } from "lucide-react";
+import { Users } from "lucide-react";
 
 interface FleetClient {
   id: string;
@@ -21,7 +21,7 @@ async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { headers: auth });
   if (!res.ok) throw new Error("Request failed");
   const json = await res.json();
-  return (json as any).data ?? json;
+  return ((json as { data?: T }).data ?? json) as T;
 }
 
 export default function FleetPage() {
@@ -39,7 +39,6 @@ export default function FleetPage() {
   const totalMrr = clients.reduce((sum, c) => sum + (c.mrr || 0), 0);
   const activeCount = clients.filter(c => c.status === "active").length;
   const trialCount = clients.filter(c => c.status === "trial").length;
-  const suspendedCount = clients.filter(c => c.status === "suspended").length;
   const nearCap = clients.filter(c => c.ai_usage >= 80).length;
 
   if (loading) return <div className="p-8 text-center">Loading fleet…</div>;

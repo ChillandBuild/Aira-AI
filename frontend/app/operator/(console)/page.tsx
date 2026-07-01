@@ -22,14 +22,6 @@ const FEATURE_LABELS: Record<string, string> = {
   telegram: "TG",
 };
 
-const FEATURE_DISPLAY: Record<string, string> = {
-  whatsapp: "WhatsApp",
-  telecalling: "Telecalling",
-  instagram: "Instagram",
-  facebook: "Facebook",
-  telegram: "Telegram",
-};
-
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
   const res = await fetch(`${API_URL}${path}`, {

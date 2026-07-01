@@ -16,7 +16,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error((body as { detail?: string }).detail || "Request failed");
   }
   const json = await res.json();
-  return (json as any).data ?? json;
+  return ((json as { data?: T }).data ?? json) as T;
 }
 
 interface FeatureCatalogItem {
@@ -42,13 +42,13 @@ interface TenantSubscription {
   telecalling_plan_id: string | null;
   ai_tier: string | null;
   mrr: number;
-  custom_overrides: Record<string, any>;
+  custom_overrides: Record<string, unknown>;
 }
 
 interface ClientConfig {
   enabled_features: string[];
   credentials_status: Record<string, string>;
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
 }
 
 const CATEGORY_ICONS: Record<string, typeof MessageSquare> = {
