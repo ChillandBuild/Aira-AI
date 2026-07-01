@@ -31,7 +31,7 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
   async function handleSignOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push("/login");
+    router.push("/operator/login");
   }
 
   const initial = (userEmail || "O")[0].toUpperCase();

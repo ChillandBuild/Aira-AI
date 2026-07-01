@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { OperatorSidebar } from "./components/operator-sidebar";
+import { BackendUnreachable } from "./components/backend-unreachable";
+
+const ME_FETCH_TIMEOUT_MS = 8000;
 
 export default async function OperatorLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -9,20 +12,42 @@ export default async function OperatorLayout({ children }: { children: React.Rea
 
   const { data: { session } } = await supabase.auth.getSession();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  let isAdmin = false;
+  let unauthorized = false;
+  let unreachable = false;
+
   try {
-    const meRes = await fetch(`${apiUrl}/api/v1/operator/me`, {
-      headers: { Authorization: `Bearer ${session?.access_token}` },
-      cache: "no-store",
-    });
-    if (meRes.ok) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), ME_FETCH_TIMEOUT_MS);
+    let meRes: Response;
+    try {
+      meRes = await fetch(`${apiUrl}/api/v1/operator/me`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        cache: "no-store",
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (meRes.status === 401 || meRes.status === 403) {
+      unauthorized = true;
+    } else if (meRes.ok) {
       const me = await meRes.json();
-      if (!me.is_system_admin) redirect("/dashboard");
+      isAdmin = me.is_system_admin === true;
     } else {
-      redirect("/dashboard");
+      // Non-ok, non-401/403 (e.g. 5xx) — treat as infra failure, not an auth failure.
+      unreachable = true;
     }
   } catch {
-    redirect("/dashboard");
+    // Network error, abort, or timeout — infra failure, not an auth failure.
+    unreachable = true;
   }
+
+  if (unauthorized) redirect("/operator/login");
+  if (unreachable) return <BackendUnreachable />;
+  if (!isAdmin) redirect("/dashboard");
 
   return (
     <div className="min-h-screen bg-background">
