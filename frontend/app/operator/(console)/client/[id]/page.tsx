@@ -16,6 +16,7 @@ import { ManagementView } from "./views/management";
 import { DataOpsView } from "./views/data-ops";
 import { AuditLogsView } from "./views/audit-logs";
 import { DeleteClientView } from "./views/delete-client";
+import { FeatureStoreView } from "./views/feature-store";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -140,6 +141,7 @@ export default function ClientDetailPage() {
     "tc-scheduled": { title: "Telecalling / Scheduled", desc: "Upcoming scheduled callbacks." },
     "tc-notes": { title: "Telecalling / Notes", desc: "Call notes from telecallers." },
     config: { title: "Configuration", desc: "Credential status and key settings." },
+    "feature-store": { title: "Feature Store", desc: "Toggle features, manage quotas, view pricing." },
     health: { title: "Health", desc: "Channel health, delivery stats, and incidents." },
     management: { title: "Management", desc: "Owner management and account actions." },
     "data-ops": { title: "Data Operations", desc: "Clear specific data types for this client." },
@@ -238,6 +240,8 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
       return <TelecallingView tenantId={tenantId} subSection="notes" />;
     case "config":
       return <ConfigView tenantId={tenantId} />;
+    case "feature-store":
+      return <FeatureStoreView tenantId={tenantId} />;
     case "health":
       return <HealthView tenantId={tenantId} />;
     case "management":
