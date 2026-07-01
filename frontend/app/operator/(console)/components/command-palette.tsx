@@ -147,10 +147,10 @@ export function CommandPalette() {
 
   const selectItem = useCallback(
     (item: PaletteItem) => {
-      setOpen(false);
+      closePalette();
       router.push(item.href);
     },
-    [router]
+    [closePalette, router]
   );
 
   function handleDialogKeyDown(e: React.KeyboardEvent) {
@@ -280,7 +280,7 @@ export function CommandPalette() {
                       </div>
                       <span
                         className={`shrink-0 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                          item.status === "active" ? "bg-green-50 text-success" : "bg-red-50 text-danger"
+                          item.status === "active" ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
                         }`}
                       >
                         <span className={`w-1.5 h-1.5 rounded-full ${item.status === "active" ? "bg-success" : "bg-danger"}`} />
