@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Zap, Phone, MessageSquare, Brain, Cog, Settings2 } from "lucide-react";
+import { AlertTriangle, Zap, Phone, MessageSquare, Brain, Cog, Settings2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
 import { EntitlementCard, ToggleState } from "../../../components/entitlement-toggle";
@@ -45,6 +45,12 @@ interface TenantSubscription {
   custom_overrides: Record<string, any>;
 }
 
+interface ClientConfig {
+  enabled_features: string[];
+  credentials_status: Record<string, string>;
+  settings: Record<string, any>;
+}
+
 const CATEGORY_ICONS: Record<string, typeof MessageSquare> = {
   channels: MessageSquare,
   messaging: Zap,
@@ -67,23 +73,26 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
   const [catalog, setCatalog] = useState<FeatureCatalogItem[]>([]);
   const [subscription, setSubscription] = useState<TenantSubscription | null>(null);
   const [usage, setUsage] = useState<Record<string, UsageCounter>>({});
+  const [enabledFeatures, setEnabledFeatures] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
-  const [showQuoteConfirm, setShowQuoteConfirm] = useState<{feature: string, currentPrice: number, newPrice: number} | null>(null);
+  const [showQuoteConfirm, setShowQuoteConfirm] = useState<{ feature: FeatureCatalogItem; currentMrr: number; newMrr: number } | null>(null);
 
   useEffect(() => {
     Promise.all([
       apiFetch<FeatureCatalogItem[]>("/api/v1/operator/features/catalog"),
       apiFetch<TenantSubscription>(`/api/v1/operator/clients/${tenantId}/subscription`),
       apiFetch<UsageCounter[]>(`/api/v1/operator/clients/${tenantId}/usage`),
+      apiFetch<ClientConfig>(`/api/v1/operator/clients/${tenantId}/config`),
     ])
-      .then(([catalogData, subData, usageData]) => {
+      .then(([catalogData, subData, usageData, configData]) => {
         setCatalog(catalogData || []);
         setSubscription(subData || null);
         const usageMap: Record<string, UsageCounter> = {};
         (usageData || []).forEach(u => usageMap[u.metric] = u);
         setUsage(usageMap);
+        setEnabledFeatures(new Set(configData?.enabled_features || []));
       })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
@@ -95,13 +104,39 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
     return acc;
   }, {});
 
-  async function handleToggle(feature_key: string, enabled: boolean) {
+  function isPillarOwned(pillar: string): boolean {
+    if (pillar === "shared") return true;
+    if (pillar === "messaging") return !!subscription?.messaging_plan_id;
+    if (pillar === "telecalling") return !!subscription?.telecalling_plan_id;
+    return true;
+  }
+
+  function getToggleState(feature: FeatureCatalogItem): ToggleState {
+    if (!isPillarOwned(feature.pillar)) return "locked";
+    if (feature.is_metered) return "metered";
+    return enabledFeatures.has(feature.feature_key) ? "on" : "off";
+  }
+
+  async function doToggle(feature_key: string, enabled: boolean) {
     setToggling(feature_key);
     try {
-      await apiFetch(`/api/v1/operator/clients/${tenantId}/features/toggle`, {
-        method: "POST",
-        body: JSON.stringify({ feature_key, enabled }),
-      });
+      const res = await apiFetch<{ tenant_id: string; enabled_features: string[] }>(
+        `/api/v1/operator/clients/${tenantId}/features/toggle`,
+        {
+          method: "POST",
+          body: JSON.stringify({ feature_key, enabled }),
+        }
+      );
+      if (res?.enabled_features) {
+        setEnabledFeatures(new Set(res.enabled_features));
+      } else {
+        setEnabledFeatures(prev => {
+          const next = new Set(prev);
+          if (enabled) next.add(feature_key);
+          else next.delete(feature_key);
+          return next;
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update feature");
     } finally {
@@ -109,10 +144,24 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
     }
   }
 
-  function getToggleState(feature: FeatureCatalogItem): ToggleState {
-    const isEnabled = true;
-    if (feature.is_metered) return "metered";
-    return isEnabled ? "on" : "off";
+  function handleToggle(feature: FeatureCatalogItem, enabled: boolean) {
+    const state = getToggleState(feature);
+    if (state === "locked") return;
+
+    if (enabled && feature.monthly_price > 0 && !feature.is_metered) {
+      const currentMrr = subscription?.mrr || 0;
+      setShowQuoteConfirm({ feature, currentMrr, newMrr: currentMrr + feature.monthly_price });
+      return;
+    }
+
+    void doToggle(feature.feature_key, enabled);
+  }
+
+  function confirmQuote() {
+    if (!showQuoteConfirm) return;
+    const { feature } = showQuoteConfirm;
+    setShowQuoteConfirm(null);
+    void doToggle(feature.feature_key, true);
   }
 
   function formatPrice(price: number): string {
@@ -179,8 +228,8 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
                     description={`${feature.pillar} - ${feature.is_metered ? "Metered" : "Toggle"}`}
                     price={formatPrice(feature.monthly_price)}
                     state={getToggleState(feature)}
-                    checked={true}
-                    onToggle={(checked) => handleToggle(feature.feature_key, checked)}
+                    checked={enabledFeatures.has(feature.feature_key)}
+                    onToggle={(checked) => handleToggle(feature, checked)}
                     usage={featureUsage ? {
                       used: featureUsage.used,
                       included: featureUsage.included,
@@ -207,6 +256,42 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
           </div>
         </div>
       </div>
+
+      {showQuoteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-card bg-white p-6 shadow-xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning/10 text-warning">
+                <AlertTriangle size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-ink">Enable {showQuoteConfirm.feature.display_name}?</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-secondary">
+                  New monthly estimate: ₹{showQuoteConfirm.currentMrr.toLocaleString("en-IN")} → ₹{showQuoteConfirm.newMrr.toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowQuoteConfirm(null)}
+                disabled={!!toggling}
+                className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-ink-secondary transition-colors hover:bg-surface-mid disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmQuote}
+                disabled={!!toggling}
+                className="flex-1 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

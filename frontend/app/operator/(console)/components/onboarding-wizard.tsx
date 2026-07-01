@@ -67,11 +67,12 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [requireChange, setRequireChange] = useState(true);
 
   useEffect(() => {
     if (open) {
-      apiFetch<Plan[]>("/api/v1/operator/plans").then(setPlans).catch(() => setPlans([]));
+      apiFetch<{ data: Plan[] }>("/api/v1/operator/plans")
+        .then(res => setPlans(res.data ?? []))
+        .catch(() => setPlans([]));
       setPassword(generatePassword());
     }
   }, [open]);
@@ -301,11 +302,9 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
                   </button>
                 </div>
               </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={requireChange} onChange={e => setRequireChange(e.target.checked)}
-                  className="rounded border-border" />
-                Require password change on first login
-              </label>
+              {/* "Require password change on first login" removed: the backend has no
+                  enforcement for it yet, so the checkbox was collected but silently
+                  dropped. Re-add once the API supports it. */}
             </div>
           )}
 
