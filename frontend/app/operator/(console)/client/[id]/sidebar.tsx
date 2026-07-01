@@ -7,6 +7,7 @@ import {
   Wrench, Activity, Settings, Settings2, Database, ChevronDown, ChevronRight,
   ArrowLeft, FileText, Trash2, CreditCard,
 } from "lucide-react";
+import { OperatorToggle } from "../../components/operator-toggle";
 
 export type SectionType =
   | "overview" | "inbox" | "conversations" | "segments"
@@ -84,15 +85,16 @@ export function ClientDetailSidebar({
   function FeatureToggle({ featureKey, disabled }: { featureKey: string; disabled?: boolean }) {
     const on = isEnabled(featureKey);
     return (
-      <button
-        disabled={featureUpdating || disabled}
-        onClick={(e) => { e.stopPropagation(); onToggleFeature(featureKey); }}
-        className={`relative w-9 h-5 rounded-full transition-all duration-200 flex-shrink-0 ${
-          on ? "bg-primary" : "bg-ink-muted/30"
-        } ${(featureUpdating || disabled) ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
-      >
-        <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-200 shadow-sm ${on ? "translate-x-4" : ""}`} />
-      </button>
+      <span onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+        <OperatorToggle
+          checked={on}
+          onChange={() => onToggleFeature(featureKey)}
+          disabled={disabled}
+          loading={featureUpdating}
+          size="sm"
+          aria-label={`${on ? "Disable" : "Enable"} ${featureKey.replace(/[._]/g, " ")}`}
+        />
+      </span>
     );
   }
 

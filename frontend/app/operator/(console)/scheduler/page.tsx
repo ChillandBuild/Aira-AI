@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { ActionConfirm } from "../components/action-confirm";
+import { OperatorToggle } from "../components/operator-toggle";
 
 interface JobHealth {
   id: string;
@@ -189,24 +190,13 @@ export default function SchedulerHealthPage() {
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${style.badge}`}>
                     <style.Icon size={11} /> {style.label}
                   </span>
-                  <button
-                    onClick={() => requestToggle(j)}
-                    disabled={toggling === j.id}
+                  <OperatorToggle
+                    checked={!j.paused}
+                    onChange={() => requestToggle(j)}
+                    loading={toggling === j.id}
+                    size="sm"
                     aria-label={j.paused ? `Resume ${meta.name}` : `Pause ${meta.name}`}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      toggling === j.id
-                        ? "bg-surface-mid cursor-wait"
-                        : j.paused
-                          ? "bg-border"
-                          : "bg-primary"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
-                        j.paused ? "translate-x-0.5" : "translate-x-[18px]"
-                      }`}
-                    />
-                  </button>
+                  />
                 </div>
               </div>
               <dl className="space-y-1.5 text-xs">
