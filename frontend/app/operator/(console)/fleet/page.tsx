@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
-import { API_URL, getAuthHeaders } from "@/lib/api";
-import { Users } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { RefreshCw, Users } from "lucide-react";
+import { operatorFetch } from "@/lib/operator";
 
 interface FleetClient {
   id: string;
@@ -16,33 +16,30 @@ interface FleetClient {
   last_activity: string | null;
 }
 
-async function apiFetch<T>(path: string): Promise<T> {
-  const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}${path}`, { headers: auth });
-  if (!res.ok) throw new Error("Request failed");
-  const json = await res.json();
-  return ((json as { data?: T }).data ?? json) as T;
-}
-
 export default function FleetPage() {
   const [clients, setClients] = useState<FleetClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    apiFetch<FleetClient[]>("/api/v1/operator/fleet")
-      .then(setClients)
-      .catch(e => setError(e.message))
+  const load = useCallback(() => {
+    setLoading(true);
+    return operatorFetch<{ data: FleetClient[] } | FleetClient[]>("/api/v1/operator/fleet")
+      .then(res => {
+        setClients(Array.isArray(res) ? res : res.data ?? []);
+        setError(null);
+      })
+      .catch(e => setError(e instanceof Error ? e.message : "Request failed"))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const totalMrr = clients.reduce((sum, c) => sum + (c.mrr || 0), 0);
   const activeCount = clients.filter(c => c.status === "active").length;
   const trialCount = clients.filter(c => c.status === "trial").length;
   const nearCap = clients.filter(c => c.ai_usage >= 80).length;
 
-  if (loading) return <div className="p-8 text-center">Loading fleet…</div>;
-  if (error) return <div className="p-8 text-danger">{error}</div>;
+  if (loading && clients.length === 0) return <div className="p-8 text-center">Loading fleet…</div>;
 
   return (
     <div className="max-w-7xl mx-auto px-8 py-8">
@@ -51,7 +48,22 @@ export default function FleetPage() {
           <h1 className="text-2xl font-bold text-ink">Fleet Cockpit</h1>
           <p className="text-sm text-ink-muted mt-1">All clients summary and attention queue.</p>
         </div>
+        <button
+          onClick={() => load()}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm text-ink-secondary hover:text-ink border border-border rounded-lg hover:bg-surface-mid transition-colors disabled:opacity-60"
+          title="Refresh"
+          aria-label="Refresh fleet"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+        </button>
       </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-danger/20 rounded-xl text-sm text-danger">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-card border border-border p-4 shadow-card">

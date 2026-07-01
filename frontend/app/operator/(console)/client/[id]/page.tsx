@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { API_URL, getAuthHeaders } from "@/lib/api";
+import { operatorFetch } from "@/lib/operator";
 import { ClientDetailSidebar, type SectionType } from "./sidebar";
 import { OverviewView } from "./views/overview";
 import { InboxView } from "./views/inbox";
@@ -19,19 +19,6 @@ import { DeleteClientView } from "./views/delete-client";
 import { FeatureStoreView } from "./views/feature-store";
 import { BillingView } from "./views/billing";
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...auth, ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { detail?: string }).detail || "Request failed");
-  }
-  return res.json() as Promise<T>;
-}
-
 import type { OverviewData } from "./types";
 
 export default function ClientDetailPage() {
@@ -45,7 +32,7 @@ export default function ClientDetailPage() {
   const loadOverview = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<OverviewData>(`/api/v1/operator/clients/${tenantId}/overview`);
+      const data = await operatorFetch<OverviewData>(`/api/v1/operator/clients/${tenantId}/overview`);
       setOverview(data);
       setError(null);
     } catch (e) {
@@ -104,7 +91,7 @@ export default function ClientDetailPage() {
     const updated = Array.from(current);
 
     try {
-      await apiFetch(`/api/v1/operator/clients/${tenantId}/features`, {
+      await operatorFetch(`/api/v1/operator/clients/${tenantId}/features`, {
         method: "PATCH",
         body: JSON.stringify({ features: updated }),
       });

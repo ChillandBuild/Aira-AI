@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { relTime } from "@/lib/operator";
 import { ActionConfirm } from "../components/action-confirm";
 import { OperatorToggle } from "../components/operator-toggle";
 
@@ -42,15 +43,6 @@ const CRITICAL_JOB_IDS = new Set([
   "assignment-sweep",
   "callback-reassignment",
 ]);
-
-function relTime(iso: string | null): string {
-  if (!iso) return "—";
-  const diff = Date.now() - new Date(iso).getTime();
-  const ahead = diff < 0;
-  const s = Math.abs(diff) / 1000;
-  const fmt = s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${Math.round(s / 3600)}h`;
-  return ahead ? `in ${fmt}` : `${fmt} ago`;
-}
 
 type Health = "healthy" | "warn" | "down" | "pending" | "paused";
 

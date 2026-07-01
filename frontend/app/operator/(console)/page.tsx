@@ -2,7 +2,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, Activity, Clock, Cpu, HardDrive } from "lucide-react";
-import { API_URL, getAuthHeaders } from "@/lib/api";
+import { API_URL } from "@/lib/api";
+import { operatorFetch } from "@/lib/operator";
 import { OnboardingWizard } from "./components/onboarding-wizard";
 import { ActionConfirm } from "./components/action-confirm";
 
@@ -22,19 +23,6 @@ const FEATURE_LABELS: Record<string, string> = {
   facebook: "FB",
   telegram: "TG",
 };
-
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...auth, ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { detail?: string }).detail || "Request failed");
-  }
-  return res.json() as Promise<T>;
-}
 
 type SystemHealth = {
   status: "healthy" | "unhealthy";
@@ -156,7 +144,7 @@ export default function OperatorPage() {
     try {
       const [healthRes, opRes] = await Promise.allSettled([
         fetch(`${API_URL}/health`).then(r => r.json()),
-        apiFetch<OperatorHealth>("/api/v1/operator/system-health"),
+        operatorFetch<OperatorHealth>("/api/v1/operator/system-health"),
       ]);
       if (healthRes.status === "fulfilled") setSystemHealth(healthRes.value);
       if (opRes.status === "fulfilled") setOperatorHealth(opRes.value);
@@ -167,30 +155,30 @@ export default function OperatorPage() {
     }
   }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetch<{ data: Client[] }>("/api/v1/operator/clients");
+      const res = await operatorFetch<{ data: Client[] }>("/api/v1/operator/clients");
       setClients(res.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { load(); loadHealth(); }, [loadHealth]);
+  useEffect(() => { load(); loadHealth(); }, [load, loadHealth]);
 
-  // Auto-refresh health every 60s
+  // Auto-refresh health every 60s — also refreshes the client list on the same cadence.
   useEffect(() => {
-    const id = setInterval(loadHealth, 60_000);
+    const id = setInterval(() => { loadHealth(); load(); }, 60_000);
     return () => clearInterval(id);
-  }, [loadHealth]);
+  }, [loadHealth, load]);
 
   async function handleToggleStatus(client: Client) {
     const newStatus = client.status === "active" ? "suspended" : "active";
     try {
-      await apiFetch(`/api/v1/operator/clients/${client.id}/status`, {
+      await operatorFetch(`/api/v1/operator/clients/${client.id}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status: newStatus }),
       });
@@ -208,7 +196,7 @@ export default function OperatorPage() {
     if (!resetTarget) return;
     setResetLoading(true);
     try {
-      const res = await apiFetch<{ temp_password: string }>(
+      const res = await operatorFetch<{ temp_password: string }>(
         `/api/v1/operator/clients/${resetTarget.id}/reset-password`,
         { method: "POST" }
       );
@@ -258,6 +246,17 @@ export default function OperatorPage() {
     );
   }
 
+  function goToClient(clientId: string) {
+    router.push(`/operator/client/${clientId}`);
+  }
+
+  function handleRowKeyDown(e: React.KeyboardEvent, clientId: string) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      goToClient(clientId);
+    }
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-8 py-8">
       {/* Header */}
@@ -267,6 +266,16 @@ export default function OperatorPage() {
           <p className="text-sm text-ink-muted mt-1">Provision and manage tenant accounts.</p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => load()}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-ink-secondary hover:text-ink border border-border rounded-lg hover:bg-surface-mid transition-colors disabled:opacity-60"
+            title="Refresh"
+            aria-label="Refresh clients"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
+
           {/* View toggle */}
           <div className="flex bg-surface-mid rounded-lg p-0.5">
             <button
@@ -369,8 +378,12 @@ export default function OperatorPage() {
           {clients.map(client => (
             <div
               key={client.id}
-              className="bg-white rounded-card border border-border shadow-card hover:shadow-card-hover transition-all duration-200 cursor-pointer p-5"
-              onClick={() => router.push(`/operator/client/${client.id}`)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Open client ${client.name}`}
+              className="bg-white rounded-card border border-border shadow-card hover:shadow-card-hover transition-all duration-200 cursor-pointer p-5 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              onClick={() => goToClient(client.id)}
+              onKeyDown={(e) => handleRowKeyDown(e, client.id)}
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -422,8 +435,12 @@ export default function OperatorPage() {
               {clients.map(client => (
                 <tr
                   key={client.id}
-                  className="hover:bg-surface-mid/50 transition-colors cursor-pointer"
-                  onClick={() => router.push(`/operator/client/${client.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open client ${client.name}`}
+                  className="hover:bg-surface-mid/50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/40"
+                  onClick={() => goToClient(client.id)}
+                  onKeyDown={(e) => handleRowKeyDown(e, client.id)}
                 >
                   <td className="px-5 py-4">
                     <p className="text-sm font-semibold text-ink">{client.name}</p>

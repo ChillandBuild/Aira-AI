@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { relTime } from "@/lib/operator";
 
 interface AuditEntry {
   id: string;
@@ -38,15 +39,6 @@ function actionColor(action: string): string {
   return "bg-surface-mid text-ink-secondary";
 }
 
-function relTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.abs(diff) / 1000;
-  if (s < 60) return `${Math.round(s)}s ago`;
-  if (s < 3600) return `${Math.round(s / 60)}m ago`;
-  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
-  return `${Math.round(s / 86400)}d ago`;
-}
-
 function formatMeta(meta: Record<string, unknown> | null): string {
   if (!meta || Object.keys(meta).length === 0) return "";
   return Object.entries(meta)
@@ -61,8 +53,18 @@ export default function AuditLogPage() {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const limit = 30;
+
+  // Debounce the search input ~300ms before it drives a request.
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  // Reset to page 1 whenever the (debounced) search term changes.
+  useEffect(() => { setPage(1); }, [search]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,8 +103,8 @@ export default function AuditLogPage() {
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Filter by action..."
               className="pl-9 pr-3 py-2 border border-border rounded-xl text-sm w-56 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />

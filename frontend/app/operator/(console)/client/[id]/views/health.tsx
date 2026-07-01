@@ -1,21 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
-import { API_URL, getAuthHeaders } from "@/lib/api";
+import { operatorFetch } from "@/lib/operator";
 import { SkeletonCard, SkeletonTable } from "../components/skeleton";
-
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...auth, ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { detail?: string }).detail || "Request failed");
-  }
-  return res.json() as Promise<T>;
-}
 
 interface ChannelData {
   status: "healthy" | "unhealthy" | "not_configured";
@@ -68,7 +55,7 @@ export function HealthView({ tenantId }: { tenantId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<HealthData>(`/api/v1/operator/clients/${tenantId}/health`)
+    operatorFetch<HealthData>(`/api/v1/operator/clients/${tenantId}/health`)
       .then(setHealth)
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load health"))
       .finally(() => setLoading(false));
