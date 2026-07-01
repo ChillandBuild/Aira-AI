@@ -221,6 +221,62 @@ class ComputeAlertsTests(unittest.TestCase):
         self.assertIn("fleet:token_expired:tenant-1", ids)
         self.assertIn("fleet:near_cap:tenant-1", ids)
 
+    def test_token_invalid_incidents_different_channels_both_emitted(self):
+        # create_token_incident dedups token_invalid incidents per (tenant,
+        # channel), so a tenant can have two simultaneous open token_invalid
+        # incidents (e.g. Telegram AND WhatsApp both broken). Both are
+        # distinct DB rows with distinct ids and must surface as two alerts,
+        # not collapse into one (which would silently drop the second).
+        alerts = compute_alerts(
+            fleet_rows=[],
+            scheduler_jobs=[],
+            incidents=[
+                {
+                    "id": "inc-telegram",
+                    "tenant_id": "tenant-5",
+                    "tenant_name": "Gamma Inc",
+                    "type": "token_invalid",
+                    "detail": {"channel": "telegram", "message": "Telegram token invalid"},
+                    "created_at": "2026-07-01T10:00:00+00:00",
+                },
+                {
+                    "id": "inc-whatsapp",
+                    "tenant_id": "tenant-5",
+                    "tenant_name": "Gamma Inc",
+                    "type": "token_invalid",
+                    "detail": {"channel": "whatsapp", "message": "WhatsApp token invalid"},
+                    "created_at": "2026-07-01T10:05:00+00:00",
+                },
+            ],
+            now=NOW,
+        )
+        self.assertEqual(len(alerts), 2)
+        ids = {a["id"] for a in alerts}
+        self.assertEqual(len(ids), 2)
+        details = {a["detail"] for a in alerts}
+        self.assertIn("Telegram token invalid", details)
+        self.assertIn("WhatsApp token invalid", details)
+
+    def test_same_incident_refetched_collapses_to_one(self):
+        # The same incident row (same id) appearing twice in the input -- as
+        # would happen if a poll re-fetches an already-seen incident -- must
+        # still collapse to a single alert.
+        incident = {
+            "id": "inc-telegram",
+            "tenant_id": "tenant-5",
+            "tenant_name": "Gamma Inc",
+            "type": "token_invalid",
+            "detail": {"channel": "telegram", "message": "Telegram token invalid"},
+            "created_at": "2026-07-01T10:00:00+00:00",
+        }
+        alerts = compute_alerts(
+            fleet_rows=[],
+            scheduler_jobs=[],
+            incidents=[incident, dict(incident)],
+            now=NOW,
+        )
+        self.assertEqual(len(alerts), 1)
+
     def test_each_alert_has_required_shape(self):
         alerts = compute_alerts(
             fleet_rows=[fleet_row(token_expired=True)],

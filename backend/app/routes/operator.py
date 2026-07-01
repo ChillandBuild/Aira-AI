@@ -1596,8 +1596,16 @@ def compute_alerts(
         message = None
         if isinstance(detail, dict):
             message = detail.get("message")
+        # Fold the incident row's own (stable) primary key into the dedup id.
+        # `create_token_incident` dedups token_invalid incidents per (tenant,
+        # channel), so two distinct incidents for the same tenant on different
+        # channels are two different DB rows with different ids — using only
+        # (inc_type, tenant_id) here would collapse them into one alert and
+        # silently drop the second. Keying on the row id keeps them distinct
+        # while still collapsing the *same* incident re-fetched on a later
+        # poll, since its id is stable across polls.
         add({
-            "id": f"incident:{inc_type}:{tenant_id}",
+            "id": f"incident:{inc_type}:{tenant_id}:{inc.get('id')}",
             "severity": severity,
             "title": inc_type.replace("_", " ").capitalize(),
             "detail": message or f"Open incident for tenant {tenant_id}.",
