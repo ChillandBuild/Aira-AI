@@ -435,6 +435,123 @@ class FeatureTogglePayload(BaseModel):
     enabled: bool
 
 
+class UpdateStatusPayload(BaseModel):
+    status: Literal["active", "suspended"]
+
+
+class CallingProviderPayload(BaseModel):
+    calling_provider: Literal["telecmi", "sim_basic"]
+
+
+@router.patch("/clients/{tenant_id}/status")
+def update_status(tenant_id: str, payload: UpdateStatusPayload, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    current = db.table("tenants").select("status").eq("id", tenant_id).maybe_single().execute()
+    result = db.table("tenants").update({"status": payload.status}).eq("id", tenant_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.status_updated",
+        target_type="tenant",
+        target_id=tenant_id,
+        metadata={"old_status": (current.data or {}).get("status"), "new_status": payload.status},
+    )
+    return {"tenant_id": tenant_id, "status": payload.status}
+
+
+@router.get("/clients/{tenant_id}/calling-provider")
+def get_calling_provider(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id, enabled_features").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    cfg = get_telecalling_config(tenant_id)
+    return {
+        "tenant_id": tenant_id,
+        "calling_provider": cfg.get("calling_provider", "telecmi"),
+        "telecalling_enabled": "telecalling" in (tenant.data.get("enabled_features") or []),
+    }
+
+
+@router.patch("/clients/{tenant_id}/calling-provider")
+def update_calling_provider(
+    tenant_id: str,
+    payload: CallingProviderPayload,
+    _admin: dict = Depends(get_system_admin),
+):
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    current = get_telecalling_config(tenant_id)
+    old_provider = current.get("calling_provider", "telecmi")
+    merged = {**current, "calling_provider": payload.calling_provider}
+    save_telecalling_config(tenant_id, merged)
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.calling_provider_updated",
+        target_type="tenant",
+        target_id=tenant_id,
+        metadata={"old_provider": old_provider, "new_provider": payload.calling_provider},
+    )
+    return {"tenant_id": tenant_id, "calling_provider": payload.calling_provider}
+
+
+@router.post("/clients/{tenant_id}/wipe-leads")
+def wipe_leads(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    """Delete all leads and lead-related data for a tenant. Irreversible."""
+    db = get_supabase()
+    tenant = db.table("tenants").select("id,name").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # Clear dependent tables first (tenant-scoped) to avoid FK violations
+    for table in (
+        "messages", "lead_notes", "chat_handovers",
+        "follow_up_jobs",
+        # Broadcast history — fully wiped per operator request
+        "broadcast_recipients", "broadcast_lead_scores",
+        "broadcast_failed_contacts", "broadcast_tags", "scheduled_broadcasts",
+    ):
+        try:
+            db.table(table).delete().eq("tenant_id", tenant_id).execute()
+        except Exception as e:
+            logger.warning("wipe-leads: could not clear %s for tenant %s: %s", table, tenant_id, e)
+
+    # Broadcast history is stored as a JSON blob in app_settings — clear it too
+    try:
+        db.table("app_settings") \
+            .delete() \
+            .eq("tenant_id", tenant_id) \
+            .eq("key", "broadcast_history") \
+            .execute()
+    except Exception as e:
+        logger.warning("wipe-leads: could not clear broadcast_history for tenant %s: %s", tenant_id, e)
+
+    result = db.table("leads").delete().eq("tenant_id", tenant_id).execute()
+    deleted = len(result.data or [])
+    logger.warning("OPERATOR WIPE: %d leads deleted for tenant %s (%s)", deleted, tenant_id, tenant.data["name"])
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.leads_wiped",
+        target_type="tenant",
+        target_id=tenant_id,
+        metadata={"tenant_name": tenant.data["name"], "deleted_leads": deleted},
+    )
+    return {"deleted": deleted, "tenant_id": tenant_id}
+
+
 @router.post("/clients/{tenant_id}/features/toggle")
 def toggle_feature(tenant_id: str, payload: FeatureTogglePayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
