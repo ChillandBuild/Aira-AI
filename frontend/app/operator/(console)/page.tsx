@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, Activity, Clock, Cpu, HardDrive } from "lucide-react";
+import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, Activity, Clock, Cpu, HardDrive, X } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { operatorFetch } from "@/lib/operator";
 import { OnboardingWizard } from "./components/onboarding-wizard";
@@ -125,6 +125,12 @@ export default function OperatorPage() {
   const [resetLoading, setResetLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<"active" | "suspended" | null>(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const [bulkSummary, setBulkSummary] = useState<{ succeeded: number; failed: number; failedNames: string[] } | null>(null);
+
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [operatorHealth, setOperatorHealth] = useState<OperatorHealth | null>(null);
   const [healthLoading, setHealthLoading] = useState(true);
@@ -186,6 +192,69 @@ export default function OperatorPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update status");
     }
+  }
+
+  function toggleSelected(clientId: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds(prev => {
+      if (clients.length > 0 && prev.size === clients.length) return new Set();
+      return new Set(clients.map(c => c.id));
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function requestBulkAction(status: "active" | "suspended") {
+    setBulkSummary(null);
+    setBulkAction(status);
+  }
+
+  async function confirmBulkAction() {
+    if (!bulkAction) return;
+    const targets = clients.filter(c => selectedIds.has(c.id));
+    if (targets.length === 0) {
+      setBulkAction(null);
+      return;
+    }
+    setBulkRunning(true);
+    setBulkProgress({ done: 0, total: targets.length });
+    let succeeded = 0;
+    const failedNames: string[] = [];
+
+    for (const client of targets) {
+      try {
+        await operatorFetch(`/api/v1/operator/clients/${client.id}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: bulkAction }),
+        });
+        succeeded++;
+      } catch {
+        failedNames.push(client.name);
+      }
+      setBulkProgress(prev => (prev ? { done: prev.done + 1, total: prev.total } : prev));
+    }
+
+    setBulkRunning(false);
+    setBulkProgress(null);
+    setBulkAction(null);
+    setBulkSummary({ succeeded, failed: failedNames.length, failedNames });
+    if (failedNames.length > 0) {
+      setError(`Bulk update: ${succeeded} succeeded, ${failedNames.length} failed (${failedNames.join(", ")}).`);
+    } else {
+      setError(null);
+    }
+    clearSelection();
+    await load();
   }
 
   function handleResetPassword(client: Client) {
@@ -386,17 +455,27 @@ export default function OperatorPage() {
               onKeyDown={(e) => handleRowKeyDown(e, client.id)}
             >
               <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="text-base font-semibold text-ink">{client.name}</h3>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <p className="text-xs text-ink-muted font-mono">{client.id.slice(0, 8)}&hellip;</p>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); copyId(client.id); }}
-                      className="p-0.5 rounded hover:bg-surface-mid text-ink-muted hover:text-ink transition-colors"
-                      title="Copy tenant ID"
-                    >
-                      {copiedId === client.id ? <Check size={10} /> : <Copy size={10} />}
-                    </button>
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(client.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => { e.stopPropagation(); toggleSelected(client.id); }}
+                    aria-label={`Select ${client.name}`}
+                    className="mt-1 w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                  />
+                  <div>
+                    <h3 className="text-base font-semibold text-ink">{client.name}</h3>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <p className="text-xs text-ink-muted font-mono">{client.id.slice(0, 8)}&hellip;</p>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); copyId(client.id); }}
+                        className="p-0.5 rounded hover:bg-surface-mid text-ink-muted hover:text-ink transition-colors"
+                        title="Copy tenant ID"
+                      >
+                        {copiedId === client.id ? <Check size={10} /> : <Copy size={10} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -426,6 +505,18 @@ export default function OperatorPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
+                <th className="px-5 py-3 text-left bg-surface-mid w-10">
+                  <input
+                    type="checkbox"
+                    checked={clients.length > 0 && selectedIds.size === clients.length}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < clients.length;
+                    }}
+                    onChange={toggleSelectAll}
+                    aria-label="Select all clients"
+                    className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                  />
+                </th>
                 {["Company", "Service", "Status", "Created", "Actions"].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider bg-surface-mid">{h}</th>
                 ))}
@@ -442,6 +533,15 @@ export default function OperatorPage() {
                   onClick={() => goToClient(client.id)}
                   onKeyDown={(e) => handleRowKeyDown(e, client.id)}
                 >
+                  <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(client.id)}
+                      onChange={() => toggleSelected(client.id)}
+                      aria-label={`Select ${client.name}`}
+                      className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                    />
+                  </td>
                   <td className="px-5 py-4">
                     <p className="text-sm font-semibold text-ink">{client.name}</p>
                     <div className="flex items-center gap-1 mt-0.5">
@@ -482,6 +582,79 @@ export default function OperatorPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed inset-x-0 bottom-6 z-40 flex justify-center px-4 motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in motion-safe:duration-200">
+          <div className="flex items-center gap-4 bg-ink text-white rounded-full shadow-xl pl-5 pr-3 py-2.5">
+            <span className="text-sm font-medium">
+              {selectedIds.size} client{selectedIds.size === 1 ? "" : "s"} selected
+            </span>
+            <div className="h-4 w-px bg-white/20" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => requestBulkAction("suspended")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <PowerOff size={13} /> Suspend
+              </button>
+              <button
+                onClick={() => requestBulkAction("active")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <Power size={13} /> Activate
+              </button>
+              <button
+                onClick={clearSelection}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white/70 hover:text-white rounded-full hover:bg-white/10 transition-colors"
+                aria-label="Clear selection"
+              >
+                <X size={13} /> Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action confirmation */}
+      <ActionConfirm
+        open={bulkAction !== null}
+        onClose={() => { if (!bulkRunning) setBulkAction(null); }}
+        onConfirm={confirmBulkAction}
+        title={
+          bulkAction === "suspended"
+            ? `Suspend ${selectedIds.size} client${selectedIds.size === 1 ? "" : "s"}?`
+            : `Activate ${selectedIds.size} client${selectedIds.size === 1 ? "" : "s"}?`
+        }
+        description={
+          bulkProgress
+            ? `Updating ${bulkProgress.done}/${bulkProgress.total}…`
+            : bulkAction === "suspended"
+              ? "Suspended clients will lose access immediately. This action is applied one at a time."
+              : "These clients will regain access immediately. This action is applied one at a time."
+        }
+        confirmText={bulkAction === "suspended" ? "Suspend" : "Activate"}
+        tone={bulkAction === "suspended" ? "danger" : "primary"}
+        loading={bulkRunning}
+      />
+
+      {/* Bulk action result summary */}
+      {bulkSummary && (
+        <div className={`fixed inset-x-0 bottom-6 z-40 flex justify-center px-4 motion-safe:animate-in motion-safe:slide-in-from-bottom-4 motion-safe:fade-in motion-safe:duration-200`}>
+          <div className={`flex items-center gap-3 rounded-full shadow-xl pl-5 pr-3 py-2.5 text-sm font-medium ${
+            bulkSummary.failed > 0 ? "bg-red-50 border border-danger/20 text-danger" : "bg-green-50 border border-success/20 text-success"
+          }`}>
+            <span>
+              {bulkSummary.failed > 0
+                ? `${bulkSummary.succeeded} succeeded, ${bulkSummary.failed} failed`
+                : `${bulkSummary.succeeded} client${bulkSummary.succeeded === 1 ? "" : "s"} updated`}
+            </span>
+            <button onClick={() => setBulkSummary(null)} aria-label="Dismiss" className="hover:opacity-70">
+              <X size={13} />
+            </button>
+          </div>
         </div>
       )}
     </div>
