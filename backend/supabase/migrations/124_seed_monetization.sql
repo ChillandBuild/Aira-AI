@@ -39,9 +39,12 @@ insert into feature_catalog (feature_key, display_name, category, pillar, monthl
 ('telecalling.attendance', 'Attendance', 'telecalling', 'telecalling', 0, false, 34),
 ('telecalling.performance', 'Performance', 'telecalling', 'telecalling', 0, false, 35),
 ('telecalling.qa', 'QA', 'telecalling', 'telecalling', 0, false, 36),
-('tc_recording', 'Call Recording', 'telecalling', 'telecalling', 0, false, 37),
-('tc_recording.summary', 'AI Summary', 'telecalling', 'telecalling', 0, false, null, 0, 38),
-('tc_recording.scoring', 'AI Scoring', 'telecalling', 'telecalling', 0, false, null, 0, 39);
+('tc_recording', 'Call Recording', 'telecalling', 'telecalling', 0, false, 37);
+
+-- Telecalling AI features (metered)
+insert into feature_catalog (feature_key, display_name, category, pillar, monthly_price, is_metered, usage_metric, included_qty, sort_order) values
+('tc_recording.summary', 'AI Summary', 'telecalling', 'telecalling', 0, true, 'ai_call_summary', 0, 38),
+('tc_recording.scoring', 'AI Scoring', 'telecalling', 'telecalling', 0, true, 'ai_call_scoring', 0, 39);
 
 -- Automation features
 insert into feature_catalog (feature_key, display_name, category, pillar, monthly_price, is_metered, sort_order) values

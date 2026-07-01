@@ -7,7 +7,7 @@ create table if not exists feature_catalog (
     category text not null check (category in ('channels', 'messaging', 'ai', 'telecalling', 'automation', 'ops')),
     pillar text not null check (pillar in ('messaging', 'telecalling', 'shared')),
     monthly_price numeric not null default 0,
-    usage_metric text references feature_catalog(feature_key) on delete set null,
+    usage_metric text,
     unit_price numeric,
     included_qty int,
     depends_on text[] default '{}',
@@ -60,30 +60,37 @@ alter table tenant_subscriptions enable row level security;
 alter table tenant_usage_counters enable row level security;
 
 -- RLS policies: system_admins can manage all, tenants can read plans
-create policy if not exists "feature_catalog_admin_all" on feature_catalog for all using (
+drop policy if exists "feature_catalog_admin_all" on feature_catalog;
+create policy "feature_catalog_admin_all" on feature_catalog for all using (
     exists (select 1 from system_admins where user_id = auth.uid())
 );
 
-create policy if not exists "plans_admin_all" on plans for all using (
+drop policy if exists "plans_admin_all" on plans;
+create policy "plans_admin_all" on plans for all using (
     exists (select 1 from system_admins where user_id = auth.uid())
 );
 
-create policy if not exists "plans_tenant_read" on plans for select using (
-    exists (select 1 from tenants where id = tenant_subscriptions.tenant_id)
+drop policy if exists "plans_tenant_read" on plans;
+create policy "plans_tenant_read" on plans for select using (
+    exists (select 1 from tenant_users where user_id = auth.uid())
 );
 
-create policy if not exists "tenant_subscriptions_admin_all" on tenant_subscriptions for all using (
+drop policy if exists "tenant_subscriptions_admin_all" on tenant_subscriptions;
+create policy "tenant_subscriptions_admin_all" on tenant_subscriptions for all using (
     exists (select 1 from system_admins where user_id = auth.uid())
 );
 
-create policy if not exists "tenant_subscriptions_tenant_read" on tenant_subscriptions for select using (
-    exists (select 1 from tenants where id = tenant_id)
+drop policy if exists "tenant_subscriptions_tenant_read" on tenant_subscriptions;
+create policy "tenant_subscriptions_tenant_read" on tenant_subscriptions for select using (
+    exists (select 1 from tenant_users tu where tu.tenant_id = tenant_subscriptions.tenant_id and tu.user_id = auth.uid())
 );
 
-create policy if not exists "tenant_usage_counters_admin_all" on tenant_usage_counters for all using (
+drop policy if exists "tenant_usage_counters_admin_all" on tenant_usage_counters;
+create policy "tenant_usage_counters_admin_all" on tenant_usage_counters for all using (
     exists (select 1 from system_admins where user_id = auth.uid())
 );
 
-create policy if not exists "tenant_usage_counters_tenant_read" on tenant_usage_counters for select using (
-    exists (select 1 from tenants where id = tenant_id)
+drop policy if exists "tenant_usage_counters_tenant_read" on tenant_usage_counters;
+create policy "tenant_usage_counters_tenant_read" on tenant_usage_counters for select using (
+    exists (select 1 from tenant_users tu where tu.tenant_id = tenant_usage_counters.tenant_id and tu.user_id = auth.uid())
 );
