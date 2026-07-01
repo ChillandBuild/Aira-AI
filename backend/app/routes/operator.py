@@ -171,7 +171,7 @@ def list_clients(_admin: dict = Depends(get_system_admin)):
     for c in (clients.data or []):
         owner = (
             db.table("tenant_users")
-            .select("user_id, email")
+            .select("user_id")
             .eq("tenant_id", c["id"])
             .eq("role", "owner")
             .maybe_single()
