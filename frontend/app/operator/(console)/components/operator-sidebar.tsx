@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Clock, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
+import { AlertBell } from "./alert-bell";
 
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },
@@ -75,6 +76,7 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
             <Clock size={13} className="opacity-50" />
             <span>{time || "00:00"}</span>
           </div>
+          <AlertBell />
           <button
             onClick={() => setShowSignOut(true)}
             className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-white text-sm font-bold hover:bg-primary-dark transition-colors"

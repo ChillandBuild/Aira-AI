@@ -377,11 +377,14 @@ def compute_fleet_health(
     return "healthy"
 
 
-@router.get("/fleet")
-def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
-    from datetime import timedelta
+def _build_fleet_rows(db) -> list[dict]:
+    """Fetch and score every tenant's fleet-health row.
 
-    db = get_supabase()
+    Shared by `GET /fleet` (the Fleet Cockpit table) and `GET /alerts` (the
+    operator alert center), so both surface the exact same signals instead of
+    running the queries twice.
+    """
+    from datetime import timedelta
 
     tenants = db.table("tenants").select(
         "id, name, enabled_features, status, created_at"
@@ -500,7 +503,13 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
             "channel_unhealthy": channel_unhealthy,
         })
 
-    return {"data": result}
+    return result
+
+
+@router.get("/fleet")
+def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    return {"data": _build_fleet_rows(db)}
 
 
 @router.get("/plans")
@@ -1345,16 +1354,16 @@ def clear_data(tenant_id: str, data_type: str, _admin: dict = Depends(get_system
     return {"deleted_count": deleted, "data_type": data_type}
 
 
-@router.get("/scheduler-health")
-def scheduler_health(_admin: dict = Depends(get_system_admin)):
-    """System-wide APScheduler health: each global job's next run, last run
-    status/lag, recent error count, plus recent failures. Operator-only —
-    the jobs are platform-level (not per tenant)."""
-    from datetime import datetime, timezone, timedelta
+def _build_scheduler_jobs(db, now) -> list[dict]:
+    """Fetch each global APScheduler job's last-run status and 24h error count.
+
+    Shared by `GET /scheduler-health` (the Scheduler page) and `GET /alerts`
+    (the operator alert center), so both read the same signals instead of
+    running the queries twice.
+    """
+    from datetime import timedelta
     from app.main import _scheduler
 
-    db = get_supabase()
-    now = datetime.now(timezone.utc)
     day_ago = (now - timedelta(hours=24)).isoformat()
 
     jobs_out = []
@@ -1386,6 +1395,21 @@ def scheduler_health(_admin: dict = Depends(get_system_admin)):
             "last_error": last_row["error"] if last_row else None,
             "errors_24h": errs.count or 0,
         })
+
+    return jobs_out
+
+
+@router.get("/scheduler-health")
+def scheduler_health(_admin: dict = Depends(get_system_admin)):
+    """System-wide APScheduler health: each global job's next run, last run
+    status/lag, recent error count, plus recent failures. Operator-only —
+    the jobs are platform-level (not per tenant)."""
+    from datetime import datetime, timezone
+
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+
+    jobs_out = _build_scheduler_jobs(db, now)
 
     recent_failures = (
         db.table("scheduler_runs")
@@ -1453,6 +1477,176 @@ def _format_uptime(seconds: float) -> str:
     if h > 0:
         return f"{h}h {m}m"
     return f"{m}m"
+
+
+_INCIDENT_SEVERITY: dict[str, str] = {
+    "token_invalid": "critical",
+}
+
+_SEVERITY_RANK: dict[str, int] = {"critical": 0, "warning": 1, "info": 2}
+
+
+def compute_alerts(
+    *,
+    fleet_rows: list[dict],
+    scheduler_jobs: list[dict],
+    incidents: list[dict],
+    now: datetime,
+) -> list[dict]:
+    """Pure, DB-free aggregation of the operator alert center's signals.
+
+    Takes already-fetched rows from the fleet cockpit (`_build_fleet_rows`),
+    scheduler health (`_build_scheduler_jobs`), and the `incidents` table, and
+    turns them into a single deduped, severity-sorted alert feed. No DB access
+    here — every branch is exercisable directly, mirroring `compute_fleet_health`.
+
+    Dedup: each alert gets a stable `id` derived from (source, tenant/job id,
+    kind) — e.g. `fleet:token_expired:<tenant_id>` or `scheduler:failing:<job_id>`.
+    Building the id this way means the same underlying problem (say, a tenant
+    that is both `token_expired` and `near_cap`) naturally produces two
+    *different* alerts (one per distinct problem) while a signal seen twice
+    (e.g. re-fetched) collapses to one, by keying a dict on id before sorting.
+    """
+    alerts: dict[str, dict] = {}
+
+    def add(alert: dict) -> None:
+        # First write wins so priority ordering below (critical-producing
+        # checks first) determines which title/detail survives a collision.
+        alerts.setdefault(alert["id"], alert)
+
+    # --- Fleet signals: expired tokens, AI cap, near-cap -------------------
+    for row in fleet_rows:
+        tenant_id = row.get("id")
+        tenant_name = row.get("name")
+        href = f"/operator/client/{tenant_id}" if tenant_id else None
+
+        if row.get("token_expired"):
+            add({
+                "id": f"fleet:token_expired:{tenant_id}",
+                "severity": "critical",
+                "title": "Messaging token expired",
+                "detail": f"{tenant_name} has an expired or missing messaging token.",
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "source": "fleet",
+                "created_at": row.get("last_activity") or now.isoformat(),
+                "href": href,
+            })
+
+        ai_usage = row.get("ai_usage", 0) or 0
+        if ai_usage >= 100:
+            add({
+                "id": f"fleet:ai_cap:{tenant_id}",
+                "severity": "critical",
+                "title": "AI usage at or over cap",
+                "detail": f"{tenant_name} is at {ai_usage}% of its AI reply quota.",
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "source": "fleet",
+                "created_at": row.get("last_activity") or now.isoformat(),
+                "href": href,
+            })
+        elif row.get("near_cap"):
+            add({
+                "id": f"fleet:near_cap:{tenant_id}",
+                "severity": "warning",
+                "title": "AI usage nearing cap",
+                "detail": f"{tenant_name} is at {ai_usage}% of its AI reply quota.",
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "source": "fleet",
+                "created_at": row.get("last_activity") or now.isoformat(),
+                "href": href,
+            })
+
+    # --- Scheduler signals: failing / paused-critical jobs ------------------
+    for job in scheduler_jobs:
+        job_id = job.get("id")
+        if job.get("errors_24h", 0) > 0 or job.get("last_status") == "error":
+            add({
+                "id": f"scheduler:failing:{job_id}",
+                "severity": "critical",
+                "title": f"Scheduler job failing: {job_id}",
+                "detail": job.get("last_error") or f"{job.get('errors_24h', 0)} error(s) in the last 24h.",
+                "tenant_id": None,
+                "tenant_name": None,
+                "source": "scheduler",
+                "created_at": job.get("last_run") or now.isoformat(),
+                "href": "/operator/scheduler",
+            })
+        elif job.get("paused"):
+            add({
+                "id": f"scheduler:paused:{job_id}",
+                "severity": "warning",
+                "title": f"Scheduler job paused: {job_id}",
+                "detail": "This job is paused and will not run until resumed.",
+                "tenant_id": None,
+                "tenant_name": None,
+                "source": "scheduler",
+                "created_at": now.isoformat(),
+                "href": "/operator/scheduler",
+            })
+
+    # --- Incident signals: recent open incidents ----------------------------
+    for inc in incidents:
+        inc_type = inc.get("type") or "incident"
+        severity = _INCIDENT_SEVERITY.get(inc_type, "warning")
+        tenant_id = inc.get("tenant_id")
+        detail = inc.get("detail")
+        message = None
+        if isinstance(detail, dict):
+            message = detail.get("message")
+        add({
+            "id": f"incident:{inc_type}:{tenant_id}",
+            "severity": severity,
+            "title": inc_type.replace("_", " ").capitalize(),
+            "detail": message or f"Open incident for tenant {tenant_id}.",
+            "tenant_id": tenant_id,
+            "tenant_name": inc.get("tenant_name"),
+            "source": "incident",
+            "created_at": inc.get("created_at") or now.isoformat(),
+            "href": f"/operator/client/{tenant_id}" if tenant_id else None,
+        })
+
+    return sorted(
+        alerts.values(),
+        key=lambda a: (_SEVERITY_RANK.get(a["severity"], 3), a.get("created_at") or ""),
+    )
+
+
+@router.get("/alerts")
+def operator_alerts(_admin: dict = Depends(get_system_admin)):
+    """Aggregated, deduped feed of active platform issues for the operator
+    alert center (header bell). Reuses the same signal-gathering as the Fleet
+    Cockpit and Scheduler pages rather than re-querying."""
+    from datetime import datetime, timezone
+
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+
+    fleet_rows = _build_fleet_rows(db)
+    scheduler_jobs = _build_scheduler_jobs(db, now)
+
+    tenant_names = {row["id"]: row["name"] for row in fleet_rows}
+    incidents_res = (
+        db.table("incidents")
+        .select("id, tenant_id, type, detail, created_at")
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute()
+    )
+    incidents = [
+        {**inc, "tenant_name": tenant_names.get(inc.get("tenant_id"))}
+        for inc in (incidents_res.data or [])
+    ]
+
+    alerts = compute_alerts(
+        fleet_rows=fleet_rows,
+        scheduler_jobs=scheduler_jobs,
+        incidents=incidents,
+        now=now,
+    )
+    return {"data": alerts}
 
 
 @router.get("/audit-logs")
