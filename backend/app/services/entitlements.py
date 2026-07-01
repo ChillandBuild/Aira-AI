@@ -1,5 +1,8 @@
+import logging
 from supabase import Client
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 
 def resolve_entitlements(
@@ -140,3 +143,17 @@ def increment_usage(
         "over_cap": over_cap,
         "warning": warning,
     }
+
+
+def meter(db, tenant_id: str, metric: str, delta: int = 1) -> None:
+    """Best-effort, non-blocking usage metering. Never raises.
+
+    TRACK-ONLY: this must never block, cap, delay, or break a send/reply/call.
+    Callers must not branch on this function's return value for gating.
+    """
+    if not tenant_id or delta <= 0:
+        return
+    try:
+        increment_usage(db, tenant_id, metric, delta)
+    except Exception as e:
+        logger.warning(f"metering failed (tenant={tenant_id}, metric={metric}): {e}")

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import httpx
 
 from app.db.supabase import get_supabase
+from app.services.entitlements import meter
 from app.services.meta_cloud import send_template_message
 from app.services.outbound_router import get_best_number, increment_send_count
 
@@ -211,6 +212,9 @@ async def execute_broadcast(row: dict) -> dict:
                     "tag_id": tag_id,
                     "extra_cols": extra_cols or None,
                 })
+                # Track-only usage metering: one billable send per successfully
+                # delivered recipient. Never blocks/caps — best-effort only.
+                meter(db, tenant_id, "message_sent")
 
                 if lead_id:
                     try:

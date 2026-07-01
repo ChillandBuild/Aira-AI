@@ -13,6 +13,7 @@ from app.services.assignment import (
     should_escalate_hot_lead,
     should_escalate_to_inbox,
 )
+from app.services.entitlements import meter
 
 logger = logging.getLogger(__name__)
 
@@ -735,6 +736,11 @@ async def generate_reply(
     else:
         _wa_phone = phone or lead_data.get("phone")
         sid = await send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id) if _wa_phone else None
+
+    # Track-only usage metering: count once per AI-generated reply that was
+    # actually sent (non-None message id). Never blocks/caps — best-effort only.
+    if is_ai and sid is not None:
+        meter(db, tenant_id, "ai_reply")
 
     # Step 4: Store outbound message
     if channel == "telegram":
