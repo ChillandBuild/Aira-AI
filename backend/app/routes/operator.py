@@ -193,74 +193,104 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
     if not user_id:
         raise HTTPException(status_code=500, detail="Failed to create user")
     
-    # Create tenant
-    tenant = db.table("tenants").insert({
-        "name": payload.company_name,
-        "status": "active",
-    }).execute()
-    tenant_id = tenant.data[0]["id"] if tenant.data else None
-    
-    # Create tenant user (owner)
-    db.table("tenant_users").insert({
-        "tenant_id": tenant_id,
-        "user_id": user_id,
-        "role": "owner",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }).execute()
-    
-    # Seed app_settings
-    _SETTING_KEYS = [
-        ("meta_phone_number_id", False), ("meta_access_token", True),
-        ("meta_waba_id", False), ("meta_webhook_verify_token", True),
-        ("meta_app_secret", True),
-        ("telecmi_user_id", False), ("telecmi_secret", True),
-        ("telecmi_callerid", False), ("telecmi_recording_base_url", False),
-        ("groq_api_key", True),
-        ("telegram_bot_token", True),
-        ("instagram_page_id", False), ("instagram_access_token", True),
-        ("facebook_page_id", False), ("facebook_access_token", True),
-        ("ai_auto_reply_enabled", False),
-        ("reengagement_enabled", False),
-    ]
-    db.table("app_settings").insert([
-        {"tenant_id": tenant_id, "key": k, "value": None, "is_secret": s}
-        for k, s in _SETTING_KEYS
-    ]).execute()
-    
-    # Create subscription record
-    mrr = 0
-    if payload.messaging_plan_id:
-        plan = db.table("plans").select("monthly_price").eq("id", payload.messaging_plan_id).maybe_single().execute()
-        mrr += plan.data["monthly_price"] if plan.data else 0
-    if payload.telecalling_plan_id:
-        plan = db.table("plans").select("monthly_price").eq("id", payload.telecalling_plan_id).maybe_single().execute()
-        mrr += plan.data["monthly_price"] if plan.data else 0
-    if payload.ai_tier and payload.ai_tier not in ("off", "byo"):
-        ai_prices = {"basic": 500, "standard": 900, "premium": 1500}
-        mrr += ai_prices.get(payload.ai_tier, 0)
-    elif payload.ai_tier == "byo":
-        mrr += 999
-    
-    db.table("tenant_subscriptions").insert({
-        "tenant_id": tenant_id,
-        "status": "trial",
-        "messaging_plan_id": payload.messaging_plan_id,
-        "telecalling_plan_id": payload.telecalling_plan_id,
-        "ai_tier": payload.ai_tier,
-        "mrr": mrr,
-        "trial_ends": None,
-    }).execute()
-    
-    # Seed default caller
-    db.table("callers").insert({
-        "tenant_id": tenant_id,
-        "user_id": user_id,
-        "name": payload.contact_name,
-        "active": True,
-        "status": "active",
-        "overall_score": 10.0,
-    }).execute()
-    
+    try:
+        # Create tenant
+        tenant = db.table("tenants").insert({
+            "name": payload.company_name,
+            "status": "active",
+            "business_type": payload.business_type,
+            "contact_name": payload.contact_name,
+            "contact_phone": payload.contact_phone,
+            "billing_region": payload.billing_region,
+        }).execute()
+        tenant_id = tenant.data[0]["id"] if tenant.data else None
+
+        # Create tenant user (owner)
+        db.table("tenant_users").insert({
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "role": "owner",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+
+        # Seed app_settings
+        db.table("app_settings").insert([
+            {"tenant_id": tenant_id, "key": k, "value": None, "is_secret": s}
+            for k, s in _SETTING_KEYS
+        ]).execute()
+
+        # Create subscription record
+        mrr = 0
+        if payload.messaging_plan_id:
+            plan = db.table("plans").select("monthly_price").eq("id", payload.messaging_plan_id).maybe_single().execute()
+            mrr += plan.data["monthly_price"] if plan.data else 0
+        if payload.telecalling_plan_id:
+            plan = db.table("plans").select("monthly_price").eq("id", payload.telecalling_plan_id).maybe_single().execute()
+            mrr += plan.data["monthly_price"] if plan.data else 0
+        if payload.ai_tier and payload.ai_tier not in ("off", "byo"):
+            ai_prices = {"basic": 500, "standard": 900, "premium": 1500}
+            mrr += ai_prices.get(payload.ai_tier, 0)
+        elif payload.ai_tier == "byo":
+            mrr += 999
+
+        db.table("tenant_subscriptions").insert({
+            "tenant_id": tenant_id,
+            "status": "trial",
+            "messaging_plan_id": payload.messaging_plan_id,
+            "telecalling_plan_id": payload.telecalling_plan_id,
+            "ai_tier": payload.ai_tier,
+            "mrr": mrr,
+            "trial_ends": None,
+        }).execute()
+
+        # Resolve entitlements now that the subscription exists, and seed
+        # enabled_features + usage counters so the console is usable immediately.
+        ent = resolve_entitlements(db, tenant_id)
+
+        features = list(ent["features"])
+        if payload.messaging_plan_id:
+            features.extend(["whatsapp", "inbound_leads", "outbound_leads", "analytics"])
+        if payload.telecalling_plan_id:
+            features.extend([
+                "telecalling", "telecalling.dialer", "telecalling.scheduled", "telecalling.notes",
+            ])
+        features = list(dict.fromkeys(features))
+
+        db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
+
+        quotas = ent["quotas"]
+        period = datetime.now(timezone.utc).strftime("%Y-%m")
+        usage_metrics = {
+            "message_sent": quotas.get("messages", 0),
+            "ai_reply": quotas.get("ai_replies", 0),
+            "call_minute": quotas.get("call_minutes", 0),
+            "team_seat_active": 0,
+            "storage_gb": 0,
+            "ai_call_summary": 0,
+            "ai_call_scoring": 0,
+        }
+        db.table("tenant_usage_counters").insert([
+            {"tenant_id": tenant_id, "period": period, "metric": metric, "used": 0, "included": included}
+            for metric, included in usage_metrics.items()
+        ]).execute()
+
+        # Seed default caller
+        db.table("callers").insert({
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "name": payload.contact_name,
+            "active": True,
+            "status": "active",
+            "overall_score": 10.0,
+        }).execute()
+    except Exception as e:
+        logger.error(f"Tenant setup failed for user {user_id}, cleaning up: {e}")
+        try:
+            db.auth.admin.delete_user(user_id)
+        except Exception as cleanup_err:
+            logger.error(f"Failed to delete orphaned auth user {user_id}: {cleanup_err}")
+        raise HTTPException(status_code=500, detail="Client setup failed; user account cleaned up.")
+
     record_audit_event(
         db,
         tenant_id=tenant_id,
@@ -275,7 +305,7 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
             "billing_region": payload.billing_region,
         },
     )
-    
+
     return {"tenant_id": tenant_id, "user_id": user_id, "mrr": mrr}
 
 
