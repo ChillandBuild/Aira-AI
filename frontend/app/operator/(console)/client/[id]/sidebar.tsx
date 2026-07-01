@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
-  Wrench, Activity, Settings, Database, ChevronDown, ChevronRight,
+  Wrench, Activity, Settings, Settings2, Database, ChevronDown, ChevronRight,
   ArrowLeft, FileText, Trash2,
 } from "lucide-react";
 

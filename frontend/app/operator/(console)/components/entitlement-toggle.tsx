@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ToggleState = "on" | "off" | "locked" | "metered";
@@ -21,8 +22,8 @@ interface EntitlementToggleProps {
 }
 
 const METERED_COLORS = {
-  warning: usage => usage.included > 0 && usage.used >= usage.included * 0.8,
-  danger: usage => usage.included > 0 && usage.used >= usage.included,
+  warning: (usage: Usage) => usage.included > 0 && usage.used >= usage.included * 0.8,
+  danger: (usage: Usage) => usage.included > 0 && usage.used >= usage.included,
 };
 
 export function EntitlementToggle({
@@ -154,7 +155,7 @@ export function EntitlementCard({
   usage,
   dependencyNote,
 }: {
-  icon: typeof import("lucide-react").LucideIcon;
+  icon: LucideIcon;
   name: string;
   description: string;
   price: string;

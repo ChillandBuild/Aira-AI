@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { ChevronRight, ChevronLeft, RefreshCw } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface Plan {
   id: string;

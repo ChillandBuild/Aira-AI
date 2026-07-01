@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, Lock, Zap, Phone, MessageSquare, Brain, Cog, Settings2 } from "lucide-react";
+import { Zap, Phone, MessageSquare, Brain, Cog, Settings2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
-import { EntitlementCard, ToggleState } from "../../components/entitlement-toggle";
+import { EntitlementCard, ToggleState } from "../../../components/entitlement-toggle";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -89,13 +89,6 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
       .finally(() => setLoading(false));
   }, [tenantId]);
 
-  const enabledFeatures = new Set<string>();
-  const planFeatures: Record<string, string[]> = {};
-  
-  if (subscription?.messaging_plan_id) {
-    const plan = catalog.find(c => c.feature_key === subscription.messaging_plan_id) || null;
-  }
-
   const featuresByCategory = catalog.reduce<Record<string, FeatureCatalogItem[]>>((acc, f) => {
     if (!acc[f.category]) acc[f.category] = [];
     acc[f.category].push(f);
@@ -167,36 +160,39 @@ export function FeatureStoreView({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="space-y-8">
-      {Object.entries(featuresByCategory).map(([category, features]) => (
-        <div key={category}>
-          <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-            {CATEGORY_ICONS[category] && <CATEGORY_ICONS[category] size={16} className="text-ink-muted" />}
-            {CATEGORY_LABELS[category] || category}
-          </h3>
-          <div className="grid gap-4 md:grid-cols-2">
-            {features.map(feature => {
-              const featureUsage = getUsageForFeature(feature);
-              return (
-                <EntitlementCard
-                  key={feature.feature_key}
-                  icon={CATEGORY_ICONS[category] || Zap}
-                  name={feature.display_name}
-                  description={`${feature.pillar} - ${feature.is_metered ? "Metered" : "Toggle"}`}
-                  price={formatPrice(feature.monthly_price)}
-                  state={getToggleState(feature)}
-                  checked={true}
-                  onToggle={(checked) => handleToggle(feature.feature_key, checked)}
-                  usage={featureUsage ? {
-                    used: featureUsage.used,
-                    included: featureUsage.included,
-                  } : undefined}
-                  dependencyNote={featureUsage ? `Usage: ${featureUsage.used} / ${featureUsage.included}` : undefined}
-                />
-              );
-            })}
+      {Object.entries(featuresByCategory).map(([category, features]) => {
+        const CatIcon = CATEGORY_ICONS[category];
+        return (
+          <div key={category}>
+            <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+              {CatIcon && <CatIcon size={16} className="text-ink-muted" />}
+              {CATEGORY_LABELS[category] || category}
+            </h3>
+            <div className="grid gap-4 md:grid-cols-2">
+              {features.map(feature => {
+                const featureUsage = getUsageForFeature(feature);
+                return (
+                  <EntitlementCard
+                    key={feature.feature_key}
+                    icon={CATEGORY_ICONS[category] || Zap}
+                    name={feature.display_name}
+                    description={`${feature.pillar} - ${feature.is_metered ? "Metered" : "Toggle"}`}
+                    price={formatPrice(feature.monthly_price)}
+                    state={getToggleState(feature)}
+                    checked={true}
+                    onToggle={(checked) => handleToggle(feature.feature_key, checked)}
+                    usage={featureUsage ? {
+                      used: featureUsage.used,
+                      included: featureUsage.included,
+                    } : undefined}
+                    dependencyNote={featureUsage ? `Usage: ${featureUsage.used} / ${featureUsage.included}` : undefined}
+                  />
+                );
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       <div className="bg-white rounded-card border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Current Plan Summary</h3>
