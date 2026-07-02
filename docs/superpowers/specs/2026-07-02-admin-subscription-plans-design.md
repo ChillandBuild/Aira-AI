@@ -106,26 +106,26 @@ else:
 
 ## Migration strategy (no entitlement loss)
 
-One migration, run against live Supabase:
+Verified against live Supabase (`ayftynkgmfkaqmmnlmoc`) before writing the
+migration: `tenant_subscriptions` currently has **zero rows** — every tenant
+is still pre-monetization, so no tenant references any of the 6 seed plans.
+This removes the need for synthesized combined-plan backfilling. One
+migration, run against live Supabase:
 
-1. Add `plan_id` to `tenant_subscriptions` (nullable).
-2. Backfill: for every tenant currently referencing a `messaging_plan_id`
-   and/or `telecalling_plan_id`, synthesize one new `plans` row that unions
-   the feature_keys/quotas of whichever of those plans they hold (folding in
-   the `ai_reply` quota implied by their old `ai_tier`, using the existing
-   `ai_tier.*` feature_catalog `included_qty` values as the source), priced
-   at their current `mrr`. Point `tenant_subscriptions.plan_id` at the
-   synthesized row.
-3. The original 6 hardcoded plan rows are kept (not deleted) and become part
-   of the initial admin-editable plan list — `pillar`/`tier`/`ai_tier`
-   columns are dropped from them, `feature_keys`/`quotas` populated from
-   their old `included` jsonb shape. Admin can edit, merge, or retire them
-   from the new Subscription page.
-4. Drop `messaging_plan_id`, `telecalling_plan_id`, `ai_tier`,
-   `custom_overrides` from `tenant_subscriptions`.
+1. Add `plan_id uuid references plans(id) on delete set null` to
+   `tenant_subscriptions` (nullable). Drop `messaging_plan_id`,
+   `telecalling_plan_id`, `ai_tier`, `custom_overrides` — safe, since no row
+   exists to lose data from.
+2. Delete the 6 existing seed rows from `plans` (safe — confirmed nothing in
+   `tenant_subscriptions` references them) and alter the table to the new
+   shape (drop `pillar`/`tier`/`ai_tier`/`included`, add `feature_keys`/
+   `quotas`). This leaves `plans` genuinely empty, matching "no predefined
+   plans" literally rather than leaving 6 pre-built rows for the admin to
+   prune.
 
-Tenants with no subscription row at all (pre-monetization) are untouched —
-they continue to show "no plan" until an admin assigns one, same as today.
+All existing tenants (pre-monetization, no subscription row) are untouched —
+they continue to show "no plan" until an admin creates one and assigns it,
+same as today.
 
 ## Backend changes (`backend/app/routes/operator.py`, `services/entitlements.py`)
 
