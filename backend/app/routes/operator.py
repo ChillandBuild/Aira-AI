@@ -562,11 +562,104 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
     return {"data": _build_fleet_rows(db)}
 
 
+class PlanPayload(BaseModel):
+    name: str
+    monthly_price: float = 0
+    feature_keys: list[str] = []
+    quotas: dict[str, int] = {}
+
+
 @router.get("/plans")
 def list_plans(_admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    plans = db.table("plans").select("id, name, pillar, tier, monthly_price, ai_tier, included").eq("active", True).execute()
-    return {"data": plans.data or []}
+    plans = db.table("plans").select(
+        "id, name, monthly_price, feature_keys, quotas, active, created_at"
+    ).eq("active", True).order("created_at").execute()
+    plan_rows = plans.data or []
+
+    plan_ids = [p["id"] for p in plan_rows]
+    counts: dict[str, int] = {}
+    if plan_ids:
+        subs = db.table("tenant_subscriptions").select("plan_id").in_("plan_id", plan_ids).execute()
+        for s in (subs.data or []):
+            pid = s.get("plan_id")
+            if pid:
+                counts[pid] = counts.get(pid, 0) + 1
+
+    for p in plan_rows:
+        p["tenant_count"] = counts.get(p["id"], 0)
+
+    return {"data": plan_rows}
+
+
+@router.post("/plans")
+def create_plan(payload: PlanPayload, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    plan = db.table("plans").insert({
+        "name": payload.name,
+        "monthly_price": payload.monthly_price,
+        "feature_keys": payload.feature_keys,
+        "quotas": payload.quotas,
+    }).execute()
+    created = plan.data[0] if plan.data else None
+    record_audit_event(
+        db,
+        tenant_id=None,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.plan_created",
+        target_type="plan",
+        target_id=created["id"] if created else None,
+        metadata={"name": payload.name, "monthly_price": payload.monthly_price},
+    )
+    return {"data": created}
+
+
+@router.patch("/plans/{plan_id}")
+def update_plan(plan_id: str, payload: PlanPayload, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    existing = db.table("plans").select("id").eq("id", plan_id).maybe_single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    plan = db.table("plans").update({
+        "name": payload.name,
+        "monthly_price": payload.monthly_price,
+        "feature_keys": payload.feature_keys,
+        "quotas": payload.quotas,
+    }).eq("id", plan_id).execute()
+    record_audit_event(
+        db,
+        tenant_id=None,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.plan_updated",
+        target_type="plan",
+        target_id=plan_id,
+        metadata={"name": payload.name, "monthly_price": payload.monthly_price},
+    )
+    return {"data": plan.data[0] if plan.data else None}
+
+
+@router.delete("/plans/{plan_id}")
+def delete_plan(plan_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    existing = db.table("plans").select("id, name").eq("id", plan_id).maybe_single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    db.table("plans").update({"active": False}).eq("id", plan_id).execute()
+    record_audit_event(
+        db,
+        tenant_id=None,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.plan_deleted",
+        target_type="plan",
+        target_id=plan_id,
+        metadata={"name": existing.data.get("name")},
+    )
+    return {"deleted": True, "plan_id": plan_id}
 
 
 class FeatureTogglePayload(BaseModel):
