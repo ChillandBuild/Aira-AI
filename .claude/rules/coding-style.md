@@ -1,42 +1,90 @@
----
-paths:
-  - "**/*.py"
-  - "**/*.pyi"
----
-# Python Coding Style
+# Coding Style
 
-> This file extends [common/coding-style.md](../common/coding-style.md) with Python specific content.
+## Immutability (CRITICAL)
 
-## Standards
+ALWAYS create new objects, NEVER mutate existing ones:
 
-- Follow **PEP 8** conventions
-- Use **type annotations** on all function signatures
-
-## Immutability
-
-Prefer immutable data structures:
-
-```python
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class User:
-    name: str
-    email: str
-
-from typing import NamedTuple
-
-class Point(NamedTuple):
-    x: float
-    y: float
+```
+// Pseudocode
+WRONG:  modify(original, field, value) → changes original in-place
+CORRECT: update(original, field, value) → returns new copy with change
 ```
 
-## Formatting
+Rationale: Immutable data prevents hidden side effects, makes debugging easier, and enables safe concurrency.
 
-- **black** for code formatting
-- **isort** for import sorting
-- **ruff** for linting
+## Core Principles
 
-## Reference
+### KISS (Keep It Simple)
 
-See skill: `python-patterns` for comprehensive Python idioms and patterns.
+- Prefer the simplest solution that actually works
+- Avoid premature optimization
+- Optimize for clarity over cleverness
+
+### DRY (Don't Repeat Yourself)
+
+- Extract repeated logic into shared functions or utilities
+- Avoid copy-paste implementation drift
+- Introduce abstractions when repetition is real, not speculative
+
+### YAGNI (You Aren't Gonna Need It)
+
+- Do not build features or abstractions before they are needed
+- Avoid speculative generality
+- Start simple, then refactor when the pressure is real
+
+## File Organization
+
+MANY SMALL FILES > FEW LARGE FILES:
+- High cohesion, low coupling
+- 200-400 lines typical, 800 max
+- Extract utilities from large modules
+- Organize by feature/domain, not by type
+
+## Error Handling
+
+ALWAYS handle errors comprehensively:
+- Handle errors explicitly at every level
+- Provide user-friendly error messages in UI-facing code
+- Log detailed error context on the server side
+- Never silently swallow errors
+
+## Input Validation
+
+ALWAYS validate at system boundaries:
+- Validate all user input before processing
+- Use schema-based validation where available
+- Fail fast with clear error messages
+- Never trust external data (API responses, user input, file content)
+
+## Naming Conventions
+
+- Variables and functions: `camelCase` with descriptive names
+- Booleans: prefer `is`, `has`, `should`, or `can` prefixes
+- Interfaces, types, and components: `PascalCase`
+- Constants: `UPPER_SNAKE_CASE`
+- Custom hooks: `camelCase` with a `use` prefix
+
+## Code Smells to Avoid
+
+### Deep Nesting
+
+Prefer early returns over nested conditionals once the logic starts stacking.
+
+### Magic Numbers
+
+Use named constants for meaningful thresholds, delays, and limits.
+
+### Long Functions
+
+Split large functions into focused pieces with clear responsibilities.
+
+## Code Quality Checklist
+
+Before marking work complete:
+- [ ] Code is readable and well-named
+- [ ] Functions are small (<50 lines)
+- [ ] Files are focused (<800 lines)
+- [ ] No deep nesting (>4 levels)
+- [ ] Proper error handling
+- [ ] No hardcoded values (use constants or config)
+- [ ] No mutation (immutable patterns used)
