@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Eye, LogOut } from "lucide-react";
 import {
   type ImpersonationSession,
+  clearImpersonationSession,
   endImpersonation,
   getImpersonationSession,
   subscribeImpersonation,
@@ -34,6 +35,11 @@ export function ImpersonationBanner() {
     const tick = () => {
       const ms = new Date(session.expiresAt).getTime() - Date.now();
       if (ms <= 0) {
+        // Local-only cleanup: clear the stored session and notify every
+        // other listener (sidebars, client-detail header) so the whole UI
+        // re-syncs instead of staying shifted forever. Does not call the
+        // backend /end endpoint on expiry — that's deliberate (backlog).
+        clearImpersonationSession();
         setSession(null);
         setRemaining("");
         return;

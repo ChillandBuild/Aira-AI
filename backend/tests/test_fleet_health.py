@@ -12,7 +12,7 @@ from pathlib import Path
 # Make app importable without a running server
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.routes.operator import compute_fleet_health
+from app.routes.operator import compute_fleet_health, has_required_tokens
 
 
 class ComputeFleetHealthTests(unittest.TestCase):
@@ -76,6 +76,63 @@ class ComputeFleetHealthTests(unittest.TestCase):
         # Omitting the keyword-only deferred signals must not force critical.
         health = compute_fleet_health(ai_usage=50, near_cap=False, no_activity_14d=False)
         self.assertEqual(health, "healthy")
+
+
+class HasRequiredTokensTests(unittest.TestCase):
+    """Per-channel token presence, pure and DB-free. B3: telegram-only tenants
+    must be checked against telegram_bot_token, not meta_access_token."""
+
+    def test_telegram_only_tenant_with_telegram_token_is_satisfied(self):
+        # This is the false-critical regression: a telegram-only tenant with a
+        # valid bot token must NOT be flagged as missing tokens.
+        self.assertTrue(
+            has_required_tokens({"telegram"}, {"telegram_bot_token": True})
+        )
+
+    def test_telegram_only_tenant_without_telegram_token_is_missing(self):
+        self.assertFalse(
+            has_required_tokens({"telegram"}, {"meta_access_token": True})
+        )
+
+    def test_telegram_only_tenant_with_no_settings_is_missing(self):
+        self.assertFalse(has_required_tokens({"telegram"}, {}))
+
+    def test_whatsapp_tenant_with_meta_token_is_satisfied(self):
+        self.assertTrue(
+            has_required_tokens({"whatsapp"}, {"meta_access_token": True})
+        )
+
+    def test_whatsapp_tenant_without_meta_token_is_missing(self):
+        self.assertFalse(has_required_tokens({"whatsapp"}, {}))
+
+    def test_instagram_and_facebook_also_satisfied_by_meta_token(self):
+        self.assertTrue(
+            has_required_tokens({"instagram"}, {"meta_access_token": True})
+        )
+        self.assertTrue(
+            has_required_tokens({"facebook"}, {"meta_access_token": True})
+        )
+
+    def test_multi_channel_tenant_needs_both_tokens(self):
+        # whatsapp + telegram enabled: meta token alone is not enough.
+        self.assertFalse(
+            has_required_tokens(
+                {"whatsapp", "telegram"}, {"meta_access_token": True}
+            )
+        )
+        self.assertTrue(
+            has_required_tokens(
+                {"whatsapp", "telegram"},
+                {"meta_access_token": True, "telegram_bot_token": True},
+            )
+        )
+
+    def test_non_messaging_channel_ignored(self):
+        # telecalling doesn't require either token.
+        self.assertTrue(has_required_tokens({"telecalling"}, {}))
+
+    def test_no_enabled_channels_is_satisfied(self):
+        self.assertTrue(has_required_tokens(set(), {}))
 
 
 if __name__ == "__main__":

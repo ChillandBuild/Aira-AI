@@ -1,7 +1,7 @@
 import logging
 import secrets
 from typing import Literal
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
@@ -377,6 +377,26 @@ def compute_fleet_health(
     return "healthy"
 
 
+_META_CHANNELS = {"whatsapp", "instagram", "facebook"}
+
+
+def has_required_tokens(enabled_features: set, settings_keys: dict) -> bool:
+    """Pure check: does this tenant have every token required by the
+    messaging channels it has enabled?
+
+    `settings_keys` maps app_settings key -> truthy-value-present bool, e.g.
+    {"meta_access_token": True, "telegram_bot_token": False}. Meta-family
+    channels (whatsapp/instagram/facebook) are all satisfied by
+    `meta_access_token`; telegram needs its own `telegram_bot_token`.
+    Channels outside this messaging set (e.g. telecalling) are ignored.
+    """
+    if enabled_features & _META_CHANNELS and not settings_keys.get("meta_access_token"):
+        return False
+    if "telegram" in enabled_features and not settings_keys.get("telegram_bot_token"):
+        return False
+    return True
+
+
 def _build_fleet_rows(db) -> list[dict]:
     """Fetch and score every tenant's fleet-health row.
 
@@ -424,19 +444,24 @@ def _build_fleet_rows(db) -> list[dict]:
     # doing that for every fleet row would turn this endpoint into an N*4 fan-out.
     # channel_unhealthy is therefore always False here for now.
     token_incident_tenant_ids: set = set()
-    tenant_has_token: dict = {}
+    tenant_settings_keys: dict = {}
     if tenant_ids:
+        incident_cutoff = (now - timedelta(hours=48)).isoformat()
         incidents = db.table("incidents").select(
             "tenant_id"
-        ).in_("tenant_id", tenant_ids).eq("type", "token_invalid").execute()
+        ).in_("tenant_id", tenant_ids).eq("type", "token_invalid").gte(
+            "created_at", incident_cutoff
+        ).execute()
         token_incident_tenant_ids = {i["tenant_id"] for i in (incidents.data or [])}
 
         settings_rows = db.table("app_settings").select(
             "tenant_id, key, value"
-        ).in_("tenant_id", tenant_ids).eq("key", "meta_access_token").execute()
+        ).in_("tenant_id", tenant_ids).in_(
+            "key", ["meta_access_token", "telegram_bot_token"]
+        ).execute()
         for r in (settings_rows.data or []):
             if r.get("value"):
-                tenant_has_token[r["tenant_id"]] = True
+                tenant_settings_keys.setdefault(r["tenant_id"], {})[r["key"]] = True
 
     msg_counts: dict = {}
     last_activity_by_tenant: dict = {}
@@ -471,10 +496,14 @@ def _build_fleet_rows(db) -> list[dict]:
         )
         # Only flag a missing/expired messaging token when the client has WhatsApp
         # (or another messaging channel) enabled — tenants that never set one up
-        # aren't "expired", they're simply not using it.
-        messaging_enabled = bool(set(t.get("enabled_features", []) or []) & {"whatsapp", "instagram", "facebook", "telegram"})
+        # aren't "expired", they're simply not using it. Meta-family channels
+        # (whatsapp/instagram/facebook) share meta_access_token; telegram has its
+        # own telegram_bot_token — see has_required_tokens().
+        enabled_features = set(t.get("enabled_features", []) or [])
+        messaging_enabled = bool(enabled_features & {"whatsapp", "instagram", "facebook", "telegram"})
         token_expired = messaging_enabled and (
-            tid in token_incident_tenant_ids or not tenant_has_token.get(tid, False)
+            tid in token_incident_tenant_ids
+            or not has_required_tokens(enabled_features, tenant_settings_keys.get(tid, {}))
         )
         channel_unhealthy = False
 
@@ -1688,9 +1717,11 @@ def operator_alerts(_admin: dict = Depends(get_system_admin)):
     scheduler_jobs = _build_scheduler_jobs(db, now)
 
     tenant_names = {row["id"]: row["name"] for row in fleet_rows}
+    alert_incident_cutoff = (now - timedelta(hours=48)).isoformat()
     incidents_res = (
         db.table("incidents")
         .select("id, tenant_id, type, detail, created_at")
+        .gte("created_at", alert_incident_cutoff)
         .order("created_at", desc=True)
         .limit(50)
         .execute()

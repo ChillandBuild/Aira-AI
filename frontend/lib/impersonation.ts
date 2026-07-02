@@ -35,6 +35,20 @@ function emitChange() {
   }
 }
 
+/**
+ * Clears the local session marker (sessionStorage) and notifies every
+ * listener (OperatorSidebar, ClientDetailSidebar, ImpersonationBanner, the
+ * client-detail header, ...) via the same change event the Exit path emits.
+ * Local-only: does NOT call the backend /impersonation/end endpoint. Use this
+ * for client-side expiry; use `endImpersonation` for an operator-initiated
+ * exit, which also audit-logs the end on the server.
+ */
+export function clearImpersonationSession(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(STORAGE_KEY);
+  emitChange();
+}
+
 export function getImpersonationSession(): ImpersonationSession | null {
   if (typeof window === "undefined") return null;
   try {
@@ -42,7 +56,7 @@ export function getImpersonationSession(): ImpersonationSession | null {
     if (!raw) return null;
     const session = JSON.parse(raw) as ImpersonationSession;
     if (new Date(session.expiresAt).getTime() <= Date.now()) {
-      window.sessionStorage.removeItem(STORAGE_KEY);
+      clearImpersonationSession();
       return null;
     }
     return session;

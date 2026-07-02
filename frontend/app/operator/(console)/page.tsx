@@ -320,6 +320,7 @@ export default function OperatorPage() {
   }
 
   function handleRowKeyDown(e: React.KeyboardEvent, clientId: string) {
+    if (e.target !== e.currentTarget) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       goToClient(clientId);
@@ -434,7 +435,7 @@ export default function OperatorPage() {
       )}
 
       {/* Content */}
-      {loading ? (
+      {loading && clients.length === 0 ? (
         <div className="p-8 text-center text-sm text-ink-muted">Loading…</div>
       ) : clients.length === 0 ? (
         <div className="p-12 text-center">
