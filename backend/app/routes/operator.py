@@ -88,33 +88,26 @@ class CreateClientPayload(BaseModel):
 
 class UpdateFeaturesPayload(BaseModel):
     features: list[str] | None = None
-    custom_overrides: dict | None = None
 
 
 @router.patch("/clients/{tenant_id}/features")
 def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    
+
     features: list[str] | None = None
-    if payload.features is None and payload.custom_overrides is None:
-        raise HTTPException(status_code=400, detail="Provide 'features' or 'custom_overrides'")
-    
+    if payload.features is None:
+        raise HTTPException(status_code=400, detail="Provide 'features'")
+
     update: dict = {}
-    if payload.features is not None:
-        tc_subs = {"telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"}
-        tc_default_subs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"]
-        features = list(payload.features)
-        if "telecalling" in features and not (set(features) & tc_subs):
-            features.extend(tc_default_subs)
-        if "telecalling" not in features:
-            features = [f for f in features if f not in tc_subs]
-        update["enabled_features"] = features
-    
-    if payload.custom_overrides is not None:
-        sub_res = db.table("tenant_subscriptions").select("custom_overrides").eq("tenant_id", tenant_id).maybe_single().execute()
-        existing = sub_res.data.get("custom_overrides", {}) if sub_res.data else {}
-        update["custom_overrides"] = {**existing, **payload.custom_overrides}
-    
+    tc_subs = {"telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"}
+    tc_default_subs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"]
+    features = list(payload.features)
+    if "telecalling" in features and not (set(features) & tc_subs):
+        features.extend(tc_default_subs)
+    if "telecalling" not in features:
+        features = [f for f in features if f not in tc_subs]
+    update["enabled_features"] = features
+
     result = db.table("tenants").update(update).eq("id", tenant_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
@@ -126,7 +119,7 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
         action="operator.features_updated",
         target_type="tenant",
         target_id=tenant_id,
-        metadata={"features": features, "custom_overrides": payload.custom_overrides},
+        metadata={"features": features},
     )
     return {"tenant_id": tenant_id, "enabled_features": features or []}
 
