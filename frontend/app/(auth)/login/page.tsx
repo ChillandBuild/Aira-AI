@@ -87,13 +87,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="text-white/40 text-xs font-body flex items-center justify-between">
-          <span>© {new Date().getFullYear()} Aira AI. All rights reserved.</span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            Platform Operational
-          </span>
-        </div>
       </div>
 
       {/* Right Column: Centered Login Form with canvas animation */}

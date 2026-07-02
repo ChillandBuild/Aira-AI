@@ -32,7 +32,6 @@ export const metadata: Metadata = {
     template: "%s | Aira AI",
   },
   description: "WhatsApp lead management for education consultancies",
-  manifest: "/aira/manifest.webmanifest",
   applicationName: "Aira AI",
   appleWebApp: {
     capable: true,
@@ -62,6 +61,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${dancingScript.variable}`}>
+      <head>
+        <link rel="manifest" href="/aira/manifest.webmanifest" crossOrigin="use-credentials" />
+      </head>
       <body className="antialiased">
         {children}
         <Toaster position="top-right" richColors closeButton />

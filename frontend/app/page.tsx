@@ -888,7 +888,7 @@ export default function LandingPage() {
           <div className="river-separator mb-8"></div>
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="text-xs text-ink-muted">
-              © {new Date().getFullYear()} Aira AI. All rights reserved. · A Bloom Matrix product
+              © {new Date().getFullYear()} A Bloom Matrix product
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-ink-muted">Stay Updated</span>
