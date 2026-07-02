@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Send,
   ArrowRight,
@@ -832,29 +833,52 @@ export default function LandingPage() {
             {[
               {
                 title: "Platform",
-                links: ["Features", "Integrations", "Security", "Pricing"],
+                links: [
+                  { label: "Features", href: "#" },
+                  { label: "Integrations", href: "#" },
+                  { label: "Security", href: "#" },
+                  { label: "Pricing", href: "#" },
+                ],
               },
               {
                 title: "Company",
-                links: ["About Us", "Careers", "Blog", "Contact Us"],
+                links: [
+                  { label: "About Us", href: "#" },
+                  { label: "Careers", href: "#" },
+                  { label: "Blog", href: "#" },
+                  { label: "Contact Us", href: "/contact" },
+                ],
               },
               {
                 title: "Resources",
-                links: ["Help Centre", "Documentation", "API"],
+                links: [
+                  { label: "Help Centre", href: "#" },
+                  { label: "Documentation", href: "#" },
+                  { label: "API", href: "#" },
+                ],
               },
               {
                 title: "Legal",
-                links: ["Privacy Policy", "Terms & Conditions"],
+                links: [
+                  { label: "Privacy Policy", href: "/privacy-policy" },
+                  { label: "Terms & Conditions", href: "/terms-and-conditions" },
+                ],
               },
             ].map((col) => (
               <div key={col.title}>
                 <p className="footer-heading">{col.title}</p>
                 <div className="flex flex-col gap-2.5">
-                  {col.links.map((link) => (
-                    <a key={link} href="#" className="footer-link">
-                      {link}
-                    </a>
-                  ))}
+                  {col.links.map((link) =>
+                    link.href.startsWith("/") ? (
+                      <Link key={link.label} href={link.href} className="footer-link">
+                        {link.label}
+                      </Link>
+                    ) : (
+                      <a key={link.label} href={link.href} className="footer-link">
+                        {link.label}
+                      </a>
+                    )
+                  )}
                 </div>
               </div>
             ))}
