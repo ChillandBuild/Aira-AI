@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     template: "%s | Aira AI",
   },
   description: "WhatsApp lead management for education consultancies",
-  manifest: "/manifest.webmanifest",
+  manifest: "/aira/manifest.webmanifest",
   applicationName: "Aira AI",
   appleWebApp: {
     capable: true,
@@ -44,10 +44,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/aira/favicon.ico" },
+      { url: "/aira/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" },
     ],
-    apple: [{ url: "/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/aira/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" }],
   },
 };
 

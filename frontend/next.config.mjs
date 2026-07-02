@@ -2,6 +2,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  basePath: "/aira",
   output: "standalone",
   reactStrictMode: true,
   compress: true,

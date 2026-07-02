@@ -1,14 +1,14 @@
 const CACHE_VERSION = "aira-pwa-v1";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const OFFLINE_URL = "/offline";
+const OFFLINE_URL = "/aira/offline";
 
 const PRECACHE_URLS = [
   OFFLINE_URL,
-  "/favicon.ico",
-  "/icons/aira-icon-192.png",
-  "/icons/aira-icon-512.png",
-  "/icons/aira-maskable-512.png",
+  "/aira/favicon.ico",
+  "/aira/icons/aira-icon-192.png",
+  "/aira/icons/aira-icon-512.png",
+  "/aira/icons/aira-maskable-512.png",
 ];
 
 const isHttpRequest = (request) => {
@@ -31,7 +31,7 @@ const shouldHandleRequest = (request) => {
   }
 
   const { pathname } = new URL(request.url);
-  return !pathname.startsWith("/api/") && !pathname.startsWith("/auth/");
+  return !pathname.startsWith("/aira/api/") && !pathname.startsWith("/aira/auth/");
 };
 
 const isStaticAsset = (request) => {
@@ -115,11 +115,11 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "Aira";
   const options = {
     body: payload.body || "You have a new update.",
-    icon: "/icons/aira-icon-192.png",
-    badge: "/icons/aira-icon-192.png",
+    icon: "/aira/icons/aira-icon-192.png",
+    badge: "/aira/icons/aira-icon-192.png",
     tag: payload.tag || "aira-update",
     data: {
-      url: payload.url || "/dashboard",
+      url: payload.url || "/aira/dashboard",
       ...(payload.data || {}),
     },
   };
@@ -129,7 +129,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || "/dashboard", self.location.origin).href;
+  const targetUrl = new URL(event.notification.data?.url || "/aira/dashboard", self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
