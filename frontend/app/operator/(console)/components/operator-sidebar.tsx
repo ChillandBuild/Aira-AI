@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Clock, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -68,7 +69,7 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
                 ? pathname === "/operator" || (pathname?.startsWith("/operator/client") ?? false)
                 : pathname?.startsWith(item.href) ?? false;
               return (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
@@ -78,7 +79,7 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
                   }`}
                 >
                   {item.label}
-                </a>
+                </Link>
               );
             })}
           </nav>
