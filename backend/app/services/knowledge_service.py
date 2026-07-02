@@ -139,7 +139,11 @@ def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, t
         logger.error(f"Text extraction failed for {filename}: {e}")
         raise ValueError(f"Could not extract text from {filename}: {e}")
 
-    return text.strip()
+    # PDF/Office extraction can yield embedded NUL bytes (corrupt glyph mappings,
+    # scanned/malformed PDFs). Postgres text/JSON cannot represent a NUL byte --
+    # PostgREST's JSON encoder rejects it with "unsupported Unicode escape sequence"
+    # (22P05), failing the whole document. Strip before any DB write.
+    return text.replace("\x00", "").strip()
 
 
 async def process_document(
