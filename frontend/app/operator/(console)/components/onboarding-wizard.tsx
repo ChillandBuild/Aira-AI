@@ -7,14 +7,9 @@ import { cn } from "@/lib/utils";
 interface Plan {
   id: string;
   name: string;
-  pillar: string;
-  tier: string;
   monthly_price: number;
-  ai_tier?: string;
-  included: {
-    feature_keys: string[];
-    quotas: Record<string, number>;
-  };
+  feature_keys: string[];
+  quotas: Record<string, number>;
 }
 
 interface OnboardingWizardProps {
@@ -25,14 +20,6 @@ interface OnboardingWizardProps {
 
 const BUSINESS_TYPES = [
   "Coaching", "Real Estate", "Healthcare", "Agency", "E-commerce", "Other",
-];
-
-const AI_TIERS = [
-  { value: "off", label: "Off" },
-  { value: "basic", label: "Basic (₹500/1k replies)" },
-  { value: "standard", label: "Standard (₹900/1k replies)" },
-  { value: "premium", label: "Premium (₹1,500/1k replies)" },
-  { value: "byo", label: "BYO Key (₹999/mo)" },
 ];
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -60,10 +47,7 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
   const [contactPhone, setContactPhone] = useState("");
   const [billingRegion, setBillingRegion] = useState("");
 
-  const [selectedPillar, setSelectedPillar] = useState<"messaging" | "telecalling" | "both">("messaging");
-  const [messagingTier, setMessagingTier] = useState<"basic" | "standard" | "pro">("standard");
-  const [telecallingTier, setTelecallingTier] = useState<"basic" | "standard" | "pro">("standard");
-  const [aiTier, setAiTier] = useState<string>("off");
+  const [planId, setPlanId] = useState<string>("");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -81,17 +65,7 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
     return "Aira@" + Math.random().toString(36).slice(2, 8);
   }
 
-  function getPrice(pillar: string, tier: string) {
-    const plan = plans.find(p => p.pillar === pillar && p.tier === tier);
-    return plan?.monthly_price || 0;
-  }
-
-  const mrr = (selectedPillar === "messaging" || selectedPillar === "both" ? getPrice("messaging", messagingTier) : 0) +
-              (selectedPillar === "telecalling" || selectedPillar === "both" ? getPrice("telecalling", telecallingTier) : 0) +
-              (aiTier !== "off" && aiTier !== "byo" ? (aiTier === "basic" ? 500 : aiTier === "standard" ? 900 : 1500) : aiTier === "byo" ? 999 : 0);
-
-  const messagingPlan = plans.find(p => p.pillar === "messaging" && p.tier === messagingTier);
-  const telecallingPlan = plans.find(p => p.pillar === "telecalling" && p.tier === telecallingTier);
+  const mrr = plans.find(p => p.id === planId)?.monthly_price || 0;
 
   async function handleCreate() {
     setSubmitting(true);
@@ -107,9 +81,7 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
           billing_region: billingRegion || null,
           email,
           password,
-          messaging_plan_id: (selectedPillar === "messaging" || selectedPillar === "both") ? messagingPlan?.id : null,
-          telecalling_plan_id: (selectedPillar === "telecalling" || selectedPillar === "both") ? telecallingPlan?.id : null,
-          ai_tier: aiTier,
+          plan_id: planId || null,
         }),
       });
       onComplete();
@@ -196,83 +168,28 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
 
           {step === 2 && (
             <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-2">Select Pillar *</label>
-                <div className="flex gap-2">
-                  {["messaging", "telecalling", "both"].map(p => (
-                    <button
-                      key={p} type="button"
-                      onClick={() => setSelectedPillar(p as "messaging" | "telecalling" | "both")}
-                      className={cn(
-                        "flex-1 px-4 py-2 rounded-xl text-sm font-medium transition-all",
-                        selectedPillar === p ? "bg-primary text-white" : "bg-surface-mid text-ink-secondary hover:bg-border"
-                      )}
-                    >
-                      {p === "messaging" ? "Messaging Only" : p === "telecalling" ? "Telecalling Only" : "Both"}
-                    </button>
-                  ))}
+              {plans.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center">
+                  <p className="text-sm text-ink-secondary">No subscription plans exist yet.</p>
+                  <p className="text-xs text-ink-muted mt-1">
+                    You can create one from the Subscription page and assign it to this client later.
+                  </p>
                 </div>
-              </div>
-
-              {(selectedPillar === "messaging" || selectedPillar === "both") && (
+              ) : (
                 <div>
-                  <label className="text-sm font-medium text-ink-secondary block mb-2">Messaging Tier *</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {["basic", "standard", "pro"].map(t => (
-                      <button
-                        key={t} type="button"
-                        onClick={() => setMessagingTier(t as "basic" | "standard" | "pro")}
-                        className={cn(
-                          "p-3 rounded-xl border text-center transition-all",
-                          messagingTier === t ? "border-primary bg-primary-light" : "border-border bg-white hover:border-primary-muted"
-                        )}
-                      >
-                        <p className="text-sm font-semibold text-ink capitalize">{t}</p>
-                        <p className="text-xs text-primary mt-1">₹{getPrice("messaging", t).toLocaleString("en-IN")}/mo</p>
-                      </button>
+                  <label className="text-sm font-medium text-ink-secondary block mb-2">Subscription Plan (optional)</label>
+                  <select
+                    value={planId}
+                    onChange={e => setPlanId(e.target.value)}
+                    className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="">No plan (assign later)</option>
+                    {plans.map(p => (
+                      <option key={p.id} value={p.id}>{p.name} — ₹{p.monthly_price.toLocaleString("en-IN")}/mo</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
               )}
-
-              {(selectedPillar === "telecalling" || selectedPillar === "both") && (
-                <div>
-                  <label className="text-sm font-medium text-ink-secondary block mb-2">Telecalling Tier *</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {["basic", "standard", "pro"].map(t => (
-                      <button
-                        key={t} type="button"
-                        onClick={() => setTelecallingTier(t as "basic" | "standard" | "pro")}
-                        className={cn(
-                          "p-3 rounded-xl border text-center transition-all",
-                          telecallingTier === t ? "border-primary bg-primary-light" : "border-border bg-white hover:border-primary-muted"
-                        )}
-                      >
-                        <p className="text-sm font-semibold text-ink capitalize">{t}</p>
-                        <p className="text-xs text-primary mt-1">₹{getPrice("telecalling", t).toLocaleString("en-IN")}/mo</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-2">AI Tier *</label>
-                <div className="flex gap-2 flex-wrap">
-                  {AI_TIERS.map(at => (
-                    <button
-                      key={at.value} type="button"
-                      onClick={() => setAiTier(at.value)}
-                      className={cn(
-                        "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
-                        aiTier === at.value ? "bg-primary text-white" : "bg-surface-mid text-ink-secondary hover:bg-border"
-                      )}
-                    >
-                      {at.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 
@@ -321,20 +238,8 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
                   <span className="text-ink font-medium">{businessType || "—"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-ink-muted">Pillar:</span>
-                  <span className="text-ink font-medium">{selectedPillar}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-muted">Messaging Tier:</span>
-                  <span className="text-ink font-medium capitalize">{messagingTier}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-muted">Telecalling Tier:</span>
-                  <span className="text-ink font-medium capitalize">{telecallingTier}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-ink-muted">AI Tier:</span>
-                  <span className="text-ink font-medium capitalize">{aiTier}</span>
+                  <span className="text-ink-muted">Subscription Plan:</span>
+                  <span className="text-ink font-medium">{plans.find(p => p.id === planId)?.name || "None"}</span>
                 </div>
                 <div className="border-t border-border pt-2 mt-2">
                   <div className="flex justify-between">
