@@ -416,7 +416,7 @@ def _build_fleet_rows(db) -> list[dict]:
     subscriptions: dict = {}
     if tenant_ids:
         subs = db.table("tenant_subscriptions").select(
-            "tenant_id, mrr, ai_tier"
+            "tenant_id, mrr"
         ).in_("tenant_id", tenant_ids).execute()
         for s in (subs.data or []):
             subscriptions[s["tenant_id"]] = s
