@@ -1,9 +1,11 @@
 """
-Tests for `compute_fleet_health`, the pure scoring function behind the operator
-Fleet Cockpit's attention queue (GET /api/v1/operator/fleet).
+Tests for `compute_fleet_health` and `has_required_tokens`, the pure scoring
+functions behind `_build_fleet_rows` — the shared per-tenant health signal
+builder used by `GET /api/v1/operator/alerts` (the Fleet page that used to
+also consume this was removed; the scoring logic it shared with Alerts stays).
 
-Contract under test: health is derived purely from the signals passed in —
-no DB access — so every tier/branch can be exercised directly.
+Contract under test: health is derived purely from the signals passed in --
+no DB access -- so every tier/branch can be exercised directly.
 """
 import sys
 import unittest
