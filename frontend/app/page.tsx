@@ -249,7 +249,6 @@ export default function LandingPage() {
           {/* Logo */}
           <button onClick={() => scrollToSection("hero")} className="flex items-center gap-2.5 group">
             <AiraLogo className="h-6 w-auto text-[#1c1917]" />
-            <span className="text-ink-muted text-xs font-medium hidden sm:inline ml-1 border-l border-border pl-2.5">AI Revenue Acceleration</span>
           </button>
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-8">
@@ -888,7 +887,7 @@ export default function LandingPage() {
           <div className="river-separator mb-8"></div>
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="text-xs text-ink-muted">
-              © {new Date().getFullYear()} Aira AI. All rights reserved.
+              © {new Date().getFullYear()} Aira AI. All rights reserved. · A Bloom Matrix product
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-ink-muted">Stay Updated</span>
