@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
-import { API_URL, getAuthHeaders } from "@/lib/api";
+import { operatorFetch } from "@/lib/operator";
+import { getImpersonationSession, subscribeImpersonation } from "@/lib/impersonation";
 import { ClientDetailSidebar, type SectionType } from "./sidebar";
+import { ViewAsTenantButton } from "./components/view-as-tenant-button";
 import { OverviewView } from "./views/overview";
 import { InboxView } from "./views/inbox";
 import { LeadsView } from "./views/leads";
@@ -19,19 +21,6 @@ import { DeleteClientView } from "./views/delete-client";
 import { FeatureStoreView } from "./views/feature-store";
 import { BillingView } from "./views/billing";
 
-async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...auth, ...(init?.headers ?? {}) },
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { detail?: string }).detail || "Request failed");
-  }
-  return res.json() as Promise<T>;
-}
-
 import type { OverviewData } from "./types";
 
 export default function ClientDetailPage() {
@@ -41,11 +30,21 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [featureUpdating, setFeatureUpdating] = useState(false);
+  const [impersonating, setImpersonating] = useState(false);
+
+  const refreshImpersonation = useCallback(() => {
+    setImpersonating(getImpersonationSession() !== null);
+  }, []);
+
+  useEffect(() => {
+    refreshImpersonation();
+    return subscribeImpersonation(refreshImpersonation);
+  }, [refreshImpersonation]);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiFetch<OverviewData>(`/api/v1/operator/clients/${tenantId}/overview`);
+      const data = await operatorFetch<OverviewData>(`/api/v1/operator/clients/${tenantId}/overview`);
       setOverview(data);
       setError(null);
     } catch (e) {
@@ -104,7 +103,7 @@ export default function ClientDetailPage() {
     const updated = Array.from(current);
 
     try {
-      await apiFetch(`/api/v1/operator/clients/${tenantId}/features`, {
+      await operatorFetch(`/api/v1/operator/clients/${tenantId}/features`, {
         method: "PATCH",
         body: JSON.stringify({ features: updated }),
       });
@@ -167,13 +166,17 @@ export default function ClientDetailPage() {
       {/* Content area pushed right of sidebar */}
       <div className="ml-[220px]">
         {/* Section header (like AppHeader) */}
-        <div className="sticky top-16 z-20 h-16 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]">
+        <div
+          className="sticky z-20 h-16 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]"
+          style={{ top: impersonating ? "108px" : "64px" }}
+        >
           <div className="flex flex-col justify-center select-none">
             <h1 className="font-display text-lg font-bold text-ink leading-tight">{sectionMeta.title}</h1>
             <p className="font-body text-xs text-ink-muted mt-0.5 max-w-[650px] truncate">{sectionMeta.desc}</p>
           </div>
           {tenant && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              <ViewAsTenantButton tenantId={tenantId} tenantName={tenant.name} />
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 tenant.status === "active" ? "bg-green-50 text-success" : "bg-red-50 text-danger"
               }`}>

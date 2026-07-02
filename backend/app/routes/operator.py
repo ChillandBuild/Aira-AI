@@ -1,7 +1,7 @@
 import logging
 import secrets
 from typing import Literal
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
@@ -354,16 +354,64 @@ def get_features_catalog(_admin: dict = Depends(get_system_admin)):
     return {"data": catalog.data or []}
 
 
-@router.get("/fleet")
-def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-    
+def compute_fleet_health(
+    *,
+    ai_usage: int,
+    near_cap: bool,
+    no_activity_14d: bool,
+    token_expired: bool = False,
+    channel_unhealthy: bool = False,
+) -> str:
+    """Pure, DB-free health scoring for a fleet client.
+
+    Tiers (first match wins):
+      - critical: ai_usage >= 100, or a messaging token has expired/is unset,
+        or a configured channel is unhealthy.
+      - warning: near_cap (ai_usage >= 80) or no activity in 14 days while active.
+      - healthy: otherwise.
+    """
+    if ai_usage >= 100 or token_expired or channel_unhealthy:
+        return "critical"
+    if near_cap or no_activity_14d:
+        return "warning"
+    return "healthy"
+
+
+_META_CHANNELS = {"whatsapp", "instagram", "facebook"}
+
+
+def has_required_tokens(enabled_features: set, settings_keys: dict) -> bool:
+    """Pure check: does this tenant have every token required by the
+    messaging channels it has enabled?
+
+    `settings_keys` maps app_settings key -> truthy-value-present bool, e.g.
+    {"meta_access_token": True, "telegram_bot_token": False}. Meta-family
+    channels (whatsapp/instagram/facebook) are all satisfied by
+    `meta_access_token`; telegram needs its own `telegram_bot_token`.
+    Channels outside this messaging set (e.g. telecalling) are ignored.
+    """
+    if enabled_features & _META_CHANNELS and not settings_keys.get("meta_access_token"):
+        return False
+    if "telegram" in enabled_features and not settings_keys.get("telegram_bot_token"):
+        return False
+    return True
+
+
+def _build_fleet_rows(db) -> list[dict]:
+    """Fetch and score every tenant's fleet-health row.
+
+    Shared by `GET /fleet` (the Fleet Cockpit table) and `GET /alerts` (the
+    operator alert center), so both surface the exact same signals instead of
+    running the queries twice.
+    """
+    from datetime import timedelta
+
     tenants = db.table("tenants").select(
         "id, name, enabled_features, status, created_at"
     ).execute()
-    
+
     tenant_ids = [t["id"] for t in (tenants.data or [])]
-    
+
     subscriptions: dict = {}
     if tenant_ids:
         subs = db.table("tenant_subscriptions").select(
@@ -371,7 +419,7 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
         ).in_("tenant_id", tenant_ids).execute()
         for s in (subs.data or []):
             subscriptions[s["tenant_id"]] = s
-    
+
     counters_by_tenant: dict = {}
     period = datetime.now(timezone.utc).strftime("%Y-%m")
     if tenant_ids:
@@ -385,17 +433,49 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
                 "used": c["used"] or 0,
                 "included": c["included"] or 0,
             }
-    
-    from datetime import timedelta
-    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    
+
+    now = datetime.now(timezone.utc)
+    thirty_days_ago = (now - timedelta(days=30)).isoformat()
+    fourteen_days_ago = now - timedelta(days=14)
+
+    # Fleet-wide token health: two bulk queries (not per-tenant), same batching
+    # pattern as subscriptions/counters above. Per-channel health (as derived by
+    # GET /clients/{tenant_id}/health) needs 4 queries per tenant and is deferred —
+    # doing that for every fleet row would turn this endpoint into an N*4 fan-out.
+    # channel_unhealthy is therefore always False here for now.
+    token_incident_tenant_ids: set = set()
+    tenant_settings_keys: dict = {}
+    if tenant_ids:
+        incident_cutoff = (now - timedelta(hours=48)).isoformat()
+        incidents = db.table("incidents").select(
+            "tenant_id"
+        ).in_("tenant_id", tenant_ids).eq("type", "token_invalid").gte(
+            "created_at", incident_cutoff
+        ).execute()
+        token_incident_tenant_ids = {i["tenant_id"] for i in (incidents.data or [])}
+
+        settings_rows = db.table("app_settings").select(
+            "tenant_id, key, value"
+        ).in_("tenant_id", tenant_ids).in_(
+            "key", ["meta_access_token", "telegram_bot_token"]
+        ).execute()
+        for r in (settings_rows.data or []):
+            if r.get("value"):
+                tenant_settings_keys.setdefault(r["tenant_id"], {})[r["key"]] = True
+
     msg_counts: dict = {}
+    last_activity_by_tenant: dict = {}
     for tid in tenant_ids:
         count_res = db.table("messages").select(
             "id", count="exact"
         ).eq("tenant_id", tid).eq("direction", "outbound").gte("created_at", thirty_days_ago).execute()
         msg_counts[tid] = count_res.count or 0
-    
+
+        last_msg = db.table("messages").select(
+            "created_at"
+        ).eq("tenant_id", tid).order("created_at", desc=True).limit(1).execute()
+        last_activity_by_tenant[tid] = (last_msg.data or [{}])[0].get("created_at")
+
     result = []
     for t in (tenants.data or []):
         tid = t["id"]
@@ -406,21 +486,59 @@ def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
         sub = subscriptions.get(tid, {})
         mrr = sub.get("mrr", 0) or 0
         msgs = msg_counts.get(tid, 0)
+        status = t.get("status", "active")
+        last_activity = last_activity_by_tenant.get(tid)
+
+        near_cap = ai_usage >= 80
+        no_activity_14d = status == "active" and (
+            last_activity is None
+            or datetime.fromisoformat(last_activity.replace("Z", "+00:00")) < fourteen_days_ago
+        )
+        # Only flag a missing/expired messaging token when the client has WhatsApp
+        # (or another messaging channel) enabled — tenants that never set one up
+        # aren't "expired", they're simply not using it. Meta-family channels
+        # (whatsapp/instagram/facebook) share meta_access_token; telegram has its
+        # own telegram_bot_token — see has_required_tokens().
+        enabled_features = set(t.get("enabled_features", []) or [])
+        messaging_enabled = bool(enabled_features & {"whatsapp", "instagram", "facebook", "telegram"})
+        token_expired = messaging_enabled and (
+            tid in token_incident_tenant_ids
+            or not has_required_tokens(enabled_features, tenant_settings_keys.get(tid, {}))
+        )
+        channel_unhealthy = False
+
+        health = compute_fleet_health(
+            ai_usage=ai_usage,
+            near_cap=near_cap,
+            no_activity_14d=no_activity_14d,
+            token_expired=token_expired,
+            channel_unhealthy=channel_unhealthy,
+        )
 
         result.append({
             "id": tid,
             "name": t["name"],
             "enabled_features": t.get("enabled_features", []) or [],
-            "status": t.get("status", "active"),
+            "status": status,
             "created_at": t.get("created_at"),
             "mrr": mrr,
             "messages_30d": msgs,
             "ai_usage": ai_usage,
-            "health": "healthy" if t.get("status") == "active" else "warning",
-            "last_activity": None,
+            "health": health,
+            "last_activity": last_activity,
+            "near_cap": near_cap,
+            "no_activity_14d": no_activity_14d,
+            "token_expired": token_expired,
+            "channel_unhealthy": channel_unhealthy,
         })
-    
-    return {"data": result}
+
+    return result
+
+
+@router.get("/fleet")
+def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    return {"data": _build_fleet_rows(db)}
 
 
 @router.get("/plans")
@@ -1265,16 +1383,16 @@ def clear_data(tenant_id: str, data_type: str, _admin: dict = Depends(get_system
     return {"deleted_count": deleted, "data_type": data_type}
 
 
-@router.get("/scheduler-health")
-def scheduler_health(_admin: dict = Depends(get_system_admin)):
-    """System-wide APScheduler health: each global job's next run, last run
-    status/lag, recent error count, plus recent failures. Operator-only —
-    the jobs are platform-level (not per tenant)."""
-    from datetime import datetime, timezone, timedelta
+def _build_scheduler_jobs(db, now) -> list[dict]:
+    """Fetch each global APScheduler job's last-run status and 24h error count.
+
+    Shared by `GET /scheduler-health` (the Scheduler page) and `GET /alerts`
+    (the operator alert center), so both read the same signals instead of
+    running the queries twice.
+    """
+    from datetime import timedelta
     from app.main import _scheduler
 
-    db = get_supabase()
-    now = datetime.now(timezone.utc)
     day_ago = (now - timedelta(hours=24)).isoformat()
 
     jobs_out = []
@@ -1307,6 +1425,21 @@ def scheduler_health(_admin: dict = Depends(get_system_admin)):
             "errors_24h": errs.count or 0,
         })
 
+    return jobs_out
+
+
+@router.get("/scheduler-health")
+def scheduler_health(_admin: dict = Depends(get_system_admin)):
+    """System-wide APScheduler health: each global job's next run, last run
+    status/lag, recent error count, plus recent failures. Operator-only —
+    the jobs are platform-level (not per tenant)."""
+    from datetime import datetime, timezone
+
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+
+    jobs_out = _build_scheduler_jobs(db, now)
+
     recent_failures = (
         db.table("scheduler_runs")
         .select("job_id, status, ran_at, error")
@@ -1338,6 +1471,58 @@ def toggle_scheduler_job(job_id: str, _admin: dict = Depends(get_system_admin)):
     else:
         _scheduler.pause_job(job_id)
         return {"id": job_id, "paused": True, "next_run": None}
+
+
+def _resolve_scheduler_run(job_id: str, job) -> dict:
+    """Pure decision logic for `POST /scheduler/{job_id}/run`.
+
+    Given the job_id requested and the APScheduler `Job` looked up for it
+    (or `None` if unknown), decide whether the run can proceed. Raises the
+    same `HTTPException`s the route returns so this can be unit-tested
+    without a live scheduler. Does NOT mutate the job — the caller applies
+    `job.modify(next_run_time=...)` only after this returns cleanly.
+    """
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found")
+    if job.next_run_time is None:
+        raise HTTPException(status_code=409, detail="Job is paused — resume it before running")
+    return {"id": job_id}
+
+
+@router.post("/scheduler/{job_id}/run")
+def run_scheduler_job(job_id: str, _admin: dict = Depends(get_system_admin)):
+    """Trigger an immediate run of a scheduled job without disturbing its
+    regular schedule. Operator-only.
+
+    Implementation note: this does NOT call the job function synchronously
+    in the request thread. It nudges APScheduler's `next_run_time` to now,
+    so the job runs ASAP on the scheduler's own executor; APScheduler then
+    recomputes the next scheduled run from the job's trigger as usual.
+    Paused jobs (`next_run_time is None`) are rejected rather than silently
+    resumed, to keep Task 2's pause semantics intact.
+    """
+    from app.main import _scheduler
+
+    job = _scheduler.get_job(job_id)
+    _resolve_scheduler_run(job_id, job)
+
+    job.modify(next_run_time=datetime.now(timezone.utc))
+    job = _scheduler.get_job(job_id)
+
+    logger.warning(
+        "Manual scheduler run triggered job_id=%s admin_id=%s",
+        job_id,
+        _admin.get("user_id"),
+    )
+    # Scheduler jobs are platform-wide (no tenant_id), so this is skipped
+    # rather than forcing a tenant scope onto record_audit_event; the
+    # warning log above is the audit trail for this action.
+
+    return {
+        "id": job_id,
+        "triggered": True,
+        "next_run": job.next_run_time.isoformat() if job and job.next_run_time else None,
+    }
 
 
 @router.get("/system-health")
@@ -1373,6 +1558,186 @@ def _format_uptime(seconds: float) -> str:
     if h > 0:
         return f"{h}h {m}m"
     return f"{m}m"
+
+
+_INCIDENT_SEVERITY: dict[str, str] = {
+    "token_invalid": "critical",
+}
+
+_SEVERITY_RANK: dict[str, int] = {"critical": 0, "warning": 1, "info": 2}
+
+
+def compute_alerts(
+    *,
+    fleet_rows: list[dict],
+    scheduler_jobs: list[dict],
+    incidents: list[dict],
+    now: datetime,
+) -> list[dict]:
+    """Pure, DB-free aggregation of the operator alert center's signals.
+
+    Takes already-fetched rows from the fleet cockpit (`_build_fleet_rows`),
+    scheduler health (`_build_scheduler_jobs`), and the `incidents` table, and
+    turns them into a single deduped, severity-sorted alert feed. No DB access
+    here — every branch is exercisable directly, mirroring `compute_fleet_health`.
+
+    Dedup: each alert gets a stable `id` derived from (source, tenant/job id,
+    kind) — e.g. `fleet:token_expired:<tenant_id>` or `scheduler:failing:<job_id>`.
+    Building the id this way means the same underlying problem (say, a tenant
+    that is both `token_expired` and `near_cap`) naturally produces two
+    *different* alerts (one per distinct problem) while a signal seen twice
+    (e.g. re-fetched) collapses to one, by keying a dict on id before sorting.
+    """
+    alerts: dict[str, dict] = {}
+
+    def add(alert: dict) -> None:
+        # First write wins so priority ordering below (critical-producing
+        # checks first) determines which title/detail survives a collision.
+        alerts.setdefault(alert["id"], alert)
+
+    # --- Fleet signals: expired tokens, AI cap, near-cap -------------------
+    for row in fleet_rows:
+        tenant_id = row.get("id")
+        tenant_name = row.get("name")
+        href = f"/operator/client/{tenant_id}" if tenant_id else None
+
+        if row.get("token_expired"):
+            add({
+                "id": f"fleet:token_expired:{tenant_id}",
+                "severity": "critical",
+                "title": "Messaging token expired",
+                "detail": f"{tenant_name} has an expired or missing messaging token.",
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "source": "fleet",
+                "created_at": row.get("last_activity") or now.isoformat(),
+                "href": href,
+            })
+
+        ai_usage = row.get("ai_usage", 0) or 0
+        if ai_usage >= 100:
+            add({
+                "id": f"fleet:ai_cap:{tenant_id}",
+                "severity": "critical",
+                "title": "AI usage at or over cap",
+                "detail": f"{tenant_name} is at {ai_usage}% of its AI reply quota.",
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "source": "fleet",
+                "created_at": row.get("last_activity") or now.isoformat(),
+                "href": href,
+            })
+        elif row.get("near_cap"):
+            add({
+                "id": f"fleet:near_cap:{tenant_id}",
+                "severity": "warning",
+                "title": "AI usage nearing cap",
+                "detail": f"{tenant_name} is at {ai_usage}% of its AI reply quota.",
+                "tenant_id": tenant_id,
+                "tenant_name": tenant_name,
+                "source": "fleet",
+                "created_at": row.get("last_activity") or now.isoformat(),
+                "href": href,
+            })
+
+    # --- Scheduler signals: failing / paused-critical jobs ------------------
+    for job in scheduler_jobs:
+        job_id = job.get("id")
+        if job.get("errors_24h", 0) > 0 or job.get("last_status") == "error":
+            add({
+                "id": f"scheduler:failing:{job_id}",
+                "severity": "critical",
+                "title": f"Scheduler job failing: {job_id}",
+                "detail": job.get("last_error") or f"{job.get('errors_24h', 0)} error(s) in the last 24h.",
+                "tenant_id": None,
+                "tenant_name": None,
+                "source": "scheduler",
+                "created_at": job.get("last_run") or now.isoformat(),
+                "href": "/operator/scheduler",
+            })
+        elif job.get("paused"):
+            add({
+                "id": f"scheduler:paused:{job_id}",
+                "severity": "warning",
+                "title": f"Scheduler job paused: {job_id}",
+                "detail": "This job is paused and will not run until resumed.",
+                "tenant_id": None,
+                "tenant_name": None,
+                "source": "scheduler",
+                "created_at": now.isoformat(),
+                "href": "/operator/scheduler",
+            })
+
+    # --- Incident signals: recent open incidents ----------------------------
+    for inc in incidents:
+        inc_type = inc.get("type") or "incident"
+        severity = _INCIDENT_SEVERITY.get(inc_type, "warning")
+        tenant_id = inc.get("tenant_id")
+        detail = inc.get("detail")
+        message = None
+        if isinstance(detail, dict):
+            message = detail.get("message")
+        # Fold the incident row's own (stable) primary key into the dedup id.
+        # `create_token_incident` dedups token_invalid incidents per (tenant,
+        # channel), so two distinct incidents for the same tenant on different
+        # channels are two different DB rows with different ids — using only
+        # (inc_type, tenant_id) here would collapse them into one alert and
+        # silently drop the second. Keying on the row id keeps them distinct
+        # while still collapsing the *same* incident re-fetched on a later
+        # poll, since its id is stable across polls.
+        add({
+            "id": f"incident:{inc_type}:{tenant_id}:{inc.get('id')}",
+            "severity": severity,
+            "title": inc_type.replace("_", " ").capitalize(),
+            "detail": message or f"Open incident for tenant {tenant_id}.",
+            "tenant_id": tenant_id,
+            "tenant_name": inc.get("tenant_name"),
+            "source": "incident",
+            "created_at": inc.get("created_at") or now.isoformat(),
+            "href": f"/operator/client/{tenant_id}" if tenant_id else None,
+        })
+
+    return sorted(
+        alerts.values(),
+        key=lambda a: (_SEVERITY_RANK.get(a["severity"], 3), a.get("created_at") or ""),
+    )
+
+
+@router.get("/alerts")
+def operator_alerts(_admin: dict = Depends(get_system_admin)):
+    """Aggregated, deduped feed of active platform issues for the operator
+    alert center (header bell). Reuses the same signal-gathering as the Fleet
+    Cockpit and Scheduler pages rather than re-querying."""
+    from datetime import datetime, timezone
+
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+
+    fleet_rows = _build_fleet_rows(db)
+    scheduler_jobs = _build_scheduler_jobs(db, now)
+
+    tenant_names = {row["id"]: row["name"] for row in fleet_rows}
+    alert_incident_cutoff = (now - timedelta(hours=48)).isoformat()
+    incidents_res = (
+        db.table("incidents")
+        .select("id, tenant_id, type, detail, created_at")
+        .gte("created_at", alert_incident_cutoff)
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute()
+    )
+    incidents = [
+        {**inc, "tenant_name": tenant_names.get(inc.get("tenant_id"))}
+        for inc in (incidents_res.data or [])
+    ]
+
+    alerts = compute_alerts(
+        fleet_rows=fleet_rows,
+        scheduler_jobs=scheduler_jobs,
+        incidents=incidents,
+        now=now,
+    )
+    return {"data": alerts}
 
 
 @router.get("/audit-logs")
@@ -1556,3 +1921,139 @@ def client_audit_logs_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# --- Tenant impersonation ("View as tenant") --------------------------------
+#
+# Read-only support tool for operators. Deliberately does NOT mint a tenant
+# session, token, or credential of any kind — the acting admin keeps using
+# their own JWT for every request. "Viewing as" a tenant means the frontend
+# renders the EXISTING admin-guarded `/operator/clients/{tenant_id}/...` read
+# endpoints in a tenant-styled, read-only view. There is no write-through-as-
+# tenant endpoint anywhere in this router, so impersonation cannot be used to
+# mutate tenant data — the start/end endpoints below only validate the target
+# and record an audit trail; they carry no elevated capability themselves.
+#
+# This intentionally avoids touching `get_tenant_id` / `get_tenant_and_role`
+# (app/dependencies/tenant.py), which every tenant-side route depends on —
+# widening those to accept an operator-supplied tenant_id would weaken the
+# core tenant isolation boundary for the entire app. Scoping this to the
+# already-audited operator surface keeps that boundary untouched.
+
+IMPERSONATION_SESSION_TTL_SECONDS = 30 * 60  # 30 minutes, time-boxed per the brief
+
+
+class StartImpersonationPayload(BaseModel):
+    tenant_id: str
+
+
+def _resolve_impersonation_start(tenant: dict | None, target_is_admin: bool) -> dict:
+    """Pure decision logic for `POST /impersonation/start`.
+
+    Given the looked-up tenant row (or `None` if it doesn't exist) and whether
+    the target account is itself a system admin, decide whether impersonation
+    may start. Raises the same `HTTPException`s the route returns so this is
+    unit-testable without a DB. Enforces:
+      - target must be a real tenant (404 if not)
+      - target must not be suspended (409 — nothing useful to view/support)
+      - target must not resolve to a system admin/operator account (403 —
+        no privilege escalation into another operator)
+    """
+    if tenant is None:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if target_is_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot impersonate an account with system admin privileges.",
+        )
+    if tenant.get("status") == "suspended":
+        raise HTTPException(status_code=409, detail="Cannot view a suspended tenant.")
+    return {"tenant_id": tenant["id"], "tenant_name": tenant.get("name", "")}
+
+
+@router.post("/impersonation/start")
+def start_impersonation(payload: StartImpersonationPayload, _admin: dict = Depends(get_system_admin)):
+    """Start a read-only 'View as tenant' session for support purposes.
+
+    Mints NO token and grants NO new capability: the response is just an
+    audited session marker (tenant summary + expiry) the frontend uses to
+    show the impersonation banner and know what tenant to render read-only
+    operator views for. All actual data continues to flow through the
+    existing admin-guarded `/clients/{tenant_id}/...` GET endpoints, which
+    have no write counterpart operating "as" the tenant.
+    """
+    from datetime import timedelta
+
+    db = get_supabase()
+    tenant = db.table("tenants").select("id, name, status").eq("id", payload.tenant_id).maybe_single().execute()
+
+    target_is_admin = False
+    if tenant.data:
+        owner_row = (
+            db.table("tenant_users")
+            .select("user_id")
+            .eq("tenant_id", payload.tenant_id)
+            .execute()
+        )
+        member_ids = {r["user_id"] for r in (owner_row.data or []) if r.get("user_id")}
+        if member_ids:
+            admin_rows = (
+                db.table("system_admins")
+                .select("user_id")
+                .in_("user_id", list(member_ids))
+                .execute()
+            )
+            target_is_admin = bool(admin_rows.data)
+
+    resolved = _resolve_impersonation_start(tenant.data, target_is_admin)
+
+    started_at = datetime.now(timezone.utc)
+    expires_at = started_at + timedelta(seconds=IMPERSONATION_SESSION_TTL_SECONDS)
+
+    record_audit_event(
+        db,
+        tenant_id=resolved["tenant_id"],
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.impersonation_started",
+        target_type="tenant",
+        target_id=resolved["tenant_id"],
+        metadata={
+            "tenant_name": resolved["tenant_name"],
+            "expires_at": expires_at.isoformat(),
+        },
+    )
+
+    return {
+        "tenant_id": resolved["tenant_id"],
+        "tenant_name": resolved["tenant_name"],
+        "started_at": started_at.isoformat(),
+        "expires_at": expires_at.isoformat(),
+        "read_only": True,
+    }
+
+
+class EndImpersonationPayload(BaseModel):
+    tenant_id: str
+
+
+@router.post("/impersonation/end")
+def end_impersonation(payload: EndImpersonationPayload, _admin: dict = Depends(get_system_admin)):
+    """End a 'View as tenant' session and audit-log the exit."""
+    db = get_supabase()
+    tenant = db.table("tenants").select("id, name").eq("id", payload.tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    record_audit_event(
+        db,
+        tenant_id=tenant.data["id"],
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.impersonation_ended",
+        target_type="tenant",
+        target_id=tenant.data["id"],
+        metadata={"tenant_name": tenant.data.get("name", "")},
+    )
+
+    return {"tenant_id": tenant.data["id"], "ended": True}
