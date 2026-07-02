@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
@@ -8,6 +8,7 @@ import {
   ArrowLeft, FileText, Trash2, CreditCard,
 } from "lucide-react";
 import { OperatorToggle } from "../../components/operator-toggle";
+import { getImpersonationSession, subscribeImpersonation } from "@/lib/impersonation";
 
 export type SectionType =
   | "overview" | "inbox" | "conversations" | "segments"
@@ -68,7 +69,17 @@ export function ClientDetailSidebar({
   activeSection, onSectionChange, enabledFeatures, onToggleFeature, featureUpdating, tenantName
 }: SidebarProps) {
   const [tcExpanded, setTcExpanded] = useState(true);
+  const [impersonating, setImpersonating] = useState(false);
   const router = useRouter();
+
+  const refreshImpersonation = useCallback(() => {
+    setImpersonating(getImpersonationSession() !== null);
+  }, []);
+
+  useEffect(() => {
+    refreshImpersonation();
+    return subscribeImpersonation(refreshImpersonation);
+  }, [refreshImpersonation]);
 
   const isEnabled = (key: string) => enabledFeatures.includes(key);
   const outboundOn = isEnabled("outbound_leads");
@@ -139,7 +150,10 @@ export function ClientDetailSidebar({
   }
 
   return (
-    <aside className="fixed left-0 top-16 h-[calc(100vh-4rem)] w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-30 select-none">
+    <aside
+      className="fixed left-0 h-[calc(100vh-4rem)] w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-30 select-none"
+      style={{ top: impersonating ? "108px" : "64px", height: `calc(100vh - ${impersonating ? "108px" : "64px"})` }}
+    >
       <div className="px-4 py-4 border-b border-[#e8e3db]">
         <button
           onClick={() => router.push("/operator")}

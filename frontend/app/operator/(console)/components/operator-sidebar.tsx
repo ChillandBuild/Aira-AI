@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Clock, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
 import { AlertBell } from "./alert-bell";
+import { getImpersonationSession, subscribeImpersonation } from "@/lib/impersonation";
 
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },
@@ -18,6 +19,16 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
   const router = useRouter();
   const [showSignOut, setShowSignOut] = useState(false);
   const [time, setTime] = useState("");
+  const [impersonating, setImpersonating] = useState(false);
+
+  const refreshImpersonation = useCallback(() => {
+    setImpersonating(getImpersonationSession() !== null);
+  }, []);
+
+  useEffect(() => {
+    refreshImpersonation();
+    return subscribeImpersonation(refreshImpersonation);
+  }, [refreshImpersonation]);
 
   useEffect(() => {
     const tick = () => {
@@ -39,7 +50,10 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 h-16 flex items-center justify-between gap-4 px-7 bg-white border-b border-border">
+      <header
+        className="sticky z-40 h-16 flex items-center justify-between gap-4 px-7 bg-white border-b border-border"
+        style={{ top: impersonating ? "44px" : "0px" }}
+      >
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
