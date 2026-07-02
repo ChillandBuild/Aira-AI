@@ -536,12 +536,6 @@ def _build_fleet_rows(db) -> list[dict]:
     return result
 
 
-@router.get("/fleet")
-def fleet_cockpit(_admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-    return {"data": _build_fleet_rows(db)}
-
-
 class PlanPayload(BaseModel):
     name: str
     monthly_price: float = 0
@@ -640,11 +634,6 @@ def delete_plan(plan_id: str, _admin: dict = Depends(get_system_admin)):
         metadata={"name": existing.data.get("name")},
     )
     return {"deleted": True, "plan_id": plan_id}
-
-
-class FeatureTogglePayload(BaseModel):
-    feature_key: str
-    enabled: bool
 
 
 class UpdateStatusPayload(BaseModel):
@@ -762,27 +751,6 @@ def wipe_leads(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         metadata={"tenant_name": tenant.data["name"], "deleted_leads": deleted},
     )
     return {"deleted": deleted, "tenant_id": tenant_id}
-
-
-@router.post("/clients/{tenant_id}/features/toggle")
-def toggle_feature(tenant_id: str, payload: FeatureTogglePayload, _admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-    
-    tenant = db.table("tenants").select("enabled_features").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-    
-    features = tenant.data.get("enabled_features", []) or []
-    
-    if payload.enabled:
-        if payload.feature_key not in features:
-            features.append(payload.feature_key)
-    else:
-        features = [f for f in features if f != payload.feature_key]
-    
-    db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
-    
-    return {"tenant_id": tenant_id, "enabled_features": features}
 
 
 @router.get("/clients/{tenant_id}/subscription")
@@ -2085,137 +2053,3 @@ def client_audit_logs_csv(
     )
 
 
-# --- Tenant impersonation ("View as tenant") --------------------------------
-#
-# Read-only support tool for operators. Deliberately does NOT mint a tenant
-# session, token, or credential of any kind — the acting admin keeps using
-# their own JWT for every request. "Viewing as" a tenant means the frontend
-# renders the EXISTING admin-guarded `/operator/clients/{tenant_id}/...` read
-# endpoints in a tenant-styled, read-only view. There is no write-through-as-
-# tenant endpoint anywhere in this router, so impersonation cannot be used to
-# mutate tenant data — the start/end endpoints below only validate the target
-# and record an audit trail; they carry no elevated capability themselves.
-#
-# This intentionally avoids touching `get_tenant_id` / `get_tenant_and_role`
-# (app/dependencies/tenant.py), which every tenant-side route depends on —
-# widening those to accept an operator-supplied tenant_id would weaken the
-# core tenant isolation boundary for the entire app. Scoping this to the
-# already-audited operator surface keeps that boundary untouched.
-
-IMPERSONATION_SESSION_TTL_SECONDS = 30 * 60  # 30 minutes, time-boxed per the brief
-
-
-class StartImpersonationPayload(BaseModel):
-    tenant_id: str
-
-
-def _resolve_impersonation_start(tenant: dict | None, target_is_admin: bool) -> dict:
-    """Pure decision logic for `POST /impersonation/start`.
-
-    Given the looked-up tenant row (or `None` if it doesn't exist) and whether
-    the target account is itself a system admin, decide whether impersonation
-    may start. Raises the same `HTTPException`s the route returns so this is
-    unit-testable without a DB. Enforces:
-      - target must be a real tenant (404 if not)
-      - target must not be suspended (409 — nothing useful to view/support)
-      - target must not resolve to a system admin/operator account (403 —
-        no privilege escalation into another operator)
-    """
-    if tenant is None:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-    if target_is_admin:
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot impersonate an account with system admin privileges.",
-        )
-    if tenant.get("status") == "suspended":
-        raise HTTPException(status_code=409, detail="Cannot view a suspended tenant.")
-    return {"tenant_id": tenant["id"], "tenant_name": tenant.get("name", "")}
-
-
-@router.post("/impersonation/start")
-def start_impersonation(payload: StartImpersonationPayload, _admin: dict = Depends(get_system_admin)):
-    """Start a read-only 'View as tenant' session for support purposes.
-
-    Mints NO token and grants NO new capability: the response is just an
-    audited session marker (tenant summary + expiry) the frontend uses to
-    show the impersonation banner and know what tenant to render read-only
-    operator views for. All actual data continues to flow through the
-    existing admin-guarded `/clients/{tenant_id}/...` GET endpoints, which
-    have no write counterpart operating "as" the tenant.
-    """
-    from datetime import timedelta
-
-    db = get_supabase()
-    tenant = db.table("tenants").select("id, name, status").eq("id", payload.tenant_id).maybe_single().execute()
-
-    target_is_admin = False
-    if tenant.data:
-        owner_row = (
-            db.table("tenant_users")
-            .select("user_id")
-            .eq("tenant_id", payload.tenant_id)
-            .execute()
-        )
-        member_ids = {r["user_id"] for r in (owner_row.data or []) if r.get("user_id")}
-        if member_ids:
-            admin_rows = (
-                db.table("system_admins")
-                .select("user_id")
-                .in_("user_id", list(member_ids))
-                .execute()
-            )
-            target_is_admin = bool(admin_rows.data)
-
-    resolved = _resolve_impersonation_start(tenant.data, target_is_admin)
-
-    started_at = datetime.now(timezone.utc)
-    expires_at = started_at + timedelta(seconds=IMPERSONATION_SESSION_TTL_SECONDS)
-
-    record_audit_event(
-        db,
-        tenant_id=resolved["tenant_id"],
-        actor_user_id=_admin.get("user_id"),
-        actor_role="system_admin",
-        action="operator.impersonation_started",
-        target_type="tenant",
-        target_id=resolved["tenant_id"],
-        metadata={
-            "tenant_name": resolved["tenant_name"],
-            "expires_at": expires_at.isoformat(),
-        },
-    )
-
-    return {
-        "tenant_id": resolved["tenant_id"],
-        "tenant_name": resolved["tenant_name"],
-        "started_at": started_at.isoformat(),
-        "expires_at": expires_at.isoformat(),
-        "read_only": True,
-    }
-
-
-class EndImpersonationPayload(BaseModel):
-    tenant_id: str
-
-
-@router.post("/impersonation/end")
-def end_impersonation(payload: EndImpersonationPayload, _admin: dict = Depends(get_system_admin)):
-    """End a 'View as tenant' session and audit-log the exit."""
-    db = get_supabase()
-    tenant = db.table("tenants").select("id, name").eq("id", payload.tenant_id).maybe_single().execute()
-    if not tenant.data:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    record_audit_event(
-        db,
-        tenant_id=tenant.data["id"],
-        actor_user_id=_admin.get("user_id"),
-        actor_role="system_admin",
-        action="operator.impersonation_ended",
-        target_type="tenant",
-        target_id=tenant.data["id"],
-        metadata={"tenant_name": tenant.data.get("name", "")},
-    )
-
-    return {"tenant_id": tenant.data["id"], "ended": True}
