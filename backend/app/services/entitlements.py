@@ -5,50 +5,27 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 
-def resolve_entitlements(
-    db: Client,
-    tenant_id: str,
-    period: str | None = None,
-) -> dict:
+def resolve_entitlements(db: Client, tenant_id: str) -> dict:
     """
-    Merge plan.included + custom_overrides to produce enabled_features and quotas.
-    Returns {'features': list, 'quotas': dict, 'ai_tier': str}
+    Look up the tenant's single assigned plan and return its entitlements.
+    Returns {'features': list, 'quotas': dict}
     """
-    if period is None:
-        period = datetime.now(timezone.utc).strftime("%Y-%m")
-    
-    tenant = db.table("tenants").select("id, enabled_features").eq("id", tenant_id).maybe_single().execute()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
     if not tenant.data:
-        return {"features": [], "quotas": {}, "ai_tier": "off"}
-    
-    sub_res = db.table("tenant_subscriptions").select(
-        "messaging_plan_id, telecalling_plan_id, ai_tier, custom_overrides"
-    ).eq("tenant_id", tenant_id).maybe_single().execute()
-    
-    sub = sub_res.data or {}
-    custom_overrides = sub.get("custom_overrides", {}) or {}
-    
-    features: list[str] = []
-    quotas: dict = {}
-    
-    for plan_id_key in ["messaging_plan_id", "telecalling_plan_id"]:
-        plan_id = sub.get(plan_id_key)
-        if plan_id:
-            plan_res = db.table("plans").select("included").eq("id", plan_id).maybe_single().execute()
-            if plan_res.data:
-                included = plan_res.data.get("included", {}) or {}
-                features.extend(included.get("feature_keys", []))
-                quotas.update(included.get("quotas", {}))
-    
-    features.extend(custom_overrides.get("feature_keys", []))
-    quotas.update(custom_overrides.get("quotas", {}))
-    
-    features = list(dict.fromkeys(features))
-    
+        return {"features": [], "quotas": {}}
+
+    sub_res = db.table("tenant_subscriptions").select("plan_id").eq("tenant_id", tenant_id).maybe_single().execute()
+    plan_id = (sub_res.data or {}).get("plan_id")
+    if not plan_id:
+        return {"features": [], "quotas": {}}
+
+    plan_res = db.table("plans").select("feature_keys, quotas").eq("id", plan_id).maybe_single().execute()
+    if not plan_res.data:
+        return {"features": [], "quotas": {}}
+
     return {
-        "features": features,
-        "quotas": quotas,
-        "ai_tier": sub.get("ai_tier", "off"),
+        "features": list(plan_res.data.get("feature_keys") or []),
+        "quotas": dict(plan_res.data.get("quotas") or {}),
     }
 
 
