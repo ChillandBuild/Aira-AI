@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, CornerDownLeft, Users, Server, CalendarClock, ScrollText, Plus, Building2 } from "lucide-react";
+import { Search, CornerDownLeft, Users, CreditCard, CalendarClock, ScrollText, Plus, Building2 } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
 
 type Client = {
@@ -19,7 +19,7 @@ type PaletteItem =
 
 const NAV_ITEMS: { id: string; label: string; hint: string; icon: typeof Users; href: string }[] = [
   { id: "nav-clients", label: "Clients", hint: "Go to Clients", icon: Users, href: "/operator" },
-  { id: "nav-fleet", label: "Fleet", hint: "Go to Fleet", icon: Server, href: "/operator/fleet" },
+  { id: "nav-subscription", label: "Subscription", hint: "Go to Subscription", icon: CreditCard, href: "/operator/subscription" },
   { id: "nav-scheduler", label: "Schedulers", hint: "Go to Schedulers", icon: CalendarClock, href: "/operator/scheduler" },
   { id: "nav-audit-log", label: "Audit Log", hint: "Go to Audit Log", icon: ScrollText, href: "/operator/audit-log" },
   { id: "nav-new-client", label: "New Client", hint: "Create a client", icon: Plus, href: "/operator" },
