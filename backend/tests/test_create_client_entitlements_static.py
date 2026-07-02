@@ -41,21 +41,18 @@ class CreateClientEntitlementsChecks(unittest.TestCase):
         resolve_idx = self.source.index("resolve_entitlements(db, tenant_id)")
         self.assertGreater(resolve_idx, sub_insert_idx)
 
-    def test_pillar_defaults_added_when_plans_present(self):
-        self.assertIn('features.extend(["whatsapp", "inbound_leads", "outbound_leads", "analytics"])', self.source)
-        self.assertIn('"telecalling", "telecalling.dialer", "telecalling.scheduled", "telecalling.notes"', self.source)
-        self.assertIn("list(dict.fromkeys(features))", self.source)
-
     def test_usage_counter_metric_mapping(self):
         expected_mapping = {
-            "message_sent": 'quotas.get("messages", 0)',
-            "ai_reply": 'quotas.get("ai_replies", 0)',
-            "call_minute": 'quotas.get("call_minutes", 0)',
+            "message_sent": 'quotas.get("message_sent", 0)',
+            "ai_reply": 'quotas.get("ai_reply", 0)',
+            "call_minute": 'quotas.get("call_minute", 0)',
+            "team_seat_active": 'quotas.get("team_seat_active", 0)',
+            "storage_gb": 'quotas.get("storage_gb", 0)',
+            "ai_call_summary": 'quotas.get("ai_call_summary", 0)',
+            "ai_call_scoring": 'quotas.get("ai_call_scoring", 0)',
         }
         for metric, quota_expr in expected_mapping.items():
             self.assertRegex(self.source, rf'"{metric}":\s*{re.escape(quota_expr)}')
-        for zero_metric in ("team_seat_active", "storage_gb", "ai_call_summary", "ai_call_scoring"):
-            self.assertRegex(self.source, rf'"{zero_metric}":\s*0')
 
     def test_usage_counters_seeded_in_single_insert_call(self):
         self.assertIn('db.table("tenant_usage_counters").insert(', self.source)

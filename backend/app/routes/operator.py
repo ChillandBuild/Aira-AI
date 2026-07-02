@@ -83,9 +83,7 @@ class CreateClientPayload(BaseModel):
     billing_region: str | None = None
     email: EmailStr
     password: str
-    messaging_plan_id: str | None = None
-    telecalling_plan_id: str | None = None
-    ai_tier: Literal["off", "basic", "standard", "premium", "byo"] = "off"
+    plan_id: str | None = None
 
 
 class UpdateFeaturesPayload(BaseModel):
@@ -238,24 +236,14 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
 
         # Create subscription record
         mrr = 0
-        if payload.messaging_plan_id:
-            plan = db.table("plans").select("monthly_price").eq("id", payload.messaging_plan_id).maybe_single().execute()
-            mrr += plan.data["monthly_price"] if plan.data else 0
-        if payload.telecalling_plan_id:
-            plan = db.table("plans").select("monthly_price").eq("id", payload.telecalling_plan_id).maybe_single().execute()
-            mrr += plan.data["monthly_price"] if plan.data else 0
-        if payload.ai_tier and payload.ai_tier not in ("off", "byo"):
-            ai_prices = {"basic": 500, "standard": 900, "premium": 1500}
-            mrr += ai_prices.get(payload.ai_tier, 0)
-        elif payload.ai_tier == "byo":
-            mrr += 999
+        if payload.plan_id:
+            plan = db.table("plans").select("monthly_price").eq("id", payload.plan_id).maybe_single().execute()
+            mrr = plan.data["monthly_price"] if plan.data else 0
 
         db.table("tenant_subscriptions").insert({
             "tenant_id": tenant_id,
             "status": "trial",
-            "messaging_plan_id": payload.messaging_plan_id,
-            "telecalling_plan_id": payload.telecalling_plan_id,
-            "ai_tier": payload.ai_tier,
+            "plan_id": payload.plan_id,
             "mrr": mrr,
             "trial_ends": None,
         }).execute()
@@ -264,27 +252,19 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
         # enabled_features + usage counters so the console is usable immediately.
         ent = resolve_entitlements(db, tenant_id)
 
-        features = list(ent["features"])
-        if payload.messaging_plan_id:
-            features.extend(["whatsapp", "inbound_leads", "outbound_leads", "analytics"])
-        if payload.telecalling_plan_id:
-            features.extend([
-                "telecalling", "telecalling.dialer", "telecalling.scheduled", "telecalling.notes",
-            ])
-        features = list(dict.fromkeys(features))
-
+        features = list(dict.fromkeys(ent["features"]))
         db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
 
         quotas = ent["quotas"]
         period = datetime.now(timezone.utc).strftime("%Y-%m")
         usage_metrics = {
-            "message_sent": quotas.get("messages", 0),
-            "ai_reply": quotas.get("ai_replies", 0),
-            "call_minute": quotas.get("call_minutes", 0),
-            "team_seat_active": 0,
-            "storage_gb": 0,
-            "ai_call_summary": 0,
-            "ai_call_scoring": 0,
+            "message_sent": quotas.get("message_sent", 0),
+            "ai_reply": quotas.get("ai_reply", 0),
+            "call_minute": quotas.get("call_minute", 0),
+            "team_seat_active": quotas.get("team_seat_active", 0),
+            "storage_gb": quotas.get("storage_gb", 0),
+            "ai_call_summary": quotas.get("ai_call_summary", 0),
+            "ai_call_scoring": quotas.get("ai_call_scoring", 0),
         }
         db.table("tenant_usage_counters").insert([
             {"tenant_id": tenant_id, "period": period, "metric": metric, "used": 0, "included": included}
@@ -808,13 +788,81 @@ def toggle_feature(tenant_id: str, payload: FeatureTogglePayload, _admin: dict =
 @router.get("/clients/{tenant_id}/subscription")
 def get_subscription(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    
-    sub = db.table("tenant_subscriptions").select(
-        "messaging_plan_id, telecalling_plan_id, ai_tier, mrr, custom_overrides"
-    ).eq("tenant_id", tenant_id).maybe_single().execute()
 
-    # maybe_single() returns None (not a response with .data = None) when zero rows match.
-    return {"data": sub.data if sub else {}}
+    sub = db.table("tenant_subscriptions").select("plan_id, mrr").eq("tenant_id", tenant_id).maybe_single().execute()
+    data = dict(sub.data) if sub and sub.data else {}
+
+    plan_id = data.get("plan_id")
+    data["plan"] = None
+    if plan_id:
+        plan = db.table("plans").select(
+            "id, name, monthly_price, feature_keys, quotas"
+        ).eq("id", plan_id).maybe_single().execute()
+        data["plan"] = plan.data if plan.data else None
+
+    return {"data": data}
+
+
+class UpdateSubscriptionPayload(BaseModel):
+    plan_id: str | None = None
+
+
+@router.patch("/clients/{tenant_id}/subscription")
+def update_subscription(tenant_id: str, payload: UpdateSubscriptionPayload, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    mrr = 0
+    if payload.plan_id:
+        plan = db.table("plans").select("monthly_price").eq("id", payload.plan_id).maybe_single().execute()
+        if not plan.data:
+            raise HTTPException(status_code=404, detail="Plan not found")
+        mrr = plan.data["monthly_price"]
+
+    db.table("tenant_subscriptions").upsert({
+        "tenant_id": tenant_id,
+        "plan_id": payload.plan_id,
+        "mrr": mrr,
+    }, on_conflict="tenant_id").execute()
+
+    ent = resolve_entitlements(db, tenant_id)
+    features = list(dict.fromkeys(ent["features"]))
+    db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
+
+    quotas = ent["quotas"]
+    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    usage_metrics = {
+        "message_sent": quotas.get("message_sent", 0),
+        "ai_reply": quotas.get("ai_reply", 0),
+        "call_minute": quotas.get("call_minute", 0),
+        "team_seat_active": quotas.get("team_seat_active", 0),
+        "storage_gb": quotas.get("storage_gb", 0),
+        "ai_call_summary": quotas.get("ai_call_summary", 0),
+        "ai_call_scoring": quotas.get("ai_call_scoring", 0),
+    }
+    for metric, included in usage_metrics.items():
+        db.table("tenant_usage_counters").upsert({
+            "tenant_id": tenant_id,
+            "period": period,
+            "metric": metric,
+            "included": included,
+        }, on_conflict="tenant_id,period,metric").execute()
+
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.subscription_plan_changed",
+        target_type="tenant",
+        target_id=tenant_id,
+        metadata={"plan_id": payload.plan_id, "mrr": mrr},
+    )
+
+    return {"tenant_id": tenant_id, "plan_id": payload.plan_id, "mrr": mrr}
 
 
 @router.get("/clients/{tenant_id}/usage")
