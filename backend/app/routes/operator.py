@@ -12,6 +12,7 @@ from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
 from app.services.entitlements import resolve_entitlements
+from app.utils.db_retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -318,29 +319,10 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
     return {"tenant_id": tenant_id, "user_id": user_id, "mrr": mrr}
 
 
-def _is_transient_db_error(e: Exception) -> bool:
-    """True for transient Supabase/Postgrest connection drops worth retrying once."""
-    blob = f"{type(e).__name__}: {e}".lower()
-    return any(
-        s in blob
-        for s in ("server disconnected", "connectionterminated", "connection reset", "goaway")
-    )
-
-
-def _execute_with_retry(query):
-    """Execute a Supabase query, retrying once on a transient connection drop."""
-    try:
-        return query.execute()
-    except Exception as e:
-        if _is_transient_db_error(e):
-            return query.execute()
-        raise
-
-
 @router.get("/features/catalog")
 def get_features_catalog(_admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    catalog = _execute_with_retry(
+    catalog = execute_with_retry(
         db.table("feature_catalog").select(
             "feature_key, display_name, category, pillar, monthly_price, is_metered, usage_metric, included_qty"
         ).order("category").order("sort_order")
@@ -925,7 +907,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     if not tenant or not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    settings_rows = _execute_with_retry(
+    settings_rows = execute_with_retry(
         db.table("app_settings")
         .select("key, value")
         .eq("tenant_id", tenant_id)

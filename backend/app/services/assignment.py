@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from app.db.supabase import get_supabase
+from app.utils.db_retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +29,13 @@ def set_round_robin_enabled(tenant_id: str, enabled: bool) -> None:
 def get_caller_id_for_user(user_id: str, tenant_id: str) -> str | None:
     """Return callers.id for this auth user, or None if not a caller."""
     db = get_supabase()
-    result = (
+    result = execute_with_retry(
         db.table("callers")
         .select("id")
         .eq("user_id", user_id)
         .eq("tenant_id", tenant_id)
         .eq("active", True)
         .maybe_single()
-        .execute()
     )
     if result is None:
         return None

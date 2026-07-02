@@ -3,33 +3,32 @@ from fastapi import Depends, HTTPException, status
 
 from app.db.supabase import get_supabase
 from app.dependencies.auth import get_current_user
+from app.utils.db_retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
 
 
 def get_tenant_id(user: dict = Depends(get_current_user)) -> str:
     db = get_supabase()
-    result = (
+    result = execute_with_retry(
         db.table("tenant_users")
         .select("tenant_id, role")
         .eq("user_id", user["user_id"])
         .maybe_single()
-        .execute()
     )
-    if not result.data:
+    if not result or not result.data:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tenant associated with this account. Complete onboarding first.",
         )
     tenant_id = result.data["tenant_id"]
-    tenant = (
+    tenant = execute_with_retry(
         db.table("tenants")
         .select("status")
         .eq("id", tenant_id)
         .maybe_single()
-        .execute()
     )
-    if (tenant.data or {}).get("status") == "suspended":
+    if (tenant.data if tenant else {}).get("status") == "suspended":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended.")
     return tenant_id
 
@@ -37,12 +36,11 @@ def get_tenant_id(user: dict = Depends(get_current_user)) -> str:
 def get_tenant_and_role(user: dict = Depends(get_current_user)) -> dict:
     from app.services.assignment import get_caller_id_for_user
     db = get_supabase()
-    result = (
+    result = execute_with_retry(
         db.table("tenant_users")
         .select("tenant_id, role")
         .eq("user_id", user["user_id"])
         .maybe_single()
-        .execute()
     )
     if not result or not result.data:
         raise HTTPException(
@@ -51,14 +49,13 @@ def get_tenant_and_role(user: dict = Depends(get_current_user)) -> dict:
         )
     tenant_id = result.data["tenant_id"]
     role = result.data["role"]
-    tenant = (
+    tenant = execute_with_retry(
         db.table("tenants")
         .select("status")
         .eq("id", tenant_id)
         .maybe_single()
-        .execute()
     )
-    if (tenant.data or {}).get("status") == "suspended":
+    if (tenant.data if tenant else {}).get("status") == "suspended":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended.")
     # Resolve a caller profile for ANY user that has one (owners can also be telecallers).
     # Role still governs visibility/permissions; caller_id only enables telecalling actions.
