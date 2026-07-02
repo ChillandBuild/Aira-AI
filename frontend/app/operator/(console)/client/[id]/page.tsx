@@ -2,9 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { operatorFetch } from "@/lib/operator";
-import { getImpersonationSession, subscribeImpersonation } from "@/lib/impersonation";
 import { ClientDetailSidebar, type SectionType } from "./sidebar";
-import { ViewAsTenantButton } from "./components/view-as-tenant-button";
 import { OverviewView } from "./views/overview";
 import { InboxView } from "./views/inbox";
 import { LeadsView } from "./views/leads";
@@ -30,16 +28,6 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [featureUpdating, setFeatureUpdating] = useState(false);
-  const [impersonating, setImpersonating] = useState(false);
-
-  const refreshImpersonation = useCallback(() => {
-    setImpersonating(getImpersonationSession() !== null);
-  }, []);
-
-  useEffect(() => {
-    refreshImpersonation();
-    return subscribeImpersonation(refreshImpersonation);
-  }, [refreshImpersonation]);
 
   const loadOverview = useCallback(async () => {
     setLoading(true);
@@ -168,7 +156,7 @@ export default function ClientDetailPage() {
         {/* Section header (like AppHeader) */}
         <div
           className="sticky z-20 h-16 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]"
-          style={{ top: impersonating ? "108px" : "64px" }}
+          style={{ top: "64px" }}
         >
           <div className="flex flex-col justify-center select-none">
             <h1 className="font-display text-lg font-bold text-ink leading-tight">{sectionMeta.title}</h1>
@@ -176,7 +164,6 @@ export default function ClientDetailPage() {
           </div>
           {tenant && (
             <div className="flex items-center gap-2 flex-shrink-0">
-              <ViewAsTenantButton tenantId={tenantId} tenantName={tenant.name} />
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
                 tenant.status === "active" ? "bg-green-50 text-success" : "bg-red-50 text-danger"
               }`}>
