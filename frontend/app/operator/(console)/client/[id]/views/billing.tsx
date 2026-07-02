@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { CreditCard, Sparkles, MessageSquare, Phone, AlertTriangle, IndianRupee, Activity } from "lucide-react";
+import { CreditCard, AlertTriangle, IndianRupee, Activity } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
 
@@ -17,12 +17,16 @@ async function apiFetch<T>(path: string): Promise<T> {
   return ((json as { data?: T }).data ?? json) as T;
 }
 
+interface PlanSummary {
+  id: string;
+  name: string;
+  monthly_price: number;
+}
+
 interface Subscription {
-  messaging_plan_id: string | null;
-  telecalling_plan_id: string | null;
-  ai_tier: string | null;
+  plan_id: string | null;
   mrr: number;
-  custom_overrides?: Record<string, unknown> | null;
+  plan: PlanSummary | null;
 }
 
 interface UsageMetric {
@@ -30,14 +34,6 @@ interface UsageMetric {
   used: number;
   included: number;
   hard_cap: number | null;
-}
-
-interface Plan {
-  id: string;
-  name: string;
-  pillar: string;
-  tier: string;
-  monthly_price: number;
 }
 
 const METRIC_LABELS: Record<string, string> = {
@@ -49,10 +45,6 @@ const METRIC_LABELS: Record<string, string> = {
   ai_call_summary: "AI Call Summaries",
   ai_call_scoring: "AI Call Scoring",
 };
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 function meterColor(pct: number): { bar: string; text: string } {
   if (pct >= 100) return { bar: "bg-danger", text: "text-danger" };
@@ -108,7 +100,6 @@ function UsageMeterRow({ item }: { item: UsageMetric }) {
 export function BillingView({ tenantId }: { tenantId: string }) {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [usage, setUsage] = useState<UsageMetric[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,12 +107,10 @@ export function BillingView({ tenantId }: { tenantId: string }) {
     Promise.all([
       apiFetch<Subscription>(`/api/v1/operator/clients/${tenantId}/subscription`),
       apiFetch<UsageMetric[]>(`/api/v1/operator/clients/${tenantId}/usage`),
-      apiFetch<Plan[]>(`/api/v1/operator/plans`),
     ])
-      .then(([sub, use, plns]) => {
+      .then(([sub, use]) => {
         setSubscription(sub);
         setUsage(Array.isArray(use) ? use : []);
-        setPlans(Array.isArray(plns) ? plns : []);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load billing"))
       .finally(() => setLoading(false));
@@ -148,18 +137,6 @@ export function BillingView({ tenantId }: { tenantId: string }) {
 
   if (!subscription) return null;
 
-  const planName = (id: string | null): string | null => {
-    if (!id) return null;
-    return plans.find((p) => p.id === id)?.name ?? "Unknown plan";
-  };
-  const messagingPlan = planName(subscription.messaging_plan_id);
-  const telecallingPlan = planName(subscription.telecalling_plan_id);
-  const aiTier = subscription.ai_tier ? capitalize(subscription.ai_tier) : "—";
-
-  const planRows: { icon: typeof MessageSquare; label: string; value: string }[] = [];
-  if (messagingPlan) planRows.push({ icon: MessageSquare, label: "Messaging", value: messagingPlan });
-  if (telecallingPlan) planRows.push({ icon: Phone, label: "Telecalling", value: telecallingPlan });
-
   return (
     <div className="space-y-6">
       {/* Billing summary */}
@@ -168,7 +145,7 @@ export function BillingView({ tenantId }: { tenantId: string }) {
           <CreditCard size={16} className="text-ink-muted" />
           Subscription
         </h3>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {/* MRR — prominent */}
           <div className="rounded-card border border-border bg-gradient-to-br from-primary-light to-white p-5 shadow-sm">
             <div className="mb-2 flex items-center gap-2 text-primary">
@@ -181,41 +158,17 @@ export function BillingView({ tenantId }: { tenantId: string }) {
             </p>
           </div>
 
-          {/* Plans */}
+          {/* Plan */}
           <div className="rounded-card border border-border bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center gap-2 text-ink-muted">
               <CreditCard size={16} />
-              <span className="font-label text-xs font-medium uppercase tracking-wider">Plans</span>
+              <span className="font-label text-xs font-medium uppercase tracking-wider">Plan</span>
             </div>
-            {planRows.length > 0 ? (
-              <div className="space-y-2.5">
-                {planRows.map((row) => (
-                  <div key={row.label} className="flex items-center gap-2.5">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-light text-primary">
-                      <row.icon size={14} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-wide text-ink-muted">{row.label}</p>
-                      <p className="truncate text-sm font-semibold text-ink">{row.value}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            {subscription.plan ? (
+              <p className="text-sm font-semibold text-ink">{subscription.plan.name}</p>
             ) : (
-              <p className="text-sm text-ink-muted">No plans assigned.</p>
+              <p className="text-sm text-ink-muted">No plan assigned.</p>
             )}
-          </div>
-
-          {/* AI tier */}
-          <div className="rounded-card border border-border bg-white p-5 shadow-sm">
-            <div className="mb-3 flex items-center gap-2 text-ink-muted">
-              <Sparkles size={16} />
-              <span className="font-label text-xs font-medium uppercase tracking-wider">AI Tier</span>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary-muted px-3 py-1.5">
-              <Sparkles size={14} className="text-primary" />
-              <span className="text-sm font-semibold text-primary">{aiTier}</span>
-            </div>
           </div>
         </div>
       </div>
