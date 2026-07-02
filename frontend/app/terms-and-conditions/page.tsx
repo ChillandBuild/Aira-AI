@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LegalPageShell, LegalSection, LegalList } from "@/components/legal/LegalPageShell";
 
 export const metadata: Metadata = {
@@ -395,9 +396,9 @@ export default function TermsAndConditionsPage() {
       <LegalSection title="19. Privacy">
         <p>
           Use of AIRA is governed by the{" "}
-          <a href="/privacy-policy" className="text-primary hover:underline">
+          <Link href="/privacy-policy" className="text-primary hover:underline">
             AIRA Privacy Policy
-          </a>
+          </Link>
           , which describes how Bloom Matrix collects, processes, stores, protects, and discloses personal
           information.
         </p>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Mail, MapPin } from "lucide-react";
 import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
@@ -44,13 +45,13 @@ export default function ContactPage() {
           aira@bloommatrix.in
         </a>{" "}
         with the subject line &ldquo;Data Deletion Request&rdquo;. See our{" "}
-        <a href="/privacy-policy" className="text-primary hover:underline">
+        <Link href="/privacy-policy" className="text-primary hover:underline">
           Privacy Policy
-        </a>{" "}
+        </Link>{" "}
         and{" "}
-        <a href="/terms-and-conditions" className="text-primary hover:underline">
+        <Link href="/terms-and-conditions" className="text-primary hover:underline">
           Terms &amp; Conditions
-        </a>{" "}
+        </Link>{" "}
         for further details.
       </p>
     </LegalPageShell>

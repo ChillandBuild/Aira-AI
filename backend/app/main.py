@@ -404,7 +404,12 @@ app = FastAPI(
 )
 
 # CORS — allow frontend origins
-_allowed = ["http://localhost:3000", "http://localhost:3001"]
+_allowed = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://www.bloommatrix.in",
+    "https://bloommatrix.in",
+]
 _frontend_url = os.environ.get("FRONTEND_URL", "")
 if _frontend_url:
     _allowed.append(_frontend_url)

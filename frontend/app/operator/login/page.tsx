@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { API_URL } from "@/lib/api";
 import { AiraLogo } from "@/components/logo";
@@ -110,7 +111,7 @@ export default function OperatorLoginPage() {
 
         <p className="text-center text-xs text-ink-muted mt-6 font-body">
           Client dashboard?{" "}
-          <a href="/login" className="text-primary hover:underline">Login here</a>
+          <Link href="/login" className="text-primary hover:underline">Login here</Link>
         </p>
       </div>
     </div>
