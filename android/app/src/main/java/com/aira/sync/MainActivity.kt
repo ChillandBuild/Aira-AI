@@ -80,6 +80,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun scheduleWork() {
+        SyncService.start(this)
+        SyncWorker.enqueueNow(this)
         Toast.makeText(this, "Connected", Toast.LENGTH_SHORT).show()
     }
 

@@ -1,15 +1,18 @@
 package com.aira.sync
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import android.provider.CallLog
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 
 class SyncService : Service() {
     private val channelId = "aira_sync_channel"
@@ -19,9 +22,23 @@ class SyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        // startForeground() must run first regardless of permission state, or the
+        // system kills the service for not entering the foreground in time.
         startForeground(notificationId, createNotification())
-        registerCallLogObserver()
+        if (hasCallLogPermission()) {
+            registerCallLogObserver()
+        } else {
+            // Launched (e.g. by Application.onCreate or after boot) before the user
+            // granted READ_CALL_LOG. Reading CallLog.Calls without it throws
+            // SecurityException, so there's nothing safe to do — stop cleanly.
+            // MainActivity restarts the service once permission is granted.
+            stopSelf()
+        }
     }
+
+    private fun hasCallLogPermission(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CALL_LOG) ==
+            PackageManager.PERMISSION_GRANTED
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         return START_STICKY
