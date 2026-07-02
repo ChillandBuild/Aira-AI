@@ -522,16 +522,21 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
 # telephony involved — calls are placed on the caller's own SIM.
 
 def _normalize_sim_phone(phone: str) -> str:
-    """Normalize an Android call-log number for lead matching.
+    """Normalize an Android call-log number to the '+91XXXXXXXXXX' format
+    leads.phone is actually stored in, so '.eq("phone", ...)' lookups match.
 
-    Strips spaces, dashes, parens and a leading '+', then drops a leading
-    '91' India country code when the remaining number is 12 digits, so
-    '+91 98765 43210', '9198765 43210' and '9876543210' all match the same
-    lead. Mirrors telecmi_client._normalize_phone's intent.
+    Strips everything but digits, drops a leading '91' country code when the
+    remaining number is 12 digits, then re-adds '+91' once the number is a
+    bare 10 digits — so '+91 98765 43210', '9198765 43210' and '9876543210'
+    all normalize to '+919876543210'. The Android client mirrors this exact
+    logic (CallLogReader.kt normalizePhone) so the on-device lead-number
+    filter and this server-side lookup agree on the same canonical form.
     """
     digits = re.sub(r"[^\d]", "", phone or "")
     if len(digits) == 12 and digits.startswith("91"):
         digits = digits[2:]
+    if len(digits) == 10:
+        return f"+91{digits}"
     return digits
 
 
