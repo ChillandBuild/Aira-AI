@@ -27,6 +27,9 @@ export function LegalPageShell({ title, subtitle, effectiveDate, children }: Leg
             <Link href="/contact" className="hover:text-primary transition-colors">
               Contact
             </Link>
+            <Link href="/data-deletion" className="hover:text-primary transition-colors">
+              Data Deletion
+            </Link>
           </nav>
         </div>
       </header>
