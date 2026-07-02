@@ -176,7 +176,7 @@ export function BillingView({ tenantId }: { tenantId: string }) {
               <span className="font-label text-xs font-medium uppercase tracking-wider">Monthly Recurring</span>
             </div>
             <p className="text-3xl font-bold text-ink">
-              ₹{subscription.mrr.toLocaleString("en-IN")}
+              ₹{(subscription.mrr || 0).toLocaleString("en-IN")}
               <span className="ml-1 text-sm font-medium text-ink-muted">/mo</span>
             </p>
           </div>
