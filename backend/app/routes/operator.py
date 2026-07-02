@@ -345,12 +345,33 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
     return {"tenant_id": tenant_id, "user_id": user_id, "mrr": mrr}
 
 
+def _is_transient_db_error(e: Exception) -> bool:
+    """True for transient Supabase/Postgrest connection drops worth retrying once."""
+    blob = f"{type(e).__name__}: {e}".lower()
+    return any(
+        s in blob
+        for s in ("server disconnected", "connectionterminated", "connection reset", "goaway")
+    )
+
+
+def _execute_with_retry(query):
+    """Execute a Supabase query, retrying once on a transient connection drop."""
+    try:
+        return query.execute()
+    except Exception as e:
+        if _is_transient_db_error(e):
+            return query.execute()
+        raise
+
+
 @router.get("/features/catalog")
 def get_features_catalog(_admin: dict = Depends(get_system_admin)):
     db = get_supabase()
-    catalog = db.table("feature_catalog").select(
-        "feature_key, display_name, category, pillar, monthly_price, is_metered, usage_metric, included_qty"
-    ).order("category").order("sort_order").execute()
+    catalog = _execute_with_retry(
+        db.table("feature_catalog").select(
+            "feature_key, display_name, category, pillar, monthly_price, is_metered, usage_metric, included_qty"
+        ).order("category").order("sort_order")
+    )
     return {"data": catalog.data or []}
 
 
@@ -698,8 +719,9 @@ def get_subscription(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     sub = db.table("tenant_subscriptions").select(
         "messaging_plan_id, telecalling_plan_id, ai_tier, mrr, custom_overrides"
     ).eq("tenant_id", tenant_id).maybe_single().execute()
-    
-    return {"data": sub.data or {}}
+
+    # maybe_single() returns None (not a response with .data = None) when zero rows match.
+    return {"data": sub.data if sub else {}}
 
 
 @router.get("/clients/{tenant_id}/usage")
@@ -798,14 +820,13 @@ def client_overview(tenant_id: str, _admin: dict = Depends(get_system_admin)):
 def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
     tenant = db.table("tenants").select("enabled_features").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
+    if not tenant or not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    settings_rows = (
+    settings_rows = _execute_with_retry(
         db.table("app_settings")
         .select("key, value")
         .eq("tenant_id", tenant_id)
-        .execute()
     )
     settings_map = {r["key"]: r["value"] for r in (settings_rows.data or [])}
 
