@@ -15,16 +15,16 @@ data class CallEntry(
 )
 
 /**
- * Normalize a phone number to bare digits, dropping a leading India 91 country
- * code. MUST mirror the backend's _normalize_sim_phone so the device can match
- * call-log numbers against the lead set the server returns.
+ * Normalize a phone number to '+91XXXXXXXXXX' — the format leads.phone is
+ * actually stored in. MUST mirror the backend's _normalize_sim_phone so the
+ * device can match call-log numbers against the lead set the server returns.
  */
 fun normalizePhone(raw: String?): String {
     var digits = (raw ?: "").filter { it.isDigit() }
     if (digits.length == 12 && digits.startsWith("91")) {
         digits = digits.substring(2)
     }
-    return digits
+    return if (digits.length == 10) "+91$digits" else digits
 }
 
 object CallLogReader {

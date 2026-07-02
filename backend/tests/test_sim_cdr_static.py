@@ -1,7 +1,9 @@
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 
 def _read(path: str) -> str:
@@ -68,6 +70,24 @@ def test_sim_phone_normalization_strips_india_prefix():
     assert "def _normalize_sim_phone" in source
     assert 're.sub(r"[^\\d]", "", phone or "")' in source
     assert 'digits.startswith("91")' in source
+
+
+def test_sim_phone_normalization_matches_leads_phone_storage_format():
+    """Regression test: leads.phone is stored as '+91XXXXXXXXXX' in this
+    database (confirmed via live query 2026-07-02). _normalize_sim_phone must
+    produce that exact format, or '.eq("phone", dialed)' lookups in
+    _ingest_sim_call silently never match and every synced call creates a
+    duplicate orphan lead instead of linking to the real one.
+    """
+    from app.routes.calls import _normalize_sim_phone
+
+    # All these raw forms a phone dialer / Android call log might report for
+    # the same number must normalize to the one format leads.phone uses.
+    assert _normalize_sim_phone("+919345679286") == "+919345679286"
+    assert _normalize_sim_phone("919345679286") == "+919345679286"
+    assert _normalize_sim_phone("9345679286") == "+919345679286"
+    assert _normalize_sim_phone("+91 93456 79286") == "+919345679286"
+    assert _normalize_sim_phone("93456-79286") == "+919345679286"
 
 
 def test_no_dead_secrets_import_in_calls():
