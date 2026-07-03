@@ -19,6 +19,14 @@ class Prefs(context: Context) {
         get() = prefs.getLong("last_synced_timestamp_ms", 0L)
         set(value) = prefs.edit().putLong("last_synced_timestamp_ms", value).apply()
 
+    var recordingFolderPath: String
+        get() = prefs.getString("recording_folder_path", "") ?: ""
+        set(value) = prefs.edit().putString("recording_folder_path", value).apply()
+
+    var lastScannedRecordingMs: Long
+        get() = prefs.getLong("last_scanned_recording_ms", 0L)
+        set(value) = prefs.edit().putLong("last_scanned_recording_ms", value).apply()
+
     companion object {
         private var instance: Prefs? = null
 

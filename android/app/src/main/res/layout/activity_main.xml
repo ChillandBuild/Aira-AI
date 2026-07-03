@@ -46,4 +46,52 @@
         android:text="@string/sync_now"
         android:layout_marginTop="16dp" />
 
+    <TextView
+        android:id="@+id/recordingSectionLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Recordings"
+        android:textStyle="bold"
+        android:layout_marginTop="24dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp">
+
+        <TextView
+            android:id="@+id/recordingPathText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="No folder selected"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/recordingStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textSize="14sp"
+            android:layout_marginStart="8dp" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/changeRecordingFolderBtn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Change Source Folder"
+        android:layout_marginTop="8dp" />
+
+    <TextView
+        android:id="@+id/recordingHelpText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Recordings are scanned during sync and uploaded only when they match a lead assigned to you."
+        android:textSize="12sp"
+        android:textColor="?android:attr/textColorSecondary"
+        android:layout_marginTop="4dp" />
+
 </LinearLayout>
