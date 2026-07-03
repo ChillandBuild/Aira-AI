@@ -53,6 +53,14 @@
 - **Decision**: Gated env-var settings fallback to `_DEFAULT_TENANT_ID` only across `config_dynamic.py`, `app_settings.py` (×2), `meta_webhook_verify.py`. Migration 117 expanded `opt_in_source` CHECK to channel values.
 - **Rationale**: Fallback was leaking the default tenant's Meta tokens/secret to every new client (security + wrong-credential webhook verification). **Apply rule:** new per-tenant settings must use `get_setting(key, tenant_id=...)` — never fall back to env/`app.config`.
 
+**2026-07-03 — WhatsApp Lead-Segment Admin Notifications (no migration)**
+- **Decision**: Extended the `notification_config` JSON (`app_settings`) with a `whatsapp_notifications` sub-config (`enabled`/`recipient_phones`/`template_id`/`target_segments`). New `services/whatsapp_notify.py::send_admin_whatsapp_alerts` fires a Meta template message to configured admin phones when a lead's segment changes, triggered from `growth.py::record_stage_event` via a fire-and-forget `asyncio` background task (not FastAPI `BackgroundTasks` — see subsystem-notes.md → WhatsApp templates & notifications). 6h cooldown per `(lead_id, to_segment)` against `lead_stage_events` prevents alert spam/cost on a lead flapping segments. Ordinal parameter injection maps however many `{{n}}` placeholders the chosen template has to Name/Phone/Segment/Dashboard-link, in that order. Frontend: new WhatsApp section in `NotificationConfigPanel.tsx`.
+- **Rationale**: Admins wanted instant WhatsApp alerts on hot-lead triage without polling the dashboard.
+
+**2026-07-03 — Meta Template Validation + Language Restriction**
+- **Decision**: Added validation for Meta's hard template-body rules — leading/trailing variables (Graph API subcode 2388299) and sequential `{{n}}` numbering with no gaps — both client-side (`frontend/.../templates/types.ts::validateTemplateBody`, shared by `variable-inserter.tsx`, template create/edit pages) and server-side (Pydantic validators on `CreateTemplate`/`UpdateTemplate` in `templates.py`). Also fixed `create_template` to save `status="REJECTED"` (was `"PENDING"`) when Meta's submission genuinely fails, so the template becomes editable via the existing PATCH flow instead of a dead-end (PATCH only allows REJECTED/PAUSED; re-POSTing the same name 409s on the local `(tenant_id, name)` uniqueness constraint before ever reaching Meta). Restricted the template language dropdown + backend validation to Indian + English only: `en`, `en_US`, `en_IN`, `hi`, `kn`, `ml`, `ta`, `te`.
+- **Rationale**: Template submissions were repeatedly round-tripping to Meta's Graph API and failing on deterministic rules that should be caught before submission; a failed submission previously left the local row in an unrecoverable PENDING state. Language restriction is an Indian-market product requirement.
+
 ---
 
 ## Historical DB Migrations Index (051–119)
