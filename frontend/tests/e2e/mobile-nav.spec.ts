@@ -41,10 +41,10 @@ test.describe("More drawer", () => {
 
     await page.getByRole("button", { name: "More" }).click();
     await expect(page.getByText("More", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Close", exact: true })).toBeVisible();
 
     // Tap the backdrop (top-left corner, outside the right-side panel) to dismiss.
     await page.mouse.click(10, 10);
-    await expect(page.getByRole("button", { name: "Close" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Close", exact: true })).toHaveCount(0);
   });
 });
