@@ -39,11 +39,39 @@ def test_sim_cdr_enriches_pwa_row_not_duplicate():
     source = _read("app/routes/calls.py")
     # Reconcile against a pending PWA-created row instead of always inserting.
     assert '.is_("call_sid", "null")' in source
-    assert '.in_("status", ["sim_started", "initiated"])' in source
     assert 'action = "enriched"' in source
     assert 'action = "created"' in source
     # Never clobber a human-tagged outcome from the wrap-up form.
     assert "not pending_outcome" in source
+    # Regression (2026-07-03): the enrichment lookup must NOT be scoped to
+    # sim_started/initiated only. That restriction made merging depend on
+    # ordering — if the wrap-up form completed the row first, the APK's
+    # later sync couldn't find it and created a duplicate row instead of
+    # updating the existing one. The lookup is now status-agnostic (gated
+    # only by call_sid IS NULL), so order never matters.
+    assert '.in_("status", ["sim_started", "initiated"])' not in source
+
+
+def test_sim_cdr_never_writes_human_owned_fields():
+    """Regression test for the wrap-up-first double-count scenario: the APK
+    enrichment path must only ever touch 'hard facts' it measured directly
+    (call_sid/status/disposition/duration_seconds[/outcome, outcome-guarded
+    separately]) and must never include notes/tags/quality_rating/manual
+    timing in its update payload — those stay human-owned regardless of
+    whether the wrap-up form ran before or after the APK's sync.
+    """
+    source = _read("app/routes/calls.py")
+    # Locate the sim-cdr `updates` dict via its unique first key — several
+    # other `updates: dict = {...}` blocks exist elsewhere in this file
+    # (e.g. the TeleCMI CDR handler), so anchor on content, not the bare
+    # `updates: dict = {` prefix which matches the wrong block first.
+    start = source.index('"call_sid": entry.entry_id,')
+    end = source.index("}", start)
+    updates_block = source[start:end]
+    for forbidden in ("notes", "tags", "quality_rating", "manual_started_at", "manual_ended_at"):
+        assert forbidden not in updates_block, f"{forbidden!r} must not be in the hard-facts updates dict"
+    for required in ("call_sid", "status", "disposition", "duration_seconds"):
+        assert required in updates_block
 
 
 def test_sim_lead_numbers_endpoint_for_device_filter():
