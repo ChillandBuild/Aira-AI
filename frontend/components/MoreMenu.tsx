@@ -78,7 +78,7 @@ export function MoreMenu() {
             className="absolute inset-0 bg-black/35"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 top-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] w-[80vw] max-w-xs overflow-y-auto bg-white p-4 pt-[calc(1rem+env(safe-area-inset-top))] shadow-2xl animate-in fade-in slide-in-from-right duration-200">
+          <div className="absolute left-0 top-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] w-[80vw] max-w-xs overflow-y-auto bg-white p-4 pt-[calc(1rem+env(safe-area-inset-top))] shadow-2xl animate-in fade-in slide-in-from-left duration-200">
             <div className="mb-3 flex items-center justify-between px-1">
               <div className="font-display text-sm font-extrabold text-ink">More</div>
               <button
