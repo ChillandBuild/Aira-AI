@@ -691,8 +691,13 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
     status, disposition, outcome = _sim_status_from_type(entry.call_type, entry.duration)
     call_dt = datetime.fromtimestamp(entry.timestamp / 1000, tz=timezone.utc)
 
-    # 3. Reconcile: find a recent PWA-created row for this caller+lead that's
-    #    still awaiting completion (sim_started/initiated, no call_sid yet).
+    # 3. Reconcile: find a recent PWA-created row for this caller+lead to
+    #    enrich with the APK's real data, regardless of whether the wrap-up
+    #    form has already been submitted. Ordering must not matter — a
+    #    telecaller can finish wrap-up before or after the APK syncs, and
+    #    either way there should be exactly one row per call. The only gate
+    #    is `call_sid IS NULL`: once a row has a call_sid, dedup (step 1)
+    #    already owns it, so it's not a candidate to re-enrich.
     pending_id = None
     pending_outcome = None
     if lead_id:
@@ -704,7 +709,6 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
             .eq("lead_id", lead_id)
             .eq("provider", "sim_basic")
             .is_("call_sid", "null")
-            .in_("status", ["sim_started", "initiated"])
             .gte("created_at", window_start)
             .order("created_at", desc=True)
             .limit(1)
@@ -715,6 +719,10 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
             pending_outcome = pending.data[0].get("outcome")
 
     # 4a. Enrich the existing PWA row, or 4b. create a fresh one.
+    # `updates` only ever carries "hard facts" the APK measured directly
+    # (call_sid, status, disposition, duration). It must NEVER include notes,
+    # tags, quality_rating, or manual_started_at/ended_at — those are always
+    # human-owned via the wrap-up form, whether it ran before or after this.
     updates: dict = {
         "call_sid": entry.entry_id,
         "status": status,
