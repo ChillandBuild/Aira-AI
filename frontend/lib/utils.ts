@@ -35,3 +35,11 @@ export function formatIST(dateStr: string): string {
     hour12: false,
   });
 }
+
+export function isActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function getHomeHref(role: "owner" | "caller" | null): string {
+  return role === "caller" ? "/dashboard/profile" : "/dashboard";
+}
