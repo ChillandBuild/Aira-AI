@@ -109,6 +109,14 @@ def _fire_whatsapp_alert(tenant_id: str, lead_id: str, from_segment: str | None,
         loop = asyncio.get_running_loop()
     except RuntimeError:
         logger.warning("record_stage_event: no running event loop, skipping WhatsApp alert for lead %s", lead_id)
+        try:
+            get_supabase().table("incidents").insert({
+                "tenant_id": tenant_id,
+                "type": "whatsapp_alert_failed",
+                "detail": {"lead_id": lead_id, "to_segment": to_segment, "reason": "no_running_event_loop"},
+            }).execute()
+        except Exception:
+            logger.exception("Failed to record whatsapp_alert_failed incident for lead %s", lead_id)
         return
 
     async def _run() -> None:

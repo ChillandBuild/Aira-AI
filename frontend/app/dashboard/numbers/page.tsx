@@ -155,6 +155,7 @@ const TYPE_LABELS: Record<string, string> = {
   standby_promoted: "Standby number promoted",
   warm_up_complete: "Number warm-up complete — now active",
   quality_snapshot: "Quality synced from Meta",
+  whatsapp_alert_failed: "Admin WhatsApp alert failed to send",
 };
 
 const TYPE_BADGE: Record<string, string> = {
@@ -166,6 +167,7 @@ const TYPE_BADGE: Record<string, string> = {
   standby_promoted: "bg-blue-100 text-blue-700",
   warm_up_complete: "bg-green-100 text-green-700",
   quality_snapshot: "bg-emerald-100 text-emerald-700",
+  whatsapp_alert_failed: "bg-red-100 text-red-700",
 };
 
 const INCIDENTS_PAGE_SIZE = 50;

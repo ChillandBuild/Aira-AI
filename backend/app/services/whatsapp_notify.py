@@ -12,6 +12,19 @@ _SEGMENT_LABELS = {"A": "Hot", "B": "Warm", "C": "Cold", "D": "Disqualified"}
 _COOLDOWN_HOURS = 6
 
 
+def _log_incident(db, tenant_id: str, detail: dict) -> None:
+    """Record a whatsapp_alert_failed incident so failures surface on the
+    dashboard instead of only existing in server logs. Never raises."""
+    try:
+        db.table("incidents").insert({
+            "tenant_id": tenant_id,
+            "type": "whatsapp_alert_failed",
+            "detail": detail,
+        }).execute()
+    except Exception:
+        logger.exception("Failed to record whatsapp_alert_failed incident for tenant %s", tenant_id)
+
+
 def _is_recently_notified(db, lead_id: str, to_segment: str) -> bool:
     """True if this lead already triggered a segment_changed->to_segment alert
     within the cooldown window.
@@ -67,6 +80,7 @@ async def _dispatch_alerts(
     tenant_id: str,
     lead_id: str,
 ) -> None:
+    db = get_supabase()
     for phone in recipient_phones:
         try:
             await send_template_message(
@@ -76,8 +90,15 @@ async def _dispatch_alerts(
                 components=components,
                 tenant_id=tenant_id,
             )
-        except Exception:
+        except Exception as e:
             logger.exception("WhatsApp admin alert failed to %s for lead %s", phone, lead_id)
+            _log_incident(db, tenant_id, {
+                "lead_id": lead_id,
+                "phone": phone,
+                "template": template.get("name"),
+                "reason": "meta_send_failed",
+                "error": str(e)[:500],
+            })
 
 
 async def send_admin_whatsapp_alerts(
@@ -123,6 +144,11 @@ async def send_admin_whatsapp_alerts(
                 template_id,
                 tenant_id,
             )
+            _log_incident(db, tenant_id, {
+                "lead_id": lead_id,
+                "template_id": template_id,
+                "reason": "template_not_found_or_not_approved",
+            })
             return
 
         lead_res = (
@@ -135,6 +161,11 @@ async def send_admin_whatsapp_alerts(
         )
         lead = (lead_res.data or [None])[0]
         if not lead:
+            logger.warning("WhatsApp alert skipped: lead %s not found for tenant %s", lead_id, tenant_id)
+            _log_incident(db, tenant_id, {
+                "lead_id": lead_id,
+                "reason": "lead_not_found",
+            })
             return
 
         components = _build_components(template, lead, to_segment)
@@ -142,5 +173,10 @@ async def send_admin_whatsapp_alerts(
             return
 
         await _dispatch_alerts(recipient_phones, template, components, tenant_id, lead_id)
-    except Exception:
+    except Exception as e:
         logger.exception("send_admin_whatsapp_alerts failed for tenant=%s lead=%s", tenant_id, lead_id)
+        _log_incident(get_supabase(), tenant_id, {
+            "lead_id": lead_id,
+            "reason": "unexpected_error",
+            "error": str(e)[:500],
+        })

@@ -45,7 +45,9 @@ def _make_db(
 
     def table_selector(name):
         t = MagicMock()
-        if name == "app_settings":
+        if name == "incidents":
+            db._incidents_table = t
+        elif name == "app_settings":
             value = None
             if wa_config is not None:
                 import json as _json
@@ -187,6 +189,44 @@ async def test_template_not_found_or_not_approved_does_not_send(caplog):
         await svc.send_admin_whatsapp_alerts("t1", "lead-1", "C", "B")
     tpl.assert_not_called()
     assert any("not found/approved" in record.getMessage() for record in caplog.records)
+    incident = db._incidents_table.insert.call_args.args[0]
+    assert incident["type"] == "whatsapp_alert_failed"
+    assert incident["detail"]["reason"] == "template_not_found_or_not_approved"
+
+
+@pytest.mark.asyncio
+async def test_lead_not_found_records_incident():
+    from app.services import whatsapp_notify as svc
+    db = _make_db(
+        wa_config=_wa_config(),
+        template_rows=[_template_row()],
+        lead_rows=[],
+        cooldown_rows=[{"id": "evt-1"}],
+    )
+    with patch.object(svc, "get_supabase", return_value=db), \
+         patch.object(svc, "send_template_message", new=AsyncMock()) as tpl:
+        await svc.send_admin_whatsapp_alerts("t1", "lead-1", "C", "B")
+    tpl.assert_not_called()
+    incident = db._incidents_table.insert.call_args.args[0]
+    assert incident["detail"]["reason"] == "lead_not_found"
+
+
+@pytest.mark.asyncio
+async def test_meta_send_failure_records_incident():
+    from app.services import whatsapp_notify as svc
+    db = _make_db(
+        wa_config=_wa_config(recipient_phones=["+15550001111"]),
+        template_rows=[_template_row()],
+        lead_rows=[_lead_row()],
+        cooldown_rows=[{"id": "evt-1"}],
+    )
+    tpl = AsyncMock(side_effect=RuntimeError("Meta API down"))
+    with patch.object(svc, "get_supabase", return_value=db), \
+         patch.object(svc, "send_template_message", new=tpl):
+        await svc.send_admin_whatsapp_alerts("t1", "lead-1", "C", "B")
+    incident = db._incidents_table.insert.call_args.args[0]
+    assert incident["detail"]["reason"] == "meta_send_failed"
+    assert incident["detail"]["phone"] == "+15550001111"
 
 
 @pytest.mark.asyncio
@@ -252,6 +292,28 @@ async def test_segment_changed_event_schedules_whatsapp_alert_task():
         await asyncio.sleep(0)
         await asyncio.sleep(0)
     alert.assert_awaited_once_with("t1", "lead-1", "C", "B")
+
+
+def test_no_running_event_loop_records_incident():
+    """record_stage_event called from sync code (no event loop) must not
+    raise, and must leave a visible trail instead of silently dropping."""
+    from app.services import growth as svc
+    db = MagicMock()
+    db.table.return_value.insert.return_value.execute.return_value.data = [{"id": "evt-1"}]
+    incidents_db = MagicMock()
+    with patch.object(svc, "get_supabase", return_value=incidents_db):
+        svc.record_stage_event(
+            "lead-1",
+            to_segment="B",
+            event_type="segment_changed",
+            from_segment="C",
+            tenant_id="t1",
+            db=db,
+        )
+    incident_calls = [
+        c for c in incidents_db.table.call_args_list if c.args and c.args[0] == "incidents"
+    ]
+    assert incident_calls, "expected an incidents table insert when no event loop is running"
 
 
 @pytest.mark.asyncio
