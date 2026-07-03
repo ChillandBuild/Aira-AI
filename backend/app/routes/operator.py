@@ -12,6 +12,7 @@ from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
 from app.services.entitlements import resolve_entitlements
+from app.services.subscription_requests import approve_request, reject_request
 from app.utils.db_retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
@@ -511,44 +512,46 @@ def _build_fleet_rows(db) -> list[dict]:
     return result
 
 
+class PlanItem(BaseModel):
+    feature_key: str
+    quantity: int = 1
+
+
 class PlanPayload(BaseModel):
     name: str
-    monthly_price: float = 0
-    feature_keys: list[str] = []
-    quotas: dict[str, int] = {}
+    discount_percent: float = 0
+    items: list[PlanItem] = []
 
 
 @router.get("/plans")
 def list_plans(_admin: dict = Depends(get_system_admin)):
     db = get_supabase()
     plans = db.table("plans").select(
-        "id, name, monthly_price, feature_keys, quotas, active, created_at"
+        "id, name, monthly_price, feature_keys, discount_percent, active, created_at"
     ).eq("active", True).order("created_at").execute()
-    plan_rows = plans.data or []
+    return {"data": plans.data or []}
 
-    plan_ids = [p["id"] for p in plan_rows]
-    counts: dict[str, int] = {}
-    if plan_ids:
-        subs = db.table("tenant_subscriptions").select("plan_id").in_("plan_id", plan_ids).execute()
-        for s in (subs.data or []):
-            pid = s.get("plan_id")
-            if pid:
-                counts[pid] = counts.get(pid, 0) + 1
 
-    for p in plan_rows:
-        p["tenant_count"] = counts.get(p["id"], 0)
-
-    return {"data": plan_rows}
+def _compute_package_price(db, items: list[dict], discount_percent: float) -> float:
+    feature_keys = [i["feature_key"] for i in items]
+    if not feature_keys:
+        return 0.0
+    catalog = db.table("feature_catalog").select("feature_key, monthly_price").in_("feature_key", feature_keys).execute()
+    prices = {row["feature_key"]: row.get("monthly_price") or 0 for row in (catalog.data or [])}
+    subtotal = sum(prices.get(i["feature_key"], 0) * i.get("quantity", 1) for i in items)
+    return subtotal * (1 - discount_percent / 100)
 
 
 @router.post("/plans")
 def create_plan(payload: PlanPayload, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
+    items = [i.model_dump() for i in payload.items]
+    price = _compute_package_price(db, items, payload.discount_percent)
     plan = db.table("plans").insert({
         "name": payload.name,
-        "monthly_price": payload.monthly_price,
-        "feature_keys": payload.feature_keys,
-        "quotas": payload.quotas,
+        "monthly_price": price,
+        "feature_keys": items,
+        "discount_percent": payload.discount_percent,
     }).execute()
     created = plan.data[0] if plan.data else None
     record_audit_event(
@@ -559,7 +562,7 @@ def create_plan(payload: PlanPayload, _admin: dict = Depends(get_system_admin)):
         action="operator.plan_created",
         target_type="plan",
         target_id=created["id"] if created else None,
-        metadata={"name": payload.name, "monthly_price": payload.monthly_price},
+        metadata={"name": payload.name, "monthly_price": price},
     )
     return {"data": created}
 
@@ -571,11 +574,13 @@ def update_plan(plan_id: str, payload: PlanPayload, _admin: dict = Depends(get_s
     if not existing.data:
         raise HTTPException(status_code=404, detail="Plan not found")
 
+    items = [i.model_dump() for i in payload.items]
+    price = _compute_package_price(db, items, payload.discount_percent)
     plan = db.table("plans").update({
         "name": payload.name,
-        "monthly_price": payload.monthly_price,
-        "feature_keys": payload.feature_keys,
-        "quotas": payload.quotas,
+        "monthly_price": price,
+        "feature_keys": items,
+        "discount_percent": payload.discount_percent,
     }).eq("id", plan_id).execute()
     record_audit_event(
         db,
@@ -585,7 +590,7 @@ def update_plan(plan_id: str, payload: PlanPayload, _admin: dict = Depends(get_s
         action="operator.plan_updated",
         target_type="plan",
         target_id=plan_id,
-        metadata={"name": payload.name, "monthly_price": payload.monthly_price},
+        metadata={"name": payload.name, "monthly_price": price},
     )
     return {"data": plan.data[0] if plan.data else None}
 
@@ -609,6 +614,78 @@ def delete_plan(plan_id: str, _admin: dict = Depends(get_system_admin)):
         metadata={"name": existing.data.get("name")},
     )
     return {"deleted": True, "plan_id": plan_id}
+
+
+class CatalogPricingPayload(BaseModel):
+    monthly_price: float | None = None
+    unit_price: float | None = None
+    included_qty: int | None = None
+
+
+@router.patch("/catalog/{feature_key}")
+def update_catalog_pricing(feature_key: str, payload: CatalogPricingPayload, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    existing = db.table("feature_catalog").select("feature_key").eq("feature_key", feature_key).maybe_single().execute()
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+
+    update = {k: v for k, v in payload.model_dump().items() if v is not None}
+    result = db.table("feature_catalog").update(update).eq("feature_key", feature_key).execute()
+    record_audit_event(
+        db,
+        tenant_id=None,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.catalog_pricing_updated",
+        target_type="feature_catalog",
+        target_id=feature_key,
+        metadata=update,
+    )
+    return {"data": result.data[0] if result.data else None}
+
+
+@router.get("/subscription-requests")
+def list_subscription_requests(status: str | None = None, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    query = db.table("subscription_requests").select(
+        "id, tenant_id, status, requested_items, package_id, total_amount, is_initial, payment_confirmed, submitted_at"
+    ).order("submitted_at", desc=True)
+    if status:
+        query = query.eq("status", status)
+    result = query.execute()
+    return {"data": result.data or []}
+
+
+class ReviewRequestPayload(BaseModel):
+    action: Literal["approve", "reject"]
+    payment_confirmed: bool = False
+    rejection_reason: str | None = None
+
+
+@router.patch("/subscription-requests/{request_id}")
+def review_subscription_request(request_id: str, payload: ReviewRequestPayload, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+
+    if payload.action == "approve":
+        if not payload.payment_confirmed:
+            raise HTTPException(status_code=400, detail="Confirm payment received before approving")
+        result = approve_request(db, request_id, reviewer_user_id=_admin.get("user_id"))
+    else:
+        if not payload.rejection_reason:
+            raise HTTPException(status_code=400, detail="A rejection reason is required")
+        result = reject_request(db, request_id, reviewer_user_id=_admin.get("user_id"), reason=payload.rejection_reason)
+
+    record_audit_event(
+        db,
+        tenant_id=None,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action=f"operator.subscription_request_{payload.action}d",
+        target_type="subscription_request",
+        target_id=request_id,
+        metadata={"payment_confirmed": payload.payment_confirmed, "rejection_reason": payload.rejection_reason},
+    )
+    return {"data": result}
 
 
 class UpdateStatusPayload(BaseModel):
@@ -726,86 +803,6 @@ def wipe_leads(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         metadata={"tenant_name": tenant.data["name"], "deleted_leads": deleted},
     )
     return {"deleted": deleted, "tenant_id": tenant_id}
-
-
-@router.get("/clients/{tenant_id}/subscription")
-def get_subscription(tenant_id: str, _admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-
-    sub = db.table("tenant_subscriptions").select("plan_id, mrr").eq("tenant_id", tenant_id).maybe_single().execute()
-    data = dict(sub.data) if sub and sub.data else {}
-
-    plan_id = data.get("plan_id")
-    data["plan"] = None
-    if plan_id:
-        plan = db.table("plans").select(
-            "id, name, monthly_price, feature_keys, quotas"
-        ).eq("id", plan_id).maybe_single().execute()
-        data["plan"] = plan.data if plan.data else None
-
-    return {"data": data}
-
-
-class UpdateSubscriptionPayload(BaseModel):
-    plan_id: str | None = None
-
-
-@router.patch("/clients/{tenant_id}/subscription")
-def update_subscription(tenant_id: str, payload: UpdateSubscriptionPayload, _admin: dict = Depends(get_system_admin)):
-    db = get_supabase()
-
-    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    mrr = 0
-    if payload.plan_id:
-        plan = db.table("plans").select("monthly_price").eq("id", payload.plan_id).maybe_single().execute()
-        if not plan.data:
-            raise HTTPException(status_code=404, detail="Plan not found")
-        mrr = plan.data["monthly_price"]
-
-    db.table("tenant_subscriptions").upsert({
-        "tenant_id": tenant_id,
-        "plan_id": payload.plan_id,
-        "mrr": mrr,
-    }, on_conflict="tenant_id").execute()
-
-    ent = resolve_entitlements(db, tenant_id)
-    features = list(dict.fromkeys(ent["features"]))
-    db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
-
-    quotas = ent["quotas"]
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
-    usage_metrics = {
-        "message_sent": quotas.get("message_sent", 0),
-        "ai_reply": quotas.get("ai_reply", 0),
-        "call_minute": quotas.get("call_minute", 0),
-        "team_seat_active": quotas.get("team_seat_active", 0),
-        "storage_gb": quotas.get("storage_gb", 0),
-        "ai_call_summary": quotas.get("ai_call_summary", 0),
-        "ai_call_scoring": quotas.get("ai_call_scoring", 0),
-    }
-    for metric, included in usage_metrics.items():
-        db.table("tenant_usage_counters").upsert({
-            "tenant_id": tenant_id,
-            "period": period,
-            "metric": metric,
-            "included": included,
-        }, on_conflict="tenant_id,period,metric").execute()
-
-    record_audit_event(
-        db,
-        tenant_id=tenant_id,
-        actor_user_id=_admin.get("user_id"),
-        actor_role="system_admin",
-        action="operator.subscription_plan_changed",
-        target_type="tenant",
-        target_id=tenant_id,
-        metadata={"plan_id": payload.plan_id, "mrr": mrr},
-    )
-
-    return {"tenant_id": tenant_id, "plan_id": payload.plan_id, "mrr": mrr}
 
 
 @router.get("/clients/{tenant_id}/usage")
