@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Trash2, ArrowLeft, AlertCircle, Image as ImageIcon } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { LANGUAGES } from "../types";
 
 type CardButton = {
   type: "QUICK_REPLY" | "URL";
@@ -146,10 +147,9 @@ export default function CarouselTemplateBuilderPage() {
             <div>
               <label className="font-body text-sm font-medium text-ink mb-1.5 block">Language</label>
               <select value={language} onChange={e => setLanguage(e.target.value)} className="input w-full">
-                <option value="en">English</option>
-                <option value="hi">Hindi</option>
-                <option value="ta">Tamil</option>
-                <option value="te">Telugu</option>
+                {LANGUAGES.map((lang) => (
+                  <option key={lang.code} value={lang.code}>{lang.label}</option>
+                ))}
               </select>
             </div>
             <div>

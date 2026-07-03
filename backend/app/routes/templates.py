@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id
 from app.services import meta_cloud
@@ -48,6 +48,9 @@ class CarouselCard(BaseModel):
     buttons: list[Button] | None = None  # 1-2 per card
 
 
+_SUPPORTED_TEMPLATE_LANGUAGES = {"en", "en_US", "en_IN", "hi", "kn", "ml", "ta", "te"}
+
+
 class CreateTemplate(BaseModel):
     name: str
     category: str
@@ -59,6 +62,13 @@ class CreateTemplate(BaseModel):
     footer_text: str | None = None
     buttons: list[Button] | None = None
     carousel_cards: list[CarouselCard] | None = None
+
+    @field_validator("language")
+    @classmethod
+    def _validate_language(cls, v: str) -> str:
+        if v not in _SUPPORTED_TEMPLATE_LANGUAGES:
+            raise ValueError(f"Unsupported language '{v}'. Supported: {sorted(_SUPPORTED_TEMPLATE_LANGUAGES)}")
+        return v
 
 
 @router.get("/")

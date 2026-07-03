@@ -41,15 +41,13 @@ export type Template = {
 
 export const LANGUAGES = [
   { code: 'en', label: 'English' },
+  { code: 'en_US', label: 'English (US)' },
+  { code: 'en_IN', label: 'English (IND)' },
   { code: 'hi', label: 'Hindi' },
+  { code: 'kn', label: 'Kannada' },
+  { code: 'ml', label: 'Malayalam' },
   { code: 'ta', label: 'Tamil' },
   { code: 'te', label: 'Telugu' },
-  { code: 'ar', label: 'Arabic' },
-  { code: 'es', label: 'Spanish' },
-  { code: 'fr', label: 'French' },
-  { code: 'pt', label: 'Portuguese' },
-  { code: 'de', label: 'German' },
-  { code: 'id', label: 'Indonesian' },
 ] as const;
 
 export const CATEGORIES = [
