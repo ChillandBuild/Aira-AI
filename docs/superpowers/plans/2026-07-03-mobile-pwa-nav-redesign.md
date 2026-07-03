@@ -547,6 +547,7 @@ At 320px, 375px, and 768px widths, for **both** an owner account and a caller ac
 - [ ] Calls and Inbox tabs go to the same destinations for both roles.
 - [ ] More drawer, owner account: shows Leads, Send, Templates, Scheduled Calls, Call Notes, Inbound Leads, Numbers Pool, Knowledge Base, Analytics, Team, Settings (whichever of these the account's enabled features allow) — confirm none of these silently disappeared compared to today's nav.
 - [ ] More drawer, caller account: shows only Scheduled Calls / Call Notes (whichever `enabledFeatures` allow) — confirm no owner-only item leaks through.
+- [ ] On an account with `telecalling` disabled (or messaging/`outbound_leads`+`inbound_leads` both disabled): the Calls and/or Inbox tabs are no longer feature-gated by design (per this plan's Global Constraints — all 3 tabs are always shown to every role), so confirm tapping them degrades gracefully — a redirect, empty state, or disabled-feature message — rather than a crash or raw auth error. (Found during final whole-branch review: this is intended behavior, not a bug, but wasn't in the original checklist.)
 - [ ] More drawer is reachable and fully usable (not clipped, not hidden behind the bottom nav) from all three tabs, including Inbox specifically.
 
 - [ ] **Step 4: Commit**
