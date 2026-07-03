@@ -11,7 +11,6 @@ from app.dependencies.auth import get_current_user
 from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
-from app.services.entitlements import resolve_entitlements
 from app.services.subscription_requests import approve_request, reject_request
 from app.utils.db_retry import execute_with_retry
 
@@ -85,7 +84,6 @@ class CreateClientPayload(BaseModel):
     billing_region: str | None = None
     email: EmailStr
     password: str
-    plan_id: str | None = None
 
 
 class UpdateFeaturesPayload(BaseModel):
@@ -229,42 +227,10 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
             for k, s in _SETTING_KEYS
         ]).execute()
 
-        # Create subscription record
-        mrr = 0
-        if payload.plan_id:
-            plan = db.table("plans").select("monthly_price").eq("id", payload.plan_id).maybe_single().execute()
-            mrr = plan.data["monthly_price"] if plan.data else 0
-
-        db.table("tenant_subscriptions").insert({
-            "tenant_id": tenant_id,
-            "status": "trial",
-            "plan_id": payload.plan_id,
-            "mrr": mrr,
-            "trial_ends": None,
-        }).execute()
-
-        # Resolve entitlements now that the subscription exists, and seed
-        # enabled_features + usage counters so the console is usable immediately.
-        ent = resolve_entitlements(db, tenant_id)
-
-        features = list(dict.fromkeys(ent["features"]))
-        db.table("tenants").update({"enabled_features": features}).eq("id", tenant_id).execute()
-
-        quotas = ent["quotas"]
-        period = datetime.now(timezone.utc).strftime("%Y-%m")
-        usage_metrics = {
-            "message_sent": quotas.get("message_sent", 0),
-            "ai_reply": quotas.get("ai_reply", 0),
-            "call_minute": quotas.get("call_minute", 0),
-            "team_seat_active": quotas.get("team_seat_active", 0),
-            "storage_gb": quotas.get("storage_gb", 0),
-            "ai_call_summary": quotas.get("ai_call_summary", 0),
-            "ai_call_scoring": quotas.get("ai_call_scoring", 0),
-        }
-        db.table("tenant_usage_counters").insert([
-            {"tenant_id": tenant_id, "period": period, "metric": metric, "used": 0, "included": included}
-            for metric, included in usage_metrics.items()
-        ]).execute()
+        # No tenant_subscriptions row is created here — the new tenant starts
+        # gated (status effectively "none") until they submit a subscription
+        # cart from the client-facing Subscriptions page and an admin
+        # approves it (see app/services/subscription_requests.py).
 
         # Seed default caller
         db.table("callers").insert({
