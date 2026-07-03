@@ -66,7 +66,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 </>
               )}
               {children}
-              <div className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] right-3 z-[65] md:hidden">
+              <div className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-[65] md:hidden">
                 <MoreMenu />
               </div>
               <MobileDashboardNav />

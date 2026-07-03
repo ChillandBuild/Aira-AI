@@ -244,16 +244,19 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:h-20 md:gap-4 md:px-7">
-      {/* Left side: title and description */}
-      <div className="flex flex-col justify-center select-none">
-        <h1 className="font-display text-base font-bold leading-tight text-on-surface md:text-lg">
-          {title}
-        </h1>
-        {description && (
-          <p className="mt-0.5 hidden max-w-[650px] truncate font-body text-xs text-on-surface-muted sm:block">
-            {description}
-          </p>
-        )}
+      {/* Left side: menu trigger + title and description */}
+      <div className="flex min-w-0 items-center gap-3">
+        <MoreMenu />
+        <div className="flex min-w-0 flex-col justify-center select-none">
+          <h1 className="font-display text-base font-bold leading-tight text-on-surface md:text-lg">
+            {title}
+          </h1>
+          {description && (
+            <p className="mt-0.5 hidden max-w-[650px] truncate font-body text-xs text-on-surface-muted sm:block">
+              {description}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Right side actions */}
@@ -381,7 +384,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           <span>{time || "00:00"}</span>
           <span className="sr-only">Schedule & Notes</span>
         </button>
-        <MoreMenu />
         <NotificationBell />
         <ProfileMenu />
       </div>
