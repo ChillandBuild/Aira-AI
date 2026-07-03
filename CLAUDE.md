@@ -18,8 +18,7 @@
 - Pull ONLY the `.agents/` file the task scope points to (below) — never preload all of them.
 - **Database/schema work:** the wiki is CODE only. Use the migration index in [decisions/log.md](.agents/decisions/log.md) + live Supabase `list_tables`/`execute_sql` — NOT the wiki.
 - This runs automatically for every task; the user does NOT have to say "use the wiki/graph."
-- `/graphify` = rebuild/update the graph itself (new content, not a lookup). When the user types
-  it, invoke the Skill tool with `skill: "graphify"` before doing anything else.
+
 
 ## Agent Routing Instructions
 To prevent context dilution, general invariants and rules have been split into modular guides. **Always read these files first based on the scope of your task:**

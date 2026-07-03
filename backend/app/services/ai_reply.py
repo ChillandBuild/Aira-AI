@@ -152,7 +152,15 @@ def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
         or []
     )
 
-_LANG_NAMES = {"ta": "Tamil", "hi": "Hindi", "te": "Telugu", "kn": "Kannada", "ml": "Malayalam", "en": "English"}
+_LANG_NAMES = {
+    "ta": "Tamil",
+    "hi": "Hindi",
+    "te": "Telugu",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "en": "English",
+    "tanglish": "Tanglish (Tamil words spelled in English letters - reply the same way, do not switch to Tamil script or formal English)",
+}
 
 _FALLBACK_BY_LANG = {
     "ta": "நன்றி! உங்கள் விசாரணைக்கு விரைவில் பதிலளிப்போம்.",
@@ -161,11 +169,27 @@ _FALLBACK_BY_LANG = {
     "kn": "ಧನ್ಯವಾದಗಳು! ನಾವು ಶೀಘ್ರದಲ್ಲೇ ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುತ್ತೇವೆ.",
     "ml": "നന്ദി! ഞങ്ങൾ ഉടൻ തന്നെ നിങ്ങളുമായി ബന്ധപ്പെടും.",
     "en": "Thank you for reaching out! We'll get back to you shortly.",
+    "tanglish": "Nandri! Naanga seekiram unga kooda contact pannuvom.",
 }
+
+# Common Tamil words/suffixes seen in Tanglish (Tamil written in Latin letters).
+# Pure Unicode-block detection can't tell Tanglish apart from English since both
+# use the Latin script - this closes that gap with a curated keyword heuristic.
+_TANGLISH_MARKERS = frozenset({
+    "nalla", "romba", "seri", "vanga", "vaanga", "sollunga", "solunga",
+    "pannunga", "panren", "panniten", "pannitu", "pannanum", "panna",
+    "venum", "vendum", "irukku", "irukka", "iruken", "illa", "illai",
+    "epdi", "eppadi", "eppo", "yaaru", "yaru", "enna", "yenna", "kandippa",
+    "unga", "ungal", "naanga", "namma", "kekkanum", "paakanum", "paakalam",
+    "paathu", "poganum", "poyitu", "irundha", "vela", "jaadhagam",
+    "jadhagam", "jothidam", "kalyanam", "thirumanam", "nanba", "nanban",
+    "machi", "aiyo", "dhan", "thaan", "nu", "pa", "da",
+})
 
 
 def _detect_lang(text: str) -> str:
-    """Return dominant language code based on Unicode block frequency."""
+    """Return dominant language code based on Unicode block frequency,
+    falling back to a Tanglish keyword heuristic when the script is pure Latin."""
     if not text:
         return "en"
     counts: dict[str, int] = {}
@@ -183,7 +207,12 @@ def _detect_lang(text: str) -> str:
             counts["hi"] = counts.get("hi", 0) + 1
         elif ch.isalpha() and cp < 128:
             counts["en"] = counts.get("en", 0) + 1
-    return max(counts, key=counts.__getitem__) if counts else "en"
+    dominant = max(counts, key=counts.__getitem__) if counts else "en"
+    if dominant == "en":
+        tokens = set(re.findall(r"[a-zA-Z']+", text.lower()))
+        if tokens & _TANGLISH_MARKERS:
+            return "tanglish"
+    return dominant
 
 
 _LAST_SEND_ERROR: str | None = None
@@ -675,8 +704,11 @@ async def generate_reply(
         system_prompt += "\n\nLEAD CONTEXT:\n" + "\n".join(lead_facts)
 
         system_prompt += (
-            "\n\nLANGUAGE RULE: Reply in the SAME language the user just wrote in. "
-            "If they write Tamil, reply Tamil. English -> English. Never switch unless they do."
+            "\n\nLANGUAGE RULE: Reply in the SAME language style the user just wrote in. "
+            "Tamil script -> reply in Tamil script. English -> reply in English. "
+            "Tanglish (Tamil words spelled in English letters, e.g. 'eppo varuvinga', 'jaadhagam paakanum') "
+            "-> reply in Tanglish too - do NOT convert it to pure Tamil script or to formal English. "
+            "Never switch styles unless the user explicitly asks you to."
         )
 
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
