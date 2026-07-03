@@ -39,6 +39,52 @@ export type Template = {
   variations?: string[];
 };
 
+export function detectVariables(text: string): number[] {
+  const regex = /\{\{(\d+)\}\}/g;
+  const nums = new Set<number>();
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    nums.add(parseInt(match[1], 10));
+  }
+  return Array.from(nums).sort((a, b) => a - b);
+}
+
+/** Mirrors Meta's hard template rules (subcodes 2388299 / leading-trailing, non-sequential numbering) so submissions fail fast in the UI instead of round-tripping to the Graph API. */
+export function validateTemplateBody(text: string): string | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  if (/^\{\{\d+\}\}/.test(trimmed)) {
+    return "Variables can't be at the start of the template.";
+  }
+  if (/\{\{\d+\}\}$/.test(trimmed)) {
+    return "Variables can't be at the end of the template.";
+  }
+
+  const vars = detectVariables(trimmed);
+  if (vars.length > 0) {
+    const expected = Array.from({ length: vars.length }, (_, i) => i + 1);
+    if (JSON.stringify(vars) !== JSON.stringify(expected)) {
+      return `Variables must be numbered sequentially starting from {{1}} with no gaps (found ${vars
+        .map((v) => `{{${v}}}`)
+        .join(", ")}).`;
+    }
+  }
+
+  return null;
+}
+
+/** Meta doesn't publish its exact words-to-variables ratio formula (subcode 2388293) — this is a non-blocking heuristic to warn before submission, not a hard rule. */
+export function templateBodyWarning(text: string): string | null {
+  const vars = detectVariables(text);
+  if (vars.length === 0) return null;
+  const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+  if (wordCount / vars.length < 6) {
+    return "This may have too many variables for its length — Meta often rejects a low word-to-variable ratio. Consider adding more descriptive text or reducing variables.";
+  }
+  return null;
+}
+
 export const LANGUAGES = [
   { code: 'en', label: 'English' },
   { code: 'en_US', label: 'English (US)' },

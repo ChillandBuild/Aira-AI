@@ -16,7 +16,7 @@ import {
   FileCode,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { LANGUAGES, STATUS_COLORS } from "../types";
+import { LANGUAGES, STATUS_COLORS, validateTemplateBody } from "../types";
 import type { Button, Template } from "../types";
 import WhatsAppPreview from "../components/whatsapp-preview";
 import ButtonBuilder from "../components/button-builder";
@@ -174,6 +174,11 @@ export default function TemplateDetailsPage() {
   async function handleSave() {
     if (!bodyText.trim()) {
       setError("Body text cannot be empty.");
+      return;
+    }
+    const bodyError = validateTemplateBody(bodyText);
+    if (bodyError) {
+      setError(bodyError);
       return;
     }
     if (headerType === "TEXT" && hasEmoji(headerText)) {

@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
@@ -51,6 +52,27 @@ class CarouselCard(BaseModel):
 _SUPPORTED_TEMPLATE_LANGUAGES = {"en", "en_US", "en_IN", "hi", "kn", "ml", "ta", "te"}
 
 
+def _validate_body_variables(body_text: str) -> str:
+    """Mirrors Meta's hard template rules (subcode 2388299: leading/trailing
+    variables; sequential numbering) so bad submissions fail fast with a
+    clear message instead of round-tripping to the Graph API."""
+    trimmed = body_text.strip()
+    if not trimmed:
+        return body_text
+    if re.match(r"^\{\{\d+\}\}", trimmed):
+        raise ValueError("Variables can't be at the start of the template.")
+    if re.search(r"\{\{\d+\}\}$", trimmed):
+        raise ValueError("Variables can't be at the end of the template.")
+
+    indices = sorted(set(int(m) for m in re.findall(r"\{\{(\d+)\}\}", trimmed)))
+    if indices and indices != list(range(1, len(indices) + 1)):
+        raise ValueError(
+            f"Variables must be numbered sequentially starting from {{1}} with no gaps "
+            f"(found {', '.join('{{' + str(i) + '}}' for i in indices)})."
+        )
+    return body_text
+
+
 class CreateTemplate(BaseModel):
     name: str
     category: str
@@ -69,6 +91,11 @@ class CreateTemplate(BaseModel):
         if v not in _SUPPORTED_TEMPLATE_LANGUAGES:
             raise ValueError(f"Unsupported language '{v}'. Supported: {sorted(_SUPPORTED_TEMPLATE_LANGUAGES)}")
         return v
+
+    @field_validator("body_text")
+    @classmethod
+    def _validate_body_text(cls, v: str) -> str:
+        return _validate_body_variables(v)
 
 
 @router.get("/")
@@ -413,6 +440,13 @@ class UpdateTemplate(BaseModel):
     header_media_url: Optional[str] = None
     footer_text: Optional[str] = None
     buttons: Optional[list[Button]] = None
+
+    @field_validator("body_text")
+    @classmethod
+    def _validate_body_text(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return _validate_body_variables(v)
 
 
 @router.patch("/{template_id}")

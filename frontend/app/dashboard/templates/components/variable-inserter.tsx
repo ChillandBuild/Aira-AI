@@ -2,6 +2,7 @@
 
 import { useRef, useMemo } from "react";
 import { Plus } from "lucide-react";
+import { detectVariables, validateTemplateBody, templateBodyWarning } from "../types";
 
 type VariableInserterProps = {
   value: string;
@@ -14,16 +15,6 @@ type VariableInserterProps = {
 };
 
 /* ── helpers ─────────────────────────────────────────────────── */
-
-function detectVariables(text: string): number[] {
-  const regex = /\{\{(\d+)\}\}/g;
-  const nums = new Set<number>();
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    nums.add(parseInt(match[1]));
-  }
-  return Array.from(nums).sort((a, b) => a - b);
-}
 
 function nextVariableNumber(text: string): number {
   const vars = detectVariables(text);
@@ -45,6 +36,11 @@ export default function VariableInserter({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const variables = useMemo(() => detectVariables(value), [value]);
+  const validationError = useMemo(() => validateTemplateBody(value), [value]);
+  const validationWarning = useMemo(
+    () => (validationError ? null : templateBodyWarning(value)),
+    [value, validationError]
+  );
 
   function insertVariable() {
     const el = textareaRef.current;
@@ -96,8 +92,18 @@ export default function VariableInserter({
         placeholder={placeholder}
         rows={rows}
         maxLength={maxLength}
-        className="input resize-y min-h-[100px] text-sm"
+        className={`input resize-y min-h-[100px] text-sm ${
+          validationError ? "border-red-400 focus:border-red-500" : ""
+        }`}
       />
+
+      {/* Meta template rule violation / advisory */}
+      {validationError && (
+        <p className="font-body text-[11px] text-red-600 mt-1">{validationError}</p>
+      )}
+      {!validationError && validationWarning && (
+        <p className="font-body text-[11px] text-amber-600 mt-1">{validationWarning}</p>
+      )}
 
       {/* Footer: char count + detected vars */}
       <div className="flex items-center justify-between mt-1.5 flex-wrap gap-2">

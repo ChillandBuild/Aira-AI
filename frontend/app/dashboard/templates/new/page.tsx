@@ -15,7 +15,7 @@ import {
   Lock,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { LANGUAGES, CATEGORIES } from "../types";
+import { LANGUAGES, CATEGORIES, validateTemplateBody } from "../types";
 import type { Button } from "../types";
 import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
@@ -111,6 +111,11 @@ export default function NewTemplatePage() {
         setError("Message body text cannot be empty.");
         return;
       }
+      const bodyError = validateTemplateBody(bodyText);
+      if (bodyError) {
+        setError(bodyError);
+        return;
+      }
       if (headerType === "TEXT" && !headerText.trim()) {
         setError("Please enter header text.");
         return;
@@ -146,6 +151,10 @@ export default function NewTemplatePage() {
     try {
       if (headerType === "TEXT" && hasEmoji(headerText)) {
         throw new Error("Emojis are not allowed in the header text.");
+      }
+      const bodyError = validateTemplateBody(bodyText);
+      if (bodyError) {
+        throw new Error(bodyError);
       }
       const trimmedTexts = buttons.map((b) => b.text.trim().toLowerCase()).filter(Boolean);
       if (new Set(trimmedTexts).size < trimmedTexts.length) {
