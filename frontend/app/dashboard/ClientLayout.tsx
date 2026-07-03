@@ -9,6 +9,7 @@ import { SessionTracker } from "@/components/SessionTracker";
 import { AppHeader } from "@/components/AppHeader";
 import { ClaimBanner } from "@/components/ClaimBanner";
 import { MobileDashboardNav } from "@/components/MobileDashboardNav";
+import { MoreMenu } from "@/components/MoreMenu";
 import { API_URL } from "@/lib/api";
 import { NotificationProvider } from "@/hooks/useNotifications";
 
@@ -65,6 +66,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 </>
               )}
               {children}
+              <div className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] right-3 z-[65] md:hidden">
+                <MoreMenu />
+              </div>
               <MobileDashboardNav />
             </div>
             <CalendarPanel isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />

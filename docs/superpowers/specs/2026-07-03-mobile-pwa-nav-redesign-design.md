@@ -37,11 +37,13 @@ Active-state highlighting (`isActive()`) is unchanged — still prefix-matches `
 
 Since all three tabs are relevant to both roles, no `isVisible()` filtering is needed for this bar — it eliminates the empty-column bug entirely by construction (always exactly 3 items, always full width).
 
+**Regression guard:** today's `PRIMARY_ITEMS` gives owners three additional primary tabs beyond Home/Inbox/Calls — Leads (`/dashboard/leads`), Send (`/dashboard/outbound-leads`), and Templates (`/dashboard/templates`). Dropping owners to 3 tabs too means these three lose their primary-tab slot; they must be added to the More drawer's item list (with their existing `ownerOnly`/`feature` gates preserved verbatim) so owners don't lose access to them. They are *not* new items — just relocated from the old primary bar into the drawer, same as the existing `MORE_ITEMS` entries.
+
 ### 2. More — header trigger + right-side drawer
 
-- A menu-icon button is added to `AppHeader.tsx`, next to `NotificationBell` / `ProfileMenu` (mobile-only, `md:hidden`, mirroring how those two are already always visible in the header).
-- Tapping it opens a new `MoreDrawer` component: a right-side slide-in panel (backdrop-tap or swipe-to-dismiss), listing today's `MORE_ITEMS`, filtered through the existing `isVisible()` role/feature gate — same visibility rules as today, just a different container and trigger location instead of the current centered bottom-sheet grid.
-- The bottom nav's `isMoreOpen` state, backdrop, and grid-sheet markup are removed from `MobileDashboardNav.tsx` and move into `MoreDrawer.tsx`.
+- **Correction found during planning:** `AppHeader.tsx` is not actually rendered on every route. `ClientLayout.tsx` special-cases `/dashboard/conversations` (the Inbox tab) into a header-less branch that renders only `{children}` + `MobileDashboardNav` — no `AppHeader`, no `NotificationBell`, no `ProfileMenu`. Putting the More trigger only inside `AppHeader` would make it unreachable from the Inbox tab, one of the three primary tabs this redesign relies on. Fixed by making the trigger+drawer a single self-contained component (`MoreMenu.tsx`, no props, manages its own open state — mirroring how `NotificationBell` is already self-contained) mounted from **two** call sites: inline in `AppHeader`'s icon row for every route that renders it, and as a small fixed-position element in `ClientLayout`'s header-less Inbox branch. This matches the codebase's existing pattern of `ClientLayout` rendering small shared elements (`MobileDashboardNav`, `CalendarPanel`) once per branch.
+- `MoreMenu.tsx` renders a small circular trigger button (matching the 34×34 gradient-circle style of `NotificationBell`'s bell button) that opens a right-side slide-in panel (backdrop-tap to dismiss), listing today's `MORE_ITEMS`, filtered through the existing `isVisible()` role/feature gate — same visibility rules as today, just a different container and trigger location instead of the current centered bottom-sheet grid.
+- The bottom nav's `isMoreOpen` state, backdrop, and grid-sheet markup are removed from `MobileDashboardNav.tsx` and move into `MoreMenu.tsx`.
 
 ### 3. Small cleanup: profile/Overview naming
 
@@ -49,12 +51,15 @@ Since all three tabs are relevant to both roles, no `isVisible()` filtering is n
 
 ## Files touched
 
-- `components/MobileDashboardNav.tsx` — rewritten down to just the 3-tab grid (Home/Calls/Inbox) with role-aware Home target. `MORE_ITEMS`, `isVisible()`, and the bottom-sheet/backdrop markup are removed from this file entirely (they move to `MoreDrawer.tsx`, below).
-- `components/MoreDrawer.tsx` (new) — owns `MORE_ITEMS` and `isVisible()` (moved from the old nav file), renders the right-side drawer, and is opened/closed via props from `AppHeader`.
-- `lib/utils.ts` — add the small `isActive(pathname, href)` prefix-match helper here (currently duplicated inline in the nav file), so both `MobileDashboardNav` and `MoreDrawer` import the same one-line utility instead of redefining it.
-- `components/AppHeader.tsx` — add mobile-only More trigger button next to `NotificationBell`/`ProfileMenu`, holding the `isMoreOpen` state and rendering `<MoreDrawer />`.
+- `components/MobileDashboardNav.tsx` — rewritten down to just the 3-tab grid (Home/Calls/Inbox) with role-aware Home target. `MORE_ITEMS`, `isVisible()`, and the bottom-sheet/backdrop markup are removed from this file entirely (they move to `MoreMenu.tsx`, below).
+- `components/MoreMenu.tsx` (new) — self-contained: owns `MORE_ITEMS`, `isVisible()`, its own open/close state, the trigger button, and the right-side drawer. No props, no external state.
+- `lib/utils.ts` — add the small `isActive(pathname, href)` prefix-match helper here (currently duplicated inline in the nav file), so both `MobileDashboardNav` and `MoreMenu` import the same one-line utility instead of redefining it.
+- `components/AppHeader.tsx` — mount `<MoreMenu />` inline in the right-side icons row, next to `NotificationBell`/`ProfileMenu`.
+- `components/ClientLayout.tsx` — mount `<MoreMenu />` in the header-less Inbox branch too (fixed top-right position, safe-area aware), so More is reachable from all three tabs regardless of which branch renders.
 
 ## Testing
 
-- Manual verification at 320/375/768 widths (per project visual-regression convention) for both owner and caller roles: confirm 3 evenly-spaced tabs, correct Home target per role, drawer opens/closes correctly and lists the right role-filtered items.
+- Unit test for `isActive()` (pure function, Vitest, mirrors the existing `lib/operator.test.ts` convention).
+- Playwright e2e spec (`tests/e2e/mobile-nav.spec.ts`, mobile viewport) verifying: 3 evenly-spaced tabs render, More trigger opens the drawer with role-filtered items, drawer closes on backdrop tap — following the existing `tests/e2e/templates.spec.ts` convention (requires a running dev server + logged-in session).
+- Manual verification at 320/375/768 widths (per project visual-regression convention) for both owner and caller roles: confirm 3 evenly-spaced tabs, correct Home target per role, More trigger reachable and working from the Home, Calls, *and* Inbox tabs specifically (the header-less-Inbox gap above), drawer lists the right role-filtered items.
 - Confirm active-tab highlighting still matches on Home/Calls/Inbox across nested routes (e.g. `/dashboard/telecalling/scheduled` still highlights Calls).

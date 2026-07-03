@@ -4,6 +4,7 @@ import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Clock, RefreshCw, LayoutGrid, List } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
+import { MoreMenu } from "@/components/MoreMenu";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 
 import { cn } from "@/lib/utils";
@@ -380,6 +381,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           <span>{time || "00:00"}</span>
           <span className="sr-only">Schedule & Notes</span>
         </button>
+        <MoreMenu />
         <NotificationBell />
         <ProfileMenu />
       </div>
