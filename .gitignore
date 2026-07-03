@@ -40,3 +40,6 @@ frontend/test-results/
 *.tsbuildinfo
 test_leads.csv
 .mcp.json
+
+# Git worktrees (local dev isolation)
+.worktrees/
