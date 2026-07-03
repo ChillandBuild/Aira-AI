@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -81,7 +82,7 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
                         try {
                             val phoneNumber = recording.phoneNumber ?: ""
                             val timestamp = recording.lastModified
-                            val requestFile = recording.file.toRequestBody("audio/*".toMediaType())
+                            val requestFile = recording.file.asRequestBody("audio/*".toMediaType())
                             val body = MultipartBody.Part.createFormData("file", recording.file.name, requestFile)
                             val phoneBody = phoneNumber.toRequestBody("text/plain".toMediaType())
                             val timeBody = timestamp.toString().toRequestBody("text/plain".toMediaType())
