@@ -13,7 +13,7 @@ from app.services.assignment import (
     should_escalate_hot_lead,
     should_escalate_to_inbox,
 )
-from app.services.entitlements import meter
+from app.services.entitlements import meter, check_quota
 
 logger = logging.getLogger(__name__)
 
@@ -757,6 +757,10 @@ async def generate_reply(
         # Trigger B: AI/Groq exception - escalate so a human can pick up
         escalation_flags.add("B")
         logger.info(f"Trigger B: lead {lead_id} Groq exception - {e}")
+
+    if not check_quota(db, tenant_id, "ai_reply"):
+        logger.info(f"AI reply skipped for tenant {tenant_id}: ai_reply quota exhausted")
+        return
 
     # Step 3: Dispatch to the correct channel
     if channel == "instagram":
