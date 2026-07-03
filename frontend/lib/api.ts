@@ -1487,7 +1487,7 @@ export const api = {
   },
   templates: {
     list: async () => {
-      const res = await apiFetch<{ data: WabaTemplate[] }>("/api/v1/templates");
+      const res = await apiFetch<{ data: WabaTemplate[] }>("/api/v1/templates/");
       return res.data || [];
     },
   },
