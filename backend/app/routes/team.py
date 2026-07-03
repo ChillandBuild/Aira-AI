@@ -8,6 +8,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
 from app.services.assignment import get_telecalling_config
 from app.services.attendance import build_attendance_map, compute_team_summary, date_range
+from app.services.entitlements import get_purchased_quantity
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -141,6 +142,17 @@ async def invite_member(payload: InvitePayload, ctx: dict = Depends(get_tenant_a
         raise HTTPException(status_code=403, detail="Only owners can invite members")
 
     db = get_supabase()
+
+    active_count = db.table("callers").select("id", count="exact").eq(
+        "tenant_id", ctx["tenant_id"]
+    ).eq("active", True).execute().count or 0
+    purchased = get_purchased_quantity(db, ctx["tenant_id"], "telecaller_seats")
+    if active_count >= purchased:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Telecaller seat limit reached ({purchased} purchased). Request more from Settings → Subscription.",
+        )
+
     calling_provider = get_telecalling_config(ctx["tenant_id"]).get("calling_provider", "telecmi")
     phone = (payload.phone or "").strip() or None
     telecmi_agent_id = (payload.telecmi_agent_id or "").strip() or None
