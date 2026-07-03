@@ -123,7 +123,8 @@ async def create_template(payload: CreateTemplate, tenant_id: str = Depends(get_
         except TemplateContentExistsError:
             raise
         except Exception as e:
-            logger.warning(f"Meta template submission failed for {name}: {e}, saved as PENDING")
+            status = "REJECTED"
+            logger.warning(f"Meta template submission failed for {name}: {e}, saved as REJECTED")
     else:
         logger.info(f"No meta_waba_id configured — saving template '{name}' locally as PENDING")
 
