@@ -10,7 +10,7 @@ async def test_create_template_uses_waba_id_not_phone_number_id():
     """create_template must read meta_waba_id, not meta_phone_number_id."""
     from app.routes.templates import create_template, CreateTemplate
 
-    payload = CreateTemplate(name="test_template", category="UTILITY", language="en", body_text="Hello {{1}}")
+    payload = CreateTemplate(name="test_template", category="UTILITY", language="en", body_text="Hello {{1}}, welcome!")
 
     captured_waba_id = []
 
@@ -23,7 +23,7 @@ async def test_create_template_uses_waba_id_not_phone_number_id():
     mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
     mock_db.table.return_value.insert.return_value.execute.return_value.data = [{
         "id": "row-1", "name": "test_template", "category": "UTILITY",
-        "language": "en", "body_text": "Hello {{1}}", "status": "PENDING",
+        "language": "en", "body_text": "Hello {{1}}, welcome!", "status": "PENDING",
         "meta_template_id": "meta-123", "tenant_id": "tenant-1",
         "submitted_at": "2026-05-13T00:00:00Z", "approved_at": None, "rejection_reason": None,
     }]
