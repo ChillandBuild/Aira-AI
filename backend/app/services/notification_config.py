@@ -20,6 +20,12 @@ _NOTIFICATION_CONFIG_DEFAULT: dict = {
     "claimable_audience": "telecallers_and_admin",
     "claimable_caller_ids": [],
     "quiet_hours": {"enabled": False, "start_hour": 22, "end_hour": 8},
+    "whatsapp_notifications": {
+        "enabled": False,
+        "recipient_phones": [],
+        "template_id": None,
+        "target_segments": ["A"],
+    },
 }
 
 
@@ -30,6 +36,7 @@ def get_notification_config(tenant_id: str, db=None) -> dict:
         **_NOTIFICATION_CONFIG_DEFAULT,
         "events": dict(_NOTIFICATION_CONFIG_DEFAULT["events"]),
         "quiet_hours": dict(_NOTIFICATION_CONFIG_DEFAULT["quiet_hours"]),
+        "whatsapp_notifications": dict(_NOTIFICATION_CONFIG_DEFAULT["whatsapp_notifications"]),
     }
     try:
         row = (
@@ -45,6 +52,7 @@ def get_notification_config(tenant_id: str, db=None) -> dict:
             if isinstance(stored, dict):
                 merged["events"] = {**merged["events"], **(stored.get("events") or {})}
                 merged["quiet_hours"] = {**merged["quiet_hours"], **(stored.get("quiet_hours") or {})}
+                merged["whatsapp_notifications"] = {**merged["whatsapp_notifications"], **(stored.get("whatsapp_notifications") or {})}
                 for k in ("push_enabled", "claimable_threshold_minutes", "claimable_audience", "claimable_caller_ids"):
                     if k in stored:
                         merged[k] = stored[k]

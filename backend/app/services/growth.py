@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -5,6 +6,8 @@ from typing import Any
 from app.db.supabase import get_supabase
 
 logger = logging.getLogger(__name__)
+
+_background_tasks: set = set()
 
 SEGMENT_DEPTH = {"D": 0, "C": 1, "B": 2, "A": 3}
 # 1d/1w/1m cadences retired in migration 095 — they sent freeform text outside
@@ -101,6 +104,25 @@ def get_or_create_campaign(
     return (created.data or [None])[0]
 
 
+def _fire_whatsapp_alert(tenant_id: str, lead_id: str, from_segment: str | None, to_segment: str) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        logger.warning("record_stage_event: no running event loop, skipping WhatsApp alert for lead %s", lead_id)
+        return
+
+    async def _run() -> None:
+        try:
+            from app.services.whatsapp_notify import send_admin_whatsapp_alerts
+            await send_admin_whatsapp_alerts(tenant_id, lead_id, from_segment, to_segment)
+        except Exception:
+            logger.exception("WhatsApp alert task failed for lead %s", lead_id)
+
+    task = loop.create_task(_run())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+
+
 def record_stage_event(
     lead_id: str,
     *,
@@ -122,6 +144,8 @@ def record_stage_event(
     if tenant_id:
         payload["tenant_id"] = tenant_id
     db.table("lead_stage_events").insert(payload).execute()
+    if event_type == "segment_changed" and tenant_id and from_segment and from_segment != to_segment:
+        _fire_whatsapp_alert(tenant_id, lead_id, from_segment, to_segment)
 
 
 def cancel_pending_follow_ups(

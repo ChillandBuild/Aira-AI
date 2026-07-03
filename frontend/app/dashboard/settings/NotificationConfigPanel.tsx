@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bell, Save, Loader2, CheckCircle2 } from "lucide-react";
-import { api, NotificationConfig, Caller } from "@/lib/api";
+import { Bell, Save, Loader2, CheckCircle2, Trash2, Plus } from "lucide-react";
+import { api, NotificationConfig, Caller, WabaTemplate } from "@/lib/api";
 
 const EVENT_LABELS: Record<string, string> = {
   callback_due: "Callback due reminder",
@@ -19,14 +19,28 @@ const AUDIENCE_OPTIONS: { value: NotificationConfig["claimable_audience"]; label
   { value: "specific", label: "Specific telecallers" },
 ];
 
+const SEGMENTS = ["A", "B", "C", "D"] as const;
+const SEGMENT_LABELS: Record<(typeof SEGMENTS)[number], string> = { A: "Hot", B: "Warm", C: "Cold", D: "Disqualified" };
+const SEGMENT_STYLES: Record<(typeof SEGMENTS)[number], string> = {
+  A: "bg-segment-a-bg text-segment-a-text border-segment-a-border",
+  B: "bg-segment-b-bg text-segment-b-text border-segment-b-border",
+  C: "bg-segment-c-bg text-segment-c-text border-segment-c-border",
+  D: "bg-segment-d-bg text-segment-d-text border-segment-d-border",
+};
+const E164_REGEX = /^\+[1-9]\d{6,14}$/;
+
 export function NotificationConfigPanel() {
   const [cfg, setCfg] = useState<NotificationConfig | null>(null);
   const [callers, setCallers] = useState<Caller[]>([]);
+  const [templates, setTemplates] = useState<WabaTemplate[]>([]);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "dirty" | "saving" | "saved">("idle");
 
   useEffect(() => {
     api.notifications.getConfig().then(setCfg).catch(() => {});
     api.callers.list().then((res) => setCallers((res.data || []).filter((c) => c.active))).catch(() => {});
+    api.templates.list().then(setTemplates).catch(() => {});
   }, []);
 
   function patch(next: Partial<NotificationConfig>) {
@@ -49,6 +63,53 @@ export function NotificationConfigPanel() {
 
   if (!cfg) {
     return <div className="card rounded-3xl h-56 animate-pulse bg-border-subtle" />;
+  }
+
+  const approvedTemplates = templates.filter((t) => t.status === "APPROVED");
+  const selectedTemplate = approvedTemplates.find((t) => t.id === cfg.whatsapp_notifications.template_id) || null;
+
+  function toggleWhatsappSegment(segment: (typeof SEGMENTS)[number]) {
+    if (!cfg) return;
+    const active = cfg.whatsapp_notifications.target_segments.includes(segment);
+    patch({
+      whatsapp_notifications: {
+        ...cfg.whatsapp_notifications,
+        target_segments: active
+          ? cfg.whatsapp_notifications.target_segments.filter((s) => s !== segment)
+          : [...cfg.whatsapp_notifications.target_segments, segment],
+      },
+    });
+  }
+
+  function addPhone() {
+    if (!cfg) return;
+    const trimmed = phoneInput.trim();
+    if (!E164_REGEX.test(trimmed)) {
+      setPhoneError("Enter a valid number in E.164 format, e.g. +919876543210");
+      return;
+    }
+    if (cfg.whatsapp_notifications.recipient_phones.includes(trimmed)) {
+      setPhoneError("This number is already added.");
+      return;
+    }
+    patch({
+      whatsapp_notifications: {
+        ...cfg.whatsapp_notifications,
+        recipient_phones: [...cfg.whatsapp_notifications.recipient_phones, trimmed],
+      },
+    });
+    setPhoneInput("");
+    setPhoneError(null);
+  }
+
+  function removePhone(phone: string) {
+    if (!cfg) return;
+    patch({
+      whatsapp_notifications: {
+        ...cfg.whatsapp_notifications,
+        recipient_phones: cfg.whatsapp_notifications.recipient_phones.filter((p) => p !== phone),
+      },
+    });
   }
 
   return (
@@ -161,6 +222,110 @@ export function NotificationConfigPanel() {
             <span className="text-ink-muted text-sm">to</span>
             <HourSelect value={cfg.quiet_hours.end_hour} onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, end_hour: h } })} />
             <span className="text-ink-muted text-xs">IST</span>
+          </div>
+        )}
+      </div>
+
+      {/* WhatsApp segment notifications */}
+      <div className="mt-4 p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-body text-sm font-semibold text-ink">WhatsApp lead notifications</p>
+            <p className="font-body text-xs text-ink-muted mt-0.5">Message your team on WhatsApp when a lead&apos;s segment changes.</p>
+          </div>
+          <Toggle
+            on={cfg.whatsapp_notifications.enabled}
+            onClick={() =>
+              patch({ whatsapp_notifications: { ...cfg.whatsapp_notifications, enabled: !cfg.whatsapp_notifications.enabled } })
+            }
+          />
+        </div>
+
+        {cfg.whatsapp_notifications.enabled && (
+          <div className="mt-4 space-y-4">
+            <div>
+              <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Notify for segments</p>
+              <div className="flex flex-wrap gap-2">
+                {SEGMENTS.map((s) => {
+                  const active = cfg.whatsapp_notifications.target_segments.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => toggleWhatsappSegment(s)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-xs font-semibold border transition-colors ${
+                        active ? SEGMENT_STYLES[s] : "bg-white text-ink-muted border-border"
+                      }`}
+                    >
+                      {s} · {SEGMENT_LABELS[s]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Recipient phone numbers</p>
+              {cfg.whatsapp_notifications.recipient_phones.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {cfg.whatsapp_notifications.recipient_phones.map((phone) => (
+                    <div key={phone} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-border">
+                      <span className="font-mono text-sm text-ink">{phone}</span>
+                      <button
+                        type="button"
+                        onClick={() => removePhone(phone)}
+                        className="text-ink-muted hover:text-red-600 transition-colors"
+                        aria-label={`Remove ${phone}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={phoneInput}
+                  onChange={(e) => { setPhoneInput(e.target.value); setPhoneError(null); }}
+                  placeholder="+919876543210"
+                  className="flex-1 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={addPhone}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-border text-sm font-semibold text-ink hover:border-primary transition-colors flex-shrink-0"
+                >
+                  <Plus size={14} />Add Number
+                </button>
+              </div>
+              {phoneError && <p className="font-body text-xs text-red-600 mt-1.5">{phoneError}</p>}
+            </div>
+
+            <div>
+              <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Message template</label>
+              <select
+                value={cfg.whatsapp_notifications.template_id ?? ""}
+                onChange={(e) =>
+                  patch({ whatsapp_notifications: { ...cfg.whatsapp_notifications, template_id: e.target.value || null } })
+                }
+                className="w-full px-3 py-2 rounded-xl bg-white border border-border text-sm text-ink focus:outline-none focus:border-primary"
+              >
+                <option value="">Select a template…</option>
+                {approvedTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+              {selectedTemplate && (
+                <div className="mt-2 p-3 rounded-xl bg-white border border-border-subtle">
+                  <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">Preview</p>
+                  <p className="font-mono text-xs text-ink-muted whitespace-pre-wrap">
+                    {selectedTemplate.body_text || "No body text available."}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

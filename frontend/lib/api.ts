@@ -717,6 +717,12 @@ export type NotificationConfig = {
   claimable_audience: "telecallers_and_admin" | "telecallers_only" | "admin_only" | "specific";
   claimable_caller_ids: string[];
   quiet_hours: { enabled: boolean; start_hour: number; end_hour: number };
+  whatsapp_notifications: {
+    enabled: boolean;
+    recipient_phones: string[];
+    template_id: string | null;
+    target_segments: string[];
+  };
 };
 
 export interface TimelineEvent {
@@ -1477,6 +1483,12 @@ export const api = {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+    },
+  },
+  templates: {
+    list: async () => {
+      const res = await apiFetch<{ data: WabaTemplate[] }>("/api/v1/templates");
+      return res.data || [];
     },
   },
   notifications: {

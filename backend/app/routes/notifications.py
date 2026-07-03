@@ -1,6 +1,7 @@
 import logging
+import re
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_owner
@@ -15,12 +16,37 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _VALID_AUDIENCE = {"telecallers_and_admin", "telecallers_only", "admin_only", "specific"}
+_VALID_SEGMENTS = {"A", "B", "C", "D"}
 
 
 class QuietHours(BaseModel):
     enabled: bool = False
     start_hour: int = Field(22, ge=0, le=23)
     end_hour: int = Field(8, ge=0, le=23)
+
+
+class WhatsAppNotificationConfig(BaseModel):
+    enabled: bool = False
+    recipient_phones: list[str] = []
+    template_id: str | None = None
+    target_segments: list[str] = ["A"]
+
+    @field_validator("recipient_phones")
+    @classmethod
+    def _validate_phones(cls, v: list[str]) -> list[str]:
+        pattern = re.compile(r"^\+[1-9]\d{6,14}$")
+        for phone in v:
+            if not pattern.match(phone):
+                raise ValueError(f"Invalid E.164 phone number: {phone}")
+        return v
+
+    @field_validator("target_segments")
+    @classmethod
+    def _validate_segments(cls, v: list[str]) -> list[str]:
+        invalid = set(v) - _VALID_SEGMENTS
+        if invalid:
+            raise ValueError(f"Invalid segment(s): {sorted(invalid)}")
+        return v
 
 
 class NotificationConfigIn(BaseModel):
@@ -30,6 +56,7 @@ class NotificationConfigIn(BaseModel):
     claimable_audience: str = "telecallers_and_admin"
     claimable_caller_ids: list[str] = []
     quiet_hours: QuietHours = QuietHours()
+    whatsapp_notifications: WhatsAppNotificationConfig = WhatsAppNotificationConfig()
 
 @router.get("/")
 async def list_notifications(
@@ -145,6 +172,7 @@ async def update_config(payload: NotificationConfigIn, ctx: dict = Depends(requi
         "claimable_audience": payload.claimable_audience,
         "claimable_caller_ids": caller_ids,
         "quiet_hours": payload.quiet_hours.model_dump(),
+        "whatsapp_notifications": payload.whatsapp_notifications.model_dump(),
     }
     save_notification_config(ctx["tenant_id"], config)
     return config
