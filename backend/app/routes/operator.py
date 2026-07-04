@@ -99,13 +99,15 @@ def update_features(tenant_id: str, payload: UpdateFeaturesPayload, _admin: dict
         raise HTTPException(status_code=400, detail="Provide 'features'")
 
     update: dict = {}
-    tc_subs = {"telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"}
-    tc_default_subs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"]
+    # Upload is a separately-purchasable SKU (bulk_lead_upload) unrelated to the
+    # telecalling_sim/telecalling_telecmi bundle, so it's excluded from this
+    # cascade — the master "telecalling" switch only bundles dialer/scheduled/notes.
+    tc_bundle_subs = {"telecalling.dialer", "telecalling.scheduled", "telecalling.notes"}
     features = list(payload.features)
-    if "telecalling" in features and not (set(features) & tc_subs):
-        features.extend(tc_default_subs)
+    if "telecalling" in features and not (set(features) & tc_bundle_subs):
+        features.extend(tc_bundle_subs)
     if "telecalling" not in features:
-        features = [f for f in features if f not in tc_subs]
+        features = [f for f in features if f not in tc_bundle_subs]
     update["enabled_features"] = features
 
     result = db.table("tenants").update(update).eq("id", tenant_id).execute()
@@ -283,7 +285,7 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
         },
     )
 
-    return {"tenant_id": tenant_id, "user_id": user_id, "mrr": mrr}
+    return {"tenant_id": tenant_id, "user_id": user_id}
 
 
 @router.get("/features/catalog")
@@ -500,24 +502,33 @@ def list_plans(_admin: dict = Depends(get_system_admin)):
 
 def _compute_package_price(db, items: list[dict], discount_percent: float) -> float:
     """
-    Sum each item's price × quantity, then apply the package discount.
-    Quantity-priced items (telecaller_seats, numbers_pool) have
-    monthly_price=0 and are priced via unit_price instead — mirrors
-    `_price_for_item` in subscription_requests.py so a package's price
-    never diverges from what an equivalent à la carte cart would total.
+    Sum each item's price, then apply the package discount. Flat-priced SKUs
+    always cost their full monthly_price regardless of quantity. Quantity-
+    priced items (telecaller_seats, numbers_pool) have monthly_price=0 and
+    bill only units beyond included_qty via unit_price — mirrors
+    `_price_for_item` in subscription_requests.py (with no prior purchase to
+    net out, since a package is a catalog template, not tied to a tenant) so
+    a package's price never diverges from what an equivalent à la carte cart
+    would total.
     """
     feature_keys = [i["feature_key"] for i in items]
     if not feature_keys:
         return 0.0
-    catalog = db.table("feature_catalog").select("feature_key, monthly_price, unit_price").in_("feature_key", feature_keys).execute()
+    catalog = db.table("feature_catalog").select("feature_key, monthly_price, unit_price, included_qty").in_("feature_key", feature_keys).execute()
     catalog_by_key = {row["feature_key"]: row for row in (catalog.data or [])}
     subtotal = 0.0
     for item in items:
         row = catalog_by_key.get(item["feature_key"], {})
         quantity = item.get("quantity", 1)
+        monthly_price = float(row.get("monthly_price") or 0)
+        if monthly_price > 0:
+            subtotal += monthly_price
+            continue
         unit_price = row.get("unit_price")
-        price = float(unit_price) if unit_price is not None else float(row.get("monthly_price") or 0)
-        subtotal += price * quantity
+        if unit_price is None:
+            continue
+        included_qty = row.get("included_qty") or 0
+        subtotal += float(unit_price) * max(0, quantity - included_qty)
     return subtotal * (1 - discount_percent / 100)
 
 

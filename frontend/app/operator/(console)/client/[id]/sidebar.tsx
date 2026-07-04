@@ -5,7 +5,7 @@ import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
   Wrench, Activity, Settings, Settings2, Database, ChevronDown, ChevronRight,
-  ArrowLeft, FileText, Trash2, CreditCard,
+  ArrowLeft, FileText, Trash2,
 } from "lucide-react";
 import { OperatorToggle } from "../../components/operator-toggle";
 
@@ -14,7 +14,7 @@ export type SectionType =
   | "inbound" | "outbound" | "templates" | "numbers"
   | "knowledge" | "analytics" | "team"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
-  | "config" | "entitlements" | "billing" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
+  | "config" | "entitlements" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
 
 type NavItem = {
   key: SectionType;
@@ -46,8 +46,7 @@ const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; feature
 
 const OPERATOR_NAV: NavItem[] = [
   { key: "config", icon: Wrench, label: "Configuration" },
-  { key: "entitlements", icon: Settings2, label: "Entitlements" },
-  { key: "billing", icon: CreditCard, label: "Billing & Usage" },
+  { key: "entitlements", icon: Settings2, label: "Entitlements & Usage" },
   { key: "health", icon: Activity, label: "Health" },
   { key: "management", icon: Settings, label: "Management" },
   { key: "data-ops", icon: Database, label: "Data Ops" },
@@ -118,7 +117,11 @@ export function ClientDetailSidebar({
     );
   }
 
-  function TcSubRow({ item, indent }: { item: typeof TC_SUB_NAV[0]; indent?: boolean }) {
+  // Only the master "Telecalling" switch and the independent "Upload" switch
+  // are interactive — Dialer/Scheduled/Notes are bundled with the master
+  // switch server-side (cascade in PATCH /clients/{id}/features), so they're
+  // shown as plain status rows rather than their own controls.
+  function TcSubRow({ item, indent, interactive }: { item: typeof TC_SUB_NAV[0]; indent?: boolean; interactive: boolean }) {
     const active = activeSection === item.key;
     const enabled = isEnabled(item.featureKey);
 
@@ -133,7 +136,13 @@ export function ClientDetailSidebar({
           <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[#5b21b6]" : ""}`} />
           <span className={`text-sm font-semibold truncate ${!enabled && !active ? "line-through" : ""}`}>{item.label}</span>
         </div>
-        <FeatureToggle featureKey={item.featureKey} disabled={!isEnabled("telecalling")} />
+        {interactive ? (
+          <FeatureToggle featureKey={item.featureKey} />
+        ) : (
+          <span className={`text-[10px] font-semibold uppercase tracking-wide flex-shrink-0 ${enabled ? "text-[#5b21b6]" : "text-[#a8a29e]"}`}>
+            {enabled ? "Included" : "—"}
+          </span>
+        )}
       </div>
     );
   }
@@ -176,10 +185,10 @@ export function ClientDetailSidebar({
               {tcExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             </div>
           </div>
-          {tcExpanded && isEnabled("telecalling") && (
+          {tcExpanded && (
             <div className="mt-0.5 space-y-0.5">
               {TC_SUB_NAV.map(item => (
-                <TcSubRow key={item.key} item={item} indent />
+                <TcSubRow key={item.key} item={item} indent interactive={item.key === "tc-upload"} />
               ))}
             </div>
           )}

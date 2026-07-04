@@ -7,7 +7,7 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote,
-  ChevronDown, ChevronRight, RadioTower, Calendar,
+  ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -285,6 +285,22 @@ export function Sidebar() {
           >
             <BarChart2 size={16} className={pathname.startsWith("/dashboard/analytics") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
             <span>Analytics</span>
+          </Link>
+        )}
+
+        {/* TOP LEVEL: Subscription */}
+        {role === "owner" && (
+          <Link
+            href="/dashboard/subscription"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
+              pathname === "/dashboard/subscription"
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+            )}
+          >
+            <CreditCard size={16} className={pathname === "/dashboard/subscription" ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+            <span>Subscription</span>
           </Link>
         )}
 

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Check, ExternalLink } from "lucide-react";
+import { CreditCard, Check, ExternalLink, Activity, AlertTriangle } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
 
@@ -30,16 +30,76 @@ interface SubscriptionItem {
   unit_price_snapshot: number;
 }
 
+interface UsageMetric {
+  metric: string;
+  used: number;
+  included: number;
+  hard_cap: number | null;
+}
+
+const METRIC_LABELS: Record<string, string> = {
+  message_sent: "Outbound Messages",
+  ai_reply: "AI Replies",
+  call_minute: "Call Minutes",
+  team_seat_active: "Telecaller Seats",
+  phone_number: "Phone Numbers",
+  storage_gb: "Storage (GB)",
+  ai_call_summary: "AI Call Summaries",
+  ai_call_scoring: "AI Call Scoring",
+};
+
+function UsageMeterRow({ item }: { item: UsageMetric }) {
+  const label = METRIC_LABELS[item.metric] || item.metric;
+  const unlimited = item.included <= 0;
+  const pct = unlimited ? 0 : (item.used / item.included) * 100;
+  const clampedPct = Math.min(100, Math.max(0, pct));
+  const nearCap = !unlimited && item.used >= item.included * 0.8;
+  const barColor = pct >= 100 ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-success";
+  const textColor = pct >= 100 ? "text-danger" : pct >= 80 ? "text-warning" : "text-success";
+
+  return (
+    <div className="py-3.5 first:pt-0 last:pb-0">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-ink truncate">{label}</span>
+          {nearCap && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning">
+              <AlertTriangle size={11} /> Near cap
+            </span>
+          )}
+        </div>
+        <div className="flex items-baseline gap-2 shrink-0 font-mono text-xs">
+          <span className="font-semibold text-ink">{item.used.toLocaleString("en-IN")}</span>
+          <span className="text-ink-muted">/ {unlimited ? "Unlimited" : item.included.toLocaleString("en-IN")}</span>
+          {!unlimited && <span className={`font-semibold ${textColor}`}>{Math.round(pct)}%</span>}
+        </div>
+      </div>
+      {unlimited ? (
+        <div className="flex h-2 items-center">
+          <span className="text-xs text-ink-muted">—</span>
+        </div>
+      ) : (
+        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-mid">
+          <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${clampedPct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
- * Read-only view of what a tenant currently has entitled — replaces the old
- * plan-picker Feature Store (migration 128 removed admin-side plan
- * assignment entirely; tenants build their own itemized cart and an admin
- * approves it from the Approval Queue instead).
+ * Read-only view of what a tenant currently has entitled and is using —
+ * replaces the old plan-picker Feature Store (migration 128 removed
+ * admin-side plan assignment entirely; tenants build their own itemized cart
+ * and an admin approves it from the Approval Queue instead) and absorbs the
+ * former separate Billing & Usage tab, which called a route the redesign
+ * deleted.
  */
 export function EntitlementsView({ tenantId }: { tenantId: string }) {
   const router = useRouter();
   const [items, setItems] = useState<SubscriptionItem[]>([]);
   const [catalog, setCatalog] = useState<FeatureCatalogItem[]>([]);
+  const [usage, setUsage] = useState<UsageMetric[]>([]);
   const [status, setStatus] = useState<string>("none");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,11 +108,13 @@ export function EntitlementsView({ tenantId }: { tenantId: string }) {
     Promise.all([
       apiFetch<{ items: SubscriptionItem[]; status: string }>(`/api/v1/operator/clients/${tenantId}/entitlements`),
       apiFetch<FeatureCatalogItem[]>("/api/v1/operator/features/catalog"),
+      apiFetch<UsageMetric[]>(`/api/v1/operator/clients/${tenantId}/usage`),
     ])
-      .then(([ent, catalogData]) => {
+      .then(([ent, catalogData, usageData]) => {
         setItems(ent.items || []);
         setStatus(ent.status || "none");
         setCatalog(catalogData || []);
+        setUsage(Array.isArray(usageData) ? usageData : []);
       })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
@@ -102,6 +164,19 @@ export function EntitlementsView({ tenantId }: { tenantId: string }) {
           </div>
         ) : (
           <p className="text-sm text-ink-muted">Nothing purchased yet — the tenant is either pre-existing (grandfathered) or hasn&apos;t submitted a cart.</p>
+        )}
+      </div>
+
+      <div className="bg-white rounded-card border border-border p-5 shadow-sm">
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-ink">
+          <Activity size={16} className="text-ink-muted" /> Usage This Cycle
+        </h3>
+        {usage.length > 0 ? (
+          <div className="divide-y divide-border-subtle">
+            {usage.map((item) => <UsageMeterRow key={item.metric} item={item} />)}
+          </div>
+        ) : (
+          <p className="py-2 text-sm text-ink-muted">No usage recorded this cycle.</p>
         )}
       </div>
 

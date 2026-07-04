@@ -50,6 +50,21 @@ class CreateClientEntitlementsChecks(unittest.TestCase):
         self.assertNotIn("resolve_entitlements(db, tenant_id)", create_client_body)
         self.assertNotIn('db.table("tenant_usage_counters").insert(', create_client_body)
 
+    def test_create_client_does_not_return_undefined_mrr(self):
+        """
+        Regression guard: create_client used to `return {..., "mrr": mrr}`
+        with `mrr` never assigned anywhere in the function — a NameError on
+        every successful client creation (masked in the browser as a CORS
+        failure, since the crash response carries no CORS headers). Since
+        migration 128 stopped auto-assigning a plan at creation, there is no
+        mrr to report here at all.
+        """
+        create_client_idx = self.source.index("def create_client(")
+        next_route_idx = self.source.index("\n@router.", create_client_idx + 1)
+        create_client_body = self.source[create_client_idx:next_route_idx]
+        self.assertNotIn('"mrr"', create_client_body)
+        self.assertIn('return {"tenant_id": tenant_id, "user_id": user_id}', create_client_body)
+
     def test_cleanup_on_failure_deletes_orphaned_auth_user(self):
         self.assertIn("except Exception as e:", self.source)
         self.assertIn("db.auth.admin.delete_user(user_id)", self.source)

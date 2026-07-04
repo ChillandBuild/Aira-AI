@@ -17,7 +17,6 @@ import { DataOpsView } from "./views/data-ops";
 import { AuditLogsView } from "./views/audit-logs";
 import { DeleteClientView } from "./views/delete-client";
 import { EntitlementsView } from "./views/entitlements";
-import { BillingView } from "./views/billing";
 
 import type { OverviewData } from "./types";
 
@@ -48,7 +47,9 @@ export default function ClientDetailPage() {
     if (!overview) return;
     setFeatureUpdating(true);
     const current = new Set(overview.tenant.enabled_features);
-    const tcSubs = ["telecalling.dialer", "telecalling.upload", "telecalling.scheduled", "telecalling.notes"];
+    // Upload (bulk_lead_upload) is its own SKU, independent of the telecalling
+    // SIM/Tele-CMI bundle, so it's excluded from this cascade.
+    const tcSubs = ["telecalling.dialer", "telecalling.scheduled", "telecalling.notes"];
     const outboundDeps = ["whatsapp"];
     const messagingDeps = ["analytics"];
 
@@ -129,8 +130,7 @@ export default function ClientDetailPage() {
     "tc-scheduled": { title: "Telecalling / Scheduled", desc: "Upcoming scheduled callbacks." },
     "tc-notes": { title: "Telecalling / Notes", desc: "Call notes from telecallers." },
     config: { title: "Configuration", desc: "Credential status and key settings." },
-    entitlements: { title: "Entitlements", desc: "Current purchased items and subscription status (read-only)." },
-    billing: { title: "Billing & Usage", desc: "Plan, MRR, and usage this cycle." },
+    entitlements: { title: "Entitlements & Usage", desc: "Current purchased items, subscription status, and usage this cycle (read-only)." },
     health: { title: "Health", desc: "Channel health, delivery stats, and incidents." },
     management: { title: "Management", desc: "Owner management and account actions." },
     "data-ops": { title: "Data Operations", desc: "Clear specific data types for this client." },
@@ -234,8 +234,6 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
       return <ConfigView tenantId={tenantId} />;
     case "entitlements":
       return <EntitlementsView tenantId={tenantId} />;
-    case "billing":
-      return <BillingView tenantId={tenantId} />;
     case "health":
       return <HealthView tenantId={tenantId} />;
     case "management":
