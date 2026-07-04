@@ -16,7 +16,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
 from app.services.call_scorer import score_from_outcome, recompute_caller_score
 from app.services.call_summarizer import transcribe_recording, analyze_call
-from app.services.entitlements import meter
+from app.services.entitlements import meter, check_quota
 from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call
@@ -176,6 +176,12 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
     role = ctx.get("role")
     cfg = get_telecalling_config(tenant_id)
     calling_provider = cfg.get("calling_provider", "telecmi")
+
+    if not check_quota(get_supabase(), tenant_id, "call_minute"):
+        raise HTTPException(
+            status_code=403,
+            detail="Call minute quota reached. Request more from Settings → Subscription.",
+        )
 
     # App secret is only used for recording playback, not for India click-to-call.
     telecmi_secret = get_setting("telecmi_secret", tenant_id=tenant_id)
