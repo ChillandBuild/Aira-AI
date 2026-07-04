@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import logging
 import io
 from uuid import UUID
@@ -7,7 +6,6 @@ import pdfplumber
 from docx import Document as DocxDocument
 from pptx import Presentation
 import pandas as pd
-from groq import Groq
 from app.db.supabase import get_supabase
 from app.config import settings
 
@@ -78,8 +76,8 @@ async def _index_chunks(
         ).execute()
     return len(chunks)
 
-from app.services.groq_client import get_groq_client
-_VISION_MODEL = "llama-3.2-11b-vision-preview"
+from app.services.sarvam_client import get_sarvam_api_key
+from app.services.sarvam_document_intelligence import extract_text_from_image
 
 
 def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, tenant_id: str | None = None) -> str:
@@ -110,21 +108,8 @@ def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, t
             text = df.to_string()
 
         elif mime_type.startswith("image/"):
-            client = get_groq_client(tenant_id, is_async=False)
-            b64 = base64.b64encode(file_content).decode("utf-8")
-            response = client.chat.completions.create(
-                model=_VISION_MODEL,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Extract all text from this image. Return only the extracted text, no commentary."},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{b64}"}},
-                    ],
-                }],
-                temperature=0.0,
-                max_tokens=4000,
-            )
-            text = (response.choices[0].message.content or "").strip()
+            api_key = get_sarvam_api_key(tenant_id)
+            text = extract_text_from_image(file_content, mime_type, api_key)
 
         elif mime_type == "text/plain" or filename.endswith(".txt"):
             text = file_content.decode("utf-8")

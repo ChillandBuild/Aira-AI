@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 mock_settings = MagicMock()
 mock_settings.groq_api_key = None  # disables module-level _client
+mock_settings.sarvam_api_key = None
 
 with patch.dict("sys.modules", {"groq": MagicMock(), "app.config": MagicMock(settings=mock_settings)}):
     from app.services import call_summarizer
@@ -186,6 +187,81 @@ class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
         sent_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
         user_msg = sent_kwargs["messages"][1]["content"]
         self.assertIn("none available", user_msg.lower())
+
+
+class TranscribeRecordingTests(unittest.IsolatedAsyncioTestCase):
+    """Uses patch.object(call_summarizer, ...) / patch("httpx.AsyncClient", ...) rather than
+    string-target patch("app.services.call_summarizer.X", ...): the module-level
+    patch.dict("sys.modules", ...) at file top snapshots and restores the FULL sys.modules
+    dict on exit, silently dropping "app.services.call_summarizer" from the cache. A later
+    string-target patch() would re-import a phantom copy of the module (with real, unmocked
+    app.config) that the test never actually exercises. patch.object works directly against
+    the already-imported `call_summarizer` reference instead of re-resolving by dotted path."""
+
+    def setUp(self):
+        self._orig_get_sarvam_api_key = call_summarizer.get_sarvam_api_key
+
+    def tearDown(self):
+        call_summarizer.get_sarvam_api_key = self._orig_get_sarvam_api_key
+
+    async def test_transcribe_recording_success(self):
+        download_resp = MagicMock()
+        download_resp.content = b"fake-audio-bytes"
+        download_resp.raise_for_status = MagicMock()
+
+        sarvam_resp = MagicMock()
+        sarvam_resp.raise_for_status = MagicMock()
+        sarvam_resp.json.return_value = {"transcript": "Hello, how are you?", "language_code": "en-IN"}
+
+        mock_instance = AsyncMock()
+        mock_instance.get = AsyncMock(return_value=download_resp)
+        mock_instance.post = AsyncMock(return_value=sarvam_resp)
+
+        call_summarizer.get_sarvam_api_key = MagicMock(return_value="test-key")
+        with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__.return_value = mock_instance
+            transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
+
+        self.assertEqual(transcript, "Hello, how are you?")
+        post_args, post_kwargs = mock_instance.post.call_args
+        self.assertEqual(post_args[0], "https://api.sarvam.ai/speech-to-text")
+        self.assertEqual(post_kwargs["headers"], {"api-subscription-key": "test-key"})
+        self.assertEqual(post_kwargs["data"]["model"], "saaras:v3")
+        self.assertEqual(post_kwargs["data"]["mode"], "transcribe")
+
+    async def test_transcribe_recording_missing_api_key_returns_empty(self):
+        call_summarizer.get_sarvam_api_key = MagicMock(
+            side_effect=RuntimeError("Sarvam API key not configured")
+        )
+        transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
+        self.assertEqual(transcript, "")
+
+    async def test_transcribe_recording_download_failure_returns_empty(self):
+        mock_instance = AsyncMock()
+        mock_instance.get = AsyncMock(side_effect=Exception("network error"))
+
+        call_summarizer.get_sarvam_api_key = MagicMock(return_value="test-key")
+        with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__.return_value = mock_instance
+            transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
+
+        self.assertEqual(transcript, "")
+
+    async def test_transcribe_recording_sarvam_api_failure_returns_empty(self):
+        download_resp = MagicMock()
+        download_resp.content = b"fake-audio-bytes"
+        download_resp.raise_for_status = MagicMock()
+
+        mock_instance = AsyncMock()
+        mock_instance.get = AsyncMock(return_value=download_resp)
+        mock_instance.post = AsyncMock(side_effect=Exception("503 Service Unavailable"))
+
+        call_summarizer.get_sarvam_api_key = MagicMock(return_value="test-key")
+        with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__.return_value = mock_instance
+            transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
+
+        self.assertEqual(transcript, "")
 
 
 if __name__ == "__main__":

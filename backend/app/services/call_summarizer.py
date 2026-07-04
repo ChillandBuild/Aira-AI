@@ -2,22 +2,22 @@ import json
 import logging
 
 import httpx
-from groq import AsyncGroq
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 from app.services.groq_client import get_groq_client
-_TRANSCRIBE_MODEL = "whisper-large-v3-turbo"
+from app.services.sarvam_client import SARVAM_BASE_URL, get_sarvam_api_key
+_TRANSCRIBE_MODEL = "saaras:v3"
 _SUMMARY_MODEL = "llama-3.3-70b-versatile"
 
 
 async def transcribe_recording(recording_url: str, tenant_id: str | None = None) -> str:
     try:
-        client = get_groq_client(tenant_id, is_async=True)
+        api_key = get_sarvam_api_key(tenant_id)
     except Exception as e:
-        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
+        logger.warning(f"Sarvam API key not configured for tenant {tenant_id}: {e}")
         return ""
     try:
         async with httpx.AsyncClient(timeout=60.0) as http_client:
@@ -29,16 +29,21 @@ async def transcribe_recording(recording_url: str, tenant_id: str | None = None)
         return ""
 
     try:
-        logger.info(f"Sending {len(audio_bytes)} bytes to Groq Whisper for transcription")
-        result = await client.audio.transcriptions.create(
-            file=("recording.mp3", audio_bytes, "audio/mp3"),
-            model=_TRANSCRIBE_MODEL,
-        )
-        transcript = (result.text or "").strip()
+        logger.info(f"Sending {len(audio_bytes)} bytes to Sarvam Saaras for transcription")
+        async with httpx.AsyncClient(timeout=60.0) as http_client:
+            resp = await http_client.post(
+                f"{SARVAM_BASE_URL}/speech-to-text",
+                headers={"api-subscription-key": api_key},
+                files={"file": ("recording.mp3", audio_bytes, "audio/mp3")},
+                data={"model": _TRANSCRIBE_MODEL, "mode": "transcribe"},
+            )
+            resp.raise_for_status()
+            result = resp.json()
+        transcript = (result.get("transcript") or "").strip()
         logger.info(f"Transcription complete: {len(transcript)} chars")
         return transcript
     except Exception as e:
-        logger.error(f"Groq transcription failed for {recording_url}: {e}")
+        logger.error(f"Sarvam transcription failed for {recording_url}: {e}")
         return ""
 
 
