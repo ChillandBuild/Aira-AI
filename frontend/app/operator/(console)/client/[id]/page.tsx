@@ -16,7 +16,7 @@ import { ManagementView } from "./views/management";
 import { DataOpsView } from "./views/data-ops";
 import { AuditLogsView } from "./views/audit-logs";
 import { DeleteClientView } from "./views/delete-client";
-import { FeatureStoreView } from "./views/feature-store";
+import { EntitlementsView } from "./views/entitlements";
 import { BillingView } from "./views/billing";
 
 import type { OverviewData } from "./types";
@@ -129,7 +129,7 @@ export default function ClientDetailPage() {
     "tc-scheduled": { title: "Telecalling / Scheduled", desc: "Upcoming scheduled callbacks." },
     "tc-notes": { title: "Telecalling / Notes", desc: "Call notes from telecallers." },
     config: { title: "Configuration", desc: "Credential status and key settings." },
-    "feature-store": { title: "Feature Store", desc: "Toggle features, manage quotas, view pricing." },
+    entitlements: { title: "Entitlements", desc: "Current purchased items and subscription status (read-only)." },
     billing: { title: "Billing & Usage", desc: "Plan, MRR, and usage this cycle." },
     health: { title: "Health", desc: "Channel health, delivery stats, and incidents." },
     management: { title: "Management", desc: "Owner management and account actions." },
@@ -232,8 +232,8 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
       return <TelecallingView tenantId={tenantId} subSection="notes" />;
     case "config":
       return <ConfigView tenantId={tenantId} />;
-    case "feature-store":
-      return <FeatureStoreView tenantId={tenantId} />;
+    case "entitlements":
+      return <EntitlementsView tenantId={tenantId} />;
     case "billing":
       return <BillingView tenantId={tenantId} />;
     case "health":

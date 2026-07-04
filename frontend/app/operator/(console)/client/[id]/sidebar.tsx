@@ -14,7 +14,7 @@ export type SectionType =
   | "inbound" | "outbound" | "templates" | "numbers"
   | "knowledge" | "analytics" | "team"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
-  | "config" | "feature-store" | "billing" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
+  | "config" | "entitlements" | "billing" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
 
 type NavItem = {
   key: SectionType;
@@ -46,7 +46,7 @@ const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; feature
 
 const OPERATOR_NAV: NavItem[] = [
   { key: "config", icon: Wrench, label: "Configuration" },
-  { key: "feature-store", icon: Settings2, label: "Feature Store" },
+  { key: "entitlements", icon: Settings2, label: "Entitlements" },
   { key: "billing", icon: CreditCard, label: "Billing & Usage" },
   { key: "health", icon: Activity, label: "Health" },
   { key: "management", icon: Settings, label: "Management" },
