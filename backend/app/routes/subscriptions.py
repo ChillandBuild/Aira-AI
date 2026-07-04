@@ -46,7 +46,11 @@ def get_my_subscription(ctx: dict = Depends(get_tenant_and_role)):
     ).eq("tenant_id", tenant_id).order("submitted_at", desc=True).limit(1).execute()
     latest_request = (pending.data or [None])[0]
 
-    sub_data = sub.data or {}
+    # `maybe_single().execute()` returns None outright (not an object with
+    # `.data = None`) when zero rows match — the normal case for a tenant
+    # that's never had a tenant_subscriptions row at all (e.g. created but
+    # never submitted a cart). Guard against that before touching `.data`.
+    sub_data = (sub.data if sub else None) or {}
     # `period` reflects any rollover get_billing_period just performed, so
     # derive the returned cycle dates from it rather than the `sub_data`
     # snapshot fetched before that rollover, which would otherwise show a

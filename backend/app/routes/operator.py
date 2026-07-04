@@ -825,7 +825,10 @@ def get_client_entitlements(tenant_id: str, _admin: dict = Depends(get_system_ad
     sub = db.table("tenant_subscriptions").select(
         "status, period_start, period_end"
     ).eq("tenant_id", tenant_id).maybe_single().execute()
-    sub_data = sub.data or {}
+    # maybe_single().execute() returns None outright (not an object with
+    # `.data = None`) on zero rows — the norm for a tenant that's never
+    # submitted a cart yet.
+    sub_data = (sub.data if sub else None) or {}
     return {
         "data": {
             "items": items.data or [],

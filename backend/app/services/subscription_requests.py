@@ -57,7 +57,12 @@ def submit_request(db, tenant_id: str, requested_items: list[dict], package_id: 
         priced_items.append({**item, "quantity": quantity, "line_total": price})
 
     existing = db.table("tenant_subscriptions").select("status").eq("tenant_id", tenant_id).maybe_single().execute()
-    is_initial = not existing.data or existing.data.get("status") != "active"
+    # maybe_single().execute() returns None outright (not an object with
+    # `.data = None`) on zero rows — the norm for a brand-new tenant
+    # submitting their very first cart, so this must not touch `.data`
+    # before checking `existing` itself.
+    existing_status = (existing.data or {}).get("status") if existing else None
+    is_initial = existing_status != "active"
 
     inserted = db.table("subscription_requests").insert({
         "tenant_id": tenant_id,
