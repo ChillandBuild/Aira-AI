@@ -11,6 +11,7 @@ import ConnectChannelsPanel from "./ConnectChannelsPanel";
 import { TelecallingConfigPanel } from "./TelecallingConfigPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
 import { NotificationConfigPanel } from "./NotificationConfigPanel";
+import { SubscriptionSettingsPanel } from "./SubscriptionSettingsPanel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -201,6 +202,24 @@ export default function SettingsPage() {
   const [scoringThresholds, setScoringThresholds] = useState({ A: 9, B: 7, C: 5 });
   const [scoringState, setScoringState] = useState<SaveState>("idle");
   const [scoringCollapsed, setScoringCollapsed] = useState(false);
+
+  // Purchased subscription items (for gating the Notifications tab on purchase, not quota)
+  const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth });
+        if (res.ok) {
+          const data = await res.json();
+          setPurchasedFeatures((data.items ?? []).map((i: { feature_key: string }) => i.feature_key));
+        }
+      } catch { /* fail open — pre-existing tenants have no items rows at all */ }
+    })();
+  }, []);
+
+  const hasNotifications = purchasedFeatures.length === 0 || purchasedFeatures.includes("notifications");
 
   const load = useCallback(async () => {
     try {
@@ -431,16 +450,29 @@ export default function SettingsPage() {
         >
           Automations
         </button>
+        {hasNotifications && (
+          <button
+            onClick={() => router.push(`${pathname}?tab=notifications`)}
+            className={cn(
+              "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
+              activeTab === "notifications"
+                ? "bg-white text-primary shadow-sm"
+                : "text-[#78716c] hover:text-[#292524]"
+            )}
+          >
+            Notifications
+          </button>
+        )}
         <button
-          onClick={() => router.push(`${pathname}?tab=notifications`)}
+          onClick={() => router.push(`${pathname}?tab=subscription`)}
           className={cn(
             "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
-            activeTab === "notifications"
+            activeTab === "subscription"
               ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
-          Notifications
+          Subscription
         </button>
       </div>
       </div>
@@ -896,9 +928,16 @@ export default function SettingsPage() {
           )}
 
           {/* TAB 6: Notifications */}
-          {activeTab === "notifications" && (
+          {activeTab === "notifications" && hasNotifications && (
             <div className="space-y-6">
               <NotificationConfigPanel />
+            </div>
+          )}
+
+          {/* TAB 7: Subscription */}
+          {activeTab === "subscription" && (
+            <div className="space-y-6">
+              <SubscriptionSettingsPanel />
             </div>
           )}
         </div>
