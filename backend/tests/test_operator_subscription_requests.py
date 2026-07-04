@@ -9,6 +9,63 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies.system_admin import get_system_admin
+from app.services.subscription_requests import approve_request
+
+
+class _FakeResp:
+    def __init__(self, data):
+        self.data = data
+
+
+class _FakeQuery:
+    """Mimics supabase-py's builder: maybe_single().execute() yields ``None``
+    on zero rows, plain execute() yields a response whose ``.data`` is a list."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self._maybe_single = False
+        self._patch = None
+
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, *a, **k):
+        return self
+
+    def in_(self, *a, **k):
+        return self
+
+    def order(self, *a, **k):
+        return self
+
+    def upsert(self, *a, **k):
+        return self
+
+    def update(self, patch, *a, **k):
+        # Supabase returns the mutated rows; mirror the patch onto them.
+        self._patch = patch
+        return self
+
+    def insert(self, *a, **k):
+        return self
+
+    def maybe_single(self):
+        self._maybe_single = True
+        return self
+
+    def execute(self):
+        rows = [{**r, **self._patch} for r in self._rows] if self._patch else list(self._rows)
+        if self._maybe_single:
+            return _FakeResp(rows[0]) if rows else None
+        return _FakeResp(rows)
+
+
+class _FakeDB:
+    def __init__(self, tables):
+        self._tables = tables
+
+    def table(self, name):
+        return _FakeQuery(self._tables.get(name, []))
 
 
 class OperatorSubscriptionRequestsTests(unittest.TestCase):
@@ -75,6 +132,34 @@ class OperatorSubscriptionRequestsTests(unittest.TestCase):
         )
         self.assertEqual(res.status_code, 400)
         mock_reject.assert_not_called()
+
+
+class ApproveRequestServiceTests(unittest.TestCase):
+    def test_approve_initial_subscription_with_no_existing_items(self):
+        """Initial subscription: tenant has zero tenant_subscription_items, so the
+        existing-item lookup returns None (supabase maybe_single on zero rows).
+        Regression for the AttributeError that surfaced as a 500 on approve."""
+        req = {
+            "id": "req-1",
+            "tenant_id": "tenant-1",
+            "package_id": None,
+            "total_amount": 1500,
+            "requested_items": [
+                {"feature_key": "inbound_messaging", "quantity": 1, "line_total": 1500},
+            ],
+        }
+        db = _FakeDB({
+            "subscription_requests": [req],
+            "tenant_subscription_items": [],  # no items yet -> maybe_single -> None
+            "feature_catalog": [],
+            "tenants": [],
+            "tenant_usage_counters": [],
+            "tenant_subscriptions": [],
+        })
+
+        result = approve_request(db, "req-1", reviewer_user_id="admin-1")
+
+        self.assertEqual(result["status"], "approved")
 
 
 if __name__ == "__main__":

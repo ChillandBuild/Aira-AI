@@ -67,7 +67,7 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
     req = db.table("subscription_requests").select(
         "id, tenant_id, requested_items, package_id, total_amount"
     ).eq("id", request_id).maybe_single().execute()
-    if not req.data:
+    if not req or not req.data:
         raise ValueError(f"subscription_request {request_id} not found")
 
     tenant_id = req.data["tenant_id"]
@@ -81,7 +81,10 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
         existing = db.table("tenant_subscription_items").select("quantity").eq(
             "tenant_id", tenant_id
         ).eq("feature_key", feature_key).maybe_single().execute()
-        new_quantity = quantity + ((existing.data or {}).get("quantity") or 0)
+        # maybe_single().execute() returns None (not a response) on zero rows,
+        # which is the norm for an initial subscription with no items yet.
+        existing_quantity = (existing.data or {}).get("quantity") if existing else 0
+        new_quantity = quantity + (existing_quantity or 0)
 
         db.table("tenant_subscription_items").upsert({
             "tenant_id": tenant_id,
