@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Request, Response
 from app.db.supabase import get_supabase
 from app.config import settings
 from app.services.growth import record_stage_event
+from app.services.google_ads_attribution import parse_google_ref
 from app.services.failover import update_number_quality, handle_quality_red, handle_quality_yellow
 from app.services.meta_webhook_verify import verify_meta_signature
 
@@ -379,6 +380,7 @@ async def whatsapp_webhook(
                             logger.warning(f"Auto-assign failed for lead {lead_id}: {e}")
 
                     # CTWA: capture Click-to-WhatsApp ad referral on first contact
+                    ad_attributed = False
                     referral = msg.get("referral")
                     if referral and referral.get("source_type") == "ad":
                         try:
@@ -396,9 +398,46 @@ async def whatsapp_webhook(
                                 )
                                 if campaign:
                                     db.table("leads").update({"ad_campaign_id": campaign["id"]}).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+                                    ad_attributed = True
                                     logger.info(f"CTWA referral: lead {lead_id} linked to ad campaign {campaign['id']} (ad_id={ad_id})")
                         except Exception as ctwa_err:
                             logger.warning(f"CTWA referral tracking failed for lead {lead_id}: {ctwa_err}")
+
+                    # Google Ads: attribute via a [GADS:...] tag in the pre-filled
+                    # click-to-chat message. Google can't inject Meta's referral
+                    # object, so the tag in the first inbound message is our signal.
+                    # Only runs when Meta CTWA didn't already claim this lead.
+                    if not ad_attributed:
+                        google_ref = parse_google_ref(body)
+                        if google_ref:
+                            try:
+                                from app.services.growth import get_or_create_campaign
+                                campaign = get_or_create_campaign(
+                                    db=db,
+                                    tenant_id=tenant_id,
+                                    platform="google",
+                                    campaign_name=google_ref.campaign,
+                                    external_campaign_id=google_ref.external_campaign_id,
+                                )
+                                if campaign:
+                                    # Don't clobber a prior attribution (e.g. repeat
+                                    # contact) — only set when currently unattributed.
+                                    current = (
+                                        db.table("leads").select("ad_campaign_id")
+                                        .eq("id", lead_id).eq("tenant_id", tenant_id)
+                                        .limit(1).execute()
+                                    )
+                                    if current.data and not current.data[0].get("ad_campaign_id"):
+                                        db.table("leads").update(
+                                            {"ad_campaign_id": campaign["id"]}
+                                        ).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+                                        logger.info(
+                                            f"Google Ads referral: lead {lead_id} linked to "
+                                            f"campaign {campaign['id']} (tag={google_ref.campaign}, "
+                                            f"gclid={google_ref.gclid})"
+                                        )
+                            except Exception as gads_err:
+                                logger.warning(f"Google Ads attribution failed for lead {lead_id}: {gads_err}")
 
                     already = db.table("messages").select("id").eq("meta_message_id", msg_id).eq("tenant_id", tenant_id).limit(1).execute()
                     if already.data:

@@ -5,6 +5,7 @@ import { useInboundLeads, useInboundCampaigns } from "@/hooks/useApi";
 import {
   Download, Megaphone, Filter, X,
   Smartphone, MessageSquare, Users, RefreshCw, ChevronDown, RadioTower,
+  Link2, Copy, Check,
 } from "lucide-react";
 import { cn, formatPhone } from "@/lib/utils";
 import { SegmentBadge } from "@/components/segment-badge";
@@ -139,6 +140,124 @@ function EmptyState() {
   );
 }
 
+// Generates a tracked wa.me link for a Google Ads campaign CTA. The link carries
+// a [GADS:<slug>] tag so inbound WhatsApp leads get attributed to Google.
+function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
+  const [campaign, setCampaign] = useState("");
+  const [gclid, setGclid] = useState("");
+  const [link, setLink] = useState("");
+  const [slug, setSlug] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  async function handleGenerate() {
+    const name = campaign.trim();
+    if (!name) {
+      toast.error("Enter a campaign name first.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.inboundLeads.googleLink(name, gclid.trim() || undefined);
+      setLink(res.link);
+      setSlug(res.campaign_slug);
+      setCopied(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate link");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    toast.success("Link copied — paste it into your Google ad");
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="card w-full max-w-md rounded-3xl p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+              <Link2 size={16} className="text-violet-700" />
+            </div>
+            <div>
+              <h3 className="font-display font-black text-on-surface text-base leading-tight">Google Ads Link</h3>
+              <p className="text-[11px] text-on-surface-muted">Track WhatsApp leads from a Google campaign</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[#a8a29e] hover:text-[#44403c] transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
+          Campaign Name
+        </label>
+        <input
+          value={campaign}
+          onChange={(e) => setCampaign(e.target.value)}
+          placeholder="e.g. Summer Sale 2026"
+          className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 mb-3"
+        />
+
+        <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
+          Google Click ID <span className="normal-case font-normal text-[#a8a29e]">(optional — for spend sync later)</span>
+        </label>
+        <input
+          value={gclid}
+          onChange={(e) => setGclid(e.target.value)}
+          placeholder="{gclid}"
+          className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-mono text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 mb-4"
+        />
+
+        <button
+          onClick={handleGenerate}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+        >
+          <Link2 size={13} />
+          <span>{loading ? "Generating…" : link ? "Regenerate" : "Generate Link"}</span>
+        </button>
+
+        {link && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider">Tracked Link</span>
+              <span className="font-mono text-[10px] text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">[GADS:{slug}]</span>
+            </div>
+            <div className="flex items-stretch gap-2">
+              <code className="flex-1 px-3 py-2 bg-surface-mid rounded-xl font-mono text-[11px] text-on-surface break-all leading-relaxed select-all">
+                {link}
+              </code>
+              <button
+                onClick={handleCopy}
+                className="shrink-0 flex items-center justify-center px-3 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                title="Copy link"
+              >
+                {copied ? <Check size={15} /> : <Copy size={15} />}
+              </button>
+            </div>
+            <p className="mt-3 text-[11px] text-on-surface-muted leading-relaxed">
+              Paste this as the destination URL of your Google ad. Every click opens a
+              pre-filled WhatsApp chat, and the reply is auto-tagged to this campaign in your dashboard.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Client UI Component ───────────────────────────────────────────────────────
 
 interface InboundLeadsClientProps {
@@ -151,6 +270,7 @@ export function InboundLeadsClient({
   fallbackCampaigns,
 }: InboundLeadsClientProps) {
   const [exporting, setExporting] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
 
   // Filters
   const [selectedCampaign, setSelectedCampaign] = useState("");
@@ -391,6 +511,13 @@ export function InboundLeadsClient({
             </button>
           </div>
           <button
+            onClick={() => setShowGoogleModal(true)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 font-label text-xs font-bold transition-all shadow-sm"
+          >
+            <Link2 size={12} />
+            <span>Google Ads Link</span>
+          </button>
+          <button
             onClick={handleExport}
             disabled={exporting || leads.length === 0}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
@@ -400,6 +527,8 @@ export function InboundLeadsClient({
           </button>
         </div>
       </div>
+
+      {showGoogleModal && <GoogleAdsLinkModal onClose={() => setShowGoogleModal(false)} />}
 
       {/* ── Info Banner ─────────────────────────────────────────── */}
       <div className="flex items-start gap-3 bg-primary-light border border-primary-muted rounded-2xl px-4 py-3 mb-5">
