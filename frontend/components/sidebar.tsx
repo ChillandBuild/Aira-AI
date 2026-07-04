@@ -59,9 +59,14 @@ export function Sidebar() {
   }, []);
 
   const waEnabled = enabledFeatures.includes("whatsapp");
-  const outboundOn = enabledFeatures.includes("outbound_leads");
-  const inboundOn = enabledFeatures.includes("inbound_leads");
+  const outboundOn = enabledFeatures.includes("outbound_messaging");
+  const inboundOn = enabledFeatures.includes("inbound_messaging");
   const messagingOn = outboundOn || inboundOn;
+  // Telecalling is purchased as a SIM or Tele-CMI bundle (each pulls in its own
+  // telecalling.* sub-features); there is no bare "telecalling" key anymore.
+  const telecallingOn = enabledFeatures.some(
+    (f) => f === "telecalling_sim" || f === "telecalling_telecmi" || f.startsWith("telecalling.")
+  );
   useEffect(() => {
     if (!waEnabled) return;
     fetchCount();
@@ -188,7 +193,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Inbound Leads */}
-        {role === "owner" && enabledFeatures.includes("inbound_leads") && (
+        {role === "owner" && inboundOn && (
           <Link
             href="/dashboard/inbound-leads"
             className={cn(
@@ -302,7 +307,7 @@ export function Sidebar() {
 
 
         {/* GROUP: Telecalling */}
-        {enabledFeatures.includes("telecalling") && tcGroupItems.length > 0 && (
+        {telecallingOn && tcGroupItems.length > 0 && (
           <div className="space-y-0.5">
             <button
               onClick={() => toggleGroup("Telecalling")}

@@ -31,15 +31,15 @@ type MoreMenuItem = {
 };
 
 const MORE_ITEMS: MoreMenuItem[] = [
-  { href: "/dashboard/leads", icon: Users, label: "Leads", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
-  { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", ownerOnly: true, feature: "outbound_leads" },
-  { href: "/dashboard/templates", icon: SquarePen, label: "Templates", ownerOnly: true, feature: "outbound_leads" },
+  { href: "/dashboard/leads", icon: Users, label: "Leads", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", ownerOnly: true, feature: "outbound_messaging" },
+  { href: "/dashboard/templates", icon: SquarePen, label: "Templates", ownerOnly: true, feature: "outbound_messaging" },
   { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", feature: "telecalling.scheduled" },
   { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes", feature: "telecalling.notes" },
-  { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", ownerOnly: true, feature: "inbound_leads" },
-  { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
-  { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
-  { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", ownerOnly: true, anyFeature: ["outbound_leads", "inbound_leads"] },
+  { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", ownerOnly: true, feature: "inbound_messaging" },
+  { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/team", icon: Grid3X3, label: "Team", ownerOnly: true },
   { href: "/dashboard/settings", icon: Settings, label: "Settings", ownerOnly: true },
 ];
