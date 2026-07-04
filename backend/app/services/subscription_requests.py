@@ -154,8 +154,8 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }, on_conflict="tenant_id,feature_key").execute()
 
+    sync_client_toggles(db, tenant_id)
     ent = resolve_entitlements(db, tenant_id)
-    db.table("tenants").update({"enabled_features": ent["features"]}).eq("id", tenant_id).execute()
 
     # First-ever approval anchors the billing cycle to today (e.g. approved
     # 2026-07-04 -> renews 2026-08-04, not reset on the calendar month
@@ -208,3 +208,51 @@ def reject_request(db, request_id: str, reviewer_user_id: str, reason: str) -> d
     }).eq("id", request_id).execute()
 
     return updated.data[0] if updated.data else {"id": request_id, "status": "rejected"}
+
+
+def sync_client_toggles(db, tenant_id: str) -> None:
+    """
+    Synchronize client features and calling provider based on active subscription items.
+    """
+    ent = resolve_entitlements(db, tenant_id)
+    features_to_enable = set(ent.get("features") or [])
+
+    tenant_res = db.table("tenants").select("enabled_features").eq("id", tenant_id).maybe_single().execute()
+    if not tenant_res or not tenant_res.data:
+        logger.error(f"Tenant {tenant_id} not found in sync_client_toggles")
+        return
+
+    old_enabled_features = set(tenant_res.data.get("enabled_features") or [])
+
+    catalog_res = db.table("feature_catalog").select("feature_key, depends_on").execute()
+    billing_derived = set()
+    for row in (catalog_res.data or []):
+        billing_derived.add(row["feature_key"])
+        for dep in (row.get("depends_on") or []):
+            billing_derived.add(dep)
+
+    new_features = (old_enabled_features - billing_derived) | features_to_enable
+
+    db.table("tenants").update({"enabled_features": sorted(list(new_features))}).eq("id", tenant_id).execute()
+
+    items_res = db.table("tenant_subscription_items").select("feature_key").eq("tenant_id", tenant_id).execute()
+    active_keys = {row["feature_key"] for row in (items_res.data or [])}
+
+    sim_active = "telecalling_sim" in active_keys
+    telecmi_active = "telecalling_telecmi" in active_keys
+
+    from app.services.assignment import get_telecalling_config, save_telecalling_config
+
+    if sim_active or telecmi_active:
+        cfg = get_telecalling_config(tenant_id, db=db)
+        if sim_active and not telecmi_active:
+            cfg["calling_provider"] = "sim_basic"
+            save_telecalling_config(tenant_id, cfg, db=db)
+        elif telecmi_active and not sim_active:
+            cfg["calling_provider"] = "telecmi"
+            save_telecalling_config(tenant_id, cfg, db=db)
+        elif sim_active and telecmi_active:
+            logger.warning(f"Both telecalling_sim and telecalling_telecmi active for tenant {tenant_id}, defaulting to telecmi")
+            cfg["calling_provider"] = "telecmi"
+            save_telecalling_config(tenant_id, cfg, db=db)
+

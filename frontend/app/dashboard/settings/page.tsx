@@ -218,7 +218,7 @@ export default function SettingsPage() {
     })();
   }, []);
 
-  const hasNotifications = purchasedFeatures.length === 0 || purchasedFeatures.includes("notifications");
+  const hasNotifications = purchasedFeatures.length === 0 || purchasedFeatures.includes("inbound_messaging") || purchasedFeatures.includes("outbound_messaging");
 
   const load = useCallback(async () => {
     try {

@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Check, Sparkles, RadioTower, MessageSquare, Phone, Upload as UploadIcon,
-  Users, Layers, Bell, Minus, Plus,
+  Users, Layers, Minus, Plus,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
@@ -39,7 +39,6 @@ const ICONS: Record<string, typeof Phone> = {
   bulk_lead_upload: UploadIcon,
   telecaller_seats: Users,
   numbers_pool: Layers,
-  notifications: Bell,
 };
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -224,7 +223,7 @@ export function CartBuilder({
   const upload = byKey.get("bulk_lead_upload");
   const seats = byKey.get("telecaller_seats");
   const numbers = byKey.get("numbers_pool");
-  const notifications = byKey.get("notifications");
+
 
   const telecallingTypeSelected = TELECALLING_TYPE_KEYS.some((k) => k in selected);
   const hasTelecallingCoverage = telecallingTypeSelected || TELECALLING_TYPE_KEYS.some((k) => existingQtyFor(k) > 0);
@@ -389,18 +388,7 @@ export function CartBuilder({
         </div>
       )}
 
-      {notifications && itemInAddonMode(notifications) && (
-        <div>
-          <SectionHeading>Add-ons</SectionHeading>
-          <SelectCard
-            selected={notifications.feature_key in selected}
-            onClick={() => toggleItem(notifications.feature_key)}
-            icon={ICONS.notifications}
-            title="Notifications"
-            subtitle={`${fmt(notifications.monthly_price)}/mo · Email & in-app alerts`}
-          />
-        </div>
-      )}
+
 
       <div className="sticky bottom-0 flex items-center justify-between rounded-2xl border border-border bg-white/95 p-4 shadow-lg backdrop-blur">
         <div>

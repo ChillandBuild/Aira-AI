@@ -464,9 +464,10 @@ def get_inbox_config(tenant_id: str) -> dict:
     return dict(_INBOX_CONFIG_DEFAULT)
 
 
-def get_telecalling_config(tenant_id: str) -> dict:
+def get_telecalling_config(tenant_id: str, db = None) -> dict:
     """Return telecalling_config from app_settings, merged with defaults."""
-    db = get_supabase()
+    if db is None:
+        db = get_supabase()
     row = (
         db.table("app_settings")
         .select("value")
@@ -498,9 +499,10 @@ def save_inbox_config(tenant_id: str, config: dict) -> None:
     ).execute()
 
 
-def save_telecalling_config(tenant_id: str, config: dict) -> None:
+def save_telecalling_config(tenant_id: str, config: dict, db = None) -> None:
     """Persist telecalling_config to app_settings."""
-    db = get_supabase()
+    if db is None:
+        db = get_supabase()
     db.table("app_settings").upsert(
         {
             "key": "telecalling_config",
