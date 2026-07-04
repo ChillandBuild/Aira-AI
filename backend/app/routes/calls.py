@@ -8,7 +8,7 @@ from typing import Literal
 from uuid import UUID
 import httpx
 from fastapi import Depends, Query
-from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from app.config import settings
 from app.config_dynamic import get_setting
@@ -775,106 +775,6 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
         "action": action,
         "deduped": False,
     }
-
-
-# ── SIM Recording Upload ─────────────────────────────────────────────
-# The Aira Sync APK uploads recorded audio files here. The endpoint matches
-# the file to an existing call_logs row (created by /sim-cdr or the PWA
-# wrap-up), uploads bytes directly to Supabase Storage, and queues the
-# existing summarization pipeline. It never creates a call_logs row from a
-# recording alone and never touches human-owned fields.
-
-@public_router.post("/sim-recording")
-async def sim_recording(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    phone_number: str | None = Form(default=None),
-    file_timestamp: int = Form(...),
-):
-    """Ingest a call-recording file from the Aira Sync APK and match it to
-    the corresponding call_logs row.
-    """
-    caller = _resolve_sim_caller(request)
-    caller_id = caller["id"]
-    tenant_id = caller["tenant_id"]
-    db = get_supabase()
-
-    audio_bytes = bytearray()
-    chunk = await file.read(1024 * 1024)
-    while chunk:
-        audio_bytes.extend(chunk)
-        chunk = await file.read(1024 * 1024)
-
-    call_log_id = None
-
-    normalized_phone = _normalize_sim_phone(phone_number) if phone_number else None
-    if normalized_phone:
-        lead = (
-            db.table("leads")
-            .select("id")
-            .eq("tenant_id", tenant_id)
-            .eq("phone", normalized_phone)
-            .maybe_single()
-            .execute()
-        )
-        lead_id = (lead.data or {}).get("id")
-        if lead_id:
-            call_dt = datetime.fromtimestamp(file_timestamp / 1000, tz=timezone.utc)
-            window_start = (call_dt - timedelta(hours=_SIM_ENRICH_WINDOW_HOURS)).isoformat()
-            row = (
-                db.table("call_logs")
-                .select("id")
-                .eq("tenant_id", tenant_id)
-                .eq("caller_id", caller_id)
-                .eq("lead_id", lead_id)
-                .eq("provider", "sim_basic")
-                .gte("created_at", window_start)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-            if row.data:
-                call_log_id = row.data[0]["id"]
-
-    if not call_log_id:
-        call_dt = datetime.fromtimestamp(file_timestamp / 1000, tz=timezone.utc)
-        window_start = (call_dt - timedelta(hours=_SIM_ENRICH_WINDOW_HOURS)).isoformat()
-        row = (
-            db.table("call_logs")
-            .select("id,lead_id,created_at")
-            .eq("tenant_id", tenant_id)
-            .eq("caller_id", caller_id)
-            .eq("provider", "sim_basic")
-            .gte("created_at", window_start)
-            .order("created_at", desc=True)
-            .limit(50)
-            .execute()
-        )
-        # Recency-first picked the wrong call during busy shifts (5 calls/hour,
-        # recording #2 attaching to row #5) — closest timestamp is correct.
-        candidates = [r for r in (row.data or []) if r.get("lead_id")]
-        if candidates:
-            call_log_id = min(
-                candidates,
-                key=lambda r: abs(
-                    (datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")) - call_dt).total_seconds()
-                ),
-            )["id"]
-
-    if not call_log_id:
-        raise HTTPException(status_code=404, detail="No matching call log found")
-
-    storage_path = f"{call_log_id}.mp3"
-    db.storage.from_("call-recordings").upload(
-        storage_path,
-        bytes(audio_bytes),
-        {"content-type": "audio/mpeg", "upsert": "true"},
-    )
-    public_url = db.storage.from_("call-recordings").get_public_url(storage_path)
-    db.table("call_logs").update({"recording_url": public_url}).eq("id", call_log_id).execute()
-    background_tasks.add_task(_run_summarization, call_log_id, public_url)
-    return {"matched": True, "call_log_id": call_log_id}
 
 
 # ── TeleCMI Live Events Webhook ───────────────────────────────────────
