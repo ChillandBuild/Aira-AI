@@ -2,7 +2,6 @@ import logging
 import re
 import time
 import httpx
-from groq import AsyncGroq
 from app.db.supabase import get_supabase
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.segmentation import score_to_segment, parse_thresholds
@@ -17,30 +16,28 @@ from app.services.entitlements import meter, check_quota
 
 logger = logging.getLogger(__name__)
 
-from app.services.groq_client import get_groq_client
-_REPLY_MODEL = "llama-3.3-70b-versatile"
+from app.services.sarvam_client import sarvam_chat_completion
+_REPLY_MODEL = "sarvam-30b"
 
 
-async def _groq_complete(prompt: str, max_tokens: int = 300, tenant_id: str | None = None) -> str:
-    client = get_groq_client(tenant_id, is_async=True)
-    response = await client.chat.completions.create(
-        model=_REPLY_MODEL,
+async def _llm_complete(prompt: str, max_tokens: int = 300, tenant_id: str | None = None) -> str:
+    return await sarvam_chat_completion(
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.4,
-        max_tokens=max_tokens,
-    )
-    return response.choices[0].message.content.strip()
-
-
-async def _groq_chat(messages: list[dict], max_tokens: int = 300, tenant_id: str | None = None) -> str:
-    client = get_groq_client(tenant_id, is_async=True)
-    response = await client.chat.completions.create(
         model=_REPLY_MODEL,
-        messages=messages,
         temperature=0.4,
         max_tokens=max_tokens,
+        tenant_id=tenant_id,
     )
-    return response.choices[0].message.content.strip()
+
+
+async def _llm_chat(messages: list[dict], max_tokens: int = 300, tenant_id: str | None = None) -> str:
+    return await sarvam_chat_completion(
+        messages=messages,
+        model=_REPLY_MODEL,
+        temperature=0.4,
+        max_tokens=max_tokens,
+        tenant_id=tenant_id,
+    )
 
 
 def _resolve_campaign(db, lead_id: str) -> tuple[str | None, str | None]:
@@ -414,7 +411,7 @@ Be warm, specific, and low-pressure.
 Reference the lead's interest naturally and end with one clear next step.
 Do not use markdown or quotes."""
     try:
-        text = await _groq_complete(prompt, max_tokens=120, tenant_id=tenant_id)
+        text = await _llm_complete(prompt, max_tokens=120, tenant_id=tenant_id)
         return text[:280] if len(text) > 280 else text
     except Exception as e:
         logger.error(f"Re-engagement copy failed for lead {lead_id}: {e}")
@@ -551,7 +548,7 @@ async def generate_reply(
     """
     Core pipeline:
     1. Inject knowledge base context
-    2. Call Groq for reply
+    2. Call the LLM for a reply
     3. Send reply via the matching channel
     4. Score the message and update lead score + segment in DB
     """
@@ -595,7 +592,7 @@ async def generate_reply(
         escalation_flags.add("C")
         logger.info(f"Trigger C: lead {lead_id} asked for human agent")
 
-    # Pre-fetch recent thread (reused for trigger D + Groq chat below)
+    # Pre-fetch recent thread (reused for trigger D + LLM chat below)
     recent_thread = _recent_thread(db, lead_id, limit=8)
 
     # Trigger D: user repeated the same question (AI not resolving it)
@@ -679,7 +676,7 @@ async def generate_reply(
         logger.warning(f"Knowledge context fetch failed for lead {lead_id}: {e}")
         context_text = ""
 
-    _raw_reply = ""  # holds unstripped Groq output for [COLLECT_DONE] parser below
+    _raw_reply = ""  # holds unstripped LLM output for the defensive [COLLECT_DONE] strip below
     try:
         system_prompt = _get_prompt(f"{channel}_reply", tenant_id=lead_data.get("tenant_id"))
         if campaign_name:
@@ -729,13 +726,14 @@ async def generate_reply(
         else:
             chat_messages[-1]["content"] = _tagged_message
 
-        _raw_reply = await _groq_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)
+        _raw_reply = await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)
         is_ai = True
         reply_source = "knowledge" if context_text else "ai"
 
-        # Strip [COLLECT_DONE] signal before sending to customer — the raw JSON
-        # must never reach the channel delivery path or pollute thread history.
-        # Keep _raw_reply intact for the parser below (after messages insert).
+        # Defensive strip: some tenants' custom AI Tune prompts (stored in the DB, not
+        # this code) may still instruct the model to end replies with [COLLECT_DONE]{...}
+        # from the old data-collection feature (its parser/save logic is removed below).
+        # Keep stripping so a stale stored prompt can't leak the raw tag to a customer.
         _display_text = re.sub(r'^\s*\[COLLECT_DONE\]\s*\{.*\}\s*$', '', _raw_reply.strip(), flags=re.DOTALL).strip()
         reply_text = _display_text if _display_text != _raw_reply else _raw_reply
         if not reply_text:
@@ -750,13 +748,13 @@ async def generate_reply(
             escalation_flags.add("F")
 
     except Exception as e:
-        logger.error(f"Groq reply failed for lead {lead_id}: {e}")
+        logger.error(f"LLM reply failed for lead {lead_id}: {e}")
         reply_text = _FALLBACK_BY_LANG.get(_detect_lang(message), _FALLBACK_BY_LANG["en"])
         is_ai = False
         reply_source = "ai"
-        # Trigger B: AI/Groq exception - escalate so a human can pick up
+        # Trigger B: AI/LLM exception - escalate so a human can pick up
         escalation_flags.add("B")
-        logger.info(f"Trigger B: lead {lead_id} Groq exception - {e}")
+        logger.info(f"Trigger B: lead {lead_id} LLM exception - {e}")
 
     if not check_quota(db, tenant_id, "ai_reply"):
         logger.info(f"AI reply skipped for tenant {tenant_id}: ai_reply quota exhausted")
@@ -797,20 +795,6 @@ async def generate_reply(
         "tenant_id": tenant_id,
         sid_field: sid,
     }).execute()
-
-    new_segment = segment  # initialized before [COLLECT_DONE] which may reference it
-
-    # Detect [COLLECT_DONE] signal — AI has finished collecting structured data.
-    # Parser runs against _raw_reply so the stripped display text doesn't block detection.
-    _collect_match = re.match(r'\s*\[COLLECT_DONE\]\s*(\{.*\})\s*$', _raw_reply.strip(), re.DOTALL)
-    if _collect_match:
-        try:
-            import json as _json
-            _collected = _json.loads(_collect_match.group(1))
-            db.table("leads").update({"collected_data": _collected}).eq("id", str(lead_id)).execute()
-            logger.info(f"[COLLECT_DONE] saved for lead {lead_id}: {list(_collected.keys())}")
-        except Exception as _ce:
-            logger.warning(f"[COLLECT_DONE] parse failed for lead {lead_id}: {_ce}")
 
     # Step 5: Score Engine v2 — composite arc + intent + engagement (no gate)
     new_segment = segment  # fallback if scoring fails

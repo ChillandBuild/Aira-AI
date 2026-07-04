@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     supabase_service_key: str
     supabase_jwt_secret: str | None = None
     groq_api_key: str | None = None
+    sarvam_api_key: str | None = None
     jina_api_key: str | None = None
     telecmi_user_id: str | None = None
     telecmi_secret: str | None = None
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
     def _warn_missing_secrets(self) -> "Settings":
         critical = {
             "groq_api_key": "AI replies will fail",
+            "sarvam_api_key": "Call transcription will fail",
             "meta_app_secret": "Webhook signature verification will reject all inbound",
             "jina_api_key": "Knowledge base RAG embeddings will fail",
         }
