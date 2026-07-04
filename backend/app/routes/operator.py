@@ -499,12 +499,25 @@ def list_plans(_admin: dict = Depends(get_system_admin)):
 
 
 def _compute_package_price(db, items: list[dict], discount_percent: float) -> float:
+    """
+    Sum each item's price × quantity, then apply the package discount.
+    Quantity-priced items (telecaller_seats, numbers_pool) have
+    monthly_price=0 and are priced via unit_price instead — mirrors
+    `_price_for_item` in subscription_requests.py so a package's price
+    never diverges from what an equivalent à la carte cart would total.
+    """
     feature_keys = [i["feature_key"] for i in items]
     if not feature_keys:
         return 0.0
-    catalog = db.table("feature_catalog").select("feature_key, monthly_price").in_("feature_key", feature_keys).execute()
-    prices = {row["feature_key"]: row.get("monthly_price") or 0 for row in (catalog.data or [])}
-    subtotal = sum(prices.get(i["feature_key"], 0) * i.get("quantity", 1) for i in items)
+    catalog = db.table("feature_catalog").select("feature_key, monthly_price, unit_price").in_("feature_key", feature_keys).execute()
+    catalog_by_key = {row["feature_key"]: row for row in (catalog.data or [])}
+    subtotal = 0.0
+    for item in items:
+        row = catalog_by_key.get(item["feature_key"], {})
+        quantity = item.get("quantity", 1)
+        unit_price = row.get("unit_price")
+        price = float(unit_price) if unit_price is not None else float(row.get("monthly_price") or 0)
+        subtotal += price * quantity
     return subtotal * (1 - discount_percent / 100)
 
 
