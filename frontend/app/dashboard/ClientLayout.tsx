@@ -10,14 +10,16 @@ import { AppHeader } from "@/components/AppHeader";
 import { ClaimBanner } from "@/components/ClaimBanner";
 import { MobileDashboardNav } from "@/components/MobileDashboardNav";
 import { MoreMenu } from "@/components/MoreMenu";
-import { API_URL } from "@/lib/api";
+import { API_URL, getAuthHeaders } from "@/lib/api";
 import { NotificationProvider } from "@/hooks/useNotifications";
+import SubscriptionsPage from "./subscriptions/page";
 
 const PING_INTERVAL_MS = 8 * 60 * 1000; // 8 min — keeps Render warm (sleeps after 15 min)
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isInboxSidebarOpen, setIsInboxSidebarOpen] = useState(false);
+  const [subStatus, setSubStatus] = useState<"loading" | "none" | "pending_approval" | "active">("loading");
   const pathname = usePathname();
   // The conversations route renders its own thin inbox rail (Bulkwise-style) and
   // fills the viewport, so we suppress the labeled sidebar + app header there.
@@ -28,6 +30,23 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     ping(); // immediate ping on mount to wake server if sleeping
     const id = setInterval(ping, PING_INTERVAL_MS);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth });
+        if (res.ok) {
+          const data = await res.json();
+          setSubStatus(data.status);
+        } else {
+          setSubStatus("active"); // fail open — e.g. pre-existing/backfilled tenants if the call errors
+        }
+      } catch {
+        setSubStatus("active");
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -44,6 +63,18 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsInboxSidebarOpen(false);
   }, [pathname]);
+
+  if (subStatus === "loading") {
+    return <div className="min-h-screen bg-background" />;
+  }
+
+  if (subStatus === "none" || subStatus === "pending_approval") {
+    return (
+      <AuthRoleProvider>
+        <SubscriptionsPage />
+      </AuthRoleProvider>
+    );
+  }
 
   if (isInbox) {
     return (
