@@ -1,23 +1,34 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { CreditCard, Plus, Pencil, Trash2, Users, MessageSquare, Zap, Brain, Phone, Cog, Settings2 } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Package, Plus, Pencil, Trash2, MessageSquare, Zap, Brain, Phone, Cog, Settings2, Save, CheckCircle2 } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
+import { cn } from "@/lib/utils";
 
-interface FeatureCatalogItem {
+interface CatalogItem {
   feature_key: string;
   display_name: string;
   category: string;
+  monthly_price: number;
+  unit_price: number | null;
+  included_qty: number | null;
+  usage_metric: string | null;
+  is_metered: boolean;
 }
 
-interface Plan {
+interface PackageItem {
+  feature_key: string;
+  quantity: number;
+}
+
+interface PlanRow {
   id: string;
   name: string;
   monthly_price: number;
-  feature_keys: string[];
-  quotas: Record<string, number>;
+  feature_keys: PackageItem[];
+  discount_percent: number;
   active: boolean;
   created_at: string;
-  tenant_count: number;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -38,109 +49,198 @@ const CATEGORY_ICONS: Record<string, typeof MessageSquare> = {
   ops: Settings2,
 };
 
-const QUOTA_METRICS: { key: string; label: string }[] = [
-  { key: "message_sent", label: "Messages / mo" },
-  { key: "ai_reply", label: "AI Replies / mo" },
-  { key: "call_minute", label: "Call Minutes / mo" },
-  { key: "team_seat_active", label: "Team Seats" },
-  { key: "storage_gb", label: "Storage (GB)" },
-  { key: "ai_call_summary", label: "AI Call Summaries / mo" },
-  { key: "ai_call_scoring", label: "AI Call Scoring / mo" },
+// The client-facing cart SKUs (migration 128) — these are what the admin
+// can price. Everything else in feature_catalog is an internal flag that
+// gets turned on via a SKU's `depends_on`, not priced directly.
+const SELLABLE_KEYS = [
+  "inbound_messaging", "outbound_messaging", "telecalling_sim", "telecalling_telecmi",
+  "bulk_lead_upload", "telecaller_seats", "numbers_pool", "notifications",
 ];
 
-interface PlanFormState {
-  id: string | null;
-  name: string;
-  monthly_price: string;
-  feature_keys: Set<string>;
-  quotas: Record<string, string>;
+async function loadCatalogAndPackages() {
+  const [catalogRes, packagesRes] = await Promise.all([
+    operatorFetch<{ data: CatalogItem[] } | CatalogItem[]>("/api/v1/operator/features/catalog"),
+    operatorFetch<{ data: PlanRow[] }>("/api/v1/operator/plans"),
+  ]);
+  const catalog = Array.isArray(catalogRes) ? catalogRes : catalogRes.data ?? [];
+  return { catalog, packages: packagesRes.data ?? [] };
 }
 
-function emptyForm(): PlanFormState {
-  return { id: null, name: "", monthly_price: "", feature_keys: new Set(), quotas: {} };
+function itemPrice(item: CatalogItem): number {
+  return item.unit_price ?? item.monthly_price;
 }
 
-export default function SubscriptionPage() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [catalog, setCatalog] = useState<FeatureCatalogItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<PlanFormState | null>(null);
+// --- Pricing Catalog tab ---------------------------------------------------
+
+function CatalogRow({ item, onSaved }: { item: CatalogItem; onSaved: () => void }) {
+  const [monthlyPrice, setMonthlyPrice] = useState(String(item.monthly_price));
+  const [unitPrice, setUnitPrice] = useState(item.unit_price !== null ? String(item.unit_price) : "");
+  const [includedQty, setIncludedQty] = useState(item.included_qty !== null ? String(item.included_qty) : "");
   const [saving, setSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    return Promise.all([
-      operatorFetch<{ data: Plan[] }>("/api/v1/operator/plans"),
-      operatorFetch<{ data: FeatureCatalogItem[] } | FeatureCatalogItem[]>("/api/v1/operator/features/catalog"),
-    ])
-      .then(([plansRes, catalogRes]) => {
-        setPlans(plansRes.data ?? []);
-        setCatalog(Array.isArray(catalogRes) ? catalogRes : catalogRes.data ?? []);
-        setError(null);
-      })
-      .catch(e => setError(e instanceof Error ? e.message : "Request failed"))
-      .finally(() => setLoading(false));
-  }, []);
+  const dirty =
+    monthlyPrice !== String(item.monthly_price) ||
+    unitPrice !== (item.unit_price !== null ? String(item.unit_price) : "") ||
+    includedQty !== (item.included_qty !== null ? String(item.included_qty) : "");
 
-  useEffect(() => { load(); }, [load]);
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await operatorFetch(`/api/v1/operator/catalog/${item.feature_key}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          monthly_price: parseFloat(monthlyPrice) || 0,
+          unit_price: unitPrice ? parseFloat(unitPrice) : null,
+          included_qty: includedQty ? parseInt(includedQty, 10) : null,
+        }),
+      });
+      setSaved(true);
+      onSaved();
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
 
-  const catalogByCategory = catalog.reduce<Record<string, FeatureCatalogItem[]>>((acc, f) => {
-    if (!acc[f.category]) acc[f.category] = [];
-    acc[f.category].push(f);
+  return (
+    <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 py-2.5 border-b border-border-subtle last:border-0">
+      <span className="text-sm text-ink">{item.display_name}</span>
+      <input
+        type="number" min="0" value={monthlyPrice} onChange={e => setMonthlyPrice(e.target.value)}
+        className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right"
+        placeholder="Price"
+      />
+      <input
+        type="number" min="0" value={unitPrice} onChange={e => setUnitPrice(e.target.value)}
+        className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right"
+        placeholder="Unit"
+      />
+      <input
+        type="number" min="0" value={includedQty} onChange={e => setIncludedQty(e.target.value)}
+        className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right"
+        placeholder="Included"
+      />
+      <button
+        onClick={save}
+        disabled={saving || !dirty}
+        className={cn(
+          "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium",
+          saved ? "bg-success/10 text-success" : dirty ? "bg-primary text-white hover:bg-primary-dark" : "bg-surface-mid text-ink-muted"
+        )}
+      >
+        {saved ? <CheckCircle2 size={12} /> : <Save size={12} />}
+        {saving ? "Saving…" : saved ? "Saved" : "Save"}
+      </button>
+      {error && <span className="col-span-5 text-xs text-danger">{error}</span>}
+    </div>
+  );
+}
+
+function PricingCatalogTab({ catalog, onReload }: { catalog: CatalogItem[]; onReload: () => void }) {
+  const sellable = catalog.filter(c => SELLABLE_KEYS.includes(c.feature_key));
+  const byCategory = sellable.reduce<Record<string, CatalogItem[]>>((acc, c) => {
+    if (!acc[c.category]) acc[c.category] = [];
+    acc[c.category].push(c);
     return acc;
   }, {});
 
+  return (
+    <div className="space-y-6">
+      <p className="text-xs text-ink-muted">
+        Prices shown to clients when they build their subscription cart. &ldquo;Unit&rdquo; is the price for
+        each extra unit beyond &ldquo;Included&rdquo; (used by quantity-based items like Telecaller Seats and
+        Numbers Pool, and overage pricing on metered items like Outbound Messaging).
+      </p>
+      {Object.entries(byCategory).map(([category, items]) => {
+        const Icon = CATEGORY_ICONS[category] || Zap;
+        return (
+          <div key={category} className="bg-white rounded-card border border-border p-5 shadow-sm">
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide flex items-center gap-1.5 mb-3">
+              <Icon size={12} /> {CATEGORY_LABELS[category] || category}
+            </p>
+            <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 pb-2 text-[11px] font-medium text-ink-muted uppercase tracking-wide">
+              <span>Item</span>
+              <span className="text-right w-24">Price</span>
+              <span className="text-right w-24">Unit</span>
+              <span className="text-right w-24">Included</span>
+              <span className="w-20" />
+            </div>
+            {items.map(item => (
+              <CatalogRow key={item.feature_key} item={item} onSaved={onReload} />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// --- Packages tab -----------------------------------------------------------
+
+interface PackageFormState {
+  id: string | null;
+  name: string;
+  discountPercent: string;
+  items: Record<string, number>;
+}
+
+function emptyPackageForm(): PackageFormState {
+  return { id: null, name: "", discountPercent: "0", items: {} };
+}
+
+function PackagesTab({ catalog, packages, onReload }: { catalog: CatalogItem[]; packages: PlanRow[]; onReload: () => void }) {
+  const [form, setForm] = useState<PackageFormState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PlanRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const sellable = catalog.filter(c => SELLABLE_KEYS.includes(c.feature_key));
+  const priceByKey = Object.fromEntries(sellable.map(c => [c.feature_key, itemPrice(c)]));
+
   function openCreate() {
-    setForm(emptyForm());
+    setForm(emptyPackageForm());
   }
 
-  function openEdit(plan: Plan) {
-    const quotas: Record<string, string> = {};
-    for (const metric of QUOTA_METRICS) {
-      const value = plan.quotas[metric.key];
-      quotas[metric.key] = value ? String(value) : "";
-    }
-    setForm({
-      id: plan.id,
-      name: plan.name,
-      monthly_price: String(plan.monthly_price),
-      feature_keys: new Set(plan.feature_keys),
-      quotas,
-    });
+  function openEdit(pkg: PlanRow) {
+    const items: Record<string, number> = {};
+    for (const item of pkg.feature_keys) items[item.feature_key] = item.quantity;
+    setForm({ id: pkg.id, name: pkg.name, discountPercent: String(pkg.discount_percent), items });
   }
 
-  function toggleFeature(key: string) {
+  function toggleItem(key: string) {
     setForm(prev => {
       if (!prev) return prev;
-      const next = new Set(prev.feature_keys);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return { ...prev, feature_keys: next };
+      const next = { ...prev.items };
+      if (key in next) delete next[key];
+      else next[key] = 1;
+      return { ...prev, items: next };
     });
   }
 
-  function setQuota(key: string, value: string) {
-    setForm(prev => (prev ? { ...prev, quotas: { ...prev.quotas, [key]: value } } : prev));
+  function setQuantity(key: string, qty: number) {
+    setForm(prev => (prev ? { ...prev, items: { ...prev.items, [key]: Math.max(1, qty) } } : prev));
   }
+
+  const discountPercent = form ? parseFloat(form.discountPercent) || 0 : 0;
+  const subtotal = form
+    ? Object.entries(form.items).reduce((sum, [key, qty]) => sum + (priceByKey[key] ?? 0) * qty, 0)
+    : 0;
+  const computedPrice = subtotal * (1 - discountPercent / 100);
 
   async function handleSave() {
     if (!form || !form.name.trim()) return;
     setSaving(true);
     setError(null);
-    const quotas: Record<string, number> = {};
-    for (const metric of QUOTA_METRICS) {
-      const raw = form.quotas[metric.key];
-      const parsed = raw ? parseInt(raw, 10) : 0;
-      if (parsed > 0) quotas[metric.key] = parsed;
-    }
     const payload = {
       name: form.name.trim(),
-      monthly_price: parseFloat(form.monthly_price) || 0,
-      feature_keys: Array.from(form.feature_keys),
-      quotas,
+      discount_percent: discountPercent,
+      items: Object.entries(form.items).map(([feature_key, quantity]) => ({ feature_key, quantity })),
     };
     try {
       if (form.id) {
@@ -149,9 +249,9 @@ export default function SubscriptionPage() {
         await operatorFetch("/api/v1/operator/plans", { method: "POST", body: JSON.stringify(payload) });
       }
       setForm(null);
-      await load();
+      onReload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save plan");
+      setError(e instanceof Error ? e.message : "Failed to save package");
     } finally {
       setSaving(false);
     }
@@ -163,68 +263,64 @@ export default function SubscriptionPage() {
     try {
       await operatorFetch(`/api/v1/operator/plans/${deleteTarget.id}`, { method: "DELETE" });
       setDeleteTarget(null);
-      await load();
+      onReload();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete plan");
+      setError(e instanceof Error ? e.message : "Failed to delete package");
     } finally {
       setDeleting(false);
     }
   }
 
-  if (loading) {
-    return <div className="p-7 text-sm text-ink-muted">Loading plans…</div>;
-  }
-
   return (
-    <div className="p-7 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-lg font-bold text-ink">Subscription Plans</h1>
-          <p className="text-xs text-ink-muted mt-0.5">Create and edit the plans tenants can be assigned to.</p>
-        </div>
+        <p className="text-xs text-ink-muted max-w-lg">
+          Packages are optional discounted bundles shown as a one-click shortcut in the client&apos;s cart.
+          Prices are always computed from the Pricing Catalog — you only set a discount.
+        </p>
         <button
           onClick={openCreate}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-dark transition-colors"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-dark transition-colors shrink-0"
         >
-          <Plus size={15} /> New Plan
+          <Plus size={15} /> New Package
         </button>
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 border border-danger/20 rounded-xl text-sm text-danger">{error}</div>
-      )}
+      {error && <div className="p-3 bg-red-50 border border-danger/20 rounded-xl text-sm text-danger">{error}</div>}
 
-      {plans.length === 0 ? (
+      {packages.length === 0 ? (
         <div className="rounded-card border border-dashed border-border p-10 text-center">
-          <CreditCard size={28} className="mx-auto text-ink-muted mb-3" />
-          <p className="text-sm font-medium text-ink">No plans yet</p>
-          <p className="text-xs text-ink-muted mt-1">Create the first plan to start assigning it to tenants.</p>
+          <Package size={28} className="mx-auto text-ink-muted mb-3" />
+          <p className="text-sm font-medium text-ink">No packages yet</p>
+          <p className="text-xs text-ink-muted mt-1">Clients can still build a cart item-by-item without one.</p>
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {plans.map(plan => (
-            <div key={plan.id} className="bg-white rounded-card border border-border p-5 shadow-sm">
+          {packages.map(pkg => (
+            <div key={pkg.id} className="bg-white rounded-card border border-border p-5 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="text-sm font-semibold text-ink">{plan.name}</h3>
+                  <h3 className="text-sm font-semibold text-ink">{pkg.name}</h3>
                   <p className="text-lg font-bold text-primary mt-1">
-                    ₹{plan.monthly_price.toLocaleString("en-IN")}
+                    ₹{pkg.monthly_price.toLocaleString("en-IN")}
                     <span className="text-xs font-medium text-ink-muted">/mo</span>
                   </p>
+                  {pkg.discount_percent > 0 && (
+                    <span className="inline-block mt-1 text-[11px] font-medium text-success bg-success/10 rounded-full px-2 py-0.5">
+                      {pkg.discount_percent}% off
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(plan)} className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-mid hover:text-ink" title="Edit plan">
+                  <button onClick={() => openEdit(pkg)} className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-mid hover:text-ink" title="Edit package">
                     <Pencil size={14} />
                   </button>
-                  <button onClick={() => setDeleteTarget(plan)} className="p-1.5 rounded-lg text-ink-muted hover:bg-red-50 hover:text-danger" title="Delete plan">
+                  <button onClick={() => setDeleteTarget(pkg)} className="p-1.5 rounded-lg text-ink-muted hover:bg-red-50 hover:text-danger" title="Delete package">
                     <Trash2 size={14} />
                   </button>
                 </div>
               </div>
-              <p className="text-xs text-ink-muted mt-3">{plan.feature_keys.length} features included</p>
-              <p className="text-xs text-ink-muted mt-1 flex items-center gap-1">
-                <Users size={12} /> {plan.tenant_count} tenant{plan.tenant_count === 1 ? "" : "s"} assigned
-              </p>
+              <p className="text-xs text-ink-muted mt-3">{pkg.feature_keys.length} items included</p>
             </div>
           ))}
         </div>
@@ -232,78 +328,58 @@ export default function SubscriptionPage() {
 
       {form && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-card shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6">
-            <h2 className="text-lg font-bold text-ink mb-4">{form.id ? "Edit Plan" : "New Plan"}</h2>
+          <div className="bg-white rounded-card shadow-xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6">
+            <h2 className="text-lg font-bold text-ink mb-4">{form.id ? "Edit Package" : "New Package"}</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm font-medium text-ink-secondary block mb-1">Plan Name *</label>
+                  <label className="text-sm font-medium text-ink-secondary block mb-1">Package Name *</label>
                   <input
                     value={form.name}
                     onChange={e => setForm(prev => (prev ? { ...prev, name: e.target.value } : prev))}
                     className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="Growth"
+                    placeholder="Starter Bundle"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-ink-secondary block mb-1">Monthly Price (₹) *</label>
+                  <label className="text-sm font-medium text-ink-secondary block mb-1">Discount (%)</label>
                   <input
-                    type="number"
-                    min="0"
-                    value={form.monthly_price}
-                    onChange={e => setForm(prev => (prev ? { ...prev, monthly_price: e.target.value } : prev))}
+                    type="number" min="0" max="100"
+                    value={form.discountPercent}
+                    onChange={e => setForm(prev => (prev ? { ...prev, discountPercent: e.target.value } : prev))}
                     className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="9999"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-2">Usage Quotas</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {QUOTA_METRICS.map(metric => (
-                    <div key={metric.key}>
-                      <label className="text-xs text-ink-muted block mb-1">{metric.label}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={form.quotas[metric.key] ?? ""}
-                        onChange={e => setQuota(metric.key, e.target.value)}
-                        className="w-full border border-border rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        placeholder="0"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-ink-secondary block mb-2">Features Included</label>
-                <div className="space-y-4 max-h-64 overflow-y-auto border border-border rounded-xl p-3">
-                  {Object.entries(catalogByCategory).map(([category, features]) => {
-                    const Icon = CATEGORY_ICONS[category] || Zap;
+                <label className="text-sm font-medium text-ink-secondary block mb-2">Items</label>
+                <div className="space-y-2 max-h-56 overflow-y-auto border border-border rounded-xl p-3">
+                  {sellable.map(item => {
+                    const selected = item.feature_key in form.items;
                     return (
-                      <div key={category}>
-                        <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide flex items-center gap-1.5 mb-1.5">
-                          <Icon size={12} /> {CATEGORY_LABELS[category] || category}
-                        </p>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          {features.map(f => (
-                            <label key={f.feature_key} className="flex items-center gap-2 text-sm text-ink-secondary cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={form.feature_keys.has(f.feature_key)}
-                                onChange={() => toggleFeature(f.feature_key)}
-                                className="rounded border-border"
-                              />
-                              {f.display_name}
-                            </label>
-                          ))}
-                        </div>
+                      <div key={item.feature_key} className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 text-sm text-ink-secondary cursor-pointer">
+                          <input type="checkbox" checked={selected} onChange={() => toggleItem(item.feature_key)} className="rounded border-border" />
+                          {item.display_name}
+                          <span className="text-xs text-ink-muted">₹{itemPrice(item).toLocaleString("en-IN")}</span>
+                        </label>
+                        {selected && item.unit_price !== null && (
+                          <input
+                            type="number" min="1" value={form.items[item.feature_key]}
+                            onChange={e => setQuantity(item.feature_key, parseInt(e.target.value, 10) || 1)}
+                            className="w-16 border border-border rounded-lg px-2 py-1 text-sm text-center"
+                          />
+                        )}
                       </div>
                     );
                   })}
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between border-t border-border-subtle pt-3">
+                <span className="text-sm text-ink-muted">Computed price</span>
+                <span className="text-lg font-bold text-ink">₹{computedPrice.toLocaleString("en-IN")}/mo</span>
               </div>
             </div>
 
@@ -316,10 +392,10 @@ export default function SubscriptionPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || !form.name.trim()}
+                disabled={saving || !form.name.trim() || Object.keys(form.items).length === 0}
                 className="flex-1 px-4 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-dark disabled:opacity-50"
               >
-                {saving ? "Saving…" : form.id ? "Save Changes" : "Create Plan"}
+                {saving ? "Saving…" : form.id ? "Save Changes" : "Create Package"}
               </button>
             </div>
           </div>
@@ -331,9 +407,8 @@ export default function SubscriptionPage() {
           <div className="bg-white rounded-card shadow-xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold text-ink mb-2">Delete {deleteTarget.name}?</h3>
             <p className="text-sm text-ink-secondary mb-6">
-              {deleteTarget.tenant_count > 0
-                ? `${deleteTarget.tenant_count} tenant${deleteTarget.tenant_count === 1 ? "" : "s"} currently on this plan will keep their entitlements, but this plan will no longer be assignable to new tenants.`
-                : "This plan is not assigned to any tenant."}
+              Tenants who started from this package keep their entitlements — it just stops being offered
+              as a cart shortcut going forward.
             </p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteTarget(null)} className="flex-1 px-4 py-2.5 border border-border text-sm text-ink-secondary rounded-xl hover:bg-surface-mid">
@@ -345,6 +420,74 @@ export default function SubscriptionPage() {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// --- Page --------------------------------------------------------------
+
+export default function SubscriptionPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") || "catalog";
+
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+  const [packages, setPackages] = useState<PlanRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    return loadCatalogAndPackages()
+      .then(({ catalog: c, packages: p }) => {
+        setCatalog(c);
+        setPackages(p);
+        setError(null);
+      })
+      .catch(e => setError(e instanceof Error ? e.message : "Request failed"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="p-7 space-y-6">
+      <div>
+        <h1 className="font-display text-lg font-bold text-ink">Subscription</h1>
+        <p className="text-xs text-ink-muted mt-0.5">Price the catalog clients build their cart from, and author discounted packages.</p>
+      </div>
+
+      <div className="flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 w-fit">
+        <button
+          onClick={() => router.push(`${pathname}?tab=catalog`)}
+          className={cn(
+            "rounded-xl px-4 py-2 text-xs font-bold transition-all",
+            activeTab === "catalog" ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+          )}
+        >
+          Pricing Catalog
+        </button>
+        <button
+          onClick={() => router.push(`${pathname}?tab=packages`)}
+          className={cn(
+            "rounded-xl px-4 py-2 text-xs font-bold transition-all",
+            activeTab === "packages" ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+          )}
+        >
+          Packages
+        </button>
+      </div>
+
+      {error && <div className="p-3 bg-red-50 border border-danger/20 rounded-xl text-sm text-danger">{error}</div>}
+
+      {loading ? (
+        <div className="text-sm text-ink-muted">Loading…</div>
+      ) : activeTab === "packages" ? (
+        <PackagesTab catalog={catalog} packages={packages} onReload={load} />
+      ) : (
+        <PricingCatalogTab catalog={catalog} onReload={load} />
       )}
     </div>
   );
