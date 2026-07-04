@@ -291,7 +291,7 @@ def get_features_catalog(_admin: dict = Depends(get_system_admin)):
     db = get_supabase()
     catalog = execute_with_retry(
         db.table("feature_catalog").select(
-            "feature_key, display_name, category, pillar, monthly_price, is_metered, usage_metric, included_qty"
+            "feature_key, display_name, category, pillar, monthly_price, unit_price, is_metered, usage_metric, included_qty"
         ).order("category").order("sort_order")
     )
     return {"data": catalog.data or []}
