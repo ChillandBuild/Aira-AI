@@ -632,7 +632,18 @@ def list_subscription_requests(status: str | None = None, _admin: dict = Depends
     if status:
         query = query.eq("status", status)
     result = query.execute()
-    return {"data": result.data or []}
+    rows = result.data or []
+
+    tenant_ids = list({r["tenant_id"] for r in rows})
+    names_by_id: dict[str, str] = {}
+    if tenant_ids:
+        tenants = db.table("tenants").select("id, name").in_("id", tenant_ids).execute()
+        names_by_id = {t["id"]: t["name"] for t in (tenants.data or [])}
+
+    for r in rows:
+        r["tenant_name"] = names_by_id.get(r["tenant_id"], "Unknown")
+
+    return {"data": rows}
 
 
 class ReviewRequestPayload(BaseModel):
@@ -782,6 +793,16 @@ def wipe_leads(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         metadata={"tenant_name": tenant.data["name"], "deleted_leads": deleted},
     )
     return {"deleted": deleted, "tenant_id": tenant_id}
+
+
+@router.get("/clients/{tenant_id}/entitlements")
+def get_client_entitlements(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    items = db.table("tenant_subscription_items").select(
+        "feature_key, quantity, unit_price_snapshot"
+    ).eq("tenant_id", tenant_id).execute()
+    sub = db.table("tenant_subscriptions").select("status").eq("tenant_id", tenant_id).maybe_single().execute()
+    return {"data": {"items": items.data or [], "status": (sub.data or {}).get("status", "none")}}
 
 
 @router.get("/clients/{tenant_id}/usage")
