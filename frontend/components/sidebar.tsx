@@ -40,6 +40,26 @@ export function Sidebar() {
   const pathname = usePathname();
   const { role, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
+  const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth });
+        if (res.ok && active) {
+          const data = await res.json();
+          setSubStatus(data.status);
+        } else if (active) {
+          setSubStatus("active");
+        }
+      } catch {
+        if (active) setSubStatus("active");
+      }
+    })();
+    return () => { active = false; };
+  }, []);
   
   // Track open/collapsed state of nested groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -92,11 +112,13 @@ export function Sidebar() {
     };
   }, [waEnabled, fetchCount]);
 
-  if (roleLoading) {
+  if (roleLoading || subStatus === "loading") {
     return (
-      <aside className="fixed left-0 top-0 h-full w-[220px] bg-background z-20" />
+      <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] z-20" />
     );
   }
+
+  const isSubscribed = subStatus === "active";
 
   // Gate telecalling sub-items by sub-feature flags with backwards compatibility
   const hasTcSubFeatures = enabledFeatures.some(f => f.startsWith("telecalling."));
@@ -158,7 +180,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Conversations */}
-        {messagingOn && <Link
+        {isSubscribed && messagingOn && <Link
           href="/dashboard/conversations"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
@@ -177,7 +199,7 @@ export function Sidebar() {
         </Link>}
 
         {/* TOP LEVEL: Leads */}
-        {role === "owner" && messagingOn && (
+        {isSubscribed && role === "owner" && messagingOn && (
           <Link
             href="/dashboard/leads"
             className={cn(
@@ -193,7 +215,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Inbound Leads */}
-        {role === "owner" && inboundOn && (
+        {isSubscribed && role === "owner" && inboundOn && (
           <Link
             href="/dashboard/inbound-leads"
             className={cn(
@@ -209,7 +231,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Outbound Leads */}
-        {role === "owner" && outboundOn && (
+        {isSubscribed && role === "owner" && outboundOn && (
           <Link
             href="/dashboard/outbound-leads"
             className={cn(
@@ -225,7 +247,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Templates */}
-        {role === "owner" && outboundOn && (
+        {isSubscribed && role === "owner" && outboundOn && (
           <Link
             href="/dashboard/templates"
             className={cn(
@@ -241,7 +263,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Numbers Pool */}
-        {role === "owner" && messagingOn && (
+        {isSubscribed && role === "owner" && messagingOn && (
           <Link
             href="/dashboard/numbers"
             className={cn(
@@ -257,7 +279,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Knowledge Base */}
-        {role === "owner" && messagingOn && (
+        {isSubscribed && role === "owner" && messagingOn && (
           <Link
             href="/dashboard/knowledge"
             className={cn(
@@ -273,7 +295,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Analytics */}
-        {role === "owner" && messagingOn && (
+        {isSubscribed && role === "owner" && messagingOn && (
           <Link
             href="/dashboard/analytics"
             className={cn(
@@ -305,7 +327,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Team */}
-        {role === "owner" && (
+        {isSubscribed && role === "owner" && (
           <Link
             href="/dashboard/team"
             className={cn(
@@ -323,7 +345,7 @@ export function Sidebar() {
 
 
         {/* GROUP: Telecalling */}
-        {telecallingOn && tcGroupItems.length > 0 && (
+        {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
           <div className="space-y-0.5">
             <button
               onClick={() => toggleGroup("Telecalling")}

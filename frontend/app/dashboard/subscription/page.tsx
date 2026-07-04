@@ -91,6 +91,34 @@ export default function SubscriptionPage() {
 
   const catalogByKey = new Map(catalog.map((c) => [c.feature_key, c]));
   const isPending = me.latest_request?.status === "submitted";
+  const wasRejected = me.latest_request?.status === "rejected";
+
+  if (me.status === "none" || me.status === "pending_approval") {
+    const isInitialPending = me.status === "pending_approval";
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 animate-slide-up">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-ink">Choose your plan</h1>
+          <p className="text-sm text-ink-muted">Pick the features you need — your account unlocks once an admin approves your request.</p>
+        </div>
+
+        {wasRejected && me.latest_request?.rejection_reason && (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+            Your previous request was declined: {me.latest_request.rejection_reason}. Please revise and resubmit below.
+          </div>
+        )}
+
+        {isInitialPending && !wasRejected ? (
+          <div className="rounded-2xl border border-border bg-white p-8 text-center shadow-sm">
+            <p className="font-semibold text-ink">Submitted — awaiting admin approval</p>
+            <p className="mt-2 text-sm text-ink-muted">We&apos;ll notify you as soon as it&apos;s reviewed.</p>
+          </div>
+        ) : (
+          <CartBuilder mode="initial" existingItems={me.items} onSubmitted={load} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

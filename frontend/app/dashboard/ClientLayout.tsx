@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { AuthRoleProvider } from "./contexts/AuthRoleContext";
 import { ActiveCallProvider } from "./contexts/ActiveCallContext";
@@ -12,7 +12,6 @@ import { MobileDashboardNav } from "@/components/MobileDashboardNav";
 import { MoreMenu } from "@/components/MoreMenu";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { NotificationProvider } from "@/hooks/useNotifications";
-import SubscriptionsPage from "./subscriptions/page";
 
 const PING_INTERVAL_MS = 8 * 60 * 1000; // 8 min — keeps Render warm (sleeps after 15 min)
 
@@ -60,20 +59,23 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const router = useRouter();
+
   useEffect(() => {
     setIsInboxSidebarOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    if (subStatus === "none" || subStatus === "pending_approval") {
+      const allowed = pathname === "/dashboard" || pathname === "/dashboard/subscription";
+      if (!allowed) {
+        router.replace("/dashboard");
+      }
+    }
+  }, [subStatus, pathname, router]);
+
   if (subStatus === "loading") {
     return <div className="min-h-screen bg-background" />;
-  }
-
-  if (subStatus === "none" || subStatus === "pending_approval") {
-    return (
-      <AuthRoleProvider>
-        <SubscriptionsPage />
-      </AuthRoleProvider>
-    );
   }
 
   if (isInbox) {

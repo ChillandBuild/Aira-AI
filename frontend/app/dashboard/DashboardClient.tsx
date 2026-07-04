@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnalyticsOverview } from "@/lib/api";
 import { useOverview } from "@/hooks/useApi";
@@ -10,10 +10,12 @@ import {
   Inbox,
   Send as SendIcon,
   RefreshCw,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuthRole } from "./contexts/AuthRoleContext";
 import { cn } from "@/lib/utils";
+import { API_URL, getAuthHeaders } from "@/lib/api";
 
 const SEGMENT_CONFIG: Record<"A" | "B" | "C" | "D", { label: string; tone: string; bar: string; bg: string }> = {
   A: { label: "Hot", tone: "text-emerald-700", bar: "bg-emerald-500", bg: "bg-emerald-50" },
@@ -156,6 +158,27 @@ function TodaySnapshot({ overview }: { overview: AnalyticsOverview | null }) {
 export function DashboardClient({ fallbackOverview }: { fallbackOverview: AnalyticsOverview | null }) {
   const { role, loading: roleLoading } = useAuthRole();
   const router = useRouter();
+  const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth });
+        if (res.ok && active) {
+          const data = await res.json();
+          setSubStatus(data.status);
+        } else if (active) {
+          setSubStatus("active");
+        }
+      } catch {
+        if (active) setSubStatus("active");
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
   // Seeded from the server for owners (instant paint); callers get null and are
   // redirected below. Enable the SWR key when role confirms owner OR we already
   // have server-seeded data (server only returns 200 to owners).
@@ -170,6 +193,49 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
       router.replace("/dashboard/profile");
     }
   }, [role, roleLoading, router]);
+
+  if (roleLoading || subStatus === "loading") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <RefreshCw size={24} className="animate-spin text-ink" />
+      </div>
+    );
+  }
+
+  if (subStatus === "none" || subStatus === "pending_approval") {
+    const isPending = subStatus === "pending_approval";
+    return (
+      <div className="animate-slide-up space-y-6 max-w-4xl">
+        <div className="card rounded-[32px] p-8 border border-border bg-gradient-to-br from-primary-light to-white shadow-sm">
+          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Sparkles size={24} />
+          </div>
+          <h1 className="font-display text-3xl font-bold text-ink mb-2">Welcome to Aira AI</h1>
+          <p className="text-sm text-ink-muted leading-relaxed max-w-2xl">
+            You have successfully set up your workspace credentials! To begin engaging leads with intelligent telecalling campaigns, custom WhatsApp automation, and live chat, please configure your subscription.
+          </p>
+
+          <div className="mt-8 rounded-2xl bg-white border border-border/80 p-6 max-w-2xl">
+            <h2 className="font-display text-lg font-bold text-ink mb-1.5">
+              {isPending ? "Awaiting admin activation" : "Setup your subscription plan"}
+            </h2>
+            <p className="text-xs text-ink-muted mb-6 leading-relaxed">
+              {isPending
+                ? "Your subscription request has been submitted to the platform operator. Once payment is confirmed, your workspace will be fully unlocked."
+                : "Select from our ready-made quick-start packages or build a custom configuration of channels, seats, and numbers matching your scale."}
+            </p>
+            <Link
+              href="/dashboard/subscription"
+              className="btn-primary inline-flex items-center gap-2 text-sm font-semibold transition-all duration-200"
+            >
+              <span>{isPending ? "View Subscription Status" : "Configure Subscription"}</span>
+              <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Gate on DATA presence, not role: seeded owners skip the spinner entirely.
   if (!overview) {
