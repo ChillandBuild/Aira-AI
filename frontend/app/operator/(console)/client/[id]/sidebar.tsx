@@ -136,13 +136,7 @@ export function ClientDetailSidebar({
           <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[#5b21b6]" : ""}`} />
           <span className={`text-sm font-semibold truncate ${!enabled && !active ? "line-through" : ""}`}>{item.label}</span>
         </div>
-        {interactive ? (
-          <FeatureToggle featureKey={item.featureKey} />
-        ) : (
-          <span className={`text-[10px] font-semibold uppercase tracking-wide flex-shrink-0 ${enabled ? "text-[#5b21b6]" : "text-[#a8a29e]"}`}>
-            {enabled ? "Included" : "—"}
-          </span>
-        )}
+        {interactive && <FeatureToggle featureKey={item.featureKey} />}
       </div>
     );
   }
