@@ -1435,6 +1435,13 @@ export const api = {
       const res = await apiFetch<{ data: { id: string; campaign_name: string; platform: string }[] }>(`/api/v1/inbound-leads/campaigns`);
       return res.data || [];
     },
+    googleLink: async (campaign: string, gclid?: string) => {
+      const qs = new URLSearchParams({ campaign });
+      if (gclid) qs.set("gclid", gclid);
+      return apiFetch<{ link: string; campaign_slug: string; whatsapp_number: string }>(
+        `/api/v1/inbound-leads/google-link?${qs}`
+      );
+    },
     list: async (params?: {
       origin?: string;
       segment?: string;

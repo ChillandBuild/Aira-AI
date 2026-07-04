@@ -18,9 +18,11 @@ import logging
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from fastapi import HTTPException
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id
 from app.services.inbound_leads_logic import INBOUND_SOURCES
+from app.services.google_ads_attribution import build_tracked_wa_link, slugify_campaign
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -197,6 +199,54 @@ async def list_campaigns(tenant_id: str = Depends(get_tenant_id)):
     except Exception as e:
         logger.error(f"inbound-leads campaigns fetch error: {e}")
         return {"data": []}
+
+
+def _primary_whatsapp_number(db, tenant_id: str) -> str | None:
+    """The tenant's active primary WhatsApp number, for building wa.me links."""
+    result = (
+        db.table("phone_numbers")
+        .select("number,role")
+        .eq("tenant_id", tenant_id)
+        .eq("status", "active")
+        .execute()
+    )
+    rows = result.data or []
+    if not rows:
+        return None
+    primary = next((r for r in rows if r.get("role") == "primary"), None)
+    return (primary or rows[0]).get("number")
+
+
+@router.get("/google-link")
+async def generate_google_ads_link(
+    campaign: str = Query(..., min_length=1, max_length=80),
+    gclid: str | None = Query(None, max_length=200),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Generate a tracked wa.me link for a Google Ads campaign CTA.
+
+    The returned link carries a [GADS:<slug>] tag in its pre-filled text so the
+    WhatsApp webhook can attribute inbound leads to this Google campaign. Point
+    the Google ad at `link` and every click becomes an attributed lead.
+    """
+    slug = slugify_campaign(campaign)
+    if not slug:
+        raise HTTPException(status_code=400, detail="Campaign name must contain letters or numbers.")
+
+    db = get_supabase()
+    number = _primary_whatsapp_number(db, tenant_id)
+    if not number:
+        raise HTTPException(
+            status_code=400,
+            detail="No active WhatsApp number found. Activate WhatsApp before generating a link.",
+        )
+
+    try:
+        link = build_tracked_wa_link(number, slug, gclid=(gclid or None))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {"link": link, "campaign_slug": slug, "whatsapp_number": number}
 
 
 @router.get("/")
