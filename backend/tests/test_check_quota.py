@@ -23,6 +23,11 @@ def _row(data):
 class CheckQuotaTests(unittest.TestCase):
     def _make_db(self, counter_row):
         tbl = MagicMock()
+        # tenant_subscriptions lookup (single .eq) inside get_billing_period,
+        # called before the counter read — no anchor configured, so it falls
+        # back to the plain calendar-month period key.
+        tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = _row(None)
+        # tenant_usage_counters lookup (three .eq calls) — the actual quota row.
         tbl.select.return_value.eq.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = _row(counter_row)
         db = MagicMock()
         db.table.return_value = tbl

@@ -1,8 +1,87 @@
+import calendar
 import logging
 from supabase import Client
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 logger = logging.getLogger(__name__)
+
+USAGE_METRICS = (
+    "message_sent", "ai_reply", "call_minute", "team_seat_active",
+    "storage_gb", "ai_call_summary", "ai_call_scoring", "phone_number",
+)
+
+
+def add_one_month(d: date) -> date:
+    """Same day next month, clamped to the shorter month's last day (e.g.
+    Jan 31 -> Feb 28/29) — how a billing cycle anchored to a purchase date
+    advances (approved 2026-07-04 -> renews 2026-08-04)."""
+    month = d.month + 1
+    year = d.year + (month - 1) // 12
+    month = ((month - 1) % 12) + 1
+    day = min(d.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def compute_period_key(period_start_raw: str | None, period_end_raw: str | None) -> str:
+    """
+    Pure calculation of the current billing-period key from a tenant's
+    anchored `period_start`/`period_end` — no DB writes. Tenants with no
+    anchor yet (pre-existing/grandfathered, or never approved) fall back to
+    a plain calendar-month key.
+    """
+    if not period_start_raw or not period_end_raw:
+        return datetime.now(timezone.utc).strftime("%Y-%m")
+    period_start = date.fromisoformat(period_start_raw)
+    period_end = date.fromisoformat(period_end_raw)
+    today = datetime.now(timezone.utc).date()
+    while today >= period_end:
+        period_start, period_end = period_end, add_one_month(period_end)
+    return period_start.isoformat()
+
+
+def get_billing_period(db: Client, tenant_id: str) -> str:
+    """
+    Return the tenant's current billing-period key, rolling the cycle
+    forward and resetting usage counters (fresh `included` from current
+    entitlements, `used` back to 0) if the anchored `period_end` has
+    passed. Cycles are anchored to the tenant's subscription approval date
+    rather than the calendar month — set once at first approval in
+    `subscription_requests.approve_request` and advanced lazily here on
+    read/write rather than via a scheduled job, so there's no missed-cron
+    risk. Safe to call from single-tenant, mutation-tolerant paths (quota
+    checks, usage metering, the client's own `/me`); bulk/list views should
+    use the pure `compute_period_key` instead to avoid write side effects.
+    """
+    sub = db.table("tenant_subscriptions").select("period_start, period_end").eq(
+        "tenant_id", tenant_id
+    ).maybe_single().execute()
+    row = sub.data if sub else None
+    period_start_raw = (row or {}).get("period_start")
+    period_end_raw = (row or {}).get("period_end")
+
+    key = compute_period_key(period_start_raw, period_end_raw)
+    if not period_start_raw or key == period_start_raw:
+        return key
+
+    # Rolled forward — persist the new anchor and reset counters for the
+    # new cycle using fresh entitlement quotas.
+    period_end = add_one_month(date.fromisoformat(key))
+    db.table("tenant_subscriptions").update({
+        "period_start": key,
+        "period_end": period_end.isoformat(),
+    }).eq("tenant_id", tenant_id).execute()
+
+    ent = resolve_entitlements(db, tenant_id)
+    for metric in USAGE_METRICS:
+        db.table("tenant_usage_counters").upsert({
+            "tenant_id": tenant_id,
+            "period": key,
+            "metric": metric,
+            "used": 0,
+            "included": ent["quotas"].get(metric, 0),
+        }, on_conflict="tenant_id,period,metric").execute()
+
+    return key
 
 
 def resolve_entitlements(db: Client, tenant_id: str) -> dict:
@@ -85,7 +164,7 @@ def check_quota(
     included == 0 (no counter row, or a row with included=0) means the
     tenant has not purchased this metric at all — blocked, not unlimited.
     """
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    period = get_billing_period(db, tenant_id)
 
     period_res = db.table("tenant_usage_counters").select(
         "used, included, hard_cap"
@@ -108,7 +187,7 @@ def increment_usage(
     Increment a metered counter and return status.
     Returns {'used': int, 'included': int, 'over_cap': bool, 'warning': bool}
     """
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    period = get_billing_period(db, tenant_id)
 
     counter_res = db.table("tenant_usage_counters").select("used, included, hard_cap").eq(
         "tenant_id", tenant_id

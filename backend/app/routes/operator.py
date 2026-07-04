@@ -11,6 +11,7 @@ from app.dependencies.auth import get_current_user
 from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
+from app.services.entitlements import compute_period_key, get_billing_period
 from app.services.subscription_requests import approve_request, reject_request
 from app.utils.db_retry import execute_with_retry
 
@@ -358,23 +359,32 @@ def _build_fleet_rows(db) -> list[dict]:
     tenant_ids = [t["id"] for t in (tenants.data or [])]
 
     subscriptions: dict = {}
+    period_by_tenant: dict = {}
     if tenant_ids:
         subs = db.table("tenant_subscriptions").select(
-            "tenant_id, mrr"
+            "tenant_id, mrr, period_start, period_end"
         ).in_("tenant_id", tenant_ids).execute()
         for s in (subs.data or []):
             subscriptions[s["tenant_id"]] = s
+            # Pure calculation only (no rollover write) — this is a bulk list
+            # view, so lazily resetting counters as a side effect of a GET
+            # would be surprising; that happens on the tenant's own reads
+            # (check_quota/increment_usage/`/me`) instead.
+            period_by_tenant[s["tenant_id"]] = compute_period_key(s.get("period_start"), s.get("period_end"))
 
     counters_by_tenant: dict = {}
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
     if tenant_ids:
+        distinct_periods = list(set(period_by_tenant.values())) or [datetime.now(timezone.utc).strftime("%Y-%m")]
         counters = db.table("tenant_usage_counters").select(
-            "tenant_id, metric, used, included"
-        ).in_("tenant_id", tenant_ids).eq("period", period).execute()
+            "tenant_id, period, metric, used, included"
+        ).in_("tenant_id", tenant_ids).in_("period", distinct_periods).execute()
         for c in (counters.data or []):
-            if c["tenant_id"] not in counters_by_tenant:
-                counters_by_tenant[c["tenant_id"]] = {}
-            counters_by_tenant[c["tenant_id"]][c["metric"]] = {
+            tid = c["tenant_id"]
+            if c["period"] != period_by_tenant.get(tid, c["period"]):
+                continue
+            if tid not in counters_by_tenant:
+                counters_by_tenant[tid] = {}
+            counters_by_tenant[tid][c["metric"]] = {
                 "used": c["used"] or 0,
                 "included": c["included"] or 0,
             }
@@ -812,17 +822,26 @@ def get_client_entitlements(tenant_id: str, _admin: dict = Depends(get_system_ad
     items = db.table("tenant_subscription_items").select(
         "feature_key, quantity, unit_price_snapshot"
     ).eq("tenant_id", tenant_id).execute()
-    sub = db.table("tenant_subscriptions").select("status").eq("tenant_id", tenant_id).maybe_single().execute()
-    return {"data": {"items": items.data or [], "status": (sub.data or {}).get("status", "none")}}
+    sub = db.table("tenant_subscriptions").select(
+        "status, period_start, period_end"
+    ).eq("tenant_id", tenant_id).maybe_single().execute()
+    sub_data = sub.data or {}
+    return {
+        "data": {
+            "items": items.data or [],
+            "status": sub_data.get("status", "none"),
+            "period_start": sub_data.get("period_start"),
+            "period_end": sub_data.get("period_end"),
+        }
+    }
 
 
 @router.get("/clients/{tenant_id}/usage")
 def get_client_usage(tenant_id: str, _admin: dict = Depends(get_system_admin)):
-    from datetime import datetime, timezone
     db = get_supabase()
-    
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
-    
+
+    period = get_billing_period(db, tenant_id)
+
     counters = db.table("tenant_usage_counters").select(
         "metric, used, included, hard_cap"
     ).eq("tenant_id", tenant_id).eq("period", period).execute()

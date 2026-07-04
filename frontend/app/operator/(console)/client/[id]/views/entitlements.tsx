@@ -101,18 +101,20 @@ export function EntitlementsView({ tenantId }: { tenantId: string }) {
   const [catalog, setCatalog] = useState<FeatureCatalogItem[]>([]);
   const [usage, setUsage] = useState<UsageMetric[]>([]);
   const [status, setStatus] = useState<string>("none");
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
-      apiFetch<{ items: SubscriptionItem[]; status: string }>(`/api/v1/operator/clients/${tenantId}/entitlements`),
+      apiFetch<{ items: SubscriptionItem[]; status: string; period_end: string | null }>(`/api/v1/operator/clients/${tenantId}/entitlements`),
       apiFetch<FeatureCatalogItem[]>("/api/v1/operator/features/catalog"),
       apiFetch<UsageMetric[]>(`/api/v1/operator/clients/${tenantId}/usage`),
     ])
       .then(([ent, catalogData, usageData]) => {
         setItems(ent.items || []);
         setStatus(ent.status || "none");
+        setPeriodEnd(ent.period_end);
         setCatalog(catalogData || []);
         setUsage(Array.isArray(usageData) ? usageData : []);
       })
@@ -149,9 +151,14 @@ export function EntitlementsView({ tenantId }: { tenantId: string }) {
         </div>
         {items.length > 0 ? (
           <div>
-            <p className="text-lg font-bold text-ink mb-3">
+            <p className="text-lg font-bold text-ink mb-1">
               ₹{total.toLocaleString("en-IN")}<span className="text-xs font-medium text-ink-muted">/mo</span>
             </p>
+            {periodEnd && (
+              <p className="mb-3 text-xs text-ink-muted">
+                Current cycle renews {new Date(periodEnd).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              </p>
+            )}
             <div className="grid gap-1.5 md:grid-cols-2">
               {items.map(item => (
                 <div key={item.feature_key} className="flex items-center gap-1.5 text-sm text-ink-secondary">

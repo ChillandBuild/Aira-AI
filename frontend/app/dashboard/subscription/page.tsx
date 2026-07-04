@@ -9,9 +9,15 @@ interface UsageMetric { metric: string; used: number; included: number; hard_cap
 interface MeResponse {
   status: string;
   mrr: number;
+  period_start: string | null;
+  period_end: string | null;
   items: (SubscriptionItem & { unit_price_snapshot: number })[];
   usage: UsageMetric[];
   latest_request: { status: string; total_amount: number; submitted_at: string; rejection_reason: string | null } | null;
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
 const METRIC_LABELS: Record<string, string> = {
@@ -103,9 +109,14 @@ export default function SubscriptionPage() {
             {me.status.replace("_", " ")}
           </span>
         </div>
-        <p className="mb-4 text-4xl font-bold text-ink">
+        <p className="mb-1 text-4xl font-bold text-ink">
           ₹{me.mrr.toLocaleString("en-IN")}<span className="text-sm font-medium text-ink-muted">/mo</span>
         </p>
+        {me.period_start && me.period_end && (
+          <p className="mb-4 text-xs text-ink-muted">
+            Current cycle: {formatDate(me.period_start)} – {formatDate(me.period_end)} · renews {formatDate(me.period_end)}
+          </p>
+        )}
         <div className="divide-y divide-border-subtle rounded-2xl bg-white/70 px-4">
           {me.items.length > 0 ? me.items.map((item) => (
             <div key={item.feature_key} className="flex justify-between py-2.5 text-sm">

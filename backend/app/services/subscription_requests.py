@@ -1,12 +1,9 @@
 import logging
 from datetime import datetime, timezone
 
-logger = logging.getLogger(__name__)
+from app.services.entitlements import USAGE_METRICS, add_one_month, get_billing_period, resolve_entitlements
 
-_USAGE_METRICS = (
-    "message_sent", "ai_reply", "call_minute", "team_seat_active",
-    "storage_gb", "ai_call_summary", "ai_call_scoring", "phone_number",
-)
+logger = logging.getLogger(__name__)
 
 
 def _price_for_item(catalog_row: dict, quantity: int, existing_quantity: int = 0) -> float:
@@ -71,10 +68,18 @@ def submit_request(db, tenant_id: str, requested_items: list[dict], package_id: 
         "is_initial": is_initial,
     }).execute()
 
-    db.table("tenant_subscriptions").upsert({
-        "tenant_id": tenant_id,
-        "status": "pending_approval",
-    }, on_conflict="tenant_id").execute()
+    # Only the tenant's *first* request gates the dashboard behind the
+    # Subscriptions cart. A top-up from an already-active tenant (e.g.
+    # requesting one more phone number) must leave status alone — the rest
+    # of the dashboard, including whatever they already purchased, keeps
+    # working while this specific request is pending; only the new item
+    # itself stays locked (enforced at the action point via
+    # get_purchased_quantity/check_quota) until an admin approves it.
+    if is_initial:
+        db.table("tenant_subscriptions").upsert({
+            "tenant_id": tenant_id,
+            "status": "pending_approval",
+        }, on_conflict="tenant_id").execute()
 
     request_row = inserted.data[0] if inserted.data else {}
     return {**request_row, "total_amount": total_amount}
@@ -86,10 +91,8 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
     quantity on an existing feature_key row rather than duplicating),
     recompute entitlements/usage/mrr, and activate the subscription.
     """
-    from app.services.entitlements import resolve_entitlements
-
     req = db.table("subscription_requests").select(
-        "id, tenant_id, requested_items, package_id, total_amount"
+        "id, tenant_id, requested_items, package_id, total_amount, is_initial"
     ).eq("id", request_id).maybe_single().execute()
     if not req or not req.data:
         raise ValueError(f"subscription_request {request_id} not found")
@@ -97,6 +100,7 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
     tenant_id = req.data["tenant_id"]
     package_id = req.data.get("package_id")
     requested_items = req.data.get("requested_items") or []
+    is_initial = req.data.get("is_initial", True)
 
     feature_keys = [item["feature_key"] for item in requested_items]
     catalog_res = db.table("feature_catalog").select(
@@ -148,8 +152,24 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
     ent = resolve_entitlements(db, tenant_id)
     db.table("tenants").update({"enabled_features": ent["features"]}).eq("id", tenant_id).execute()
 
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
-    for metric in _USAGE_METRICS:
+    # First-ever approval anchors the billing cycle to today (e.g. approved
+    # 2026-07-04 -> renews 2026-08-04, not reset on the calendar month
+    # boundary). A later top-up approval just uses whatever cycle is
+    # currently active — rolling it forward first if it's already lapsed —
+    # and only raises `included` for the remaining current cycle; it must
+    # not reset `used`, since the tenant's existing purchases (and the
+    # usage they've already run up this cycle) keep working unaffected by
+    # the new item being approved.
+    subscription_update: dict = {"status": "active"}
+    if is_initial:
+        today = datetime.now(timezone.utc).date()
+        period = today.isoformat()
+        subscription_update["period_start"] = period
+        subscription_update["period_end"] = add_one_month(today).isoformat()
+    else:
+        period = get_billing_period(db, tenant_id)
+
+    for metric in USAGE_METRICS:
         included = ent["quotas"].get(metric, 0)
         db.table("tenant_usage_counters").upsert({
             "tenant_id": tenant_id,
@@ -160,11 +180,9 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
 
     all_items = db.table("tenant_subscription_items").select("quantity, unit_price_snapshot").eq("tenant_id", tenant_id).execute()
     mrr = sum((r.get("quantity") or 0) * (r.get("unit_price_snapshot") or 0) for r in (all_items.data or []))
+    subscription_update["mrr"] = mrr
 
-    db.table("tenant_subscriptions").update({
-        "status": "active",
-        "mrr": mrr,
-    }).eq("tenant_id", tenant_id).execute()
+    db.table("tenant_subscriptions").update(subscription_update).eq("tenant_id", tenant_id).execute()
 
     updated = db.table("subscription_requests").update({
         "status": "approved",

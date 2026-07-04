@@ -1,11 +1,12 @@
 import logging
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
+from app.services.entitlements import add_one_month, get_billing_period
+from datetime import date
 from app.services.subscription_requests import submit_request
 
 logger = logging.getLogger(__name__)
@@ -29,10 +30,15 @@ def get_my_subscription(ctx: dict = Depends(get_tenant_and_role)):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
 
-    sub = db.table("tenant_subscriptions").select("status, mrr").eq("tenant_id", tenant_id).maybe_single().execute()
+    sub = db.table("tenant_subscriptions").select(
+        "status, mrr, period_start, period_end"
+    ).eq("tenant_id", tenant_id).maybe_single().execute()
     items = db.table("tenant_subscription_items").select("feature_key, quantity, unit_price_snapshot").eq("tenant_id", tenant_id).execute()
 
-    period = datetime.now(timezone.utc).strftime("%Y-%m")
+    # Rolls the tenant's anchored cycle forward (and resets usage) if it's
+    # lapsed, so a client who hasn't opened the app in a while still sees
+    # an up-to-date cycle rather than a stale, long-expired one.
+    period = get_billing_period(db, tenant_id)
     usage = db.table("tenant_usage_counters").select("metric, used, included, hard_cap").eq("tenant_id", tenant_id).eq("period", period).execute()
 
     pending = db.table("subscription_requests").select(
@@ -40,9 +46,17 @@ def get_my_subscription(ctx: dict = Depends(get_tenant_and_role)):
     ).eq("tenant_id", tenant_id).order("submitted_at", desc=True).limit(1).execute()
     latest_request = (pending.data or [None])[0]
 
+    sub_data = sub.data or {}
+    # `period` reflects any rollover get_billing_period just performed, so
+    # derive the returned cycle dates from it rather than the `sub_data`
+    # snapshot fetched before that rollover, which would otherwise show a
+    # stale (already-lapsed) end date for one request after a rollover.
+    has_anchor = bool(sub_data.get("period_start"))
     return {
-        "status": (sub.data or {}).get("status", "none"),
-        "mrr": (sub.data or {}).get("mrr", 0),
+        "status": sub_data.get("status", "none"),
+        "mrr": sub_data.get("mrr", 0),
+        "period_start": period if has_anchor else None,
+        "period_end": add_one_month(date.fromisoformat(period)).isoformat() if has_anchor else None,
         "items": items.data or [],
         "usage": usage.data or [],
         "latest_request": latest_request,
