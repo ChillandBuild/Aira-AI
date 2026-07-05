@@ -209,6 +209,55 @@ def get_last_send_error() -> str | None:
     return _LAST_SEND_ERROR
 
 
+def _tts_language_code(text: str) -> str:
+    lang = _detect_lang(text)
+    return {
+        "ta": "ta-IN",
+        "tanglish": "ta-IN",
+        "hi": "hi-IN",
+        "te": "te-IN",
+        "kn": "kn-IN",
+        "ml": "ml-IN",
+    }.get(lang, "en-IN")
+
+
+async def send_whatsapp_voice_reply(
+    to_phone: str,
+    message: str,
+    tenant_id: str | None = None,
+    phone_number_id: str | None = None,
+) -> str | None:
+    try:
+        from app.services.sarvam_client import sarvam_text_to_speech
+        from app.services.meta_cloud import upload_media_to_meta, send_media_message
+
+        audio_bytes = await sarvam_text_to_speech(
+            text=message,
+            target_language_code=_tts_language_code(message),
+            tenant_id=tenant_id,
+        )
+        media_id = await upload_media_to_meta(
+            file_bytes=audio_bytes,
+            mime_type="audio/mpeg",
+            filename="aira-reply.mp3",
+            tenant_id=tenant_id,
+            phone_number_id=phone_number_id,
+        )
+        data = await send_media_message(
+            to_number=to_phone,
+            media_id=media_id,
+            wa_type="audio",
+            tenant_id=tenant_id,
+            phone_number_id=phone_number_id,
+        )
+        mid = (data.get("messages") or [{}])[0].get("id")
+        logger.info(f"Meta voice reply sent to {to_phone}: id={mid}")
+        return mid
+    except Exception as e:
+        logger.error(f"WhatsApp voice reply failed to {to_phone}: {e}")
+        return None
+
+
 async def send_whatsapp(
     to_phone: str,
     message: str,
@@ -698,7 +747,9 @@ async def generate_reply(
             "Tamil script -> reply in Tamil script. English -> reply in English. "
             "Tanglish (Tamil words spelled in English letters, e.g. 'eppo varuvinga', 'jaadhagam paakanum') "
             "-> reply in Tanglish too - do NOT convert it to pure Tamil script or to formal English. "
-            "Never switch styles unless the user explicitly asks you to."
+            "If the customer's latest message explicitly requests a different language (e.g. 'in English please', "
+            "'tamil-la sollunga', 'reply in tamil'), you MUST fully switch to that requested language for this "
+            "reply and continue in it afterward, overriding whatever style earlier messages in the conversation used."
         )
 
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
@@ -744,6 +795,8 @@ async def generate_reply(
         logger.info(f"Trigger B: lead {lead_id} LLM exception - {e}")
 
     # Step 3: Dispatch to the correct channel
+    outbound_media_type: str | None = None
+    outbound_media_mime_type: str | None = None
     if channel == "instagram":
         sid = await send_instagram(ig_user_id, reply_text, tenant_id=lead_data.get("tenant_id")) if ig_user_id else None
     elif channel == "telegram":
@@ -752,7 +805,20 @@ async def generate_reply(
         sid = await send_facebook(fb_user_id, reply_text, tenant_id=lead_data.get("tenant_id")) if fb_user_id else None
     else:
         _wa_phone = phone or lead_data.get("phone")
-        sid = await send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id) if _wa_phone else None
+        sid = None
+        voice_reply_enabled = get_setting("ai_voice_reply_enabled", fallback="false", tenant_id=tenant_id) == "true"
+        if _wa_phone and voice_reply_enabled:
+            sid = await send_whatsapp_voice_reply(
+                _wa_phone,
+                reply_text,
+                tenant_id=lead_data.get("tenant_id"),
+                phone_number_id=phone_number_id,
+            )
+            if sid:
+                outbound_media_type = "audio"
+                outbound_media_mime_type = "audio/mpeg"
+        if _wa_phone and not sid:
+            sid = await send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id)
 
     # Track-only usage metering: count once per AI-generated reply that was
     # actually sent (non-None message id). Never blocks/caps — best-effort only.
@@ -768,7 +834,7 @@ async def generate_reply(
         sid_field = "meta_message_id"
     else:
         sid_field = "meta_message_id"  # instagram uses meta_message_id
-    db.table("messages").insert({
+    outbound_row = {
         "lead_id": str(lead_id),
         "direction": "outbound",
         "channel": channel,
@@ -777,7 +843,11 @@ async def generate_reply(
         "reply_source": reply_source,
         "tenant_id": tenant_id,
         sid_field: sid,
-    }).execute()
+    }
+    if outbound_media_type:
+        outbound_row["media_type"] = outbound_media_type
+        outbound_row["media_mime_type"] = outbound_media_mime_type
+    db.table("messages").insert(outbound_row).execute()
 
     # Step 5: Score Engine v2 — composite arc + intent + engagement (no gate)
     new_segment = segment  # fallback if scoring fails

@@ -19,6 +19,7 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("instagram_page_id", False), ("instagram_access_token", True),
     ("facebook_page_id", False), ("facebook_access_token", True),
     ("ai_auto_reply_enabled", False),
+    ("ai_voice_reply_enabled", False),
     ("reengagement_enabled", False),
 ]
 

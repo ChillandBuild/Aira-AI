@@ -1,4 +1,6 @@
 # backend/app/services/sarvam_client.py
+import base64
+
 import httpx
 
 from app.config_dynamic import get_setting
@@ -7,6 +9,7 @@ from app.config import settings
 SARVAM_BASE_URL = "https://api.sarvam.ai"
 SARVAM_CHAT_URL = f"{SARVAM_BASE_URL}/v1/chat/completions"
 SARVAM_STT_URL = f"{SARVAM_BASE_URL}/speech-to-text"
+SARVAM_TTS_URL = f"{SARVAM_BASE_URL}/text-to-speech"
 
 
 def get_sarvam_api_key(tenant_id: str | None = None) -> str:
@@ -76,3 +79,38 @@ async def sarvam_speech_to_text(
         resp.raise_for_status()
         data = resp.json()
     return (data.get("transcript") or "").strip()
+
+
+async def sarvam_text_to_speech(
+    text: str,
+    target_language_code: str,
+    speaker: str = "shubh",
+    model: str = "bulbul:v3",
+    output_audio_codec: str = "mp3",
+    speech_sample_rate: int = 24000,
+    pace: float = 1.0,
+    temperature: float = 0.6,
+    tenant_id: str | None = None,
+) -> bytes:
+    api_key = get_sarvam_api_key(tenant_id)
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            SARVAM_TTS_URL,
+            headers={"api-subscription-key": api_key},
+            json={
+                "text": text,
+                "target_language_code": target_language_code,
+                "speaker": speaker,
+                "model": model,
+                "output_audio_codec": output_audio_codec,
+                "speech_sample_rate": speech_sample_rate,
+                "pace": pace,
+                "temperature": temperature,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    audios = data.get("audios") or []
+    if not audios:
+        raise RuntimeError("Sarvam TTS returned no audio")
+    return base64.b64decode(audios[0])

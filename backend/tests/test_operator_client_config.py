@@ -32,6 +32,7 @@ class OperatorClientConfigTests(unittest.TestCase):
             elif name == "app_settings":
                 tbl.select.return_value.eq.return_value.execute.return_value.data = [
                     {"key": "ai_auto_reply_enabled", "value": "true"},
+                    {"key": "ai_voice_reply_enabled", "value": "true"},
                     {"key": "reengagement_enabled", "value": "false"},
                     {"key": "kb_retrieval_mode", "value": "hybrid"}
                 ]
@@ -45,6 +46,7 @@ class OperatorClientConfigTests(unittest.TestCase):
         body = res.json()
         self.assertEqual(body["enabled_features"], ["whatsapp", "telecalling"])
         self.assertEqual(body["settings"]["ai_auto_reply_enabled"], True)
+        self.assertEqual(body["settings"]["ai_voice_reply_enabled"], True)
         self.assertEqual(body["settings"]["reengagement_enabled"], False)
         self.assertEqual(body["settings"]["kb_retrieval_mode"], "hybrid")
 
@@ -67,7 +69,7 @@ class OperatorClientConfigTests(unittest.TestCase):
         db.table.side_effect = table
         mock_get_db.return_value = db
 
-        payload = {"settings": {"kb_retrieval_mode": "keyword", "reengagement_enabled": True}}
+        payload = {"settings": {"kb_retrieval_mode": "keyword", "reengagement_enabled": True, "ai_voice_reply_enabled": True}}
         res = self.client.patch("/api/v1/operator/clients/tenant-1/config", json=payload)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"status": "ok"})
