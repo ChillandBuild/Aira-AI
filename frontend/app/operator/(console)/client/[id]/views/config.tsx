@@ -35,7 +35,7 @@ interface CallingProviderData {
 const CRED_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp (Meta)",
   telecalling: "TeleCMI",
-  ai: "Groq AI",
+  ai: "Sarvam AI",
 };
 
 function statusBadge(status: string) {

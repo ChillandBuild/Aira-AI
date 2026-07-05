@@ -58,8 +58,8 @@
 - Proof = **Assignment Log tab** (reuses `lead_stage_events` event_type 'assigned'/'reassigned', migration 099), not per-lead timeline.
 
 ## Chat escalation (ai_reply.py / chat_handovers.py)
-- **Trigger-only:** A=fallback, B=AI/Groq error, C=user asked for human (always fires), D=repeated question, F=AI said team will follow up. `_TRIGGER_PRIORITY = ["C","B","A","D","F"]`. **Trigger E (score-hot) was DROPPED** — no score/segment chat escalation.
-- **No auto-assign:** handovers land UNASSIGNED in a shared pool visible to admin + every telecaller (caller scope = `assigned_to == me OR needs_human_attention`). `needs_human_attention` set on escalation, cleared on resolve. Booking `notify_telecaller` path is separate, untouched.
+- **Trigger-only:** A=fallback, B=AI/LLM error, C=user asked for human (always fires), D=repeated question, F=AI said team will follow up. `_TRIGGER_PRIORITY = ["C","B","A","D","F"]`. **Trigger E (score-hot) was DROPPED** — no score/segment chat escalation.
+- **No auto-assign:** handovers land UNASSIGNED in a shared pool visible to admin + every telecaller (caller scope = `assigned_to == me OR needs_human_attention`). `needs_human_attention` set on escalation, cleared on resolve.
 
 ## Operator console (separate from /dashboard)
 - Multi-tenant management at `/operator/login`. `system_admins` table (migration 042), dedicated account `developer@airaai.com` (no tenant). `tenants.enabled_features text[]` + `status` (migration 041) drive sidebar feature-gating (whatsapp vs telecalling items) and suspension 403s (`get_tenant_id`/`get_tenant_and_role` check `status=='suspended'`). System health card polls `GET /api/v1/operator/system-health` (psutil) every 60s.

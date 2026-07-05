@@ -66,9 +66,10 @@ const SECTIONS: SectionDef[] = [
     icon: Sparkles,
     color: "#7c3aed",
     bg: "#ede9fe",
-    description: "Groq powers WhatsApp auto-reply, lead scoring, call summaries, and AI coaching.",
+    description: "Sarvam powers WhatsApp auto-reply, transcription, and OCR. Groq still powers scoring, call summaries, tuning, and coaching.",
     fields: [
-      { key: "groq_api_key", label: "Groq API Key", secret: true, required: true },
+      { key: "sarvam_api_key", label: "Sarvam API Key", secret: true, required: true },
+      { key: "groq_api_key", label: "Groq API Key (scoring and analytics)", secret: true, required: false },
     ],
     toggles: [
       { key: "ai_auto_reply_enabled", label: "AI Auto-Reply", description: "Automatically reply to inbound WhatsApp messages using AI", defaultEnabled: true },
@@ -660,7 +661,7 @@ export default function SettingsPage() {
           {/* TAB 4: AI Settings */}
           {activeTab === "ai" && (
             <div className="space-y-6">
-              {/* Groq AI Credentials Card */}
+              {/* AI Credentials Card */}
               <div className="card rounded-3xl animate-slide-up">
                 <button
                   type="button"

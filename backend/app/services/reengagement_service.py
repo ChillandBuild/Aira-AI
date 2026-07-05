@@ -98,7 +98,7 @@ async def process_due_reengagements() -> int:
                 # Fetch lead details to check current segment and last_inbound_at
                 lead_res = (
                     db.table("leads")
-                    .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out, collected_data")
+                    .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
                     .eq("id", lead_id)
                     .eq("tenant_id", tenant_id)
                     .maybe_single()
@@ -120,7 +120,7 @@ async def process_due_reengagements() -> int:
             # Find leads with last_inbound_at
             leads_res = (
                 db.table("leads")
-                .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out, collected_data")
+                .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
                 .eq("tenant_id", tenant_id)
                 .not_.is_("last_inbound_at", "null")
                 .execute()
@@ -189,10 +189,7 @@ async def _send_step_template(
         elif var_name == "phone":
             val = lead.get("phone") or ""
         else:
-            val = (
-                (lead.get("collected_data") or {}).get(var_name)
-                or ""
-            )
+            val = ""
         parameters.append({"type": "text", "text": str(val)})
 
     components = [{"type": "body", "parameters": parameters}] if parameters else []

@@ -220,6 +220,21 @@ def _resolve_tenant_from_payload(payload: dict, db) -> str | None:
     return None
 
 
+async def _transcribe_whatsapp_audio(media_id: str, tenant_id: str) -> tuple[str, str]:
+    from app.services.meta_cloud import download_media_from_meta
+    from app.services.sarvam_client import sarvam_speech_to_text
+
+    audio_bytes, mime_type, _media_url = await download_media_from_meta(media_id, tenant_id=tenant_id)
+    transcript = await sarvam_speech_to_text(
+        file_bytes=audio_bytes,
+        mime_type=mime_type,
+        filename=f"{media_id}.ogg",
+        mode="codemix",
+        tenant_id=tenant_id,
+    )
+    return transcript, mime_type
+
+
 async def _process_inbound_message_background(
     lead_id: str,
     tenant_id: str,
@@ -227,10 +242,39 @@ async def _process_inbound_message_background(
     body: str,
     msg_type: str,
     meta_phone_number_id: str = "",
+    meta_message_id: str = "",
+    meta_media_id: str = "",
 ) -> None:
     from app.db.supabase import get_supabase
     db = get_supabase()
     try:
+        if msg_type == "audio" and not body and meta_media_id:
+            body, media_mime_type = await _transcribe_whatsapp_audio(meta_media_id, tenant_id)
+            if not body:
+                logger.info(f"Audio message {meta_media_id} produced empty transcript for lead {lead_id}")
+                return
+            db.table("messages").insert({
+                "lead_id": lead_id,
+                "direction": "inbound",
+                "channel": "whatsapp",
+                "content": body,
+                "is_ai_generated": False,
+                "meta_message_id": meta_message_id or meta_media_id,
+                "tenant_id": tenant_id,
+                "media_url": f"meta:{meta_media_id}",
+                "media_type": "audio",
+                "media_mime_type": media_mime_type,
+            }).execute()
+            try:
+                from app.services.notify import notify_assigned_caller_of_reply
+                notify_assigned_caller_of_reply(lead_id, tenant_id, db=db)
+            except Exception:
+                pass
+            try:
+                db.table("leads").update({"outbound_no_reply_count": 0}).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+            except Exception:
+                pass
+
         # Update conversation state counters
         from app.services.conversation_state import get_or_create_state
         from datetime import datetime, timezone
@@ -250,8 +294,8 @@ async def _process_inbound_message_background(
             except Exception as compact_err:
                 logger.error(f"Compaction failed for lead {lead_id}: {compact_err}")
 
-        # Only trigger AI reply for text messages (not media)
-        if msg_type in ("text", "button", "interactive") and body:
+        # Route text-like inbound content, including transcribed audio, into the reply engine.
+        if msg_type in ("text", "button", "interactive", "audio") and body:
             try:
                 from app.services.context_builder import build_scorer_context
                 context_block = build_scorer_context(lead_id, db)
@@ -326,10 +370,11 @@ async def whatsapp_webhook(
                 for msg in value.get("messages", []):
                     msg_type = msg.get("type")
                     msg_id = msg.get("id", "")
-                    if msg_type not in ("text", "button", "interactive"):
+                    if msg_type not in ("text", "button", "interactive", "audio"):
                         continue
                     wa_id = msg.get("from", "")
                     phone = f"+{wa_id}" if wa_id and not wa_id.startswith("+") else wa_id
+                    media_id = ""
                     if msg_type == "text":
                         body = msg.get("text", {}).get("body", "").strip()
                     elif msg_type == "button":
@@ -337,10 +382,13 @@ async def whatsapp_webhook(
                     elif msg_type == "interactive":
                         inter = msg.get("interactive", {})
                         body = (inter.get("button_reply") or inter.get("list_reply") or {}).get("title", "").strip()
+                    elif msg_type == "audio":
+                        media_id = (msg.get("audio") or {}).get("id", "").strip()
+                        body = ""
                     else:
                         body = ""
 
-                    if not phone or not body:
+                    if not phone or (msg_type == "audio" and not media_id) or (msg_type != "audio" and not body):
                         continue
 
                     logger.info(f"Inbound Meta WhatsApp from {phone}: type={msg_type} body={body!r}")
@@ -407,7 +455,7 @@ async def whatsapp_webhook(
                     # click-to-chat message. Google can't inject Meta's referral
                     # object, so the tag in the first inbound message is our signal.
                     # Only runs when Meta CTWA didn't already claim this lead.
-                    if not ad_attributed:
+                    if body and not ad_attributed:
                         google_ref = parse_google_ref(body)
                         if google_ref:
                             try:
@@ -473,30 +521,31 @@ async def whatsapp_webhook(
                             await _handle_opt_out(phone, tenant_id, db)
                             continue
 
-                    insert_row: dict = {
-                        "lead_id": lead_id,
-                        "direction": "inbound",
-                        "channel": "whatsapp",
-                        "content": body,
-                        "is_ai_generated": False,
-                        "meta_message_id": msg_id,
-                        "tenant_id": tenant_id,
-                    }
-                    db.table("messages").insert(insert_row).execute()
+                    if msg_type != "audio":
+                        insert_row: dict = {
+                            "lead_id": lead_id,
+                            "direction": "inbound",
+                            "channel": "whatsapp",
+                            "content": body,
+                            "is_ai_generated": False,
+                            "meta_message_id": msg_id,
+                            "tenant_id": tenant_id,
+                        }
+                        db.table("messages").insert(insert_row).execute()
 
-                    try:
-                        from app.services.notify import notify_assigned_caller_of_reply
-                        if lead_id:
-                            notify_assigned_caller_of_reply(lead_id, tenant_id, db=db)
-                    except Exception:
-                        pass
-
-                    # Reset engagement suppression counter on inbound reply
-                    if lead_id:
                         try:
-                            db.table("leads").update({"outbound_no_reply_count": 0}).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+                            from app.services.notify import notify_assigned_caller_of_reply
+                            if lead_id:
+                                notify_assigned_caller_of_reply(lead_id, tenant_id, db=db)
                         except Exception:
                             pass
+
+                        # Reset engagement suppression counter on inbound reply
+                        if lead_id:
+                            try:
+                                db.table("leads").update({"outbound_no_reply_count": 0}).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+                            except Exception:
+                                pass
 
                     # Delegate state tracking, compaction, and reply to background task to avoid Meta timeout
                     background_tasks.add_task(
@@ -507,6 +556,8 @@ async def whatsapp_webhook(
                         body=body,
                         msg_type=msg_type,
                         meta_phone_number_id=meta_phone_number_id,
+                        meta_message_id=msg_id,
+                        meta_media_id=media_id,
                     )
 
                 # Handle message status updates (delivered, read, failed)

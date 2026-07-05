@@ -51,6 +51,18 @@ class LogicContractChecks(unittest.TestCase):
         self.assertRegex(webhook, r"def _handle_opt_out\(phone: str, tenant_id: str, db\)")
         self.assertRegex(webhook, r'\.eq\("tenant_id", tenant_id\)')
 
+    def test_legacy_booking_schema_cleanup_migration_exists(self):
+        migration = read("backend/supabase/migrations/130_drop_legacy_booking_artifacts.sql")
+
+        self.assertIn("drop table if exists bookings", migration.lower())
+        self.assertIn("drop column if exists booking_id", migration.lower())
+        self.assertIn("delete from app_settings", migration.lower())
+
+    def test_reengagement_no_longer_depends_on_collected_data(self):
+        service = read("backend/app/services/reengagement_service.py")
+
+        self.assertNotIn("collected_data", service)
+
 
 if __name__ == "__main__":
     unittest.main()

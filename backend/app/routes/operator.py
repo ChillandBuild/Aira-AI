@@ -68,7 +68,7 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("meta_app_secret", True),
     ("telecmi_user_id", False), ("telecmi_secret", True),
     ("telecmi_callerid", False), ("telecmi_recording_base_url", False),
-    ("groq_api_key", True),
+    ("sarvam_api_key", True), ("groq_api_key", True),
     ("telegram_bot_token", True),
     ("instagram_page_id", False), ("instagram_access_token", True),
     ("facebook_page_id", False), ("facebook_access_token", True),
@@ -958,7 +958,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         "credentials_status": {
             "whatsapp": cred_status(["meta_phone_number_id", "meta_access_token", "meta_waba_id", "meta_webhook_verify_token"]),
             "telecalling": cred_status(["telecmi_user_id", "telecmi_secret", "telecmi_callerid"]),
-            "ai": cred_status(["groq_api_key"]),
+            "ai": cred_status(["sarvam_api_key"]),
             "payments": cred_status(["razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"]),
         },
         "settings": {
@@ -2056,5 +2056,4 @@ def client_audit_logs_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
 
