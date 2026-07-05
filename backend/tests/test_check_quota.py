@@ -1,8 +1,6 @@
 """
-Tests for `check_quota`, rewritten as a pure hard-cap check (migration 128).
-Previously dead code with upsert-on-check semantics; now it's a read-only
-gate called before an action, paired with the existing `meter()`/
-`increment_usage()` to record the action after it succeeds.
+Tests for `check_quota`. During the current unlimited phase, included counters
+are informational only; only an explicit hard_cap blocks.
 """
 import sys
 import unittest
@@ -33,21 +31,25 @@ class CheckQuotaTests(unittest.TestCase):
         db.table.return_value = tbl
         return db
 
-    def test_no_counter_row_is_blocked(self):
+    def test_no_counter_row_is_unlimited_for_now(self):
         db = self._make_db(None)
-        self.assertFalse(check_quota(db, "tenant-1", "message_sent"))
+        self.assertTrue(check_quota(db, "tenant-1", "message_sent"))
 
-    def test_included_zero_is_blocked(self):
+    def test_included_zero_is_unlimited_without_hard_cap(self):
         db = self._make_db({"used": 0, "included": 0, "hard_cap": None})
+        self.assertTrue(check_quota(db, "tenant-1", "message_sent"))
+
+    def test_hard_cap_blocks_even_when_included_zero(self):
+        db = self._make_db({"used": 10, "included": 0, "hard_cap": 10})
         self.assertFalse(check_quota(db, "tenant-1", "message_sent"))
 
     def test_under_included_is_allowed(self):
         db = self._make_db({"used": 500, "included": 1000, "hard_cap": None})
         self.assertTrue(check_quota(db, "tenant-1", "message_sent"))
 
-    def test_delta_pushing_past_included_is_blocked(self):
+    def test_delta_pushing_past_included_is_allowed_without_hard_cap(self):
         db = self._make_db({"used": 999, "included": 1000, "hard_cap": None})
-        self.assertFalse(check_quota(db, "tenant-1", "message_sent", delta=5))
+        self.assertTrue(check_quota(db, "tenant-1", "message_sent", delta=5))
 
     def test_exactly_at_included_after_delta_is_allowed(self):
         db = self._make_db({"used": 995, "included": 1000, "hard_cap": None})

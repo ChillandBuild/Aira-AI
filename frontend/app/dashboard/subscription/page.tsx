@@ -179,7 +179,13 @@ export default function SubscriptionPage() {
       ) : showAddon ? (
         <div className="rounded-3xl border border-border bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-sm font-semibold text-ink">Add to your plan</h3>
-          <CartBuilder mode="addon" existingItems={me.items} onSubmitted={() => { setShowAddon(false); load(); }} />
+          <CartBuilder
+            mode="addon"
+            existingItems={me.items}
+            periodStart={me.period_start}
+            periodEnd={me.period_end}
+            onSubmitted={() => { setShowAddon(false); load(); }}
+          />
         </div>
       ) : (
         <button onClick={() => setShowAddon(true)} className="btn-primary flex items-center gap-1.5">

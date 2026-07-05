@@ -1,4 +1,4 @@
-"""Test that adding a phone number is blocked once the purchased numbers_pool quota is hit."""
+"""Phone numbers are unlimited for now; creating a number should not be gated."""
 import sys
 import unittest
 from pathlib import Path
@@ -22,22 +22,20 @@ class NumbersPoolEnforcementTests(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.clear()
 
-    @patch("app.routes.numbers.get_purchased_quantity", return_value=1)
     @patch("app.routes.numbers.get_supabase")
-    def test_blocked_when_active_count_meets_purchased_quantity(self, mock_get_db, mock_quantity):
+    def test_create_number_does_not_block_on_purchased_quantity(self, mock_get_db):
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.neq.return_value.execute.return_value.count = 1
+        db.table.return_value.insert.return_value.execute.return_value.data = [{"id": "num-1", "number": "+919999999999"}]
         mock_get_db.return_value = db
 
         res = self.client.post("/api/v1/numbers/", json={
             "number": "+919999999999", "display_name": "Test Number",
         })
-        self.assertEqual(res.status_code, 403)
-        self.assertIn("number pool limit reached", res.json()["detail"].lower())
+        self.assertEqual(res.status_code, 200)
 
-    @patch("app.routes.numbers.get_purchased_quantity", return_value=2)
     @patch("app.routes.numbers.get_supabase")
-    def test_allowed_when_under_purchased_quantity(self, mock_get_db, mock_quantity):
+    def test_allowed_when_under_purchased_quantity(self, mock_get_db):
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.neq.return_value.execute.return_value.count = 1
         db.table.return_value.insert.return_value.execute.return_value.data = [{"id": "num-1", "number": "+919999999999"}]

@@ -161,8 +161,8 @@ def check_quota(
     mutate `tenant_usage_counters`. Callers must call `increment_usage()`
     (or `meter()`) themselves after the guarded action succeeds.
 
-    included == 0 (no counter row, or a row with included=0) means the
-    tenant has not purchased this metric at all — blocked, not unlimited.
+    During the current unlimited phase, included quotas are informational only.
+    Only an explicit hard_cap can block usage.
     """
     period = get_billing_period(db, tenant_id)
 
@@ -173,8 +173,12 @@ def check_quota(
     row = period_res.data or {}
     used = row.get("used") or 0
     included = row.get("included") or 0
+    hard_cap = row.get("hard_cap")
 
-    return (used + delta) <= included
+    if hard_cap is not None:
+        return (used + delta) <= hard_cap
+
+    return True
 
 
 def increment_usage(
@@ -203,8 +207,11 @@ def increment_usage(
 
     if hard_cap is not None:
         over_cap = used > hard_cap
-    if included > 0:
-        warning = used >= included * 0.8 and used < included
+        if included > 0:
+            warning = used >= included * 0.8 and used < included
+    elif included > 0:
+        # Old included quotas are retained for reporting only while usage is unlimited.
+        warning = False
 
     db.table("tenant_usage_counters").upsert({
         "tenant_id": tenant_id,

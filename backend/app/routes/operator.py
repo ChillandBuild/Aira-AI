@@ -537,8 +537,9 @@ def _compute_package_price(db, items: list[dict], discount_percent: float) -> fl
         unit_price = row.get("unit_price")
         if unit_price is None:
             continue
-        included_qty = row.get("included_qty") or 0
-        subtotal += float(unit_price) * max(0, quantity - included_qty)
+        included_qty = row.get("included_qty")
+        billable_units = quantity if included_qty is None else max(0, quantity - included_qty)
+        subtotal += float(unit_price) * billable_units
     return subtotal * (1 - discount_percent / 100)
 
 
@@ -629,7 +630,11 @@ def update_catalog_pricing(feature_key: str, payload: CatalogPricingPayload, _ad
     if not existing.data:
         raise HTTPException(status_code=404, detail="Catalog item not found")
 
-    update = {k: v for k, v in payload.model_dump().items() if v is not None}
+    update = {
+        key: getattr(payload, key)
+        for key in payload.model_fields_set
+        if key in {"monthly_price", "unit_price", "included_qty"}
+    }
     result = db.table("feature_catalog").update(update).eq("feature_key", feature_key).execute()
     record_audit_event(
         db,

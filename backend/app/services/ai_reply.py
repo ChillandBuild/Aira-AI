@@ -663,6 +663,10 @@ async def generate_reply(
 
     # Campaign scoping: which campaign did this lead come from? Drives both the
     # KB filter and the prompt focus. None = cold lead → unscoped (full KB) as before.
+    if not check_quota(db, tenant_id, "ai_reply"):
+        logger.info(f"AI reply skipped for tenant {tenant_id}: ai_reply quota exhausted")
+        return
+
     campaign_tag_id, campaign_name = _resolve_campaign(db, lead_id)
 
     # RAG: retrieve the most relevant knowledge-base chunks for THIS message
@@ -755,10 +759,6 @@ async def generate_reply(
         # Trigger B: AI/LLM exception - escalate so a human can pick up
         escalation_flags.add("B")
         logger.info(f"Trigger B: lead {lead_id} LLM exception - {e}")
-
-    if not check_quota(db, tenant_id, "ai_reply"):
-        logger.info(f"AI reply skipped for tenant {tenant_id}: ai_reply quota exhausted")
-        return
 
     # Step 3: Dispatch to the correct channel
     if channel == "instagram":

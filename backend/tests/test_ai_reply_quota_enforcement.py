@@ -15,12 +15,16 @@ class AiReplyQuotaEnforcementTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(ai_reply.check_quota(None, "tenant-1", "ai_reply"))
 
     def test_generate_reply_checks_quota_before_dispatch(self):
-        """Static check: the quota guard must appear before the channel-dispatch
-        block (Step 3), so a skipped reply never reaches send_whatsapp/etc."""
+        """Static check: the quota guard must appear before retrieval, LLM, and
+        channel dispatch, so a skipped reply does not spend AI work or send."""
         import inspect
         source = inspect.getsource(ai_reply.generate_reply)
         quota_idx = source.index("check_quota(db, tenant_id, \"ai_reply\")")
+        rag_idx = source.index("get_knowledge_context(")
+        llm_idx = source.index("_llm_chat(")
         dispatch_idx = source.index("# Step 3: Dispatch to the correct channel")
+        self.assertLess(quota_idx, rag_idx)
+        self.assertLess(quota_idx, llm_idx)
         self.assertLess(quota_idx, dispatch_idx)
 
 

@@ -53,7 +53,9 @@ const CATEGORY_ICONS: Record<string, typeof MessageSquare> = {
 // can price. Everything else in feature_catalog is an internal flag that
 // gets turned on via a SKU's `depends_on`, not priced directly.
 const SELLABLE_KEYS = [
-  "inbound_messaging", "outbound_messaging", "telecalling_sim", "telecalling_telecmi",
+  "inbound_messaging", "outbound_messaging",
+  "ai_tier.basic", "ai_tier.standard", "ai_tier.premium",
+  "telecalling_sim", "telecalling_telecmi",
   "bulk_lead_upload", "telecaller_seats", "numbers_pool", "notifications",
 ];
 
@@ -73,7 +75,7 @@ function itemPrice(item: CatalogItem): number {
 // --- Pricing Catalog tab ---------------------------------------------------
 
 function CatalogRow({ item, onSaved }: { item: CatalogItem; onSaved: () => void }) {
-  const [monthlyPrice, setMonthlyPrice] = useState(String(item.monthly_price));
+  const [dailyPrice, setDailyPrice] = useState(String(item.monthly_price ? item.monthly_price / 30 : 0));
   const [unitPrice, setUnitPrice] = useState(item.unit_price !== null ? String(item.unit_price) : "");
   const [includedQty, setIncludedQty] = useState(item.included_qty !== null ? String(item.included_qty) : "");
   const [saving, setSaving] = useState(false);
@@ -81,7 +83,7 @@ function CatalogRow({ item, onSaved }: { item: CatalogItem; onSaved: () => void 
   const [error, setError] = useState<string | null>(null);
 
   const dirty =
-    monthlyPrice !== String(item.monthly_price) ||
+    Math.round((parseFloat(dailyPrice) || 0) * 30 * 100) / 100 !== Number(item.monthly_price) ||
     unitPrice !== (item.unit_price !== null ? String(item.unit_price) : "") ||
     includedQty !== (item.included_qty !== null ? String(item.included_qty) : "");
 
@@ -92,7 +94,7 @@ function CatalogRow({ item, onSaved }: { item: CatalogItem; onSaved: () => void 
       await operatorFetch(`/api/v1/operator/catalog/${item.feature_key}`, {
         method: "PATCH",
         body: JSON.stringify({
-          monthly_price: parseFloat(monthlyPrice) || 0,
+          monthly_price: Math.round((parseFloat(dailyPrice) || 0) * 30 * 100) / 100,
           unit_price: unitPrice ? parseFloat(unitPrice) : null,
           included_qty: includedQty ? parseInt(includedQty, 10) : null,
         }),
@@ -111,9 +113,9 @@ function CatalogRow({ item, onSaved }: { item: CatalogItem; onSaved: () => void 
     <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 py-2.5 border-b border-border-subtle last:border-0">
       <span className="text-sm text-ink">{item.display_name}</span>
       <input
-        type="number" min="0" value={monthlyPrice} onChange={e => setMonthlyPrice(e.target.value)}
+        type="number" min="0" value={dailyPrice} onChange={e => setDailyPrice(e.target.value)}
         className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right"
-        placeholder="Price"
+        placeholder="Daily"
       />
       <input
         type="number" min="0" value={unitPrice} onChange={e => setUnitPrice(e.target.value)}
@@ -152,9 +154,8 @@ function PricingCatalogTab({ catalog, onReload }: { catalog: CatalogItem[]; onRe
   return (
     <div className="space-y-6">
       <p className="text-xs text-ink-muted">
-        Prices shown to clients when they build their subscription cart. &ldquo;Unit&rdquo; is the price for
-        each extra unit beyond &ldquo;Included&rdquo; (used by quantity-based items like Telecaller Seats and
-        Numbers Pool, and overage pricing on metered items like Outbound Messaging).
+        Set the daily price for flat modules; the monthly catalog price is saved as daily x 30. &ldquo;Unit&rdquo; is the price for
+        each quantity-based item, such as Telecaller Seats and Numbers Pool.
       </p>
       {Object.entries(byCategory).map(([category, items]) => {
         const Icon = CATEGORY_ICONS[category] || Zap;
@@ -165,7 +166,7 @@ function PricingCatalogTab({ catalog, onReload }: { catalog: CatalogItem[]; onRe
             </p>
             <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-3 pb-2 text-[11px] font-medium text-ink-muted uppercase tracking-wide">
               <span>Item</span>
-              <span className="text-right w-24">Price</span>
+              <span className="text-right w-24">Daily</span>
               <span className="text-right w-24">Unit</span>
               <span className="text-right w-24">Included</span>
               <span className="w-20" />

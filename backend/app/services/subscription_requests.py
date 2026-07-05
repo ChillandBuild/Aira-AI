@@ -1,12 +1,39 @@
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from app.services.entitlements import USAGE_METRICS, add_one_month, get_billing_period, resolve_entitlements
 
 logger = logging.getLogger(__name__)
 
 
-def _price_for_item(catalog_row: dict, quantity: int, existing_quantity: int = 0) -> float:
+def _parse_cycle_date(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    return date.fromisoformat(raw[:10])
+
+
+def _proration_factor(subscription_row: dict | None, today: date | None = None) -> float:
+    """Fraction of the active billing cycle still remaining for add-on charges."""
+    if not subscription_row or subscription_row.get("status") != "active":
+        return 1.0
+
+    period_start = _parse_cycle_date(subscription_row.get("period_start"))
+    period_end = _parse_cycle_date(subscription_row.get("period_end"))
+    if not period_start or not period_end or period_end <= period_start:
+        return 1.0
+
+    today = today or datetime.now(timezone.utc).date()
+    if today <= period_start:
+        return 1.0
+    if today >= period_end:
+        return 0.0
+
+    cycle_days = max((period_end - period_start).days, 1)
+    remaining_days = max((period_end - today).days, 0)
+    return remaining_days / cycle_days
+
+
+def _monthly_price_for_item(catalog_row: dict, quantity: int, existing_quantity: int = 0) -> float:
     """
     Price the marginal units being requested right now.
 
@@ -23,9 +50,13 @@ def _price_for_item(catalog_row: dict, quantity: int, existing_quantity: int = 0
     unit_price = catalog_row.get("unit_price")
     if unit_price is None:
         return 0.0
-    included_qty = catalog_row.get("included_qty") or 0
-    already_billable = max(0, existing_quantity - included_qty)
-    new_billable = max(0, (existing_quantity + quantity) - included_qty)
+    included_qty = catalog_row.get("included_qty")
+    if included_qty is None:
+        already_billable = existing_quantity
+        new_billable = existing_quantity + quantity
+    else:
+        already_billable = max(0, existing_quantity - included_qty)
+        new_billable = max(0, (existing_quantity + quantity) - included_qty)
     return float(unit_price) * (new_billable - already_billable)
 
 
@@ -52,17 +83,25 @@ def submit_request(db, tenant_id: str, requested_items: list[dict], package_id: 
         catalog_row = catalog_by_key.get(item["feature_key"], {})
         quantity = item.get("quantity") or 1
         existing_quantity = existing_qty_by_key.get(item["feature_key"], 0)
-        price = _price_for_item(catalog_row, quantity, existing_quantity)
-        total_amount += price
-        priced_items.append({**item, "quantity": quantity, "line_total": price})
+        monthly_price = _monthly_price_for_item(catalog_row, quantity, existing_quantity)
+        priced_items.append({**item, "quantity": quantity, "monthly_amount": monthly_price})
 
-    existing = db.table("tenant_subscriptions").select("status").eq("tenant_id", tenant_id).maybe_single().execute()
+    existing = db.table("tenant_subscriptions").select("status, period_start, period_end").eq("tenant_id", tenant_id).maybe_single().execute()
     # maybe_single().execute() returns None outright (not an object with
     # `.data = None`) on zero rows — the norm for a brand-new tenant
     # submitting their very first cart, so this must not touch `.data`
     # before checking `existing` itself.
     existing_status = (existing.data or {}).get("status") if existing else None
     is_initial = existing_status != "active"
+    proration = _proration_factor(existing.data if existing else None)
+
+    for item in priced_items:
+        monthly_price = item.pop("monthly_amount")
+        line_total = monthly_price if is_initial else monthly_price * proration
+        item["monthly_amount"] = monthly_price
+        item["line_total"] = line_total
+        item["proration_factor"] = proration
+        total_amount += line_total
 
     inserted = db.table("subscription_requests").insert({
         "tenant_id": tenant_id,
@@ -138,9 +177,10 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
             unit_price_snapshot = monthly_price
         else:
             unit_price = catalog_row.get("unit_price")
-            included_qty = catalog_row.get("included_qty") or 0
+            included_qty = catalog_row.get("included_qty")
             if unit_price is not None and new_quantity > 0:
-                billable_total = float(unit_price) * max(0, new_quantity - included_qty)
+                billable_units = new_quantity if included_qty is None else max(0, new_quantity - included_qty)
+                billable_total = float(unit_price) * billable_units
                 unit_price_snapshot = billable_total / new_quantity
             else:
                 unit_price_snapshot = 0.0

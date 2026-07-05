@@ -1,4 +1,4 @@
-"""Test that inviting a telecaller is blocked once the purchased seat quota is hit."""
+"""Telecaller seats are unlimited for now; provider validation still applies."""
 import sys
 import unittest
 from pathlib import Path
@@ -21,9 +21,9 @@ class TeamSeatEnforcementTests(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.clear()
 
-    @patch("app.routes.team.get_purchased_quantity", return_value=2)
+    @patch("app.routes.team.get_telecalling_config", return_value={"calling_provider": "sim_basic"})
     @patch("app.routes.team.get_supabase")
-    def test_blocked_when_active_count_meets_purchased_quantity(self, mock_get_db, mock_quantity):
+    def test_invite_does_not_block_on_purchased_seat_quantity(self, mock_get_db, mock_cfg):
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.count = 2
         mock_get_db.return_value = db
@@ -31,13 +31,12 @@ class TeamSeatEnforcementTests(unittest.TestCase):
         res = self.client.post("/api/v1/team/invite", json={
             "email": "new@example.com", "password": "Password123!", "name": "New Caller",
         })
-        self.assertEqual(res.status_code, 403)
-        self.assertIn("seat limit reached", res.json()["detail"].lower())
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("phone number is required", res.json()["detail"].lower())
 
-    @patch("app.routes.team.get_purchased_quantity", return_value=3)
     @patch("app.routes.team.get_telecalling_config", return_value={"calling_provider": "sim_basic"})
     @patch("app.routes.team.get_supabase")
-    def test_allowed_when_under_purchased_quantity_then_proceeds_to_provider_validation(self, mock_get_db, mock_cfg, mock_quantity):
+    def test_allowed_path_still_proceeds_to_provider_validation(self, mock_get_db, mock_cfg):
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.count = 1
         mock_get_db.return_value = db

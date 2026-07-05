@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Check, Sparkles, RadioTower, MessageSquare, Phone, Upload as UploadIcon,
-  Users, Layers, Minus, Plus,
+  Users, Layers, Minus, Plus, Brain,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
@@ -30,10 +30,14 @@ export interface SubscriptionItem {
 }
 
 const TELECALLING_TYPE_KEYS = ["telecalling_sim", "telecalling_telecmi"];
+const AI_TIER_KEYS = ["ai_tier.basic", "ai_tier.standard", "ai_tier.premium"];
 
 const ICONS: Record<string, typeof Phone> = {
   inbound_messaging: RadioTower,
   outbound_messaging: MessageSquare,
+  "ai_tier.basic": Brain,
+  "ai_tier.standard": Brain,
+  "ai_tier.premium": Brain,
   telecalling_sim: Phone,
   telecalling_telecmi: Phone,
   bulk_lead_upload: UploadIcon,
@@ -55,7 +59,8 @@ async function apiGet<T>(path: string): Promise<T> {
 function priceForItem(row: CatalogRow, quantity: number, existingQuantity: number): number {
   if (row.monthly_price > 0) return row.monthly_price;
   if (row.unit_price == null) return 0;
-  const included = row.included_qty ?? 0;
+  if (row.included_qty == null) return row.unit_price * quantity;
+  const included = row.included_qty;
   const alreadyBillable = Math.max(0, existingQuantity - included);
   const newBillable = Math.max(0, existingQuantity + quantity - included);
   return row.unit_price * (newBillable - alreadyBillable);
@@ -119,11 +124,13 @@ function Stepper({ value, onChange, min = 1 }: { value: number; onChange: (v: nu
 }
 
 export function CartBuilder({
-  mode, existingItems, onSubmitted,
+  mode, existingItems, onSubmitted, periodStart, periodEnd,
 }: {
   mode: "initial" | "addon";
   existingItems: SubscriptionItem[];
   onSubmitted: () => void;
+  periodStart?: string | null;
+  periodEnd?: string | null;
 }) {
   const [catalog, setCatalog] = useState<CatalogRow[]>([]);
   const [packages, setPackages] = useState<PackageRow[]>([]);
@@ -176,11 +183,35 @@ export function CartBuilder({
     });
   }
 
+  function selectAiTier(key: string) {
+    setSelectedPackage(null);
+    setSelected((prev) => {
+      const next = { ...prev };
+      for (const tierKey of AI_TIER_KEYS) {
+        if (tierKey !== key) delete next[tierKey];
+      }
+      if (next[key]) delete next[key];
+      else next[key] = 1;
+      return next;
+    });
+  }
+
   const total = Object.entries(selected).reduce((sum, [key, qty]) => {
     const row = byKey.get(key);
     if (!row) return sum;
     return sum + priceForItem(row, qty, existingQtyFor(key));
   }, 0);
+  const prorationFactor = useMemo(() => {
+    if (mode !== "addon" || !periodStart || !periodEnd) return 1;
+    const start = new Date(`${periodStart.slice(0, 10)}T00:00:00Z`);
+    const end = new Date(`${periodEnd.slice(0, 10)}T00:00:00Z`);
+    const today = new Date();
+    const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const cycleDays = Math.max((end.getTime() - start.getTime()) / 86_400_000, 1);
+    const remainingDays = Math.max((end.getTime() - todayUtc.getTime()) / 86_400_000, 0);
+    return Math.min(1, Math.max(0, remainingDays / cycleDays));
+  }, [mode, periodStart, periodEnd]);
+  const dueNow = mode === "addon" ? total * prorationFactor : total;
 
   async function submit() {
     setSubmitting(true);
@@ -218,6 +249,7 @@ export function CartBuilder({
 
   const inbound = byKey.get("inbound_messaging");
   const outbound = byKey.get("outbound_messaging");
+  const aiTiers = AI_TIER_KEYS.map((key) => byKey.get(key)).filter(Boolean) as CatalogRow[];
   const sim = byKey.get("telecalling_sim");
   const telecmi = byKey.get("telecalling_telecmi");
   const upload = byKey.get("bulk_lead_upload");
@@ -235,7 +267,10 @@ export function CartBuilder({
   function itemInAddonMode(row?: CatalogRow) {
     if (!row) return false;
     if (mode !== "addon") return true;
-    return existingQtyFor(row.feature_key) > 0 || !!row.usage_metric;
+    if (existingQtyFor(row.feature_key) > 0 && row.monthly_price > 0 && row.unit_price == null) {
+      return false;
+    }
+    return true;
   }
 
   return (
@@ -303,7 +338,7 @@ export function CartBuilder({
                 onClick={() => toggleItem(inbound.feature_key)}
                 icon={ICONS.inbound_messaging}
                 title="Inbound Messaging"
-                subtitle={`${fmt(inbound.monthly_price)}/mo · Instagram, Facebook & Telegram included`}
+                subtitle={`${fmt(inbound.monthly_price)}/mo - Instagram, Facebook & Telegram included`}
               />
             )}
             {outbound && itemInAddonMode(outbound) && (
@@ -312,9 +347,30 @@ export function CartBuilder({
                 onClick={() => toggleItem(outbound.feature_key)}
                 icon={ICONS.outbound_messaging}
                 title="Outbound Messaging"
-                subtitle={`${fmt(outbound.monthly_price)}/mo · WhatsApp · Templates included · ${outbound.included_qty ?? 1000} msgs/mo`}
+                subtitle={`${fmt(outbound.monthly_price)}/mo - WhatsApp, broadcasts, conversations & templates`}
               />
             )}
+          </div>
+        </div>
+      )}
+
+      {aiTiers.some((tier) => itemInAddonMode(tier)) && (
+        <div>
+          <SectionHeading>AI Replies</SectionHeading>
+          <p className="mb-3 -mt-2 text-xs text-ink-muted">
+            Required for automated replies and knowledge-base answers.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {aiTiers.filter(itemInAddonMode).map((tier) => (
+              <SelectCard
+                key={tier.feature_key}
+                selected={tier.feature_key in selected}
+                onClick={() => selectAiTier(tier.feature_key)}
+                icon={ICONS[tier.feature_key] ?? Brain}
+                title={tier.display_name}
+                subtitle={`${fmt(tier.monthly_price)}/mo - Unlimited replies for now`}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -331,7 +387,7 @@ export function CartBuilder({
                     onClick={() => selectTelecallingType(sim.feature_key)}
                     icon={ICONS.telecalling_sim}
                     title="SIM-based"
-                    subtitle={`${fmt(sim.monthly_price)}/mo · Dialer, Scheduled Calls & Notes included`}
+                    subtitle={`${fmt(sim.monthly_price)}/mo - Dialer, Scheduled Calls & Notes included`}
                   />
                 )}
                 {telecmi && itemInAddonMode(telecmi) && (
@@ -340,7 +396,7 @@ export function CartBuilder({
                     onClick={() => selectTelecallingType(telecmi.feature_key)}
                     icon={ICONS.telecalling_telecmi}
                     title="Tele-CMI"
-                    subtitle={`${fmt(telecmi.monthly_price)}/mo · ${telecmi.included_qty ?? 500} call minutes/mo included`}
+                    subtitle={`${fmt(telecmi.monthly_price)}/mo - Dialer, scheduled calls, notes & QA`}
                   />
                 )}
               </div>
@@ -355,8 +411,8 @@ export function CartBuilder({
                   <div>
                     <p className="text-sm font-semibold text-ink">Telecaller Seats</p>
                     <p className="text-xs text-ink-muted">
-                      1 seat included · +{fmt(seats.unit_price ?? 0)} per extra seat
-                      {existingQtyFor(seats.feature_key) > 0 && ` · currently ${existingQtyFor(seats.feature_key)}`}
+                      Unlimited for now - {fmt(seats.unit_price ?? 0)} per seat/mo
+                      {existingQtyFor(seats.feature_key) > 0 && ` - currently ${existingQtyFor(seats.feature_key)}`}
                     </p>
                   </div>
                 </div>
@@ -373,7 +429,7 @@ export function CartBuilder({
                 onClick={() => toggleItem(upload.feature_key)}
                 icon={ICONS.bulk_lead_upload}
                 title="Bulk Lead Upload"
-                subtitle={`${fmt(upload.monthly_price)}/mo · CSV upload for telecalling campaigns · optional add-on`}
+                subtitle={`${fmt(upload.monthly_price)}/mo - CSV upload for telecalling campaigns - optional add-on`}
                 disabled={!hasTelecallingCoverage}
               />
             )}
@@ -392,8 +448,8 @@ export function CartBuilder({
               <div>
                 <p className="text-sm font-semibold text-ink">Phone Numbers</p>
                 <p className="text-xs text-ink-muted">
-                  1 number included with messaging/telecalling · +{fmt(numbers.unit_price ?? 0)} per extra number
-                  {existingQtyFor(numbers.feature_key) > 0 && ` · currently ${existingQtyFor(numbers.feature_key)}`}
+                  Unlimited for now - {fmt(numbers.unit_price ?? 0)} per number/mo
+                  {existingQtyFor(numbers.feature_key) > 0 && ` - currently ${existingQtyFor(numbers.feature_key)}`}
                 </p>
               </div>
             </div>
@@ -409,8 +465,13 @@ export function CartBuilder({
 
       <div className="sticky bottom-0 flex items-center justify-between rounded-2xl border border-border bg-white/95 p-4 shadow-lg backdrop-blur">
         <div>
-          <p className="text-xs font-medium text-ink-muted">{mode === "addon" ? "Additional monthly cost" : "Total"}</p>
-          <p className="text-2xl font-bold text-ink">{fmt(total)}<span className="text-sm font-medium text-ink-muted">/mo</span></p>
+          <p className="text-xs font-medium text-ink-muted">{mode === "addon" ? "Due now" : "Total"}</p>
+          <p className="text-2xl font-bold text-ink">
+            {fmt(dueNow)}<span className="text-sm font-medium text-ink-muted">{mode === "addon" ? "" : "/mo"}</span>
+          </p>
+          {mode === "addon" && (
+            <p className="text-xs text-ink-muted">{fmt(total)}/mo from next cycle</p>
+          )}
         </div>
         <button
           onClick={submit}
