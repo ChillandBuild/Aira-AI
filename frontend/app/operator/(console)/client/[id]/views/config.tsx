@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RadioTower, Shield, Smartphone, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
+import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
 
@@ -17,12 +18,21 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+type RetrievalMode = "semantic" | "keyword" | "hybrid";
+
+const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
+  { id: "semantic", label: "Smart", desc: "Understands meaning & language (Tamil/English), even when a lead rephrases. Recommended." },
+  { id: "keyword", label: "Exact words", desc: "Matches the exact words in your documents. Fastest, no AI cost — weaker on reworded questions." },
+  { id: "hybrid", label: "Best of both", desc: "Blends meaning + exact words for the highest accuracy." },
+];
+
 interface ConfigData {
   enabled_features: string[];
   credentials_status: Record<string, "configured" | "incomplete" | "not_configured">;
   settings: {
     ai_auto_reply_enabled: boolean;
     reengagement_enabled: boolean;
+    kb_retrieval_mode: RetrievalMode;
   };
 }
 
@@ -68,6 +78,37 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [providerSaving, setProviderSaving] = useState<"telecmi" | "sim_basic" | null>(null);
   const [pendingProvider, setPendingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
+  const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
+
+  async function updateRetrievalMode(mode: RetrievalMode) {
+    if (!config || config.settings.kb_retrieval_mode === mode) return;
+    setRetrievalSaving(mode);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { kb_retrieval_mode: mode }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          kb_retrieval_mode: mode
+        }
+      });
+      toast.success(`Knowledge search mode set to "${RETRIEVAL_MODES.find(m => m.id === mode)?.label}".`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update knowledge search mode");
+      toast.error("Failed to update search mode. Please try again.");
+    } finally {
+      setRetrievalSaving(null);
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -264,6 +305,48 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               {config.settings.reengagement_enabled ? "Enabled" : "Disabled"}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* Knowledge Search Mode */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-ink-muted" />
+          Knowledge Search Mode
+        </h3>
+        <div className="grid gap-4 md:grid-cols-3">
+          {RETRIEVAL_MODES.map((option) => {
+            const selected = config.settings.kb_retrieval_mode === option.id;
+            const saving = retrievalSaving === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => updateRetrievalMode(option.id)}
+                disabled={!!retrievalSaving || selected}
+                className={`rounded-card border p-4 text-left shadow-sm transition-all ${
+                  selected
+                    ? "border-primary bg-primary-light text-ink ring-1 ring-primary/10"
+                    : "border-border bg-white hover:border-primary-muted"
+                } ${retrievalSaving && !saving ? "opacity-70" : ""} disabled:cursor-default`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 justify-between">
+                      <p className="text-sm font-semibold text-ink">{option.label}</p>
+                      {saving && <Loader2 size={14} className="animate-spin text-primary" />}
+                      {selected && !saving && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-success/10 text-success">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-muted">{option.desc}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

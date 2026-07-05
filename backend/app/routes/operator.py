@@ -969,8 +969,55 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         "settings": {
             "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") == "true",
             "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
+            "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
         },
     }
+
+
+class ClientConfigUpdate(BaseModel):
+    settings: dict[str, str | bool] | None = None
+
+
+@router.patch("/clients/{tenant_id}/config")
+def update_client_config(
+    tenant_id: str,
+    payload: ClientConfigUpdate,
+    _admin: dict = Depends(get_system_admin),
+):
+    if not payload.settings:
+        raise HTTPException(status_code=400, detail="No settings to update")
+
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant or not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    for key, value in payload.settings.items():
+        db_val = str(value).lower() if isinstance(value, bool) else str(value)
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": key,
+            "value": db_val,
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=_admin.get("user_id"),
+        actor_role="system_admin",
+        action="operator.client_config.updated",
+        target_type="app_settings",
+        target_id=tenant_id,
+        new_value={"settings": payload.settings},
+    )
+
+    return {"status": "ok"}
+
 
 
 @router.get("/clients/{tenant_id}/health")

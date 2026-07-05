@@ -51,13 +51,6 @@ interface KnowledgeDoc {
   error_message?: string;
 }
 
-type RetrievalMode = "semantic" | "keyword" | "hybrid";
-
-const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
-  { id: "semantic", label: "Smart", desc: "Understands meaning & language (Tamil/English), even when a lead rephrases. Recommended." },
-  { id: "keyword", label: "Exact words", desc: "Matches the exact words in your documents. Fastest, no AI cost — weaker on reworded questions." },
-  { id: "hybrid", label: "Best of both", desc: "Blends meaning + exact words for the highest accuracy." },
-];
 
 export default function KnowledgePage() {
   const { role, loading: roleLoading } = useAuthRole();
@@ -74,10 +67,6 @@ export default function KnowledgePage() {
     params.set("tab", val);
     router.replace(`/dashboard/knowledge?${params.toString()}`, { scroll: false });
   };
-
-  // Knowledge search (retrieval) mode
-  const [retrievalMode, setRetrievalMode] = useState<RetrievalMode>("semantic");
-  const [retrievalSaving, setRetrievalSaving] = useState(false);
 
   // Document Upload
   const [uploading, setUploading] = useState(false);
@@ -101,7 +90,6 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     loadData();
-    loadRetrievalMode();
     api.knowledge.listCampaignTags().then(setCampaignTags).catch(() => {});
   }, []);
 
@@ -160,38 +148,6 @@ export default function KnowledgePage() {
     } catch {}
   }
 
-  async function loadRetrievalMode() {
-    try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/`, { headers: auth });
-      if (!res.ok) return;
-      const data = await res.json();
-      const settings: { key: string; display_value?: string }[] = data.settings ?? [];
-      const v = settings.find((s) => s.key === "kb_retrieval_mode")?.display_value;
-      if (v === "semantic" || v === "keyword" || v === "hybrid") setRetrievalMode(v);
-    } catch {}
-  }
-
-  async function saveRetrievalMode(mode: RetrievalMode) {
-    const prev = retrievalMode;
-    setRetrievalMode(mode);
-    setRetrievalSaving(true);
-    try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ updates: { kb_retrieval_mode: mode } }),
-      });
-      if (!res.ok) throw new Error("Save failed");
-      toast.success(`Search mode set to "${RETRIEVAL_MODES.find((m) => m.id === mode)?.label}".`);
-    } catch {
-      setRetrievalMode(prev);
-      toast.error("Failed to update search mode. Please try again.");
-    } finally {
-      setRetrievalSaving(false);
-    }
-  }
 
   async function loadPrompts() {
     try {
@@ -349,38 +305,6 @@ export default function KnowledgePage() {
 
       {tab === "documents" ? (
         <div className="space-y-6">
-          {/* Knowledge Search Mode */}
-          <div className="bg-surface rounded-card p-5 border border-surface-mid">
-            <div className="flex items-center gap-2">
-              <Sparkles size={16} className="text-primary" />
-              <h3 className="font-display font-bold text-sm text-primary">Knowledge Search Mode</h3>
-            </div>
-            <p className="font-body text-xs text-on-surface-muted mt-1 mb-4">
-              How the AI finds answers in your documents when a lead asks a question.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {RETRIEVAL_MODES.map((m) => {
-                const active = retrievalMode === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => saveRetrievalMode(m.id)}
-                    disabled={retrievalSaving || active}
-                    className={cn(
-                      "text-left p-4 rounded-xl border-2 transition-all disabled:cursor-default",
-                      active ? "border-primary bg-primary/5" : "border-surface-mid hover:border-primary/40"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-label font-bold text-sm text-on-surface">{m.label}</span>
-                      {active && <CheckCircle2 size={16} className="text-primary shrink-0" />}
-                    </div>
-                    <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">{m.desc}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           {/* Upload Section */}
           <div className="bg-surface rounded-card p-6 border border-dashed border-primary/30 bg-primary/5 text-center space-y-4">
