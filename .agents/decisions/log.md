@@ -427,4 +427,13 @@
 - **Fix**: removed the tag-injection entirely from `generate_reply()` — the raw message now reaches the model unmodified. `_detect_lang()` is kept (still legitimately used to pick which language's canned fallback text to show if the LLM call fails outright — a harmless use, just choosing between a few pre-written strings). The now-fully-unused `_LANG_NAMES` dict was removed along with the test that only asserted its own shape.
 - **Also fixed in the same commit, separate concern**: `sarvam_chat_completion()` now defaults `frequency_penalty=0.5`. Testing surfaced Sarvam-30B occasionally (~1/10 replies) degenerating into verbatim sentence-fragment repetition; 0/10 with this parameter set, same reply quality otherwise.
 - **Tests**: static source-inspection tests added (matching this codebase's existing convention in `test_ai_reply_quota_enforcement.py`/`test_logic_contracts_static.py`) — `generate_reply`'s source must not contain `"[Respond in"`, module source must not contain `"_LANG_NAMES"`. Full backend suite: 338/338 passing. Pushed to `origin/main` (`9d72ac9`).
+ 
+---
+ 
+**2026-07-05 — Table-Backed Persistent Queue for WhatsApp Delay Notifications**
+- **Decision**: Migrated the WhatsApp admin delay notification system from volatile, in-memory `asyncio.sleep()` tasks to a persistent, database-backed queue table `pending_whatsapp_alerts` (Migration 131).
+- **Decision**: Registered a periodic scheduler job `pending-whatsapp-alerts` running every 1 minute under the `AsyncIOScheduler` instance in `app/main.py` to process due notifications.
+- **Decision**: Replaced the deprecated `<meta name="apple-mobile-web-app-capable">` tag with `<meta name="mobile-web-app-capable" content="yes">` and removed the orphaned Vercel Speed Insights script dependency from `layout.tsx` to resolve console 404 errors.
+- **Rationale**: In-memory background tasks are lost during Render restarts and cold-start sleep cycles. A table-backed queue ensures 100% crash-proof delivery. Speed Insights was throwing 404 errors since the production app is hosted on Render instead of Vercel.
+
 
