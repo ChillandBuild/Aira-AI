@@ -9,11 +9,11 @@ import {
   TrendingUp,
   Inbox,
   Send as SendIcon,
-  RefreshCw,
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuthRole } from "./contexts/AuthRoleContext";
+import { AiraLoader } from "@/components/AiraLoader";
 import { cn } from "@/lib/utils";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
@@ -195,11 +195,7 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
   }, [role, roleLoading, router]);
 
   if (roleLoading || subStatus === "loading") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <RefreshCw size={24} className="animate-spin text-ink" />
-      </div>
-    );
+    return <AiraLoader />;
   }
 
   if (subStatus === "none" || subStatus === "pending_approval") {
@@ -237,26 +233,13 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
     );
   }
 
+  if (role === "caller") {
+    return <AiraLoader />;
+  }
+
   // Gate on DATA presence, not role: seeded owners skip the spinner entirely.
   if (!overview) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <RefreshCw size={24} className="animate-spin text-ink" />
-        {!roleLoading && role === null && (
-          <div className="text-center max-w-sm">
-            <p className="font-body text-sm text-ink-muted mb-3">
-              Couldn&apos;t reach the server. The backend may be waking up — this can take 30–60 seconds.
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="btn-primary text-sm"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-      </div>
-    );
+    return <AiraLoader showRetryAfterMs={15000} onRetry={() => window.location.reload()} />;
   }
 
   const total = overview?.funnel?.inquiries ?? 0;
