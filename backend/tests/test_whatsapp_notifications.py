@@ -51,6 +51,7 @@ def _make_db(
     last_segment_rows: list | None = None,
 ):
     db = MagicMock()
+    cached_pwa_table = None
 
     def table_selector(name):
         t = MagicMock()
@@ -101,6 +102,94 @@ def _make_db(
                     ) = execute
                     return sel
             t.select.side_effect = select_mock
+        elif name == "pending_whatsapp_alerts":
+            nonlocal cached_pwa_table
+            if cached_pwa_table is not None:
+                return cached_pwa_table
+            
+            fluent = MagicMock()
+            db._pending_wa_table = fluent
+            cached_pwa_table = fluent
+            fluent.select.return_value = fluent
+            fluent.insert.return_value = fluent
+            fluent.update.return_value = fluent
+            fluent.eq.return_value = fluent
+            fluent.lte.return_value = fluent
+            fluent.order.return_value = fluent
+            fluent.limit.return_value = fluent
+            
+            target_seg = "B"
+            if last_segment_rows and len(last_segment_rows) > 0:
+                target_seg = last_segment_rows[0].get("to_segment", "B")
+            
+            state = {"rows": []}
+            
+            def insert_side_effect(row):
+                if isinstance(row, dict):
+                    row_copy = dict(row)
+                    row_copy.setdefault("id", f"alert-{len(state['rows']) + 1}")
+                    row_copy.setdefault("status", "pending")
+                    state["rows"].append(row_copy)
+                elif isinstance(row, list):
+                    for r in row:
+                        row_copy = dict(r)
+                        row_copy.setdefault("id", f"alert-{len(state['rows']) + 1}")
+                        row_copy.setdefault("status", "pending")
+                        state["rows"].append(row_copy)
+                return fluent
+            fluent.insert.side_effect = insert_side_effect
+            
+            update_payload = {}
+            def update_side_effect(payload):
+                nonlocal update_payload
+                update_payload = payload
+                return fluent
+            fluent.update.side_effect = update_side_effect
+            
+            filters = []
+            def eq_side_effect(col, val):
+                filters.append(("eq", col, val))
+                return fluent
+            fluent.eq.side_effect = eq_side_effect
+            
+            def lte_side_effect(col, val):
+                filters.append(("lte", col, val))
+                return fluent
+            fluent.lte.side_effect = lte_side_effect
+            
+            def execute_side_effect():
+                nonlocal update_payload, filters
+                if update_payload:
+                    for r in state["rows"]:
+                        match = True
+                        for filt in filters:
+                            op, col, val = filt
+                            if op == "eq":
+                                if str(r.get(col)) != str(val):
+                                    match = False
+                                    break
+                        if match:
+                            r.update(update_payload)
+                    update_payload = {}
+                    filters = []
+                    return MagicMock(data=[])
+                
+                selected = []
+                for r in state["rows"]:
+                    match = True
+                    for filt in filters:
+                        op, col, val = filt
+                        if op == "eq":
+                            if str(r.get(col)) != str(val):
+                                match = False
+                                break
+                    if match:
+                        selected.append(r)
+                filters = []
+                return MagicMock(data=selected)
+            
+            fluent.execute.side_effect = execute_side_effect
+            return fluent
         return t
 
     db.table.side_effect = table_selector

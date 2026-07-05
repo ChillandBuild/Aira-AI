@@ -104,6 +104,7 @@ def get_or_create_campaign(
     return (created.data or [None])[0]
 
 
+
 def _fire_whatsapp_alert(tenant_id: str, lead_id: str, from_segment: str | None, to_segment: str) -> None:
     try:
         loop = asyncio.get_running_loop()

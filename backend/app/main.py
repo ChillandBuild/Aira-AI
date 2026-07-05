@@ -383,12 +383,19 @@ async def lifespan(app: FastAPI):
         id="daily-digest",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _process_pending_whatsapp_alerts,
+        trigger="interval",
+        minutes=1,
+        id="pending-whatsapp-alerts",
+        replace_existing=True,
+    )
     _scheduler.add_listener(
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC)")
+    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m)")
 
     yield
 

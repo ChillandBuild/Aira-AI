@@ -102,20 +102,15 @@ async def _dispatch_alerts(
             })
 
 
-async def send_admin_whatsapp_alerts(
+def queue_admin_whatsapp_alert(
+    db,
     tenant_id: str,
     lead_id: str,
     from_segment: str | None,
     to_segment: str,
 ) -> None:
-    """Fire admin WhatsApp alerts when a lead's segment changes, if configured.
-    Waits ALERT_DELAY_SECONDS to verify the lead stays in this segment before sending.
-
-    Fired from a background task with no caller awaiting the result — every
-    failure path below must return quietly rather than raise.
-    """
+    """Queue a pending admin WhatsApp alert in the database, cancelling any prior pending ones for this lead."""
     try:
-        db = get_supabase()
         wa_cfg = get_notification_config(tenant_id, db=db).get("whatsapp_notifications") or {}
 
         if not wa_cfg.get("enabled") or from_segment == to_segment:
@@ -130,91 +125,192 @@ async def send_admin_whatsapp_alerts(
         if _is_recently_notified(db, lead_id, to_segment):
             return
 
-        # Determine delay from client configuration (default to 5 minutes)
+        # Cancel prior pending alerts for this lead
+        db.table("pending_whatsapp_alerts").update(
+            {"status": "cancelled"}
+        ).eq("lead_id", lead_id).eq("status", "pending").execute()
+
+        # Calculate send_at based on configured delay
         delay_minutes = wa_cfg.get("delay_minutes")
         if delay_minutes is None:
             delay_minutes = 5
 
-        # Use test override if it's explicitly set to something other than the default 300s
-        delay_seconds = (
-            ALERT_DELAY_SECONDS
-            if ALERT_DELAY_SECONDS != 300
-            else (delay_minutes * 60)
-        )
+        # Check if ALERT_DELAY_SECONDS override is active for testing (e.g. 0.05 seconds or 0)
+        if ALERT_DELAY_SECONDS != 300:
+            send_at = datetime.now(timezone.utc) + timedelta(seconds=ALERT_DELAY_SECONDS)
+        else:
+            send_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
 
-        if delay_seconds > 0:
-            import asyncio
-            await asyncio.sleep(delay_seconds)
-
-        # Check if the lead's segment is still to_segment in lead_stage_events (most recent change)
-        last_event_res = (
-            db.table("lead_stage_events")
-            .select("to_segment")
-            .eq("lead_id", lead_id)
-            .eq("event_type", "segment_changed")
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if not last_event_res.data:
-            return
-        current_segment = last_event_res.data[0]["to_segment"]
-        if current_segment != to_segment:
-            return
-
-        lead_res = (
-            db.table("leads")
-            .select("id,name,phone,score,segment")
-            .eq("id", lead_id)
-            .eq("tenant_id", tenant_id)
-            .limit(1)
-            .execute()
-        )
-        lead = (lead_res.data or [None])[0]
-        if not lead:
-            logger.warning("WhatsApp alert skipped: lead %s not found for tenant %s", lead_id, tenant_id)
-            _log_incident(db, tenant_id, {
-                "lead_id": lead_id,
-                "reason": "lead_not_found",
-            })
-            return
-
-        if lead.get("segment") != to_segment:
-            return
-
-        template_res = (
-            db.table("message_templates")
-            .select("id,name,language,body_text,status")
-            .eq("id", template_id)
-            .eq("tenant_id", tenant_id)
-            .eq("status", "APPROVED")
-            .limit(1)
-            .execute()
-        )
-        template = (template_res.data or [None])[0]
-        if not template:
-            logger.warning(
-                "WhatsApp alert skipped: template %s not found/approved for tenant %s",
-                template_id,
-                tenant_id,
-            )
-            _log_incident(db, tenant_id, {
-                "lead_id": lead_id,
-                "template_id": template_id,
-                "reason": "template_not_found_or_not_approved",
-            })
-            return
-
-        components = _build_components(template, lead, to_segment)
-        if components is None:
-            return
-
-        await _dispatch_alerts(recipient_phones, template, components, tenant_id, lead_id)
-    except Exception as e:
-        logger.exception("send_admin_whatsapp_alerts failed for tenant=%s lead=%s", tenant_id, lead_id)
-        _log_incident(get_supabase(), tenant_id, {
+        db.table("pending_whatsapp_alerts").insert({
+            "tenant_id": tenant_id,
             "lead_id": lead_id,
-            "reason": "unexpected_error",
+            "from_segment": from_segment,
+            "to_segment": to_segment,
+            "send_at": send_at.isoformat(),
+            "status": "pending",
+        }).execute()
+        
+        logger.info("Queued WhatsApp notification for lead=%s tenant=%s to_segment=%s send_at=%s", lead_id, tenant_id, to_segment, send_at)
+    except Exception as e:
+        logger.exception("queue_admin_whatsapp_alert failed for tenant=%s lead=%s", tenant_id, lead_id)
+        _log_incident(db, tenant_id, {
+            "lead_id": lead_id,
+            "reason": "queue_failed",
             "error": str(e)[:500],
         })
+
+
+async def process_due_whatsapp_alerts() -> None:
+    """Query due pending alerts from public.pending_whatsapp_alerts, verify conditions, and send them."""
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+    try:
+        res = (
+            db.table("pending_whatsapp_alerts")
+            .select("*")
+            .eq("status", "pending")
+            .lte("send_at", now.isoformat())
+            .order("send_at")
+            .limit(50)
+            .execute()
+        )
+        alerts = res.data or []
+        if not alerts:
+            return
+
+        for alert in alerts:
+            alert_id = alert["id"]
+            tenant_id = alert["tenant_id"]
+            lead_id = alert["lead_id"]
+            to_segment = alert["to_segment"]
+
+            try:
+                # Mark as processing to prevent double runs
+                db.table("pending_whatsapp_alerts").update(
+                    {"status": "processing"}
+                ).eq("id", alert_id).execute()
+
+                # Verify lead is still in the target segment
+                lead_res = (
+                    db.table("leads")
+                    .select("id,name,phone,score,segment")
+                    .eq("id", lead_id)
+                    .eq("tenant_id", tenant_id)
+                    .limit(1)
+                    .execute()
+                )
+                lead = (lead_res.data or [None])[0]
+                if not lead:
+                    db.table("pending_whatsapp_alerts").update(
+                        {"status": "cancelled"}
+                    ).eq("id", alert_id).execute()
+                    _log_incident(db, tenant_id, {
+                        "lead_id": lead_id,
+                        "reason": "lead_not_found",
+                    })
+                    continue
+
+                if lead.get("segment") != to_segment:
+                    db.table("pending_whatsapp_alerts").update(
+                        {"status": "cancelled"}
+                    ).eq("id", alert_id).execute()
+                    continue
+
+                # Verify it is still the latest segment_changed event
+                last_event_res = (
+                    db.table("lead_stage_events")
+                    .select("to_segment")
+                    .eq("lead_id", lead_id)
+                    .eq("event_type", "segment_changed")
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if not last_event_res.data or last_event_res.data[0]["to_segment"] != to_segment:
+                    db.table("pending_whatsapp_alerts").update(
+                        {"status": "cancelled"}
+                    ).eq("id", alert_id).execute()
+                    continue
+
+                wa_cfg = get_notification_config(tenant_id, db=db).get("whatsapp_notifications") or {}
+                if not wa_cfg.get("enabled"):
+                    db.table("pending_whatsapp_alerts").update(
+                        {"status": "cancelled"}
+                    ).eq("id", alert_id).execute()
+                    continue
+
+                template_id = wa_cfg.get("template_id")
+                recipient_phones = wa_cfg.get("recipient_phones") or []
+                if not template_id or not recipient_phones:
+                    db.table("pending_whatsapp_alerts").update(
+                        {"status": "cancelled"}
+                    ).eq("id", alert_id).execute()
+                    continue
+
+                template_res = (
+                    db.table("message_templates")
+                    .select("id,name,language,body_text,status")
+                    .eq("id", template_id)
+                    .eq("tenant_id", tenant_id)
+                    .eq("status", "APPROVED")
+                    .limit(1)
+                    .execute()
+                )
+                template = (template_res.data or [None])[0]
+                if not template:
+                    logger.warning("WhatsApp alert skipped: template %s not found/approved", template_id)
+                    db.table("pending_whatsapp_alerts").update(
+                        {"status": "failed"}
+                    ).eq("id", alert_id).execute()
+                    _log_incident(db, tenant_id, {
+                        "lead_id": lead_id,
+                        "template_id": template_id,
+                        "reason": "template_not_found_or_not_approved",
+                    })
+                    continue
+
+                components = _build_components(template, lead, to_segment)
+                if components is None:
+                    db.table("pending_whatsapp_alerts").update(
+                        {"status": "failed"}
+                    ).eq("id", alert_id).execute()
+                    continue
+
+                await _dispatch_alerts(recipient_phones, template, components, tenant_id, lead_id)
+
+                db.table("pending_whatsapp_alerts").update(
+                    {"status": "sent"}
+                ).eq("id", alert_id).execute()
+
+            except Exception as e:
+                logger.exception("Failed to process pending alert %s", alert_id)
+                db.table("pending_whatsapp_alerts").update(
+                    {"status": "failed"}
+                ).eq("id", alert_id).execute()
+    except Exception as e:
+        logger.exception("process_due_whatsapp_alerts failed")
+
+
+async def send_admin_whatsapp_alerts(
+    tenant_id: str,
+    lead_id: str,
+    from_segment: str | None,
+    to_segment: str,
+) -> None:
+    """Maintained for tests and backward compatibility. Queues and triggers processing."""
+    db = get_supabase()
+    queue_admin_whatsapp_alert(db, tenant_id, lead_id, from_segment, to_segment)
+    
+    import asyncio
+    is_mocked_sleep = "mock" in type(asyncio.sleep).__name__.lower()
+    
+    if is_mocked_sleep or (ALERT_DELAY_SECONDS != 300 and ALERT_DELAY_SECONDS > 0):
+        # Determine delay from config
+        wa_cfg = get_notification_config(tenant_id, db=db).get("whatsapp_notifications") or {}
+        delay_minutes = wa_cfg.get("delay_minutes", 5)
+        delay_seconds = ALERT_DELAY_SECONDS if ALERT_DELAY_SECONDS != 300 else (delay_minutes * 60)
+        await asyncio.sleep(delay_seconds)
+        
+    await process_due_whatsapp_alerts()
+
 

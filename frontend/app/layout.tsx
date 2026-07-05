@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, JetBrains_Mono, Dancing_Script } from "next/font/google";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
 import "./globals.css";
@@ -41,6 +40,9 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
   icons: {
     icon: [
       { url: "/aira/favicon.ico" },
@@ -67,7 +69,6 @@ export default function RootLayout({
       <body className="antialiased">
         {children}
         <Toaster position="top-right" richColors closeButton />
-        <SpeedInsights />
         <PwaRegistrar />
       </body>
     </html>
