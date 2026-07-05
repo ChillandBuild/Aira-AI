@@ -49,3 +49,15 @@ def test_push_allowed_false_when_master_off():
     cfg = {**nc._NOTIFICATION_CONFIG_DEFAULT, "push_enabled": False}
     with patch.object(nc, "get_notification_config", return_value=cfg):
         assert nc.push_allowed("t-1", "lead_assigned") is False
+
+
+def test_get_config_merges_delay_minutes():
+    from app.services import notification_config as nc
+    db = MagicMock()
+    db.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+        "value": '{"whatsapp_notifications": {"delay_minutes": 10}}'
+    }
+    cfg = nc.get_notification_config("t-1", db=db)
+    assert cfg["whatsapp_notifications"]["delay_minutes"] == 10
+    assert cfg["whatsapp_notifications"]["enabled"] is False
+

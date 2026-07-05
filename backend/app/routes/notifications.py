@@ -30,6 +30,7 @@ class WhatsAppNotificationConfig(BaseModel):
     recipient_phones: list[str] = []
     template_id: str | None = None
     target_segments: list[str] = ["A"]
+    delay_minutes: int = Field(5, ge=0, le=1440)
 
     @field_validator("recipient_phones")
     @classmethod
