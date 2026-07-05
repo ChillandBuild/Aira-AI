@@ -25,7 +25,13 @@ async def sarvam_chat_completion(
 ) -> str:
     """Sarvam's Chat Completions API (OpenAI-compatible response shape). Unlike the
     Speech-to-Text/Document Digitization endpoints (api-subscription-key header),
-    this one uses standard Authorization: Bearer auth."""
+    this one uses standard Authorization: Bearer auth.
+
+    reasoning_effort=None disables sarvam-30b/105b's default "medium" reasoning mode.
+    Without it, the model spends its entire max_tokens budget on an internal
+    reasoning_content trace and never reaches the actual answer -- content comes
+    back null with finish_reason="length" regardless of max_tokens size, since the
+    model treats reasoning as the priority output, not an optional pre-step."""
     api_key = get_sarvam_api_key(tenant_id)
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
@@ -36,6 +42,7 @@ async def sarvam_chat_completion(
                 "model": model,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
+                "reasoning_effort": None,
             },
         )
         resp.raise_for_status()

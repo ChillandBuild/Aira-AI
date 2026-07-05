@@ -1,10 +1,11 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Sparkles, Phone, StickyNote, Tag, Inbox, User, RefreshCw, MessageSquare, CalendarClock, FileText, ChevronRight } from "lucide-react";
+import { Sparkles, Phone, StickyNote, Tag, Inbox, User, RefreshCw, MessageSquare, CalendarClock, FileText, ChevronRight, Mic } from "lucide-react";
 import { Lead, Message, CallLog, API_URL, getAuthHeaders } from "@/lib/api";
 import type { NotesResponse, ActiveCallCtx } from "../types";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import LeadAttribution from "./LeadAttribution";
+import { getMessageDisplayMeta } from "../lib/message-display";
 
 export const QUICK_NOTE_TAGS = [
   "Meeting scheduled",
@@ -17,6 +18,23 @@ export const QUICK_NOTE_TAGS = [
 ];
 
 const CALLBACK_TAGS = new Set(["Meeting scheduled"]);
+
+type MessageBubbleContentMessage = Pick<Message, "content" | "direction" | "media_type">;
+
+function MessageBubbleContent({ message }: { message: MessageBubbleContentMessage }) {
+  const display = getMessageDisplayMeta(message);
+  return (
+    <>
+      {display.label && (
+        <div className="mb-1.5 flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-teal-600">
+          <Mic size={10} />
+          <span>{display.label}</span>
+        </div>
+      )}
+      <p>{message.content}</p>
+    </>
+  );
+}
 
 export interface LeadDetailPanelProps {
   selectedLead: Lead;
@@ -206,7 +224,7 @@ export default function LeadDetailPanel({
     })),
     ...selectedLeadMessages.map(m => ({
       type: "message" as const, id: m.id, created_at: m.created_at,
-      content: m.content, direction: m.direction,
+      content: m.content, direction: m.direction, media_type: m.media_type,
     })),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -599,7 +617,7 @@ export default function LeadDetailPanel({
                           ? "bg-white text-[#44403c] rounded-tl-sm border border-[#f0ece4]"
                           : "bg-[#dcf8c6] text-[#292524] rounded-tr-sm"
                       }`}>
-                        <p>{msg.content}</p>
+                        <MessageBubbleContent message={msg} />
                         <p className="text-[9px] text-[#a8a29e] mt-0.5 text-right">{timeAgo(msg.created_at)}</p>
                       </div>
                     </div>
@@ -761,7 +779,13 @@ export default function LeadDetailPanel({
                               ? "bg-white border border-[#e8e3db] text-[#44403c] rounded-tl-sm"
                               : "bg-[#dcf8c6] text-[#292524] rounded-tr-sm"
                           }`}>
-                            {item.content}
+                            <MessageBubbleContent
+                              message={{
+                                content: item.content,
+                                direction: item.direction,
+                                media_type: item.media_type,
+                              }}
+                            />
                           </div>
                         </div>
                       )}
@@ -835,7 +859,7 @@ export default function LeadDetailPanel({
                             ? "bg-white border border-[#e8e3db] text-[#44403c] rounded-tl-sm"
                             : "bg-[#dcf8c6] text-[#292524] rounded-tr-sm"
                         }`}>
-                          <p>{msg.content}</p>
+                          <MessageBubbleContent message={msg} />
                           <p className="text-[9px] text-[#a8a29e] mt-0.5 text-right">{timeAgo(msg.created_at)}</p>
                         </div>
                       </div>
