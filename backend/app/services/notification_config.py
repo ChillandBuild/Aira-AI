@@ -25,6 +25,7 @@ _NOTIFICATION_CONFIG_DEFAULT: dict = {
         "recipient_phones": [],
         "template_id": None,
         "target_segments": ["A"],
+        "delay_minutes": 5,
     },
 }
 

@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 _SEGMENT_LABELS = {"A": "Hot", "B": "Warm", "C": "Cold", "D": "Disqualified"}
 _COOLDOWN_HOURS = 6
+ALERT_DELAY_SECONDS = 300
 
 
 def _log_incident(db, tenant_id: str, detail: dict) -> None:
@@ -108,6 +109,7 @@ async def send_admin_whatsapp_alerts(
     to_segment: str,
 ) -> None:
     """Fire admin WhatsApp alerts when a lead's segment changes, if configured.
+    Waits ALERT_DELAY_SECONDS to verify the lead stays in this segment before sending.
 
     Fired from a background task with no caller awaiting the result — every
     failure path below must return quietly rather than raise.
@@ -126,6 +128,58 @@ async def send_admin_whatsapp_alerts(
             return
 
         if _is_recently_notified(db, lead_id, to_segment):
+            return
+
+        # Determine delay from client configuration (default to 5 minutes)
+        delay_minutes = wa_cfg.get("delay_minutes")
+        if delay_minutes is None:
+            delay_minutes = 5
+
+        # Use test override if it's explicitly set to something other than the default 300s
+        delay_seconds = (
+            ALERT_DELAY_SECONDS
+            if ALERT_DELAY_SECONDS != 300
+            else (delay_minutes * 60)
+        )
+
+        if delay_seconds > 0:
+            import asyncio
+            await asyncio.sleep(delay_seconds)
+
+        # Check if the lead's segment is still to_segment in lead_stage_events (most recent change)
+        last_event_res = (
+            db.table("lead_stage_events")
+            .select("to_segment")
+            .eq("lead_id", lead_id)
+            .eq("event_type", "segment_changed")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if not last_event_res.data:
+            return
+        current_segment = last_event_res.data[0]["to_segment"]
+        if current_segment != to_segment:
+            return
+
+        lead_res = (
+            db.table("leads")
+            .select("id,name,phone,score,segment")
+            .eq("id", lead_id)
+            .eq("tenant_id", tenant_id)
+            .limit(1)
+            .execute()
+        )
+        lead = (lead_res.data or [None])[0]
+        if not lead:
+            logger.warning("WhatsApp alert skipped: lead %s not found for tenant %s", lead_id, tenant_id)
+            _log_incident(db, tenant_id, {
+                "lead_id": lead_id,
+                "reason": "lead_not_found",
+            })
+            return
+
+        if lead.get("segment") != to_segment:
             return
 
         template_res = (
@@ -151,23 +205,6 @@ async def send_admin_whatsapp_alerts(
             })
             return
 
-        lead_res = (
-            db.table("leads")
-            .select("id,name,phone,score")
-            .eq("id", lead_id)
-            .eq("tenant_id", tenant_id)
-            .limit(1)
-            .execute()
-        )
-        lead = (lead_res.data or [None])[0]
-        if not lead:
-            logger.warning("WhatsApp alert skipped: lead %s not found for tenant %s", lead_id, tenant_id)
-            _log_incident(db, tenant_id, {
-                "lead_id": lead_id,
-                "reason": "lead_not_found",
-            })
-            return
-
         components = _build_components(template, lead, to_segment)
         if components is None:
             return
@@ -180,3 +217,4 @@ async def send_admin_whatsapp_alerts(
             "reason": "unexpected_error",
             "error": str(e)[:500],
         })
+

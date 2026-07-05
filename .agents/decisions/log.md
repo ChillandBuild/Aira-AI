@@ -409,3 +409,12 @@
 - **Decision**: Added the Knowledge Search Mode (Smart/semantic, Exact words/keyword, Best of both/hybrid) configuration panel to the Configuration view in the Developer Console (`/operator/client/[id]?section=config`).
 - **Decision**: Added `PATCH /api/v1/operator/clients/{tenant_id}/config` in the operator route list to allow system administrators to securely change this setting on behalf of the client, which invalidates the dynamic config cache and logs an operator audit event.
 - **Rationale**: Clients should not configure the underlying technical retrieval strategy; this choice should be locked or updated only by developers/system administrators according to client requirements.
+
+---
+
+**2026-07-05 — Delayed WhatsApp Admin Notifications & Recheck**
+- **Decision**: Added a customizable delay (`delay_minutes`) under `whatsapp_notifications` configuration, defaulting to 5 minutes.
+- **Decision**: Added a numeric delay input field to the client's Settings panel (`NotificationConfigPanel.tsx`) allowing them to customize the duration (in minutes) or disable it (0 minutes).
+- **Decision**: Added validation checks after the configured delay to query `lead_stage_events` and `leads` to verify that the lead stayed in the target segment continuously. If not, the notification is skipped.
+- **Rationale**: Gives clients granular control over alert responsiveness while protecting admins from notification fatigue during rapid lead state transitions.
+

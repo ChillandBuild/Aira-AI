@@ -326,6 +326,26 @@ export function NotificationConfigPanel() {
                 </div>
               )}
             </div>
+
+            <div>
+              <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Delay before sending (minutes)</label>
+              <input
+                type="number" min={0} max={1440}
+                value={cfg.whatsapp_notifications.delay_minutes ?? 5}
+                onChange={(e) =>
+                  patch({
+                    whatsapp_notifications: {
+                      ...cfg.whatsapp_notifications,
+                      delay_minutes: Math.max(0, Math.min(1440, parseInt(e.target.value) || 0)),
+                    },
+                  })
+                }
+                className="w-24 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
+              />
+              <p className="font-body text-[11px] text-ink-muted mt-1">
+                How long the lead must stay in the segment before sending the notification. Set to 0 to send immediately.
+              </p>
+            </div>
           </div>
         )}
       </div>

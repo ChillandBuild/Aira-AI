@@ -1,8 +1,16 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import asyncio
 import logging
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
+
+from app.services import whatsapp_notify
+whatsapp_notify.ALERT_DELAY_SECONDS = 0
+
 
 
 def _wa_config(**overrides):
@@ -17,7 +25,7 @@ def _wa_config(**overrides):
 
 
 def _lead_row(**overrides):
-    row = {"id": "lead-1", "name": "Asha", "phone": "+919999999999", "score": 7}
+    row = {"id": "lead-1", "name": "Asha", "phone": "+919999999999", "score": 7, "segment": "B"}
     row.update(overrides)
     return row
 
@@ -40,6 +48,7 @@ def _make_db(
     template_rows: list | None = None,
     lead_rows: list | None = None,
     cooldown_rows: list | None = None,
+    last_segment_rows: list | None = None,
 ):
     db = MagicMock()
 
@@ -70,11 +79,28 @@ def _make_db(
             )
             chain.data = lead_rows if lead_rows is not None else []
         elif name == "lead_stage_events":
-            chain = (
-                t.select.return_value.eq.return_value.eq.return_value.eq
-                .return_value.gte.return_value.order.return_value.execute.return_value
-            )
-            chain.data = cooldown_rows if cooldown_rows is not None else []
+            def select_mock(columns):
+                if "id,created_at" in columns:
+                    execute = MagicMock()
+                    execute.return_value.data = cooldown_rows if cooldown_rows is not None else []
+                    
+                    sel = MagicMock()
+                    (
+                        sel.eq.return_value.eq.return_value.eq.return_value
+                        .gte.return_value.order.return_value.execute
+                    ) = execute
+                    return sel
+                else:
+                    execute = MagicMock()
+                    execute.return_value.data = last_segment_rows if last_segment_rows is not None else [{"to_segment": "B"}]
+                    
+                    sel = MagicMock()
+                    (
+                        sel.eq.return_value.eq.return_value.order.return_value
+                        .limit.return_value.execute
+                    ) = execute
+                    return sel
+            t.select.side_effect = select_mock
         return t
 
     db.table.side_effect = table_selector
@@ -182,7 +208,7 @@ async def test_no_recipient_phones_does_not_send():
 @pytest.mark.asyncio
 async def test_template_not_found_or_not_approved_does_not_send(caplog):
     from app.services import whatsapp_notify as svc
-    db = _make_db(wa_config=_wa_config(), template_rows=[], cooldown_rows=[{"id": "evt-1"}])
+    db = _make_db(wa_config=_wa_config(), template_rows=[], lead_rows=[_lead_row()], cooldown_rows=[{"id": "evt-1"}])
     with patch.object(svc, "get_supabase", return_value=db), \
          patch.object(svc, "send_template_message", new=AsyncMock()) as tpl, \
          caplog.at_level(logging.WARNING):
@@ -333,3 +359,67 @@ async def test_non_segment_changed_event_does_not_schedule_whatsapp_alert_task()
         await asyncio.sleep(0)
         await asyncio.sleep(0)
     alert.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_alert_delay_and_segment_recheck_success():
+    from app.services import whatsapp_notify as svc
+    db = _make_db(
+        wa_config=_wa_config(),
+        template_rows=[_template_row()],
+        lead_rows=[_lead_row(segment="B")],
+        cooldown_rows=[{"id": "evt-1"}],
+        last_segment_rows=[{"to_segment": "B"}],
+    )
+    with patch.object(svc, "get_supabase", return_value=db), \
+         patch.object(svc, "send_template_message", new=AsyncMock()) as tpl, \
+         patch.object(svc, "ALERT_DELAY_SECONDS", 0.05):
+        
+        task = asyncio.create_task(svc.send_admin_whatsapp_alerts("t1", "lead-1", "C", "B"))
+        await asyncio.sleep(0.01)
+        assert not tpl.called
+        
+        await task
+        assert tpl.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_alert_delay_and_segment_recheck_fails():
+    from app.services import whatsapp_notify as svc
+    db = _make_db(
+        wa_config=_wa_config(),
+        template_rows=[_template_row()],
+        lead_rows=[_lead_row(segment="B")],
+        cooldown_rows=[{"id": "evt-1"}],
+        last_segment_rows=[{"to_segment": "A"}],
+    )
+    with patch.object(svc, "get_supabase", return_value=db), \
+         patch.object(svc, "send_template_message", new=AsyncMock()) as tpl, \
+         patch.object(svc, "ALERT_DELAY_SECONDS", 0.05):
+        
+        task = asyncio.create_task(svc.send_admin_whatsapp_alerts("t1", "lead-1", "C", "B"))
+        await asyncio.sleep(0.01)
+        
+        await task
+        tpl.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_dynamic_delay_from_client_config():
+    from app.services import whatsapp_notify as svc
+    db = _make_db(
+        wa_config=_wa_config(delay_minutes=10),
+        template_rows=[_template_row()],
+        lead_rows=[_lead_row(segment="B")],
+        cooldown_rows=[{"id": "evt-1"}],
+        last_segment_rows=[{"to_segment": "B"}],
+    )
+    with patch.object(svc, "get_supabase", return_value=db), \
+         patch.object(svc, "send_template_message", new=AsyncMock()), \
+         patch("asyncio.sleep", new=AsyncMock()) as mock_sleep, \
+         patch.object(svc, "ALERT_DELAY_SECONDS", 300):
+        
+        await svc.send_admin_whatsapp_alerts("t1", "lead-1", "C", "B")
+        mock_sleep.assert_called_once_with(600)
+
+

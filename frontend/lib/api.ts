@@ -722,6 +722,7 @@ export type NotificationConfig = {
     recipient_phones: string[];
     template_id: string | null;
     target_segments: string[];
+    delay_minutes?: number;
   };
 };
 
