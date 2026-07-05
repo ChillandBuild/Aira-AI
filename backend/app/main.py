@@ -275,6 +275,15 @@ async def _generate_daily_digests() -> None:
         logger.error(f"Daily digest generation error: {e}")
 
 
+async def _process_pending_whatsapp_alerts() -> None:
+    """APScheduler job: process due pending WhatsApp alerts."""
+    try:
+        from app.services.whatsapp_notify import process_due_whatsapp_alerts
+        await process_due_whatsapp_alerts()
+    except Exception as e:
+        logger.error(f"Pending WhatsApp alerts scheduler error: {e}")
+
+
 _scheduler = AsyncIOScheduler()
 
 
