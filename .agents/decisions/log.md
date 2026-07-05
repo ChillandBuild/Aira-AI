@@ -401,3 +401,11 @@
 - **Decision**: Add-on purchases during an active billing cycle are prorated to the remaining days in the tenant's anchored cycle. The dashboard cart shows "Due now" for the prorated amount and the normal monthly amount from the next cycle. Operator catalog editing is daily-price-first; the monthly catalog price is saved as daily price times 30.
 - **Implementation**: `check_quota()` is now fail-open for included quotas and only blocks on `hard_cap`; the telecaller-seat and number-pool live count blockers were removed. Migration `130_flat_price_unlimited_catalog.sql` makes channel/telecalling/AI catalog rows non-metered, clears included quantities for seats/numbers, and clears existing hard caps for the affected metrics.
 - **Rationale**: The user chose a simple per-module price model with only future-visible quantity concepts for seats, numbers, and AI tokens. The immediate production pain was `ai_reply quota exhausted`; old included counters must not stop customer-facing replies while the pricing model is being finalized.
+
+---
+
+**2026-07-05 — Move Knowledge Search Mode to Developer Console**
+- **Decision**: Removed the Knowledge Search Mode UI switcher, state variables, and associated helper functions from the client-facing Knowledge Base (RAG) dashboard (`/dashboard/knowledge`).
+- **Decision**: Added the Knowledge Search Mode (Smart/semantic, Exact words/keyword, Best of both/hybrid) configuration panel to the Configuration view in the Developer Console (`/operator/client/[id]?section=config`).
+- **Decision**: Added `PATCH /api/v1/operator/clients/{tenant_id}/config` in the operator route list to allow system administrators to securely change this setting on behalf of the client, which invalidates the dynamic config cache and logs an operator audit event.
+- **Rationale**: Clients should not configure the underlying technical retrieval strategy; this choice should be locked or updated only by developers/system administrators according to client requirements.
