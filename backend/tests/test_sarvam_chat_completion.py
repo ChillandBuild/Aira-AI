@@ -1,4 +1,5 @@
 import pytest
+import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services import sarvam_client
@@ -77,3 +78,36 @@ async def test_sarvam_speech_to_text_posts_audio_bytes_with_subscription_key():
     assert call_kwargs["headers"] == {"api-subscription-key": "test-key"}
     assert call_kwargs["files"] == {"file": ("voice.ogg", b"audio-bytes", "audio/ogg")}
     assert call_kwargs["data"] == {"model": "saaras:v3", "mode": "codemix"}
+
+
+@pytest.mark.asyncio
+async def test_sarvam_text_to_speech_decodes_bulbul_audio_with_subscription_key():
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {"request_id": "req-1", "audios": [base64.b64encode(b"mp3-bytes").decode("ascii")]}
+    mock_instance = AsyncMock()
+    mock_instance.post = AsyncMock(return_value=resp)
+
+    with patch("app.services.sarvam_client.get_sarvam_api_key", return_value="test-key"), \
+         patch("app.services.sarvam_client.httpx.AsyncClient") as mock_client_cls:
+        mock_client_cls.return_value.__aenter__.return_value = mock_instance
+        audio = await sarvam_client.sarvam_text_to_speech(
+            text="Hello Prem",
+            target_language_code="en-IN",
+            tenant_id="tenant-1",
+        )
+
+    assert audio == b"mp3-bytes"
+    call_args, call_kwargs = mock_instance.post.call_args
+    assert call_args[0] == "https://api.sarvam.ai/text-to-speech"
+    assert call_kwargs["headers"] == {"api-subscription-key": "test-key"}
+    assert call_kwargs["json"] == {
+        "text": "Hello Prem",
+        "target_language_code": "en-IN",
+        "speaker": "shubh",
+        "model": "bulbul:v3",
+        "output_audio_codec": "mp3",
+        "speech_sample_rate": 24000,
+        "pace": 1.0,
+        "temperature": 0.6,
+    }

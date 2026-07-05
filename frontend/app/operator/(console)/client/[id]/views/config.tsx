@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
+import { OperatorToggle } from "../../../components/operator-toggle";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
@@ -31,6 +32,7 @@ interface ConfigData {
   credentials_status: Record<string, "configured" | "incomplete" | "not_configured">;
   settings: {
     ai_auto_reply_enabled: boolean;
+    ai_voice_reply_enabled: boolean;
     reengagement_enabled: boolean;
     kb_retrieval_mode: RetrievalMode;
   };
@@ -79,6 +81,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [providerSaving, setProviderSaving] = useState<"telecmi" | "sim_basic" | null>(null);
   const [pendingProvider, setPendingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
   const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
+  const [voiceReplySaving, setVoiceReplySaving] = useState(false);
 
   async function updateRetrievalMode(mode: RetrievalMode) {
     if (!config || config.settings.kb_retrieval_mode === mode) return;
@@ -107,6 +110,36 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       toast.error("Failed to update search mode. Please try again.");
     } finally {
       setRetrievalSaving(null);
+    }
+  }
+
+  async function updateVoiceReplies(enabled: boolean) {
+    if (!config || config.settings.ai_voice_reply_enabled === enabled) return;
+    setVoiceReplySaving(true);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { ai_voice_reply_enabled: enabled }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          ai_voice_reply_enabled: enabled
+        }
+      });
+      toast.success(enabled ? "AI voice replies enabled for this client." : "AI voice replies disabled for this client.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update AI voice replies");
+      toast.error("Failed to update AI voice replies.");
+    } finally {
+      setVoiceReplySaving(false);
     }
   }
 
@@ -305,6 +338,34 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               {config.settings.reengagement_enabled ? "Enabled" : "Disabled"}
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* AI Voice Replies */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Mic size={16} className="text-ink-muted" />
+          AI Voice Replies
+        </h3>
+        <div className="rounded-card border border-border bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">Reply with WhatsApp audio</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                Converts Sarvam 30B replies into Bulbul voice notes for this client. Text is still saved in the dashboard.
+              </p>
+            </div>
+            <OperatorToggle
+              checked={config.settings.ai_voice_reply_enabled}
+              onChange={updateVoiceReplies}
+              loading={voiceReplySaving}
+              disabled={!config.settings.ai_auto_reply_enabled}
+              aria-label="Toggle AI voice replies"
+            />
+          </div>
+          {!config.settings.ai_auto_reply_enabled && (
+            <p className="mt-3 text-xs text-warning">Enable AI Auto-Reply before turning on voice replies.</p>
+          )}
         </div>
       </div>
 

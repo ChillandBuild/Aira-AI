@@ -249,7 +249,11 @@ async def _process_inbound_message_background(
     db = get_supabase()
     try:
         if msg_type == "audio" and not body and meta_media_id:
-            body, media_mime_type = await _transcribe_whatsapp_audio(meta_media_id, tenant_id)
+            try:
+                body, media_mime_type = await _transcribe_whatsapp_audio(meta_media_id, tenant_id)
+            except Exception as audio_err:
+                logger.error(f"Audio transcription failed for lead {lead_id} media {meta_media_id}: {audio_err}")
+                return
             if not body:
                 logger.info(f"Audio message {meta_media_id} produced empty transcript for lead {lead_id}")
                 return
