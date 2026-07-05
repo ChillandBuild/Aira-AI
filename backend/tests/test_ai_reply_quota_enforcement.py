@@ -11,7 +11,7 @@ from app.services import ai_reply
 
 class AiReplyQuotaEnforcementTests(unittest.IsolatedAsyncioTestCase):
     @patch("app.services.ai_reply.check_quota", return_value=False)
-    async def test_check_quota_false_short_circuits_before_groq_call(self, mock_check_quota):
+    async def test_check_quota_false_short_circuits_before_llm_dispatch(self, mock_check_quota):
         self.assertFalse(ai_reply.check_quota(None, "tenant-1", "ai_reply"))
 
     def test_generate_reply_checks_quota_before_dispatch(self):

@@ -25,6 +25,13 @@ class CreateClientEntitlementsChecks(unittest.TestCase):
         matches = re.findall(r"^_SETTING_KEYS\s*[:=]", self.source, flags=re.MULTILINE)
         self.assertEqual(len(matches), 1, "Expected exactly one module-level _SETTING_KEYS definition")
 
+    def test_ai_credential_health_uses_sarvam_key(self):
+        client_config_idx = self.source.index("def client_config(")
+        next_route_idx = self.source.index("\n@router.", client_config_idx + 1)
+        client_config_body = self.source[client_config_idx:next_route_idx]
+        self.assertIn('"ai": cred_status(["sarvam_api_key"])', client_config_body)
+        self.assertNotIn('"ai": cred_status(["groq_api_key"])', client_config_body)
+
     def test_tenant_insert_carries_contact_fields(self):
         self.assertIn('"business_type": payload.business_type', self.source)
         self.assertIn('"contact_name": payload.contact_name', self.source)

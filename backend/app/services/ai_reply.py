@@ -680,7 +680,6 @@ async def generate_reply(
         logger.warning(f"Knowledge context fetch failed for lead {lead_id}: {e}")
         context_text = ""
 
-    _raw_reply = ""  # holds unstripped LLM output for the defensive [COLLECT_DONE] strip below
     try:
         system_prompt = _get_prompt(f"{channel}_reply", tenant_id=lead_data.get("tenant_id"))
         if campaign_name:
@@ -730,18 +729,12 @@ async def generate_reply(
         else:
             chat_messages[-1]["content"] = _tagged_message
 
-        _raw_reply = await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)
+        reply_text = (await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)).strip()
         is_ai = True
         reply_source = "knowledge" if context_text else "ai"
 
-        # Defensive strip: some tenants' custom AI Tune prompts (stored in the DB, not
-        # this code) may still instruct the model to end replies with [COLLECT_DONE]{...}
-        # from the old data-collection feature (its parser/save logic is removed below).
-        # Keep stripping so a stale stored prompt can't leak the raw tag to a customer.
-        _display_text = re.sub(r'^\s*\[COLLECT_DONE\]\s*\{.*\}\s*$', '', _raw_reply.strip(), flags=re.DOTALL).strip()
-        reply_text = _display_text if _display_text != _raw_reply else _raw_reply
         if not reply_text:
-            reply_text = "Thank you — we've got all your details. We'll be in touch shortly."
+            reply_text = _FALLBACK_BY_LANG.get(_detect_lang(message), _FALLBACK_BY_LANG["en"])
 
         # Trigger A: AI gave a generic fallback reply
         if _is_generic_fallback(reply_text):

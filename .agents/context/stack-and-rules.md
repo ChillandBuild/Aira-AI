@@ -6,7 +6,7 @@
 | Backend | FastAPI, Python 3.11+, Pydantic v2 | backend/app/ |
 | DB | Supabase (PostgreSQL + Realtime) | — |
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind | frontend/app/dashboard/ |
-| AI | Groq — `llama-3.3-70b-versatile` | services/ai_reply.py, lead_scorer.py |
+| AI | Sarvam-30B for WhatsApp replies; Sarvam Saaras/Vision for transcription/OCR; Groq remains for scoring/coaching/digests/tuning/briefs | services/ai_reply.py, services/sarvam_client.py, services/scoring_engine.py |
 | WhatsApp | Meta Cloud API Direct | — |
 | Voice | TeleCMI click-to-call + recording | services/telecmi_client.py |
 | Payments | Razorpay Payment Links API | services/payment_razorpay.py |
@@ -16,7 +16,7 @@
 ## Provider Decisions (Locked)
 - **WhatsApp**: Meta Cloud API Direct.
 - **Voice**: TeleCMI (click-to-call + recording).
-- **AI (Replies & Scoring)**: Groq `llama-3.3-70b-versatile`. Do NOT add Gemini/OpenAI imports.
+- **AI providers**: Sarvam powers WhatsApp AI replies (`sarvam-30b`), call transcription (`saaras:v3`), and knowledge image OCR (Sarvam Vision). Groq still powers scoring, call coaching/digests, AI tuning, lead briefs, and conversation compaction until explicitly migrated. Do NOT add Gemini/OpenAI imports.
 - **Payments**: Razorpay (Payment Links API — no SDK, direct httpx/httpx-async calls).
 
 ## Production Configs
@@ -47,7 +47,6 @@
 ## Core Configuration Panels
 - **InboxConfigPanel**: Chat escalation toggle on/off per behavioral triggers (A/B/C/D/F). Escales are trigger-only; handovers land `UNASSIGNED` in a shared pool.
 - **TelecallingConfigPanel**: Auto-assign, per-segment routing (A/B/C/D), channels, contact recycling configurations, and shift hour limits.
-- **BookingConfigPanel**: Booking types mapping (stored as JSON in `app_settings.booking_types`). Zero types maps to flat ₹500 pricing.
 
 ## File Map & Routing Guidelines
 - WhatsApp/Meta: [routes/webhook.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/webhook.py), [services/meta_cloud.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/meta_cloud.py), [services/outbound_router.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/outbound_router.py)
@@ -57,5 +56,4 @@
 - Leads & Scoring: [routes/leads.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/leads.py), [services/scoring_engine.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/scoring_engine.py)
 - Incidents: [routes/numbers.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/numbers.py), [services/failover.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/failover.py), [routes/incidents.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/incidents.py)
 - Broadcasts/Templates: [routes/upload.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/upload.py), [services/broadcast_executor.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/broadcast_executor.py), [routes/templates.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/templates.py)
-- Bookings: [services/booking_flow.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/booking_flow.py), [routes/bookings.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/bookings.py)
 - Settings & Health: [routes/app_settings.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/app_settings.py)

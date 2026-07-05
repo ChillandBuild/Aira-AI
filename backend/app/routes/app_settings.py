@@ -187,6 +187,7 @@ async def update_settings(
         "telecmi_secret",
         "telecmi_agent_password",
         "telecmi_webhook_secret",
+        "sarvam_api_key",
         "groq_api_key",
         "razorpay_key_secret",
         "razorpay_webhook_secret",

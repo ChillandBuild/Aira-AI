@@ -50,7 +50,6 @@ def _lead(hours_since_reply: float, source=None):
         "last_inbound_at": _now_iso(hours_since_reply),
         "source": source,
         "extra_cols": {},
-        "collected_data": {},
     }
 
 

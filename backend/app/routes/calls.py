@@ -820,14 +820,14 @@ async def telecmi_live_events(request: Request):
 
 # ── Recording Processing ─────────────────────────────────────────────
 
-# Max concurrent Groq (Whisper + LLM) requests — prevents rate-limit failures
+# Max concurrent call-AI requests — prevents provider rate-limit failures
 # when many calls end at the same time (shift end, break, etc.)
-_GROQ_SEMAPHORE = asyncio.Semaphore(5)
+_CALL_AI_SEMAPHORE = asyncio.Semaphore(5)
 
 
 async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> None:
     """Download TeleCMI recording and run AI summarization."""
-    async with _GROQ_SEMAPHORE:
+    async with _CALL_AI_SEMAPHORE:
         db = get_supabase()
 
         for attempt in range(1, 4):
