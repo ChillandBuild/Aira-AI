@@ -149,16 +149,6 @@ def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
         or []
     )
 
-_LANG_NAMES = {
-    "ta": "Tamil",
-    "hi": "Hindi",
-    "te": "Telugu",
-    "kn": "Kannada",
-    "ml": "Malayalam",
-    "en": "English",
-    "tanglish": "Tanglish (Tamil words spelled in English letters - reply the same way, do not switch to Tamil script or formal English)",
-}
-
 _FALLBACK_BY_LANG = {
     "ta": "நன்றி! உங்கள் விசாரணைக்கு விரைவில் பதிலளிப்போம்.",
     "hi": "धन्यवाद! हम जल्द ही आपसे संपर्क करेंगे।",
@@ -720,14 +710,14 @@ async def generate_reply(
             role = "assistant" if row.get("direction") == "outbound" else "user"
             chat_messages.append({"role": role, "content": content})
 
-        # Inject language hint directly into the final user turn - strongest signal,
-        # overrides any knowledge-base language that may dominate the system prompt.
-        _user_lang_name = _LANG_NAMES.get(_detect_lang(message), "English")
-        _tagged_message = f"[Respond in {_user_lang_name}] {message}"
+        # No code-injected language tag on the user turn: the LANGUAGE RULE block above
+        # (plus any tenant-authored language-mirroring rules in their own system prompt)
+        # already instructs the model to detect and mirror the customer's language
+        # directly from their raw words. A pre-computed tag here would override that
+        # with _detect_lang()'s much cruder guess whenever the two disagree -- and the
+        # model is reliably better at this than a hardcoded keyword list can be.
         if not chat_messages or chat_messages[-1].get("role") != "user" or chat_messages[-1].get("content") != message:
-            chat_messages.append({"role": "user", "content": _tagged_message})
-        else:
-            chat_messages[-1]["content"] = _tagged_message
+            chat_messages.append({"role": "user", "content": message})
 
         reply_text = (await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)).strip()
         is_ai = True

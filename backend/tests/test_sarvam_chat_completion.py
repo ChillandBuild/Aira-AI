@@ -27,6 +27,7 @@ async def test_sarvam_chat_completion_returns_stripped_message_content():
     assert call_kwargs["json"]["model"] == "sarvam-30b"
     assert call_kwargs["json"]["messages"] == [{"role": "user", "content": "Hi"}]
     assert call_kwargs["json"]["reasoning_effort"] is None
+    assert call_kwargs["json"]["frequency_penalty"] == 0.5
 
 
 @pytest.mark.asyncio
