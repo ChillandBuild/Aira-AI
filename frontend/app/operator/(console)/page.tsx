@@ -149,7 +149,7 @@ export default function OperatorPage() {
   const loadHealth = useCallback(async () => {
     try {
       const [healthRes, opRes] = await Promise.allSettled([
-        fetch(`${API_URL}/health`).then(r => r.json()),
+        fetch(`${API_URL}/ready`).then(r => r.json()),
         operatorFetch<OperatorHealth>("/api/v1/operator/system-health"),
       ]);
       if (healthRes.status === "fulfilled") setSystemHealth(healthRes.value);

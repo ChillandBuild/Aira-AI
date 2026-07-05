@@ -423,12 +423,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check (no auth, no prefix)
-@app.api_route("/health", methods=["GET", "HEAD"], tags=["system"])
-async def health():
-    from fastapi.responses import JSONResponse
-    from datetime import datetime, timezone
-    
+def _format_uptime(uptime_s: int) -> str:
+    d, rem = divmod(uptime_s, 86400)
+    h, rem = divmod(rem, 3600)
+    m = rem // 60
+    return f"{d}d {h}h {m}m" if d else (f"{h}h {m}m" if h else f"{m}m")
+
+
+def _base_health_payload(now: datetime) -> dict:
+    uptime_s = int((now - _startup_time).total_seconds())
+    return {
+        "service": "aira-ai",
+        "uptime_seconds": uptime_s,
+        "uptime_human": _format_uptime(uptime_s),
+        "started_at": _startup_time.isoformat(),
+        "server_time": now.isoformat(),
+    }
+
+
+def _readiness_payload() -> tuple[dict, bool]:
+    now = datetime.now(timezone.utc)
+
     # 1. Ping the Supabase database
     db_ok = False
     db_error = None
@@ -465,25 +480,30 @@ async def health():
         }
     }
 
-    uptime_s = int((now - _startup_time).total_seconds())
-    d, rem = divmod(uptime_s, 86400)
-    h, rem = divmod(rem, 3600)
-    m = rem // 60
-    uptime_human = f"{d}d {h}h {m}m" if d else (f"{h}h {m}m" if h else f"{m}m")
+    base = {**_base_health_payload(now), "details": details}
 
-    base = {
-        "service": "aira-ai",
-        "uptime_seconds": uptime_s,
-        "uptime_human": uptime_human,
-        "started_at": _startup_time.isoformat(),
-        "server_time": now.isoformat(),
-        "details": details,
-    }
+    ready = db_ok and sb_ok
+    return {**base, "status": "healthy" if ready else "unhealthy"}, ready
 
-    if db_ok and sb_ok:
-        return {**base, "status": "healthy"}
-    else:
-        return JSONResponse(status_code=503, content={**base, "status": "unhealthy"})
+
+# Liveness check (no auth, no prefix). Render uses this endpoint, so it must
+# answer 200 while the process is alive even if dependencies are degraded.
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["system"])
+async def health():
+    now = datetime.now(timezone.utc)
+    return {**_base_health_payload(now), "status": "healthy"}
+
+
+# Readiness/deep health check (no auth, no prefix). Operator tooling can use
+# this for dependency details without letting a DB blip fail Render liveness.
+@app.api_route("/ready", methods=["GET", "HEAD"], tags=["system"])
+async def ready():
+    from fastapi.responses import JSONResponse
+
+    payload, is_ready = _readiness_payload()
+    if is_ready:
+        return payload
+    return JSONResponse(status_code=503, content=payload)
 
 # Sentry debug route removed
 
