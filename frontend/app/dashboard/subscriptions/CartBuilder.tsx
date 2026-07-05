@@ -267,6 +267,23 @@ export function CartBuilder({
                   <p className="font-semibold text-ink">{pkg.name}</p>
                 </div>
                 <p className="text-lg font-bold text-ink">{fmt(pkg.monthly_price)}<span className="text-xs font-medium text-ink-muted">/mo</span></p>
+
+                <div className="mt-3.5 space-y-1.5 border-t border-border/40 pt-2.5">
+                  {pkg.feature_keys.map((item) => {
+                    const row = byKey.get(item.feature_key);
+                    if (!row) return null;
+                    return (
+                      <div key={item.feature_key} className="flex items-center justify-between text-xs text-ink-muted">
+                        <span>{row.display_name}</span>
+                        {item.quantity > 1 && (
+                          <span className="font-semibold font-mono text-[10px] bg-surface-mid px-1 rounded-xs">
+                            ×{item.quantity}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </button>
             ))}
           </div>
