@@ -1955,30 +1955,34 @@ def operator_alerts(_admin: dict = Depends(get_system_admin)):
     db = get_supabase()
     now = datetime.now(timezone.utc)
 
-    fleet_rows = _build_fleet_rows(db)
-    scheduler_jobs = _build_scheduler_jobs(db, now)
+    try:
+        fleet_rows = _build_fleet_rows(db)
+        scheduler_jobs = _build_scheduler_jobs(db, now)
 
-    tenant_names = {row["id"]: row["name"] for row in fleet_rows}
-    alert_incident_cutoff = (now - timedelta(hours=48)).isoformat()
-    incidents_res = (
-        db.table("incidents")
-        .select("id, tenant_id, type, detail, created_at")
-        .gte("created_at", alert_incident_cutoff)
-        .order("created_at", desc=True)
-        .limit(50)
-        .execute()
-    )
-    incidents = [
-        {**inc, "tenant_name": tenant_names.get(inc.get("tenant_id"))}
-        for inc in (incidents_res.data or [])
-    ]
+        tenant_names = {row["id"]: row["name"] for row in fleet_rows}
+        alert_incident_cutoff = (now - timedelta(hours=48)).isoformat()
+        incidents_res = (
+            db.table("incidents")
+            .select("id, tenant_id, type, detail, created_at")
+            .gte("created_at", alert_incident_cutoff)
+            .order("created_at", desc=True)
+            .limit(50)
+            .execute()
+        )
+        incidents = [
+            {**inc, "tenant_name": tenant_names.get(inc.get("tenant_id"))}
+            for inc in (incidents_res.data or [])
+        ]
 
-    alerts = compute_alerts(
-        fleet_rows=fleet_rows,
-        scheduler_jobs=scheduler_jobs,
-        incidents=incidents,
-        now=now,
-    )
+        alerts = compute_alerts(
+            fleet_rows=fleet_rows,
+            scheduler_jobs=scheduler_jobs,
+            incidents=incidents,
+            now=now,
+        )
+    except Exception as e:
+        logger.warning("Operator alerts lookup failed: %s", e)
+        alerts = []
     return {"data": alerts}
 
 

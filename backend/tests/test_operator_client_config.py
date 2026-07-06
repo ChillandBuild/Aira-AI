@@ -153,6 +153,16 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["voice_usage"], {"speech_to_text": 0, "text_to_speech": 0})
         self.assertEqual(body["usage"]["counters"], [])
 
+    @patch("app.routes.operator._build_fleet_rows", side_effect=RuntimeError("fleet query failed"))
+    @patch("app.routes.operator.get_supabase")
+    def test_operator_alerts_survives_signal_lookup_failure(self, mock_get_db, _mock_fleet):
+        mock_get_db.return_value = MagicMock()
+
+        res = self.client.get("/api/v1/operator/alerts")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json(), {"data": []})
+
 
 if __name__ == "__main__":
     unittest.main()

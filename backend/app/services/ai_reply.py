@@ -17,7 +17,7 @@ from app.services.entitlements import meter, check_quota
 logger = logging.getLogger(__name__)
 
 from app.services.sarvam_client import sarvam_chat_completion
-_REPLY_MODEL = "sarvam-30b"
+_REPLY_MODEL = "sarvam-105b"
 
 
 async def _llm_complete(prompt: str, max_tokens: int = 300, tenant_id: str | None = None) -> str:
