@@ -454,5 +454,6 @@
 
 **2026-07-06 - Inbound Leads filter polish and Assignment Log crash fix**
 - **Decision**: Inbound Leads keeps only the primary `Download CSV` action; the duplicate table-footer `Export CSV` button was removed. The filter panel was compacted into a tighter responsive grid with an active-filter count so the controls no longer dominate the page.
+- **UI follow-up**: Team -> Assignment Log received the same compact-control treatment: caller/segment filters are smaller, Refresh/Export are pill buttons, and the log table has reduced row/header padding with a lighter shell.
 - **Fix**: Team -> Assignment Log was crashing because `GET /api/v1/assignment-log/summary` returns `by_caller` values as `{ caller_name, count }` objects keyed by caller id, while the frontend rendered each value as if it were a number/string. `AssignmentLogSummary` now models the backend response, and the summary card renders caller names/counts safely.
 - **Verification**: Frontend `npm.cmd run typecheck` passed. Local browser route checks reached the app with no Next error overlay, but redirected to `/aira/login` because the verification browser had no authenticated dashboard session.

@@ -175,6 +175,7 @@
 ## Assignment Log summary contract (2026-07-06)
 - `GET /api/v1/assignment-log/summary` returns `by_caller` as a dictionary keyed by caller id. Each value is an object shaped like `{ caller_name, count }`, not a raw number. Frontend code should render `caller_name` and `count` explicitly, or tolerate the old numeric shape only as a compatibility fallback.
 - `frontend/lib/api.ts::AssignmentLogSummary` is the contract type used by `frontend/app/dashboard/telecalling/components/assignment-log.tsx`. If the backend summary changes, update that type and the summary-card rendering together; otherwise React can throw by trying to render an object directly.
+- Assignment Log filters are intentionally styled as a compact toolbar: small caller/segment selects, pill Refresh/Export controls, and tighter table row/header padding. Preserve that scale when adding new log filters or actions.
 
 ## Inbound Leads dashboard controls (2026-07-06)
 - `frontend/app/dashboard/inbound-leads/InboundLeadsClient.tsx` has one CSV export surface by design: the main `Download CSV` action in the stats/action row. Do not re-add the table-footer `Export CSV` button unless the product intentionally wants two separate download affordances.
