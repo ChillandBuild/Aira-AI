@@ -363,17 +363,17 @@ export function InboundLeadsClient({
       {/* ── Filter Panel ───────────────────────────────────────── */}
       <div className={cn(
         "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-[460px] opacity-100 mb-5" : "max-h-0 opacity-0 mb-0"
+        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
       )}>
-        <div className="rounded-2xl border border-surface-mid/80 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
-                <Filter size={14} />
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                <Filter size={13} />
               </span>
               <div>
-                <span className="block font-label text-sm font-bold text-on-surface">Filter Results</span>
-                <span className="block font-body text-[11px] text-on-surface-muted">
+                <span className="block font-label text-[13px] font-bold text-on-surface">Filter Results</span>
+                <span className="block font-body text-[10px] text-on-surface-muted">
                   {activeFilterCount > 0 ? `${activeFilterCount} active` : "All inbound leads"}
                 </span>
               </div>
@@ -388,22 +388,24 @@ export function InboundLeadsClient({
                   setOrigin("all");
                   setSelectedSegment("");
                 }}
-                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[#78716c] transition-colors hover:bg-red-50 hover:text-red-600"
+                className="flex h-7 items-center gap-1 rounded-full border border-transparent px-2.5 text-[11px] font-semibold text-[#78716c] transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
               >
                 <X size={11} /> Clear all
               </button>
             )}
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <div className="lg:col-span-2">
-              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Origin</label>
-              <div className="grid grid-cols-3 gap-1 rounded-lg border border-surface-mid bg-surface-low p-1">
+          <div className="flex flex-wrap items-end gap-2.5">
+            <div className="w-full sm:w-[300px]">
+              <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Origin</label>
+              <div className="grid h-9 grid-cols-3 gap-1 rounded-full border border-[#e8e3db] bg-[#f8f5ef] p-1">
                 {ORIGIN_OPTIONS.map((o) => (
                   <button
                     key={o.value}
                     onClick={() => setOrigin(o.value)}
-                    className={`rounded-md px-2 py-1.5 text-sm font-semibold transition ${
-                      origin === o.value ? "bg-white text-[#1c1917] shadow-sm" : "text-[#78716c] hover:text-[#44403c]"
+                    className={`rounded-full px-2 text-xs font-bold transition ${
+                      origin === o.value
+                        ? "bg-white text-primary shadow-sm ring-1 ring-violet-100"
+                        : "text-[#78716c] hover:bg-white/60 hover:text-[#44403c]"
                     }`}
                   >
                     {o.label}
@@ -412,12 +414,12 @@ export function InboundLeadsClient({
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Segment</label>
+            <div className="w-full sm:w-[165px]">
+              <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Segment</label>
               <select
                 value={selectedSegment}
                 onChange={(e) => setSelectedSegment(e.target.value)}
-                className="h-10 w-full rounded-lg border border-surface-mid bg-surface-low px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
               >
                 {SEGMENT_FILTER_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
@@ -425,14 +427,14 @@ export function InboundLeadsClient({
               </select>
             </div>
 
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Ad Campaign</label>
+            <div className="min-w-[230px] flex-1">
+              <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Ad Campaign</label>
               <div className="relative">
                 <select
                   value={selectedCampaign}
                   onChange={(e) => setSelectedCampaign(e.target.value)}
                   disabled={origin === "organic"}
-                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-surface-mid bg-surface-low px-3 pr-8 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <option value="">All Campaigns</option>
                   {campaigns.map((c) => (
@@ -443,13 +445,13 @@ export function InboundLeadsClient({
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</label>
+            <div className="w-full sm:w-[165px]">
+              <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</label>
               <div className="relative">
                 <select
                   value={selectedSource}
                   onChange={(e) => setSelectedSource(e.target.value)}
-                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-surface-mid bg-surface-low px-3 pr-8 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                  className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
                 >
                   {SOURCE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -459,19 +461,19 @@ export function InboundLeadsClient({
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
+            <div className="w-[145px]">
+              <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
               <input
                 type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                className="h-10 w-full rounded-lg border border-surface-mid bg-surface-low px-3 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
               />
             </div>
 
-            <div>
-              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">To Date</label>
+            <div className="w-[145px]">
+              <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To Date</label>
               <input
                 type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                className="h-10 w-full rounded-lg border border-surface-mid bg-surface-low px-3 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
               />
             </div>
           </div>
