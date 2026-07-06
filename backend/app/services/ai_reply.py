@@ -591,6 +591,7 @@ async def generate_reply(
     tg_user_id: str | None = None,
     fb_user_id: str | None = None,
     phone_number_id: str | None = None,
+    inbound_media_type: str | None = None,
 ) -> None:
     """
     Core pipeline:
@@ -815,7 +816,7 @@ async def generate_reply(
         _wa_phone = phone or lead_data.get("phone")
         sid = None
         voice_reply_enabled = get_setting("ai_voice_reply_enabled", fallback="false", tenant_id=tenant_id) == "true"
-        if _wa_phone and voice_reply_enabled:
+        if _wa_phone and voice_reply_enabled and inbound_media_type == "audio":
             voice_language_mode = get_setting("ai_voice_reply_language_mode", fallback="auto", tenant_id=tenant_id) or "auto"
             voice_language_code = get_setting("ai_voice_reply_language_code", fallback="en-IN", tenant_id=tenant_id) or "en-IN"
             voice_speaker = get_setting("ai_voice_reply_speaker", fallback="shubh", tenant_id=tenant_id) or "shubh"

@@ -82,13 +82,16 @@ async def test_send_whatsapp_voice_reply_uses_sarvam_tts_and_meta_audio_upload()
     )
 
 
-def test_generate_reply_checks_voice_reply_toggle_before_whatsapp_dispatch():
+def test_generate_reply_uses_voice_only_for_audio_inbound_whatsapp_dispatch():
     import inspect
     source = inspect.getsource(ai_reply.generate_reply)
+    signature = inspect.signature(ai_reply.generate_reply)
+    assert "inbound_media_type" in signature.parameters
     assert "ai_voice_reply_enabled" in source
     assert "ai_voice_reply_speaker" in source
     assert "ai_voice_reply_pace" in source
     assert "ai_voice_reply_language_mode" in source
     assert "ai_voice_reply_language_code" in source
+    assert 'inbound_media_type == "audio"' in source
     assert "send_whatsapp_voice_reply" in source
     assert "send_whatsapp(_wa_phone, reply_text" in source

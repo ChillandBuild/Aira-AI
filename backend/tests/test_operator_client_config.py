@@ -18,8 +18,10 @@ class OperatorClientConfigTests(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.clear()
 
+    @patch("app.routes.operator.settings")
     @patch("app.routes.operator.get_supabase")
-    def test_get_client_config(self, mock_get_db):
+    def test_get_client_config(self, mock_get_db, mock_settings):
+        mock_settings.sarvam_api_key = "platform-sarvam-key"
         db = MagicMock()
 
         def table(name):
@@ -64,6 +66,7 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["settings"]["ai_voice_reply_language_code"], "ta-IN")
         self.assertEqual(body["settings"]["reengagement_enabled"], False)
         self.assertEqual(body["settings"]["kb_retrieval_mode"], "hybrid")
+        self.assertEqual(body["credentials_status"]["ai"], "configured")
         self.assertEqual(body["voice_usage"]["speech_to_text"], 3)
         self.assertEqual(body["voice_usage"]["text_to_speech"], 5)
 

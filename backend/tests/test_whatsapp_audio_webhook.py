@@ -133,6 +133,7 @@ async def test_audio_background_transcribes_inserts_and_routes_reply():
         phone="+919999999999",
         context_block="ctx",
         phone_number_id="phone-number-1",
+        inbound_media_type="audio",
     )
 
 

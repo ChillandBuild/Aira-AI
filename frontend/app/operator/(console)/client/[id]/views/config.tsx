@@ -446,25 +446,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
-      {/* Key Settings */}
-      <div>
-        <h3 className="text-sm font-semibold text-ink mb-3">Key Settings</h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-white rounded-card border border-border p-4 shadow-sm">
-            <p className="text-xs text-ink-muted uppercase tracking-wider mb-1">AI Auto-Reply</p>
-            <p className={`text-sm font-medium ${config.settings.ai_auto_reply_enabled ? "text-success" : "text-ink-muted"}`}>
-              {config.settings.ai_auto_reply_enabled ? "Enabled" : "Disabled"}
-            </p>
-          </div>
-          <div className="bg-white rounded-card border border-border p-4 shadow-sm">
-            <p className="text-xs text-ink-muted uppercase tracking-wider mb-1">Re-engagement</p>
-            <p className={`text-sm font-medium ${config.settings.reengagement_enabled ? "text-success" : "text-ink-muted"}`}>
-              {config.settings.reengagement_enabled ? "Enabled" : "Disabled"}
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* AI Voice Replies */}
       <div>
         <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
@@ -476,20 +457,16 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">Reply with WhatsApp audio</p>
               <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                Converts Sarvam 30B replies into Bulbul voice notes for this client. Text is still saved in the dashboard.
+                When a customer sends a WhatsApp voice note, Aira transcribes it and replies back as a Bulbul voice note for this client.
               </p>
             </div>
             <OperatorToggle
               checked={config.settings.ai_voice_reply_enabled}
               onChange={updateVoiceReplies}
               loading={voiceReplySaving}
-              disabled={!config.settings.ai_auto_reply_enabled}
               aria-label="Toggle AI voice replies"
             />
           </div>
-          {!config.settings.ai_auto_reply_enabled && (
-            <p className="mt-3 text-xs text-warning">Enable AI Auto-Reply before turning on voice replies.</p>
-          )}
           <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-3">
             <label className="block">
               <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">

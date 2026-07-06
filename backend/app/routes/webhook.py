@@ -312,6 +312,7 @@ async def _process_inbound_message_background(
                     phone=phone,
                     context_block=context_block,
                     phone_number_id=meta_phone_number_id or None,
+                    inbound_media_type=msg_type,
                 )
             except Exception as e:
                 logger.error(f"Reply routing failed for lead {lead_id}: {e}")
