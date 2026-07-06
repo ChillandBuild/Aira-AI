@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 USAGE_METRICS = (
     "message_sent", "ai_reply", "call_minute", "team_seat_active",
     "storage_gb", "ai_call_summary", "ai_call_scoring", "phone_number",
+    "ai_speech_to_text", "ai_text_to_speech",
 )
 
 

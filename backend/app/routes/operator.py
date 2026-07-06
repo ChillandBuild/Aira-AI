@@ -74,6 +74,10 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("facebook_page_id", False), ("facebook_access_token", True),
     ("ai_auto_reply_enabled", False),
     ("ai_voice_reply_enabled", False),
+    ("ai_voice_reply_speaker", False),
+    ("ai_voice_reply_pace", False),
+    ("ai_voice_reply_language_mode", False),
+    ("ai_voice_reply_language_code", False),
     ("reengagement_enabled", False),
 ]
 
@@ -959,6 +963,22 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             return "incomplete"
         return "not_configured"
 
+    def float_setting(key: str, default: float) -> float:
+        try:
+            return float(settings_map.get(key) or default)
+        except (TypeError, ValueError):
+            return default
+
+    period = get_billing_period(db, tenant_id)
+    usage_rows = (
+        db.table("tenant_usage_counters")
+        .select("metric, used, included, hard_cap")
+        .eq("tenant_id", tenant_id)
+        .eq("period", period)
+        .execute()
+    )
+    usage_by_metric = {r["metric"]: r for r in (usage_rows.data or [])}
+
     return {
         "enabled_features": tenant.data["enabled_features"],
         "credentials_status": {
@@ -970,8 +990,20 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         "settings": {
             "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") == "true",
             "ai_voice_reply_enabled": settings_map.get("ai_voice_reply_enabled") == "true",
+            "ai_voice_reply_speaker": settings_map.get("ai_voice_reply_speaker") or "shubh",
+            "ai_voice_reply_pace": float_setting("ai_voice_reply_pace", 1.0),
+            "ai_voice_reply_language_mode": settings_map.get("ai_voice_reply_language_mode") or "auto",
+            "ai_voice_reply_language_code": settings_map.get("ai_voice_reply_language_code") or "en-IN",
             "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
+        },
+        "usage": {
+            "period": period,
+            "counters": usage_rows.data or [],
+        },
+        "voice_usage": {
+            "speech_to_text": (usage_by_metric.get("ai_speech_to_text") or {}).get("used", 0) or 0,
+            "text_to_speech": (usage_by_metric.get("ai_text_to_speech") or {}).get("used", 0) or 0,
         },
     }
 

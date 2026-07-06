@@ -8,6 +8,7 @@ from app.services.growth import record_stage_event
 from app.services.google_ads_attribution import parse_google_ref
 from app.services.failover import update_number_quality, handle_quality_red, handle_quality_yellow
 from app.services.meta_webhook_verify import verify_meta_signature
+from app.services.entitlements import meter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -251,6 +252,7 @@ async def _process_inbound_message_background(
         if msg_type == "audio" and not body and meta_media_id:
             try:
                 body, media_mime_type = await _transcribe_whatsapp_audio(meta_media_id, tenant_id)
+                meter(db, tenant_id, "ai_speech_to_text")
             except Exception as audio_err:
                 logger.error(f"Audio transcription failed for lead {lead_id} media {meta_media_id}: {audio_err}")
                 return

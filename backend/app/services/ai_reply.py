@@ -226,6 +226,10 @@ async def send_whatsapp_voice_reply(
     message: str,
     tenant_id: str | None = None,
     phone_number_id: str | None = None,
+    speaker: str | None = None,
+    pace: float | None = None,
+    target_language_code: str | None = None,
+    db=None,
 ) -> str | None:
     try:
         from app.services.sarvam_client import sarvam_text_to_speech
@@ -233,9 +237,13 @@ async def send_whatsapp_voice_reply(
 
         audio_bytes = await sarvam_text_to_speech(
             text=message,
-            target_language_code=_tts_language_code(message),
+            target_language_code=target_language_code or _tts_language_code(message),
+            speaker=speaker or "shubh",
+            pace=pace if pace is not None else 1.0,
             tenant_id=tenant_id,
         )
+        if db is not None and tenant_id:
+            meter(db, tenant_id, "ai_text_to_speech")
         media_id = await upload_media_to_meta(
             file_bytes=audio_bytes,
             mime_type="audio/mpeg",
@@ -808,11 +816,23 @@ async def generate_reply(
         sid = None
         voice_reply_enabled = get_setting("ai_voice_reply_enabled", fallback="false", tenant_id=tenant_id) == "true"
         if _wa_phone and voice_reply_enabled:
+            voice_language_mode = get_setting("ai_voice_reply_language_mode", fallback="auto", tenant_id=tenant_id) or "auto"
+            voice_language_code = get_setting("ai_voice_reply_language_code", fallback="en-IN", tenant_id=tenant_id) or "en-IN"
+            voice_speaker = get_setting("ai_voice_reply_speaker", fallback="shubh", tenant_id=tenant_id) or "shubh"
+            voice_pace_raw = get_setting("ai_voice_reply_pace", fallback="1.0", tenant_id=tenant_id) or "1.0"
+            try:
+                voice_pace = float(voice_pace_raw)
+            except (TypeError, ValueError):
+                voice_pace = 1.0
             sid = await send_whatsapp_voice_reply(
                 _wa_phone,
                 reply_text,
                 tenant_id=lead_data.get("tenant_id"),
                 phone_number_id=phone_number_id,
+                speaker=voice_speaker,
+                pace=voice_pace,
+                target_language_code=voice_language_code if voice_language_mode == "fixed" else _tts_language_code(reply_text),
+                db=db,
             )
             if sid:
                 outbound_media_type = "audio"

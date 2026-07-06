@@ -99,7 +99,8 @@ async def test_audio_background_transcribes_inserts_and_routes_reply():
          patch.object(webhook, "_transcribe_whatsapp_audio", new=AsyncMock(return_value=("I need a flat near Andheri", "audio/ogg")), create=True) as transcribe, \
          patch("app.services.notify.notify_assigned_caller_of_reply") as notify, \
          patch("app.services.context_builder.build_scorer_context", return_value="ctx") as build_ctx, \
-         patch("app.services.ai_reply.generate_reply", new=AsyncMock()) as generate_reply:
+         patch("app.services.ai_reply.generate_reply", new=AsyncMock()) as generate_reply, \
+         patch("app.routes.webhook.meter") as meter:
         await webhook._process_inbound_message_background(
             lead_id="lead-1",
             tenant_id="tenant-1",
@@ -111,6 +112,7 @@ async def test_audio_background_transcribes_inserts_and_routes_reply():
         )
 
     transcribe.assert_awaited_once_with("media-1", "tenant-1")
+    meter.assert_called_once_with(db, "tenant-1", "ai_speech_to_text")
     assert captured_messages == [{
         "lead_id": "lead-1",
         "direction": "inbound",

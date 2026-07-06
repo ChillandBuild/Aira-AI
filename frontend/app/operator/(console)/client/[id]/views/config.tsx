@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Gauge, Languages, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
@@ -20,11 +20,28 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 type RetrievalMode = "semantic" | "keyword" | "hybrid";
+type VoiceSettingKey = "ai_voice_reply_speaker" | "ai_voice_reply_pace" | "ai_voice_reply_language_mode" | "ai_voice_reply_language_code";
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
   { id: "semantic", label: "Smart", desc: "Understands meaning & language (Tamil/English), even when a lead rephrases. Recommended." },
   { id: "keyword", label: "Exact words", desc: "Matches the exact words in your documents. Fastest, no AI cost — weaker on reworded questions." },
   { id: "hybrid", label: "Best of both", desc: "Blends meaning + exact words for the highest accuracy." },
+];
+
+const VOICE_LANGUAGES = [
+  { value: "auto", label: "Auto detect" },
+  { value: "en-IN", label: "English" },
+  { value: "hi-IN", label: "Hindi" },
+  { value: "ta-IN", label: "Tamil" },
+  { value: "te-IN", label: "Telugu" },
+  { value: "kn-IN", label: "Kannada" },
+  { value: "ml-IN", label: "Malayalam" },
+];
+
+const VOICE_PACES = [
+  { value: "0.85", label: "Slow" },
+  { value: "1.0", label: "Normal" },
+  { value: "1.2", label: "Fast" },
 ];
 
 interface ConfigData {
@@ -33,8 +50,27 @@ interface ConfigData {
   settings: {
     ai_auto_reply_enabled: boolean;
     ai_voice_reply_enabled: boolean;
+    ai_voice_reply_speaker?: string | null;
+    ai_voice_reply_pace?: number | string | null;
+    ai_voice_reply_language_mode?: "auto" | "fixed" | string | null;
+    ai_voice_reply_language_code?: string | null;
     reengagement_enabled: boolean;
     kb_retrieval_mode: RetrievalMode;
+  };
+  usage_counts?: {
+    stt?: number | null;
+    tts?: number | null;
+    stt_count?: number | null;
+    tts_count?: number | null;
+    stt_requests?: number | null;
+    tts_requests?: number | null;
+  };
+  stt_usage_count?: number | null;
+  tts_usage_count?: number | null;
+  usage?: { counters?: { metric: string; used: number }[] } | { metric: string; used: number }[];
+  voice_usage?: {
+    speech_to_text?: number | null;
+    text_to_speech?: number | null;
   };
 }
 
@@ -49,6 +85,11 @@ const CRED_LABELS: Record<string, string> = {
   telecalling: "TeleCMI",
   ai: "Sarvam AI",
 };
+
+function usageMetricCount(usage: ConfigData["usage"], metricNames: string[]) {
+  const counters = Array.isArray(usage) ? usage : usage?.counters;
+  return counters?.find((item) => metricNames.includes(item.metric))?.used;
+}
 
 function statusBadge(status: string) {
   switch (status) {
@@ -82,6 +123,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [pendingProvider, setPendingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
   const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
+  const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
 
   async function updateRetrievalMode(mode: RetrievalMode) {
     if (!config || config.settings.kb_retrieval_mode === mode) return;
@@ -140,6 +182,67 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       toast.error("Failed to update AI voice replies.");
     } finally {
       setVoiceReplySaving(false);
+    }
+  }
+
+  async function updateVoiceSetting(key: VoiceSettingKey, value: string) {
+    if (!config || (config.settings[key] ?? "") === value) return;
+    setVoiceSettingSaving(key);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { [key]: value }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          [key]: value
+        }
+      });
+      toast.success("AI voice reply setting updated.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update AI voice reply setting");
+      toast.error("Failed to update AI voice reply setting.");
+    } finally {
+      setVoiceSettingSaving(null);
+    }
+  }
+
+  async function updateVoiceLanguage(value: string) {
+    if (!config) return;
+    const nextSettings = value === "auto"
+      ? { ai_voice_reply_language_mode: "auto" }
+      : { ai_voice_reply_language_mode: "fixed", ai_voice_reply_language_code: value };
+    setVoiceSettingSaving("ai_voice_reply_language_code");
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ settings: nextSettings })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          ...nextSettings,
+        }
+      });
+      toast.success("AI voice reply language updated.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update AI voice reply language");
+      toast.error("Failed to update AI voice reply language.");
+    } finally {
+      setVoiceSettingSaving(null);
     }
   }
 
@@ -207,6 +310,27 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   }
 
   if (!config) return null;
+
+  const sttUsageCount = config.voice_usage?.speech_to_text
+    ?? config.usage_counts?.stt
+    ?? config.usage_counts?.stt_count
+    ?? config.usage_counts?.stt_requests
+    ?? config.stt_usage_count
+    ?? usageMetricCount(config.usage, ["ai_speech_to_text", "stt", "speech_to_text", "ai_voice_stt"]);
+  const ttsUsageCount = config.voice_usage?.text_to_speech
+    ?? config.usage_counts?.tts
+    ?? config.usage_counts?.tts_count
+    ?? config.usage_counts?.tts_requests
+    ?? config.tts_usage_count
+    ?? usageMetricCount(config.usage, ["ai_text_to_speech", "tts", "text_to_speech", "ai_voice_tts"]);
+  const hasVoiceUsage = typeof sttUsageCount === "number" || typeof ttsUsageCount === "number";
+  const voiceSettings = {
+    speaker: config.settings.ai_voice_reply_speaker ?? "",
+    pace: String(config.settings.ai_voice_reply_pace ?? "1.0"),
+    language: config.settings.ai_voice_reply_language_mode === "fixed"
+      ? (config.settings.ai_voice_reply_language_code ?? "en-IN")
+      : "auto",
+  };
 
   return (
     <div className="space-y-6">
@@ -365,6 +489,66 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           </div>
           {!config.settings.ai_auto_reply_enabled && (
             <p className="mt-3 text-xs text-warning">Enable AI Auto-Reply before turning on voice replies.</p>
+          )}
+          <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-3">
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                <Mic size={13} /> Speaker
+              </span>
+              <input
+                defaultValue={voiceSettings.speaker}
+                onBlur={(e) => updateVoiceSetting("ai_voice_reply_speaker", e.target.value.trim())}
+                placeholder="Default"
+                disabled={voiceSettingSaving === "ai_voice_reply_speaker"}
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary disabled:opacity-60"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                <Gauge size={13} /> Pace
+              </span>
+              <select
+                value={voiceSettings.pace}
+                onChange={(e) => updateVoiceSetting("ai_voice_reply_pace", e.target.value)}
+                disabled={voiceSettingSaving === "ai_voice_reply_pace"}
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
+              >
+                {VOICE_PACES.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                <Languages size={13} /> Language
+              </span>
+              <select
+                value={voiceSettings.language}
+                onChange={(e) => updateVoiceLanguage(e.target.value)}
+                disabled={voiceSettingSaving === "ai_voice_reply_language_code"}
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
+              >
+                {VOICE_LANGUAGES.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {hasVoiceUsage && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl bg-surface-mid px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">STT usage</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-ink">
+                  {(sttUsageCount ?? 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <div className="rounded-xl bg-surface-mid px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">TTS usage</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-ink">
+                  {(ttsUsageCount ?? 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>
