@@ -6,6 +6,22 @@ from app.services import sarvam_client
 from app.services.sarvam_client import sarvam_chat_completion
 
 
+def test_sarvam_api_key_requires_tenant_key_for_tenant_calls():
+    with patch("app.services.sarvam_client.get_setting", return_value=None), \
+         patch("app.services.sarvam_client.settings") as mock_settings:
+        mock_settings.sarvam_api_key = "platform-key"
+        with pytest.raises(RuntimeError, match="Client Sarvam API key not configured"):
+            sarvam_client.get_sarvam_api_key("tenant-1")
+
+
+def test_sarvam_api_key_uses_platform_key_only_without_tenant():
+    with patch("app.services.sarvam_client.get_setting") as get_setting, \
+         patch("app.services.sarvam_client.settings") as mock_settings:
+        mock_settings.sarvam_api_key = "platform-key"
+        assert sarvam_client.get_sarvam_api_key() == "platform-key"
+        get_setting.assert_not_called()
+
+
 @pytest.mark.asyncio
 async def test_sarvam_chat_completion_returns_stripped_message_content():
     resp = MagicMock()

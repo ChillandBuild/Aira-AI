@@ -44,6 +44,39 @@ const VOICE_PACES = [
   { value: "1.2", label: "Fast" },
 ];
 
+const VOICE_SPEAKERS = [
+  { value: "shubh", label: "Shubh" },
+  { value: "mani", label: "Mani" },
+  { value: "abhilash", label: "Abhilash" },
+  { value: "karun", label: "Karun" },
+  { value: "hitesh", label: "Hitesh" },
+  { value: "amol", label: "Amol" },
+  { value: "amartya", label: "Amartya" },
+  { value: "diya", label: "Diya" },
+  { value: "neel", label: "Neel" },
+  { value: "misha", label: "Misha" },
+  { value: "vian", label: "Vian" },
+  { value: "arvind", label: "Arvind" },
+  { value: "maya", label: "Maya" },
+  { value: "meera", label: "Meera" },
+  { value: "pavithra", label: "Pavithra" },
+  { value: "maitreyi", label: "Maitreyi" },
+  { value: "arushi", label: "Arushi" },
+  { value: "vidya", label: "Vidya" },
+  { value: "arya", label: "Arya" },
+  { value: "priya", label: "Priya" },
+  { value: "anika", label: "Anika" },
+  { value: "ishani", label: "Ishani" },
+  { value: "pranav", label: "Pranav" },
+  { value: "rupika", label: "Rupika" },
+  { value: "abhishek", label: "Abhishek" },
+  { value: "rashmi", label: "Rashmi" },
+  { value: "kirti", label: "Kirti" },
+  { value: "anish", label: "Anish" },
+  { value: "saumya", label: "Saumya" },
+  { value: "kalpika", label: "Kalpika" },
+];
+
 interface ConfigData {
   enabled_features: string[];
   credentials_status: Record<string, "configured" | "incomplete" | "not_configured">;
@@ -84,6 +117,9 @@ const CRED_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp (Meta)",
   telecalling: "TeleCMI",
   ai: "Sarvam AI",
+  telegram: "Telegram",
+  instagram: "Instagram",
+  facebook: "Facebook",
 };
 
 function usageMetricCount(usage: ConfigData["usage"], metricNames: string[]) {
@@ -124,6 +160,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
   const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
+  const [sarvamApiKeyDraft, setSarvamApiKeyDraft] = useState("");
+  const [sarvamSaving, setSarvamSaving] = useState(false);
 
   async function updateRetrievalMode(mode: RetrievalMode) {
     if (!config || config.settings.kb_retrieval_mode === mode) return;
@@ -246,6 +284,36 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     }
   }
 
+  async function updateSarvamApiKey() {
+    const value = sarvamApiKeyDraft.trim();
+    if (!config || !value) return;
+    setSarvamSaving(true);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ settings: { sarvam_api_key: value } })
+        }
+      );
+      setSarvamApiKeyDraft("");
+      setConfig({
+        ...config,
+        credentials_status: {
+          ...config.credentials_status,
+          ai: "configured",
+        }
+      });
+      toast.success("Client Sarvam API key saved.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update Sarvam API key");
+      toast.error("Failed to update Sarvam API key.");
+    } finally {
+      setSarvamSaving(false);
+    }
+  }
+
   useEffect(() => {
     Promise.all([
       apiFetch<ConfigData>(`/api/v1/operator/clients/${tenantId}/config`),
@@ -325,7 +393,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     ?? usageMetricCount(config.usage, ["ai_text_to_speech", "tts", "text_to_speech", "ai_voice_tts"]);
   const hasVoiceUsage = typeof sttUsageCount === "number" || typeof ttsUsageCount === "number";
   const voiceSettings = {
-    speaker: config.settings.ai_voice_reply_speaker ?? "",
+    speaker: config.settings.ai_voice_reply_speaker ?? "shubh",
     pace: String(config.settings.ai_voice_reply_pace ?? "1.0"),
     language: config.settings.ai_voice_reply_language_mode === "fixed"
       ? (config.settings.ai_voice_reply_language_code ?? "en-IN")
@@ -444,6 +512,31 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
             </div>
           ))}
         </div>
+        <div className="mt-4 rounded-card border border-border bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <label className="block min-w-0 flex-1">
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                <Sparkles size={13} /> Client Sarvam API Key
+              </span>
+              <input
+                type="password"
+                value={sarvamApiKeyDraft}
+                onChange={(e) => setSarvamApiKeyDraft(e.target.value)}
+                placeholder={config.credentials_status.ai === "configured" ? "Configured - enter a new key to replace" : "Paste this client's Sarvam API key"}
+                disabled={sarvamSaving}
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary disabled:opacity-60"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={updateSarvamApiKey}
+              disabled={sarvamSaving || !sarvamApiKeyDraft.trim()}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:text-ink-muted"
+            >
+              {sarvamSaving ? <Loader2 size={16} className="animate-spin" /> : "Save Key"}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* AI Voice Replies */}
@@ -472,13 +565,16 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
                 <Mic size={13} /> Speaker
               </span>
-              <input
-                defaultValue={voiceSettings.speaker}
-                onBlur={(e) => updateVoiceSetting("ai_voice_reply_speaker", e.target.value.trim())}
-                placeholder="Default"
+              <select
+                value={voiceSettings.speaker}
+                onChange={(e) => updateVoiceSetting("ai_voice_reply_speaker", e.target.value)}
                 disabled={voiceSettingSaving === "ai_voice_reply_speaker"}
-                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary disabled:opacity-60"
-              />
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
+              >
+                {VOICE_SPEAKERS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </label>
             <label className="block">
               <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">

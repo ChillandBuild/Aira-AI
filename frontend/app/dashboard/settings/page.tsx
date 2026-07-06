@@ -60,22 +60,14 @@ const SECTIONS: SectionDef[] = [
       { key: "telecmi_webhook_secret", label: "Webhook Secret", secret: true, required: false, hint: "Appended as ?webhook_secret= to your TeleCMI CDR webhook URL" },
     ],
   },
-  {
-    id: "ai",
-    label: "AI Configuration",
-    icon: Sparkles,
-    color: "#7c3aed",
-    bg: "#ede9fe",
-    description: "Sarvam powers WhatsApp auto-reply, transcription, and OCR. Groq still powers scoring, call summaries, tuning, and coaching.",
-    fields: [
-      { key: "sarvam_api_key", label: "Sarvam API Key", secret: true, required: true },
-      { key: "groq_api_key", label: "Groq API Key (scoring and analytics)", secret: true, required: false },
-    ],
-    toggles: [
-      { key: "ai_auto_reply_enabled", label: "AI Auto-Reply", description: "Automatically reply to inbound WhatsApp messages using AI", defaultEnabled: true },
-    ],
-  },
 ];
+
+const AI_AUTO_REPLY_TOGGLE: ToggleDef = {
+  key: "ai_auto_reply_enabled",
+  label: "AI Auto-Reply",
+  description: "Allow Aira to automatically reply to inbound WhatsApp messages using AI.",
+  defaultEnabled: true,
+};
 
 async function fetchSettings(): Promise<Setting[]> {
   const auth = await getAuthHeaders();
@@ -180,7 +172,8 @@ export default function SettingsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get("tab") || "general";
+  const requestedTab = searchParams.get("tab") || "general";
+  const activeTab = requestedTab === "ai" ? "automations" : requestedTab;
 
   const { role, loading: roleLoading } = useAuthRole();
   const [settings, setSettings] = useState<Setting[]>([]);
@@ -333,6 +326,21 @@ export default function SettingsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [drafts, settings]);
 
+  const aiAutoReplyStored = settingFor(AI_AUTO_REPLY_TOGGLE.key)?.display_value;
+  const aiAutoReplyEnabled = drafts[AI_AUTO_REPLY_TOGGLE.key] !== undefined
+    ? drafts[AI_AUTO_REPLY_TOGGLE.key] === "true"
+    : (aiAutoReplyStored === "Not set" || !aiAutoReplyStored
+      ? AI_AUTO_REPLY_TOGGLE.defaultEnabled !== false
+      : aiAutoReplyStored === "true");
+  const aiAutomationDirty = (() => {
+    const draft = drafts[AI_AUTO_REPLY_TOGGLE.key];
+    if (draft === undefined) return false;
+    const stored = aiAutoReplyStored === "Not set" || !aiAutoReplyStored
+      ? (AI_AUTO_REPLY_TOGGLE.defaultEnabled !== false ? "true" : "false")
+      : (aiAutoReplyStored === "true" ? "true" : "false");
+    return draft !== stored;
+  })();
+
   async function handleSave(sectionId: string, allKeys: string[]) {
     setSaveStates(s => ({ ...s, [sectionId]: "saving" }));
     setError(null);
@@ -387,9 +395,6 @@ export default function SettingsPage() {
   const voiceSection = SECTIONS.find(s => s.id === "voice")!;
   const voiceConfigured = voiceSection.fields.filter(f => f.required !== false).every(f => settingFor(f.key)?.is_set);
 
-  const aiSection = SECTIONS.find(s => s.id === "ai")!;
-  const aiConfigured = aiSection.fields.filter(f => f.required !== false).every(f => settingFor(f.key)?.is_set);
-
   return (
     <div className="min-w-0">
       {/* Curved Tab Switcher */}
@@ -427,17 +432,6 @@ export default function SettingsPage() {
           )}
         >
           Telecalling Config
-        </button>
-        <button
-          onClick={() => router.push(`${pathname}?tab=ai`)}
-          className={cn(
-            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
-            activeTab === "ai"
-              ? "bg-white text-primary shadow-sm"
-              : "text-[#78716c] hover:text-[#292524]"
-          )}
-        >
-          AI Settings
         </button>
         <button
           onClick={() => router.push(`${pathname}?tab=automations`)}
@@ -658,146 +652,72 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* TAB 4: AI Settings */}
-          {activeTab === "ai" && (
-            <div className="space-y-6">
-              {/* AI Credentials Card */}
-              <div className="card rounded-3xl animate-slide-up">
-                <button
-                  type="button"
-                  onClick={() => setCollapsed(c => ({ ...c, ai: !c.ai }))}
-                  className="w-full flex items-center gap-3 text-left"
-                >
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: aiSection.bg }}>
-                    <aiSection.icon size={18} style={{ color: aiSection.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="font-display font-bold text-ink" style={{ fontSize: "1rem", letterSpacing: "-0.02em" }}>
-                        {aiSection.label}
-                      </h2>
-                      {aiConfigured ? (
-                        <span className="badge badge-green inline-flex items-center gap-1">
-                          <CheckCircle2 size={10} /> Configured
-                        </span>
-                      ) : (
-                        <span className="badge badge-gray">Not configured</span>
-                      )}
-                    </div>
-                    <p className="font-body text-sm text-ink-muted mt-0.5">{aiSection.description}</p>
-                  </div>
-                  <ChevronDown size={18} className={`text-ink-muted transition-transform flex-shrink-0 ${collapsed.ai ? "" : "rotate-180"}`} />
-                </button>
-
-                {!collapsed.ai && (
-                  <>
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {aiSection.fields.map((field) => {
-                        const meta = settingFor(field.key);
-                        const draft = drafts[field.key] ?? "";
-                        const labelWithOptional = field.required === false
-                          ? `${field.label} (optional)`
-                          : field.label;
-                        if (field.secret) {
-                          return (
-                            <SecretField
-                              key={field.key}
-                              label={labelWithOptional}
-                              storedMask={meta?.display_value ?? "Not set"}
-                              isSet={!!meta?.is_set}
-                              newValue={draft}
-                              onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
-                              hint={field.hint}
-                            />
-                          );
-                        }
-                        return (
-                          <OutlinedField
-                            key={field.key}
-                            label={labelWithOptional}
-                            value={draft}
-                            onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
-                            placeholder={field.placeholder}
-                            hint={field.hint}
-                          />
-                        );
-                      })}
-                    </div>
-
-                    {aiSection.toggles && aiSection.toggles.length > 0 && (
-                      <div className="mt-4 space-y-3">
-                        {aiSection.toggles.map((toggle) => {
-                          const val = drafts[toggle.key];
-                          const stored = settingFor(toggle.key)?.display_value;
-                          const isDefaultEnabled = toggle.defaultEnabled !== false;
-                          const enabled = val !== undefined
-                            ? val === "true"
-                            : (stored === "Not set" || !stored ? isDefaultEnabled : stored === "true");
-                          return (
-                            <div key={toggle.key} className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
-                              <div>
-                                <p className="font-body text-sm font-semibold text-ink">{toggle.label}</p>
-                                <p className="font-body text-xs text-ink-muted mt-0.5">{toggle.description}</p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const nextVal = enabled ? "false" : "true";
-                                  setDrafts(d => ({ ...d, [toggle.key]: nextVal }));
-                                }}
-                                className={`relative w-11 h-6 rounded-full transition-colors duration-200 flex-shrink-0 ${enabled ? "bg-green-600" : "bg-gray-300"}`}
-                              >
-                                <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${enabled ? "translate-x-5" : "translate-x-0"}`} />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    <div className="mt-6 flex items-center justify-between border-t border-border-subtle pt-5 gap-3 flex-wrap">
-                      <div className="min-h-[20px]">
-                        {(saveStates.ai ?? "idle") === "saved" && (
-                          <span className="inline-flex items-center gap-1.5 text-emerald-600 font-body text-sm font-medium">
-                            <CheckCircle2 size={15} /> Saved successfully
-                          </span>
-                        )}
-                        {!(sectionDirty.ai ?? false) && (saveStates.ai ?? "idle") === "idle" && aiConfigured && (
-                          <span className="text-[11px] text-ink-muted font-body">No unsaved changes</span>
-                        )}
-                        {(sectionDirty.ai ?? false) && (saveStates.ai ?? "idle") !== "saved" && (
-                          <span className="text-[11px] text-amber-600 font-body font-medium">Unsaved changes</span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleSave("ai", [...aiSection.fields.map(f => f.key), ...(aiSection.toggles?.map(t => t.key) ?? [])])}
-                        disabled={(saveStates.ai ?? "idle") === "saving" || (saveStates.ai ?? "idle") === "saved" || !(sectionDirty.ai ?? false)}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
-                          (saveStates.ai ?? "idle") === "saved"
-                            ? "bg-emerald-100 text-emerald-700 cursor-default"
-                            : (sectionDirty.ai ?? false)
-                            ? "bg-primary text-white hover:bg-primary/90"
-                            : "bg-surface-subtle text-ink-muted cursor-default"
-                        }`}
-                      >
-                        {(saveStates.ai ?? "idle") === "saving" ? (
-                          <><Loader2 size={14} className="animate-spin" />Saving…</>
-                        ) : (saveStates.ai ?? "idle") === "saved" ? (
-                          <><CheckCircle2 size={14} />Saved</>
-                        ) : (
-                          <><Save size={14} />Save Changes</>
-                        )}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: Automations */}
+          {/* TAB 4: Automations */}
           {activeTab === "automations" && (
             <div className="space-y-6">
+              <div className="card rounded-3xl animate-slide-up">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#ede9fe]">
+                      <Sparkles size={18} className="text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="font-display text-base font-bold text-ink">AI Auto-Reply</h2>
+                      <p className="mt-1 max-w-2xl font-body text-sm leading-relaxed text-ink-muted">
+                        Turn on automatic AI replies for inbound WhatsApp messages. Voice delivery is controlled by your operator plan settings.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = aiAutoReplyEnabled ? "false" : "true";
+                      setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: nextVal }));
+                    }}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${aiAutoReplyEnabled ? "bg-green-600" : "bg-gray-300"}`}
+                    aria-label="Toggle AI auto-reply"
+                  >
+                    <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${aiAutoReplyEnabled ? "translate-x-5" : "translate-x-0"}`} />
+                  </button>
+                </div>
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
+                  <div className="min-h-[20px]">
+                    {(saveStates.automations_ai ?? "idle") === "saved" && (
+                      <span className="inline-flex items-center gap-1.5 font-body text-sm font-medium text-emerald-600">
+                        <CheckCircle2 size={15} /> Saved successfully
+                      </span>
+                    )}
+                    {aiAutomationDirty && (saveStates.automations_ai ?? "idle") !== "saved" && (
+                      <span className="font-body text-[11px] font-medium text-amber-600">Unsaved changes</span>
+                    )}
+                    {!aiAutomationDirty && (saveStates.automations_ai ?? "idle") === "idle" && (
+                      <span className="font-body text-[11px] text-ink-muted">
+                        {aiAutoReplyEnabled ? "AI replies are enabled" : "AI replies are disabled"}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleSave("automations_ai", [AI_AUTO_REPLY_TOGGLE.key])}
+                    disabled={(saveStates.automations_ai ?? "idle") === "saving" || (saveStates.automations_ai ?? "idle") === "saved" || !aiAutomationDirty}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 font-label text-sm font-semibold transition-all ${
+                      (saveStates.automations_ai ?? "idle") === "saved"
+                        ? "bg-emerald-100 text-emerald-700 cursor-default"
+                        : aiAutomationDirty
+                        ? "bg-primary text-white hover:bg-primary/90"
+                        : "bg-surface-subtle text-ink-muted cursor-default"
+                    }`}
+                  >
+                    {(saveStates.automations_ai ?? "idle") === "saving" ? (
+                      <><Loader2 size={14} className="animate-spin" />Saving...</>
+                    ) : (saveStates.automations_ai ?? "idle") === "saved" ? (
+                      <><CheckCircle2 size={14} />Saved</>
+                    ) : (
+                      <><Save size={14} />Save Changes</>
+                    )}
+                  </button>
+                </div>
+              </div>
+
               {/* Lead Scoring thresholds */}
               {(() => {
                 const isOrderValid = scoringThresholds.A > scoringThresholds.B && scoringThresholds.B > scoringThresholds.C;

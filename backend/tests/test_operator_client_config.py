@@ -18,10 +18,8 @@ class OperatorClientConfigTests(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.clear()
 
-    @patch("app.routes.operator.settings")
     @patch("app.routes.operator.get_supabase")
-    def test_get_client_config(self, mock_get_db, mock_settings):
-        mock_settings.sarvam_api_key = "platform-sarvam-key"
+    def test_get_client_config(self, mock_get_db):
         db = MagicMock()
 
         def table(name):
@@ -39,6 +37,12 @@ class OperatorClientConfigTests(unittest.TestCase):
                     {"key": "ai_voice_reply_pace", "value": "1.2"},
                     {"key": "ai_voice_reply_language_mode", "value": "fixed"},
                     {"key": "ai_voice_reply_language_code", "value": "ta-IN"},
+                    {"key": "sarvam_api_key", "value": "client-sarvam-key"},
+                    {"key": "telegram_bot_token", "value": "123:abc"},
+                    {"key": "instagram_page_id", "value": "ig-page"},
+                    {"key": "instagram_access_token", "value": "ig-token"},
+                    {"key": "facebook_page_id", "value": "fb-page"},
+                    {"key": "facebook_access_token", "value": "fb-token"},
                     {"key": "reengagement_enabled", "value": "false"},
                     {"key": "kb_retrieval_mode", "value": "hybrid"}
                 ]
@@ -67,6 +71,10 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["settings"]["reengagement_enabled"], False)
         self.assertEqual(body["settings"]["kb_retrieval_mode"], "hybrid")
         self.assertEqual(body["credentials_status"]["ai"], "configured")
+        self.assertEqual(body["credentials_status"]["telegram"], "configured")
+        self.assertEqual(body["credentials_status"]["instagram"], "configured")
+        self.assertEqual(body["credentials_status"]["facebook"], "configured")
+        self.assertNotIn("payments", body["credentials_status"])
         self.assertEqual(body["voice_usage"]["speech_to_text"], 3)
         self.assertEqual(body["voice_usage"]["text_to_speech"], 5)
 
@@ -75,6 +83,8 @@ class OperatorClientConfigTests(unittest.TestCase):
     @patch("app.routes.operator.get_supabase")
     def test_patch_client_config(self, mock_get_db, mock_record_audit, mock_invalidate_cache):
         db = MagicMock()
+        app_settings_table = MagicMock()
+        app_settings_table.upsert.return_value.execute.return_value.data = [{"key": "kb_retrieval_mode"}]
 
         def table(name):
             tbl = MagicMock()
@@ -83,7 +93,7 @@ class OperatorClientConfigTests(unittest.TestCase):
                     "id": "tenant-1"
                 }
             elif name == "app_settings":
-                tbl.upsert.return_value.execute.return_value.data = [{"key": "kb_retrieval_mode"}]
+                return app_settings_table
             return tbl
 
         db.table.side_effect = table
@@ -98,19 +108,21 @@ class OperatorClientConfigTests(unittest.TestCase):
                 "ai_voice_reply_pace": "1.2",
                 "ai_voice_reply_language_mode": "fixed",
                 "ai_voice_reply_language_code": "ta-IN",
+                "sarvam_api_key": "client-secret",
             }
         }
         res = self.client.patch("/api/v1/operator/clients/tenant-1/config", json=payload)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"status": "ok"})
 
+        upserted_rows = [call.args[0] for call in app_settings_table.upsert.call_args_list]
+        sarvam_row = next(row for row in upserted_rows if row["key"] == "sarvam_api_key")
+        self.assertTrue(sarvam_row["is_secret"])
         mock_invalidate_cache.assert_called_once()
         mock_record_audit.assert_called_once()
 
-    @patch("app.routes.operator.settings")
     @patch("app.routes.operator.get_supabase")
-    def test_get_client_config_survives_usage_counter_lookup_failure(self, mock_get_db, mock_settings):
-        mock_settings.sarvam_api_key = "platform-sarvam-key"
+    def test_get_client_config_survives_usage_counter_lookup_failure(self, mock_get_db):
         db = MagicMock()
 
         def table(name):
@@ -137,7 +149,7 @@ class OperatorClientConfigTests(unittest.TestCase):
 
         self.assertEqual(res.status_code, 200)
         body = res.json()
-        self.assertEqual(body["credentials_status"]["ai"], "configured")
+        self.assertEqual(body["credentials_status"]["ai"], "not_configured")
         self.assertEqual(body["voice_usage"], {"speech_to_text": 0, "text_to_speech": 0})
         self.assertEqual(body["usage"]["counters"], [])
 

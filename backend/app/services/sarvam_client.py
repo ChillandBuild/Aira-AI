@@ -13,7 +13,12 @@ SARVAM_TTS_URL = f"{SARVAM_BASE_URL}/text-to-speech"
 
 
 def get_sarvam_api_key(tenant_id: str | None = None) -> str:
-    api_key = get_setting("sarvam_api_key", tenant_id=tenant_id) or settings.sarvam_api_key
+    if tenant_id:
+        api_key = get_setting("sarvam_api_key", tenant_id=tenant_id)
+        if not api_key:
+            raise RuntimeError("Client Sarvam API key not configured")
+        return api_key
+    api_key = settings.sarvam_api_key
     if not api_key:
         raise RuntimeError("Sarvam API key not configured")
     return api_key

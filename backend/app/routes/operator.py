@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
-from app.config import settings
 from app.db.supabase import get_supabase
 from app.dependencies.auth import get_current_user
 from app.dependencies.system_admin import get_system_admin
@@ -964,11 +963,6 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             return "incomplete"
         return "not_configured"
 
-    def sarvam_cred_status() -> str:
-        if settings.sarvam_api_key:
-            return "configured"
-        return cred_status(["sarvam_api_key"])
-
     def float_setting(key: str, default: float) -> float:
         try:
             return float(settings_map.get(key) or default)
@@ -997,8 +991,10 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         "credentials_status": {
             "whatsapp": cred_status(["meta_phone_number_id", "meta_access_token", "meta_waba_id", "meta_webhook_verify_token"]),
             "telecalling": cred_status(["telecmi_user_id", "telecmi_secret", "telecmi_callerid"]),
-            "ai": sarvam_cred_status(),
-            "payments": cred_status(["razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"]),
+            "ai": cred_status(["sarvam_api_key"]),
+            "telegram": cred_status(["telegram_bot_token"]),
+            "instagram": cred_status(["instagram_page_id", "instagram_access_token"]),
+            "facebook": cred_status(["facebook_page_id", "facebook_access_token"]),
         },
         "settings": {
             "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") == "true",
@@ -1039,13 +1035,25 @@ def update_client_config(
     if not tenant or not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    secret_keys = {
+        "sarvam_api_key",
+        "groq_api_key",
+        "meta_access_token",
+        "meta_webhook_verify_token",
+        "meta_app_secret",
+        "telecmi_secret",
+        "telegram_bot_token",
+        "instagram_access_token",
+        "facebook_access_token",
+    }
+
     for key, value in payload.settings.items():
         db_val = str(value).lower() if isinstance(value, bool) else str(value)
         db.table("app_settings").upsert({
             "tenant_id": tenant_id,
             "key": key,
             "value": db_val,
-            "is_secret": False,
+            "is_secret": key in secret_keys,
             "updated_at": "now()",
         }, on_conflict="tenant_id,key").execute()
 

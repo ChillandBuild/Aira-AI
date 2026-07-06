@@ -23,7 +23,6 @@
 - **Supabase Project ID**: `ayftynkgmfkaqmmnlmoc`
 - **Supabase Region**: `ap-northeast-1`
 - **WhatsApp Business Account (WABA) ID**: `meta_waba_id = 994218516456571`
-- **Default Tenant ID**: `00000000-0000-0000-0000-000000000001`
 - **Backend Production URL**: `https://aira-ai-5tfr.onrender.com`
 - **WhatsApp Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/whatsapp`
 - **Instagram Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/instagram/{tenant_id}`

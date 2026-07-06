@@ -103,8 +103,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     let tabLabel = "General";
     if (tab === "channels") tabLabel = "Messaging Channels";
     if (tab === "telecalling") tabLabel = "Telecalling Config";
-    if (tab === "ai") tabLabel = "AI Settings";
-    if (tab === "automations") tabLabel = "Automations";
+    if (tab === "ai" || tab === "automations") tabLabel = "Automations";
     return {
       title: `Account Settings / ${tabLabel}`,
       description: "Configure global parameters, voice calling and AI behavior.",
