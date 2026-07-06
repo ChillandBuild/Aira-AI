@@ -975,15 +975,22 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         except (TypeError, ValueError):
             return default
 
-    period = get_billing_period(db, tenant_id)
-    usage_rows = (
-        db.table("tenant_usage_counters")
-        .select("metric, used, included, hard_cap")
-        .eq("tenant_id", tenant_id)
-        .eq("period", period)
-        .execute()
-    )
-    usage_by_metric = {r["metric"]: r for r in (usage_rows.data or [])}
+    usage_counters = []
+    try:
+        period = get_billing_period(db, tenant_id)
+        usage_rows = (
+            db.table("tenant_usage_counters")
+            .select("metric, used, included, hard_cap")
+            .eq("tenant_id", tenant_id)
+            .eq("period", period)
+            .execute()
+        )
+        usage_counters = usage_rows.data or []
+    except Exception as e:
+        logger.warning("Operator client config usage lookup failed for tenant %s: %s", tenant_id, e)
+        from datetime import datetime, timezone
+        period = datetime.now(timezone.utc).strftime("%Y-%m")
+    usage_by_metric = {r["metric"]: r for r in usage_counters}
 
     return {
         "enabled_features": tenant.data["enabled_features"],
@@ -1005,7 +1012,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         },
         "usage": {
             "period": period,
-            "counters": usage_rows.data or [],
+            "counters": usage_counters,
         },
         "voice_usage": {
             "speech_to_text": (usage_by_metric.get("ai_speech_to_text") or {}).get("used", 0) or 0,

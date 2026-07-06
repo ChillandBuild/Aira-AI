@@ -107,6 +107,40 @@ class OperatorClientConfigTests(unittest.TestCase):
         mock_invalidate_cache.assert_called_once()
         mock_record_audit.assert_called_once()
 
+    @patch("app.routes.operator.settings")
+    @patch("app.routes.operator.get_supabase")
+    def test_get_client_config_survives_usage_counter_lookup_failure(self, mock_get_db, mock_settings):
+        mock_settings.sarvam_api_key = "platform-sarvam-key"
+        db = MagicMock()
+
+        def table(name):
+            tbl = MagicMock()
+            if name == "tenants":
+                tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+                    "id": "tenant-1",
+                    "enabled_features": ["whatsapp"]
+                }
+            elif name == "app_settings":
+                tbl.select.return_value.eq.return_value.execute.return_value.data = [
+                    {"key": "ai_voice_reply_enabled", "value": "true"},
+                ]
+            elif name == "tenant_subscriptions":
+                tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
+            elif name == "tenant_usage_counters":
+                tbl.select.return_value.eq.return_value.eq.return_value.execute.side_effect = RuntimeError("usage table missing")
+            return tbl
+
+        db.table.side_effect = table
+        mock_get_db.return_value = db
+
+        res = self.client.get("/api/v1/operator/clients/tenant-1/config")
+
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body["credentials_status"]["ai"], "configured")
+        self.assertEqual(body["voice_usage"], {"speech_to_text": 0, "text_to_speech": 0})
+        self.assertEqual(body["usage"]["counters"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
