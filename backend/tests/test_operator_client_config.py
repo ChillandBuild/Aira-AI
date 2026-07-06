@@ -33,8 +33,19 @@ class OperatorClientConfigTests(unittest.TestCase):
                 tbl.select.return_value.eq.return_value.execute.return_value.data = [
                     {"key": "ai_auto_reply_enabled", "value": "true"},
                     {"key": "ai_voice_reply_enabled", "value": "true"},
+                    {"key": "ai_voice_reply_speaker", "value": "shubh"},
+                    {"key": "ai_voice_reply_pace", "value": "1.2"},
+                    {"key": "ai_voice_reply_language_mode", "value": "fixed"},
+                    {"key": "ai_voice_reply_language_code", "value": "ta-IN"},
                     {"key": "reengagement_enabled", "value": "false"},
                     {"key": "kb_retrieval_mode", "value": "hybrid"}
+                ]
+            elif name == "tenant_subscriptions":
+                tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
+            elif name == "tenant_usage_counters":
+                tbl.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+                    {"metric": "ai_speech_to_text", "used": 3, "included": 0, "hard_cap": None},
+                    {"metric": "ai_text_to_speech", "used": 5, "included": 0, "hard_cap": None},
                 ]
             return tbl
 
@@ -47,8 +58,14 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["enabled_features"], ["whatsapp", "telecalling"])
         self.assertEqual(body["settings"]["ai_auto_reply_enabled"], True)
         self.assertEqual(body["settings"]["ai_voice_reply_enabled"], True)
+        self.assertEqual(body["settings"]["ai_voice_reply_speaker"], "shubh")
+        self.assertEqual(body["settings"]["ai_voice_reply_pace"], 1.2)
+        self.assertEqual(body["settings"]["ai_voice_reply_language_mode"], "fixed")
+        self.assertEqual(body["settings"]["ai_voice_reply_language_code"], "ta-IN")
         self.assertEqual(body["settings"]["reengagement_enabled"], False)
         self.assertEqual(body["settings"]["kb_retrieval_mode"], "hybrid")
+        self.assertEqual(body["voice_usage"]["speech_to_text"], 3)
+        self.assertEqual(body["voice_usage"]["text_to_speech"], 5)
 
     @patch("app.config_dynamic.invalidate_cache")
     @patch("app.routes.operator.record_audit_event")
@@ -69,7 +86,17 @@ class OperatorClientConfigTests(unittest.TestCase):
         db.table.side_effect = table
         mock_get_db.return_value = db
 
-        payload = {"settings": {"kb_retrieval_mode": "keyword", "reengagement_enabled": True, "ai_voice_reply_enabled": True}}
+        payload = {
+            "settings": {
+                "kb_retrieval_mode": "keyword",
+                "reengagement_enabled": True,
+                "ai_voice_reply_enabled": True,
+                "ai_voice_reply_speaker": "shubh",
+                "ai_voice_reply_pace": "1.2",
+                "ai_voice_reply_language_mode": "fixed",
+                "ai_voice_reply_language_code": "ta-IN",
+            }
+        }
         res = self.client.patch("/api/v1/operator/clients/tenant-1/config", json=payload)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"status": "ok"})

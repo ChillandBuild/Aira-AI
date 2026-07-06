@@ -6,6 +6,7 @@ describe("getMessageDisplayMeta", () => {
   it("labels inbound audio messages as voice note transcripts", () => {
     expect(getMessageDisplayMeta({ direction: "inbound", media_type: "audio" })).toEqual({
       isVoiceNoteTranscript: true,
+      isAiVoiceReply: false,
       label: "Voice note transcript",
     });
   });
@@ -13,14 +14,16 @@ describe("getMessageDisplayMeta", () => {
   it("does not label typed WhatsApp text as a voice note transcript", () => {
     expect(getMessageDisplayMeta({ direction: "inbound", media_type: null })).toEqual({
       isVoiceNoteTranscript: false,
+      isAiVoiceReply: false,
       label: null,
     });
   });
 
-  it("does not label outbound audio messages as inbound transcripts", () => {
+  it("labels outbound audio messages as AI voice replies", () => {
     expect(getMessageDisplayMeta({ direction: "outbound", media_type: "audio" })).toEqual({
       isVoiceNoteTranscript: false,
-      label: null,
+      isAiVoiceReply: true,
+      label: "AI voice reply",
     });
   });
 });

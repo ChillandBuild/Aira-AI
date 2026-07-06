@@ -11,9 +11,21 @@ import { ClaimBanner } from "@/components/ClaimBanner";
 import { MobileDashboardNav } from "@/components/MobileDashboardNav";
 import { MoreMenu } from "@/components/MoreMenu";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { useAuthRole } from "./contexts/AuthRoleContext";
+import { AiraLoader } from "@/components/AiraLoader";
 import { NotificationProvider } from "@/hooks/useNotifications";
 
 const PING_INTERVAL_MS = 8 * 60 * 1000; // 8 min — keeps Render warm (sleeps after 15 min)
+
+function DashboardAuthGuard({ children }: { children: React.ReactNode }) {
+  const { loading: roleLoading } = useAuthRole();
+
+  if (roleLoading) {
+    return <AiraLoader showRetryAfterMs={15000} onRetry={() => window.location.reload()} />;
+  }
+
+  return <>{children}</>;
+}
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
@@ -75,7 +87,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   }, [subStatus, pathname, router]);
 
   if (subStatus === "loading") {
-    return <div className="min-h-screen bg-background" />;
+    return <AiraLoader />;
   }
 
   if (isInbox) {
@@ -84,27 +96,29 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         <ActiveCallProvider>
           <NotificationProvider>
             <SessionTracker />
-            <div className="h-screen bg-background overflow-hidden relative">
-              {isInboxSidebarOpen && (
-                <>
-                  {/* Backdrop */}
-                  <div
-                    onClick={() => setIsInboxSidebarOpen(false)}
-                    className="fixed inset-0 bg-black/45 backdrop-blur-xs z-40 transition-opacity cursor-pointer"
-                  />
-                  {/* Labeled Sidebar Drawer Overlay */}
-                  <div className="fixed left-0 top-0 bottom-0 w-[220px] z-50 [&>aside]:z-50 [&>aside]:shadow-2xl animate-in slide-in-from-left duration-200">
-                    <Sidebar />
-                  </div>
-                </>
-              )}
-              {children}
-              <div className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-[65] md:hidden">
-                <MoreMenu />
+            <DashboardAuthGuard>
+              <div className="h-screen bg-background overflow-hidden relative">
+                {isInboxSidebarOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div
+                      onClick={() => setIsInboxSidebarOpen(false)}
+                      className="fixed inset-0 bg-black/45 backdrop-blur-xs z-40 transition-opacity cursor-pointer"
+                    />
+                    {/* Labeled Sidebar Drawer Overlay */}
+                    <div className="fixed left-0 top-0 bottom-0 w-[220px] z-50 [&>aside]:z-50 [&>aside]:shadow-2xl animate-in slide-in-from-left duration-200">
+                      <Sidebar />
+                    </div>
+                  </>
+                )}
+                {children}
+                <div className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-[65] md:hidden">
+                  <MoreMenu />
+                </div>
+                <MobileDashboardNav />
               </div>
-              <MobileDashboardNav />
-            </div>
-            <CalendarPanel isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
+              <CalendarPanel isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
+            </DashboardAuthGuard>
           </NotificationProvider>
         </ActiveCallProvider>
       </AuthRoleProvider>
@@ -116,28 +130,30 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       <ActiveCallProvider>
         <NotificationProvider>
           <SessionTracker />
-          <div className="flex min-h-screen overflow-x-hidden bg-background">
-            <div className="hidden md:block">
-              <Sidebar />
-            </div>
-
-            <main className="flex min-h-screen min-w-0 flex-1 flex-col md:ml-[220px]">
-              <Suspense fallback={<div className="h-20 bg-[#faf8f5] border-b border-[#e8e3db]" />}>
-                <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
-              </Suspense>
-              <ClaimBanner />
-              <div className="w-full min-w-0 max-w-[1400px] overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:p-7">
-                {children}
+          <DashboardAuthGuard>
+            <div className="flex min-h-screen overflow-x-hidden bg-background">
+              <div className="hidden md:block">
+                <Sidebar />
               </div>
-            </main>
 
-            <MobileDashboardNav />
+              <main className="flex min-h-screen min-w-0 flex-1 flex-col md:ml-[220px]">
+                <Suspense fallback={<div className="h-20 bg-[#faf8f5] border-b border-[#e8e3db]" />}>
+                  <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
+                </Suspense>
+                <ClaimBanner />
+                <div className="w-full min-w-0 max-w-[1400px] overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:p-7">
+                  {children}
+                </div>
+              </main>
 
-            <CalendarPanel
-              isOpen={isCalendarOpen}
-              onClose={() => setIsCalendarOpen(false)}
-            />
-          </div>
+              <MobileDashboardNav />
+
+              <CalendarPanel
+                isOpen={isCalendarOpen}
+                onClose={() => setIsCalendarOpen(false)}
+              />
+            </div>
+          </DashboardAuthGuard>
         </NotificationProvider>
       </ActiveCallProvider>
     </AuthRoleProvider>

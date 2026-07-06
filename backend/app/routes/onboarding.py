@@ -20,6 +20,10 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("facebook_page_id", False), ("facebook_access_token", True),
     ("ai_auto_reply_enabled", False),
     ("ai_voice_reply_enabled", False),
+    ("ai_voice_reply_speaker", False),
+    ("ai_voice_reply_pace", False),
+    ("ai_voice_reply_language_mode", False),
+    ("ai_voice_reply_language_code", False),
     ("reengagement_enabled", False),
 ]
 
