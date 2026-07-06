@@ -42,7 +42,7 @@ def get_my_subscription(ctx: dict = Depends(get_tenant_and_role)):
     usage = db.table("tenant_usage_counters").select("metric, used, included, hard_cap").eq("tenant_id", tenant_id).eq("period", period).execute()
 
     pending = db.table("subscription_requests").select(
-        "id, requested_items, total_amount, submitted_at, status, rejection_reason"
+        "id, requested_items, total_amount, submitted_at, status, rejection_reason, start_date, end_date"
     ).eq("tenant_id", tenant_id).order("submitted_at", desc=True).limit(1).execute()
     latest_request = (pending.data or [None])[0]
 
@@ -75,6 +75,8 @@ class SubmitItem(BaseModel):
 class SubmitRequestPayload(BaseModel):
     package_id: str | None = None
     items: list[SubmitItem]
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 @router.post("/requests")
@@ -90,5 +92,7 @@ def create_subscription_request(payload: SubmitRequestPayload, ctx: dict = Depen
         ctx["tenant_id"],
         requested_items=[item.model_dump() for item in payload.items],
         package_id=payload.package_id,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
     )
     return {"data": result}

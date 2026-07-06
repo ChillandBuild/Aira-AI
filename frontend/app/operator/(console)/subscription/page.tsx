@@ -49,9 +49,6 @@ const CATEGORY_ICONS: Record<string, typeof MessageSquare> = {
   ops: Settings2,
 };
 
-// The client-facing cart SKUs (migration 128) — these are what the admin
-// can price. Everything else in feature_catalog is an internal flag that
-// gets turned on via a SKU's `depends_on`, not priced directly.
 const SELLABLE_KEYS = [
   "inbound_messaging", "outbound_messaging",
   "ai_tier.basic", "ai_tier.standard", "ai_tier.premium",
@@ -109,30 +106,40 @@ function CatalogRow({ item, onSaved }: { item: CatalogItem; onSaved: () => void 
     }
   }
 
+  const isFlat = item.unit_price === null && item.included_qty === null;
+
   return (
     <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-3 py-2.5 border-b border-border-subtle last:border-0">
       <span className="text-sm text-ink">{item.display_name}</span>
       <input
         type="number" min="0" value={dailyPrice} onChange={e => setDailyPrice(e.target.value)}
-        className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right"
+        className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/20"
         placeholder="Daily"
       />
-      <input
-        type="number" min="0" value={unitPrice} onChange={e => setUnitPrice(e.target.value)}
-        className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right"
-        placeholder="Unit"
-      />
-      <input
-        type="number" min="0" value={includedQty} onChange={e => setIncludedQty(e.target.value)}
-        className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right"
-        placeholder="Included"
-      />
+      {!isFlat ? (
+        <input
+          type="number" min="0" value={unitPrice} onChange={e => setUnitPrice(e.target.value)}
+          className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/20"
+          placeholder="Unit"
+        />
+      ) : (
+        <div className="w-24" />
+      )}
+      {!isFlat ? (
+        <input
+          type="number" min="0" value={includedQty} onChange={e => setIncludedQty(e.target.value)}
+          className="w-24 border border-border rounded-lg px-2 py-1 text-sm text-right focus:outline-none focus:ring-2 focus:ring-primary/20"
+          placeholder="Included"
+        />
+      ) : (
+        <div className="w-24" />
+      )}
       <button
         onClick={save}
         disabled={saving || !dirty}
         className={cn(
-          "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium",
-          saved ? "bg-success/10 text-success" : dirty ? "bg-primary text-white hover:bg-primary-dark" : "bg-surface-mid text-ink-muted"
+          "flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] shadow-xs",
+          saved ? "bg-success/10 text-success" : dirty ? "bg-primary text-white hover:bg-primary-dark hover:shadow-sm" : "bg-surface-mid text-ink-muted cursor-not-allowed"
         )}
       >
         {saved ? <CheckCircle2 size={12} /> : <Save size={12} />}
@@ -281,9 +288,9 @@ function PackagesTab({ catalog, packages, onReload }: { catalog: CatalogItem[]; 
         </p>
         <button
           onClick={openCreate}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-dark transition-colors shrink-0"
+          className="flex items-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary-dark hover:scale-[1.02] active:scale-[0.98] transition-all shrink-0 shadow-sm"
         >
-          <Plus size={15} /> New Package
+          <Plus size={13} /> New Package
         </button>
       </div>
 
@@ -313,10 +320,10 @@ function PackagesTab({ catalog, packages, onReload }: { catalog: CatalogItem[]; 
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <button onClick={() => openEdit(pkg)} className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-mid hover:text-ink" title="Edit package">
+                  <button onClick={() => openEdit(pkg)} className="p-1.5 rounded-lg text-ink-muted hover:bg-surface-mid hover:text-ink transition-colors" title="Edit package">
                     <Pencil size={14} />
                   </button>
-                  <button onClick={() => setDeleteTarget(pkg)} className="p-1.5 rounded-lg text-ink-muted hover:bg-red-50 hover:text-danger" title="Delete package">
+                  <button onClick={() => setDeleteTarget(pkg)} className="p-1.5 rounded-lg text-ink-muted hover:bg-red-50 hover:text-danger transition-colors" title="Delete package">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -369,7 +376,7 @@ function PackagesTab({ catalog, packages, onReload }: { catalog: CatalogItem[]; 
                           <input
                             type="number" min="1" value={form.items[item.feature_key]}
                             onChange={e => setQuantity(item.feature_key, parseInt(e.target.value, 10) || 1)}
-                            className="w-16 border border-border rounded-lg px-2 py-1 text-sm text-center"
+                            className="w-16 border border-border rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/20"
                           />
                         )}
                       </div>
@@ -387,14 +394,14 @@ function PackagesTab({ catalog, packages, onReload }: { catalog: CatalogItem[]; 
             <div className="flex gap-3 pt-6 mt-4 border-t border-border">
               <button
                 onClick={() => setForm(null)}
-                className="flex-1 px-4 py-2.5 border border-border text-sm text-ink-secondary rounded-xl hover:bg-surface-mid"
+                className="flex-1 px-3 py-2 border border-border text-xs font-semibold text-ink-secondary rounded-lg hover:bg-surface-mid transition-all duration-150"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving || !form.name.trim() || Object.keys(form.items).length === 0}
-                className="flex-1 px-4 py-2.5 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-dark disabled:opacity-50"
+                className="flex-1 px-3 py-2 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary-dark hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:scale-100 shadow-sm"
               >
                 {saving ? "Saving…" : form.id ? "Save Changes" : "Create Package"}
               </button>
@@ -412,10 +419,10 @@ function PackagesTab({ catalog, packages, onReload }: { catalog: CatalogItem[]; 
               as a cart shortcut going forward.
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 px-4 py-2.5 border border-border text-sm text-ink-secondary rounded-xl hover:bg-surface-mid">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 px-3 py-2 border border-border text-xs font-semibold text-ink-secondary rounded-lg hover:bg-surface-mid transition-all duration-150">
                 Cancel
               </button>
-              <button onClick={handleDelete} disabled={deleting} className="flex-1 px-4 py-2.5 bg-danger text-white text-sm font-medium rounded-xl hover:bg-danger/90 disabled:opacity-50">
+              <button onClick={handleDelete} disabled={deleting} className="flex-1 px-3 py-2 bg-danger text-white text-xs font-semibold rounded-lg hover:bg-danger/90 hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:scale-100">
                 {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>

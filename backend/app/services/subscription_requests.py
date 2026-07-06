@@ -60,7 +60,7 @@ def _monthly_price_for_item(catalog_row: dict, quantity: int, existing_quantity:
     return float(unit_price) * (new_billable - already_billable)
 
 
-def submit_request(db, tenant_id: str, requested_items: list[dict], package_id: str | None = None) -> dict:
+def submit_request(db, tenant_id: str, requested_items: list[dict], package_id: str | None = None, start_date: str | None = None, end_date: str | None = None) -> dict:
     """
     Create a subscription_requests row for a cart submission (first-time
     onboarding or a later top-up ask) and flip the tenant into
@@ -93,11 +93,18 @@ def submit_request(db, tenant_id: str, requested_items: list[dict], package_id: 
     # before checking `existing` itself.
     existing_status = (existing.data or {}).get("status") if existing else None
     is_initial = existing_status != "active"
-    proration = _proration_factor(existing.data if existing else None)
+
+    if is_initial and start_date and end_date:
+        s_date = date.fromisoformat(start_date)
+        e_date = date.fromisoformat(end_date)
+        duration_days = max(1, (e_date - s_date).days)
+        proration = duration_days / 30.0
+    else:
+        proration = _proration_factor(existing.data if existing else None)
 
     for item in priced_items:
         monthly_price = item.pop("monthly_amount")
-        line_total = monthly_price if is_initial else monthly_price * proration
+        line_total = monthly_price * proration if (is_initial and start_date and end_date) else (monthly_price if is_initial else monthly_price * proration)
         item["monthly_amount"] = monthly_price
         item["line_total"] = line_total
         item["proration_factor"] = proration
@@ -110,6 +117,8 @@ def submit_request(db, tenant_id: str, requested_items: list[dict], package_id: 
         "package_id": package_id,
         "total_amount": total_amount,
         "is_initial": is_initial,
+        "start_date": start_date,
+        "end_date": end_date,
     }).execute()
 
     # Only the tenant's *first* request gates the dashboard behind the
@@ -136,7 +145,7 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
     recompute entitlements/usage/mrr, and activate the subscription.
     """
     req = db.table("subscription_requests").select(
-        "id, tenant_id, requested_items, package_id, total_amount, is_initial"
+        "id, tenant_id, requested_items, package_id, total_amount, is_initial, start_date, end_date"
     ).eq("id", request_id).maybe_single().execute()
     if not req or not req.data:
         raise ValueError(f"subscription_request {request_id} not found")
@@ -145,6 +154,8 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
     package_id = req.data.get("package_id")
     requested_items = req.data.get("requested_items") or []
     is_initial = req.data.get("is_initial", True)
+    start_date = req.data.get("start_date")
+    end_date = req.data.get("end_date")
 
     feature_keys = [item["feature_key"] for item in requested_items]
     catalog_res = db.table("feature_catalog").select(
@@ -207,10 +218,15 @@ def approve_request(db, request_id: str, reviewer_user_id: str) -> dict:
     # the new item being approved.
     subscription_update: dict = {"status": "active"}
     if is_initial:
-        today = datetime.now(timezone.utc).date()
-        period = today.isoformat()
-        subscription_update["period_start"] = period
-        subscription_update["period_end"] = add_one_month(today).isoformat()
+        if start_date and end_date:
+            period = start_date
+            subscription_update["period_start"] = start_date
+            subscription_update["period_end"] = end_date
+        else:
+            today = datetime.now(timezone.utc).date()
+            period = today.isoformat()
+            subscription_update["period_start"] = period
+            subscription_update["period_end"] = add_one_month(today).isoformat()
     else:
         period = get_billing_period(db, tenant_id)
 

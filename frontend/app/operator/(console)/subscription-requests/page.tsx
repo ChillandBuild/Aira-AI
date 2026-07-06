@@ -21,6 +21,8 @@ interface SubscriptionRequest {
   is_initial: boolean;
   payment_confirmed: boolean;
   submitted_at: string;
+  start_date?: string | null;
+  end_date?: string | null;
 }
 
 function RequestCard({ request, onReviewed }: { request: SubscriptionRequest; onReviewed: () => void }) {
@@ -71,8 +73,18 @@ function RequestCard({ request, onReviewed }: { request: SubscriptionRequest; on
           <p className="text-xs text-ink-muted mt-0.5">
             {request.is_initial ? "Initial subscription" : "Top-up request"} · {new Date(request.submitted_at).toLocaleString("en-IN")}
           </p>
+          {request.is_initial && request.start_date && request.end_date && (
+            <p className="text-xs font-semibold text-primary mt-1.5 bg-primary-light/50 px-2 py-0.5 rounded w-fit">
+              Period: {request.start_date} to {request.end_date} ({Math.max(1, Math.round((new Date(request.end_date).getTime() - new Date(request.start_date).getTime()) / 86_400_000))} days)
+            </p>
+          )}
         </div>
-        <span className="text-lg font-bold text-primary">₹{request.total_amount.toLocaleString("en-IN")}<span className="text-xs font-medium text-ink-muted">/mo</span></span>
+        <span className="text-lg font-bold text-primary">
+          ₹{request.total_amount.toLocaleString("en-IN")}
+          <span className="text-xs font-medium text-ink-muted">
+            {request.is_initial && request.start_date ? "" : "/mo"}
+          </span>
+        </span>
       </div>
 
       <div className="divide-y divide-border-subtle border border-border-subtle rounded-xl px-3">
@@ -102,13 +114,16 @@ function RequestCard({ request, onReviewed }: { request: SubscriptionRequest; on
                 className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <div className="flex gap-2">
-                <button onClick={() => setShowReject(false)} className="flex-1 px-3 py-2 border border-border text-sm text-ink-secondary rounded-xl hover:bg-surface-mid">
+                <button
+                  onClick={() => setShowReject(false)}
+                  className="flex-1 px-3 py-1.5 border border-border text-xs font-semibold text-ink-secondary rounded-lg hover:bg-surface-mid transition-all duration-150"
+                >
                   Cancel
                 </button>
                 <button
                   onClick={reject}
                   disabled={submitting || !reason.trim()}
-                  className="flex-1 px-3 py-2 bg-danger text-white text-sm font-medium rounded-xl hover:bg-danger/90 disabled:opacity-50"
+                  className="flex-1 px-3 py-1.5 bg-danger text-white text-xs font-semibold rounded-lg hover:bg-danger/90 hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:scale-100"
                 >
                   {submitting ? "Rejecting…" : "Confirm Reject"}
                 </button>
@@ -119,16 +134,16 @@ function RequestCard({ request, onReviewed }: { request: SubscriptionRequest; on
               <button
                 onClick={() => setShowReject(true)}
                 disabled={submitting}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-border text-sm text-ink-secondary rounded-xl hover:bg-surface-mid"
+                className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 border border-border text-xs font-semibold text-ink-secondary rounded-lg hover:bg-surface-mid hover:scale-[1.02] active:scale-[0.98] transition-all duration-150"
               >
-                <X size={14} /> Reject
+                <X size={13} /> Reject
               </button>
               <button
                 onClick={approve}
                 disabled={submitting || !paymentConfirmed}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-dark disabled:opacity-50"
+                className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary-dark hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 disabled:opacity-50 disabled:scale-100 shadow-sm"
               >
-                <Check size={14} /> {submitting ? "Approving…" : "Approve"}
+                <Check size={13} /> {submitting ? "Approving…" : "Approve"}
               </button>
             </div>
           )}

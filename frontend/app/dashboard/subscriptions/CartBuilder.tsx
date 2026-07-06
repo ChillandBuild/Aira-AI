@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Check, Sparkles, RadioTower, MessageSquare, Phone, Upload as UploadIcon,
-  Users, Layers, Minus, Plus, Brain,
+  Users, Layers, Minus, Plus, Brain, ChevronDown,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
@@ -45,6 +45,25 @@ const ICONS: Record<string, typeof Phone> = {
   numbers_pool: Layers,
 };
 
+const inboundFeatures = [
+  "Instagram Direct Integration",
+  "Facebook Messenger Integration",
+  "Telegram Chat Support Integration",
+  "Unified Live Chat Inbox",
+  "Real-time Admin Notifications",
+  "Internal FAQs & Knowledge Base answers"
+];
+
+const outboundFeatures = [
+  "WhatsApp Business Cloud API",
+  "Bulk Outbound Broadcast Campaigns",
+  "Broadcast History & Analytics",
+  "Audience Segmentation",
+  "Interactive WhatsApp Templates",
+  "Automated Sequence Rules",
+  "Fallback Push Notifications"
+];
+
 async function apiGet<T>(path: string): Promise<T> {
   const auth = await getAuthHeaders();
   const res = await fetch(`${API_URL}${path}`, { headers: auth });
@@ -52,10 +71,6 @@ async function apiGet<T>(path: string): Promise<T> {
   return res.json();
 }
 
-/** Mirrors backend `_price_for_item` — flat SKUs (monthly_price > 0) always
- *  cost the full monthly price; quantity-priced SKUs (monthly_price === 0)
- *  bill only units beyond `included_qty`, netting out whatever quantity is
- *  already purchased so a top-up doesn't re-charge an included unit. */
 function priceForItem(row: CatalogRow, quantity: number, existingQuantity: number): number {
   if (row.monthly_price > 0) return row.monthly_price;
   if (row.unit_price == null) return 0;
@@ -71,32 +86,65 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 function SelectCard({
-  selected, onClick, icon: Icon, title, subtitle, disabled,
+  selected, onClick, icon: Icon, title, subtitle, disabled, features,
 }: {
-  selected: boolean; onClick: () => void; icon: typeof Phone; title: string; subtitle: string; disabled?: boolean;
+  selected: boolean;
+  onClick: () => void;
+  icon: typeof Phone;
+  title: string;
+  subtitle: string;
+  disabled?: boolean;
+  features?: string[];
 }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`group relative flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all ${
-        selected
-          ? "border-primary bg-primary-light shadow-sm"
-          : "border-border bg-white hover:border-primary/40 hover:bg-primary-light/30"
-      } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-    >
-      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${selected ? "bg-primary text-white" : "bg-surface-mid text-ink-muted"}`}>
-        <Icon size={17} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-ink">{title}</p>
-        <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>
-      </div>
-      <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected ? "border-primary bg-primary" : "border-border-subtle"}`}>
-        {selected && <Check size={12} className="text-white" strokeWidth={3} />}
-      </div>
-    </button>
+    <div className="flex flex-col w-full">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        className={`group relative flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all ${
+          selected
+            ? "border-primary bg-primary-light shadow-sm"
+            : "border-border bg-white hover:border-primary/40 hover:bg-primary-light/30"
+        } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+      >
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${selected ? "bg-primary text-white" : "bg-surface-mid text-ink-muted"}`}>
+          <Icon size={17} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">{title}</p>
+          <p className="mt-0.5 text-xs text-ink-muted">{subtitle}</p>
+        </div>
+        <div className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${selected ? "border-primary bg-primary" : "border-border-subtle"}`}>
+          {selected && <Check size={12} className="text-white" strokeWidth={3} />}
+        </div>
+      </button>
+      
+      {features && features.length > 0 && (
+        <div className="px-4 pb-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded(!expanded);
+            }}
+            className="flex items-center gap-1 mt-2 text-xs font-semibold text-primary hover:text-primary-dark transition-colors"
+          >
+            <span>{expanded ? "Hide what's included" : "Show what's included"}</span>
+            <ChevronDown size={14} className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+          </button>
+          
+          {expanded && (
+            <ul className="mt-2 space-y-1 pl-5 list-disc text-[11px] text-ink-secondary">
+              {features.map((f, idx) => (
+                <li key={idx}>{f}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -139,6 +187,26 @@ export function CartBuilder({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [startDate, setStartDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().slice(0, 10);
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 15);
+    return d.toISOString().slice(0, 10);
+  });
+
+  const durationDays = useMemo(() => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diff = end.getTime() - start.getTime();
+    if (isNaN(diff)) return 15;
+    return Math.max(1, Math.round(diff / 86_400_000));
+  }, [startDate, endDate]);
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
     apiGet<{ catalog: CatalogRow[]; packages: PackageRow[] }>("/api/v1/subscriptions/catalog")
@@ -201,6 +269,18 @@ export function CartBuilder({
     if (!row) return sum;
     return sum + priceForItem(row, qty, existingQtyFor(key));
   }, 0);
+
+  const totalForPeriod = useMemo(() => {
+    if (mode !== "initial") return total;
+    return Object.entries(selected).reduce((sum, [key, qty]) => {
+      const row = byKey.get(key);
+      if (!row) return sum;
+      const isFlat = row.monthly_price > 0;
+      const dailyPrice = isFlat ? (row.monthly_price / 30) : ((row.unit_price ?? 0) / 30);
+      return sum + dailyPrice * qty * durationDays;
+    }, 0);
+  }, [selected, byKey, durationDays, mode, total]);
+
   const prorationFactor = useMemo(() => {
     if (mode !== "addon" || !periodStart || !periodEnd) return 1;
     const start = new Date(`${periodStart.slice(0, 10)}T00:00:00Z`);
@@ -211,6 +291,7 @@ export function CartBuilder({
     const remainingDays = Math.max((end.getTime() - todayUtc.getTime()) / 86_400_000, 0);
     return Math.min(1, Math.max(0, remainingDays / cycleDays));
   }, [mode, periodStart, periodEnd]);
+
   const dueNow = mode === "addon" ? total * prorationFactor : total;
 
   async function submit() {
@@ -224,6 +305,8 @@ export function CartBuilder({
         body: JSON.stringify({
           package_id: selectedPackage,
           items: Object.entries(selected).map(([feature_key, quantity]) => ({ feature_key, quantity })),
+          start_date: mode === "initial" ? startDate : null,
+          end_date: mode === "initial" ? endDate : null,
         }),
       });
       if (!res.ok) {
@@ -256,12 +339,32 @@ export function CartBuilder({
   const seats = byKey.get("telecaller_seats");
   const numbers = byKey.get("numbers_pool");
 
-
   const telecallingTypeSelected = TELECALLING_TYPE_KEYS.some((k) => k in selected);
   const hasTelecallingCoverage = telecallingTypeSelected || TELECALLING_TYPE_KEYS.some((k) => existingQtyFor(k) > 0);
 
   function fmt(n: number) {
     return `₹${n.toLocaleString("en-IN")}`;
+  }
+
+  function formatPricingText(row: CatalogRow, qty = 1, forceUnit = false) {
+    const isFlat = row.monthly_price > 0;
+    const dailyPrice = isFlat ? (row.monthly_price / 30) : ((row.unit_price ?? 0) / 30);
+    const dailyFormatted = fmt(Math.round(dailyPrice * 100) / 100);
+    
+    if (mode === "initial") {
+      const periodTotal = dailyPrice * qty * durationDays;
+      const periodTotalFormatted = fmt(Math.round(periodTotal * 100) / 100);
+      if (!isFlat && forceUnit) {
+        return `${dailyFormatted}/day per unit (${periodTotalFormatted} for ${durationDays} days)`;
+      }
+      return `${dailyFormatted}/day (${periodTotalFormatted} for ${durationDays} days)`;
+    } else {
+      if (isFlat) {
+        return `${fmt(row.monthly_price)}/mo`;
+      } else {
+        return `${fmt(row.unit_price ?? 0)} per unit/mo`;
+      }
+    }
   }
 
   function itemInAddonMode(row?: CatalogRow) {
@@ -277,50 +380,118 @@ export function CartBuilder({
     <div className="space-y-8">
       {error && <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
+      {mode === "initial" && (
+        <div className="bg-white rounded-3xl border border-border p-6 shadow-sm space-y-4">
+          <SectionHeading>Choose Subscription Period</SectionHeading>
+          <p className="text-xs text-ink-muted -mt-2">
+            Select the period you want your active subscription to run. Default is 15 days.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold text-ink-muted block mb-1">Start Date</label>
+              <input
+                type="date"
+                min={todayStr}
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  const s = new Date(e.target.value);
+                  const eD = new Date(endDate);
+                  if (eD <= s) {
+                    const newEnd = new Date(s);
+                    newEnd.setDate(newEnd.getDate() + 15);
+                    setEndDate(newEnd.toISOString().slice(0, 10));
+                  }
+                }}
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-ink-muted block mb-1">End Date</label>
+              <input
+                type="date"
+                min={startDate}
+                value={endDate}
+                onChange={(e) => {
+                  const s = new Date(startDate);
+                  const eD = new Date(e.target.value);
+                  if (eD > s) {
+                    setEndDate(e.target.value);
+                  }
+                }}
+                className="w-full border border-border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+          <div className="text-xs font-semibold text-primary">
+            Selected duration: {durationDays} days
+          </div>
+        </div>
+      )}
+
       {packages.length > 0 && mode === "initial" && (
         <div>
           <SectionHeading>Quick-start packages</SectionHeading>
           <div className="grid gap-3 sm:grid-cols-2">
-            {packages.map((pkg) => (
-              <button
-                key={pkg.id}
-                type="button"
-                onClick={() => applyPackage(pkg)}
-                className={`relative rounded-2xl border p-4 text-left transition-all ${
-                  selectedPackage === pkg.id
-                    ? "border-primary bg-gradient-to-br from-primary-light to-white shadow-sm"
-                    : "border-border bg-white hover:border-primary/40"
-                }`}
-              >
-                {pkg.discount_percent > 0 && (
-                  <span className="absolute -top-2 right-3 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
-                    {pkg.discount_percent}% off
-                  </span>
-                )}
-                <div className="mb-1 flex items-center gap-1.5 text-primary">
-                  <Sparkles size={14} />
-                  <p className="font-semibold text-ink">{pkg.name}</p>
-                </div>
-                <p className="text-lg font-bold text-ink">{fmt(pkg.monthly_price)}<span className="text-xs font-medium text-ink-muted">/mo</span></p>
+            {packages.map((pkg) => {
+              const pkgDailyPrice = pkg.monthly_price / 30;
+              const pkgPeriodTotal = pkgDailyPrice * durationDays;
+              return (
+                <button
+                  key={pkg.id}
+                  type="button"
+                  onClick={() => applyPackage(pkg)}
+                  className={`relative rounded-2xl border p-4 text-left transition-all ${
+                    selectedPackage === pkg.id
+                      ? "border-primary bg-gradient-to-br from-primary-light to-white shadow-sm"
+                      : "border-border bg-white hover:border-primary/40"
+                  }`}
+                >
+                  {pkg.discount_percent > 0 && (
+                    <span className="absolute -top-2 right-3 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                      {pkg.discount_percent}% off
+                    </span>
+                  )}
+                  <div className="mb-1 flex items-center gap-1.5 text-primary">
+                    <Sparkles size={14} />
+                    <p className="font-semibold text-ink">{pkg.name}</p>
+                  </div>
+                  <p className="text-lg font-bold text-ink">
+                    {mode === "initial" ? (
+                      <>
+                        {fmt(Math.round(pkgDailyPrice * 100) / 100)}
+                        <span className="text-xs font-medium text-ink-muted">/day</span>
+                        <span className="text-xs font-semibold block text-primary mt-0.5">
+                          {fmt(Math.round(pkgPeriodTotal * 100) / 100)} for {durationDays} days
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {fmt(pkg.monthly_price)}
+                        <span className="text-xs font-medium text-ink-muted">/mo</span>
+                      </>
+                    )}
+                  </p>
 
-                <div className="mt-3.5 space-y-1.5 border-t border-border/40 pt-2.5">
-                  {pkg.feature_keys.map((item) => {
-                    const row = byKey.get(item.feature_key);
-                    if (!row) return null;
-                    return (
-                      <div key={item.feature_key} className="flex items-center justify-between text-xs text-ink-muted">
-                        <span>{row.display_name}</span>
-                        {item.quantity > 1 && (
-                          <span className="font-semibold font-mono text-[10px] bg-surface-mid px-1 rounded-xs">
-                            ×{item.quantity}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </button>
-            ))}
+                  <div className="mt-3.5 space-y-1.5 border-t border-border/40 pt-2.5">
+                    {pkg.feature_keys.map((item) => {
+                      const row = byKey.get(item.feature_key);
+                      if (!row) return null;
+                      return (
+                        <div key={item.feature_key} className="flex items-center justify-between text-xs text-ink-muted">
+                          <span>{row.display_name}</span>
+                          {item.quantity > 1 && (
+                            <span className="font-semibold font-mono text-[10px] bg-surface-mid px-1 rounded-xs">
+                              ×{item.quantity}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -338,7 +509,8 @@ export function CartBuilder({
                 onClick={() => toggleItem(inbound.feature_key)}
                 icon={ICONS.inbound_messaging}
                 title="Inbound Messaging"
-                subtitle={`${fmt(inbound.monthly_price)}/mo - Instagram, Facebook & Telegram included`}
+                subtitle={formatPricingText(inbound)}
+                features={inboundFeatures}
               />
             )}
             {outbound && itemInAddonMode(outbound) && (
@@ -347,7 +519,8 @@ export function CartBuilder({
                 onClick={() => toggleItem(outbound.feature_key)}
                 icon={ICONS.outbound_messaging}
                 title="Outbound Messaging"
-                subtitle={`${fmt(outbound.monthly_price)}/mo - WhatsApp, broadcasts, conversations & templates`}
+                subtitle={formatPricingText(outbound)}
+                features={outboundFeatures}
               />
             )}
           </div>
@@ -368,7 +541,7 @@ export function CartBuilder({
                 onClick={() => selectAiTier(tier.feature_key)}
                 icon={ICONS[tier.feature_key] ?? Brain}
                 title={tier.display_name}
-                subtitle={`${fmt(tier.monthly_price)}/mo - Unlimited replies for now`}
+                subtitle={formatPricingText(tier)}
               />
             ))}
           </div>
@@ -387,7 +560,7 @@ export function CartBuilder({
                     onClick={() => selectTelecallingType(sim.feature_key)}
                     icon={ICONS.telecalling_sim}
                     title="SIM-based"
-                    subtitle={`${fmt(sim.monthly_price)}/mo - Dialer, Scheduled Calls & Notes included`}
+                    subtitle={formatPricingText(sim)}
                   />
                 )}
                 {telecmi && itemInAddonMode(telecmi) && (
@@ -396,7 +569,7 @@ export function CartBuilder({
                     onClick={() => selectTelecallingType(telecmi.feature_key)}
                     icon={ICONS.telecalling_telecmi}
                     title="Tele-CMI"
-                    subtitle={`${fmt(telecmi.monthly_price)}/mo - Dialer, scheduled calls, notes & QA`}
+                    subtitle={formatPricingText(telecmi)}
                   />
                 )}
               </div>
@@ -411,7 +584,7 @@ export function CartBuilder({
                   <div>
                     <p className="text-sm font-semibold text-ink">Telecaller Seats</p>
                     <p className="text-xs text-ink-muted">
-                      Unlimited for now - {fmt(seats.unit_price ?? 0)} per seat/mo
+                      Unlimited for now - {formatPricingText(seats, selected[seats.feature_key] ?? 1, true)}
                       {existingQtyFor(seats.feature_key) > 0 && ` - currently ${existingQtyFor(seats.feature_key)}`}
                     </p>
                   </div>
@@ -429,7 +602,7 @@ export function CartBuilder({
                 onClick={() => toggleItem(upload.feature_key)}
                 icon={ICONS.bulk_lead_upload}
                 title="Bulk Lead Upload"
-                subtitle={`${fmt(upload.monthly_price)}/mo - CSV upload for telecalling campaigns - optional add-on`}
+                subtitle={formatPricingText(upload)}
                 disabled={!hasTelecallingCoverage}
               />
             )}
@@ -448,7 +621,7 @@ export function CartBuilder({
               <div>
                 <p className="text-sm font-semibold text-ink">Phone Numbers</p>
                 <p className="text-xs text-ink-muted">
-                  Unlimited for now - {fmt(numbers.unit_price ?? 0)} per number/mo
+                  Unlimited for now - {formatPricingText(numbers, selected[numbers.feature_key] ?? 1, true)}
                   {existingQtyFor(numbers.feature_key) > 0 && ` - currently ${existingQtyFor(numbers.feature_key)}`}
                 </p>
               </div>
@@ -461,22 +634,27 @@ export function CartBuilder({
         </div>
       )}
 
-
-
       <div className="sticky bottom-0 flex items-center justify-between rounded-2xl border border-border bg-white/95 p-4 shadow-lg backdrop-blur">
         <div>
           <p className="text-xs font-medium text-ink-muted">{mode === "addon" ? "Due now" : "Total"}</p>
           <p className="text-2xl font-bold text-ink">
-            {fmt(dueNow)}<span className="text-sm font-medium text-ink-muted">{mode === "addon" ? "" : "/mo"}</span>
+            {mode === "initial" ? fmt(Math.round(totalForPeriod * 100) / 100) : fmt(dueNow)}
+            <span className="text-sm font-medium text-ink-muted">
+              {mode === "initial" ? "" : mode === "addon" ? "" : "/mo"}
+            </span>
           </p>
-          {mode === "addon" && (
-            <p className="text-xs text-ink-muted">{fmt(total)}/mo from next cycle</p>
+          {mode === "initial" ? (
+            <p className="text-xs text-ink-muted">
+              {fmt(Math.round((totalForPeriod / durationDays) * 100) / 100)}/day total for {durationDays} days
+            </p>
+          ) : (
+            mode === "addon" && <p className="text-xs text-ink-muted">{fmt(total)}/mo from next cycle</p>
           )}
         </div>
         <button
           onClick={submit}
           disabled={submitting || Object.keys(selected).length === 0}
-          className="btn-primary"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary-dark hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 shadow-sm disabled:opacity-40 disabled:scale-100 disabled:shadow-none"
         >
           {submitting ? "Submitting…" : mode === "addon" ? "Request Increase" : "Submit for Approval"}
         </button>

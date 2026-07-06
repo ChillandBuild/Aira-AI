@@ -171,3 +171,11 @@
 - Caller queues now split assigned leads into two visible source groups: "Inbound & outbound message leads" first, then "Telecalling upload leads." Message-led leads are `source` in `whatsapp`/`instagram`/`facebook`/`telegram`, plus any lead with recent inbound activity; CSV-uploaded leads are `source='upload'` unless they later reply.
 - The frontend source of truth is `frontend/app/dashboard/telecalling/lib/queue-priority.ts`, consumed by `CallerView.tsx`. Ordering is: message group first, segment A/B/C/D, score descending, then latest inbound/assignment/create time. Preserve this split when changing the caller To Call tab.
 - `GET /api/v1/calls/next-lead` mirrors the same priority through `calls.py::_call_queue_sort_key` for both unassigned pool claims and the caller's assigned queue. Do not let the button fall back to old least-recently-called-only ordering; it must match the visible queue.
+
+## Telecalling provider-specific settings visibility (2026-07-06)
+- Client dashboard Settings fetches `/api/v1/settings/telecalling-config` and uses `calling_provider` to decide whether to show the `Telecalling Config` tab. Show that tab only for `telecmi`; for `sim_basic`, redirect direct `?tab=telecalling` access to `?tab=automations`.
+- The hidden tab is the TeleCMI credentials surface (app secret, CDR webhook secret, caller ID), not the general telecalling assignment settings. SIM Basic tenants still need the shared telecalling assignment/automation controls.
+
+## Developer console client list display (2026-07-06)
+- Do not render raw `enabled_features` as chips in the top-level developer console client cards/table or the client detail header. Those arrays include internal/dependency keys (`token_expiry_alerts`, `webhook_health`, etc.) that are useful for entitlement logic but noisy as customer-facing/operator-facing summary UI.
+- Keep `enabled_features` available for feature gating and the client-detail sidebar toggles. Removing the visual chips is display-only; do not remove or flatten the underlying feature data.

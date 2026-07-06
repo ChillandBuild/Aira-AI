@@ -658,7 +658,7 @@ def update_catalog_pricing(feature_key: str, payload: CatalogPricingPayload, _ad
 def list_subscription_requests(status: str | None = None, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
     query = db.table("subscription_requests").select(
-        "id, tenant_id, status, requested_items, package_id, total_amount, is_initial, payment_confirmed, submitted_at"
+        "id, tenant_id, status, requested_items, package_id, total_amount, is_initial, payment_confirmed, submitted_at, start_date, end_date"
     ).order("submitted_at", desc=True)
     if status:
         query = query.eq("status", status)
