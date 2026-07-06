@@ -170,11 +170,6 @@ export default function ClientDetailPage() {
                 <span className={`w-1.5 h-1.5 rounded-full ${tenant.status === "active" ? "bg-success" : "bg-danger"}`} />
                 {tenant.status}
               </span>
-              {tenant.enabled_features.filter(f => !f.includes(".")).map(f => (
-                <span key={f} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-muted text-primary">
-                  {{"whatsapp":"WA","telecalling":"TC","instagram":"IG","facebook":"FB","telegram":"TG","analytics":"AN"}[f] || f}
-                </span>
-              ))}
             </div>
           )}
         </div>

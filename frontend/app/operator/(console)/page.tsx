@@ -16,14 +16,6 @@ type Client = {
   owner_user_id: string | null;
 };
 
-const FEATURE_LABELS: Record<string, string> = {
-  whatsapp: "WA",
-  telecalling: "TC",
-  instagram: "IG",
-  facebook: "FB",
-  telegram: "TG",
-};
-
 type SystemHealth = {
   status: "healthy" | "unhealthy";
   uptime_seconds: number;
@@ -486,13 +478,6 @@ export default function OperatorPage() {
                   {client.status}
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1 mb-3">
-                {(client.enabled_features || []).filter(f => !f.includes(".")).map(f => (
-                  <span key={f} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-muted text-primary">
-                    {FEATURE_LABELS[f] || f}
-                  </span>
-                ))}
-              </div>
               <p className="text-xs text-ink-muted mb-3">Created {new Date(client.created_at).toLocaleDateString("en-IN")}</p>
               <div className="border-t border-border-subtle pt-3">
                 <ActionButtons client={client} />
@@ -518,7 +503,7 @@ export default function OperatorPage() {
                     className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
                   />
                 </th>
-                {["Company", "Service", "Status", "Created", "Actions"].map(h => (
+                {["Company", "Status", "Created", "Actions"].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider bg-surface-mid">{h}</th>
                 ))}
               </tr>
@@ -554,15 +539,6 @@ export default function OperatorPage() {
                       >
                         {copiedId === client.id ? <Check size={10} /> : <Copy size={10} />}
                       </button>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {(client.enabled_features || []).filter(f => !f.includes(".")).map(f => (
-                        <span key={f} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-primary-muted text-primary">
-                          {FEATURE_LABELS[f] || f}
-                        </span>
-                      ))}
                     </div>
                   </td>
                   <td className="px-5 py-4">
