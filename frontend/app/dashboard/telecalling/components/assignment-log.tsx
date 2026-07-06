@@ -111,65 +111,65 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
       </div>
 
       {/* Filters + export */}
-      <div className="flex items-end gap-3 flex-wrap mb-4">
-        <div>
-          <label className="block font-label text-[10px] text-on-surface-muted uppercase tracking-widest mb-1">Caller</label>
+      <div className="mb-3 flex flex-wrap items-end gap-2.5 rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
+        <div className="w-full sm:w-[170px]">
+          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Caller</label>
           <select value={callerFilter} onChange={(e) => { setPage(1); setCallerFilter(e.target.value); }}
-            className="appearance-none px-3 py-2 rounded-xl bg-surface border border-surface-mid font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer min-w-[140px]">
+            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
             <option value="">All callers</option>
             {callers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block font-label text-[10px] text-on-surface-muted uppercase tracking-widest mb-1">Segment</label>
+        <div className="w-full sm:w-[160px]">
+          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Segment</label>
           <select value={segmentFilter} onChange={(e) => { setPage(1); setSegmentFilter(e.target.value); }}
-            className="appearance-none px-3 py-2 rounded-xl bg-surface border border-surface-mid font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer">
+            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
             <option value="">All segments</option>
             <option value="A">Hot</option>
             <option value="B">Warm</option>
             <option value="C">Cold</option>
           </select>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
           <button onClick={load} disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-surface-mid hover:border-primary/40 font-label text-sm font-semibold transition-colors">
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+            className="flex h-9 items-center gap-1.5 rounded-full border border-surface-mid bg-white px-3 font-label text-xs font-bold text-on-surface shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-primary disabled:opacity-50">
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
           </button>
           <button onClick={handleExport} disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-label text-sm font-semibold transition-colors">
-            <Download size={14} /> {exporting ? "Exporting…" : "Export CSV"}
+            className="flex h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3.5 font-label text-xs font-bold text-primary shadow-sm transition-colors hover:bg-violet-100 disabled:opacity-50">
+            <Download size={13} /> {exporting ? "Exporting…" : "Export CSV"}
           </button>
         </div>
       </div>
 
       {/* Table */}
-      <div className="bg-surface rounded-card shadow-card ring-1 ring-[#c4c7c7]/15 overflow-hidden">
+      <div className="overflow-hidden rounded-2xl bg-surface shadow-sm ring-1 ring-[#c4c7c7]/15">
         <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-surface-mid">
+            <tr className="border-b border-surface-mid bg-surface-low/60">
               {["Lead", "Segment", "Assigned to", "Reason", "When"].map((h) => (
-                <th key={h} className="px-4 py-3 font-label text-[10px] uppercase tracking-widest text-on-surface-muted">{h}</th>
+                <th key={h} className="px-4 py-2.5 font-label text-[9px] font-bold uppercase tracking-widest text-on-surface-muted">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-on-surface-muted font-body text-sm">Loading…</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-on-surface-muted font-body text-sm">Loading…</td></tr>
             ) : entries.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-on-surface-muted font-body text-sm">No assignments recorded yet.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-on-surface-muted font-body text-sm">No assignments recorded yet.</td></tr>
             ) : entries.map((e) => (
               <tr key={e.id} className="border-b border-surface-mid/50 hover:bg-surface-subtle/40">
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   <span className="block font-body text-sm font-medium text-on-surface">{e.lead_name || "—"}</span>
                   <span className="block font-body text-xs text-on-surface-muted">{e.lead_phone ? formatPhone(e.lead_phone) : ""}</span>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-2.5">
                   <span className={`px-2 py-0.5 rounded-lg border font-label text-xs font-semibold ${SEGMENT_STYLE[e.segment || "C"] || SEGMENT_STYLE.C}`}>
                     {SEGMENT_LABEL[e.segment || "C"] || e.segment}
                   </span>
                   {typeof e.score === "number" && <span className="ml-2 font-body text-xs text-on-surface-muted">score {e.score}</span>}
                 </td>
-                <td className="px-4 py-3 font-body text-sm text-on-surface">
+                <td className="px-4 py-2.5 font-body text-sm text-on-surface">
                   {e.event_type === "reassigned" && e.prev_caller_name ? (
                     <span className="flex items-center gap-1.5">
                       <span className="text-on-surface-muted line-through">{e.prev_caller_name}</span>
@@ -180,11 +180,11 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
                     <span className="font-medium">{e.caller_name || "—"}</span>
                   )}
                 </td>
-                <td className="px-4 py-3 font-body text-xs text-on-surface-muted">
+                <td className="px-4 py-2.5 font-body text-xs text-on-surface-muted">
                   {REASON_LABEL[e.reason || ""] || e.reason || "—"}
                   <span className="block text-[10px] opacity-70">{e.method}</span>
                 </td>
-                <td className="px-4 py-3 font-body text-xs text-on-surface-muted whitespace-nowrap">{timeAgo(e.created_at)}</td>
+                <td className="px-4 py-2.5 font-body text-xs text-on-surface-muted whitespace-nowrap">{timeAgo(e.created_at)}</td>
               </tr>
             ))}
           </tbody>
