@@ -198,6 +198,7 @@ export default function SettingsPage() {
 
   // Purchased subscription items (for gating the Notifications tab on purchase, not quota)
   const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
+  const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -212,7 +213,31 @@ export default function SettingsPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth });
+        if (res.ok) {
+          const data = await res.json();
+          setCallingProvider((data.calling_provider as "telecmi" | "sim_basic" | undefined) ?? "telecmi");
+        } else {
+          setCallingProvider("telecmi");
+        }
+      } catch {
+        setCallingProvider("telecmi");
+      }
+    })();
+  }, []);
+
   const hasNotifications = purchasedFeatures.length === 0 || purchasedFeatures.includes("inbound_messaging") || purchasedFeatures.includes("outbound_messaging");
+  const hasTelecmiConfig = callingProvider === "telecmi";
+
+  useEffect(() => {
+    if (callingProvider === "sim_basic" && activeTab === "telecalling") {
+      router.replace(`${pathname}?tab=automations`, { scroll: false });
+    }
+  }, [activeTab, callingProvider, pathname, router]);
 
   const load = useCallback(async () => {
     try {
@@ -422,17 +447,19 @@ export default function SettingsPage() {
         >
           Messaging Channels
         </button>
-        <button
-          onClick={() => router.push(`${pathname}?tab=telecalling`)}
-          className={cn(
-            "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
-            activeTab === "telecalling"
-              ? "bg-white text-primary shadow-sm"
-              : "text-[#78716c] hover:text-[#292524]"
-          )}
-        >
-          Telecalling Config
-        </button>
+        {hasTelecmiConfig && (
+          <button
+            onClick={() => router.push(`${pathname}?tab=telecalling`)}
+            className={cn(
+              "shrink-0 rounded-xl px-3 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
+              activeTab === "telecalling"
+                ? "bg-white text-primary shadow-sm"
+                : "text-[#78716c] hover:text-[#292524]"
+            )}
+          >
+            Telecalling Config
+          </button>
+        )}
         <button
           onClick={() => router.push(`${pathname}?tab=automations`)}
           className={cn(
@@ -524,7 +551,7 @@ export default function SettingsPage() {
           {activeTab === "channels" && <ConnectChannelsPanel />}
 
           {/* TAB 3: Telecalling Config */}
-          {activeTab === "telecalling" && (
+          {activeTab === "telecalling" && hasTelecmiConfig && (
             <div className="space-y-6">
               {/* TeleCMI Credentials Card */}
               <div className="card rounded-3xl animate-slide-up">
