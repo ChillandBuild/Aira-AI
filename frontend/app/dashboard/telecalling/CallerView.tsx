@@ -9,6 +9,7 @@ import NumpadDialer from "./components/NumpadDialer";
 import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
+import { getLeadQueueSection, sortLeadsForCallQueue, type LeadQueueSection } from "./lib/queue-priority";
 import { CoachingOneLiner } from "@/components/CoachingDigest";
 import { useSearchParams } from "next/navigation";
 
@@ -36,7 +37,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
       if (me) setMyStatus((me.status as "active" | "break" | "logged_out") || "active");
 
       const dialable = leads.filter((l: Lead) => l != null && l.phone && l.phone.trim() !== "");
-      const sorted = dialable.sort((a: Lead, b: Lead) => (b.score ?? 0) - (a.score ?? 0));
+      const sorted = sortLeadsForCallQueue(dialable);
       setMyLeads(sorted);
 
       const ids = sorted.map((l: Lead) => l.id).filter(Boolean);
@@ -105,6 +106,22 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
     queueSubTab === "in_progress" ? inProgressLeads :
     queueSubTab === "dialer" ? [] :
     closedLeads;
+  const messageQueueCount = activeSubTabLeads.filter((lead) => getLeadQueueSection(lead) === "messages").length;
+  const uploadQueueCount = activeSubTabLeads.length - messageQueueCount;
+  const queueRows = activeSubTabLeads.map((lead, index) => {
+    const section = getLeadQueueSection(lead);
+    const previous = index > 0 ? getLeadQueueSection(activeSubTabLeads[index - 1]) : null;
+    return { lead, section, showHeader: section !== previous };
+  });
+
+  const queueSectionLabel: Record<LeadQueueSection, string> = {
+    messages: "Inbound & outbound message leads",
+    upload: "Telecalling upload leads",
+  };
+  const queueSectionDetail: Record<LeadQueueSection, string> = {
+    messages: `${messageQueueCount} priority lead${messageQueueCount === 1 ? "" : "s"}`,
+    upload: `${uploadQueueCount} CSV lead${uploadQueueCount === 1 ? "" : "s"}`,
+  };
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col bg-transparent xl:h-[calc(100vh-4rem)]">
@@ -198,7 +215,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                {activeSubTabLeads.map((lead) => {
+                {queueRows.map(({ lead, section, showHeader }) => {
                   if (!lead) return null;
                   const isSelected = cockpit.selectedLeadId === lead.id;
 
@@ -220,7 +237,17 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                     callBtnBg = "bg-[#a8a29e] hover:bg-[#78716c] shadow-[#78716c]/10";
                   }
 
-                  return (
+                  return [
+                    showHeader && (
+                      <div key={`${section}-header`} className="flex items-center gap-2 py-1">
+                        <div className="h-px flex-1 bg-[#e8e3db]" />
+                        <div className="flex max-w-[80%] items-center gap-2 rounded-full border border-[#e8e3db] bg-white px-2.5 py-1 shadow-sm">
+                          <span className="truncate font-label text-[9.5px] font-black uppercase tracking-wide text-[#57534e]">{queueSectionLabel[section]}</span>
+                          <span className="shrink-0 rounded-full bg-[#faf8f5] px-1.5 py-0.5 font-label text-[8px] font-bold text-[#78716c]">{queueSectionDetail[section]}</span>
+                        </div>
+                        <div className="h-px flex-1 bg-[#e8e3db]" />
+                      </div>
+                    ),
                     <div
                       key={lead.id}
                       onClick={() => cockpit.setSelectedLeadId(lead.id)}
@@ -271,8 +298,8 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                       >
                         <Phone size={14} className="fill-white" />
                       </button>
-                    </div>
-                  );
+                    </div>,
+                  ];
                 })}
               </div>
             )}

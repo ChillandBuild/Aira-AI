@@ -62,6 +62,36 @@ _MANUAL_STATUS_TO_OUTCOME: dict[str, str | None] = {
     "callback": "callback",
 }
 
+_MESSAGE_LEAD_SOURCES = {"whatsapp", "instagram", "facebook", "telegram"}
+_SEGMENT_RANK = {"A": 0, "B": 1, "C": 2, "D": 3}
+
+
+def _timestamp_sort_value(value: str | None) -> float:
+    if not value:
+        return 0
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except Exception:
+        return 0
+
+
+def _is_message_priority_lead(lead: dict, last_inbound_map: dict[str, str] | None = None) -> bool:
+    source = (lead.get("source") or "").lower()
+    return source in _MESSAGE_LEAD_SOURCES or bool((last_inbound_map or {}).get(lead.get("id")))
+
+
+def _call_queue_sort_key(lead: dict, last_call_map: dict[str, str], last_inbound_map: dict[str, str]):
+    last_call_time = last_call_map.get(lead["id"])
+    activity_time = last_inbound_map.get(lead["id"]) or lead.get("assigned_at") or lead.get("created_at")
+    return (
+        0 if _is_message_priority_lead(lead, last_inbound_map) else 1,
+        _SEGMENT_RANK.get(lead.get("segment"), 9),
+        -(lead.get("score") or 0),
+        0 if last_call_time is None else 1,
+        _timestamp_sort_value(last_call_time),
+        -_timestamp_sort_value(activity_time),
+    )
+
 
 class InitiateCall(BaseModel):
     lead_id: UUID | None = None
@@ -1391,11 +1421,28 @@ async def next_lead(
         .neq("call_status", "dnc")
         .neq("call_status", "unreachable")
         .order("score", desc=True)
-        .limit(5)
+        .limit(50)
         .execute()
     )
 
     if unassigned_res.data:
+        candidate_ids = [lead["id"] for lead in unassigned_res.data]
+        inbound_res = (
+            db.table("messages")
+            .select("lead_id, created_at")
+            .eq("tenant_id", tenant_id)
+            .in_("lead_id", candidate_ids)
+            .eq("direction", "inbound")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        last_inbound_map = {}
+        for msg in (inbound_res.data or []):
+            lid = msg["lead_id"]
+            if lid not in last_inbound_map:
+                last_inbound_map[lid] = msg["created_at"]
+
+        candidates = sorted(unassigned_res.data, key=lambda lead: _call_queue_sort_key(lead, {}, last_inbound_map))
         caller_name = None
         caller_res = db.table("callers").select("name").eq("id", resolved_caller_id).eq("tenant_id", tenant_id).maybe_single().execute()
         if caller_res and caller_res.data:
@@ -1404,7 +1451,7 @@ async def next_lead(
         # Atomic claim: only assign if the lead is STILL unassigned. Guards
         # against two callers pulling the same lead at the same instant — the
         # loser's update matches 0 rows, so we try the next candidate.
-        for lead in unassigned_res.data:
+        for lead in candidates:
             claim = (
                 db.table("leads")
                 .update({
@@ -1452,6 +1499,22 @@ async def next_lead(
         raise HTTPException(status_code=404, detail="No leads in pool or queue")
 
     lead_ids = [lead["id"] for lead in leads_list]
+    inbound_res = (
+        db.table("messages")
+        .select("lead_id, created_at")
+        .eq("tenant_id", tenant_id)
+        .in_("lead_id", lead_ids)
+        .eq("direction", "inbound")
+        .order("created_at", desc=True)
+        .execute()
+    )
+
+    last_inbound_map = {}
+    for msg in (inbound_res.data or []):
+        lid = msg["lead_id"]
+        if lid not in last_inbound_map:
+            last_inbound_map[lid] = msg["created_at"]
+
     logs_res = (
         db.table("call_logs")
         .select("lead_id, created_at")
@@ -1467,13 +1530,7 @@ async def next_lead(
         if lid not in last_call_map:
             last_call_map[lid] = log["created_at"]
 
-    def sort_key(lead):
-        last_call_time = last_call_map.get(lead["id"])
-        if last_call_time is None:
-            return (0, "")
-        return (1, last_call_time)
-
-    leads_list.sort(key=sort_key)
+    leads_list.sort(key=lambda lead: _call_queue_sort_key(lead, last_call_map, last_inbound_map))
     return {**leads_list[0], "_source": "queue"}
 
 

@@ -437,3 +437,8 @@
 - **Rationale**: In-memory background tasks are lost during Render restarts and cold-start sleep cycles. A table-backed queue ensures 100% crash-proof delivery. Speed Insights was throwing 404 errors since the production app is hosted on Render instead of Vercel.
 
 
+
+**2026-07-06 - Telecalling queue prioritizes message-led leads before CSV upload leads**
+- **Decision**: The caller To Call queue is now one pipeline with two visible source sections: "Inbound & outbound message leads" first and "Telecalling upload leads" second. Message-led leads include native channel leads (`whatsapp`, `instagram`, `facebook`, `telegram`) and uploaded leads that later receive inbound activity.
+- **Implementation**: `frontend/app/dashboard/telecalling/lib/queue-priority.ts` sorts the visible queue by source group, segment, score, and latest activity. `backend/app/routes/calls.py::_call_queue_sort_key` mirrors the same priority for `GET /api/v1/calls/next-lead`, covering both unassigned pool claims and assigned fallback queue selection.
+- **Rationale**: Uploaded CSV contacts give telecallers a base worklist, but active inbound/outbound-message conversations are warmer and more time-sensitive; they must jump above uploaded contacts without creating a separate telecalling workflow.
