@@ -363,13 +363,21 @@ export function InboundLeadsClient({
       {/* ── Filter Panel ───────────────────────────────────────── */}
       <div className={cn(
         "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-80 opacity-100 mb-5" : "max-h-0 opacity-0 mb-0"
+        showFilters ? "max-h-[460px] opacity-100 mb-5" : "max-h-0 opacity-0 mb-0"
       )}>
-        <div className="card rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <span className="font-label text-sm font-bold text-on-surface flex items-center gap-1.5">
-              <Filter size={13} /> Filter Results
-            </span>
+        <div className="rounded-2xl border border-surface-mid/80 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-700">
+                <Filter size={14} />
+              </span>
+              <div>
+                <span className="block font-label text-sm font-bold text-on-surface">Filter Results</span>
+                <span className="block font-body text-[11px] text-on-surface-muted">
+                  {activeFilterCount > 0 ? `${activeFilterCount} active` : "All inbound leads"}
+                </span>
+              </div>
+            </div>
             {hasFilters && (
               <button
                 onClick={() => {
@@ -380,23 +388,22 @@ export function InboundLeadsClient({
                   setOrigin("all");
                   setSelectedSegment("");
                 }}
-                className="flex items-center gap-1 text-xs text-[#a8a29e] hover:text-red-500 font-semibold transition-colors"
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-[#78716c] transition-colors hover:bg-red-50 hover:text-red-600"
               >
                 <X size={11} /> Clear all
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-3 mb-3">
-            {/* Origin toggle */}
-            <div>
-              <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">Origin</label>
-              <div className="flex gap-1 rounded-lg bg-surface-mid p-1">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            <div className="lg:col-span-2">
+              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Origin</label>
+              <div className="grid grid-cols-3 gap-1 rounded-lg border border-surface-mid bg-surface-low p-1">
                 {ORIGIN_OPTIONS.map((o) => (
                   <button
                     key={o.value}
                     onClick={() => setOrigin(o.value)}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                      origin === o.value ? "bg-white shadow text-[#1c1917]" : "text-[#78716c] hover:text-[#44403c]"
+                    className={`rounded-md px-2 py-1.5 text-sm font-semibold transition ${
+                      origin === o.value ? "bg-white text-[#1c1917] shadow-sm" : "text-[#78716c] hover:text-[#44403c]"
                     }`}
                   >
                     {o.label}
@@ -405,30 +412,27 @@ export function InboundLeadsClient({
               </div>
             </div>
 
-            {/* Segment */}
             <div>
-              <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">Segment</label>
+              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Segment</label>
               <select
                 value={selectedSegment}
                 onChange={(e) => setSelectedSegment(e.target.value)}
-                className="rounded-lg border border-[#e8e3db] px-3 py-1.5 text-sm bg-surface-low text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="h-10 w-full rounded-lg border border-surface-mid bg-surface-low px-3 text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
               >
                 {SEGMENT_FILTER_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Campaign */}
-            <div>
-              <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">Ad Campaign</label>
+
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Ad Campaign</label>
               <div className="relative">
                 <select
                   value={selectedCampaign}
                   onChange={(e) => setSelectedCampaign(e.target.value)}
                   disabled={origin === "organic"}
-                  className="w-full appearance-none px-3 py-2 pr-8 bg-surface-low border border-surface-mid rounded-xl font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-surface-mid bg-surface-low px-3 pr-8 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <option value="">All Campaigns</option>
                   {campaigns.map((c) => (
@@ -438,14 +442,14 @@ export function InboundLeadsClient({
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
               </div>
             </div>
-            {/* Channel */}
+
             <div>
-              <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">Channel</label>
+              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</label>
               <div className="relative">
                 <select
                   value={selectedSource}
                   onChange={(e) => setSelectedSource(e.target.value)}
-                  className="w-full appearance-none px-3 py-2 pr-8 bg-surface-low border border-surface-mid rounded-xl font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer"
+                  className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-surface-mid bg-surface-low px-3 pr-8 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
                 >
                   {SOURCE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -454,20 +458,20 @@ export function InboundLeadsClient({
                 <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
               </div>
             </div>
-            {/* From */}
+
             <div>
-              <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">From Date</label>
+              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
               <input
                 type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="h-10 w-full rounded-lg border border-surface-mid bg-surface-low px-3 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
               />
             </div>
-            {/* To */}
+
             <div>
-              <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">To Date</label>
+              <label className="mb-1 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">To Date</label>
               <input
                 type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="h-10 w-full rounded-lg border border-surface-mid bg-surface-low px-3 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300"
               />
             </div>
           </div>
@@ -691,14 +695,6 @@ export function InboundLeadsClient({
                 <strong className="text-on-surface">{total}</strong> inbound leads
                 {hasFilters && " (filtered)"}
               </p>
-              <button
-                onClick={handleExport}
-                disabled={exporting || leads.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 border border-violet-100 font-label text-xs font-semibold hover:bg-violet-100 transition-colors disabled:opacity-40"
-              >
-                <Download size={11} />
-                {exporting ? "Downloading…" : "Export CSV"}
-              </button>
             </div>
           </>
         )}

@@ -755,6 +755,12 @@ export interface AssignmentLogEntry {
   created_at: string;
 }
 
+export interface AssignmentLogSummary {
+  assigned_today: number;
+  by_caller: Record<string, { caller_name: string; count: number } | number>;
+  by_segment: Record<string, number>;
+}
+
 export const api = {
   leads: {
     list: async (params?: {
@@ -927,7 +933,7 @@ export const api = {
       return apiFetch<{ data: AssignmentLogEntry[]; meta: { total: number; page: number; limit: number } }>(`/api/v1/assignment-log?${qs.toString()}`);
     },
     summary: () =>
-      apiFetch<{ assigned_today: number; by_caller: Record<string, number>; by_segment: Record<string, number> }>(`/api/v1/assignment-log/summary`),
+      apiFetch<AssignmentLogSummary>(`/api/v1/assignment-log/summary`),
     exportCsv: async (params?: { caller_id?: string; segment?: string; from_date?: string; to_date?: string }) => {
       const headers = await getAuthHeaders();
       const qs = new URLSearchParams({ format: "csv" });

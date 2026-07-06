@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Download, RefreshCw, ArrowRight, ClipboardList } from "lucide-react";
-import { api, Caller, AssignmentLogEntry } from "@/lib/api";
+import { api, Caller, AssignmentLogEntry, AssignmentLogSummary } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 
 const SEGMENT_LABEL: Record<string, string> = { A: "Hot", B: "Warm", C: "Cold", D: "Disqualified" };
@@ -28,7 +28,7 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [summary, setSummary] = useState<{ assigned_today: number; by_caller: Record<string, number>; by_segment: Record<string, number> } | null>(null);
+  const [summary, setSummary] = useState<AssignmentLogSummary | null>(null);
 
   const [callerFilter, setCallerFilter] = useState("");
   const [segmentFilter, setSegmentFilter] = useState("");
@@ -66,6 +66,13 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const callerSummaryRows = summary
+    ? Object.entries(summary.by_caller).map(([id, value]) => (
+        typeof value === "number"
+          ? { id, name: id, count: value }
+          : { id, name: value.caller_name || id, count: value.count || 0 }
+      ))
+    : [];
 
   return (
     <div>
@@ -79,11 +86,11 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
         <div className="bg-surface rounded-card p-5 shadow-card ring-1 ring-[#c4c7c7]/15">
           <span className="block font-label text-[10px] uppercase tracking-widest text-on-surface-muted mb-2">By Caller (today)</span>
           <div className="space-y-1">
-            {summary && Object.keys(summary.by_caller).length > 0
-              ? Object.entries(summary.by_caller).slice(0, 4).map(([name, n]) => (
-                  <div key={name} className="flex justify-between font-body text-sm">
-                    <span className="text-on-surface truncate">{name}</span>
-                    <span className="font-semibold text-on-surface">{n}</span>
+            {callerSummaryRows.length > 0
+              ? callerSummaryRows.slice(0, 4).map((row) => (
+                  <div key={row.id} className="flex justify-between gap-3 font-body text-sm">
+                    <span className="truncate text-on-surface">{row.name}</span>
+                    <span className="font-semibold text-on-surface">{row.count}</span>
                   </div>
                 ))
               : <span className="font-body text-sm text-on-surface-muted">No assignments yet</span>}
