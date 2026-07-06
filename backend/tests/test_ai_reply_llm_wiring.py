@@ -12,7 +12,7 @@ async def test_llm_complete_calls_sarvam_with_reply_model():
     assert text == "a poem"
     mock_call.assert_called_once_with(
         messages=[{"role": "user", "content": "write a poem"}],
-        model="sarvam-105b",
+        model="sarvam-30b",
         temperature=0.4,
         max_tokens=120,
         tenant_id="tenant-1",
@@ -28,15 +28,15 @@ async def test_llm_chat_calls_sarvam_with_reply_model():
     assert text == "a reply"
     mock_call.assert_called_once_with(
         messages=messages,
-        model="sarvam-105b",
+        model="sarvam-30b",
         temperature=0.4,
         max_tokens=600,
         tenant_id="tenant-2",
     )
 
 
-def test_reply_model_is_sarvam_105b():
-    assert ai_reply._REPLY_MODEL == "sarvam-105b"
+def test_reply_model_is_sarvam_30b():
+    assert ai_reply._REPLY_MODEL == "sarvam-30b"
 
 
 @pytest.mark.asyncio
