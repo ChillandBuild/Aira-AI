@@ -456,3 +456,15 @@
 - **Decision**: The dashboard Settings `Telecalling Config` tab is only visible for tenants whose `telecalling_config.calling_provider` is `telecmi`. SIM Basic tenants are redirected from `?tab=telecalling` to `?tab=automations`, because TeleCMI app secret/webhook/caller-id credentials are irrelevant for SIM-based calling.
 - **Decision**: The developer console client list and client detail header no longer render raw `enabled_features` chips. The underlying `enabled_features` data and client-detail sidebar toggles remain intact; the change is display-only to keep client cards/table rows readable and avoid exposing internal dependency keys as UI clutter.
 - **Verification**: Frontend `npm.cmd run typecheck` passed for both changes.
+
+---
+
+**2026-07-06 — Newcomer Custom Subscription Periods & UI Polishing**
+- **Decision**: Added `start_date` and `end_date` columns to the `subscription_requests` table (Migration 135). For newcomer tenants (`is_initial = True`), the subscription cycle duration is now fully configurable during request submission, defaulting to 15 days.
+- **Decision**: Backend proration for initial requests is calculated as `duration_days / 30.0` and applied directly to item pricing and total request amount.
+- **Decision**: In the client's subscription cart (`CartBuilder.tsx`), flat-priced and quantity-based modules are formatted in a `/day` format (e.g. `₹50/day`) for newcomers, showing both the daily rate and total period cost.
+- **Decision**: Added collapsible details lists under Inbound & Outbound messaging SelectCards to show included sub-features (e.g. broadcast history, conversations, segments, notifications).
+- **Decision**: Modified the operator Pricing Catalog to hide the `Unit` and `Included` input fields for flat-priced catalog items, offering only the daily price editor.
+- **Decision**: Resized and beautified action buttons on both client and operator subscription views to be smaller, use premium hover shadow scaling animations, and have modern styling.
+- **Verification**: All 7 backend unit tests, frontend typechecks (`npm run typecheck`), and lint checks (`npm run lint`) passed successfully.
+
