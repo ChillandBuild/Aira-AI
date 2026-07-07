@@ -373,7 +373,7 @@ async def compute_score(
             for m in reversed(msgs):
                 role = "Bot" if m.get("direction") == "outbound" else "User"
                 content = (m.get("content") or "").strip()[:200]
-                if content:
+                if content and not content.startswith("[Template"):
                     lines.append(f"{role}: {content}")
             conversation = "\n".join(lines) if lines else f"User: {message}"
         except Exception:

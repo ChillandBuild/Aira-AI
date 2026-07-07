@@ -139,16 +139,22 @@ def invalidate_prompt_cache(name: str | None = None) -> None:
 
 
 def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
-    return (
+    # Fetch extra rows so we can filter out [Template] messages without falling short of the requested limit
+    raw = (
         db.table("messages")
         .select("direction,content,created_at")
         .eq("lead_id", str(lead_id))
         .order("created_at", desc=True)
-        .limit(limit)
+        .limit(limit + 10)
         .execute()
         .data
         or []
     )
+    filtered = [
+        r for r in raw
+        if not (r.get("content") or "").strip().startswith("[Template")
+    ]
+    return filtered[:limit]
 
 _FALLBACK_BY_LANG = {
     "ta": "நன்றி! உங்கள் விசாரணைக்கு விரைவில் பதிலளிப்போம்.",

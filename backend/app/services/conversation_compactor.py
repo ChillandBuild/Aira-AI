@@ -48,7 +48,7 @@ def _format_messages(messages: list[dict]) -> str:
     for msg in reversed(messages):
         direction = "Bot" if msg.get("direction") == "outbound" else "User"
         content = (msg.get("content") or "").strip()[:200]
-        if content:
+        if content and not content.startswith("[Template"):
             lines.append(f"{direction}: {content}")
     return "\n".join(lines) if lines else "No messages available."
 
