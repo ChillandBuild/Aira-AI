@@ -477,4 +477,14 @@
 - **Decision**: Removed the Settings cog icon button and its popover/more-menu options from the bottom of the conversation view navigation rail (`inbox-rail.tsx`), cleaning up all associated local states, callbacks, and unused imports.
 - **Verification**: Frontend typecheck (`npm run typecheck`) and linter (`npm run lint`) passed with zero errors.
 
+---
+
+**2026-07-07 — Robust Multilingual Chat Escalation Trigger Improvements**
+- **Decision**: Replaced rigid keyword matching with robust, Unicode-aware regular expression classifiers for user human requests (`_HUMAN_REQUEST_RE`) and AI escalation-indicative replies (`_AI_ESCALATION_RE`) in [ai_reply.py](file:///c:/Users/vskee/Desktop/Aira.AI/Aira-Ai/backend/app/services/ai_reply.py).
+- **Implementation**:
+  - `_HUMAN_REQUEST_RE` was expanded to match flexible English structures (e.g. `"speak with your owner"`, `"i need to talk with your team"`, `"contact me"`, `"call me"`), Romanized regional Indian languages/Tanglish/Hinglish/Tenglish (e.g. `"owner-kitta pesanum"`, `"mujhe agent se baat karni hai"`, `"call pannunga"`, `"matladali"`), and native scripts (Tamil, Hindi, Telugu, Kannada, Malayalam). It omits strict word boundaries (`\b`) on native Indic characters to resolve Unicode matching issues.
+  - `_AI_ESCALATION_RE` matches AI follow-up / human-connect responses with flexible verb tenses and helper verb variations (e.g. `"I need to confirm with our team regarding the partial payment."`, `"I've informed my team..."`, and `"My team will assist you..."`).
+  - Updated Trigger F check inside `generate_reply` to evaluate `_AI_ESCALATION_RE.search(reply_text)` instead of the old static string list comparison.
+- **Verification**: Created a new test suite `tests/test_escalation_triggers.py` validating English, Romanized Indian languages, native Indic scripts, and AI follow-up variations. All 4 new tests and the complete suite of 354 backend tests passed successfully (`pytest` inside venv).
+
 
