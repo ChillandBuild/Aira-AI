@@ -465,36 +465,73 @@ Do not use markdown or quotes."""
         return REENGAGEMENT_FALLBACKS.get(cadence, "Hi! Just checking in — happy to help if you have any questions.")
 
 
-_ESCALATION_PHRASES = [
-    "connect you with our team",
-    "connect them with a team member",
-    "let me connect",
-    "our team will",
-    "team will reach out",
-    "team member will",
-    "team will get back",
-]
+_AI_ESCALATION_RE = re.compile(
+    r"""
+    (
+        # Group 1: Action/Verb followed by Noun (with verb tense suffix support)
+        \b(connect|inform|ask|request|transfer|escalat|forward|assign|hand\s+over|refer|alert|confirm|check)\w*\s+(?:[^.?!]*?\s+)?(?:team|owner|admin|staff|human|person|agent|representative|expert|colleague)\b
+        |
+        # Group 2: Noun followed by action/verb
+        \b(?:team|owner|admin|staff|human|person|agent|representative|expert|colleague)\s+(?:[^.?!]*?\s+)?(?:will|would|shall|can|should|is\s+going\s+to)\s+(?:[^.?!]*?\s+)?(?:contact|reach|get\s+back|assist|follow\s+up|connect|call|message|respond|help|take\s+over|write)\w*\b
+        |
+        # Group 3: Common phrases/actions
+        \b(?:get\s+back\s+to\s+you|get\s+in\s+touch|reach\s+out\s+to\s+you|contact\s+you\s+shortly)\b
+        |
+        \b(?:escalat\w*\s+(?:[^.?!]*?\s+)?(?:query|request|ticket|issue|case))\b
+    )
+    """,
+    re.VERBOSE | re.IGNORECASE,
+)
 
 _HUMAN_REQUEST_RE = re.compile(
     r"""
-    \b(
-        (?:talk|speak|chat)\s+(?:to|with)\s+(?:a\s+|an\s+|the\s+)?
-            (?:human|person|agent|someone|representative|staff|team\s+member)
-        |
-        (?:want|need|like)\s+(?:to\s+)?(?:talk|speak|chat)\s+(?:to|with)\s+(?:a\s+|an\s+)?
-            (?:human|person|agent|someone|representative)
-        |
-        connect\s+me\s+(?:to|with)\s+(?:a\s+|an\s+|the\s+)?
-            (?:human|person|agent|team|someone|representative)
-        |
-        (?:get|find)\s+me\s+(?:a\s+)?(?:human|person|agent)
-        |
-        human\s+agent | real\s+person | live\s+agent
-        |
-        customer\s+(?:care|support|service)
-        |
-        can\s+i\s+speak | call\s+me
-    )\b
+    # 1. English Verb + Noun patterns (e.g. speak to owner, talk with team, contact support)
+    \b(?:talk|speak|chat|connect|contact|call|get|find|meet|reach|confirm|check)\s+(?:(?:to|with|your|our|my|a|an|the|some|any|this|that|us|me)\s+){0,3}(?:human|person|agent|someone|representative|staff|team|owner|boss|admin|manager|support|caller|telecaller|executive|sir|maam)\b
+    |
+    # 2. English Pronoun + Action (e.g. connect me, call me, contact me)
+    \b(?:call|contact|connect)\s+(?:me|us)\b
+    |
+    # 3. Romanized Indian / Tanglish / Hinglish / Tenglish noun + regional verb
+    \b(?:human|person|agent|team|owner|boss|admin|manager|support|caller|telecaller|sir|maam|insan|aadmi|banda|officer|staff)
+        [\s\-]+(?:(?:kitta|se|ku|sath|thru|through|to|with|your|our|my|a|an|the|some|any|ko)\s+){0,2}
+        (?:pesa|pesu|baat|kar|karv|karn|call|contact|connect|matlad|mathad|samsar)\w*
+    |
+    # Standalone Romanized verbs / phrases
+    \b(?:pesanum|pesunga|pesalaam|pesanom|pesala|pesu|pesa)\b
+    |
+    \b(?:matladali|matladandi|matladaali|matladu)\b
+    |
+    \b(?:mathadabeku|mathadi|mathadu)\b
+    |
+    \b(?:samsarikkanam|samsarikkoo)\b
+    |
+    # Direct common Hinglish/Tanglish phrases (e.g. call pannunga, contact karo)
+    \b(?:call|contact|connect)\s+(?:pannu|pannunga|karo|karwao|chey|cheyandi|madi|cheyyoo)\b
+    |
+    \bbaat\s+(?:kar|karna|karvao|karwao|krni|karni|kro)\b
+    |
+    \bpesa\s+(?:mudiyuma|venum|num)\b
+    |
+    # 4. Short/Single Word Overrides (case-insensitive boundary checks)
+    \b(?:human\s+agent|real\s+person|live\s+agent|customer\s+(?:care|support|service))\b
+    |
+    \b(?:agent|admin|support|representative|telecaller|caller)\b
+    |
+    # 5. Native regional scripts (Tamil, Hindi, Telugu, Kannada, Malayalam)
+    # Tamil
+    பேச\s+(?:வேண்டும்|வேணும்|முடியுமா)|பேசணும்|பேசுங்க|பேசலாமா|அழைக்கவும்|தொடர்பு\s+கொள்ளவும்
+    |
+    # Hindi
+    बात\s+(?:करनी|करवाओ|करो|करना)|कॉल\s+करो|सम्पर्क\s+करो
+    |
+    # Telugu
+    మాట్లాడాలి|మాట్లాడండి|కాల్\s+చేయండి
+    |
+    # Kannada
+    ಮಾತನಾಡಬೇಕು|ಮಾತನಾಡಿ|ಕಾಲ್\s+ಮಾಡಿ
+    |
+    # Malayalam
+    സംസാരിക്കണം|വിളിക്കൂ
     """,
     re.VERBOSE | re.IGNORECASE,
 )
@@ -791,7 +828,7 @@ async def generate_reply(
             escalation_flags.add("A")
             logger.info(f"Trigger A: lead {lead_id} received generic fallback reply")
         # Trigger F: AI reply contained escalation phrases
-        if any(phrase in reply_text.lower() for phrase in _ESCALATION_PHRASES):
+        if _AI_ESCALATION_RE.search(reply_text):
             escalation_flags.add("F")
 
     except Exception as e:
