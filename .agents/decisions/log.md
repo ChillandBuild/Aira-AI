@@ -496,3 +496,14 @@
 - **Decision**: Chat labels outbound AI-generated image messages as "AI media recommendation" so the conversation UI is ready for the future AI send path.
 - **Rationale**: Catalog is intentionally separate from Knowledge Base: Knowledge remains document/Q&A retrieval, while Catalog is the future product/service/property/media inventory the AI can actively recommend and send.
 - **Verification**: Frontend lint and typecheck passed; edited backend route files passed `py_compile` with `PYTHONPYCACHEPREFIX=/private/tmp/aira-pycache`. Pushed to `origin/main` as commit `1239f72` (`Catelog`).
+
+---
+
+**2026-07-07 — Unified Segmented Pill Toggles**
+- **Decision**: Replaced all traditional sliding track-style toggle switches in settings panels (`NotificationConfigPanel.tsx`, `settings/page.tsx`) and the operator console (`operator-toggle.tsx`) with a modern, two-option **Segmented Pill Selector** (Off / On choices).
+- **Design Details**:
+  - The container is styled as `bg-border-subtle/80 border border-border/40`.
+  - The active **On** segment uses the brand linear gradient (`bg-gradient-to-r from-primary to-violet-500`) and a colored shadow glow (`shadow-[0_2px_8px_rgba(91,33,182,0.2)]`).
+  - The active **Off** segment uses a clean white background with a subtle drop shadow (`bg-white shadow-[0_2px_8px_rgba(28,25,23,0.06)]`).
+  - Re-implemented `OperatorToggle` to completely drop the sliding knobs and glyph morphs in favor of this segmented toggle design, maintaining exact prop compatibility (`checked`, `onChange`, `loading`, `disabled`, `size`, `aria-label`) and loader-spinner display inside the active segment button.
+- **Verification**: Frontend typecheck (`npm run typecheck`) and production Next.js build (`npm run build`) passed with zero errors.
