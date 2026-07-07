@@ -78,6 +78,8 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("ai_voice_reply_pace", False),
     ("ai_voice_reply_language_mode", False),
     ("ai_voice_reply_language_code", False),
+    ("ai_media_recommendations_enabled", False),
+    ("ai_media_max_images_per_reply", False),
     ("reengagement_enabled", False),
 ]
 
@@ -1003,6 +1005,8 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "ai_voice_reply_pace": float_setting("ai_voice_reply_pace", 1.0),
             "ai_voice_reply_language_mode": settings_map.get("ai_voice_reply_language_mode") or "auto",
             "ai_voice_reply_language_code": settings_map.get("ai_voice_reply_language_code") or "en-IN",
+            "ai_media_recommendations_enabled": settings_map.get("ai_media_recommendations_enabled") == "true",
+            "ai_media_max_images_per_reply": float_setting("ai_media_max_images_per_reply", 3),
             "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
         },

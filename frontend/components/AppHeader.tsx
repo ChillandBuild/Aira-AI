@@ -83,6 +83,16 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "Upload documents and tune AI prompts to answer lead queries accurately.",
     };
   }
+  if (pathname === "/dashboard/catalog") {
+    let tabLabel = "Items";
+    if (tab === "media") tabLabel = "Media";
+    if (tab === "ai-rules") tabLabel = "AI Rules";
+    if (tab === "insights") tabLabel = "Insights";
+    return {
+      title: `Catalog / ${tabLabel}`,
+      description: "Manage the products, services and media Aira can recommend in chat.",
+    };
+  }
   if (pathname === "/dashboard/leads") {
     let tabLabel = "Leads";
     if (tab === "reengagement") tabLabel = "Re-engagement";
