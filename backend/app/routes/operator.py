@@ -1072,7 +1072,7 @@ def update_client_config(
         action="operator.client_config.updated",
         target_type="app_settings",
         target_id=tenant_id,
-        new_value={"settings": payload.settings},
+        metadata={"settings": payload.settings},
     )
 
     return {"status": "ok"}
