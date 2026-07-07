@@ -45,14 +45,11 @@ def _extract_markdown_from_output_zip(zip_bytes: bytes) -> str:
     return "\n\n".join(parts).strip()
 
 
-def extract_text_from_image(
-    image_bytes: bytes, mime_type: str, api_key: str, language: str = "en-IN"
-) -> str:
-    """Runs a full Sarvam Document Digitization job for a single image and returns the
-    extracted markdown text. Raises on any step failure -- knowledge_service.py's caller
-    already wraps extract_text_from_file in a try/except that marks the document 'failed'
-    with str(e), so errors here surface to the user rather than being swallowed."""
-    zip_bytes, zip_filename = _zip_single_image(image_bytes, mime_type)
+def _run_digitization_job(file_bytes: bytes, filename: str, api_key: str, language: str) -> str:
+    """Shared create -> upload -> start -> poll -> download -> unzip lifecycle. Raises on
+    any step failure -- knowledge_service.py's caller already wraps extract_text_from_file
+    in a try/except that marks the document 'failed' with str(e), so errors here surface
+    to the user rather than being swallowed."""
     headers = {"api-subscription-key": api_key}
 
     with httpx.Client(timeout=60.0) as client:
@@ -67,12 +64,12 @@ def extract_text_from_image(
         upload_resp = client.post(
             f"{_DOC_DIGITIZATION_BASE}/upload-files",
             headers=headers,
-            json={"job_id": job_id, "files": [zip_filename]},
+            json={"job_id": job_id, "files": [filename]},
         )
         upload_resp.raise_for_status()
-        file_url = upload_resp.json()["upload_urls"][zip_filename]["file_url"]
+        file_url = upload_resp.json()["upload_urls"][filename]["file_url"]
 
-        put_resp = client.put(file_url, content=zip_bytes)
+        put_resp = client.put(file_url, content=file_bytes)
         put_resp.raise_for_status()
 
         start_resp = client.post(f"{_DOC_DIGITIZATION_BASE}/{job_id}/start", headers=headers)
@@ -100,3 +97,23 @@ def extract_text_from_image(
         zip_resp.raise_for_status()
 
     return _extract_markdown_from_output_zip(zip_resp.content)
+
+
+def extract_text_from_image(
+    image_bytes: bytes, mime_type: str, api_key: str, language: str = "unknown"
+) -> str:
+    """Runs a full Sarvam Document Digitization job for a single image and returns the
+    extracted markdown text. language="unknown" triggers Sarvam's own auto-detection
+    across its 23 supported languages (22 Indian languages + English) -- previously
+    hardcoded to "en-IN", which silently degraded extraction accuracy on any non-English
+    upload."""
+    zip_bytes, zip_filename = _zip_single_image(image_bytes, mime_type)
+    return _run_digitization_job(zip_bytes, zip_filename, api_key, language)
+
+
+def extract_text_from_pdf(pdf_bytes: bytes, api_key: str, language: str = "unknown") -> str:
+    """Runs a full Sarvam Document Digitization job for a PDF and returns the extracted
+    markdown text. Unlike images, Sarvam accepts PDF directly -- no ZIP wrapping needed.
+    Intended as a fallback for scanned PDFs where pdfplumber's text-layer extraction comes
+    back empty (pdfplumber has no OCR capability at all)."""
+    return _run_digitization_job(pdf_bytes, "document.pdf", api_key, language)

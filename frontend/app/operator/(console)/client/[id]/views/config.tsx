@@ -594,9 +594,13 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               checked={config.settings.ai_voice_reply_enabled}
               onChange={updateVoiceReplies}
               loading={voiceReplySaving}
+              disabled={!config.settings.ai_auto_reply_enabled}
               aria-label="Toggle AI voice replies"
             />
           </div>
+          {!config.settings.ai_auto_reply_enabled && (
+            <p className="mt-3 text-xs text-warning">Enable AI Auto-Reply before turning on voice replies.</p>
+          )}
           <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-3">
             <label className="block">
               <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">

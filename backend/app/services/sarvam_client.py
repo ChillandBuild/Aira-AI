@@ -64,6 +64,47 @@ async def sarvam_chat_completion(
     return (data["choices"][0]["message"]["content"] or "").strip()
 
 
+async def sarvam_chat_completion_with_tools(
+    messages: list[dict],
+    tools: list[dict],
+    model: str = "sarvam-30b",
+    temperature: float = 0.4,
+    max_tokens: int = 300,
+    frequency_penalty: float = 0.5,
+    tenant_id: str | None = None,
+) -> tuple[str, list[dict]]:
+    """Sarvam Chat Completions with tool/function calling support. Returns a tuple of
+    (content_text, tool_calls) — content may be empty if the model only makes a tool
+    call, and tool_calls may be empty if it only emits text. Callers should handle
+    the tool_calls and then feed results back via a follow-up messages[] call.
+
+    Tool calls come back in OpenAI-compatible shape:
+    [{"id": "call_...", "type": "function", "function": {"name": "...", "arguments": "{...}"}}]"""
+    api_key = get_sarvam_api_key(tenant_id)
+    request_json: dict = {
+        "messages": messages,
+        "model": model,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "reasoning_effort": None,
+        "frequency_penalty": frequency_penalty,
+        "tools": tools,
+    }
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(
+            SARVAM_CHAT_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json=request_json,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    choice = data["choices"][0]
+    message = choice["message"]
+    content = (message.get("content") or "").strip()
+    tool_calls = message.get("tool_calls") or []
+    return content, tool_calls
+
+
 async def sarvam_speech_to_text(
     file_bytes: bytes,
     mime_type: str,
