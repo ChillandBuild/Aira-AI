@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { MessageSquare, CheckCircle, UserCog, AlertTriangle } from "lucide-react";
+import { MessageSquare, CheckCircle, UserCog, AlertTriangle, Search, X } from "lucide-react";
 import { SegmentBadge } from "@/components/segment-badge";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -70,18 +70,18 @@ async function assignHandover(handoverId: string, callerId: string): Promise<voi
 }
 
 const TRIGGER_LABELS: Record<string, { label: string; color: string }> = {
-  "User requested a human agent": { label: "Asked for human", color: "text-blue-600 bg-blue-50" },
-  "AI failed to generate a response": { label: "AI failed", color: "text-red-600 bg-red-50" },
-  "AI gave a generic fallback reply": { label: "Generic reply", color: "text-amber-600 bg-amber-50" },
-  "User repeated the same question": { label: "Repeated question", color: "text-orange-600 bg-orange-50" },
-  "AI indicated team will follow up": { label: "Follow-up needed", color: "text-purple-600 bg-purple-50" },
+  "User requested a human agent": { label: "Asked for human", color: "text-blue-600 bg-blue-50 border-blue-100" },
+  "AI failed to generate a response": { label: "AI failed", color: "text-red-600 bg-red-50 border-red-100" },
+  "AI gave a generic fallback reply": { label: "Generic reply", color: "text-amber-600 bg-amber-50 border-amber-100" },
+  "User repeated the same question": { label: "Repeated question", color: "text-orange-600 bg-orange-50 border-orange-100" },
+  "AI indicated team will follow up": { label: "Follow-up needed", color: "text-purple-600 bg-purple-50 border-purple-100" },
 };
 
 function channelBadge(source?: string, lead?: Handover["leads"]) {
-  if (source === "telegram") return <span className="text-sky-500">Telegram · @{lead?.tg_username || "unknown"}</span>;
-  if (source === "instagram") return <span className="text-pink-500">Instagram · {lead?.ig_user_id}</span>;
-  if (source === "facebook") return <span className="text-blue-600">Facebook · {lead?.fb_user_id}</span>;
-  return <span>WhatsApp · {lead?.phone}</span>;
+  if (source === "telegram") return <span className="text-sky-500 font-semibold">Telegram · @{lead?.tg_username || "unknown"}</span>;
+  if (source === "instagram") return <span className="text-pink-500 font-semibold">Instagram · {lead?.ig_user_id}</span>;
+  if (source === "facebook") return <span className="text-blue-600 font-semibold">Facebook · {lead?.fb_user_id}</span>;
+  return <span className="text-emerald-600 font-semibold">WhatsApp · {lead?.phone}</span>;
 }
 
 export function EscalationPanel({ onReply, onCountChange, currentCallerId, currentCallerName }: EscalationPanelProps) {
@@ -90,11 +90,24 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
   const [callers, setCallers] = useState<Caller[]>([]);
   const [loading, setLoading] = useState(true);
   const [reassigningId, setReassigningId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const visibleHandovers = role === "owner"
     ? handovers
     : handovers.filter((h) => !h.assigned_to || h.assigned_to === currentCallerId);
+
+  const filteredHandovers = visibleHandovers.filter((h) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    const name = h.leads?.name?.toLowerCase() || "";
+    const phone = h.leads?.phone || "";
+    const tg = h.leads?.tg_username?.toLowerCase() || "";
+    const ig = h.leads?.ig_user_id?.toLowerCase() || "";
+    const fb = h.leads?.fb_user_id?.toLowerCase() || "";
+    const reason = h.reason?.toLowerCase() || "";
+    return name.includes(q) || phone.includes(q) || tg.includes(q) || ig.includes(q) || fb.includes(q) || reason.includes(q);
+  });
 
   const load = useCallback(async () => {
     const [hs, cs] = await Promise.all([fetchHandovers(), fetchCallers()]);
@@ -166,103 +179,148 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-3xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h2 className="font-display text-xl font-bold text-ink">Escalations</h2>
-          <p className="font-body text-sm text-ink-muted mt-1">
-            Leads that need human attention — AI couldn&apos;t handle the conversation.
-          </p>
+    <div className="flex-1 overflow-y-auto bg-surface-mid/10">
+      <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-surface-mid pb-5">
+          <div>
+            <h2 className="font-display text-2xl font-bold text-ink flex items-center gap-2">
+              <span>Escalations</span>
+              {filteredHandovers.length > 0 && (
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-600">
+                  {filteredHandovers.length} active
+                </span>
+              )}
+            </h2>
+            <p className="font-body text-xs text-ink-muted mt-1">
+              Leads that need human attention — AI couldn&apos;t handle the conversation.
+            </p>
+          </div>
+
+          {/* Search bar */}
+          <div className="relative w-full sm:w-72">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, phone, channel..."
+              className="w-full pl-9 pr-8 py-1.5 text-xs border border-border bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-ink-muted/70"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
-          <div className="card rounded-3xl p-8 text-center font-body text-sm text-ink-muted">Loading…</div>
+          <div className="bg-white border border-border rounded-2xl p-12 text-center font-body text-sm text-ink-muted shadow-sm">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent mx-auto mb-3" />
+            Loading escalations…
+          </div>
         ) : visibleHandovers.length === 0 ? (
-          <div className="card rounded-3xl p-12 text-center">
-            <CheckCircle size={36} className="text-green-500 mx-auto mb-3" />
+          <div className="bg-white border border-border rounded-3xl p-12 text-center max-w-md mx-auto shadow-sm bg-gradient-to-br from-green-50/20 to-white/10 mt-8">
+            <div className="w-12 h-12 rounded-full bg-green-50 border border-green-100 flex items-center justify-center mx-auto mb-4 shadow-inner">
+              <CheckCircle size={22} className="text-green-500" />
+            </div>
             <p className="font-display font-bold text-ink text-lg">All caught up</p>
             <p className="font-body text-sm text-ink-muted mt-1">No conversations need your attention right now.</p>
           </div>
+        ) : filteredHandovers.length === 0 ? (
+          <div className="bg-white border border-border rounded-3xl p-12 text-center max-w-md mx-auto shadow-sm mt-8">
+            <div className="w-12 h-12 rounded-full bg-surface-mid flex items-center justify-center mx-auto mb-4">
+              <Search size={20} className="text-ink-muted" />
+            </div>
+            <p className="font-display font-bold text-ink text-lg">No matches found</p>
+            <p className="font-body text-sm text-ink-muted mt-1">We couldn&apos;t find any escalations matching your query.</p>
+          </div>
         ) : (
-          <div className="space-y-3">
-            {visibleHandovers.map((h) => {
+          <div className="space-y-4">
+            {filteredHandovers.map((h) => {
               const trigger = TRIGGER_LABELS[h.reason ?? ""] ?? null;
               const isMine = h.assigned_to === currentCallerId;
               return (
-                <div key={h.id} className="card rounded-2xl p-5 flex items-start gap-4 hover:shadow-md transition-shadow">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-                    <AlertTriangle size={16} className="text-amber-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-label font-semibold text-ink text-sm">
-                        {h.leads?.name || "Unknown Lead"}
-                      </span>
-                      {h.leads?.segment && <SegmentBadge segment={h.leads.segment} />}
-                      {trigger && (
-                        <span className={cn("font-label text-[10px] font-semibold px-1.5 py-0.5 rounded-full", trigger.color)}>
-                          {trigger.label}
-                        </span>
-                      )}
+                <div key={h.id} className="bg-white border border-border rounded-2xl p-5 flex flex-col md:flex-row md:items-start justify-between gap-4 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200">
+                  <div className="flex items-start gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center flex-shrink-0 shadow-xs">
+                      <AlertTriangle size={18} className="text-red-500" />
                     </div>
-                    <p className="font-body text-xs text-ink-muted mb-1.5 font-medium">
-                      {channelBadge(h.leads?.source, h.leads)}
-                    </p>
-                    {h.reason && (
-                      <p className="font-body text-sm text-ink bg-surface-subtle rounded-lg px-3 py-2 mb-3">
-                        &ldquo;{h.reason}&rdquo;
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <p className="font-body text-xs text-ink-muted">
-                        {new Date(h.opened_at).toLocaleString("en-IN")}
-                      </p>
-                      <div className="relative" ref={reassigningId === h.id ? dropdownRef : null}>
-                        <button
-                          onClick={() => role === "owner" ? setReassigningId(reassigningId === h.id ? null : h.id) : undefined}
-                          className={cn(
-                            "font-label text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1",
-                            h.assigned_to
-                              ? "bg-green-50 text-green-700 hover:bg-green-100"
-                              : "bg-amber-50 text-amber-600 hover:bg-amber-100",
-                            role !== "owner" && "cursor-default"
-                          )}
-                        >
-                          {h.assigned_to ? `Assigned to ${h.caller_name ?? "caller"}` : "Unassigned"}
-                          {role === "owner" && <UserCog size={10} />}
-                        </button>
-                        {reassigningId === h.id && (
-                          <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-surface-mid rounded-xl shadow-lg py-1 min-w-[160px]">
-                            <p className="px-3 py-1 text-xs text-ink-muted font-label font-semibold">Assign to</p>
-                            {callers.length === 0 ? (
-                              <p className="px-3 py-2 text-xs text-ink-muted">No active callers</p>
-                            ) : callers.map((c) => (
-                              <button
-                                key={c.id}
-                                onClick={() => handleAssign(h.id, c.id, c.name)}
-                                className="w-full text-left px-3 py-2 text-sm font-body hover:bg-surface-subtle text-ink transition-colors"
-                              >
-                                {c.name}
-                              </button>
-                            ))}
-                          </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-label font-bold text-ink text-sm">
+                          {h.leads?.name || "Unknown Lead"}
+                        </span>
+                        {h.leads?.segment && <SegmentBadge segment={h.leads.segment} />}
+                        {trigger && (
+                          <span className={cn("font-label text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-xs", trigger.color)}>
+                            {trigger.label}
+                          </span>
                         )}
+                      </div>
+                      <p className="font-body text-xs text-ink-muted mb-2 font-medium">
+                        {channelBadge(h.leads?.source, h.leads)}
+                      </p>
+                      {h.reason && (
+                        <div className="font-body text-sm text-ink bg-surface-mid/40 border border-border/30 rounded-xl px-4 py-2.5 mb-3 shadow-inner max-w-2xl relative">
+                          <p className="italic text-ink-secondary leading-relaxed">&ldquo;{h.reason}&rdquo;</p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <p className="font-body text-[11px] text-ink-muted">
+                          {new Date(h.opened_at).toLocaleString("en-IN")}
+                        </p>
+                        <div className="relative" ref={reassigningId === h.id ? dropdownRef : null}>
+                          <button
+                            onClick={() => role === "owner" ? setReassigningId(reassigningId === h.id ? null : h.id) : undefined}
+                            className={cn(
+                              "font-label text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 border transition-all",
+                              h.assigned_to
+                                ? "bg-green-50 text-green-700 border-green-200/50 hover:bg-green-100"
+                                : "bg-amber-50 text-amber-600 border-amber-200/50 hover:bg-amber-100",
+                              role !== "owner" && "cursor-default"
+                            )}
+                          >
+                            <span>{h.assigned_to ? `Assigned to ${h.caller_name ?? "caller"}` : "Unassigned"}</span>
+                            {role === "owner" && <UserCog size={10} className="opacity-80" />}
+                          </button>
+                          {reassigningId === h.id && (
+                            <div className="absolute left-0 top-full mt-1.5 z-20 bg-white border border-border rounded-xl shadow-lg py-1 min-w-[160px] animate-in fade-in slide-in-from-top-1 duration-150">
+                              <p className="px-3 py-1 text-[10px] text-ink-muted font-label font-bold uppercase tracking-wider">Assign to</p>
+                              <div className="my-0.5 border-t border-border-subtle" />
+                              {callers.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-ink-muted">No active callers</p>
+                              ) : callers.map((c) => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => handleAssign(h.id, c.id, c.name)}
+                                  className="w-full text-left px-3 py-1.5 text-xs font-body hover:bg-primary-light hover:text-primary text-ink transition-colors"
+                                >
+                                  {c.name}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2 flex-shrink-0">
+                  <div className="flex flex-row md:flex-col gap-2 flex-shrink-0 self-end md:self-start w-full md:w-auto mt-2 md:mt-0 border-t md:border-t-0 border-border-subtle pt-3 md:pt-0">
                     <button
                       onClick={() => handleClaimAndReply(h)}
-                      className="btn-ghost text-xs px-3 py-1.5 flex items-center gap-1.5"
+                      className="flex-1 md:flex-initial text-xs px-3 py-1.5 flex items-center justify-center gap-1.5 border border-border bg-white rounded-lg hover:bg-primary-light hover:text-primary transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold text-ink"
                     >
-                      <MessageSquare size={12} /> {h.assigned_to ? "Reply" : "Pick up"}
+                      <MessageSquare size={13} /> {h.assigned_to ? "Reply" : "Pick up"}
                     </button>
                     {(isMine || role === "owner") && (
                       <button
                         onClick={() => handleResolve(h.id)}
-                        className="text-xs px-3 py-1.5 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center gap-1.5 transition-colors"
+                        className="flex-1 md:flex-initial text-xs px-3 py-1.5 rounded-lg border border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-1.5 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] bg-white font-bold"
                       >
-                        <CheckCircle size={12} /> Resolve
+                        <CheckCircle size={13} /> Resolve
                       </button>
                     )}
                   </div>
