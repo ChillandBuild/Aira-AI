@@ -32,7 +32,7 @@ export function OperatorToggle({
     }
   };
 
-  const buttonPadding = size === "sm" ? "px-2 py-0.5 text-[10px]" : "px-3 py-0.5 text-xs";
+  const buttonPadding = size === "sm" ? "px-1.5 py-0.5 text-[9px] leading-none" : "px-3 py-0.5 text-xs";
 
   return (
     <div
@@ -57,7 +57,7 @@ export function OperatorToggle({
         )}
       >
         {loading && !checked ? (
-          <Loader2 className="h-3 w-3 animate-spin text-ink-muted inline-block" strokeWidth={3} />
+          <Loader2 className={cn(size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3", "animate-spin text-ink-muted inline-block")} strokeWidth={3} />
         ) : (
           "Off"
         )}
@@ -76,7 +76,7 @@ export function OperatorToggle({
         )}
       >
         {loading && checked ? (
-          <Loader2 className="h-3 w-3 animate-spin text-white inline-block" strokeWidth={3} />
+          <Loader2 className={cn(size === "sm" ? "h-2.5 w-2.5" : "h-3 w-3", "animate-spin text-white inline-block")} strokeWidth={3} />
         ) : (
           "On"
         )}

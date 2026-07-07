@@ -507,3 +507,10 @@
   - The active **Off** segment uses a clean white background with a subtle drop shadow (`bg-white shadow-[0_2px_8px_rgba(28,25,23,0.06)]`).
   - Re-implemented `OperatorToggle` to completely drop the sliding knobs and glyph morphs in favor of this segmented toggle design, maintaining exact prop compatibility (`checked`, `onChange`, `loading`, `disabled`, `size`, `aria-label`) and loader-spinner display inside the active segment button.
 - **Verification**: Frontend typecheck (`npm run typecheck`) and production Next.js build (`npm run build`) passed with zero errors.
+
+---
+
+**2026-07-07 — Compact Toggle Sizing & Sidebar Layout Fix**
+- **Decision**: Made the `size="sm"` variant of `OperatorToggle` more compact (reduced button padding to `px-1.5 py-0.5` and font size to `text-[9px] leading-none`) and scaled down the button loading spinners to `h-2.5 w-2.5` to fit cleanly inside the operator sidebar without overflowing.
+- **Decision**: Added `flex-shrink-0` to the Telecalling group `Phone` icon and added `min-w-0`/`truncate` layout guards in [sidebar.tsx](file:///c:/Users/vskee/Desktop/Aira.AI/Aira-Ai/frontend/app/operator/%28console%29/client/%5Bid%5D/sidebar.tsx) to prevent flexbox from squeezing or reducing the icon size.
+- **Verification**: Frontend typecheck and production Next.js build passed with zero errors.

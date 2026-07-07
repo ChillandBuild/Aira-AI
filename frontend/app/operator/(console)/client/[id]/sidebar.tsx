@@ -170,9 +170,9 @@ export function ClientDetailSidebar({
                 ? "bg-[#f5f3ff] text-[#5b21b6]" : isEnabled("telecalling") ? "text-[#1c1917] hover:bg-[#f0ece4]" : "text-[#1c1917] opacity-40"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <Phone size={16} />
-              <span className="text-sm font-semibold">Telecalling</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <Phone size={16} className="flex-shrink-0" />
+              <span className="text-sm font-semibold truncate">Telecalling</span>
             </div>
             <div className="flex items-center gap-2">
               <FeatureToggle featureKey="telecalling" />
