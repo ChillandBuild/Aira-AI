@@ -487,4 +487,12 @@
   - Updated Trigger F check inside `generate_reply` to evaluate `_AI_ESCALATION_RE.search(reply_text)` instead of the old static string list comparison.
 - **Verification**: Created a new test suite `tests/test_escalation_triggers.py` validating English, Romanized Indian languages, native Indic scripts, and AI follow-up variations. All 4 new tests and the complete suite of 354 backend tests passed successfully (`pytest` inside venv).
 
+---
 
+**2026-07-07 — Catalog dashboard shell and AI media recommendation controls**
+- **Decision**: Added a new client dashboard module at `/dashboard/catalog`, linked from the owner sidebar and mobile More menu near Knowledge Base/Templates/Upload. The page has the planned tabs: Items, Media, AI Rules, and Insights.
+- **Decision**: Added operator-side client configuration controls under "AI Media Recommendations" for enabling/disabling catalog image recommendations, selecting max images per reply, and displaying usage from existing usage counters.
+- **Decision**: Added settings-backed keys `ai_media_recommendations_enabled` and `ai_media_max_images_per_reply` to operator/onboarding setting seeds and the operator config GET/PATCH surface. No catalog data tables or migrations were added in this slice.
+- **Decision**: Chat labels outbound AI-generated image messages as "AI media recommendation" so the conversation UI is ready for the future AI send path.
+- **Rationale**: Catalog is intentionally separate from Knowledge Base: Knowledge remains document/Q&A retrieval, while Catalog is the future product/service/property/media inventory the AI can actively recommend and send.
+- **Verification**: Frontend lint and typecheck passed; edited backend route files passed `py_compile` with `PYTHONPYCACHEPREFIX=/private/tmp/aira-pycache`. Pushed to `origin/main` as commit `1239f72` (`Catelog`).
