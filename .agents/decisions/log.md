@@ -468,3 +468,13 @@
 - **Decision**: Resized and beautified action buttons on both client and operator subscription views to be smaller, use premium hover shadow scaling animations, and have modern styling.
 - **Verification**: All 7 backend unit tests, frontend typechecks (`npm run typecheck`), and lint checks (`npm run lint`) passed successfully.
 
+---
+
+**2026-07-07 — Escalations UI Redesign & Conversations Settings Removal**
+- **Decision**: Redesigned the human escalation panel (`escalation-panel.tsx`) to increase the container width from `max-w-3xl` to `max-w-7xl`, making the view spacious and readable on desktop screens.
+- **Decision**: Added a live search option in `EscalationPanel` to filter handovers dynamically by name, phone number, or channel identifiers (Telegram username, Instagram ID, Facebook ID).
+- **Decision**: Beautified the card designs on the Escalation panel, introducing a left-accented blockquote for escalation reasons, scaled typography, and primary-filled brand Pick up/Reply buttons.
+- **Decision**: Removed the Settings cog icon button and its popover/more-menu options from the bottom of the conversation view navigation rail (`inbox-rail.tsx`), cleaning up all associated local states, callbacks, and unused imports.
+- **Verification**: Frontend typecheck (`npm run typecheck`) and linter (`npm run lint`) passed with zero errors.
+
+
