@@ -371,16 +371,28 @@ export function NotificationConfigPanel() {
 
 function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
   return (
-    <button
-      type="button" onClick={onClick} disabled={disabled}
-      className={`relative w-11 h-6 rounded-full transition-all duration-200 flex-shrink-0 ${
-        on
-          ? "bg-gradient-to-r from-primary to-violet-500 shadow-[0_0_12px_rgba(91,33,182,0.15)]"
-          : "bg-gray-300"
-      } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
-    >
-      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${on ? "translate-x-5" : "translate-x-0"}`} />
-    </button>
+    <div className={`relative inline-flex p-0.5 rounded-full bg-border-subtle/80 border border-border/40 select-none flex-shrink-0 ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={on ? onClick : undefined}
+        className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
+          !on ? "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.06)]" : "text-ink-muted hover:text-ink"
+        } ${disabled ? "cursor-not-allowed" : ""}`}
+      >
+        Off
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={on ? undefined : onClick}
+        className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
+          on ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_8px_rgba(91,33,182,0.2)]" : "text-ink-muted hover:text-ink"
+        } ${disabled ? "cursor-not-allowed" : ""}`}
+      >
+        On
+      </button>
+    </div>
   );
 }
 

@@ -695,21 +695,30 @@ export default function SettingsPage() {
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextVal = aiAutoReplyEnabled ? "false" : "true";
-                      setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: nextVal }));
-                    }}
-                    className={`relative h-6 w-11 shrink-0 rounded-full transition-all duration-200 ${
-                      aiAutoReplyEnabled
-                        ? "bg-gradient-to-r from-primary to-violet-500 shadow-[0_0_12px_rgba(91,33,182,0.15)]"
-                        : "bg-gray-300"
-                    }`}
-                    aria-label="Toggle AI auto-reply"
-                  >
-                    <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${aiAutoReplyEnabled ? "translate-x-5" : "translate-x-0"}`} />
-                  </button>
+                  <div className="relative inline-flex p-0.5 rounded-full bg-border-subtle/80 border border-border/40 select-none shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: "false" }));
+                      }}
+                      className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
+                        !aiAutoReplyEnabled ? "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.06)]" : "text-ink-muted hover:text-ink"
+                      }`}
+                    >
+                      Off
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: "true" }));
+                      }}
+                      className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
+                        aiAutoReplyEnabled ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_8px_rgba(91,33,182,0.2)]" : "text-ink-muted hover:text-ink"
+                      }`}
+                    >
+                      On
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
                   <div className="min-h-[20px]">
