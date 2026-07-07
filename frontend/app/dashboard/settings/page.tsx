@@ -701,7 +701,11 @@ export default function SettingsPage() {
                       const nextVal = aiAutoReplyEnabled ? "false" : "true";
                       setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: nextVal }));
                     }}
-                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${aiAutoReplyEnabled ? "bg-green-600" : "bg-gray-300"}`}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-all duration-200 ${
+                      aiAutoReplyEnabled
+                        ? "bg-gradient-to-r from-primary to-violet-500 shadow-[0_0_12px_rgba(91,33,182,0.15)]"
+                        : "bg-gray-300"
+                    }`}
                     aria-label="Toggle AI auto-reply"
                   >
                     <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${aiAutoReplyEnabled ? "translate-x-5" : "translate-x-0"}`} />
