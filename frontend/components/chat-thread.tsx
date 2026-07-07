@@ -138,6 +138,11 @@ function MediaBubble({ msg }: { msg: Message }) {
 
 // ─── Single message bubble (memoized — only re-renders when this message changes) ─
 const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
+  const isAiMediaRecommendation =
+    msg.direction === "outbound" &&
+    msg.is_ai_generated &&
+    msg.media_type === "image";
+
   return (
     <div className={cn("flex gap-2", msg.direction === "outbound" && "flex-row-reverse")}>
       <div className={cn(
@@ -166,7 +171,9 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
         )}
         {msg.direction === "outbound" && (
           <p className="mt-1 text-[10px] opacity-60">
-            {msg.is_ai_generated
+            {isAiMediaRecommendation
+              ? "AI media recommendation"
+              : msg.is_ai_generated
               ? msg.reply_source === "knowledge"
                 ? "📄 Knowledge Base"
                 : "✨ AI"

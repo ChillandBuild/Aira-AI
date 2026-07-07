@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Gauge, Languages, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Gauge, Image as ImageIcon, Languages, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
@@ -21,6 +21,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 type RetrievalMode = "semantic" | "keyword" | "hybrid";
 type VoiceSettingKey = "ai_voice_reply_speaker" | "ai_voice_reply_pace" | "ai_voice_reply_language_mode" | "ai_voice_reply_language_code";
+type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "ai_media_max_images_per_reply";
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
   { id: "semantic", label: "Smart", desc: "Understands meaning & language (Tamil/English), even when a lead rephrases. Recommended." },
@@ -87,6 +88,8 @@ interface ConfigData {
     ai_voice_reply_pace?: number | string | null;
     ai_voice_reply_language_mode?: "auto" | "fixed" | string | null;
     ai_voice_reply_language_code?: string | null;
+    ai_media_recommendations_enabled?: boolean;
+    ai_media_max_images_per_reply?: number | string | null;
     reengagement_enabled: boolean;
     kb_retrieval_mode: RetrievalMode;
   };
@@ -160,6 +163,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
   const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
+  const [mediaRecommendationSaving, setMediaRecommendationSaving] = useState<MediaRecommendationSettingKey | null>(null);
   const [sarvamApiKeyDraft, setSarvamApiKeyDraft] = useState("");
   const [sarvamSaving, setSarvamSaving] = useState(false);
 
@@ -284,6 +288,36 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     }
   }
 
+  async function updateMediaRecommendationSetting(key: MediaRecommendationSettingKey, value: string | boolean) {
+    if (!config || (config.settings[key] ?? "") === value) return;
+    setMediaRecommendationSaving(key);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { [key]: value }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          [key]: value
+        }
+      });
+      toast.success("AI media recommendation setting updated.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update AI media recommendation setting");
+      toast.error("Failed to update AI media recommendation setting.");
+    } finally {
+      setMediaRecommendationSaving(null);
+    }
+  }
+
   async function updateSarvamApiKey() {
     const value = sarvamApiKeyDraft.trim();
     if (!config || !value) return;
@@ -399,6 +433,9 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       ? (config.settings.ai_voice_reply_language_code ?? "en-IN")
       : "auto",
   };
+  const mediaRecommendationsEnabled = config.settings.ai_media_recommendations_enabled ?? false;
+  const mediaMaxImages = Number(config.settings.ai_media_max_images_per_reply ?? 3);
+  const mediaUsageCount = usageMetricCount(config.usage, ["ai_media_recommendation", "ai_media_recommendations", "catalog_image_sent"]) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -623,6 +660,53 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* AI Media Recommendations */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <ImageIcon size={16} className="text-ink-muted" />
+          AI Media Recommendations
+        </h3>
+        <div className="rounded-card border border-border bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">Recommend catalog images</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                Controls whether this client&apos;s AI can recommend catalog items and send item images inside WhatsApp replies.
+              </p>
+            </div>
+            <OperatorToggle
+              checked={mediaRecommendationsEnabled}
+              onChange={(checked) => updateMediaRecommendationSetting("ai_media_recommendations_enabled", checked)}
+              loading={mediaRecommendationSaving === "ai_media_recommendations_enabled"}
+              aria-label="Toggle AI media recommendations"
+            />
+          </div>
+          <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                <ImageIcon size={13} /> Max images per reply
+              </span>
+              <select
+                value={Number.isFinite(mediaMaxImages) ? String(mediaMaxImages) : "3"}
+                onChange={(e) => updateMediaRecommendationSetting("ai_media_max_images_per_reply", e.target.value)}
+                disabled={mediaRecommendationSaving === "ai_media_max_images_per_reply"}
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
+              >
+                {[1, 2, 3, 4, 5].map((count) => (
+                  <option key={count} value={count}>{count}</option>
+                ))}
+              </select>
+            </label>
+            <div className="rounded-xl bg-surface-mid px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Usage count</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-ink">
+                {mediaUsageCount.toLocaleString("en-IN")}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 

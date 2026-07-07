@@ -6,7 +6,7 @@ import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
-  BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote,
+  BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -291,6 +291,22 @@ export function Sidebar() {
           >
             <BookOpen size={16} className={pathname.startsWith("/dashboard/knowledge") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
             <span>Knowledge Base</span>
+          </Link>
+        )}
+
+        {/* TOP LEVEL: Catalog */}
+        {isSubscribed && role === "owner" && messagingOn && (
+          <Link
+            href="/dashboard/catalog"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
+              pathname.startsWith("/dashboard/catalog")
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+            )}
+          >
+            <Package size={16} className={pathname.startsWith("/dashboard/catalog") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+            <span>Catalog</span>
           </Link>
         )}
 
