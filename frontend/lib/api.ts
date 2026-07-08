@@ -44,6 +44,34 @@ export interface Lead {
   blocked_at?: string | null;
 }
 
+export interface CatalogItem {
+  id: string;
+  tenant_id: string;
+  name: string;
+  item_type: string;
+  description: string | null;
+  status: "draft" | "ready";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CatalogMedia {
+  id: string;
+  tenant_id: string;
+  catalog_item_id: string;
+  storage_path: string;
+  label: string | null;
+  created_at: string;
+  item_name?: string | null;
+  url?: string;
+}
+
+export interface CatalogAiRules {
+  can_recommend: boolean;
+  can_send_images: boolean;
+  max_images_per_reply: number;
+}
+
 export interface Message {
   id: string;
   lead_id: string;
@@ -1193,6 +1221,59 @@ export const api = {
       const res = await apiFetch<{ data: Array<{ id: string; name: string; color?: string }> }>(`/api/v1/broadcast-tags/`);
       return res.data || [];
     },
+  },
+  catalog: {
+    listItems: async (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+      const res = await apiFetch<{ data: CatalogItem[] }>(`/api/v1/catalog/items${qs}`);
+      return res.data || [];
+    },
+    createItem: (data: { name: string; item_type: string; description?: string | null }) =>
+      apiFetch<CatalogItem>(`/api/v1/catalog/items`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    updateItem: (
+      id: string,
+      data: Partial<Pick<CatalogItem, "name" | "item_type" | "description" | "status">>
+    ) =>
+      apiFetch<CatalogItem>(`/api/v1/catalog/items/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    deleteItem: (id: string) =>
+      apiFetch<{ success: boolean }>(`/api/v1/catalog/items/${id}`, {
+        method: "DELETE",
+      }),
+    uploadMedia: async (itemId: string, file: File): Promise<CatalogMedia> => {
+      const authHeaders = await getAuthHeaders();
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${API_URL}/api/v1/catalog/items/${itemId}/media`, {
+        method: "POST",
+        body: fd,
+        headers: { ...authHeaders },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Media upload failed" }));
+        throw new Error(err.detail || "Media upload failed");
+      }
+      return res.json();
+    },
+    listMedia: async () => {
+      const res = await apiFetch<{ data: CatalogMedia[] }>(`/api/v1/catalog/media`);
+      return res.data || [];
+    },
+    deleteMedia: (id: string) =>
+      apiFetch<{ success: boolean }>(`/api/v1/catalog/media/${id}`, {
+        method: "DELETE",
+      }),
+    getAiRules: () => apiFetch<CatalogAiRules>(`/api/v1/catalog/ai-rules`),
+    updateAiRules: (data: Partial<CatalogAiRules>) =>
+      apiFetch<CatalogAiRules>(`/api/v1/catalog/ai-rules`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
   },
   aiTune: {
     prompts: async () => {

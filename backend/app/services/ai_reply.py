@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import time
@@ -16,7 +17,7 @@ from app.services.entitlements import meter, check_quota
 
 logger = logging.getLogger(__name__)
 
-from app.services.sarvam_client import sarvam_chat_completion
+from app.services.sarvam_client import sarvam_chat_completion, sarvam_chat_completion_with_tools
 _REPLY_MODEL = "sarvam-30b"
 
 
@@ -138,16 +139,22 @@ def invalidate_prompt_cache(name: str | None = None) -> None:
 
 
 def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
-    return (
+    # Fetch extra rows so we can filter out [Template] messages without falling short of the requested limit
+    raw = (
         db.table("messages")
         .select("direction,content,created_at")
         .eq("lead_id", str(lead_id))
         .order("created_at", desc=True)
-        .limit(limit)
+        .limit(limit + 10)
         .execute()
         .data
         or []
     )
+    filtered = [
+        r for r in raw
+        if not (r.get("content") or "").strip().startswith("[Template")
+    ]
+    return filtered[:limit]
 
 _FALLBACK_BY_LANG = {
     "ta": "நன்றி! உங்கள் விசாரணைக்கு விரைவில் பதிலளிப்போம்.",
@@ -618,6 +625,102 @@ def _trigger_chat_escalation(
         pass
 
 
+_CATALOG_RECOMMEND_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "recommend_catalog_item",
+        "description": (
+            "Recommend a catalog item to the customer and send its image. "
+            "Call this whenever you mention a specific product/service from the catalog in your reply "
+            "— the system will automatically send the item's photo alongside your text. "
+            "Only call for items the customer has shown genuine interest in. Do NOT call more than once per reply."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "item_id": {
+                    "type": "string",
+                    "description": "The UUID of the catalog item to recommend",
+                }
+            },
+            "required": ["item_id"],
+        },
+    },
+}
+
+
+def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
+    """Read catalog_ai_rules from app_settings, merged with defaults."""
+    defaults = {"can_recommend": True, "can_send_images": True, "max_images_per_reply": 3}
+    try:
+        row = (
+            db.table("app_settings")
+            .select("value")
+            .eq("tenant_id", tenant_id)
+            .eq("key", "catalog_ai_rules")
+            .limit(1)
+            .execute()
+        )
+        if row.data:
+            stored = json.loads(row.data[0]["value"])
+            return {**defaults, **stored}
+    except Exception:
+        logger.warning(f"Failed to load catalog_ai_rules for tenant {tenant_id}")
+    return defaults
+
+
+def _build_catalog_context(db, tenant_id: str) -> tuple[str, list[dict], dict[str, dict]]:
+    """Fetch ready catalog items and build the prompt context + tool definitions.
+
+    Returns (catalog_text_block, tool_definitions, items_by_id).
+    catalog_text_block is empty when no items exist or can_recommend is disabled.
+    """
+    rules = _load_catalog_ai_rules(db, tenant_id)
+    if not rules.get("can_recommend"):
+        return "", [], {}
+
+    try:
+        res = (
+            db.table("catalog_items")
+            .select("id,name,item_type,description")
+            .eq("tenant_id", tenant_id)
+            .eq("status", "ready")
+            .order("name")
+            .execute()
+        )
+        items = res.data or []
+    except Exception as e:
+        logger.warning(f"Failed to load catalog items for tenant {tenant_id}: {e}")
+        return "", [], {}
+
+    if not items:
+        return "", [], {}
+
+    items_by_id = {row["id"]: row for row in items}
+    item_lines: list[str] = []
+    for row in items:
+        line = f"  • {row['name']} ({row['item_type']}) [id: {row['id']}]"
+        if row.get("description"):
+            line += f" — {row['description']}"
+        item_lines.append(line)
+
+    text_block = (
+        "\n\nCATALOG:\nWhen the customer asks about what's available or shows interest in a type of "
+        "product/service, use your catalog below. Mention items by name — and when you do, call the "
+        "recommend_catalog_item tool with the item's [id] so the customer receives its photo automatically.\n"
+        + "\n".join(item_lines)
+    )
+
+    can_send = rules.get("can_send_images", True)
+    max_images = rules.get("max_images_per_reply", 3)
+    tools: list[dict] = []
+    if can_send:
+        tools = [dict(_CATALOG_RECOMMEND_TOOL)]
+        text_block += f"\n\nYou may recommend up to {max_images} item(s) with photos per reply."
+
+    return text_block, tools, items_by_id
+
+
 async def generate_reply(
     lead_id: str,
     message: str,
@@ -765,6 +868,14 @@ async def generate_reply(
         logger.warning(f"Knowledge context fetch failed for lead {lead_id}: {e}")
         context_text = ""
 
+    catalog_tools: list[dict] = []
+    catalog_items_by_id: dict[str, dict] = {}
+    try:
+        catalog_context, catalog_tools, catalog_items_by_id = _build_catalog_context(db, tenant_id)
+    except Exception:
+        catalog_context = ""
+        logger.warning(f"Catalog context build failed for tenant {tenant_id}")
+
     try:
         system_prompt = _get_prompt(f"{channel}_reply", tenant_id=lead_data.get("tenant_id"))
         if campaign_name:
@@ -798,6 +909,9 @@ async def generate_reply(
             "reply and continue in it afterward, overriding whatever style earlier messages in the conversation used."
         )
 
+        if catalog_context:
+            system_prompt += catalog_context
+
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]
         for row in reversed(recent_thread):  # oldest first
@@ -816,7 +930,59 @@ async def generate_reply(
         if not chat_messages or chat_messages[-1].get("role") != "user" or chat_messages[-1].get("content") != message:
             chat_messages.append({"role": "user", "content": message})
 
-        reply_text = (await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)).strip()
+        catalog_images_to_send: list[tuple[str, bytes]] = []  # (filename, image_bytes)
+
+        if catalog_tools:
+            reply_text, tool_calls = await sarvam_chat_completion_with_tools(
+                chat_messages, tools=catalog_tools, model=_REPLY_MODEL,
+                max_tokens=600, tenant_id=tenant_id,
+            )
+            reply_text = reply_text.strip()
+
+            # Handle tool calls — the model asked to recommend catalog items
+            for tc in tool_calls:
+                func = tc.get("function") or {}
+                if func.get("name") != "recommend_catalog_item":
+                    continue
+                try:
+                    args = json.loads(func.get("arguments") or "{}")
+                except (ValueError, TypeError):
+                    continue
+                item_id = args.get("item_id")
+                if not item_id or item_id not in catalog_items_by_id:
+                    continue
+
+                item = catalog_items_by_id[item_id]
+                logger.info(
+                    "Catalog recommendation: lead %s -> item %s (%s)", lead_id, item["name"], item_id
+                )
+                # Append a natural confirmation sentence to the reply if we're sending photos
+                # — only if no customer-facing text was generated by the model.
+                if not reply_text:
+                    reply_text = f"Here's our {item['name']}:"
+
+                # Load the item's images from the catalog-media storage bucket so we can
+                # send them as WhatsApp attachments. Only the most recent image per item.
+                try:
+                    media_rows = (
+                        db.table("catalog_media")
+                        .select("id,storage_path,label")
+                        .eq("catalog_item_id", item_id)
+                        .eq("tenant_id", tenant_id)
+                        .order("created_at", desc=True)
+                        .limit(1)
+                        .execute()
+                    )
+                    for mrow in (media_rows.data or [])[:1]:
+                        path = mrow["storage_path"]
+                        label = mrow["label"] or item["name"]
+                        file_bytes = db.storage.from_("catalog-media").download(path)
+                        catalog_images_to_send.append((label, file_bytes))
+                except Exception as media_err:
+                    logger.warning("Failed to load catalog media for item %s: %s", item_id, media_err)
+        else:
+            reply_text = (await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)).strip()
+
         is_ai = True
         reply_source = "knowledge" if context_text else "ai"
 
@@ -877,6 +1043,40 @@ async def generate_reply(
                 outbound_media_mime_type = "audio/mpeg"
         if _wa_phone and not sid:
             sid = await send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id)
+
+        # Send catalog recommendation images as follow-up WhatsApp media
+        if _wa_phone and sid and catalog_images_to_send:
+            from app.services.meta_cloud import upload_media_to_meta, send_media_message
+            for img_filename, img_bytes in catalog_images_to_send:
+                try:
+                    media_id = await upload_media_to_meta(
+                        file_bytes=img_bytes,
+                        mime_type="image/jpeg",
+                        filename=img_filename,
+                        tenant_id=lead_data.get("tenant_id"),
+                        phone_number_id=phone_number_id,
+                    )
+                    await send_media_message(
+                        to_number=_wa_phone,
+                        media_id=media_id,
+                        wa_type="image",
+                        tenant_id=lead_data.get("tenant_id"),
+                        phone_number_id=phone_number_id,
+                    )
+                    db.table("messages").insert({
+                        "lead_id": str(lead_id),
+                        "direction": "outbound",
+                        "channel": channel,
+                        "content": f"[Catalog image: {img_filename}]",
+                        "is_ai_generated": True,
+                        "reply_source": "ai",
+                        "tenant_id": tenant_id,
+                        "media_type": "image",
+                        "media_mime_type": "image/jpeg",
+                    }).execute()
+                    meter(db, tenant_id, "ai_media_recommendation")
+                except Exception as img_err:
+                    logger.warning("Catalog image send failed for lead %s: %s", lead_id, img_err)
 
     # Track-only usage metering: count once per AI-generated reply that was
     # actually sent (non-None message id). Never blocks/caps — best-effort only.

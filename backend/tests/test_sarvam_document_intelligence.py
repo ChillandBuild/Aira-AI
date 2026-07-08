@@ -8,6 +8,7 @@ from app.services.sarvam_document_intelligence import (
     _extract_markdown_from_output_zip,
     _zip_single_image,
     extract_text_from_image,
+    extract_text_from_pdf,
 )
 
 
@@ -89,7 +90,7 @@ class TestExtractTextFromImage:
         create_call = mock_client.post.call_args_list[0]
         assert create_call.args[0] == "https://api.sarvam.ai/doc-digitization/job/v1"
         assert create_call.kwargs["headers"] == {"api-subscription-key": "test-key"}
-        assert create_call.kwargs["json"] == {"language": "en-IN", "output_format": "md"}
+        assert create_call.kwargs["json"] == {"language": "unknown", "output_format": "md"}
 
         upload_call = mock_client.post.call_args_list[1]
         assert upload_call.args[0] == "https://api.sarvam.ai/doc-digitization/job/v1/upload-files"
@@ -171,3 +172,48 @@ class TestExtractTextFromImage:
     def test_rejects_unsupported_mime_before_any_api_call(self):
         with pytest.raises(ValueError, match="JPEG/PNG"):
             extract_text_from_image(b"fake-webp-bytes", "image/webp", "test-key")
+
+
+class TestExtractTextFromPdf:
+    def _mock_response(self, json_data=None, content=None):
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        if json_data is not None:
+            resp.json.return_value = json_data
+        if content is not None:
+            resp.content = content
+        return resp
+
+    def test_uploads_raw_pdf_bytes_without_zip_wrapping(self):
+        output_zip = _make_zip({"page_1.md": "Scanned PDF text"})
+        create_resp = self._mock_response({"job_id": "job-pdf-1"})
+        upload_resp = self._mock_response({
+            "upload_urls": {"document.pdf": {"file_url": "https://upload.example/presigned"}}
+        })
+        put_resp = self._mock_response()
+        start_resp = self._mock_response({"job_state": "Completed"})
+        download_resp = self._mock_response({
+            "download_urls": {"output.zip": {"file_url": "https://download.example/output.zip"}}
+        })
+        zip_get_resp = self._mock_response(content=output_zip)
+
+        mock_client = MagicMock()
+        mock_client.post.side_effect = [create_resp, upload_resp, start_resp, download_resp]
+        mock_client.put.return_value = put_resp
+        mock_client.get.return_value = zip_get_resp
+
+        with patch("app.services.sarvam_document_intelligence.httpx.Client") as mock_client_cls:
+            mock_client_cls.return_value.__enter__.return_value = mock_client
+            text = extract_text_from_pdf(b"fake-pdf-bytes", "test-key")
+
+        assert text == "Scanned PDF text"
+
+        create_call = mock_client.post.call_args_list[0]
+        assert create_call.kwargs["json"] == {"language": "unknown", "output_format": "md"}
+
+        upload_call = mock_client.post.call_args_list[1]
+        assert upload_call.kwargs["json"] == {"job_id": "job-pdf-1", "files": ["document.pdf"]}
+
+        put_call = mock_client.put.call_args
+        assert put_call.args[0] == "https://upload.example/presigned"
+        assert put_call.kwargs["content"] == b"fake-pdf-bytes"

@@ -77,7 +77,7 @@ async def _index_chunks(
     return len(chunks)
 
 from app.services.sarvam_client import get_sarvam_api_key
-from app.services.sarvam_document_intelligence import extract_text_from_image
+from app.services.sarvam_document_intelligence import extract_text_from_image, extract_text_from_pdf
 
 
 def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, tenant_id: str | None = None) -> str:
@@ -87,6 +87,13 @@ def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, t
         if mime_type == "application/pdf" or filename.endswith(".pdf"):
             with pdfplumber.open(file_obj) as pdf:
                 text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+
+            if not text.strip():
+                # Scanned PDF with no real text layer -- pdfplumber has no OCR capability
+                # and returns empty. Sarvam Document Digitization accepts PDF directly and
+                # can OCR it.
+                api_key = get_sarvam_api_key(tenant_id)
+                text = extract_text_from_pdf(file_content, api_key)
 
         elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or filename.endswith(".docx"):
             doc = DocxDocument(file_obj)
