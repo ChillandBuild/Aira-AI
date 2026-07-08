@@ -265,49 +265,49 @@ export default function TemplatesPage() {
       )}
 
       {/* Filter and View Controls Bar */}
-      <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-border-subtle bg-white p-3 shadow-sm sm:p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 flex-col gap-2.5 rounded-2xl border border-border-subtle bg-white p-2.5 shadow-sm sm:p-3 lg:flex-row lg:items-center lg:justify-between">
         {/* Search input */}
-        <div className="relative w-full lg:w-64 lg:shrink-0">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+        <div className="relative w-full lg:w-56 lg:shrink-0">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search templates..."
-            style={{ paddingLeft: "2.25rem", paddingRight: searchQuery ? "2rem" : "0.875rem" }}
-            className="input h-10 text-xs w-full"
+            style={{ paddingLeft: "2rem", paddingRight: searchQuery ? "1.75rem" : "0.75rem" }}
+            className="input h-9 text-xs w-full"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
             >
-              <X size={13} />
+              <X size={12} />
             </button>
           )}
         </div>
 
         {/* Dropdowns & Toggle */}
-        <div className="grid min-w-0 grid-cols-[1fr_1fr_auto] items-center gap-2 lg:flex lg:shrink-0 lg:gap-2.5">
-          <div className="relative flex h-10 min-w-0 items-center gap-1.5 rounded-xl border border-border-subtle bg-surface-subtle/60 pl-2.5 pr-1 transition-colors hover:border-ink-muted/40 focus-within:border-primary focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(91,33,182,0.08)] lg:min-w-[135px] lg:max-w-[160px]">
-            <Filter size={12} className="hidden shrink-0 text-ink-muted md:block" />
+        <div className="grid min-w-0 grid-cols-[1fr_1fr_auto] items-center gap-1.5 lg:flex lg:shrink-0 lg:gap-2">
+          <div className="relative flex h-9 min-w-0 items-center gap-1 rounded-lg border border-border-subtle bg-white pl-2.5 pr-1 transition-colors hover:border-ink-muted/40 focus-within:border-primary focus-within:shadow-[0_0_0_3px_rgba(91,33,182,0.08)] lg:min-w-[112px] lg:max-w-[140px]">
+            <Filter size={11} className="hidden shrink-0 text-ink-muted md:block" />
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-full w-full min-w-0 cursor-pointer appearance-none bg-transparent pr-5 text-xs font-medium text-ink outline-none"
+              className="h-full w-full min-w-0 cursor-pointer appearance-none bg-transparent pr-4 text-xs font-medium text-ink outline-none"
             >
               <option value="ALL">All Types</option>
               <option value="MARKETING">Marketing</option>
               <option value="UTILITY">Utility</option>
               <option value="AUTHENTICATION">Authentication</option>
             </select>
-            <ChevronDown size={12} className="pointer-events-none absolute right-2.5 text-ink-muted" />
+            <ChevronDown size={11} className="pointer-events-none absolute right-2 text-ink-muted" />
           </div>
 
-          <div className="relative flex h-10 min-w-0 items-center rounded-xl border border-border-subtle bg-surface-subtle/60 pl-2.5 pr-1 transition-colors hover:border-ink-muted/40 focus-within:border-primary focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(91,33,182,0.08)] lg:min-w-[135px] lg:max-w-[160px]">
+          <div className="relative flex h-9 min-w-0 items-center rounded-lg border border-border-subtle bg-white pl-2.5 pr-1 transition-colors hover:border-ink-muted/40 focus-within:border-primary focus-within:shadow-[0_0_0_3px_rgba(91,33,182,0.08)] lg:min-w-[112px] lg:max-w-[140px]">
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="h-full w-full min-w-0 cursor-pointer appearance-none bg-transparent pr-5 text-xs font-medium text-ink outline-none"
+              className="h-full w-full min-w-0 cursor-pointer appearance-none bg-transparent pr-4 text-xs font-medium text-ink outline-none"
             >
               <option value="ALL">All Statuses</option>
               <option value="APPROVED">Approved</option>
@@ -315,30 +315,30 @@ export default function TemplatesPage() {
               <option value="REJECTED">Rejected</option>
               <option value="PAUSED">Paused</option>
             </select>
-            <ChevronDown size={12} className="pointer-events-none absolute right-2.5 text-ink-muted" />
+            <ChevronDown size={11} className="pointer-events-none absolute right-2 text-ink-muted" />
           </div>
 
           {/* Grid/Table Toggle */}
-          <div className="flex h-10 items-center gap-0.5 rounded-xl border border-border-subtle bg-surface-subtle/60 p-1">
+          <div className="flex h-9 items-center gap-0.5 rounded-lg border border-border-subtle bg-surface-subtle/60 p-0.5">
             <button
               onClick={() => setViewMode("GRID")}
               aria-label="Grid view"
               title="Grid view"
-              className={`flex h-full items-center justify-center rounded-lg px-2.5 transition-all ${
+              className={`flex h-full items-center justify-center rounded-md px-2 transition-all ${
                 viewMode === "GRID" ? "bg-white text-primary shadow-sm" : "text-ink-muted hover:text-ink"
               }`}
             >
-              <Grid size={14} />
+              <Grid size={13} />
             </button>
             <button
               onClick={() => setViewMode("TABLE")}
               aria-label="Table view"
               title="Table view"
-              className={`flex h-full items-center justify-center rounded-lg px-2.5 transition-all ${
+              className={`flex h-full items-center justify-center rounded-md px-2 transition-all ${
                 viewMode === "TABLE" ? "bg-white text-primary shadow-sm" : "text-ink-muted hover:text-ink"
               }`}
             >
-              <List size={14} />
+              <List size={13} />
             </button>
           </div>
         </div>

@@ -47,6 +47,10 @@
 - Server components: `import type` for `@/lib/api` types (it pulls the browser supabase client).
 - Render free tier sleeps after 15min → cold-start tail + **in-process APScheduler doesn't run**; keep-alive cron pings every 14min. One scaling caveat: externalize APScheduler before running >1 backend instance.
 
+## Frontend styling conventions (Tailwind + `.input` utility)
+- **`globals.css`'s `.input` class (padding/border-radius/focus-ring) and a Tailwind padding utility (`pl-9` etc.) on the same element are both single-class-specificity — which one wins is cascade-order-dependent, not guaranteed.** The existing convention in this codebase (e.g. `templates/page.tsx` search box) is to override `.input`'s padding via an inline `style={{ paddingLeft: ... }}` instead of a `pl-*`/`pr-*` Tailwind class, since inline style always wins regardless of stylesheet order. Follow this pattern rather than fighting the cascade with utility classes. Custom bordered controls that don't use `.input` at all (e.g. the select/dropdown wrappers on that same page) sidestep the issue entirely.
+- **Brand color for interactive UI state is `primary` (violet, `#5b21b6`)**, not `emerald`/`green` — emerald is reserved for "Approved"/status-positive semantics elsewhere (template status badges, stat tiles). Active toggle/tab states in a control bar should use `text-primary`/`bg-primary`-family classes, not emerald, to stay visually consistent with what emerald already means in this app.
+
 ## Conversations UI (3-panel)
 - `conversations/page.tsx`: left list (340px) | center ChatThread | right LeadDetailsPanel (320px); both collapsible, state in localStorage. `getAvatarColor(id)` duplicated in conversation-list.tsx and chat-thread.tsx **by design**. Input bar is never AI-gated. All 3 panels stay in sync via `onLeadUpdate`.
 
