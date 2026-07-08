@@ -152,7 +152,7 @@ export default function ClientDetailPage() {
       />
 
       {/* Content area pushed right of sidebar */}
-      <div className="ml-[220px]">
+      <div className="ml-[240px]">
         {/* Section header (like AppHeader) */}
         <div
           className="sticky z-20 h-16 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]"

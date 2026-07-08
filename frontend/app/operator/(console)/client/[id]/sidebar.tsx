@@ -143,7 +143,7 @@ export function ClientDetailSidebar({
 
   return (
     <aside
-      className="fixed left-0 h-[calc(100vh-4rem)] w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-30 select-none"
+      className="fixed left-0 h-[calc(100vh-4rem)] w-[240px] bg-background border-r border-[#e8e3db] flex flex-col z-30 select-none"
       style={{ top: "64px", height: "calc(100vh - 64px)" }}
     >
       <div className="px-4 py-4 border-b border-[#e8e3db]">
