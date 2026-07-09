@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Download, RefreshCw, ArrowRight, ClipboardList } from "lucide-react";
+import { Download, RefreshCw, ArrowRight, ClipboardList, Filter, ChevronDown } from "lucide-react";
 import { api, Caller, AssignmentLogEntry, AssignmentLogSummary } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 
@@ -111,34 +111,49 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
       </div>
 
       {/* Filters + export */}
-      <div className="mb-3 flex flex-wrap items-end gap-2.5 rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
-        <div className="w-full sm:w-[170px]">
-          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Caller</label>
-          <select value={callerFilter} onChange={(e) => { setPage(1); setCallerFilter(e.target.value); }}
-            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
-            <option value="">All callers</option>
-            {callers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </div>
-        <div className="w-full sm:w-[160px]">
-          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Segment</label>
-          <select value={segmentFilter} onChange={(e) => { setPage(1); setSegmentFilter(e.target.value); }}
-            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
-            <option value="">All segments</option>
-            <option value="A">Hot</option>
-            <option value="B">Warm</option>
-            <option value="C">Cold</option>
-          </select>
-        </div>
-        <div className="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
-          <button onClick={load} disabled={loading}
-            className="flex h-9 items-center gap-1.5 rounded-full border border-surface-mid bg-white px-3 font-label text-xs font-bold text-on-surface shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-primary disabled:opacity-50">
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
-          </button>
-          <button onClick={handleExport} disabled={exporting}
-            className="flex h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3.5 font-label text-xs font-bold text-primary shadow-sm transition-colors hover:bg-violet-100 disabled:opacity-50">
-            <Download size={13} /> {exporting ? "Exporting…" : "Export CSV"}
-          </button>
+      <div className="mb-3 rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <Filter size={14} />
+            </span>
+            <div className="hidden leading-tight sm:block">
+              <span className="block font-label text-[13px] font-bold text-on-surface">Filters</span>
+              <span className="block font-body text-[10px] text-on-surface-muted">
+                {callerFilter || segmentFilter ? "Active" : "All assignments"}
+              </span>
+            </div>
+          </div>
+
+          <div className="relative w-full shrink-0 sm:w-[170px]">
+            <select value={callerFilter} onChange={(e) => { setPage(1); setCallerFilter(e.target.value); }}
+              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
+              <option value="">All callers</option>
+              {callers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+          </div>
+          <div className="relative w-full shrink-0 sm:w-[160px]">
+            <select value={segmentFilter} onChange={(e) => { setPage(1); setSegmentFilter(e.target.value); }}
+              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
+              <option value="">All segments</option>
+              <option value="A">Hot</option>
+              <option value="B">Warm</option>
+              <option value="C">Cold</option>
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+          </div>
+
+          <div className="ml-auto flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+            <button onClick={load} disabled={loading}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-surface-mid bg-white px-3 font-label text-xs font-bold text-on-surface shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-primary disabled:opacity-50">
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
+            </button>
+            <button onClick={handleExport} disabled={exporting}
+              className="flex h-9 items-center gap-1.5 rounded-xl border border-violet-200 bg-violet-50 px-3.5 font-label text-xs font-bold text-primary shadow-sm transition-colors hover:bg-violet-100 disabled:opacity-50">
+              <Download size={13} /> {exporting ? "Exporting…" : "Export CSV"}
+            </button>
+          </div>
         </div>
       </div>
 

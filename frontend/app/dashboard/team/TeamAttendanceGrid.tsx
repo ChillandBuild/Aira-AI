@@ -189,47 +189,47 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
         <h2 className="font-display text-sm font-bold text-primary flex items-center gap-2">
           <CalendarCheck size={16} className="text-primary" /> Team Attendance
         </h2>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
-            <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Export Attendance:</span>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap rounded-2xl border border-border-subtle bg-white/95 p-2.5 shadow-sm">
+            <span className="font-label text-[9px] text-ink-muted font-bold uppercase pl-1 shrink-0">Export:</span>
             <input
               type="date"
               value={from}
               max={to}
               onChange={(e) => setFrom(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="h-9 w-[132px] rounded-xl border border-[#e8e3db] bg-white px-2.5 font-body text-xs font-semibold text-[#292524] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
             />
-            <span className="text-[#a8a29e] text-xs">to</span>
+            <span className="text-[#a8a29e] text-xs shrink-0">to</span>
             <input
               type="date"
               value={to}
               min={from}
               max={maxHolidayDate}
               onChange={(e) => setTo(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="h-9 w-[132px] rounded-xl border border-[#e8e3db] bg-white px-2.5 font-body text-xs font-semibold text-[#292524] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
             />
             <button
               onClick={handleExportCsv}
               disabled={exporting || !data}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-label font-bold text-white shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               {exporting ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />} CSV
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-sky-50 p-1.5 rounded-xl border border-sky-200">
-            <span className="font-label text-[10px] text-sky-600 font-bold uppercase pl-1">Mark Holiday:</span>
+          <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap rounded-2xl border border-sky-200 bg-sky-50/70 p-2.5 shadow-sm">
+            <span className="font-label text-[9px] text-sky-600 font-bold uppercase pl-1 shrink-0">Mark Holiday:</span>
             <input
               type="date"
               value={holidayDate}
               max={maxHolidayDate}
               onChange={(e) => setHolidayDate(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-sky-200 font-body text-xs text-[#292524] focus:outline-none"
+              className="h-9 w-[132px] rounded-xl border border-sky-200 bg-white px-2.5 font-body text-xs font-semibold text-[#292524] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
             />
             <button
               onClick={handleMarkHoliday}
               disabled={markingHoliday}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white rounded-lg hover:bg-sky-600 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-sky-500 px-3 text-xs font-label font-bold text-white shadow-sm transition-colors hover:bg-sky-600 disabled:opacity-50"
             >
               {markingHoliday ? <Loader2 className="animate-spin" size={12} /> : <Sun size={12} />}
               Whole Team
@@ -237,7 +237,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
           </div>
 
           {selectedCallerId && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary font-label text-[11px] font-bold">
+            <span className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-primary/10 px-3 font-label text-xs font-bold text-primary">
               Showing: {selectedCallerName ?? "Telecaller"}
             </span>
           )}

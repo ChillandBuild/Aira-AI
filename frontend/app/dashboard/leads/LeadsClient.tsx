@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { api, Lead, Caller, SegmentTemplate, BroadcastResult, BroadcastHistoryItem, WabaTemplate, getAuthHeaders, API_URL } from "@/lib/api";
-import { Download, Send, Save, Pencil, Plus, X, Loader2, Clock } from "lucide-react";
+import { Download, Send, Save, Pencil, Plus, X, Loader2, Clock, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatPhone } from "@/lib/utils";
 import { useAuthRole } from "../contexts/AuthRoleContext";
@@ -461,104 +461,106 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
 
       {pageView === "leads" && (
       <div>
-        <div className="mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          {/* Segment tabs */}
-          <div className="-mx-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:overflow-visible sm:p-0">
-          <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:w-fit">
-            {SEGMENTS.map((seg) => (
-              <button
-                key={seg}
-                onClick={() => setTab(seg)}
-                className={cn(
-                  "shrink-0 rounded-xl px-4 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
-                  tab === seg
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
-                )}
-              >
-                {SEGMENT_LABELS[seg]}
-              </button>
-            ))}
-          </div>
-          </div>
-
-          {/* Source Filter Dropdown */}
-          <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm sm:w-auto">
-            <span className="shrink-0 font-label text-xs font-bold uppercase tracking-wider text-on-surface-muted">Source:</span>
-            <select
-              value={sourceFilter}
-              onChange={(e) => {
-                setSourceFilter(e.target.value);
-                setSelectedCampaignId("");
-                setSelectedBroadcastId("");
-              }}
-              className="min-w-0 flex-1 cursor-pointer bg-transparent font-body text-xs font-semibold text-primary focus:outline-none sm:flex-none"
-            >
-              <option value="ALL">All Leads</option>
-              <option value="INBOUND">Inbound Leads</option>
-              <option value="ORGANIC">Organic Inbound</option>
-              <option value="META_ADS">Meta Ads</option>
-              <option value="BROADCAST">Broadcast Specific</option>
-            </select>
-          </div>
-
-          {/* Conditional Campaign Dropdown */}
-          {sourceFilter === "META_ADS" && campaigns.length > 0 && (
-            <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm animate-slide-up sm:w-auto">
-              <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Campaign:</span>
-              <select
-                value={selectedCampaignId}
-                onChange={(e) => setSelectedCampaignId(e.target.value)}
-                className="min-w-0 flex-1 cursor-pointer bg-transparent pr-6 font-body text-xs font-semibold text-primary focus:outline-none sm:max-w-[300px]"
-              >
-                <option value="">Select Campaign</option>
-                {campaigns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.campaign_name}
-                  </option>
+        <div className="mb-5 rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+            {/* Segment tabs */}
+            <div className="-mx-1 w-full overflow-x-auto px-1 sm:mx-0 sm:w-auto sm:overflow-visible sm:p-0">
+              <div className="flex h-9 w-max gap-1 rounded-xl bg-[#e8e3db]/60 p-1 sm:w-fit">
+                {SEGMENTS.map((seg) => (
+                  <button
+                    key={seg}
+                    onClick={() => setTab(seg)}
+                    className={cn(
+                      "shrink-0 rounded-lg px-3.5 font-label text-xs font-bold transition-all",
+                      tab === seg
+                        ? "bg-white text-primary shadow-sm"
+                        : "text-[#78716c] hover:text-[#292524]"
+                    )}
+                  >
+                    {SEGMENT_LABELS[seg]}
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
-          )}
 
-          {/* Conditional Broadcast Dropdown */}
-          {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-3 animate-slide-up sm:w-auto">
-              <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm sm:w-auto">
-                <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Broadcast:</span>
+            {/* Source Filter Dropdown */}
+            <div className="relative w-full min-w-0 sm:w-[180px]">
+              <select
+                value={sourceFilter}
+                onChange={(e) => {
+                  setSourceFilter(e.target.value);
+                  setSelectedCampaignId("");
+                  setSelectedBroadcastId("");
+                }}
+                className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white pl-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              >
+                <option value="ALL">All Leads</option>
+                <option value="INBOUND">Inbound Leads</option>
+                <option value="ORGANIC">Organic Inbound</option>
+                <option value="META_ADS">Meta Ads</option>
+                <option value="BROADCAST">Broadcast Specific</option>
+              </select>
+              <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+            </div>
+
+            {/* Conditional Campaign Dropdown */}
+            {sourceFilter === "META_ADS" && campaigns.length > 0 && (
+              <div className="relative w-full min-w-0 animate-slide-up sm:w-[230px]">
                 <select
-                  value={selectedBroadcastId}
-                  onChange={(e) => setSelectedBroadcastId(e.target.value)}
-                  className="min-w-0 flex-1 cursor-pointer bg-transparent pr-6 font-body text-xs font-semibold text-primary focus:outline-none sm:max-w-[340px]"
+                  value={selectedCampaignId}
+                  onChange={(e) => setSelectedCampaignId(e.target.value)}
+                  className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white pl-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
                 >
-                  <option value="">Select Broadcast</option>
-                  {broadcastHistory.map((h) => (
-                    <option key={h.broadcast_id} value={h.broadcast_id}>
-                      {h.template_name} ({new Date(h.timestamp).toLocaleDateString()} · {getBroadcastWindowText(h.timestamp)})
+                  <option value="">Select Campaign</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.campaign_name}
                     </option>
                   ))}
                 </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
               </div>
+            )}
 
-              {/* Selected Broadcast 24h Window Badge */}
-              {(() => {
-                const selectedBroadcast = broadcastHistory.find(h => h.broadcast_id === selectedBroadcastId);
-                if (!selectedBroadcast) return null;
-                const windowText = getBroadcastWindowText(selectedBroadcast.timestamp);
-                return (
-                  <div className={cn(
-                    "flex items-center gap-1.5 px-3 py-2 rounded-xl border font-label text-xs font-bold shadow-sm",
-                    windowText === "Expired"
-                      ? "bg-red-50 text-red-600 border-red-100"
-                      : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                  )}>
-                    <Clock size={12} />
-                    <span>Broadcast Window: {windowText}</span>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
+            {/* Conditional Broadcast Dropdown */}
+            {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
+              <div className="flex w-full min-w-0 flex-wrap items-center gap-2.5 animate-slide-up sm:w-auto">
+                <div className="relative w-full min-w-0 sm:w-[260px]">
+                  <select
+                    value={selectedBroadcastId}
+                    onChange={(e) => setSelectedBroadcastId(e.target.value)}
+                    className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white pl-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  >
+                    <option value="">Select Broadcast</option>
+                    {broadcastHistory.map((h) => (
+                      <option key={h.broadcast_id} value={h.broadcast_id}>
+                        {h.template_name} ({new Date(h.timestamp).toLocaleDateString()} · {getBroadcastWindowText(h.timestamp)})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                </div>
+
+                {/* Selected Broadcast 24h Window Badge */}
+                {(() => {
+                  const selectedBroadcast = broadcastHistory.find(h => h.broadcast_id === selectedBroadcastId);
+                  if (!selectedBroadcast) return null;
+                  const windowText = getBroadcastWindowText(selectedBroadcast.timestamp);
+                  return (
+                    <div className={cn(
+                      "flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 font-label text-xs font-bold shadow-sm",
+                      windowText === "Expired"
+                        ? "bg-red-50 text-red-600 border-red-100"
+                        : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                    )}>
+                      <Clock size={12} />
+                      <span>Broadcast Window: {windowText}</span>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mb-5 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:mb-6 sm:p-6">

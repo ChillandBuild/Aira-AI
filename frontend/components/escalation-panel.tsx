@@ -198,20 +198,21 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
 
           {/* Search bar */}
           <div className="relative w-full sm:w-80">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, phone, channel..."
-              className="w-full pl-10 pr-9 py-2 text-sm border border-border bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-ink-muted/70"
+              style={{ paddingLeft: "2rem", paddingRight: searchQuery ? "1.75rem" : "0.75rem" }}
+              className="h-9 w-full rounded-xl border border-border bg-white text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 placeholder:text-ink-muted/70"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
               >
-                <X size={15} />
+                <X size={12} />
               </button>
             )}
           </div>

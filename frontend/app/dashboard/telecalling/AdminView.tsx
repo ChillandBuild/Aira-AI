@@ -118,26 +118,28 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
             ) : (
               <>
                 {/* Filters */}
-                <div className="grid grid-cols-3 gap-2 mb-4 shrink-0">
-                  {[
-                    { value: queueSegment, set: setQueueSegment, label: "Segment", opts: [["all", "All Seg"], ["A", "A"], ["B", "B"], ["C", "C"], ["D", "D"]] },
-                    { value: queueStatus, set: setQueueStatus, label: "Status", opts: [["all", "All"], ["new", "New"], ["in_progress", "In Prog"], ["callback", "Callback"], ["converted", "Converted"], ["not_interested", "Not Int."], ["dnc", "DNC"], ["unreachable", "Unreach."]] },
-                    { value: queueAssignedTo, set: setQueueAssignedTo, label: "Assigned", opts: [["all", "All"], ["unassigned", "Unassigned"], ...callers.map((c) => [c.id, c.name] as [string, string])] },
-                  ].map((f) => (
-                    <div key={f.label}>
-                      <label className="block font-label text-[8px] text-[#a8a29e] uppercase tracking-widest mb-1 font-extrabold">{f.label}</label>
-                      <div className="relative">
-                        <select
-                          value={f.value}
-                          onChange={(e) => f.set(e.target.value)}
-                          className="w-full appearance-none pl-2 pr-6 py-1.5 rounded-lg bg-white border border-[#e8e3db]/80 font-body text-[11px] font-semibold text-[#44403c] focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-                        >
-                          {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                        </select>
-                        <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+                <div className="mb-4 shrink-0 rounded-2xl border border-[#e8e3db]/80 bg-white/95 p-3 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+                    {[
+                      { value: queueSegment, set: setQueueSegment, label: "Segment", opts: [["all", "All Seg"], ["A", "A"], ["B", "B"], ["C", "C"], ["D", "D"]] },
+                      { value: queueStatus, set: setQueueStatus, label: "Status", opts: [["all", "All"], ["new", "New"], ["in_progress", "In Prog"], ["callback", "Callback"], ["converted", "Converted"], ["not_interested", "Not Int."], ["dnc", "DNC"], ["unreachable", "Unreach."]] },
+                      { value: queueAssignedTo, set: setQueueAssignedTo, label: "Assigned", opts: [["all", "All"], ["unassigned", "Unassigned"], ...callers.map((c) => [c.id, c.name] as [string, string])] },
+                    ].map((f) => (
+                      <div key={f.label} className="min-w-0 flex-1">
+                        <label className="mb-1 block font-label text-[9px] font-extrabold uppercase tracking-widest text-[#a8a29e]">{f.label}</label>
+                        <div className="relative">
+                          <select
+                            value={f.value}
+                            onChange={(e) => f.set(e.target.value)}
+                            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-[#e8e3db] bg-white pl-3 pr-7 font-body text-xs font-semibold text-[#44403c] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                          >
+                            {f.opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                          </select>
+                          <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
 
                 {/* Lead cards */}

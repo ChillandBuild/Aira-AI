@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Users, Search, Loader2 } from "lucide-react";
+import { Users, Search, Loader2, X } from "lucide-react";
 import { api, type Caller, type Lead } from "@/lib/api";
 import { formatPhone } from "@/lib/utils";
 
@@ -84,15 +84,25 @@ export default function BulkAssignment({ callers }: BulkAssignmentProps) {
       </h2>
       <p className="font-label text-xs text-on-surface-muted mb-4">Select multiple leads to dispatch or hand off to another agent queue.</p>
 
-      <div className="flex items-center gap-2 bg-[#faf8f5] border border-[#e8e3db] p-2 rounded-xl mb-4 text-xs">
-        <Search size={14} className="text-[#a8a29e] shrink-0 ml-1" />
+      <div className="relative mb-4">
+        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
         <input
           type="text"
           placeholder="Search leads name, phone, segment..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="bg-transparent w-full focus:outline-none placeholder-[#a8a29e]"
+          style={{ paddingLeft: "2rem", paddingRight: searchQuery ? "1.75rem" : "0.75rem" }}
+          className="h-9 w-full rounded-xl border border-[#e8e3db] bg-[#faf8f5] text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] hover:text-[#57534e] transition-colors"
+          >
+            <X size={12} />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto max-h-[350px] border border-[#f0ece4] rounded-2xl pr-1 mb-4">

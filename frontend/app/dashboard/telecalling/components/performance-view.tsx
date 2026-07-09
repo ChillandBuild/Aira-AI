@@ -269,25 +269,25 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
             <h2 className="font-display text-base font-bold text-primary">Agent Performance Leaderboard</h2>
             <p className="font-label text-xs text-on-surface-muted">Sort by connect rate, idle time, or quality scores to manage team output.</p>
           </div>
-          <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
-            <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Export Performance:</span>
+          <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+            <span className="font-label text-[10px] font-bold uppercase text-[#78716c]">Export:</span>
             <input
               type="date"
               value={exportSince}
               onChange={(e) => setExportSince(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="h-9 rounded-xl border border-[#e8e3db] bg-white px-2.5 font-body text-xs font-semibold text-[#292524] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
             />
-            <span className="text-[#a8a29e] text-xs">to</span>
+            <span className="text-xs text-[#a8a29e]">to</span>
             <input
               type="date"
               value={exportUntil}
               onChange={(e) => setExportUntil(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="h-9 rounded-xl border border-[#e8e3db] bg-white px-2.5 font-body text-xs font-semibold text-[#292524] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
             />
             <button
               onClick={handleExportCsv}
               disabled={exporting}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
+              className="flex h-9 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-white transition-colors hover:bg-primary/95 disabled:opacity-50"
             >
               {exporting ? <Loader2 className="animate-spin" size={12} /> : <Download size={12} />}
               CSV
