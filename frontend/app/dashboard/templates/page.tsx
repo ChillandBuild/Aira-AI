@@ -269,19 +269,68 @@ export default function TemplatesPage() {
 
       {/* Filter Results Panel */}
       <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
-        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <Filter size={13} />
+        <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <Filter size={14} />
             </span>
-            <div>
+            <div className="hidden leading-tight sm:block">
               <span className="block font-label text-[13px] font-bold text-on-surface">Filter Results</span>
               <span className="block font-body text-[10px] text-on-surface-muted">
                 {activeFilterCount > 0 ? `${activeFilterCount} active` : "All templates"}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="relative min-w-[160px] flex-1">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search templates..."
+              style={{ paddingLeft: "2rem", paddingRight: searchQuery ? "1.75rem" : "0.75rem" }}
+              className="h-9 w-full rounded-xl border border-surface-mid bg-white font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] hover:text-[#44403c] transition-colors"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          <div className="relative w-[130px] shrink-0 sm:w-[150px]">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+            >
+              <option value="ALL">All Types</option>
+              <option value="MARKETING">Marketing</option>
+              <option value="UTILITY">Utility</option>
+              <option value="AUTHENTICATION">Authentication</option>
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+          </div>
+
+          <div className="relative w-[130px] shrink-0 sm:w-[150px]">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="APPROVED">Approved</option>
+              <option value="PENDING">Pending</option>
+              <option value="REJECTED">Rejected</option>
+              <option value="PAUSED">Paused</option>
+            </select>
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
             {hasFilters && (
               <button
                 onClick={() => {
@@ -289,13 +338,13 @@ export default function TemplatesPage() {
                   setSelectedCategory("ALL");
                   setSelectedStatus("ALL");
                 }}
-                className="flex h-7 items-center gap-1 rounded-full border border-transparent px-2.5 text-[11px] font-semibold text-[#78716c] transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
+                className="flex h-9 items-center gap-1 rounded-full border border-transparent px-2.5 text-[11px] font-semibold text-[#78716c] transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
               >
-                <X size={11} /> Clear all
+                <X size={11} /> Clear
               </button>
             )}
             {/* Grid/Table Toggle */}
-            <div className="flex h-7 items-center gap-0.5 rounded-lg border border-surface-mid bg-[#f8f5ef] p-0.5">
+            <div className="flex h-9 items-center gap-0.5 rounded-lg border border-surface-mid bg-[#f8f5ef] p-0.5">
               <button
                 onClick={() => setViewMode("GRID")}
                 aria-label="Grid view"
@@ -304,7 +353,7 @@ export default function TemplatesPage() {
                   viewMode === "GRID" ? "bg-white text-primary shadow-sm" : "text-[#a8a29e] hover:text-[#44403c]"
                 }`}
               >
-                <Grid size={12} />
+                <Grid size={13} />
               </button>
               <button
                 onClick={() => setViewMode("TABLE")}
@@ -314,67 +363,8 @@ export default function TemplatesPage() {
                   viewMode === "TABLE" ? "bg-white text-primary shadow-sm" : "text-[#a8a29e] hover:text-[#44403c]"
                 }`}
               >
-                <List size={12} />
+                <List size={13} />
               </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div className="min-w-[220px] flex-1">
-            <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Search</label>
-            <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search templates..."
-                style={{ paddingLeft: "2rem", paddingRight: searchQuery ? "1.75rem" : "0.75rem" }}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] hover:text-[#44403c] transition-colors"
-                >
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="w-full sm:w-[165px]">
-            <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Type</label>
-            <div className="relative">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              >
-                <option value="ALL">All Types</option>
-                <option value="MARKETING">Marketing</option>
-                <option value="UTILITY">Utility</option>
-                <option value="AUTHENTICATION">Authentication</option>
-              </select>
-              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="w-full sm:w-[165px]">
-            <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Status</label>
-            <div className="relative">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="APPROVED">Approved</option>
-                <option value="PENDING">Pending</option>
-                <option value="REJECTED">Rejected</option>
-                <option value="PAUSED">Paused</option>
-              </select>
-              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
             </div>
           </div>
         </div>
