@@ -112,7 +112,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
   const teamOnly = isTeam ? undefined : { yesterday: null, avg7d: null };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       <Tile
         loading={loading}
         icon={<Phone size={16} />}
