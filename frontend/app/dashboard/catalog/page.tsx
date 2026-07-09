@@ -143,23 +143,13 @@ function ItemsTab() {
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <label className="relative block md:w-72">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search catalog"
-              style={{ paddingLeft: "2rem", paddingRight: query ? "1.75rem" : "0.75rem" }}
-              className="h-9 w-full rounded-xl border border-border bg-surface-low text-sm outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="h-10 w-full rounded-xl border border-border bg-surface-low pl-9 pr-3 text-sm outline-none transition-colors focus:border-primary"
             />
-            {query && (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
-              >
-                <X size={12} />
-              </button>
-            )}
           </label>
           <button
             type="button"

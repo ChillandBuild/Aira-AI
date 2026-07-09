@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search, Plus, Trash2, CheckCircle2, XCircle,
   Upload, FileText, Loader2, Info, AlertCircle,
-  Database, Sparkles, Save, MessageCircle, X
+  Database, Sparkles, Save, MessageCircle
 } from "lucide-react";
 import { api, AIPrompt, API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -292,24 +292,14 @@ export default function KnowledgePage() {
 
       {tab !== "ai-tune" && (
         <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted" />
+          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted" />
           <input
             type="text"
             placeholder="Search documents..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ paddingLeft: "2rem", paddingRight: search ? "1.75rem" : "0.75rem" }}
-            className="h-9 w-full rounded-xl bg-surface border border-surface-mid shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 font-body text-sm"
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-surface border border-surface-mid focus:outline-none focus:ring-2 focus:ring-primary font-body text-sm"
           />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted hover:text-on-surface transition-colors"
-            >
-              <X size={12} />
-            </button>
-          )}
         </div>
       )}
 

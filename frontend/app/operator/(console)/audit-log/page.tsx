@@ -99,25 +99,22 @@ export default function AuditLogPage() {
           <h1 className="text-2xl font-bold text-ink">Audit Log</h1>
           <p className="text-sm text-ink-muted mt-1">Track all operator actions across clients.</p>
         </div>
-        <div className="rounded-2xl border border-border bg-white/95 p-3 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
-            <div className="relative">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-              <input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Filter by action..."
-                style={{ paddingLeft: "2rem" }}
-                className="h-9 w-56 rounded-xl border border-border bg-white pr-3 text-xs font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              />
-            </div>
-            <button
-              onClick={load}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-bold text-ink-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 hover:text-ink focus:outline-none focus:ring-2 focus:ring-violet-200"
-            >
-              <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
-            </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Filter by action..."
+              className="pl-9 pr-3 py-2 border border-border rounded-xl text-sm w-56 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            />
           </div>
+          <button
+            onClick={load}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-ink-secondary hover:text-ink border border-border rounded-xl hover:bg-surface-mid transition-colors"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+          </button>
         </div>
       </div>
 

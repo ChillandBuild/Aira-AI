@@ -157,39 +157,39 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
               </div>
             </div>
 
-            {/* Search + sub-tabs */}
-            <div className="mb-4 flex flex-wrap items-center gap-2 shrink-0 lg:flex-nowrap">
-              <div className="relative min-w-[160px] flex-1">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+            {/* Search */}
+            <div className="mb-4 shrink-0">
+              <div className="relative">
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
                 <input
                   type="text"
                   placeholder="Search by name or phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ paddingLeft: "2rem" }}
-                  className="h-9 w-full rounded-xl border border-surface-mid bg-white pr-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#faf8f5] border border-[#e8e3db] rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all shadow-inner"
                 />
               </div>
+            </div>
 
-              <div className="flex h-9 w-full items-center gap-0.5 rounded-full border border-[#e8e3db] bg-[#f8f5ef] p-0.5 lg:w-auto">
-                {[
-                  { id: "new", label: `To Call (${newLeads.length})` },
-                  { id: "callback", label: `Callbacks (${callbackLeads.length})` },
-                  { id: "in_progress", label: `In Prog (${inProgressLeads.length})` },
-                  { id: "closed", label: `Closed (${closedLeads.length})` },
-                  { id: "dialer", label: "Manual Dial" },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setQueueSubTab(tab.id as typeof queueSubTab)}
-                    className={`flex h-full flex-1 items-center justify-center rounded-full px-1.5 font-label text-[9.5px] font-extrabold text-center whitespace-nowrap transition-all lg:flex-none lg:px-2.5 ${
-                      queueSubTab === tab.id ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:bg-white/60 hover:text-[#44403c]"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+            {/* Sub-tabs */}
+            <div className="flex gap-0.5 p-0.5 bg-[#e8e3db]/60 rounded-2xl shrink-0 mb-4">
+              {[
+                { id: "new", label: `To Call (${newLeads.length})` },
+                { id: "callback", label: `Callbacks (${callbackLeads.length})` },
+                { id: "in_progress", label: `In Prog (${inProgressLeads.length})` },
+                { id: "closed", label: `Closed (${closedLeads.length})` },
+                { id: "dialer", label: "Manual Dial" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setQueueSubTab(tab.id as typeof queueSubTab)}
+                  className={`flex-1 py-1.5 px-0 rounded-xl font-label text-[9.5px] font-extrabold text-center whitespace-nowrap transition-all ${
+                    queueSubTab === tab.id ? "bg-white text-orange-600 shadow-sm" : "text-amber-700/70 hover:text-[#292524]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
 
             {/* Lead cards or numpad */}

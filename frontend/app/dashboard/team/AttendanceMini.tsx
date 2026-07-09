@@ -114,31 +114,31 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Filters */}
-          <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap rounded-2xl border border-border-subtle bg-white/95 p-2.5 shadow-sm">
-            <span className="font-label text-[9px] text-ink-muted font-bold uppercase pl-1 shrink-0">Filter:</span>
+          <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
+            <span className="font-label text-[9px] text-[#78716c] font-bold uppercase pl-1">Filter:</span>
             <input
               type="date"
               value={fromFilter}
               max={toFilter}
               onChange={(e) => setFromFilter(e.target.value)}
-              className="h-9 w-[132px] rounded-xl border border-[#e8e3db] bg-white px-2.5 font-body text-xs font-semibold text-[#292524] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="px-1 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-[10px] text-[#292524] focus:outline-none w-24"
             />
-            <span className="text-[#a8a29e] text-xs shrink-0">to</span>
+            <span className="text-[#a8a29e] text-[10px]">to</span>
             <input
               type="date"
               value={toFilter}
               min={fromFilter}
               max={today}
               onChange={(e) => setToFilter(e.target.value)}
-              className="h-9 w-[132px] rounded-xl border border-[#e8e3db] bg-white px-2.5 font-body text-xs font-semibold text-[#292524] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="px-1 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-[10px] text-[#292524] focus:outline-none w-24"
             />
             <button
               onClick={handleExportCsv}
               disabled={filteredDays.length === 0}
               title="Download CSV"
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-label font-bold text-white shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1 px-2.5 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 disabled:cursor-not-allowed font-label text-[10px] font-bold transition-colors ml-1 shadow-sm"
             >
-              <Download size={12} /> CSV
+              <Download size={10} /> CSV
             </button>
           </div>
         </div>

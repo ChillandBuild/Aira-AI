@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw, X } from "lucide-react";
+import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -586,10 +586,10 @@ function ExportAllDropdown({ tagCount }: { tagCount: number }) {
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-surface-mid bg-white px-3 text-xs font-bold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-surface-mid text-on-surface hover:border-violet-300 font-label text-sm font-semibold transition-colors"
       >
-        <Download size={13} /> Export All
-        <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
+        <Download size={14} /> Export All
+        <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
       </button>
       {open && createPortal(
         <div
@@ -2290,46 +2290,35 @@ export default function OutboundLeadsPage() {
               <h2 className="font-display text-xl font-bold text-on-surface">Tags</h2>
               <p className="font-body text-sm text-on-surface-muted mt-0.5">Tag each broadcast by product to track interest per audience segment.</p>
             </div>
-            <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-2 shadow-sm">
-              <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
-                <div className="relative min-w-[160px]">
-                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
-                  <input
-                    type="text"
-                    placeholder="Search tags…"
-                    value={tagsSearch}
-                    onChange={(e) => setTagsSearch(e.target.value)}
-                    style={{ paddingLeft: "2rem", paddingRight: tagsSearch ? "1.75rem" : "0.75rem" }}
-                    className="h-9 w-full rounded-xl border border-surface-mid bg-white font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                  />
-                  {tagsSearch && (
-                    <button
-                      onClick={() => setTagsSearch("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] hover:text-[#44403c] transition-colors"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-                <ExportAllDropdown tagCount={tagsList.length} />
-                <button
-                  onClick={loadTags}
-                  disabled={tagsListLoading}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-surface-mid bg-white px-3 text-xs font-bold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:opacity-50"
-                >
-                  <RefreshCw size={13} className={cn("transition-transform", tagsListLoading && "animate-spin")} />
-                  Refresh
-                </button>
-                <button
-                  onClick={() => setShowCreateTag((p) => !p)}
-                  className={cn(
-                    "flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors focus:outline-none focus:ring-2 focus:ring-violet-200",
-                    showCreateTag ? "border-violet-200 bg-violet-50 text-violet-700" : "border-surface-mid bg-white text-on-surface hover:border-violet-200"
-                  )}
-                >
-                  <Plus size={14} />{showCreateTag ? "Cancel" : "New Tag"}
-                </button>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search tags…"
+                  value={tagsSearch}
+                  onChange={(e) => setTagsSearch(e.target.value)}
+                  className="w-40 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-surface-mid rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300 transition-all"
+                />
               </div>
+              <ExportAllDropdown tagCount={tagsList.length} />
+              <button
+                onClick={loadTags}
+                disabled={tagsListLoading}
+                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface border border-surface-mid text-on-surface hover:border-violet-300 font-label text-sm font-semibold transition-colors disabled:opacity-50"
+              >
+                <RefreshCw size={14} className={cn("transition-transform", tagsListLoading && "animate-spin")} />
+                Refresh
+              </button>
+              <button
+                onClick={() => setShowCreateTag((p) => !p)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 rounded-xl font-label text-sm font-semibold transition-colors border",
+                  showCreateTag ? "bg-violet-50 border-violet-200 text-violet-700" : "bg-surface border-surface-mid text-on-surface hover:border-violet-300"
+                )}
+              >
+                <Plus size={16} />{showCreateTag ? "Cancel" : "New Tag"}
+              </button>
             </div>
           </div>
 
@@ -2496,58 +2485,47 @@ export default function OutboundLeadsPage() {
               </div>
             </div>
             {!historyLoading && broadcastHistory.length > 0 && (
-              <div className="rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-sm">
-                <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
-                  <div className="relative min-w-[140px] flex-1 sm:min-w-40 sm:flex-none">
-                    <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search…"
-                      value={historySearch}
-                      onChange={(e) => setHistorySearch(e.target.value)}
-                      style={{ paddingLeft: "2rem", paddingRight: historySearch ? "1.75rem" : "0.75rem" }}
-                      className="h-9 w-full rounded-xl border border-gray-200 bg-white font-body text-xs font-semibold text-gray-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                    />
-                    {historySearch && (
-                      <button
-                        onClick={() => setHistorySearch("")}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    onClick={downloadHistoryCsv}
-                    className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                  >
-                    <Download size={13} />
-                    Broadcast History
-                  </button>
-                  <div className="flex h-9 shrink-0 items-center gap-0.5 rounded-xl border border-gray-200 bg-gray-50 p-0.5">
-                    {(["all", "failures", "clean"] as const).map((f) => (
-                      <button
-                        key={f}
-                        onClick={() => setHistoryStatusFilter(f)}
-                        className={cn(
-                          "flex h-full items-center rounded-lg px-2.5 text-xs font-bold transition-all",
-                          historyStatusFilter === f
-                            ? "bg-white text-primary shadow-sm"
-                            : "text-gray-500 hover:text-gray-700"
-                        )}
-                      >
-                        {f === "all" ? "All" : f === "failures" ? "Failures" : "Clean"}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    onClick={refreshHistory}
-                    className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                  >
-                    <RotateCcw size={13} />
-                    Refresh
-                  </button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="relative">
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search…"
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    className="w-full min-w-0 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all sm:min-w-40"
+                  />
                 </div>
+                <button
+                  onClick={downloadHistoryCsv}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 text-white rounded-lg font-label text-xs font-semibold hover:bg-emerald-600 transition-all shadow-sm"
+                >
+                  <Download size={12} />
+                  Broadcast History
+                </button>
+                <div className="flex bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  {(["all", "failures", "clean"] as const).map((f) => (
+                    <button
+                      key={f}
+                      onClick={() => setHistoryStatusFilter(f)}
+                      className={cn(
+                        "px-2.5 py-1.5 font-label text-xs font-semibold transition-all",
+                        historyStatusFilter === f
+                          ? "bg-emerald-500 text-white"
+                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                      )}
+                    >
+                      {f === "all" ? "All" : f === "failures" ? "Failures" : "Clean"}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={refreshHistory}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg font-label text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                >
+                  <RotateCcw size={12} />
+                  Refresh
+                </button>
               </div>
             )}
           </div>

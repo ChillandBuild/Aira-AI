@@ -219,6 +219,18 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
     }
   }
 
+  function getPlatformBg(selected: boolean, source: string): string {
+    if (!selected) return "bg-surface-low text-on-surface-muted hover:bg-surface-mid hover:text-on-surface";
+    switch (source) {
+      case "whatsapp": return "bg-green-500 text-white shadow-sm";
+      case "instagram": return "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm";
+      case "facebook": return "bg-blue-600 text-white shadow-sm";
+      case "telegram": return "bg-sky-500 text-white shadow-sm";
+      case "all": return "bg-primary text-white shadow-sm";
+      default: return "bg-primary text-white shadow-sm";
+    }
+  }
+
   return (
     <div className="w-full flex-shrink-0 bg-surface border-r border-surface-mid flex flex-col h-full shadow-[2px_0_10px_rgba(0,0,0,0.02)] z-10 relative">
       <div className="px-4 py-3 border-b border-surface-mid bg-surface relative z-10">
@@ -282,14 +294,13 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
             {/* ── Search + Filter + Refresh row ── */}
             <div className="flex items-center gap-2">
               <div className="relative flex-1 group">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted group-focus-within:text-violet-600 transition-colors" />
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted group-focus-within:text-primary transition-colors" />
                 <input
                   type="text"
                   placeholder="Type and submit to search"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ paddingLeft: "2rem", paddingRight: searchQuery ? "1.75rem" : "0.75rem" }}
-                  className="h-9 w-full rounded-xl border border-surface-mid bg-white text-xs font-semibold text-on-surface placeholder:font-normal placeholder:text-on-surface-muted shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  className="w-full pl-8 pr-7 py-2 bg-surface-low border border-surface-mid rounded-xl text-[13px] text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted hover:text-on-surface p-0.5 rounded-full hover:bg-surface-mid transition-colors">
@@ -301,22 +312,22 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                 onClick={() => setFiltersOpen((v) => !v)}
                 title="Filters"
                 className={cn(
-                  "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                  "w-9 h-9 rounded-xl flex items-center justify-center transition-colors shrink-0 relative",
                   filtersOpen
-                    ? "bg-violet-50 border-violet-200 text-violet-700"
-                    : "bg-white border-surface-mid text-on-surface-muted hover:border-violet-200 hover:text-violet-700"
+                    ? "bg-primary text-white shadow-sm"
+                    : "bg-surface-low border border-surface-mid text-on-surface-muted hover:bg-surface-mid"
                 )}
               >
                 <Filter size={14} />
                 {(segment !== null || platform !== "all") && !filtersOpen && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-violet-600 ring-2 ring-surface" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
                 )}
               </button>
               <button
                 onClick={handleRefresh}
                 title="Refresh"
                 disabled={isRefreshing}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-surface-mid bg-white text-on-surface-muted transition-colors hover:border-violet-200 hover:text-violet-700 disabled:opacity-60"
+                className="w-9 h-9 rounded-xl bg-surface-low border border-surface-mid flex items-center justify-center text-on-surface-muted hover:bg-surface-mid transition-colors shrink-0 disabled:opacity-60"
               >
                 <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
               </button>
@@ -324,70 +335,50 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
 
             {/* ── Collapsible filter panel ── */}
             {filtersOpen && (
-              <div className="mt-3 space-y-2.5 pb-1">
-                <div className="flex flex-wrap gap-1.5">
+              <div className="mt-3 space-y-3 pb-1">
+                <div className="flex gap-1.5 flex-wrap">
                   {PLATFORMS.map((p) => {
                     const count = p.value === "all" ? platformCounts.all : (platformCounts[p.value] ?? 0);
                     const Icon = p.icon;
-                    const active = platform === p.value;
                     return (
                       <button
                         key={p.value}
                         onClick={() => onPlatformChange(p.value)}
                         className={cn(
-                          "flex h-7 sm:h-8 items-center gap-1.5 rounded-full border px-2.5 font-label text-xs font-semibold transition-colors",
-                          active
-                            ? "border-violet-200 bg-violet-100 text-violet-700"
-                            : "border-surface-mid bg-white text-on-surface-muted hover:border-violet-200 hover:text-violet-700"
+                          "px-2.5 py-1.5 rounded-lg font-label text-[11px] font-semibold transition-all duration-200 flex items-center gap-1.5",
+                          getPlatformBg(platform === p.value, p.value)
                         )}
                       >
-                        <Icon size={11} className={active ? "text-violet-700" : getPlatformColor(p.value === "all" ? "whatsapp" : p.value)} />
+                        <Icon size={11} className={platform === p.value ? "text-white" : getPlatformColor(p.value === "all" ? "whatsapp" : p.value)} />
                         {p.label === "WhatsApp" ? "WA" : p.label === "All" ? "All" : p.label.substring(0, 4)}
-                        <span className={cn("min-w-[18px] rounded-full px-1.5 py-0.5 text-center text-[9px] font-bold", active ? "bg-violet-200/70 text-violet-800" : "bg-surface-mid text-on-surface-muted")}>
+                        <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[18px] text-center", platform === p.value ? "bg-white/20 text-white" : "bg-surface-mid text-on-surface-muted")}>
                           {count}
                         </span>
                       </button>
                     );
                   })}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex gap-1.5 flex-wrap">
                   {SEGMENTS.map((f) => {
                     const count = leads.filter(l => l.segment === f.value && (platform === "all" || getLeadPlatform(l) === platform)).length;
-                    const active = segment === f.value;
                     return (
                       <button
                         key={f.value}
                         onClick={() => setSegment(segment === f.value ? null : f.value)}
                         className={cn(
-                          "flex h-7 sm:h-8 items-center gap-1.5 rounded-full border px-2.5 font-label text-xs font-semibold transition-colors",
-                          active
-                            ? "border-violet-200 bg-violet-100 text-violet-700"
-                            : "border-surface-mid bg-white text-on-surface-muted hover:border-violet-200 hover:text-violet-700"
+                          "px-2.5 py-1 rounded-lg font-label text-[11px] font-semibold transition-all duration-200 flex items-center gap-1.5",
+                          segment === f.value ? "bg-primary text-white shadow-sm" : "bg-surface-low text-on-surface-muted hover:bg-surface-mid hover:text-on-surface"
                         )}
                       >
                         {f.label}
-                        <span className={cn("min-w-[18px] rounded-full px-1.5 py-0.5 text-center text-[9px] font-bold", active ? "bg-violet-200/70 text-violet-800" : "bg-surface-mid text-on-surface-muted")}>
+                        <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[18px] text-center", segment === f.value ? "bg-white/20 text-white" : "bg-surface-mid text-on-surface-muted")}>
                           {count}
                         </span>
                       </button>
                     );
                   })}
                 </div>
-                <div className="flex items-center justify-between pt-0.5">
-                  <p className="font-label text-[11px] text-on-surface-muted">{visible.length} conversations</p>
-                  {(segment !== null || platform !== "all" || searchQuery) && (
-                    <button
-                      onClick={() => {
-                        setSearchQuery("");
-                        setSegment(null);
-                        onPlatformChange("all");
-                      }}
-                      className="flex h-7 items-center gap-1 rounded-full border border-transparent px-2 text-[11px] font-semibold text-on-surface-muted transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <X size={11} /> Clear all filters
-                    </button>
-                  )}
-                </div>
+                <p className="font-label text-[11px] text-on-surface-muted">{visible.length} conversations</p>
               </div>
             )}
           </>

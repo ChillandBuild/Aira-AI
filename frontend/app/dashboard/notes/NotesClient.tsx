@@ -243,50 +243,47 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
       {pageMode === "all_notes" ? (
         <div className="space-y-4">
           {/* Filters bar */}
-          <div className="bg-[#faf8f5] rounded-2xl border border-[#e8e3db] p-3">
-            <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
-              <div className="relative min-w-[180px] flex-1">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
-                <input
-                  type="text" placeholder="Search notes, lead name or phone…" value={boardSearch}
-                  onChange={(e) => setBoardSearch(e.target.value)}
-                  style={{ paddingLeft: "2rem" }}
-                  className="h-9 w-full rounded-xl bg-white border border-[#e8e3db] font-body text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-                />
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                {(["A", "B", "C", "D"] as const).map((seg) => (
-                  <button
-                    key={seg}
-                    onClick={() => setBoardSegment(boardSegment === seg ? null : seg)}
-                    className={`h-7 sm:h-8 px-2.5 rounded-full border text-xs font-semibold transition-all ${
-                      boardSegment === seg ? `${SEGMENT_COLORS[seg]} border-transparent` : "bg-white border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
-                    }`}
-                  >
-                    {SEGMENT_LABELS[seg]}
-                  </button>
-                ))}
+          <div className="bg-[#faf8f5] rounded-2xl border border-[#e8e3db] p-4 space-y-3">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+              <input
+                type="text" placeholder="Search notes, lead name or phone…" value={boardSearch}
+                onChange={(e) => setBoardSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(["A", "B", "C", "D"] as const).map((seg) => (
                 <button
-                  onClick={() => setBoardPinnedOnly((v) => !v)}
-                  className={`flex items-center gap-1 h-7 sm:h-8 px-2.5 rounded-full border text-xs font-semibold transition-all ${
-                    boardPinnedOnly ? "bg-amber-100 text-amber-700 border-transparent" : "bg-white border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
+                  key={seg}
+                  onClick={() => setBoardSegment(boardSegment === seg ? null : seg)}
+                  className={`px-2.5 py-1 rounded-full border font-label text-[10px] font-black uppercase transition-all ${
+                    boardSegment === seg ? `${SEGMENT_COLORS[seg]} border-transparent` : "bg-white border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
                   }`}
                 >
-                  <Pin size={11} /> Pinned
+                  {SEGMENT_LABELS[seg]}
                 </button>
-                {boardTags.length > 0 && <span className="w-px h-5 bg-[#e8e3db] mx-1" />}
-                {boardTags.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setBoardTag(boardTag === t ? null : t)}
-                    className={`h-7 sm:h-8 px-2.5 rounded-full border text-xs font-semibold transition-all ${
-                      boardTag === t ? "ring-2 ring-current ring-offset-1" : "opacity-60 hover:opacity-100"
-                    } bg-primary-light text-primary border-primary-muted`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+              ))}
+              <button
+                onClick={() => setBoardPinnedOnly((v) => !v)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full border font-label text-[10px] font-bold uppercase transition-all ${
+                  boardPinnedOnly ? "bg-amber-100 text-amber-700 border-transparent" : "bg-white border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
+                }`}
+              >
+                <Pin size={10} /> Pinned
+              </button>
+              {boardTags.length > 0 && <span className="w-px h-4 bg-[#e8e3db] mx-1" />}
+              {boardTags.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setBoardTag(boardTag === t ? null : t)}
+                  className={`px-2 py-0.5 rounded-full border font-label text-[10px] font-semibold transition-all ${
+                    boardTag === t ? "ring-2 ring-current ring-offset-1" : "opacity-60 hover:opacity-100"
+                  } bg-primary-light text-primary border-primary-muted`}
+                >
+                  {t}
+                </button>
+              ))}
             </div>
           </div>
 

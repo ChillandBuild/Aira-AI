@@ -100,33 +100,33 @@ export function AuditLogsView({ tenantId, clientName }: { tenantId: string; clie
       )}
 
       {/* Date range + Download */}
-      <div className="rounded-2xl border border-border bg-white/95 p-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
-          <div className="flex shrink-0 items-center gap-2">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">From</label>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-ink-muted">From</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className="h-9 rounded-xl border border-border bg-white px-3 text-xs font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">To</label>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-ink-muted">To</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className="h-9 rounded-xl border border-border bg-white px-3 text-xs font-semibold text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
             />
           </div>
-          <button
-            onClick={handleDownloadCsv}
-            className="ml-auto flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-white shadow-sm transition-colors hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-violet-200"
-          >
-            <Download size={13} /> Export CSV
-          </button>
         </div>
+        <button
+          onClick={handleDownloadCsv}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-dark transition-colors"
+        >
+          <Download size={14} /> Export CSV
+        </button>
       </div>
 
       {/* Table */}
