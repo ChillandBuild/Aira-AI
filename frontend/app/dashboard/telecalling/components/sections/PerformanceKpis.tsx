@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, TrendingUp, Clock, Coffee, Award, BarChart2, Loader2 } from "lucide-react";
+import { Phone, TrendingUp, Clock, Coffee, Award, BarChart2, Loader2, UserCheck, RefreshCw } from "lucide-react";
 import type { TelecallingAnalyticsExtended } from "@/lib/api";
 import {
   formatTalk, formatPct, formatMinutes,
@@ -80,6 +80,8 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
     ? (callerStats?.conversion_rate ?? 0)
     : (callsVal > 0 ? conversions / callsVal : 0);
   const quality = callerStats?.overall_score;
+  const interestedLeads = stats?.interested_leads ?? stats?.outcome_breakdown?.interested ?? 0;
+  const followups = stats?.followups_scheduled ?? 0;
 
   const compConvRate = (m: { conversions: number; calls: number }) => (m.calls > 0 ? (m.conversions / m.calls) * 100 : 0);
 
@@ -112,7 +114,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
   const teamOnly = isTeam ? undefined : { yesterday: null, avg7d: null };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       <Tile
         loading={loading}
         icon={<Phone size={16} />}
@@ -162,6 +164,26 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         deltas={isTeam ? convRateDeltas : teamOnly}
         deltaOpts={{ unit: "pts" }}
       />
+      {isTeam && (
+        <Tile
+          loading={loading}
+          icon={<UserCheck size={16} />}
+          iconClass="bg-indigo-50 text-indigo-600"
+          value={String(interestedLeads)}
+          label="Interested Leads"
+          tooltip="Leads marked 'interested' today — warm pipeline"
+        />
+      )}
+      {isTeam && (
+        <Tile
+          loading={loading}
+          icon={<RefreshCw size={16} />}
+          iconClass="bg-orange-50 text-orange-600"
+          value={String(followups)}
+          label="Follow-ups"
+          tooltip="Follow-ups / callbacks scheduled today"
+        />
+      )}
       {!isTeam && (
         <Tile
           loading={loading}
