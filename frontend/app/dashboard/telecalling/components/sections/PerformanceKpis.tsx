@@ -79,7 +79,14 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
   const convRate = selectedCallerId
     ? (callerStats?.conversion_rate ?? 0)
     : (callsVal > 0 ? conversions / callsVal : 0);
-  const quality = selectedCallerId ? callerStats?.quality_avg : stats?.quality_avg;
+  const quality = selectedCallerId
+    ? callerStats?.overall_score
+    : (() => {
+        const scored = (stats?.per_caller ?? []).filter(c => c.overall_score != null);
+        return scored.length
+          ? scored.reduce((sum, c) => sum + c.overall_score!, 0) / scored.length
+          : null;
+      })();
 
   const compConvRate = (m: { conversions: number; calls: number }) => (m.calls > 0 ? (m.conversions / m.calls) * 100 : 0);
 

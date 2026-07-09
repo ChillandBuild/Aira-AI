@@ -20,7 +20,7 @@ import BulkAssignment from "./sections/BulkAssignment";
 import LeadProfileModal from "./sections/LeadProfileModal";
 
 type SortField =
-  | "name" | "calls_today" | "connect_rate" | "avg_talk_seconds" | "idle_minutes_today" | "quality_avg";
+  | "name" | "calls_today" | "connect_rate" | "avg_talk_seconds" | "idle_minutes_today" | "overall_score";
 
 export default function PerformanceView({ callers, adminCaller }: { callers: Caller[]; adminCaller?: Caller | null }) {
   const [stats, setStats] = useState<TelecallingAnalyticsExtended | null>(null);
@@ -178,9 +178,9 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
       } else if (sortField === "idle_minutes_today") {
         valA = a.idle_minutes_today || 0;
         valB = b.idle_minutes_today || 0;
-      } else if (sortField === "quality_avg") {
-        valA = a.quality_avg || 0;
-        valB = b.quality_avg || 0;
+      } else if (sortField === "overall_score") {
+        valA = a.overall_score || 0;
+        valB = b.overall_score || 0;
       }
       if (valA < valB) return sortDirection === "asc" ? -1 : 1;
       if (valA > valB) return sortDirection === "asc" ? 1 : -1;
@@ -304,7 +304,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("connect_rate")}>Connect Rate {sortIcon("connect_rate")}</th>
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("avg_talk_seconds")}>Avg Talk Time {sortIcon("avg_talk_seconds")}</th>
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("idle_minutes_today")}>Idle Minutes {sortIcon("idle_minutes_today")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("quality_avg")}>Quality Score {sortIcon("quality_avg")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("overall_score")}>Overall Score {sortIcon("overall_score")}</th>
                 <th className="py-3 px-4">Bunking Alert</th>
                 <th className="py-3 px-4">Daily Target</th>
               </tr>
@@ -344,7 +344,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                         {row.idle_minutes_today ? `${Math.round(row.idle_minutes_today)} min` : "0 min"}
                       </td>
                       <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
-                        {row.quality_avg ? `${row.quality_avg.toFixed(1)}/10` : "\u2014"}
+                        {row.overall_score != null ? `${row.overall_score.toFixed(1)}/10` : "\u2014"}
                       </td>
                       <td className="py-3.5 px-4">
                         {row.bunking_flag ? (
