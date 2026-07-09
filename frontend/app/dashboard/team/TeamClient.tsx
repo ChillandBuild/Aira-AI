@@ -10,6 +10,7 @@ import { useCallers } from "@/hooks/useApi";
 
 import AssignmentLog from "../telecalling/components/assignment-log";
 import PerformanceView from "../telecalling/components/performance-view";
+import WinnerBanner from "./WinnerBanner";
 
 /* ──────────────────────────── Main Client Component ──────────────────────────── */
 interface TeamClientProps {
@@ -166,6 +167,8 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
           <UserPlus size={14} /> Add Telecaller
         </button>
       </div>
+
+      <WinnerBanner />
 
       {tab === "log" ? (
         <AssignmentLog callers={callers} />

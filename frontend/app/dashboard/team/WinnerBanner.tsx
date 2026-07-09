@@ -43,7 +43,7 @@ function WinnerCard({
   const shimmerClass = isDaily ? "bg-amber-300/40" : "bg-violet-400/40";
 
   const label = isDaily ? "⚡ Daily Winner" : "👑 Monthly Champion";
-  const emptyMsg = isDaily ? "No conversions yet today" : "No callers yet";
+  const emptyMsg = isDaily ? "No calls yet today" : "No callers yet";
 
   if (loading) {
     return (
@@ -92,8 +92,11 @@ function WinnerCard({
             <p className="text-white/75 text-sm mt-0.5 font-medium">
               {isDaily ? (
                 <>
-                  <span className="text-white font-bold text-base">{winner.value}</span>{" "}
-                  {winner.label}
+                  Score{" "}
+                  <span className="text-white font-bold text-base">{winner.value.toFixed(1)}</span>
+                  {winner.label && (
+                    <span className="text-white/60 text-xs ml-2">· {winner.label}</span>
+                  )}
                 </>
               ) : (
                 <>

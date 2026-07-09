@@ -14,7 +14,7 @@ from app.services.assignment import (
     save_telecalling_config,
 )
 from app.services.call_coach import coaching_tip
-from app.services.call_scorer import MIN_MONTHLY_CALLS
+from app.services.call_scorer import MIN_DAILY_CALLS, MIN_MONTHLY_CALLS
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -570,8 +570,8 @@ async def list_caller_logs(caller_id: UUID, tenant_id: str = Depends(get_owner_t
 @router.get("/winners")
 async def get_winners(tenant_id: str = Depends(get_owner_tenant_id)):
     """
-    Return the daily winner (most conversions today) and monthly winner
-    (highest overall_score this month) for the tenant's callers.
+    Return the daily winner (highest average call score today, min 3 calls)
+    and monthly winner (highest overall_score this month, min 20 calls).
     Both fields can be None if no eligible callers exist.
     """
     db = get_supabase()
@@ -588,25 +588,35 @@ async def get_winners(tenant_id: str = Depends(get_owner_tenant_id)):
         owner_callers = db.table("callers").select("id").eq("tenant_id", tenant_id).eq("user_id", owner_user_id).execute()
         excluded_caller_ids = {c["id"] for c in (owner_callers.data or [])}
 
-    # ── Daily winner: most conversions today ──────────────────────────────────
+    # ── Daily winner: highest average score today ───────────────────────────
+    # Uses per-call score (call_logs.score) which is written immediately on
+    # call completion — no AI evaluation delay.  Minimum call threshold
+    # prevents a single lucky call from gaming the ranking.
     daily_logs = (
         db.table("call_logs")
-        .select("caller_id")
+        .select("caller_id,score")
         .eq("tenant_id", tenant_id)
-        .eq("outcome", "converted")
         .gte("created_at", today_start)
+        .not_.is_("score", "null")
         .execute()
     )
 
     daily_winner = None
     if daily_logs.data:
-        counts: dict[str, int] = {}
+        caller_scores: dict[str, list[float]] = {}
         for row in daily_logs.data:
             cid = row.get("caller_id")
             if cid and cid not in excluded_caller_ids:
-                counts[cid] = counts.get(cid, 0) + 1
-        if counts:
-            top_cid = max(counts, key=lambda k: counts[k])
+                caller_scores.setdefault(cid, []).append(float(row["score"]))
+        # Filter to callers who meet the minimum daily call threshold
+        eligible = [
+            (cid, round(sum(scores) / len(scores), 1))
+            for cid, scores in caller_scores.items()
+            if len(scores) >= MIN_DAILY_CALLS
+        ]
+        if eligible:
+            eligible.sort(key=lambda x: x[1], reverse=True)
+            top_cid, top_avg = eligible[0]
             caller_row = (
                 db.table("callers")
                 .select("id,name,overall_score")
@@ -620,8 +630,8 @@ async def get_winners(tenant_id: str = Depends(get_owner_tenant_id)):
                 daily_winner = {
                     "caller_id": top_cid,
                     "name": caller_row.data.get("name", "Unknown"),
-                    "value": counts[top_cid],
-                    "label": "conversions today",
+                    "value": top_avg,
+                    "label": "avg score today",
                 }
 
     # ── Monthly winner: highest overall_score (active callers) ────────────────

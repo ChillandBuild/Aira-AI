@@ -13,6 +13,7 @@ OUTCOME_SCORES: dict[str, float] = {
 DEFAULT_BASELINE = 7.0
 ROLLING_WINDOW = 10
 MIN_MONTHLY_CALLS = 20
+MIN_DAILY_CALLS = 3
 
 # Weight split between outcome-based score and AI evaluation score.
 # When AI evaluation is not available, outcome score carries 100%.
