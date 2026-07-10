@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone, TrendingUp, Clock, Coffee, Award, BarChart2, Loader2 } from "lucide-react";
+import { Phone, TrendingUp, Clock, Coffee, Award, BarChart2, Loader2, Zap, Headphones } from "lucide-react";
 import type { TelecallingAnalyticsExtended } from "@/lib/api";
 import {
   formatTalk, formatPct, formatMinutes,
@@ -80,6 +80,8 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
     ? (callerStats?.conversion_rate ?? 0)
     : (callsVal > 0 ? conversions / callsVal : 0);
   const quality = callerStats?.overall_score;
+  const speedToLead = callerStats?.speed_to_lead_min;
+  const talkMinutes = callerStats?.talk_minutes_today ?? 0;
 
   const compConvRate = (m: { conversions: number; calls: number }) => (m.calls > 0 ? (m.conversions / m.calls) * 100 : 0);
 
@@ -112,7 +114,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
   const teamOnly = isTeam ? undefined : { yesterday: null, avg7d: null };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       <Tile
         loading={loading}
         icon={<Phone size={16} />}
@@ -170,6 +172,26 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
           value={quality ? `${quality.toFixed(1)}/10` : "—"}
           label="Overall Score"
           tooltip="Rolling average of last 10 calls (outcome + AI eval)"
+        />
+      )}
+      {!isTeam && (
+        <Tile
+          loading={loading}
+          icon={<Zap size={16} />}
+          iconClass="bg-yellow-50 text-yellow-600"
+          value={speedToLead != null ? `${speedToLead.toFixed(1)} min` : "—"}
+          label="Speed to Lead"
+          tooltip="Median minutes before calling back a new lead. Lower is better."
+        />
+      )}
+      {!isTeam && (
+        <Tile
+          loading={loading}
+          icon={<Headphones size={16} />}
+          iconClass="bg-cyan-50 text-cyan-600"
+          value={formatMinutes(talkMinutes)}
+          label="Total Talk Time"
+          tooltip="Total minutes spent talking today"
         />
       )}
       <Tile
