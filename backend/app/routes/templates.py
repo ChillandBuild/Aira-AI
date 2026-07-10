@@ -52,6 +52,21 @@ class CarouselCard(BaseModel):
 _SUPPORTED_TEMPLATE_LANGUAGES = {"en", "en_US", "en_IN", "hi", "kn", "ml", "ta", "te"}
 
 
+def _belongs_to_current_waba(template: dict, current_waba_id: str | None) -> bool:
+    """Remote templates are account-scoped; local drafts without Meta ids stay visible."""
+    if not current_waba_id:
+        return True
+    row_waba_id = template.get("meta_waba_id")
+    if row_waba_id == current_waba_id:
+        return True
+    status = (template.get("status") or "PENDING").upper()
+    return not row_waba_id and not template.get("meta_template_id") and status not in {"APPROVED", "PAUSED"}
+
+
+def _filter_templates_for_waba(templates: list[dict], current_waba_id: str | None) -> list[dict]:
+    return [t for t in templates if _belongs_to_current_waba(t, current_waba_id)]
+
+
 def _validate_body_variables(body_text: str) -> str:
     """Mirrors Meta's hard template rules (subcode 2388299: leading/trailing
     variables; sequential numbering) so bad submissions fail fast with a
@@ -102,7 +117,8 @@ class CreateTemplate(BaseModel):
 async def list_templates(tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
     result = db.table("message_templates").select("*").eq("tenant_id", tenant_id).order("submitted_at", desc=True).execute()
-    return {"data": result.data or []}
+    waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
+    return {"data": _filter_templates_for_waba(result.data or [], waba_id)}
 
 
 @router.post("/")
@@ -125,9 +141,11 @@ async def create_template(payload: CreateTemplate, tenant_id: str = Depends(get_
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
 
     db = get_supabase()
-    existing = db.table("message_templates").select("id").eq("name", name).eq("tenant_id", tenant_id).limit(1).execute()
-    if existing.data:
+    existing = db.table("message_templates").select("id,meta_template_id,meta_waba_id").eq("name", name).eq("tenant_id", tenant_id).execute()
+    existing_rows = existing.data or []
+    if any(_belongs_to_current_waba(row, waba_id) for row in existing_rows):
         raise HTTPException(status_code=409, detail=f"Template '{name}' already exists")
+    stale_existing_id = existing_rows[0]["id"] if existing_rows and waba_id else None
 
     meta_template_id = None
     status = "PENDING"
@@ -183,6 +201,7 @@ async def create_template(payload: CreateTemplate, tenant_id: str = Depends(get_
         ),
         "status": status,
         "meta_template_id": meta_template_id,
+        "meta_waba_id": waba_id,
         "tenant_id": tenant_id,
     }
     if payload.header_text:
@@ -190,7 +209,10 @@ async def create_template(payload: CreateTemplate, tenant_id: str = Depends(get_
     if payload.footer_text:
         db_insert["footer_text"] = payload.footer_text
 
-    result = db.table("message_templates").insert(db_insert).execute()
+    if stale_existing_id:
+        result = db.table("message_templates").update(db_insert).eq("id", stale_existing_id).eq("tenant_id", tenant_id).execute()
+    else:
+        result = db.table("message_templates").insert(db_insert).execute()
 
     return result.data[0]
 
@@ -199,7 +221,7 @@ async def create_template(payload: CreateTemplate, tenant_id: str = Depends(get_
 async def delete_template(template_id: str, tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
     # Fetch the template first so we can delete from Meta too
-    row = db.table("message_templates").select("name,meta_template_id").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
+    row = db.table("message_templates").select("name,meta_template_id,meta_waba_id").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
     if not row.data:
         raise HTTPException(status_code=404, detail="Template not found")
 
@@ -234,20 +256,24 @@ async def sync_template_status(template_id: str, tenant_id: str = Depends(get_te
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
     if not waba_id:
         raise HTTPException(status_code=400, detail="meta_waba_id not configured in Settings")
+    if not _belongs_to_current_waba(row.data[0], waba_id):
+        raise HTTPException(status_code=404, detail="Template not found for current WABA")
 
     meta_info = await get_template_status(waba_id=waba_id, template_name=row.data[0]["name"], tenant_id=tenant_id)
     if not meta_info:
         raise HTTPException(status_code=502, detail="Template not found on Meta — check WABA ID and access token in Settings")
 
     new_status = meta_info.get("status", "PENDING").upper()
-    updates: dict = {"status": new_status}
+    updates: dict = {"status": new_status, "meta_waba_id": waba_id}
+    if meta_info.get("id"):
+        updates["meta_template_id"] = str(meta_info["id"])
     if new_status == "APPROVED":
         updates["approved_at"] = datetime.now(timezone.utc).isoformat()
     if meta_info.get("rejected_reason"):
         updates["rejection_reason"] = meta_info["rejected_reason"]
 
-    db.table("message_templates").update(updates).eq("id", template_id).execute()
-    updated = db.table("message_templates").select("*").eq("id", template_id).limit(1).execute()
+    db.table("message_templates").update(updates).eq("id", template_id).eq("tenant_id", tenant_id).execute()
+    updated = db.table("message_templates").select("*").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
     return updated.data[0] if updated.data else None
 
 
@@ -263,7 +289,7 @@ async def sync_templates_from_meta(tenant_id: str = Depends(get_tenant_id)):
         return {"added": 0, "updated": 0, "total": 0}
 
     db = get_supabase()
-    existing_rows = db.table("message_templates").select("name,status,meta_template_id").eq("tenant_id", tenant_id).execute()
+    existing_rows = db.table("message_templates").select("*").eq("tenant_id", tenant_id).execute()
     existing_by_name = {r["name"]: r for r in (existing_rows.data or [])}
 
     added = 0
@@ -305,16 +331,28 @@ async def sync_templates_from_meta(tenant_id: str = Depends(get_tenant_id)):
                 buttons = comp.get("buttons", [])
 
         if name in existing_by_name:
-            # Update status and rejection reason if changed
+            # Sync is authoritative for the active WABA. If this row came from a
+            # previous Meta account, overwrite the account-bound fields too.
             current = existing_by_name[name]
-            if current.get("status") != status or (rejection_reason and not current.get("rejection_reason")):
-                updates: dict = {"status": status}
-                if rejection_reason:
-                    updates["rejection_reason"] = rejection_reason
-                if status == "APPROVED":
-                    updates["approved_at"] = datetime.now(timezone.utc).isoformat()
-                if meta_id and not current.get("meta_template_id"):
-                    updates["meta_template_id"] = meta_id
+            updates: dict = {
+                "status": status,
+                "category": category,
+                "language": language,
+                "body_text": body_text,
+                "meta_template_id": meta_id,
+                "meta_waba_id": waba_id,
+                "rejection_reason": rejection_reason,
+                "header_text": header_text,
+                "header_media_type": header_media_type,
+                "header_media_url": header_media_url,
+                "footer_text": footer_text,
+                "buttons": buttons,
+            }
+            if status == "APPROVED":
+                updates["approved_at"] = datetime.now(timezone.utc).isoformat()
+
+            changed = any(current.get(k) != v for k, v in updates.items())
+            if changed:
                 db.table("message_templates").update(updates).eq("name", name).eq("tenant_id", tenant_id).execute()
                 updated += 1
         else:
@@ -326,6 +364,7 @@ async def sync_templates_from_meta(tenant_id: str = Depends(get_tenant_id)):
                 "body_text": body_text,
                 "status": status,
                 "meta_template_id": meta_id,
+                "meta_waba_id": waba_id,
                 "rejection_reason": rejection_reason,
                 "approved_at": datetime.now(timezone.utc).isoformat() if status == "APPROVED" else None,
                 "tenant_id": tenant_id,
