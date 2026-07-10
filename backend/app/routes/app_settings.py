@@ -27,6 +27,13 @@ class ActivateChannelRequest(BaseModel):
     channel: str  # whatsapp | instagram | facebook | telegram
 
 
+class EmbeddedSignupRequest(BaseModel):
+    code: str
+    waba_id: str
+    phone_number_id: str
+    business_id: str | None = None
+
+
 class InboxConfigUpdate(BaseModel):
     enabled: bool | None = None
     auto_assign_enabled: bool | None = None
@@ -519,6 +526,111 @@ async def activate_channel(
         "channel": channel,
         "page_name": data.get("name"),
         "page_id": data.get("id"),
+        "subscribed": subscribed,
+    }
+
+
+@router.post("/whatsapp/embedded-signup")
+async def whatsapp_embedded_signup(
+    payload: EmbeddedSignupRequest,
+    ctx: dict = Depends(require_owner),
+    user: dict = Depends(get_current_user),
+):
+    """Finish WhatsApp Embedded Signup: exchange the popup's code for a token,
+    register the phone number, subscribe the webhook, and save credentials —
+    the automated replacement for manually pasting them in below."""
+    from app.services.meta_cloud import exchange_embedded_signup_code, register_phone_number
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+
+    exchange = await exchange_embedded_signup_code(payload.code)
+    access_token = exchange["access_token"]
+
+    pin = "".join(secrets.choice("0123456789") for _ in range(6))
+    reg_result = await register_phone_number(payload.phone_number_id, access_token, pin)
+    if "error" in reg_result:
+        logger.warning(f"Embedded Signup: phone registration failed tenant={tenant_id}: {reg_result['error']}")
+
+    async with httpx.AsyncClient() as client:
+        sub_r = await client.post(
+            f"https://graph.facebook.com/v21.0/{payload.waba_id}/subscribed_apps",
+            params={"access_token": access_token},
+            timeout=10.0,
+        )
+    sub_data = sub_r.json()
+    subscribed = sub_data.get("success", False)
+    if "error" in sub_data:
+        logger.warning(f"Embedded Signup: subscribed_apps failed tenant={tenant_id}: {sub_data['error']}")
+
+    async with httpx.AsyncClient() as client:
+        info_r = await client.get(
+            f"https://graph.facebook.com/v21.0/{payload.phone_number_id}",
+            params={"fields": "display_phone_number,verified_name", "access_token": access_token},
+            timeout=10.0,
+        )
+    info_data = info_r.json()
+    display_phone = info_data.get("display_phone_number")
+
+    creds_to_save = {
+        "meta_access_token": access_token,
+        "meta_phone_number_id": payload.phone_number_id,
+        "meta_waba_id": payload.waba_id,
+        # Same Meta app for every tenant — save it here too so this tenant's inbound
+        # webhook signature verification (which reads meta_app_secret per-tenant) works
+        # immediately, without anyone manually pasting it in.
+        "meta_app_secret": env_settings.meta_app_secret,
+    }
+    for key, value in creds_to_save.items():
+        if not value:
+            continue
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": key,
+            "value": value,
+            "is_secret": key in {"meta_access_token", "meta_app_secret"},
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+
+    db.table("app_settings").upsert({
+        "tenant_id": tenant_id,
+        "key": "whatsapp_status",
+        "value": "live",
+        "is_secret": False,
+        "updated_at": "now()",
+    }, on_conflict="tenant_id,key").execute()
+
+    if display_phone:
+        db.table("phone_numbers").upsert({
+            "provider": "meta_cloud",
+            "number": display_phone.strip(),
+            "display_name": info_data.get("verified_name") or "WhatsApp Primary",
+            "meta_phone_number_id": payload.phone_number_id,
+            "role": "primary",
+            "status": "active",
+            "warm_up_day": 14,
+            "paused_outbound": False,
+            "tenant_id": tenant_id,
+        }, on_conflict="number").execute()
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=user.get("user_id"),
+        actor_role="tenant_user",
+        action="settings.whatsapp_embedded_signup_connected",
+        target_type="channel",
+        target_id="whatsapp",
+        metadata={"channel": "whatsapp", "waba_id": payload.waba_id, "subscribed": subscribed},
+    )
+
+    return {
+        "success": True,
+        "phone_number": display_phone,
+        "business_name": info_data.get("verified_name"),
         "subscribed": subscribed,
     }
 

@@ -8,6 +8,7 @@ from typing import Optional
 import httpx
 from fastapi import HTTPException
 
+from app.config import settings as env_settings
 from app.config_dynamic import get_setting
 
 logger = logging.getLogger(__name__)
@@ -126,6 +127,55 @@ def _creds(phone_number_id: Optional[str], access_token: Optional[str], tenant_i
     if not pid or not tok:
         raise HTTPException(status_code=400, detail="Meta credentials not configured. Set them in Settings.")
     return pid, tok
+
+
+async def exchange_embedded_signup_code(code: str) -> dict:
+    """Exchange a WhatsApp Embedded Signup authorization code for a business access token.
+
+    The code expires ~30 seconds after the frontend receives it from the signup
+    popup, so this must run immediately once the flow completes. Uses our own
+    Meta app's id/secret (the same app every tenant's signup runs through), not
+    a per-tenant credential.
+    """
+    if not env_settings.meta_app_id or not env_settings.meta_app_secret:
+        raise HTTPException(
+            status_code=500,
+            detail="Embedded Signup is not configured on the server (missing meta_app_id/meta_app_secret).",
+        )
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://graph.facebook.com/v25.0/oauth/access_token",
+            params={
+                "client_id": env_settings.meta_app_id,
+                "client_secret": env_settings.meta_app_secret,
+                "code": code,
+            },
+            timeout=10.0,
+        )
+    data = resp.json()
+    if "error" in data:
+        raise HTTPException(status_code=400, detail=data["error"].get("message", "Embedded Signup code exchange failed"))
+    access_token = data.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=400, detail="Meta did not return an access token for this signup code")
+    return {"access_token": access_token}
+
+
+async def register_phone_number(phone_number_id: str, access_token: str, pin: str) -> dict:
+    """Register a newly-onboarded Cloud API number so it can send/receive messages.
+    Required once per phone number after Embedded Signup, before it can be used."""
+    url = f"{_GRAPH_BASE}/{phone_number_id}/register"
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            url,
+            json={"messaging_product": "whatsapp", "pin": pin},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0,
+        )
+    data = resp.json()
+    if "error" in data:
+        logger.warning("Phone number registration failed for %s: %s", phone_number_id, data["error"])
+    return data
 
 
 async def send_text_message(

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
@@ -7,6 +7,45 @@ import {
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
+
+// Not secrets — safe to expose client-side. Env var lets prod/staging override.
+const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
+const META_CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1063294086656120";
+
+declare global {
+  interface Window {
+    FB?: {
+      init: (params: { appId: string; xfbml?: boolean; version: string }) => void;
+      login: (
+        callback: (response: { authResponse?: { code?: string } }) => void,
+        options: { config_id: string; response_type: string; override_default_response_type: boolean }
+      ) => void;
+    };
+    fbAsyncInit?: () => void;
+  }
+}
+
+let fbSdkPromise: Promise<void> | null = null;
+function loadFacebookSdk(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (window.FB) return Promise.resolve();
+  if (fbSdkPromise) return fbSdkPromise;
+  fbSdkPromise = new Promise((resolve) => {
+    window.fbAsyncInit = () => {
+      window.FB!.init({ appId: META_APP_ID, xfbml: false, version: "v25.0" });
+      resolve();
+    };
+    const script = document.createElement("script");
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+  });
+  return fbSdkPromise;
+}
+
+type EmbeddedSignupSession = { waba_id?: string; phone_number_id?: string; business_id?: string };
+type EmbeddedSignupState = "idle" | "connecting" | "finishing" | "error";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -401,6 +440,11 @@ export default function ConnectChannelsPanel() {
   const [activating, setActivating] = useState(false);
   const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
 
+  const [esState, setEsState] = useState<EmbeddedSignupState>("idle");
+  const [esError, setEsError] = useState<string | null>(null);
+  const esSessionRef = useRef<EmbeddedSignupSession>({});
+  const esCodeRef = useRef<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const s = await fetchSettings();
@@ -574,6 +618,84 @@ export default function ConnectChannelsPanel() {
     }
   }
 
+  const finishEmbeddedSignup = useCallback(async () => {
+    const code = esCodeRef.current;
+    const session = esSessionRef.current;
+    if (!code || !session.waba_id || !session.phone_number_id) return;
+    setEsState("finishing");
+    setEsError(null);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/settings/whatsapp/embedded-signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({
+          code,
+          waba_id: session.waba_id,
+          phone_number_id: session.phone_number_id,
+          business_id: session.business_id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Connecting WhatsApp failed");
+      esCodeRef.current = null;
+      esSessionRef.current = {};
+      setEsState("idle");
+      setActivateResult({
+        success: true,
+        message: "WhatsApp connected",
+        detail: [data.business_name, data.phone_number, data.subscribed ? "Webhook subscribed ✓" : null]
+          .filter(Boolean).join(" · "),
+      });
+      await load();
+      loadHealth();
+    } catch (e) {
+      setEsState("error");
+      setEsError(e instanceof Error ? e.message : "Connecting WhatsApp failed");
+    }
+  }, [load, loadHealth]);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (data?.type === "WA_EMBEDDED_SIGNUP" && data?.event === "FINISH") {
+          esSessionRef.current = {
+            waba_id: data.data?.waba_id,
+            phone_number_id: data.data?.phone_number_id,
+            business_id: data.data?.business_id,
+          };
+          finishEmbeddedSignup();
+        }
+      } catch {}
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [finishEmbeddedSignup]);
+
+  async function handleConnectWithFacebook() {
+    setEsState("connecting");
+    setEsError(null);
+    await loadFacebookSdk();
+    window.FB?.login(
+      (response) => {
+        const code = response?.authResponse?.code;
+        if (!code) {
+          setEsState("idle");
+          return;
+        }
+        esCodeRef.current = code;
+        finishEmbeddedSignup();
+      },
+      {
+        config_id: META_CONFIG_ID,
+        response_type: "code",
+        override_default_response_type: true,
+      }
+    );
+  }
+
   const openChannelModal = (channel: ChannelConfig) => {
     setSelectedChannel(channel);
     setSaveState("idle");
@@ -719,6 +841,35 @@ export default function ConnectChannelsPanel() {
 
             {/* Modal Body */}
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {/* One-click Embedded Signup (WhatsApp only) */}
+              {selectedChannel.id === "whatsapp" && (
+                <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="font-display font-bold text-ink text-sm">Connect with Facebook</p>
+                      <p className="font-body text-xs text-ink-muted mt-0.5">
+                        One-click setup — links your WhatsApp Business Account automatically. No manual copy-pasting below.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleConnectWithFacebook}
+                      disabled={esState === "connecting" || esState === "finishing"}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold bg-[#1877F2] text-white hover:bg-[#1568d6] transition-all disabled:opacity-60 whitespace-nowrap"
+                    >
+                      {esState === "finishing" ? (
+                        <><Loader2 size={14} className="animate-spin" />Finishing…</>
+                      ) : esState === "connecting" ? (
+                        <><Loader2 size={14} className="animate-spin" />Waiting…</>
+                      ) : (
+                        <>Connect with Facebook</>
+                      )}
+                    </button>
+                  </div>
+                  {esError && <p className="text-xs text-red-700 font-body">{esError}</p>}
+                </div>
+              )}
+
               {/* Dynamic Webhook Guide */}
               <WebhookConfigGuide channelId={selectedChannel.id} tenantId={tenantId} />
 

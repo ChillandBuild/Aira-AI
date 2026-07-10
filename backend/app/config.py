@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     meta_ig_user_id: str | None = None
     meta_access_token: str | None = None
     meta_phone_number_id: str | None = None
+    meta_app_id: str | None = None
     telegram_bot_token: str | None = None
     instagram_access_token: str | None = None
     instagram_page_id: str | None = None
