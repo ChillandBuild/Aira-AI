@@ -514,3 +514,11 @@
 - **Decision**: Made the `size="sm"` variant of `OperatorToggle` more compact (reduced button padding to `px-1.5 py-0.5` and font size to `text-[9px] leading-none`) and scaled down the button loading spinners to `h-2.5 w-2.5` to fit cleanly inside the operator sidebar without overflowing.
 - **Decision**: Added `flex-shrink-0` to the Telecalling group `Phone` icon and added `min-w-0`/`truncate` layout guards in [sidebar.tsx](file:///c:/Users/vskee/Desktop/Aira.AI/Aira-Ai/frontend/app/operator/%28console%29/client/%5Bid%5D/sidebar.tsx) to prevent flexbox from squeezing or reducing the icon size.
 - **Verification**: Frontend typecheck and production Next.js build passed with zero errors.
+
+---
+
+**2026-07-10 - WhatsApp template cache scoped to active WABA**
+- **Decision**: `message_templates` now carries `meta_waba_id`, and template list/sync behavior treats Meta templates as scoped to the currently configured WhatsApp Business Account. Local drafts without Meta ids can remain visible, but old approved/paused remote rows from a previous WABA are filtered out after an account switch.
+- **Decision**: Added migration `137_scope_message_templates_to_waba.sql` and applied the equivalent DDL to live Supabase project `Aira AI` after production was found missing the column. Live verification confirmed `message_templates.meta_waba_id` and index `idx_message_templates_tenant_waba` exist.
+- **Rationale**: Changing a tenant to another Meta account previously left cached approved templates from the old WABA visible because rows were only tenant-scoped. Syncing against the new WABA could also crash when production lacked the new column, surfacing in Chrome as a misleading CORS failure.
+- **Verification**: Backend focused tests `tests/test_templates.py` and CORS/health tests passed; live Render preflight and unauthenticated POST from `https://www.bloommatrix.in` returned the expected CORS headers.

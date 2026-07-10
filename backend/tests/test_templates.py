@@ -52,6 +52,33 @@ def test_webhook_status_is_on_public_router():
         f"webhook-status must NOT be in auth-gated router: {auth_paths}"
 
 
+def test_waba_filter_hides_legacy_remote_templates():
+    """Rows from an old unknown WABA must not remain visible after account switch."""
+    from app.routes.templates import _filter_templates_for_waba
+
+    rows = [
+        {"name": "old_remote", "status": "APPROVED", "meta_template_id": "old-meta", "meta_waba_id": None},
+        {"name": "old_remote_without_id", "status": "APPROVED", "meta_template_id": None, "meta_waba_id": None},
+        {"name": "current_remote", "status": "APPROVED", "meta_template_id": "new-meta", "meta_waba_id": "waba-new"},
+        {"name": "local_draft", "status": "PENDING", "meta_template_id": None, "meta_waba_id": None},
+    ]
+
+    visible = _filter_templates_for_waba(rows, "waba-new")
+
+    assert [r["name"] for r in visible] == ["current_remote", "local_draft"]
+
+
+def test_waba_filter_keeps_all_rows_when_no_waba_configured():
+    from app.routes.templates import _filter_templates_for_waba
+
+    rows = [
+        {"name": "old_remote", "meta_template_id": "old-meta", "meta_waba_id": None},
+        {"name": "other_account", "meta_template_id": "other-meta", "meta_waba_id": "waba-other"},
+    ]
+
+    assert _filter_templates_for_waba(rows, None) == rows
+
+
 # ── get_template_status ───────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
