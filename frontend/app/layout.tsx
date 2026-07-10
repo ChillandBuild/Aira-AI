@@ -46,6 +46,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/aira/favicon.ico" },
+      { url: "/aira/icons/aira-icon.svg", type: "image/svg+xml" },
       { url: "/aira/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [{ url: "/aira/icons/aira-icon-192.png", sizes: "192x192", type: "image/png" }],
