@@ -13,6 +13,11 @@ from app.main import app
 ALLOWED_ORIGIN = "https://www.bloommatrix.in"
 
 
+@app.get("/__test__/unhandled-error", include_in_schema=False)
+async def _test_unhandled_error():
+    raise RuntimeError("boom")
+
+
 class HealthEndpointTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
@@ -35,6 +40,15 @@ class HealthEndpointTests(unittest.TestCase):
         body = res.json()
         self.assertEqual(body["status"], "unhealthy")
         self.assertIn("db unavailable", body["details"]["database"])
+
+    def test_unhandled_errors_are_not_masked_as_cors_failures(self):
+        client = TestClient(app, raise_server_exceptions=False)
+
+        res = client.get("/__test__/unhandled-error", headers={"Origin": ALLOWED_ORIGIN})
+
+        self.assertEqual(res.status_code, 500)
+        self.assertEqual(res.headers.get("access-control-allow-origin"), ALLOWED_ORIGIN)
+        self.assertEqual(res.json(), {"detail": "Internal server error"})
 
 
 if __name__ == "__main__":

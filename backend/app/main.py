@@ -1,8 +1,9 @@
 import logging
 import sys
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED
 from app.dependencies.auth import get_current_user
@@ -419,7 +420,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — allow frontend origins
+@app.middleware("http")
+async def server_error_json_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception:
+        logger.exception("Unhandled request error: %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
+
+
+# CORS - allow frontend origins
 _allowed = [
     "http://localhost:3000",
     "http://localhost:3001",
@@ -438,6 +451,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+
 
 def _format_uptime(uptime_s: int) -> str:
     d, rem = divmod(uptime_s, 86400)
@@ -514,8 +530,6 @@ async def health():
 # this for dependency details without letting a DB blip fail Render liveness.
 @app.api_route("/ready", methods=["GET", "HEAD"], tags=["system"])
 async def ready():
-    from fastapi.responses import JSONResponse
-
     payload, is_ready = _readiness_payload()
     if is_ready:
         return payload
