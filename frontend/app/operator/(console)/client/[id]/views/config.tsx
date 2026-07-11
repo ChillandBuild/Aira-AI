@@ -814,6 +814,9 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         <p className="mb-3 text-xs leading-relaxed text-ink-muted">
           Controls which AI model generates auto-replies and reengagement messages for this client.
         </p>
+        <p className="mb-3 text-xs leading-relaxed text-ink-muted">
+          Note: product-recommendation replies (when catalog tools are active) always use Sarvam, regardless of this setting.
+        </p>
         <div className="grid gap-4 md:grid-cols-3">
           {REPLY_MODELS.map((option) => {
             const selected = config.settings.ai_reply_model === option.id;
