@@ -5,8 +5,9 @@ from app.services import ai_reply
 
 
 @pytest.mark.asyncio
-async def test_llm_complete_calls_sarvam_with_reply_model():
-    with patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
+async def test_llm_complete_defaults_to_sarvam_when_no_tenant_setting():
+    with patch.object(ai_reply, "get_setting", return_value=None), \
+         patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
         text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
 
     assert text == "a poem"
@@ -20,9 +21,25 @@ async def test_llm_complete_calls_sarvam_with_reply_model():
 
 
 @pytest.mark.asyncio
-async def test_llm_chat_calls_sarvam_with_reply_model():
+async def test_llm_complete_routes_to_openrouter_for_non_sarvam_model():
+    with patch.object(ai_reply, "get_setting", return_value="openai/gpt-5-mini"), \
+         patch.object(ai_reply, "openrouter_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
+        text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
+
+    assert text == "a poem"
+    mock_call.assert_called_once_with(
+        messages=[{"role": "user", "content": "write a poem"}],
+        model="openai/gpt-5-mini",
+        temperature=0.4,
+        max_tokens=120,
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_defaults_to_sarvam_when_no_tenant_setting():
     messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
-    with patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
+    with patch.object(ai_reply, "get_setting", return_value=None), \
+         patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
         text = await ai_reply._llm_chat(messages, max_tokens=600, tenant_id="tenant-2")
 
     assert text == "a reply"
@@ -35,8 +52,24 @@ async def test_llm_chat_calls_sarvam_with_reply_model():
     )
 
 
-def test_reply_model_is_sarvam_30b():
-    assert ai_reply._REPLY_MODEL == "sarvam-30b"
+@pytest.mark.asyncio
+async def test_llm_chat_routes_to_openrouter_for_non_sarvam_model():
+    messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
+    with patch.object(ai_reply, "get_setting", return_value="google/gemini-2.5-flash"), \
+         patch.object(ai_reply, "openrouter_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
+        text = await ai_reply._llm_chat(messages, max_tokens=600, tenant_id="tenant-2")
+
+    assert text == "a reply"
+    mock_call.assert_called_once_with(
+        messages=messages,
+        model="google/gemini-2.5-flash",
+        temperature=0.4,
+        max_tokens=600,
+    )
+
+
+def test_default_reply_model_is_sarvam_30b():
+    assert ai_reply._DEFAULT_REPLY_MODEL == "sarvam-30b"
 
 
 @pytest.mark.asyncio

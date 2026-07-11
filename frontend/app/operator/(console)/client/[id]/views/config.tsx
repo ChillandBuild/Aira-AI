@@ -23,6 +23,23 @@ type RetrievalMode = "semantic" | "keyword" | "hybrid";
 type VoiceSettingKey = "ai_voice_reply_speaker" | "ai_voice_reply_pace" | "ai_voice_reply_language_mode" | "ai_voice_reply_language_code";
 type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "ai_media_max_images_per_reply";
 
+type ReplyModelId =
+  | "sarvam-30b"
+  | "meta-llama/llama-3.3-70b-instruct"
+  | "openai/gpt-5-mini"
+  | "google/gemini-2.5-flash"
+  | "openai/gpt-5"
+  | "google/gemini-2.5-pro";
+
+const REPLY_MODELS: { id: ReplyModelId; label: string; provider: string; costTier: "$" | "$$" | "$$$"; desc: string }[] = [
+  { id: "sarvam-30b", label: "Sarvam 30B", provider: "Sarvam", costTier: "$", desc: "Default. Best fit for Tamil/Hindi/Hinglish conversations." },
+  { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "Groq via OpenRouter", costTier: "$", desc: "Cheapest option. Fast, strong in English, weaker on Indic-language nuance." },
+  { id: "openai/gpt-5-mini", label: "GPT-5 Mini", provider: "OpenAI via OpenRouter", costTier: "$$", desc: "Balanced quality and cost." },
+  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "Google via OpenRouter", costTier: "$$", desc: "Balanced quality and cost, strong multimodal support." },
+  { id: "openai/gpt-5", label: "GPT-5", provider: "OpenAI via OpenRouter", costTier: "$$$", desc: "Highest quality, highest cost." },
+  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "Google via OpenRouter", costTier: "$$$", desc: "Highest quality, highest cost." },
+];
+
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
   { id: "semantic", label: "Smart", desc: "Understands meaning & language (Tamil/English), even when a lead rephrases. Recommended." },
   { id: "keyword", label: "Exact words", desc: "Matches the exact words in your documents. Fastest, no AI cost — weaker on reworded questions." },
@@ -92,6 +109,7 @@ interface ConfigData {
     ai_media_max_images_per_reply?: number | string | null;
     reengagement_enabled: boolean;
     kb_retrieval_mode: RetrievalMode;
+    ai_reply_model: ReplyModelId;
   };
   usage_counts?: {
     stt?: number | null;
@@ -166,6 +184,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [mediaRecommendationSaving, setMediaRecommendationSaving] = useState<MediaRecommendationSettingKey | null>(null);
   const [sarvamApiKeyDraft, setSarvamApiKeyDraft] = useState("");
   const [sarvamSaving, setSarvamSaving] = useState(false);
+  const [replyModelSaving, setReplyModelSaving] = useState<ReplyModelId | null>(null);
 
   async function updateRetrievalMode(mode: RetrievalMode) {
     if (!config || config.settings.kb_retrieval_mode === mode) return;
@@ -194,6 +213,36 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       toast.error("Failed to update search mode. Please try again.");
     } finally {
       setRetrievalSaving(null);
+    }
+  }
+
+  async function updateReplyModel(model: ReplyModelId) {
+    if (!config || config.settings.ai_reply_model === model) return;
+    setReplyModelSaving(model);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { ai_reply_model: model }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          ai_reply_model: model
+        }
+      });
+      toast.success(`Conversational reply model set to "${REPLY_MODELS.find(m => m.id === model)?.label}".`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update reply model");
+      toast.error("Failed to update reply model. Please try again.");
+    } finally {
+      setReplyModelSaving(null);
     }
   }
 
@@ -747,6 +796,55 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                         </span>
                       )}
                     </div>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-muted">{option.desc}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Conversational Reply Model */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-ink-muted" />
+          Conversational Reply Model
+        </h3>
+        <p className="mb-3 text-xs leading-relaxed text-ink-muted">
+          Controls which AI model generates auto-replies and reengagement messages for this client.
+        </p>
+        <p className="mb-3 text-xs leading-relaxed text-ink-muted">
+          Note: product-recommendation replies (when catalog tools are active) always use Sarvam, regardless of this setting.
+        </p>
+        <div className="grid gap-4 md:grid-cols-3">
+          {REPLY_MODELS.map((option) => {
+            const selected = config.settings.ai_reply_model === option.id;
+            const saving = replyModelSaving === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => updateReplyModel(option.id)}
+                disabled={!!replyModelSaving || selected}
+                className={`rounded-card border p-4 text-left shadow-sm transition-all ${
+                  selected
+                    ? "border-primary bg-primary-light text-ink ring-1 ring-primary/10"
+                    : "border-border bg-white hover:border-primary-muted"
+                } ${replyModelSaving && !saving ? "opacity-70" : ""} disabled:cursor-default`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 justify-between">
+                      <p className="text-sm font-semibold text-ink">{option.label}</p>
+                      {saving && <Loader2 size={14} className="animate-spin text-primary" />}
+                      {selected && !saving && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-success/10 text-success">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-[11px] font-medium text-ink-muted">{option.provider} · {option.costTier}</p>
                     <p className="mt-1 text-xs leading-relaxed text-ink-muted">{option.desc}</p>
                   </div>
                 </div>
