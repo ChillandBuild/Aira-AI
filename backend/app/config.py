@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str | None = None
     groq_api_key: str | None = None
     sarvam_api_key: str | None = None
+    openrouter_api_key: str | None = None
     jina_api_key: str | None = None
     telecmi_user_id: str | None = None
     telecmi_secret: str | None = None
