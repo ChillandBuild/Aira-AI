@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 
+logger = logging.getLogger(__name__)
 
 PERMISSION_CATALOG: list[dict] = [
     {"key": "dashboard.view", "label": "Dashboard", "group": "Overview"},
@@ -38,12 +40,31 @@ DEFAULT_TELECALLER_PERMISSIONS = [
 ]
 
 
-def normalize_permissions(values: list[str] | None) -> list[str]:
+def _permission_values(values: list[str] | tuple[str, ...] | str | None) -> list[str]:
+    if values is None:
+        return []
+    if isinstance(values, str):
+        raw = values.strip()
+        if not raw:
+            return []
+        if raw.startswith("{") and raw.endswith("}"):
+            raw = raw[1:-1]
+        return [item.strip().strip('"') for item in raw.split(",") if item.strip()]
+    return list(values)
+
+
+def normalize_permissions(values: list[str] | tuple[str, ...] | str | None) -> list[str]:
     allowed = set(ALL_PERMISSION_KEYS)
-    return sorted({v for v in (values or []) if v in allowed})
+    return sorted({v for v in _permission_values(values) if v in allowed})
 
 
-def ensure_default_roles(db, tenant_id: str) -> dict:
+def _with_normalized_permissions(role: dict | None) -> dict | None:
+    if not role:
+        return None
+    return {**role, "permissions": normalize_permissions(role.get("permissions"))}
+
+
+def _select_default_role(db, tenant_id: str) -> dict | None:
     existing = (
         db.table("tenant_roles")
         .select("*")
@@ -52,8 +73,13 @@ def ensure_default_roles(db, tenant_id: str) -> dict:
         .limit(1)
         .execute()
     )
-    if existing.data:
-        return existing.data[0]
+    return _with_normalized_permissions(existing.data[0]) if existing.data else None
+
+
+def ensure_default_roles(db, tenant_id: str) -> dict:
+    existing = _select_default_role(db, tenant_id)
+    if existing:
+        return existing
 
     row = {
         "tenant_id": tenant_id,
@@ -63,14 +89,27 @@ def ensure_default_roles(db, tenant_id: str) -> dict:
         "permissions": DEFAULT_TELECALLER_PERMISSIONS,
         "is_system_template": True,
     }
-    created = db.table("tenant_roles").insert(row).execute()
-    return created.data[0]
+    insert_error = None
+    try:
+        created = db.table("tenant_roles").insert(row).execute()
+        if created.data:
+            return _with_normalized_permissions(created.data[0])
+    except Exception as e:
+        insert_error = e
+        logger.info("Default Telecaller role insert fell back to reselect for tenant %s: %s", tenant_id, e)
+
+    existing = _select_default_role(db, tenant_id)
+    if existing:
+        return existing
+    if insert_error:
+        raise insert_error
+    raise RuntimeError("Failed to create default Telecaller role")
 
 
 def is_telecaller_role(role: dict | None) -> bool:
     if not role:
         return False
-    permissions = role.get("permissions") or []
+    permissions = normalize_permissions(role.get("permissions"))
     return role.get("slug") == "telecaller" or "telecalling.dialer" in permissions
 
 
@@ -85,7 +124,7 @@ def get_user_role(db, tenant_id: str, role_id: str | None) -> dict | None:
         .limit(1)
         .execute()
     )
-    return result.data[0] if result.data else None
+    return _with_normalized_permissions(result.data[0]) if result.data else None
 
 
 def resolve_permissions(db, tenant_id: str, user_id: str, legacy_role: str) -> dict:

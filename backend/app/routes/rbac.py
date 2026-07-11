@@ -85,7 +85,11 @@ def _update_auth_metadata(db, user_id: str, updates: dict) -> None:
 
 def _role_map(db, tenant_id: str) -> dict[str, dict]:
     rows = db.table("tenant_roles").select("*").eq("tenant_id", tenant_id).order("name").execute()
-    return {r["id"]: r for r in (rows.data or [])}
+    return {r["id"]: _serialize_role(r) for r in (rows.data or [])}
+
+
+def _serialize_role(role: dict) -> dict:
+    return {**role, "permissions": normalize_permissions(role.get("permissions"))}
 
 
 def _caller_for_user(db, tenant_id: str, user_id: str) -> dict | None:
@@ -169,7 +173,7 @@ def list_roles(ctx: dict = Depends(require_roles_manage)):
     db = get_supabase()
     ensure_default_roles(db, ctx["tenant_id"])
     roles = db.table("tenant_roles").select("*").eq("tenant_id", ctx["tenant_id"]).order("name").execute()
-    return {"data": roles.data or [], "permissions": PERMISSION_CATALOG}
+    return {"data": [_serialize_role(role) for role in (roles.data or [])], "permissions": PERMISSION_CATALOG}
 
 
 @router.post("/roles")
@@ -189,7 +193,7 @@ def create_role(payload: RolePayload, ctx: dict = Depends(require_roles_manage))
         created = db.table("tenant_roles").insert(row).execute()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to create role: {e}")
-    return created.data[0]
+    return _serialize_role(created.data[0])
 
 
 @router.patch("/roles/{role_id}")
@@ -204,7 +208,7 @@ def update_role(role_id: str, payload: RolePayload, ctx: dict = Depends(require_
         "permissions": normalize_permissions(payload.permissions),
     })
     updated = db.table("tenant_roles").update(updates).eq("id", role_id).eq("tenant_id", ctx["tenant_id"]).execute()
-    return updated.data[0]
+    return _serialize_role(updated.data[0])
 
 
 @router.delete("/roles/{role_id}")
