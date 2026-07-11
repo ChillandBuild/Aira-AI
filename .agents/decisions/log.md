@@ -522,3 +522,14 @@
 - **Decision**: Added migration `137_scope_message_templates_to_waba.sql` and applied the equivalent DDL to live Supabase project `Aira AI` after production was found missing the column. Live verification confirmed `message_templates.meta_waba_id` and index `idx_message_templates_tenant_waba` exist.
 - **Rationale**: Changing a tenant to another Meta account previously left cached approved templates from the old WABA visible because rows were only tenant-scoped. Syncing against the new WABA could also crash when production lacked the new column, surfacing in Chrome as a misleading CORS failure.
 - **Verification**: Backend focused tests `tests/test_templates.py` and CORS/health tests passed; live Render preflight and unauthenticated POST from `https://www.bloommatrix.in` returned the expected CORS headers.
+
+---
+
+**2026-07-12 - Client-specific RBAC roles, users, and Telecaller role template**
+- **Decision**: Added client-specific RBAC around `tenant_roles` and `tenant_users.role_id`. Each user has exactly one role; tenant owners/admins manage roles and users from `/dashboard/roles`.
+- **Decision**: The role form is intentionally `name + permissions` only; description was removed from the create/edit UI and backend payload. Permissions remain Aira-specific flat keys such as `roles.manage`, `team.view`, `telecalling.dialer`, and `dashboard.view`.
+- **Decision**: The default `Telecaller` role is a tenant-scoped system template. Team Performance no longer creates telecallers directly; users assigned a role with `telecalling.dialer` (or slug `telecaller`) get/keep a caller profile and appear in Team.
+- **Decision**: Admin-created users receive a temporary password and `force_password_reset=true`. Admins can reset and view only the new temporary password; changed user passwords are never readable by admins.
+- **Implementation**: Added `backend/app/services/rbac.py`, `backend/app/routes/rbac.py`, migration `138_tenant_rbac.sql`, frontend API methods, `/dashboard/roles` UI, sidebar permission filtering, dashboard role context, force-reset prompt, and team-role integration.
+- **Production repair**: Added migration `139_repair_tenant_rbac_schema_cache.sql` after production returned `PGRST205` for `public.tenant_roles`. The migration safely recreates/exposes `tenant_roles`, backfills Telecaller, grants Data API access, and sends `notify pgrst, 'reload schema'`.
+- **Verification**: Frontend `npm.cmd run typecheck` passed; backend RBAC files passed `py_compile`; focused backend tests `test_rbac_service.py` and `test_team_seat_enforcement.py` passed (`4 passed`).
