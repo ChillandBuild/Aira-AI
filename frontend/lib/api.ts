@@ -441,6 +441,11 @@ export interface AdPerformanceSummary {
 export interface TeamMember {
   user_id: string;
   role: "owner" | "caller";
+  role_id?: string | null;
+  role_name?: string | null;
+  permissions?: string[];
+  full_name?: string | null;
+  force_password_reset?: boolean;
   created_at: string;
   caller_profile: {
     id: string;
@@ -479,12 +484,47 @@ export interface TeamAttendanceGridData {
 export interface MyProfile {
   tenant_id: string;
   role: "owner" | "caller";
+  role_id?: string | null;
+  role_name?: string | null;
+  role_slug?: string | null;
+  permissions?: string[];
+  force_password_reset?: boolean;
   caller_profile: {
     id: string;
     name: string | null;
     phone: string | null;
     overall_score: number | null;
   } | null;
+}
+
+export interface PermissionDef {
+  key: string;
+  label: string;
+  group: string;
+}
+
+export interface ClientRole {
+  id: string;
+  tenant_id: string;
+  name: string;
+  slug: string | null;
+  description: string | null;
+  permissions: string[];
+  is_system_template: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RbacUser {
+  user_id: string;
+  full_name: string;
+  email: string;
+  role: "owner" | "caller";
+  role_id: string | null;
+  role_name: string;
+  force_password_reset: boolean;
+  created_at: string;
+  caller_profile: TeamMember["caller_profile"];
 }
 
 export interface WhatsAppAnalytics {
@@ -1494,6 +1534,64 @@ export const api = {
       apiFetch<{ data: { date: string; status: string; caller_count: number } }>("/api/v1/team/attendance/holiday", {
         method: "POST",
         body: JSON.stringify({ date }),
+      }),
+  },
+  rbac: {
+    permissions: () =>
+      apiFetch<{ data: PermissionDef[] }>("/api/v1/rbac/permissions"),
+    roles: () =>
+      apiFetch<{ data: ClientRole[]; permissions: PermissionDef[] }>("/api/v1/rbac/roles"),
+    createRole: (data: { name: string; description?: string | null; permissions: string[] }) =>
+      apiFetch<ClientRole>("/api/v1/rbac/roles", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    updateRole: (id: string, data: { name: string; description?: string | null; permissions: string[] }) =>
+      apiFetch<ClientRole>(`/api/v1/rbac/roles/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    deleteRole: (id: string) =>
+      apiFetch<{ deleted: boolean }>(`/api/v1/rbac/roles/${id}`, {
+        method: "DELETE",
+      }),
+    users: () =>
+      apiFetch<{ data: RbacUser[] }>("/api/v1/rbac/users"),
+    createUser: (data: {
+      full_name: string;
+      email: string;
+      role_id: string;
+      temporary_password: string;
+      phone?: string | null;
+      telecmi_agent_id?: string | null;
+      telecmi_agent_password?: string | null;
+    }) =>
+      apiFetch<{ created: boolean; user_id: string; temporary_password: string }>("/api/v1/rbac/users", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    updateUser: (userId: string, data: {
+      full_name?: string;
+      role_id?: string;
+      phone?: string | null;
+      telecmi_agent_id?: string | null;
+      telecmi_agent_password?: string | null;
+    }) =>
+      apiFetch<{ updated: boolean }>(`/api/v1/rbac/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    deleteUser: (userId: string) =>
+      apiFetch<{ deleted: boolean }>(`/api/v1/rbac/users/${userId}`, {
+        method: "DELETE",
+      }),
+    resetPassword: (userId: string) =>
+      apiFetch<{ temporary_password: string }>(`/api/v1/rbac/users/${userId}/reset-password`, {
+        method: "POST",
+      }),
+    markPasswordResetComplete: () =>
+      apiFetch<{ updated: boolean }>("/api/v1/rbac/password-reset-complete", {
+        method: "POST",
       }),
   },
   todos: {

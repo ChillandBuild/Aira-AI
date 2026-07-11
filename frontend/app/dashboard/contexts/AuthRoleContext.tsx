@@ -5,17 +5,27 @@ import { createClient } from "@/lib/supabase/client";
 
 interface RoleCtx {
   role: "owner" | "caller" | null;
+  roleId: string | null;
+  roleName: string | null;
+  roleSlug: string | null;
+  permissions: string[];
   callerId: string | null;
   enabledFeatures: string[];
   isSystemAdmin: boolean;
+  forcePasswordReset: boolean;
   loading: boolean;
 }
 
 const AuthRoleContext = createContext<RoleCtx>({
   role: null,
+  roleId: null,
+  roleName: null,
+  roleSlug: null,
+  permissions: [],
   callerId: null,
   enabledFeatures: ["whatsapp", "telecalling"],
   isSystemAdmin: false,
+  forcePasswordReset: false,
   loading: true,
 });
 
@@ -24,9 +34,14 @@ const CACHE_KEY = "aira_role_cache";
 interface CacheEntry {
   userId: string;
   role: "owner" | "caller";
+  roleId: string | null;
+  roleName: string | null;
+  roleSlug: string | null;
+  permissions: string[];
   callerId: string | null;
   enabledFeatures: string[];
   isSystemAdmin: boolean;
+  forcePasswordReset: boolean;
 }
 
 function readCache(): CacheEntry | null {
@@ -46,9 +61,14 @@ export function clearRoleCache() {
 
 export function AuthRoleProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<"owner" | "caller" | null>(null);
+  const [roleId, setRoleId] = useState<string | null>(null);
+  const [roleName, setRoleName] = useState<string | null>(null);
+  const [roleSlug, setRoleSlug] = useState<string | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [callerId, setCallerId] = useState<string | null>(null);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["whatsapp", "telecalling"]);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
+  const [forcePasswordReset, setForcePasswordReset] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,9 +87,14 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
         if (cached && cached.userId === currentUserId) {
           appliedCachedRole = cached.role;
           setRole(cached.role);
+          setRoleId(cached.roleId ?? null);
+          setRoleName(cached.roleName ?? null);
+          setRoleSlug(cached.roleSlug ?? null);
+          setPermissions(cached.permissions ?? []);
           setCallerId(cached.callerId);
           setEnabledFeatures(cached.enabledFeatures);
           setIsSystemAdmin(cached.isSystemAdmin);
+          setForcePasswordReset(cached.forcePasswordReset ?? false);
           setLoading(false);
         }
       }
@@ -81,11 +106,27 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           if (!res.ok) throw new Error(`team/me ${res.status}`);
           const d = await res.json();
           const newRole = d.role as "owner" | "caller";
+          const newRoleId = d.role_id ?? null;
+          const newRoleName = d.role_name ?? null;
+          const newRoleSlug = d.role_slug ?? null;
+          const newPermissions = d.permissions ?? [];
           const newFeatures = d.enabled_features ?? ["whatsapp", "telecalling"];
           const newIsAdmin = d.is_system_admin ?? false;
           const newCallerId = d.caller_id ?? null;
+          const newForcePasswordReset = d.force_password_reset ?? false;
           if (currentUserId) {
-            writeCache({ userId: currentUserId, role: newRole, callerId: newCallerId, enabledFeatures: newFeatures, isSystemAdmin: newIsAdmin });
+            writeCache({
+              userId: currentUserId,
+              role: newRole,
+              roleId: newRoleId,
+              roleName: newRoleName,
+              roleSlug: newRoleSlug,
+              permissions: newPermissions,
+              callerId: newCallerId,
+              enabledFeatures: newFeatures,
+              isSystemAdmin: newIsAdmin,
+              forcePasswordReset: newForcePasswordReset,
+            });
           }
           // The cached role we already committed to was wrong (role changed
           // server-side since the cache was written). Reload so the page mounts
@@ -96,9 +137,14 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
             return;
           }
           setRole(newRole);
+          setRoleId(newRoleId);
+          setRoleName(newRoleName);
+          setRoleSlug(newRoleSlug);
+          setPermissions(newPermissions);
           setCallerId(newCallerId);
           setEnabledFeatures(newFeatures);
           setIsSystemAdmin(newIsAdmin);
+          setForcePasswordReset(newForcePasswordReset);
           return;
         } catch {
           if (attempt < retries) {
@@ -112,7 +158,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthRoleContext.Provider value={{ role, callerId, enabledFeatures, isSystemAdmin, loading }}>
+    <AuthRoleContext.Provider value={{ role, roleId, roleName, roleSlug, permissions, callerId, enabledFeatures, isSystemAdmin, forcePasswordReset, loading }}>
       {children}
     </AuthRoleContext.Provider>
   );

@@ -156,7 +156,7 @@ function TodaySnapshot({ overview }: { overview: AnalyticsOverview | null }) {
 }
 
 export function DashboardClient({ fallbackOverview }: { fallbackOverview: AnalyticsOverview | null }) {
-  const { role, loading: roleLoading } = useAuthRole();
+  const { role, permissions, loading: roleLoading } = useAuthRole();
   const router = useRouter();
   const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
 
@@ -183,16 +183,16 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
   // redirected below. Enable the SWR key when role confirms owner OR we already
   // have server-seeded data (server only returns 200 to owners).
   const { data: overview } = useOverview(
-    role === "owner" || fallbackOverview !== null,
+    role === "owner" || permissions.includes("dashboard.view") || fallbackOverview !== null,
     fallbackOverview ?? undefined,
   );
 
-  // Redirect callers to their profile page
+  // Redirect users without dashboard permission to their profile page.
   useEffect(() => {
-    if (!roleLoading && role === "caller") {
+    if (!roleLoading && role === "caller" && !permissions.includes("dashboard.view")) {
       router.replace("/dashboard/profile");
     }
-  }, [role, roleLoading, router]);
+  }, [permissions, role, roleLoading, router]);
 
   if (roleLoading || subStatus === "loading") {
     return <AiraLoader />;
@@ -233,7 +233,7 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
     );
   }
 
-  if (role === "caller") {
+  if (role === "caller" && !permissions.includes("dashboard.view")) {
     return <AiraLoader />;
   }
 

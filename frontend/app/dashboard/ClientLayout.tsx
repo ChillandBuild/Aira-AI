@@ -14,14 +14,27 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "./contexts/AuthRoleContext";
 import { AiraLoader } from "@/components/AiraLoader";
 import { NotificationProvider } from "@/hooks/useNotifications";
+import ChangePasswordCard from "./settings/ChangePasswordCard";
 
 const PING_INTERVAL_MS = 8 * 60 * 1000; // 8 min — keeps Render warm (sleeps after 15 min)
 
 function DashboardAuthGuard({ children }: { children: React.ReactNode }) {
-  const { loading: roleLoading } = useAuthRole();
+  const { loading: roleLoading, forcePasswordReset } = useAuthRole();
 
   if (roleLoading) {
     return <AiraLoader showRetryAfterMs={15000} onRetry={() => window.location.reload()} />;
+  }
+
+  if (forcePasswordReset) {
+    return (
+      <div className="mx-auto w-full max-w-4xl p-4 md:p-8">
+        <div className="mb-4 rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <p className="font-label text-[10px] font-black uppercase tracking-wider text-amber-700">Password reset required</p>
+          <p className="mt-1 font-body text-sm text-ink">Update your temporary password before using the dashboard.</p>
+        </div>
+        <ChangePasswordCard defaultOpen />
+      </div>
+    );
   }
 
   return <>{children}</>;

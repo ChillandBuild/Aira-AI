@@ -7,7 +7,7 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
-  ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard,
+  ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,7 @@ const TELECALLING_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { role, enabledFeatures, loading: roleLoading } = useAuthRole();
+  const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
   const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
 
@@ -119,6 +119,7 @@ export function Sidebar() {
   }
 
   const isSubscribed = subStatus === "active";
+  const can = (permission: string) => role === "owner" || permissions.includes(permission);
 
   // Gate telecalling sub-items by sub-feature flags with backwards compatibility
   const hasTcSubFeatures = enabledFeatures.some(f => f.startsWith("telecalling."));
@@ -129,9 +130,10 @@ export function Sidebar() {
       })
     : TELECALLING_ITEMS;
 
-  const tcGroupItems = visibleTcItems.filter(
-    (item) => item.href !== "/dashboard/telecalling/upload" || role === "owner"
-  );
+  const tcGroupItems = visibleTcItems.filter((item) => {
+    const featureKey = TC_FEATURE_MAP[item.href];
+    return !featureKey || can(featureKey);
+  });
 
   const isTcActive = tcGroupItems.some(item => pathname.startsWith(item.href));
 
@@ -151,7 +153,7 @@ export function Sidebar() {
 
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview / Dashboard */}
-        {role === "owner" ? (
+        {can("dashboard.view") ? (
           <Link
             href="/dashboard"
             className={cn(
@@ -199,7 +201,7 @@ export function Sidebar() {
         </Link>}
 
         {/* TOP LEVEL: Leads */}
-        {isSubscribed && role === "owner" && messagingOn && (
+        {isSubscribed && can("leads.view") && messagingOn && (
           <Link
             href="/dashboard/leads"
             className={cn(
@@ -215,7 +217,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Inbound Leads */}
-        {isSubscribed && role === "owner" && inboundOn && (
+        {isSubscribed && can("inbound_leads.view") && inboundOn && (
           <Link
             href="/dashboard/inbound-leads"
             className={cn(
@@ -231,7 +233,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Outbound Leads */}
-        {isSubscribed && role === "owner" && outboundOn && (
+        {isSubscribed && can("outbound_leads.manage") && outboundOn && (
           <Link
             href="/dashboard/outbound-leads"
             className={cn(
@@ -247,7 +249,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Templates */}
-        {isSubscribed && role === "owner" && outboundOn && (
+        {isSubscribed && can("templates.manage") && outboundOn && (
           <Link
             href="/dashboard/templates"
             className={cn(
@@ -263,7 +265,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Numbers Pool */}
-        {isSubscribed && role === "owner" && messagingOn && (
+        {isSubscribed && can("numbers.manage") && messagingOn && (
           <Link
             href="/dashboard/numbers"
             className={cn(
@@ -279,7 +281,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Knowledge Base */}
-        {isSubscribed && role === "owner" && messagingOn && (
+        {isSubscribed && can("knowledge.manage") && messagingOn && (
           <Link
             href="/dashboard/knowledge"
             className={cn(
@@ -295,7 +297,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Catalog */}
-        {isSubscribed && role === "owner" && messagingOn && (
+        {isSubscribed && can("catalog.manage") && messagingOn && (
           <Link
             href="/dashboard/catalog"
             className={cn(
@@ -311,7 +313,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Analytics */}
-        {isSubscribed && role === "owner" && messagingOn && (
+        {isSubscribed && can("analytics.view") && messagingOn && (
           <Link
             href="/dashboard/analytics"
             className={cn(
@@ -327,7 +329,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Subscription */}
-        {role === "owner" && (
+        {can("subscription.manage") && (
           <Link
             href="/dashboard/subscription"
             className={cn(
@@ -343,7 +345,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Team */}
-        {isSubscribed && role === "owner" && (
+        {isSubscribed && can("team.view") && (
           <Link
             href="/dashboard/team"
             className={cn(
@@ -355,6 +357,22 @@ export function Sidebar() {
           >
             <Users size={16} className={pathname.startsWith("/dashboard/team") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
             <span>Team</span>
+          </Link>
+        )}
+
+        {/* TOP LEVEL: Roles */}
+        {isSubscribed && can("roles.manage") && (
+          <Link
+            href="/dashboard/roles"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
+              pathname.startsWith("/dashboard/roles")
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+            )}
+          >
+            <ShieldCheck size={16} className={pathname.startsWith("/dashboard/roles") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+            <span>Roles</span>
           </Link>
         )}
 

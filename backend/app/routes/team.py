@@ -8,6 +8,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
 from app.services.assignment import get_telecalling_config
 from app.services.attendance import build_attendance_map, compute_team_summary, date_range
+from app.services.rbac import ensure_default_roles
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -97,6 +98,11 @@ def get_me(ctx: dict = Depends(get_tenant_and_role)):
     return {
         "tenant_id": ctx["tenant_id"],
         "role": ctx["role"],
+        "role_id": ctx.get("role_id"),
+        "role_name": ctx.get("role_name"),
+        "role_slug": ctx.get("role_slug"),
+        "permissions": ctx.get("permissions") or [],
+        "force_password_reset": ctx.get("force_password_reset", False),
         "caller_id": ctx.get("caller_id"),
         "caller_profile": profile,
         "enabled_features": enabled_features,
@@ -109,9 +115,10 @@ def list_team(ctx: dict = Depends(get_tenant_and_role)):
     if ctx["role"] != "owner":
         raise HTTPException(status_code=403, detail="Only owners can view team")
     db = get_supabase()
+    ensure_default_roles(db, ctx["tenant_id"])
     members = (
         db.table("tenant_users")
-        .select("user_id, role, created_at")
+        .select("user_id, role, role_id, full_name, force_password_reset, created_at")
         .eq("tenant_id", ctx["tenant_id"])
         .execute()
     )
@@ -127,9 +134,22 @@ def list_team(ctx: dict = Depends(get_tenant_and_role)):
         )
         callers = {r["user_id"]: r for r in (caller_rows.data or [])}
     result = []
+    roles = {}
+    role_ids = [m.get("role_id") for m in (members.data or []) if m.get("role_id")]
+    if role_ids:
+        role_rows = (
+            db.table("tenant_roles")
+            .select("id,name,slug,permissions")
+            .eq("tenant_id", ctx["tenant_id"])
+            .in_("id", role_ids)
+            .execute()
+        )
+        roles = {r["id"]: r for r in (role_rows.data or [])}
     for m in (members.data or []):
         result.append({
             **m,
+            "role_name": (roles.get(m.get("role_id")) or {}).get("name") or ("Owner" if m.get("role") == "owner" else "Telecaller"),
+            "permissions": (roles.get(m.get("role_id")) or {}).get("permissions") or [],
             "caller_profile": callers.get(m["user_id"]),
         })
     return {"data": result}

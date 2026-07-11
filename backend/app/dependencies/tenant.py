@@ -35,6 +35,7 @@ def get_tenant_id(user: dict = Depends(get_current_user)) -> str:
 
 def get_tenant_and_role(user: dict = Depends(get_current_user)) -> dict:
     from app.services.assignment import get_caller_id_for_user
+    from app.services.rbac import resolve_permissions
     db = get_supabase()
     result = execute_with_retry(
         db.table("tenant_users")
@@ -60,11 +61,13 @@ def get_tenant_and_role(user: dict = Depends(get_current_user)) -> dict:
     # Resolve a caller profile for ANY user that has one (owners can also be telecallers).
     # Role still governs visibility/permissions; caller_id only enables telecalling actions.
     caller_id = get_caller_id_for_user(user["user_id"], tenant_id)
+    access = resolve_permissions(db, tenant_id, user["user_id"], role)
     return {
         "tenant_id": tenant_id,
         "role": role,
         "user_id": user["user_id"],
         "caller_id": caller_id,
+        **access,
     }
 
 
@@ -81,4 +84,15 @@ def get_owner_tenant_id(ctx: dict = Depends(require_owner)) -> str:
     """Owner-only tenant id. Use for admin-only read endpoints so a caller
     cannot reach them via a direct API call (the UI already hides them)."""
     return ctx["tenant_id"]
+
+
+def require_permission(permission: str):
+    def _dependency(ctx: dict = Depends(get_tenant_and_role)) -> dict:
+        if ctx.get("role") == "owner" or permission in (ctx.get("permissions") or []):
+            return ctx
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission required: {permission}",
+        )
+    return _dependency
 

@@ -10,7 +10,7 @@ from app.dependencies.auth import get_current_user
 
 import os
 from app.config import settings
-from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog
+from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac
 from app.routes.calls import public_router as calls_public_router
 
 # Configure logging
@@ -567,6 +567,7 @@ app.include_router(templates.public_router, prefix="/api/v1/templates", tags=["t
 app.include_router(templates.router, prefix="/api/v1/templates", tags=["templates"], dependencies=_auth)
 app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["onboarding"], dependencies=_auth)
 app.include_router(team.router, prefix="/api/v1/team", tags=["team"], dependencies=_auth)
+app.include_router(rbac.router, prefix="/api/v1/rbac", tags=["rbac"], dependencies=_auth)
 app.include_router(media.router, prefix="/api/v1/leads", tags=["media"], dependencies=_auth)
 app.include_router(todos.router, prefix="/api/v1/todos", tags=["todos"], dependencies=_auth)
 app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"], dependencies=_auth)

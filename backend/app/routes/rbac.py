@@ -1,0 +1,360 @@
+import logging
+import secrets
+import string
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, EmailStr
+
+from app.db.supabase import get_supabase
+from app.dependencies.tenant import get_tenant_and_role, require_permission
+from app.services.assignment import get_telecalling_config
+from app.services.rbac import (
+    DEFAULT_TELECALLER_PERMISSIONS,
+    PERMISSION_CATALOG,
+    ensure_default_roles,
+    get_user_role,
+    is_telecaller_role,
+    normalize_permissions,
+    touch_updated_at,
+)
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+require_roles_manage = require_permission("roles.manage")
+
+
+class RolePayload(BaseModel):
+    name: str
+    description: str | None = None
+    permissions: list[str]
+
+
+class UserPayload(BaseModel):
+    full_name: str
+    email: EmailStr
+    role_id: str
+    temporary_password: str
+    phone: str | None = None
+    telecmi_agent_id: str | None = None
+    telecmi_agent_password: str | None = None
+
+
+class UserUpdatePayload(BaseModel):
+    full_name: str | None = None
+    role_id: str | None = None
+    phone: str | None = None
+    telecmi_agent_id: str | None = None
+    telecmi_agent_password: str | None = None
+
+
+def _temp_password(length: int = 14) -> str:
+    alphabet = string.ascii_letters + string.digits
+    while True:
+        value = "".join(secrets.choice(alphabet) for _ in range(length))
+        if any(c.islower() for c in value) and any(c.isupper() for c in value) and any(c.isdigit() for c in value):
+            return value + "!"
+
+
+def _auth_user(db, user_id: str) -> dict:
+    try:
+        result = db.auth.admin.get_user_by_id(user_id)
+        user = result.user
+        return {
+            "email": getattr(user, "email", None) or "",
+            "full_name": (getattr(user, "user_metadata", None) or {}).get("full_name"),
+        }
+    except Exception:
+        return {"email": "", "full_name": None}
+
+
+def _update_auth_metadata(db, user_id: str, updates: dict) -> None:
+    current = _auth_user(db, user_id)
+    metadata = {}
+    try:
+        result = db.auth.admin.get_user_by_id(user_id)
+        user = result.user
+        metadata = dict(getattr(user, "user_metadata", None) or {})
+    except Exception:
+        pass
+    if current.get("full_name") and "full_name" not in metadata:
+        metadata["full_name"] = current["full_name"]
+    metadata.update(updates)
+    db.auth.admin.update_user_by_id(user_id, {"user_metadata": metadata})
+
+
+def _role_map(db, tenant_id: str) -> dict[str, dict]:
+    rows = db.table("tenant_roles").select("*").eq("tenant_id", tenant_id).order("name").execute()
+    return {r["id"]: r for r in (rows.data or [])}
+
+
+def _caller_for_user(db, tenant_id: str, user_id: str) -> dict | None:
+    result = (
+        db.table("callers")
+        .select("id,name,phone,active,telecmi_agent_id,telecmi_agent_password")
+        .eq("tenant_id", tenant_id)
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def _ensure_caller_profile(db, tenant_id: str, user_id: str, payload: UserPayload | UserUpdatePayload, role: dict) -> None:
+    existing = _caller_for_user(db, tenant_id, user_id)
+    should_be_caller = is_telecaller_role(role)
+    now = datetime.now(timezone.utc).isoformat()
+    name = (payload.full_name or "").strip() if payload.full_name is not None else None
+    phone = (payload.phone or "").strip() if payload.phone is not None else None
+    telecmi_agent_id = (payload.telecmi_agent_id or "").strip() if payload.telecmi_agent_id is not None else None
+    telecmi_agent_password = (payload.telecmi_agent_password or "").strip() if payload.telecmi_agent_password is not None else None
+
+    if should_be_caller:
+        updates = {
+            "tenant_id": tenant_id,
+            "user_id": user_id,
+            "active": True,
+            "status": "active",
+        }
+        if name:
+            updates["name"] = name
+        if phone is not None:
+            updates["phone"] = phone or None
+        if telecmi_agent_id is not None:
+            updates["telecmi_agent_id"] = telecmi_agent_id or None
+        if telecmi_agent_password is not None:
+            updates["telecmi_agent_password"] = telecmi_agent_password or None
+        if existing:
+            db.table("callers").update(updates).eq("id", existing["id"]).eq("tenant_id", tenant_id).execute()
+        else:
+            db.table("callers").insert({
+                **updates,
+                "name": name or "Telecaller",
+                "overall_score": 0,
+                "status_changed_at": now,
+            }).execute()
+        return
+
+    if existing:
+        db.table("callers").update({"active": False}).eq("id", existing["id"]).eq("tenant_id", tenant_id).execute()
+
+
+def _serialize_user(db, tenant_id: str, member: dict, roles: dict[str, dict]) -> dict:
+    auth = _auth_user(db, member["user_id"])
+    role = roles.get(member.get("role_id") or "")
+    caller = _caller_for_user(db, tenant_id, member["user_id"])
+    if caller and caller.get("telecmi_agent_password"):
+        caller["has_telecmi_agent_password"] = True
+        caller.pop("telecmi_agent_password", None)
+    return {
+        "user_id": member["user_id"],
+        "full_name": member.get("full_name") or auth.get("full_name") or (caller or {}).get("name") or "",
+        "email": auth.get("email") or "",
+        "role": member.get("role"),
+        "role_id": member.get("role_id"),
+        "role_name": (role or {}).get("name") or ("Owner" if member.get("role") == "owner" else "Telecaller"),
+        "force_password_reset": bool(member.get("force_password_reset")),
+        "created_at": member.get("created_at"),
+        "caller_profile": caller,
+    }
+
+
+@router.get("/permissions")
+def list_permissions(_ctx: dict = Depends(require_roles_manage)):
+    return {"data": PERMISSION_CATALOG}
+
+
+@router.get("/roles")
+def list_roles(ctx: dict = Depends(require_roles_manage)):
+    db = get_supabase()
+    ensure_default_roles(db, ctx["tenant_id"])
+    roles = db.table("tenant_roles").select("*").eq("tenant_id", ctx["tenant_id"]).order("name").execute()
+    return {"data": roles.data or [], "permissions": PERMISSION_CATALOG}
+
+
+@router.post("/roles")
+def create_role(payload: RolePayload, ctx: dict = Depends(require_roles_manage)):
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Role name is required")
+    db = get_supabase()
+    row = {
+        "tenant_id": ctx["tenant_id"],
+        "name": name,
+        "description": (payload.description or "").strip() or None,
+        "permissions": normalize_permissions(payload.permissions),
+        "is_system_template": False,
+    }
+    try:
+        created = db.table("tenant_roles").insert(row).execute()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to create role: {e}")
+    return created.data[0]
+
+
+@router.patch("/roles/{role_id}")
+def update_role(role_id: str, payload: RolePayload, ctx: dict = Depends(require_roles_manage)):
+    db = get_supabase()
+    role = get_user_role(db, ctx["tenant_id"], role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    updates = touch_updated_at({
+        "name": payload.name.strip() or role["name"],
+        "description": (payload.description or "").strip() or None,
+        "permissions": normalize_permissions(payload.permissions),
+    })
+    updated = db.table("tenant_roles").update(updates).eq("id", role_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    return updated.data[0]
+
+
+@router.delete("/roles/{role_id}")
+def delete_role(role_id: str, ctx: dict = Depends(require_roles_manage)):
+    db = get_supabase()
+    role = get_user_role(db, ctx["tenant_id"], role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    if role.get("slug") == "telecaller":
+        raise HTTPException(status_code=400, detail="The default Telecaller role can be edited but not deleted")
+    assigned = db.table("tenant_users").select("id").eq("tenant_id", ctx["tenant_id"]).eq("role_id", role_id).limit(1).execute()
+    if assigned.data:
+        raise HTTPException(status_code=400, detail="Role is assigned to users")
+    db.table("tenant_roles").delete().eq("id", role_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    return {"deleted": True}
+
+
+@router.get("/users")
+def list_users(ctx: dict = Depends(require_roles_manage)):
+    db = get_supabase()
+    ensure_default_roles(db, ctx["tenant_id"])
+    roles = _role_map(db, ctx["tenant_id"])
+    members = (
+        db.table("tenant_users")
+        .select("user_id, role, role_id, full_name, force_password_reset, created_at")
+        .eq("tenant_id", ctx["tenant_id"])
+        .order("created_at")
+        .execute()
+    )
+    return {"data": [_serialize_user(db, ctx["tenant_id"], m, roles) for m in (members.data or [])]}
+
+
+@router.post("/users")
+def create_user(payload: UserPayload, ctx: dict = Depends(require_roles_manage)):
+    db = get_supabase()
+    role = get_user_role(db, ctx["tenant_id"], payload.role_id)
+    if not role:
+        raise HTTPException(status_code=400, detail="Choose a valid role")
+    if len(payload.temporary_password) < 8:
+        raise HTTPException(status_code=400, detail="Temporary password must be at least 8 characters")
+
+    calling_provider = get_telecalling_config(ctx["tenant_id"]).get("calling_provider", "telecmi")
+    if is_telecaller_role(role) and calling_provider == "sim_basic" and not (payload.phone or "").strip():
+        raise HTTPException(status_code=400, detail="Phone number is required for SIM Basic telecallers")
+
+    try:
+        result = db.auth.admin.create_user({
+            "email": str(payload.email),
+            "password": payload.temporary_password,
+            "email_confirm": True,
+            "user_metadata": {"full_name": payload.full_name.strip(), "force_password_reset": True},
+        })
+        user = result.user
+        user_id = user.id if hasattr(user, "id") else user["id"]
+    except Exception as e:
+        msg = str(e)
+        if any(s in msg.lower() for s in ("already", "duplicate", "registered")):
+            raise HTTPException(status_code=400, detail="A user with this email already exists")
+        raise HTTPException(status_code=400, detail=f"Failed to create user: {msg}")
+
+    db.table("tenant_users").insert({
+        "tenant_id": ctx["tenant_id"],
+        "user_id": user_id,
+        "role": "caller",
+        "role_id": payload.role_id,
+        "full_name": payload.full_name.strip(),
+        "force_password_reset": True,
+        "temporary_password_issued_at": datetime.now(timezone.utc).isoformat(),
+    }).execute()
+    _ensure_caller_profile(db, ctx["tenant_id"], user_id, payload, role)
+    return {"created": True, "user_id": user_id, "temporary_password": payload.temporary_password}
+
+
+@router.patch("/users/{user_id}")
+def update_user(user_id: str, payload: UserUpdatePayload, ctx: dict = Depends(require_roles_manage)):
+    db = get_supabase()
+    member = (
+        db.table("tenant_users")
+        .select("user_id, role, role_id")
+        .eq("tenant_id", ctx["tenant_id"])
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not member.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    if member.data[0].get("role") == "owner":
+        raise HTTPException(status_code=400, detail="Owner role cannot be edited here")
+
+    role_id = payload.role_id or member.data[0].get("role_id")
+    role = get_user_role(db, ctx["tenant_id"], role_id)
+    if not role:
+        raise HTTPException(status_code=400, detail="Choose a valid role")
+
+    updates = {}
+    if payload.full_name is not None:
+        updates["full_name"] = payload.full_name.strip()
+        try:
+            _update_auth_metadata(db, user_id, {"full_name": payload.full_name.strip()})
+        except Exception:
+            logger.warning("Failed to update auth metadata for user %s", user_id)
+    if payload.role_id is not None:
+        updates["role_id"] = payload.role_id
+    if updates:
+        db.table("tenant_users").update(updates).eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).execute()
+    _ensure_caller_profile(db, ctx["tenant_id"], user_id, payload, role)
+    return {"updated": True}
+
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: str, ctx: dict = Depends(require_roles_manage)):
+    if user_id == ctx["user_id"]:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    db = get_supabase()
+    member = db.table("tenant_users").select("role").eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).limit(1).execute()
+    if not member.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    if member.data[0].get("role") == "owner":
+        raise HTTPException(status_code=400, detail="Owner cannot be deleted here")
+    db.table("callers").update({"active": False}).eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).execute()
+    db.table("tenant_users").delete().eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).execute()
+    try:
+        db.auth.admin.delete_user(user_id)
+    except Exception:
+        logger.warning("Deleted tenant membership but auth user delete failed for %s", user_id)
+    return {"deleted": True}
+
+
+@router.post("/users/{user_id}/reset-password")
+def reset_user_password(user_id: str, ctx: dict = Depends(require_roles_manage)):
+    db = get_supabase()
+    member = db.table("tenant_users").select("role").eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).limit(1).execute()
+    if not member.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    password = _temp_password()
+    _update_auth_metadata(db, user_id, {"force_password_reset": True})
+    db.auth.admin.update_user_by_id(user_id, {"password": password})
+    db.table("tenant_users").update({
+        "force_password_reset": True,
+        "temporary_password_issued_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).execute()
+    return {"temporary_password": password}
+
+
+@router.post("/password-reset-complete")
+def password_reset_complete(ctx: dict = Depends(get_tenant_and_role)):
+    db = get_supabase()
+    db.table("tenant_users").update({"force_password_reset": False}).eq("tenant_id", ctx["tenant_id"]).eq("user_id", ctx["user_id"]).execute()
+    try:
+        _update_auth_metadata(db, ctx["user_id"], {"force_password_reset": False})
+    except Exception:
+        logger.warning("Failed to clear auth force reset metadata for user %s", ctx["user_id"])
+    return {"updated": True}

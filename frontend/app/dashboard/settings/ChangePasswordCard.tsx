@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api";
 
 const MIN_LENGTH = 8;
 
 type State = "idle" | "saving" | "saved";
 
-export default function ChangePasswordCard() {
-  const [collapsed, setCollapsed] = useState(true);
+export default function ChangePasswordCard({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  const [collapsed, setCollapsed] = useState(!defaultOpen);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -69,9 +70,14 @@ export default function ChangePasswordCard() {
       setState("idle");
       return;
     }
+    await api.rbac.markPasswordResetComplete().catch(() => {});
 
     reset();
     setState("saved");
+    if (defaultOpen) {
+      setTimeout(() => window.location.reload(), 700);
+      return;
+    }
     setTimeout(() => setState("idle"), 2500);
   }
 
