@@ -1541,12 +1541,12 @@ export const api = {
       apiFetch<{ data: PermissionDef[] }>("/api/v1/rbac/permissions"),
     roles: () =>
       apiFetch<{ data: ClientRole[]; permissions: PermissionDef[] }>("/api/v1/rbac/roles"),
-    createRole: (data: { name: string; description?: string | null; permissions: string[] }) =>
+    createRole: (data: { name: string; permissions: string[] }) =>
       apiFetch<ClientRole>("/api/v1/rbac/roles", {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    updateRole: (id: string, data: { name: string; description?: string | null; permissions: string[] }) =>
+    updateRole: (id: string, data: { name: string; permissions: string[] }) =>
       apiFetch<ClientRole>(`/api/v1/rbac/roles/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),

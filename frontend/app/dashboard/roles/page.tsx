@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 type Tab = "users" | "roles";
 
-const emptyRole = { name: "", description: "", permissions: [] as string[] };
+const emptyRole = { name: "", permissions: [] as string[] };
 const emptyUser = {
   full_name: "",
   email: "",
@@ -87,7 +87,6 @@ export default function RolesPage() {
     setEditingRoleId(role.id);
     setRoleDraft({
       name: role.name,
-      description: role.description ?? "",
       permissions: role.permissions,
     });
     setTab("roles");
@@ -303,7 +302,6 @@ export default function RolesPage() {
               {editingRoleId && <button type="button" onClick={resetRole} className="btn-secondary text-xs">New</button>}
             </div>
             <input className="input" placeholder="Role name" value={roleDraft.name} onChange={(e) => setRoleDraft((d) => ({ ...d, name: e.target.value }))} required />
-            <textarea className="input min-h-20" placeholder="Description" value={roleDraft.description} onChange={(e) => setRoleDraft((d) => ({ ...d, description: e.target.value }))} />
             <div className="space-y-4">
               {Object.entries(permissionGroups).map(([group, items]) => (
                 <div key={group}>
@@ -342,7 +340,6 @@ export default function RolesPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="font-display text-base font-bold text-ink">{role.name}</h2>
-                    <p className="mt-1 font-body text-xs leading-5 text-ink-muted">{role.description || "Client-specific role"}</p>
                     {role.slug === "telecaller" && <p className="mt-2 font-label text-[10px] font-black uppercase tracking-wider text-primary">Default telecaller template</p>}
                   </div>
                   <div className="flex gap-2">

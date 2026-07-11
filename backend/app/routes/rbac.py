@@ -26,7 +26,6 @@ require_roles_manage = require_permission("roles.manage")
 
 class RolePayload(BaseModel):
     name: str
-    description: str | None = None
     permissions: list[str]
 
 
@@ -185,7 +184,7 @@ def create_role(payload: RolePayload, ctx: dict = Depends(require_roles_manage))
     row = {
         "tenant_id": ctx["tenant_id"],
         "name": name,
-        "description": (payload.description or "").strip() or None,
+        "description": None,
         "permissions": normalize_permissions(payload.permissions),
         "is_system_template": False,
     }
@@ -204,7 +203,7 @@ def update_role(role_id: str, payload: RolePayload, ctx: dict = Depends(require_
         raise HTTPException(status_code=404, detail="Role not found")
     updates = touch_updated_at({
         "name": payload.name.strip() or role["name"],
-        "description": (payload.description or "").strip() or None,
+        "description": role.get("description"),
         "permissions": normalize_permissions(payload.permissions),
     })
     updated = db.table("tenant_roles").update(updates).eq("id", role_id).eq("tenant_id", ctx["tenant_id"]).execute()
