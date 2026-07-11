@@ -622,6 +622,11 @@ export default function ConnectChannelsPanel() {
     const code = esCodeRef.current;
     const session = esSessionRef.current;
     if (!code || !session.waba_id || !session.phone_number_id) return;
+    // Clear immediately on consumption — Meta's codes are single-use, so this also
+    // stops the other trigger (message event vs. FB.login callback) from resending
+    // the same code if both fire for one completed signup.
+    esCodeRef.current = null;
+    esSessionRef.current = {};
     setEsState("finishing");
     setEsError(null);
     try {

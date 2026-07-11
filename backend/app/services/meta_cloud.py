@@ -163,18 +163,33 @@ async def exchange_embedded_signup_code(code: str) -> dict:
 
 async def register_phone_number(phone_number_id: str, access_token: str, pin: str) -> dict:
     """Register a newly-onboarded Cloud API number so it can send/receive messages.
-    Required once per phone number after Embedded Signup, before it can be used."""
+    Required once per phone number after Embedded Signup, before it can be used.
+
+    Non-fatal by design: registration failing (timeout, wrong PIN on an already-registered
+    number, etc.) shouldn't block saving the rest of the connection, since the OAuth code
+    that got us here is already single-use and consumed either way.
+    """
     url = f"{_GRAPH_BASE}/{phone_number_id}/register"
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            url,
-            json={"messaging_product": "whatsapp", "pin": pin},
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=10.0,
-        )
-    data = resp.json()
-    if "error" in data:
-        logger.warning("Phone number registration failed for %s: %s", phone_number_id, data["error"])
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url,
+                json={"messaging_product": "whatsapp", "pin": pin},
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=20.0,
+            )
+        data = resp.json()
+    except httpx.HTTPError as e:
+        logger.warning("Phone number registration request failed for %s: %s", phone_number_id, e)
+        return {"error": {"message": str(e)}}
+    error = data.get("error")
+    if error and error.get("code") == 133005:
+        # Number already has a 2-step verification PIN set from a prior registration.
+        # Meta has no API to reset it (only WhatsApp Manager's UI can) — this isn't a
+        # failure, the number is already registered and usable.
+        logger.info("Phone number %s already registered (PIN set previously) — skipping re-registration", phone_number_id)
+    elif error:
+        logger.warning("Phone number registration failed for %s: %s", phone_number_id, error)
     return data
 
 
