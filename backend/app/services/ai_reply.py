@@ -17,27 +17,50 @@ from app.services.entitlements import meter, check_quota
 
 logger = logging.getLogger(__name__)
 
+from app.config_dynamic import get_setting
 from app.services.sarvam_client import sarvam_chat_completion, sarvam_chat_completion_with_tools
-_REPLY_MODEL = "sarvam-30b"
+from app.services.openrouter_client import openrouter_chat_completion
+
+_DEFAULT_REPLY_MODEL = "sarvam-30b"
+
+
+def _resolve_reply_model(tenant_id: str | None) -> str:
+    return get_setting("ai_reply_model", fallback=_DEFAULT_REPLY_MODEL, tenant_id=tenant_id) or _DEFAULT_REPLY_MODEL
 
 
 async def _llm_complete(prompt: str, max_tokens: int = 300, tenant_id: str | None = None) -> str:
-    return await sarvam_chat_completion(
+    model = _resolve_reply_model(tenant_id)
+    if model.startswith("sarvam"):
+        return await sarvam_chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            model=model,
+            temperature=0.4,
+            max_tokens=max_tokens,
+            tenant_id=tenant_id,
+        )
+    return await openrouter_chat_completion(
         messages=[{"role": "user", "content": prompt}],
-        model=_REPLY_MODEL,
+        model=model,
         temperature=0.4,
         max_tokens=max_tokens,
-        tenant_id=tenant_id,
     )
 
 
 async def _llm_chat(messages: list[dict], max_tokens: int = 300, tenant_id: str | None = None) -> str:
-    return await sarvam_chat_completion(
+    model = _resolve_reply_model(tenant_id)
+    if model.startswith("sarvam"):
+        return await sarvam_chat_completion(
+            messages=messages,
+            model=model,
+            temperature=0.4,
+            max_tokens=max_tokens,
+            tenant_id=tenant_id,
+        )
+    return await openrouter_chat_completion(
         messages=messages,
-        model=_REPLY_MODEL,
+        model=model,
         temperature=0.4,
         max_tokens=max_tokens,
-        tenant_id=tenant_id,
     )
 
 
@@ -934,7 +957,7 @@ async def generate_reply(
 
         if catalog_tools:
             reply_text, tool_calls = await sarvam_chat_completion_with_tools(
-                chat_messages, tools=catalog_tools, model=_REPLY_MODEL,
+                chat_messages, tools=catalog_tools, model=_DEFAULT_REPLY_MODEL,
                 max_tokens=600, tenant_id=tenant_id,
             )
             reply_text = reply_text.strip()
