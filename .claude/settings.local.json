@@ -29,7 +29,7 @@
       "mcp__claude_ai_Supabase__list_migrations",
       "mcp__claude_ai_Supabase__list_tables",
       "mcp__claude_ai_Supabase__execute_sql",
-      "Write(/Users/prem/Documents/Aira Ai/graphify-out/*)"
+      "Write(/Users/prem/Documents/Aira AI/graphify-out/*)"
     ]
   },
   "enabledMcpjsonServers": [
@@ -42,11 +42,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "FILE_PATH=\"$(echo $CLAUDE_TOOL_INPUT | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get(\"file_path\",d.get(\"path\",\"\")))' 2>/dev/null)\"; if [[ \"$FILE_PATH\" == *.tsx || \"$FILE_PATH\" == *.ts ]]; then cd /Users/prem/Documents/Aira\\ Ai/frontend && npx tsc --noEmit --pretty false 2>&1 | head -20; fi"
+            "command": "FILE_PATH=\"$(echo $CLAUDE_TOOL_INPUT | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get(\"file_path\",d.get(\"path\",\"\")))' 2>/dev/null)\"; if [[ \"$FILE_PATH\" == *.tsx || \"$FILE_PATH\" == *.ts ]]; then cd /Users/prem/Documents/Aira\\ AI/frontend && npx tsc --noEmit --pretty false 2>&1 | head -20; fi"
           },
           {
             "type": "command",
-            "command": "FILE_PATH=\"$(echo $CLAUDE_TOOL_INPUT | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get(\"file_path\",d.get(\"path\",\"\")))' 2>/dev/null)\"; if [[ \"$FILE_PATH\" == *.py && \"$FILE_PATH\" != *__pycache__* && \"$FILE_PATH\" != *seed_* ]]; then cd /Users/prem/Documents/Aira\\ Ai/backend && python -m py_compile \"$FILE_PATH\" 2>&1 && echo \"syntax OK: $FILE_PATH\"; fi"
+            "command": "FILE_PATH=\"$(echo $CLAUDE_TOOL_INPUT | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get(\"file_path\",d.get(\"path\",\"\")))' 2>/dev/null)\"; if [[ \"$FILE_PATH\" == *.py && \"$FILE_PATH\" != *__pycache__* && \"$FILE_PATH\" != *seed_* ]]; then cd /Users/prem/Documents/Aira\\ AI/backend && python -m py_compile \"$FILE_PATH\" 2>&1 && echo \"syntax OK: $FILE_PATH\"; fi"
           },
           {
             "type": "command",
@@ -60,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/prem/Documents/Aira\\ Ai/frontend && npx tsc --noEmit 2>&1 | tail -5 && echo 'Frontend type check done'"
+            "command": "cd /Users/prem/Documents/Aira\\ AI/frontend && npx tsc --noEmit 2>&1 | tail -5 && echo 'Frontend type check done'"
           }
         ]
       }

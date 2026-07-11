@@ -188,6 +188,15 @@
 - Client dashboard Settings fetches `/api/v1/settings/telecalling-config` and uses `calling_provider` to decide whether to show the `Telecalling Config` tab. Show that tab only for `telecmi`; for `sim_basic`, redirect direct `?tab=telecalling` access to `?tab=automations`.
 - The hidden tab is the TeleCMI credentials surface (app secret, CDR webhook secret, caller ID), not the general telecalling assignment settings. SIM Basic tenants still need the shared telecalling assignment/automation controls.
 
+## Migrations & RLS (folded in from retired .claude/agents/aira/* files, 2026-07-11)
+- Naming: `NNN_description.sql` in `backend/supabase/migrations/`, sequential — always `ls ... | sort | tail -5` to find the real current max before picking a number; don't trust any hardcoded example number in docs/agent files, the sequence moves fast (was at 035 in one stale doc, actually 137 by 2026-07-11).
+- **Numbering collisions happen across concurrent branches** — two unrelated migrations both landed as `131_*.sql` (2026-07-06); the later one had to be renumbered to 132 before applying. Check `main` for the number you're about to use.
+- RLS is enabled on all public tables as of migration 114. New tables must ship RLS from day one; app-layer `tenant_id` filtering is a second guard, never the only one.
+
+## WhatsApp single-send error codes (webhook/outbound debugging)
+- Meta Cloud API `error_subcode`/response codes seen in this codebase: `131030` = template not approved, `131047` = sent outside the 24h customer-service window, `131049` = marketing cap ("healthy ecosystem engagement" — retry-worthy, see broadcast retry notes above), `131026` = bad number (sets `whatsapp_undeliverable`, never retry).
+- A 400 from Meta on outbound send is frequently a wrong-ID bug, not a real API error: use `meta_waba_id`, not `meta_phone_number_id`, wherever the call requires the WABA id — mixing the two is a recurring mistake.
+
 ## Developer console client list display (2026-07-06)
 - Do not render raw `enabled_features` as chips in the top-level developer console client cards/table or the client detail header. Those arrays include internal/dependency keys (`token_expiry_alerts`, `webhook_health`, etc.) that are useful for entitlement logic but noisy as customer-facing/operator-facing summary UI.
 - Keep `enabled_features` available for feature gating and the client-detail sidebar toggles. Removing the visual chips is display-only; do not remove or flatten the underlying feature data.
