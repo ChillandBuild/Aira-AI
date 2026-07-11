@@ -1009,6 +1009,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "ai_media_max_images_per_reply": float_setting("ai_media_max_images_per_reply", 3),
             "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
+            "ai_reply_model": settings_map.get("ai_reply_model") or "sarvam-30b",
         },
         "usage": {
             "period": period,

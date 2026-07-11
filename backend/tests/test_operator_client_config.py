@@ -44,7 +44,8 @@ class OperatorClientConfigTests(unittest.TestCase):
                     {"key": "facebook_page_id", "value": "fb-page"},
                     {"key": "facebook_access_token", "value": "fb-token"},
                     {"key": "reengagement_enabled", "value": "false"},
-                    {"key": "kb_retrieval_mode", "value": "hybrid"}
+                    {"key": "kb_retrieval_mode", "value": "hybrid"},
+                    {"key": "ai_reply_model", "value": "openai/gpt-5-mini"}
                 ]
             elif name == "tenant_subscriptions":
                 tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
@@ -70,6 +71,7 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["settings"]["ai_voice_reply_language_code"], "ta-IN")
         self.assertEqual(body["settings"]["reengagement_enabled"], False)
         self.assertEqual(body["settings"]["kb_retrieval_mode"], "hybrid")
+        self.assertEqual(body["settings"]["ai_reply_model"], "openai/gpt-5-mini")
         self.assertEqual(body["credentials_status"]["ai"], "configured")
         self.assertEqual(body["credentials_status"]["telegram"], "configured")
         self.assertEqual(body["credentials_status"]["instagram"], "configured")
@@ -77,6 +79,33 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertNotIn("payments", body["credentials_status"])
         self.assertEqual(body["voice_usage"]["speech_to_text"], 3)
         self.assertEqual(body["voice_usage"]["text_to_speech"], 5)
+
+    @patch("app.routes.operator.get_supabase")
+    def test_get_client_config_defaults_ai_reply_model_to_sarvam(self, mock_get_db):
+        db = MagicMock()
+
+        def table(name):
+            tbl = MagicMock()
+            if name == "tenants":
+                tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
+                    "id": "tenant-1",
+                    "enabled_features": []
+                }
+            elif name == "app_settings":
+                tbl.select.return_value.eq.return_value.execute.return_value.data = []
+            elif name == "tenant_subscriptions":
+                tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
+            elif name == "tenant_usage_counters":
+                tbl.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
+            return tbl
+
+        db.table.side_effect = table
+        mock_get_db.return_value = db
+
+        res = self.client.get("/api/v1/operator/clients/tenant-1/config")
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body["settings"]["ai_reply_model"], "sarvam-30b")
 
     @patch("app.config_dynamic.invalidate_cache")
     @patch("app.routes.operator.record_audit_event")
