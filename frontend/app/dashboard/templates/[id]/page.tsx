@@ -21,6 +21,7 @@ import type { Button, Template } from "../types";
 import WhatsAppPreview from "../components/whatsapp-preview";
 import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
+import { useAuthRole } from "../../contexts/AuthRoleContext";
 
 function hasEmoji(str: string): boolean {
   const emojiRegex = /[\u2600-\u27BF]|[\uD83C-\uD83E][\uDC00-\uDFFF]/;
@@ -30,6 +31,8 @@ function hasEmoji(str: string): boolean {
 export default function TemplateDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const { role, permissions } = useAuthRole();
+  const canManageTemplates = role === "owner" || permissions.includes("templates.manage");
   const templateId = params.id as string;
 
   const [template, setTemplate] = useState<Template | null>(null);
@@ -94,6 +97,10 @@ export default function TemplateDetailsPage() {
 
   // Sync template status
   async function handleSync() {
+    if (!canManageTemplates) {
+      setError("Read-only role: syncing template status is disabled.");
+      return;
+    }
     setSyncing(true);
     setError(null);
     try {
@@ -114,6 +121,10 @@ export default function TemplateDetailsPage() {
 
   // Delete template
   async function handleDelete() {
+    if (!canManageTemplates) {
+      setError("Read-only role: deleting templates is disabled.");
+      return;
+    }
     if (!confirm("Are you sure you want to delete this template from your dashboard and Meta?")) return;
     setDeleting(true);
     try {
@@ -132,6 +143,10 @@ export default function TemplateDetailsPage() {
 
   // Media upload for header
   async function handleMediaUpload(file: File) {
+    if (!canManageTemplates) {
+      setError("Read-only role: media upload is disabled.");
+      return;
+    }
     setUploadingMedia(true);
     setError(null);
     try {
@@ -172,6 +187,10 @@ export default function TemplateDetailsPage() {
 
   // Save edits (PATCH)
   async function handleSave() {
+    if (!canManageTemplates) {
+      setError("Read-only role: resubmitting templates to Meta is disabled.");
+      return;
+    }
     if (!bodyText.trim()) {
       setError("Body text cannot be empty.");
       return;
@@ -248,7 +267,7 @@ export default function TemplateDetailsPage() {
     );
   }
 
-  const isEditable = template.status === "REJECTED" || template.status === "PAUSED";
+  const isEditable = canManageTemplates && (template.status === "REJECTED" || template.status === "PAUSED");
   const sc = STATUS_COLORS[template.status] || { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" };
 
   return (
@@ -287,9 +306,9 @@ export default function TemplateDetailsPage() {
           {/* Sync */}
           <button
             onClick={handleSync}
-            disabled={syncing}
+            disabled={syncing || !canManageTemplates}
             className="btn-ghost flex items-center gap-1 text-xs"
-            title="Pull latest approval status from Meta"
+            title={canManageTemplates ? "Pull latest approval status from Meta" : "Read-only role: sync is disabled"}
           >
             <RefreshCw size={13} className={syncing ? "animate-spin" : ""} />
             {syncing ? "Syncing..." : "Sync Status"}
@@ -307,14 +326,16 @@ export default function TemplateDetailsPage() {
           )}
 
           {/* Delete */}
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="btn-ghost flex items-center gap-1 text-xs text-red-600 hover:bg-red-50"
-          >
-            <Trash2 size={13} />
-            Delete
-          </button>
+          {canManageTemplates && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="btn-ghost flex items-center gap-1 text-xs text-red-600 hover:bg-red-50"
+            >
+              <Trash2 size={13} />
+              Delete
+            </button>
+          )}
 
           {/* Send Broadcast (only if approved) */}
           {template.status === "APPROVED" && (

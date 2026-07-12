@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from pydantic import BaseModel, field_validator
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services import meta_cloud
 from app.services.meta_cloud import (
     submit_template,
@@ -25,7 +25,10 @@ from app.config_dynamic import get_setting
 from app.services.meta_webhook_verify import verify_meta_signature
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+require_templates_read = require_permission("templates.view")
+require_templates_manage = require_permission("templates.manage")
+
+router = APIRouter(dependencies=[Depends(require_templates_read)])
 public_router = APIRouter()  # No auth — Meta calls these endpoints directly
 
 
@@ -122,7 +125,11 @@ async def list_templates(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.post("/")
-async def create_template(payload: CreateTemplate, tenant_id: str = Depends(get_tenant_id)):
+async def create_template(
+    payload: CreateTemplate,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
+):
     name = payload.name.strip().lower().replace(" ", "_")
     category = payload.category.upper()
     if category not in ("MARKETING", "UTILITY", "AUTHENTICATION"):
@@ -218,7 +225,11 @@ async def create_template(payload: CreateTemplate, tenant_id: str = Depends(get_
 
 
 @router.delete("/{template_id}")
-async def delete_template(template_id: str, tenant_id: str = Depends(get_tenant_id)):
+async def delete_template(
+    template_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
+):
     db = get_supabase()
     # Fetch the template first so we can delete from Meta too
     row = db.table("message_templates").select("name,meta_template_id,meta_waba_id").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
@@ -246,7 +257,11 @@ async def delete_template(template_id: str, tenant_id: str = Depends(get_tenant_
 
 
 @router.post("/{template_id}/sync")
-async def sync_template_status(template_id: str, tenant_id: str = Depends(get_tenant_id)):
+async def sync_template_status(
+    template_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
+):
     """Pull current status from Meta API and update the local record."""
     db = get_supabase()
     row = db.table("message_templates").select("name,meta_template_id").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
@@ -278,7 +293,10 @@ async def sync_template_status(template_id: str, tenant_id: str = Depends(get_te
 
 
 @router.post("/sync-from-meta")
-async def sync_templates_from_meta(tenant_id: str = Depends(get_tenant_id)):
+async def sync_templates_from_meta(
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
+):
     """Pull all templates from Meta and upsert into local DB. Returns added/updated counts."""
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
     if not waba_id:
@@ -464,7 +482,12 @@ async def get_template_variations(template_id: str, tenant_id: str = Depends(get
 
 
 @router.put("/{template_id}/variations")
-async def update_template_variations(template_id: str, payload: VariationsPayload, tenant_id: str = Depends(get_tenant_id)):
+async def update_template_variations(
+    template_id: str,
+    payload: VariationsPayload,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
+):
     db = get_supabase()
     result = db.table("message_templates").update({"variations": payload.variations}).eq("id", template_id).eq("tenant_id", tenant_id).execute()
     if not result.data:
@@ -489,7 +512,12 @@ class UpdateTemplate(BaseModel):
 
 
 @router.patch("/{template_id}")
-async def update_template(template_id: str, payload: UpdateTemplate, tenant_id: str = Depends(get_tenant_id)):
+async def update_template(
+    template_id: str,
+    payload: UpdateTemplate,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
+):
     """Edit a REJECTED or PAUSED template. Updates local DB and pushes changes to Meta if linked."""
     db = get_supabase()
     row = db.table("message_templates").select("*").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
@@ -585,6 +613,7 @@ async def update_template(template_id: str, payload: UpdateTemplate, tenant_id: 
 async def upload_template_media(
     file: UploadFile = File(...),
     tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
 ):
     """Upload a media file for use in template headers. Returns the Meta header_handle."""
     access_token = get_setting("meta_access_token", tenant_id=tenant_id)

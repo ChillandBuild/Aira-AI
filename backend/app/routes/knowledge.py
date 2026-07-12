@@ -3,11 +3,14 @@ from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, require_owner
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.knowledge_service import process_document, reindex_tenant
 
 logger = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(require_owner)])
+require_knowledge_read = require_permission("knowledge.view")
+require_knowledge_manage = require_permission("knowledge.manage")
+
+router = APIRouter(dependencies=[Depends(require_knowledge_read)])
 
 
 @router.get("/documents")
@@ -22,7 +25,8 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     campaign_tag_id: Optional[str] = Form(None),
-    tenant_id: str = Depends(get_tenant_id)
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_knowledge_manage),
 ):
     content = await file.read()
     db = get_supabase()
@@ -61,14 +65,21 @@ async def upload_document(
 
 
 @router.post("/reindex")
-async def reindex_documents(tenant_id: str = Depends(get_tenant_id)):
+async def reindex_documents(
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_knowledge_manage),
+):
     """Backfill RAG embeddings for all indexed documents (run once after enabling RAG)."""
     result = await reindex_tenant(tenant_id)
     return {"success": True, **result}
 
 
 @router.delete("/documents/{doc_id}")
-async def delete_document(doc_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def delete_document(
+    doc_id: UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_knowledge_manage),
+):
     db = get_supabase()
     # Chunks are deleted via CASCADE
     db.table("knowledge_documents").delete().eq("id", str(doc_id)).eq("tenant_id", tenant_id).execute()

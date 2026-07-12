@@ -25,9 +25,12 @@ import { LANGUAGES, STATUS_COLORS } from "./types";
 import type { Template } from "./types";
 import TemplateCard from "./components/template-card";
 import WhatsAppPreview from "./components/whatsapp-preview";
+import { useAuthRole } from "../contexts/AuthRoleContext";
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const { role, permissions } = useAuthRole();
+  const canManageTemplates = role === "owner" || permissions.includes("templates.manage");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +79,10 @@ export default function TemplatesPage() {
 
   // Sync all templates from Meta
   async function handleSyncAll() {
+    if (!canManageTemplates) {
+      setError("Read-only role: syncing templates from Meta is disabled.");
+      return;
+    }
     setSyncing(true);
     setError(null);
     try {
@@ -98,6 +105,10 @@ export default function TemplatesPage() {
   // Single Template Actions
   async function handleSyncSingle(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
+    if (!canManageTemplates) {
+      setError("Read-only role: syncing template status is disabled.");
+      return;
+    }
     setSyncingId(id);
     try {
       const authHeaders = await getAuthHeaders();
@@ -118,6 +129,10 @@ export default function TemplatesPage() {
 
   async function handleDelete(id: string, e?: React.MouseEvent) {
     e?.stopPropagation();
+    if (!canManageTemplates) {
+      setError("Read-only role: deleting templates is disabled.");
+      return;
+    }
     if (!confirm("Are you sure you want to delete this template?")) return;
     try {
       const authHeaders = await getAuthHeaders();
@@ -161,6 +176,7 @@ export default function TemplatesPage() {
   }
 
   async function handleVariationAdd() {
+    if (!canManageTemplates) return;
     const nameTrimmed = newVariation.trim();
     if (!nameTrimmed || !variationsModalId) return;
     const next = [...variationsList, nameTrimmed];
@@ -179,6 +195,7 @@ export default function TemplatesPage() {
   }
 
   async function handleVariationRemove(varName: string) {
+    if (!canManageTemplates) return;
     if (!variationsModalId) return;
     const next = variationsList.filter((v) => v !== varName);
     setVariationsList(next);
@@ -236,7 +253,8 @@ export default function TemplatesPage() {
           <div className="flex gap-2">
             <button
               onClick={handleSyncAll}
-              disabled={syncing}
+              disabled={syncing || !canManageTemplates}
+              title={canManageTemplates ? "Sync from Meta" : "Read-only role: sync is disabled"}
               className="flex-1 px-3 py-2 bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] rounded-xl font-label text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
             >
               <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
@@ -250,13 +268,25 @@ export default function TemplatesPage() {
               Carousel
             </Link>
           </div>
-          <Link
-            href="/dashboard/templates/new"
-            className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
-          >
-            <Plus size={14} />
-            Create Template
-          </Link>
+          {canManageTemplates ? (
+            <Link
+              href="/dashboard/templates/new"
+              className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
+            >
+              <Plus size={14} />
+              Create Template
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="w-full py-2.5 bg-primary text-white rounded-xl font-label text-xs font-bold opacity-45 flex items-center justify-center gap-1.5"
+              title="Read-only role: template creation is disabled"
+            >
+              <Plus size={14} />
+              Create Disabled
+            </button>
+          )}
         </div>
       </div>
 
@@ -385,10 +415,12 @@ export default function TemplatesPage() {
             Create a new template to submit it to WhatsApp, or sync with Meta to load your existing structures.
           </p>
           <div className="mt-6 flex items-center justify-center gap-3">
-            <button onClick={handleSyncAll} className="btn-ghost text-xs">Sync from Meta</button>
-            <Link href="/dashboard/templates/new" className="btn-primary text-xs px-5 py-2">
-              New Template
-            </Link>
+            <button onClick={handleSyncAll} disabled={!canManageTemplates} className="btn-ghost text-xs disabled:opacity-40">Sync from Meta</button>
+            {canManageTemplates && (
+              <Link href="/dashboard/templates/new" className="btn-primary text-xs px-5 py-2">
+                New Template
+              </Link>
+            )}
           </div>
         </div>
       ) : viewMode === "GRID" ? (
@@ -398,13 +430,13 @@ export default function TemplatesPage() {
               key={t.id}
               template={t}
               onEdit={(tmpl) => router.push(`/dashboard/templates/${tmpl.id}`)}
-              onDelete={(tmpl) => handleDelete(tmpl.id)}
-              onSync={(tmpl) => handleSyncSingle(tmpl.id)}
+              onDelete={canManageTemplates ? (tmpl) => handleDelete(tmpl.id) : undefined}
+              onSync={canManageTemplates ? (tmpl) => handleSyncSingle(tmpl.id) : undefined}
               onSend={(tmpl) => router.push(`/dashboard/outbound-leads?template=${encodeURIComponent(tmpl.name)}`)}
-              onDuplicate={(tmpl) => {
+              onDuplicate={canManageTemplates ? (tmpl) => {
                 // Quick duplicate to builder
                 router.push(`/dashboard/templates/new?duplicate=${tmpl.id}`);
-              }}
+              } : undefined}
             />
           ))}
         </div>
@@ -430,10 +462,10 @@ export default function TemplatesPage() {
                   </div>
                   <div className="mt-4 flex flex-wrap justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => setSelectedTemplate(t)} className="rounded-lg bg-surface-subtle p-2 text-ink-muted hover:text-ink" title="View Preview"><Eye size={14} /></button>
-                    <button onClick={(e) => handleSyncSingle(t.id, e)} disabled={syncingId === t.id} className="rounded-lg bg-surface-subtle p-2 text-ink-muted hover:text-ink disabled:opacity-50" title="Sync Status"><RefreshCw size={14} className={syncingId === t.id ? "animate-spin" : ""} /></button>
-                    <button onClick={(e) => openVariationsModal(t.id, e)} className="rounded-lg bg-violet-50 p-2 text-violet-600" title="Rotate Variations"><Shuffle size={14} /></button>
+                    {canManageTemplates && <button onClick={(e) => handleSyncSingle(t.id, e)} disabled={syncingId === t.id} className="rounded-lg bg-surface-subtle p-2 text-ink-muted hover:text-ink disabled:opacity-50" title="Sync Status"><RefreshCw size={14} className={syncingId === t.id ? "animate-spin" : ""} /></button>}
+                    {canManageTemplates && <button onClick={(e) => openVariationsModal(t.id, e)} className="rounded-lg bg-violet-50 p-2 text-violet-600" title="Rotate Variations"><Shuffle size={14} /></button>}
                     <button onClick={() => router.push(`/dashboard/templates/${t.id}`)} className="rounded-lg bg-emerald-50 p-2 text-emerald-600" title="Open Detail/Editor"><ChevronRight size={14} /></button>
-                    <button onClick={(e) => handleDelete(t.id, e)} className="rounded-lg bg-red-50 p-2 text-red-500" title="Delete"><Trash2 size={14} /></button>
+                    {canManageTemplates && <button onClick={(e) => handleDelete(t.id, e)} className="rounded-lg bg-red-50 p-2 text-red-500" title="Delete"><Trash2 size={14} /></button>}
                   </div>
                 </div>
               );
@@ -483,21 +515,25 @@ export default function TemplatesPage() {
                           >
                             <Eye size={13} />
                           </button>
-                          <button
-                            onClick={(e) => handleSyncSingle(t.id, e)}
-                            disabled={syncingId === t.id}
-                            className="p-1.5 rounded-lg hover:bg-surface-subtle text-ink-muted hover:text-ink disabled:opacity-50"
-                            title="Sync Status"
-                          >
-                            <RefreshCw size={13} className={syncingId === t.id ? "animate-spin" : ""} />
-                          </button>
-                          <button
-                            onClick={(e) => openVariationsModal(t.id, e)}
-                            className="p-1.5 rounded-lg hover:bg-violet-50 text-ink-muted hover:text-violet-600"
-                            title="Rotate Variations"
-                          >
-                            <Shuffle size={13} />
-                          </button>
+                          {canManageTemplates && (
+                            <button
+                              onClick={(e) => handleSyncSingle(t.id, e)}
+                              disabled={syncingId === t.id}
+                              className="p-1.5 rounded-lg hover:bg-surface-subtle text-ink-muted hover:text-ink disabled:opacity-50"
+                              title="Sync Status"
+                            >
+                              <RefreshCw size={13} className={syncingId === t.id ? "animate-spin" : ""} />
+                            </button>
+                          )}
+                          {canManageTemplates && (
+                            <button
+                              onClick={(e) => openVariationsModal(t.id, e)}
+                              className="p-1.5 rounded-lg hover:bg-violet-50 text-ink-muted hover:text-violet-600"
+                              title="Rotate Variations"
+                            >
+                              <Shuffle size={13} />
+                            </button>
+                          )}
                           <button
                             onClick={() => router.push(`/dashboard/templates/${t.id}`)}
                             className="p-1.5 rounded-lg hover:bg-emerald-50 text-ink-muted hover:text-emerald-600"
@@ -505,13 +541,15 @@ export default function TemplatesPage() {
                           >
                             <ChevronRight size={13} />
                           </button>
-                          <button
-                            onClick={(e) => handleDelete(t.id, e)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 text-ink-muted hover:text-red-500"
-                            title="Delete"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {canManageTemplates && (
+                            <button
+                              onClick={(e) => handleDelete(t.id, e)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-ink-muted hover:text-red-500"
+                              title="Delete"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -620,7 +658,7 @@ export default function TemplatesPage() {
             {/* Modal Footer */}
             <div className="p-4 border-t border-border-subtle bg-white flex items-center justify-end gap-2.5">
               <button onClick={() => setSelectedTemplate(null)} className="btn-ghost text-xs">Close</button>
-              {(selectedTemplate.status === "REJECTED" || selectedTemplate.status === "PAUSED") && (
+              {canManageTemplates && (selectedTemplate.status === "REJECTED" || selectedTemplate.status === "PAUSED") && (
                 <button
                   onClick={() => {
                     setSelectedTemplate(null);
@@ -681,9 +719,11 @@ export default function TemplatesPage() {
                       {variationsList.map((v) => (
                         <span key={v} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700 text-xs font-mono font-medium">
                           {v}
-                          <button onClick={() => handleVariationRemove(v)} className="text-violet-400 hover:text-violet-700">
-                            <X size={12} />
-                          </button>
+                          {canManageTemplates && (
+                            <button onClick={() => handleVariationRemove(v)} className="text-violet-400 hover:text-violet-700">
+                              <X size={12} />
+                            </button>
+                          )}
                         </span>
                       ))}
                     </div>
@@ -699,7 +739,7 @@ export default function TemplatesPage() {
                     />
                     <button
                       onClick={handleVariationAdd}
-                      disabled={!newVariation.trim()}
+                      disabled={!newVariation.trim() || !canManageTemplates}
                       className="btn-primary text-xs px-4 disabled:opacity-50"
                     >
                       Add

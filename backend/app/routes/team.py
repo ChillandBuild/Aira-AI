@@ -5,13 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_and_role
+from app.dependencies.tenant import get_tenant_and_role, require_permission
 from app.services.assignment import get_telecalling_config
 from app.services.attendance import build_attendance_map, compute_team_summary, date_range
 from app.services.rbac import ensure_default_roles
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_team_view = require_permission("team.view")
+require_team_manage = require_permission("team.manage")
 
 
 class InvitePayload(BaseModel):
@@ -111,9 +113,7 @@ def get_me(ctx: dict = Depends(get_tenant_and_role)):
 
 
 @router.get("/")
-def list_team(ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can view team")
+def list_team(ctx: dict = Depends(require_team_view)):
     db = get_supabase()
     ensure_default_roles(db, ctx["tenant_id"])
     calling_provider = get_telecalling_config(ctx["tenant_id"]).get("calling_provider", "telecmi")
@@ -158,8 +158,8 @@ def list_team(ctx: dict = Depends(get_tenant_and_role)):
 
 @router.post("/invite")
 async def invite_member(payload: InvitePayload, ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can invite members")
+    if ctx["role"] != "owner" and "team.manage" not in (ctx.get("permissions") or []):
+        raise HTTPException(status_code=403, detail="Permission required: team.manage")
 
     db = get_supabase()
 
@@ -234,8 +234,8 @@ async def invite_member(payload: InvitePayload, ctx: dict = Depends(get_tenant_a
 
 @router.delete("/{user_id}")
 def remove_member(user_id: str, ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can remove members")
+    if ctx["role"] != "owner" and "team.manage" not in (ctx.get("permissions") or []):
+        raise HTTPException(status_code=403, detail="Permission required: team.manage")
     db = get_supabase()
     db.table("tenant_users").delete().eq("user_id", user_id).eq("tenant_id", ctx["tenant_id"]).execute()
     db.table("callers").delete().eq("user_id", user_id).eq("tenant_id", ctx["tenant_id"]).execute()
@@ -247,10 +247,8 @@ def get_team_attendance(
     month: str | None = None,
     from_date: str | None = Query(None, alias="from"),
     to_date: str | None = Query(None, alias="to"),
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_team_view),
 ):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can view attendance")
     db = get_supabase()
     today = datetime.utcnow().date()
 
@@ -380,8 +378,8 @@ def get_caller_attendance(caller_id: str, months: int = 4, ctx: dict = Depends(g
 
 @router.post("/attendance/holiday")
 def mark_holiday(payload: MarkHolidayPayload, ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can mark holidays")
+    if ctx["role"] != "owner" and "team.manage" not in (ctx.get("permissions") or []):
+        raise HTTPException(status_code=403, detail="Permission required: team.manage")
     try:
         holiday_date = date.fromisoformat(payload.date)
     except ValueError:
@@ -426,8 +424,8 @@ def mark_holiday(payload: MarkHolidayPayload, ctx: dict = Depends(get_tenant_and
 
 @router.post("/attendance/{caller_id}")
 def mark_attendance(caller_id: str, payload: AttendancePayload, ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can mark attendance")
+    if ctx["role"] != "owner" and "team.manage" not in (ctx.get("permissions") or []):
+        raise HTTPException(status_code=403, detail="Permission required: team.manage")
     if payload.status not in ("present", "absent"):
         raise HTTPException(status_code=400, detail="status must be 'present' or 'absent'")
     try:

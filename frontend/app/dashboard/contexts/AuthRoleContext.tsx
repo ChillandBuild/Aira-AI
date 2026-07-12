@@ -13,6 +13,7 @@ interface RoleCtx {
   enabledFeatures: string[];
   isSystemAdmin: boolean;
   forcePasswordReset: boolean;
+  bootstrapError: string | null;
   loading: boolean;
 }
 
@@ -26,6 +27,7 @@ const AuthRoleContext = createContext<RoleCtx>({
   enabledFeatures: ["whatsapp", "telecalling"],
   isSystemAdmin: false,
   forcePasswordReset: false,
+  bootstrapError: null,
   loading: true,
 });
 
@@ -69,6 +71,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["whatsapp", "telecalling"]);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [forcePasswordReset, setForcePasswordReset] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -100,10 +103,20 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
       }
 
       const auth: Record<string, string> = session ? { Authorization: `Bearer ${session.access_token}` } : {};
+      let lastError = "Could not load your workspace access.";
       for (let attempt = 1; attempt <= retries; attempt++) {
         try {
           const res = await fetch(`${API_URL}/api/v1/team/me`, { headers: auth });
-          if (!res.ok) throw new Error(`team/me ${res.status}`);
+          if (!res.ok) {
+            const body = await res.json().catch(() => null);
+            const detail = typeof body?.detail === "string" ? body.detail : `team/me ${res.status}`;
+            lastError = detail;
+            if (![502, 503, 504].includes(res.status)) {
+              setBootstrapError(detail);
+              return;
+            }
+            throw new Error(detail);
+          }
           const d = await res.json();
           const newRole = d.role as "owner" | "caller";
           const newRoleId = d.role_id ?? null;
@@ -145,20 +158,23 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           setEnabledFeatures(newFeatures);
           setIsSystemAdmin(newIsAdmin);
           setForcePasswordReset(newForcePasswordReset);
+          setBootstrapError(null);
           return;
-        } catch {
+        } catch (err) {
+          lastError = err instanceof Error ? err.message : lastError;
           if (attempt < retries) {
             await new Promise((r) => setTimeout(r, delayMs));
           }
         }
       }
+      setBootstrapError(lastError);
     }
 
     fetchMe().finally(() => setLoading(false));
   }, []);
 
   return (
-    <AuthRoleContext.Provider value={{ role, roleId, roleName, roleSlug, permissions, callerId, enabledFeatures, isSystemAdmin, forcePasswordReset, loading }}>
+    <AuthRoleContext.Provider value={{ role, roleId, roleName, roleSlug, permissions, callerId, enabledFeatures, isSystemAdmin, forcePasswordReset, bootstrapError, loading }}>
       {children}
     </AuthRoleContext.Provider>
   );

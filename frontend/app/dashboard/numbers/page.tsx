@@ -272,7 +272,9 @@ const numbersApi = {
 };
 
 function NumbersPageContent() {
-  const { role, loading: roleLoading } = useAuthRole();
+  const { role, permissions, loading: roleLoading } = useAuthRole();
+  const canViewNumbers = role === "owner" || permissions.includes("numbers.view") || permissions.includes("numbers.manage");
+  const canManageNumbers = role === "owner" || permissions.includes("numbers.manage");
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -374,22 +376,24 @@ function NumbersPageContent() {
     );
   }
 
-  if (role !== "owner") {
+  if (!canViewNumbers) {
     return (
       <div className="text-center py-20">
         <p className="text-on-surface-muted font-body">
-          This section is only available for owners/admins.
+          You do not have access to the numbers pool.
         </p>
       </div>
     );
   }
 
   function startRename(num: PhoneNumber) {
+    if (!canManageNumbers) return;
     setEditingId(num.id);
     setEditName(num.display_name);
   }
 
   async function saveRename(id: string) {
+    if (!canManageNumbers) return;
     if (!editName.trim()) return;
     setSaving(true);
     try {
@@ -404,6 +408,7 @@ function NumbersPageContent() {
   }
 
   async function handleAdd() {
+    if (!canManageNumbers) return;
     if (!addNumber.trim() || !addDisplayName.trim()) return;
     setAdding(true);
     try {
@@ -426,6 +431,7 @@ function NumbersPageContent() {
   }
 
   async function handleSetPrimary(id: string) {
+    if (!canManageNumbers) return;
     try {
       await numbersApi.update(id, { role: "primary" });
       await reload();
@@ -436,6 +442,7 @@ function NumbersPageContent() {
   }
 
   async function handleTogglePause(num: PhoneNumber) {
+    if (!canManageNumbers) return;
     setPausingId(num.id);
     try {
       await numbersApi.update(num.id, { paused_outbound: !num.paused_outbound });
@@ -449,6 +456,7 @@ function NumbersPageContent() {
   }
 
   async function handleSyncMeta(id: string) {
+    if (!canManageNumbers) return;
     setSyncingId(id);
     try {
       await numbersApi.syncMeta(id);
@@ -462,6 +470,7 @@ function NumbersPageContent() {
   }
 
   async function handleSyncAllMeta() {
+    if (!canManageNumbers) return;
     const configuredNumbers = numbers.filter((n) => n.meta_phone_number_id && n.status !== "archived");
     if (configuredNumbers.length === 0) {
       toast.error("No configured numbers to sync");
@@ -496,6 +505,7 @@ function NumbersPageContent() {
   }
 
   async function handleDelete(id: string) {
+    if (!canManageNumbers) return;
     if (!confirm("Delete this number? It will no longer send or receive messages.")) return;
     try {
       await numbersApi.remove(id);
@@ -545,22 +555,26 @@ function NumbersPageContent() {
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="font-display text-lg font-bold text-primary">Number Pool</h2>
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={handleSyncAllMeta}
-                  disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
-                  title="Sync all configured numbers from Meta"
-                >
-                  <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
-                  {syncingAll ? "Syncing all…" : "Sync from Meta"}
-                </button>
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg font-label text-xs font-semibold hover:bg-primary/90 transition-colors"
-                >
-                  <Plus size={13} />
-                  Add Number
-                </button>
+                {canManageNumbers && (
+                  <button
+                    onClick={handleSyncAllMeta}
+                    disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
+                    title="Sync all configured numbers from Meta"
+                  >
+                    <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
+                    {syncingAll ? "Syncing all…" : "Sync from Meta"}
+                  </button>
+                )}
+                {canManageNumbers && (
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg font-label text-xs font-semibold hover:bg-primary/90 transition-colors"
+                  >
+                    <Plus size={13} />
+                    Add Number
+                  </button>
+                )}
               </div>
             </div>
 
@@ -620,8 +634,9 @@ function NumbersPageContent() {
                         ) : (
                           <button
                             onClick={() => startRename(num)}
-                            className="flex items-center gap-1.5 group min-w-0"
-                            title="Click to rename"
+                            disabled={!canManageNumbers}
+                            className="flex items-center gap-1.5 group min-w-0 disabled:cursor-default"
+                            title={canManageNumbers ? "Click to rename" : "Read-only"}
                           >
                             <span className="font-body text-sm font-semibold text-on-surface group-hover:text-primary transition-colors truncate">
                               {num.display_name}
@@ -678,7 +693,7 @@ function NumbersPageContent() {
                         {/* Action buttons */}
 
                         {/* Set as Primary */}
-                        {num.role !== "primary" && num.role !== "archived" && (
+                        {canManageNumbers && num.role !== "primary" && num.role !== "archived" && (
                           <button
                             onClick={() => handleSetPrimary(num.id)}
                             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-600 font-label text-[11px] font-semibold transition-colors"
@@ -690,42 +705,48 @@ function NumbersPageContent() {
                         )}
 
                         {/* Pause / Resume */}
-                        <button
-                          onClick={() => handleTogglePause(num)}
-                          disabled={isPausing}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border font-label text-[11px] font-semibold transition-colors disabled:opacity-50 ${
-                            num.paused_outbound
-                              ? "border-green-200 bg-green-50 hover:bg-green-100 text-green-700"
-                              : "border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700"
-                          }`}
-                          title={num.paused_outbound ? "Resume outbound messaging" : "Pause outbound messaging"}
-                        >
-                          {num.paused_outbound
-                            ? <><PlayCircle size={12} /> Resume</>
-                            : <><PauseCircle size={12} /> Pause</>
-                          }
-                        </button>
+                        {canManageNumbers && (
+                          <button
+                            onClick={() => handleTogglePause(num)}
+                            disabled={isPausing}
+                            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border font-label text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+                              num.paused_outbound
+                                ? "border-green-200 bg-green-50 hover:bg-green-100 text-green-700"
+                                : "border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700"
+                            }`}
+                            title={num.paused_outbound ? "Resume outbound messaging" : "Pause outbound messaging"}
+                          >
+                            {num.paused_outbound
+                              ? <><PlayCircle size={12} /> Resume</>
+                              : <><PauseCircle size={12} /> Pause</>
+                            }
+                          </button>
+                        )}
 
                         {/* Sync from Meta */}
-                        <button
-                          onClick={() => handleSyncMeta(num.id)}
-                          disabled={isSyncing}
-                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-surface-mid bg-surface hover:bg-surface-low text-on-surface-muted hover:text-on-surface font-label text-[11px] font-semibold transition-colors disabled:opacity-50"
-                          title="Pull latest quality rating and tier from Meta"
-                        >
-                          <RefreshCw size={11} className={isSyncing ? "animate-spin" : ""} />
-                          {isSyncing ? "Syncing…" : "Sync Meta"}
-                        </button>
+                        {canManageNumbers && (
+                          <button
+                            onClick={() => handleSyncMeta(num.id)}
+                            disabled={isSyncing}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-surface-mid bg-surface hover:bg-surface-low text-on-surface-muted hover:text-on-surface font-label text-[11px] font-semibold transition-colors disabled:opacity-50"
+                            title="Pull latest quality rating and tier from Meta"
+                          >
+                            <RefreshCw size={11} className={isSyncing ? "animate-spin" : ""} />
+                            {isSyncing ? "Syncing…" : "Sync Meta"}
+                          </button>
+                        )}
 
                         {/* Delete */}
-                        <button
-                          onClick={() => handleDelete(num.id)}
-                          disabled={activeCount === 1 && num.status === "active"}
-                          title={activeCount === 1 && num.status === "active" ? "Cannot delete last active number" : "Delete number"}
-                          className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {canManageNumbers && (
+                          <button
+                            onClick={() => handleDelete(num.id)}
+                            disabled={activeCount === 1 && num.status === "active"}
+                            title={activeCount === 1 && num.status === "active" ? "Cannot delete last active number" : "Delete number"}
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-muted hover:text-red-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -820,21 +841,23 @@ function NumbersPageContent() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-display text-lg font-bold text-primary">Timeline</h2>
             <div className="flex items-center gap-3">
-              <button
-                onClick={async () => {
-                  await handleSyncAllMeta();
-                  setIncidentsLoading(true);
-                  await fetchIncidents(0, false);
-                  setIncidentOffset(0);
-                  setIncidentsLoading(false);
-                }}
-                disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
-                title="Sync quality from Meta and log any changes"
-              >
-                <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
-                {syncingAll ? "Syncing…" : "Sync from Meta"}
-              </button>
+              {canManageNumbers && (
+                <button
+                  onClick={async () => {
+                    await handleSyncAllMeta();
+                    setIncidentsLoading(true);
+                    await fetchIncidents(0, false);
+                    setIncidentOffset(0);
+                    setIncidentsLoading(false);
+                  }}
+                  disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
+                  title="Sync quality from Meta and log any changes"
+                >
+                  <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
+                  {syncingAll ? "Syncing…" : "Sync from Meta"}
+                </button>
+              )}
               <span className="font-label text-xs text-on-surface-muted">
                 Auto-refreshes every 30 s
               </span>

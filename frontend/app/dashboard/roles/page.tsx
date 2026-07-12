@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Copy,
+  Eye,
+  EyeOff,
   KeyRound,
   Loader2,
   Pencil,
@@ -104,6 +106,8 @@ export default function RolesPage() {
   const [userDraft, setUserDraft] = useState(emptyUser);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState<{ label: string; value: string } | null>(null);
+  const [showDraftPassword, setShowDraftPassword] = useState(false);
+  const [showIssuedPassword, setShowIssuedPassword] = useState(true);
 
   const catalogKeys = useMemo(() => new Set(permissions.map((permission) => permission.key)), [permissions]);
   const availableModules = useMemo(() => {
@@ -306,20 +310,23 @@ export default function RolesPage() {
           <div className="rounded-2xl border border-border-subtle bg-white px-4 py-2 font-body text-xs font-semibold text-ink-muted shadow-sm">
             Calling provider: <span className="text-ink">{providerLabel(callingProvider)}</span>
           </div>
-          <div className="flex w-full gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:w-fit">
-            {(["roles", "users"] as Tab[]).map((item) => (
+          <div className="flex w-full gap-1 rounded-2xl border border-border-subtle bg-white p-1 shadow-sm sm:w-fit">
+            {(["roles", "users"] as Tab[]).map((item) => {
+              const Icon = item === "roles" ? ShieldCheck : Users;
+              return (
               <button
                 key={item}
                 type="button"
                 onClick={() => setTab(item)}
                 className={cn(
-                  "flex-1 rounded-xl px-4 py-2.5 font-label text-xs font-bold capitalize transition-all sm:flex-none",
-                  tab === item ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                  "inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-label text-xs font-bold capitalize transition-all sm:flex-none",
+                  tab === item ? "bg-primary text-white shadow-sm" : "text-[#78716c] hover:bg-surface-subtle hover:text-[#292524]",
                 )}
               >
+                <Icon size={14} />
                 {item}
               </button>
-            ))}
+            )})}
           </div>
           {tab === "roles" && canWrite && (
             <button type="button" onClick={resetRole} className="btn-primary justify-center">
@@ -335,15 +342,25 @@ export default function RolesPage() {
         <div className="flex flex-col gap-3 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-label text-[10px] font-black uppercase tracking-wider text-emerald-700">Temporary password for {temporaryPassword.label}</p>
-            <p className="mt-1 font-mono text-sm font-bold text-ink">{temporaryPassword.value}</p>
+            <p className="mt-1 font-mono text-sm font-bold text-ink">{showIssuedPassword ? temporaryPassword.value : "••••••••••••••"}</p>
           </div>
-          <button
-            type="button"
-            className="btn-secondary justify-center"
-            onClick={() => navigator.clipboard?.writeText(temporaryPassword.value)}
-          >
-            <Copy size={14} /> Copy
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn-secondary justify-center px-3"
+              onClick={() => setShowIssuedPassword((value) => !value)}
+              title={showIssuedPassword ? "Hide password" : "Show password"}
+            >
+              {showIssuedPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary justify-center"
+              onClick={() => navigator.clipboard?.writeText(temporaryPassword.value)}
+            >
+              <Copy size={14} /> Copy
+            </button>
+          </div>
         </div>
       )}
 
@@ -514,7 +531,10 @@ export default function RolesPage() {
               </select>
               {!editingUserId && (
                 <div className="flex gap-2">
-                  <input className="input flex-1 font-mono" placeholder="Temporary password" value={userDraft.temporary_password} onChange={(e) => setUserDraft((d) => ({ ...d, temporary_password: e.target.value }))} required />
+                  <input className="input flex-1 font-mono" placeholder="Temporary password" type={showDraftPassword ? "text" : "password"} value={userDraft.temporary_password} onChange={(e) => setUserDraft((d) => ({ ...d, temporary_password: e.target.value }))} required />
+                  <button type="button" className="btn-secondary px-3" onClick={() => setShowDraftPassword((value) => !value)} title={showDraftPassword ? "Hide password" : "Show password"}>
+                    {showDraftPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
                   <button type="button" className="btn-secondary" onClick={() => setUserDraft((d) => ({ ...d, temporary_password: makePassword() }))}>
                     <KeyRound size={14} />
                   </button>

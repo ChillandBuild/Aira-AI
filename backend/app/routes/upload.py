@@ -7,11 +7,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from app.dependencies.tenant import require_owner
 from fastapi.responses import Response
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.ai_reply import send_whatsapp
 from app.services.delivery_status import nearest_record, nearest_status, parse_ts
 from app.services.growth import get_or_create_campaign, record_stage_event, sync_follow_up_jobs
@@ -19,7 +18,10 @@ from app.services.meta_cloud import send_template_message
 from app.services.outbound_router import get_best_number, increment_send_count
 
 logger = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(require_owner)])
+require_outbound_read = require_permission("outbound_leads.view")
+require_outbound_manage = require_permission("outbound_leads.manage")
+
+router = APIRouter(dependencies=[Depends(require_outbound_read)])
 
 PHONE_RE = re.compile(r"[^\d+]")
 
@@ -162,6 +164,7 @@ async def upload_leads(
     utm_content: str | None = Form(None),
     spend_inr: str | None = Form(None),
     tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
 ):
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="File must be a .csv")
@@ -594,7 +597,11 @@ async def risk_audit(body: RiskAuditRequest, tenant_id: str = Depends(get_tenant
 
 
 @router.post("/bulk-send")
-async def bulk_send(body: BulkSendRequest, tenant_id: str = Depends(get_tenant_id)):
+async def bulk_send(
+    body: BulkSendRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
     broadcast_id = str(uuid.uuid4())
     broadcast_timestamp = datetime.now(timezone.utc)
 
@@ -1845,6 +1852,7 @@ async def get_broadcast_history(tenant_id: str = Depends(get_tenant_id)):
 async def clear_negative_reply(
     body: RiskAuditRequest,
     tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
 ):
     """Clear broadcast_negative_reply_at for a list of leads (re-include them in future broadcasts)."""
     db = get_supabase()
@@ -1992,7 +2000,10 @@ def _refresh_delivered_opened_timewindow(db, record, tenant_id, window_start, wi
 
 
 @router.post("/history/refresh")
-async def refresh_broadcast_metrics(tenant_id: str = Depends(get_tenant_id)):
+async def refresh_broadcast_metrics(
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
     """Re-query delivery status for all broadcasts and update history."""
     db = get_supabase()
     

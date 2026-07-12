@@ -53,7 +53,9 @@ interface KnowledgeDoc {
 
 
 export default function KnowledgePage() {
-  const { role, loading: roleLoading } = useAuthRole();
+  const { role, permissions, loading: roleLoading } = useAuthRole();
+  const canViewKnowledge = role === "owner" || permissions.includes("knowledge.view") || permissions.includes("knowledge.manage");
+  const canManageKnowledge = role === "owner" || permissions.includes("knowledge.manage");
   const [documents, setDocuments] = useState<KnowledgeDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -119,11 +121,11 @@ export default function KnowledgePage() {
     );
   }
 
-  if (role !== "owner") {
+  if (!canViewKnowledge) {
     return (
       <div className="text-center py-20">
         <p className="text-on-surface-muted font-body">
-          This section is only available for owners/admins.
+          You do not have access to the knowledge base.
         </p>
       </div>
     );
@@ -204,6 +206,10 @@ export default function KnowledgePage() {
 
   // Document Handlers
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!canManageKnowledge) {
+      setUploadError("Read-only role: document upload is disabled.");
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -338,10 +344,10 @@ export default function KnowledgePage() {
                 </p>
               </div>
             )}
-            <label className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-label font-semibold shadow-card hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50">
+            <label className={cn("inline-flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold shadow-card transition-all", canManageKnowledge ? "bg-primary text-white hover:bg-primary/90 cursor-pointer" : "bg-primary text-white opacity-45 cursor-not-allowed")}>
               {uploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-              {uploading ? "Uploading & Indexing..." : "Choose File"}
-              <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.txt,image/*" onChange={handleFileUpload} disabled={uploading} />
+              {uploading ? "Uploading & Indexing..." : canManageKnowledge ? "Choose File" : "Upload Disabled"}
+              <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.txt,image/*" onChange={handleFileUpload} disabled={uploading || !canManageKnowledge} />
             </label>
             {uploadError && (
               <p className="text-red-500 text-sm flex items-center justify-center gap-1">
@@ -378,12 +384,14 @@ export default function KnowledgePage() {
                           </p>
                         )}
                       </div>
-                      <button
-                        onClick={() => deleteDocument(doc.id)}
-                        className="rounded-lg p-2 text-on-surface-muted transition-all hover:bg-red-50 hover:text-red-500"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {canManageKnowledge && (
+                        <button
+                          onClick={() => deleteDocument(doc.id)}
+                          className="rounded-lg p-2 text-on-surface-muted transition-all hover:bg-red-50 hover:text-red-500"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                     <div className={cn(
                       "mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-label text-[10px] font-bold uppercase",
@@ -459,12 +467,14 @@ export default function KnowledgePage() {
                         {new Date(doc.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => deleteDocument(doc.id)}
-                          className="p-2 text-on-surface-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {canManageKnowledge && (
+                          <button
+                            onClick={() => deleteDocument(doc.id)}
+                            className="p-2 text-on-surface-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -543,7 +553,7 @@ export default function KnowledgePage() {
             <div className="mt-4 flex gap-3">
               <button
                 onClick={savePrompt}
-                disabled={tuneSaving || draft === activePrompt?.content}
+                disabled={tuneSaving || draft === activePrompt?.content || !canManageKnowledge}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
                 <Save size={14} /> {tuneSaving ? "Saving…" : "Save"}
@@ -576,7 +586,7 @@ export default function KnowledgePage() {
             <div className="mt-4 flex gap-3">
               <button
                 onClick={saveRubric}
-                disabled={rubricSaving || scoringRubric === savedRubric}
+                disabled={rubricSaving || scoringRubric === savedRubric || !canManageKnowledge}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
                 <Save size={14} /> {rubricSaving ? "Saving…" : "Save Rubric"}

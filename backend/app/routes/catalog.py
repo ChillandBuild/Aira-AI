@@ -6,10 +6,13 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, require_owner
+from app.dependencies.tenant import get_tenant_id, require_permission
 
 logger = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(require_owner)])
+require_catalog_read = require_permission("catalog.view")
+require_catalog_manage = require_permission("catalog.manage")
+
+router = APIRouter(dependencies=[Depends(require_catalog_read)])
 
 _VALID_STATUSES = {"draft", "ready"}
 _AI_RULES_DEFAULTS = {"can_recommend": True, "can_send_images": True, "max_images_per_reply": 3}
@@ -26,7 +29,11 @@ async def list_items(q: str | None = None, tenant_id: str = Depends(get_tenant_i
 
 
 @router.post("/items")
-async def create_item(payload: dict, tenant_id: str = Depends(get_tenant_id)):
+async def create_item(
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
     db = get_supabase()
     res = db.table("catalog_items").insert({
         "tenant_id": tenant_id,
@@ -41,7 +48,12 @@ async def create_item(payload: dict, tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.patch("/items/{item_id}")
-async def update_item(item_id: UUID, payload: dict, tenant_id: str = Depends(get_tenant_id)):
+async def update_item(
+    item_id: UUID,
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
     db = get_supabase()
     updates = {k: v for k, v in payload.items() if k in {"name", "item_type", "description", "status"}}
     if "status" in updates and updates["status"] not in _VALID_STATUSES:
@@ -61,7 +73,11 @@ async def update_item(item_id: UUID, payload: dict, tenant_id: str = Depends(get
 
 
 @router.delete("/items/{item_id}")
-async def delete_item(item_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def delete_item(
+    item_id: UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
     db = get_supabase()
     res = (
         db.table("catalog_items")
@@ -76,7 +92,12 @@ async def delete_item(item_id: UUID, tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.post("/items/{item_id}/media")
-async def upload_item_media(item_id: UUID, tenant_id: str = Depends(get_tenant_id), file: UploadFile = File(...)):
+async def upload_item_media(
+    item_id: UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    file: UploadFile = File(...),
+    _ctx: dict = Depends(require_catalog_manage),
+):
     db = get_supabase()
     item_res = (
         db.table("catalog_items")
@@ -143,7 +164,11 @@ async def list_media(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.delete("/media/{media_id}")
-async def delete_media(media_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def delete_media(
+    media_id: UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
     db = get_supabase()
     media_res = (
         db.table("catalog_media")
@@ -187,7 +212,11 @@ async def get_ai_rules(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.patch("/ai-rules")
-async def update_ai_rules(payload: dict, tenant_id: str = Depends(get_tenant_id)):
+async def update_ai_rules(
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
     db = get_supabase()
     current = await get_ai_rules(tenant_id)
     updates = {k: v for k, v in payload.items() if k in _AI_RULES_DEFAULTS}

@@ -3,11 +3,14 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.delivery_status import nearest_status, parse_ts as _parse_ts
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+require_outbound_read = require_permission("outbound_leads.view")
+require_outbound_manage = require_permission("outbound_leads.manage")
+
+router = APIRouter(dependencies=[Depends(require_outbound_read)])
 
 
 class TagCreate(BaseModel):
@@ -28,7 +31,11 @@ def list_tags(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.post("/")
-def create_tag(body: TagCreate, tenant_id: str = Depends(get_tenant_id)):
+def create_tag(
+    body: TagCreate,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
     db = get_supabase()
     name = body.name.strip()
     if not name:
@@ -47,7 +54,12 @@ def create_tag(body: TagCreate, tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.patch("/{tag_id}")
-def update_tag(tag_id: str, body: TagUpdate, tenant_id: str = Depends(get_tenant_id)):
+def update_tag(
+    tag_id: str,
+    body: TagUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
     db = get_supabase()
     update: dict = {}
     if body.name is not None:
@@ -63,7 +75,11 @@ def update_tag(tag_id: str, body: TagUpdate, tenant_id: str = Depends(get_tenant
 
 
 @router.delete("/{tag_id}")
-def delete_tag(tag_id: str, tenant_id: str = Depends(get_tenant_id)):
+def delete_tag(
+    tag_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
     db = get_supabase()
     result = db.table("broadcast_tags").delete().eq("id", tag_id).eq("tenant_id", tenant_id).execute()
     if not result.data:

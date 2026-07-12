@@ -32,7 +32,9 @@ const TABS: { id: CatalogTab; label: string; icon: typeof Package }[] = [
 const ITEM_TYPES = ["product", "service", "property", "course", "other"];
 
 export default function CatalogPage() {
-  const { role, loading } = useAuthRole();
+  const { role, permissions, loading } = useAuthRole();
+  const canViewCatalog = role === "owner" || permissions.includes("catalog.view") || permissions.includes("catalog.manage");
+  const canManageCatalog = role === "owner" || permissions.includes("catalog.manage");
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -48,10 +50,10 @@ export default function CatalogPage() {
     return <div className="min-h-[320px] animate-pulse rounded-card bg-surface-low" />;
   }
 
-  if (role !== "owner") {
+  if (!canViewCatalog) {
     return (
       <div className="py-20 text-center">
-        <p className="font-body text-sm text-on-surface-muted">This section is only available for owners/admins.</p>
+        <p className="font-body text-sm text-on-surface-muted">You do not have access to the catalog.</p>
       </div>
     );
   }
@@ -81,15 +83,15 @@ export default function CatalogPage() {
         </div>
       </div>
 
-      {tab === "items" && <ItemsTab />}
-      {tab === "media" && <MediaTab />}
-      {tab === "ai-rules" && <AiRulesTab />}
+      {tab === "items" && <ItemsTab canManage={canManageCatalog} />}
+      {tab === "media" && <MediaTab canManage={canManageCatalog} />}
+      {tab === "ai-rules" && <AiRulesTab canManage={canManageCatalog} />}
       {tab === "insights" && <InsightsTab />}
     </div>
   );
 }
 
-function ItemsTab() {
+function ItemsTab({ canManage }: { canManage: boolean }) {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -116,6 +118,7 @@ function ItemsTab() {
   }, [query]);
 
   async function handleToggleStatus(item: CatalogItem) {
+    if (!canManage) return;
     const nextStatus = item.status === "ready" ? "draft" : "ready";
     try {
       const updated = await api.catalog.updateItem(item.id, { status: nextStatus });
@@ -126,6 +129,7 @@ function ItemsTab() {
   }
 
   async function handleDelete(item: CatalogItem) {
+    if (!canManage) return;
     try {
       await api.catalog.deleteItem(item.id);
       setItems((prev) => prev.filter((i) => i.id !== item.id));
@@ -151,14 +155,16 @@ function ItemsTab() {
               className="h-10 w-full rounded-xl border border-border bg-surface-low pl-9 pr-3 text-sm outline-none transition-colors focus:border-primary"
             />
           </label>
-          <button
-            type="button"
-            onClick={() => setShowAddModal(true)}
-            className="btn-primary inline-flex items-center justify-center gap-2 self-start md:self-auto"
-          >
-            <Plus size={16} />
-            Add item
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="btn-primary inline-flex items-center justify-center gap-2 self-start md:self-auto"
+            >
+              <Plus size={16} />
+              Add item
+            </button>
+          )}
         </div>
       </div>
 
@@ -196,8 +202,9 @@ function ItemsTab() {
                   <button
                     type="button"
                     onClick={() => handleToggleStatus(item)}
+                    disabled={!canManage}
                     className={cn(
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-colors",
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold transition-colors disabled:cursor-default",
                       item.status === "ready" ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
                     )}
                   >
@@ -206,14 +213,16 @@ function ItemsTab() {
                 </span>
                 <span className="text-ink-muted">—</span>
                 <span className="text-ink-muted">{new Date(item.updated_at).toLocaleDateString()}</span>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(item)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                  aria-label={`Delete ${item.name}`}
-                >
-                  <Trash2 size={14} />
-                </button>
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item)}
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                    aria-label={`Delete ${item.name}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             ))}
         </div>
@@ -323,7 +332,7 @@ function AddItemModal({
   );
 }
 
-function MediaTab() {
+function MediaTab({ canManage }: { canManage: boolean }) {
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [media, setMedia] = useState<CatalogMedia[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -349,6 +358,7 @@ function MediaTab() {
   }, []);
 
   async function handleUpload(itemId: string, file: File) {
+    if (!canManage) return;
     setUploadingItemId(itemId);
     setError(null);
     try {
@@ -419,14 +429,14 @@ function MediaTab() {
                   <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
                   <p className="text-xs font-medium text-ink-muted">{mediaCountByItem[item.id] || 0} images</p>
                 </div>
-                <label className="btn-ghost inline-flex shrink-0 cursor-pointer items-center gap-2 px-3 py-1.5 text-xs">
+                <label className={cn("btn-ghost inline-flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs", canManage ? "cursor-pointer" : "cursor-not-allowed opacity-45")}>
                   {uploadingItemId === item.id ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                  Upload
+                  {canManage ? "Upload" : "Disabled"}
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    disabled={uploadingItemId === item.id}
+                    disabled={uploadingItemId === item.id || !canManage}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (file) handleUpload(item.id, file);
@@ -443,7 +453,7 @@ function MediaTab() {
   );
 }
 
-function AiRulesTab() {
+function AiRulesTab({ canManage }: { canManage: boolean }) {
   const [rules, setRules] = useState<CatalogAiRules | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -455,6 +465,10 @@ function AiRulesTab() {
   }, []);
 
   async function patch(update: Partial<CatalogAiRules>) {
+    if (!canManage) {
+      setError("Read-only role: catalog AI rule changes are disabled.");
+      return;
+    }
     if (!rules) return;
     const optimistic = { ...rules, ...update };
     setRules(optimistic);
@@ -481,12 +495,14 @@ function AiRulesTab() {
           title="AI Recommendations"
           description="Allow Aira to recommend matching catalog items when customers ask for options."
           checked={rules.can_recommend}
+          disabled={!canManage}
           onChange={(checked) => patch({ can_recommend: checked })}
         />
         <RuleCard
           title="Send Images"
           description="Allow Aira to send item images with its recommendation when the chat context calls for it."
           checked={rules.can_send_images}
+          disabled={!canManage}
           onChange={(checked) => patch({ can_send_images: checked })}
         />
         <div className="rounded-card border border-border bg-white p-5 shadow-sm">
@@ -496,7 +512,8 @@ function AiRulesTab() {
             <button
               type="button"
               onClick={() => patch({ max_images_per_reply: Math.max(0, rules.max_images_per_reply - 1) })}
-              className="h-9 w-9 rounded-xl border border-border text-lg font-bold text-ink-muted transition-colors hover:bg-surface-low"
+              disabled={!canManage}
+              className="h-9 w-9 rounded-xl border border-border text-lg font-bold text-ink-muted transition-colors hover:bg-surface-low disabled:opacity-40"
             >
               -
             </button>
@@ -504,7 +521,8 @@ function AiRulesTab() {
             <button
               type="button"
               onClick={() => patch({ max_images_per_reply: Math.min(10, rules.max_images_per_reply + 1) })}
-              className="h-9 w-9 rounded-xl border border-border text-lg font-bold text-ink-muted transition-colors hover:bg-surface-low"
+              disabled={!canManage}
+              className="h-9 w-9 rounded-xl border border-border text-lg font-bold text-ink-muted transition-colors hover:bg-surface-low disabled:opacity-40"
             >
               +
             </button>
@@ -536,11 +554,13 @@ function RuleCard({
   title,
   description,
   checked,
+  disabled = false,
   onChange,
 }: {
   title: string;
   description: string;
   checked: boolean;
+  disabled?: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
@@ -553,8 +573,9 @@ function RuleCard({
         <button
           type="button"
           onClick={() => onChange(!checked)}
+          disabled={disabled}
           className={cn(
-            "inline-flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition-colors",
+            "inline-flex h-8 w-14 shrink-0 items-center rounded-full p-1 transition-colors disabled:cursor-not-allowed disabled:opacity-45",
             checked ? "bg-primary" : "bg-surface-mid"
           )}
           aria-label={`Toggle ${title}`}

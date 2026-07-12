@@ -138,25 +138,31 @@ export default function ChangePasswordCard({ defaultOpen = false }: { defaultOpe
             </div>
             <div>
               <label className="font-label text-[11px] font-medium text-ink-muted block mb-1.5">New password</label>
-              <input
-                type={show ? "text" : "password"}
-                value={next}
-                onChange={(e) => setNext(e.target.value)}
-                required
-                autoComplete="new-password"
-                className="w-full px-4 py-2.5 rounded-xl bg-white border border-border text-sm font-body text-ink focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition"
-              />
+              <div className="relative">
+                <input
+                  type={show ? "text" : "password"}
+                  value={next}
+                  onChange={(e) => setNext(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  className="w-full px-4 py-2.5 pr-10 rounded-xl bg-white border border-border text-sm font-body text-ink focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition"
+                />
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">{eyeBtn}</div>
+              </div>
             </div>
             <div>
               <label className="font-label text-[11px] font-medium text-ink-muted block mb-1.5">Confirm new password</label>
-              <input
-                type={show ? "text" : "password"}
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-                autoComplete="new-password"
-                className="w-full px-4 py-2.5 rounded-xl bg-white border border-border text-sm font-body text-ink focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition"
-              />
+              <div className="relative">
+                <input
+                  type={show ? "text" : "password"}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  className="w-full px-4 py-2.5 pr-10 rounded-xl bg-white border border-border text-sm font-body text-ink focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition"
+                />
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2">{eyeBtn}</div>
+              </div>
             </div>
           </div>
 

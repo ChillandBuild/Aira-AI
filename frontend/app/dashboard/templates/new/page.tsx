@@ -20,6 +20,7 @@ import type { Button } from "../types";
 import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
 import WhatsAppPreview from "../components/whatsapp-preview";
+import { useAuthRole } from "../../contexts/AuthRoleContext";
 
 function hasEmoji(str: string): boolean {
   const emojiRegex = /[\u2600-\u27BF]|[\uD83C-\uD83E][\uDC00-\uDFFF]/;
@@ -28,6 +29,8 @@ function hasEmoji(str: string): boolean {
 
 export default function NewTemplatePage() {
   const router = useRouter();
+  const { role, permissions } = useAuthRole();
+  const canManageTemplates = role === "owner" || permissions.includes("templates.manage");
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +61,10 @@ export default function NewTemplatePage() {
 
   // Media upload handler
   async function handleMediaUpload(file: File) {
+    if (!canManageTemplates) {
+      setError("Read-only role: media upload is disabled.");
+      return;
+    }
     setUploadingMedia(true);
     setError(null);
     try {
@@ -146,6 +153,10 @@ export default function NewTemplatePage() {
 
   // Submit template to API
   async function handleSubmit() {
+    if (!canManageTemplates) {
+      setError("Read-only role: submitting templates to Meta is disabled.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -603,10 +614,11 @@ export default function NewTemplatePage() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={loading || !name.trim() || !bodyText.trim()}
+                disabled={loading || !name.trim() || !bodyText.trim() || !canManageTemplates}
+                title={canManageTemplates ? "Submit template to WhatsApp" : "Read-only role: submit is disabled"}
                 className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-medium text-sm text-white transition-colors disabled:opacity-50"
               >
-                {loading ? "Submitting..." : "Submit to WhatsApp"}
+                {loading ? "Submitting..." : canManageTemplates ? "Submit to WhatsApp" : "Submit Disabled"}
               </button>
             )}
           </div>

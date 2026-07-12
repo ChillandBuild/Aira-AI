@@ -4,11 +4,14 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, require_owner
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.meta_cloud import get_number_quality
 
 logger = logging.getLogger(__name__)
-router = APIRouter(dependencies=[Depends(require_owner)])
+require_numbers_read = require_permission("numbers.view")
+require_numbers_manage = require_permission("numbers.manage")
+
+router = APIRouter(dependencies=[Depends(require_numbers_read)])
 
 
 class CreatePhoneNumber(BaseModel):
@@ -41,7 +44,11 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.post("/")
-async def create_phone_number(payload: CreatePhoneNumber, tenant_id: str = Depends(get_tenant_id)):
+async def create_phone_number(
+    payload: CreatePhoneNumber,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_numbers_manage),
+):
     if payload.provider != "meta_cloud":
         raise HTTPException(status_code=400, detail="Only meta_cloud provider is supported")
     db = get_supabase()
@@ -63,7 +70,12 @@ async def create_phone_number(payload: CreatePhoneNumber, tenant_id: str = Depen
 
 
 @router.patch("/{number_id}")
-async def update_phone_number(number_id: UUID, payload: UpdatePhoneNumber, tenant_id: str = Depends(get_tenant_id)):
+async def update_phone_number(
+    number_id: UUID,
+    payload: UpdatePhoneNumber,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_numbers_manage),
+):
     db = get_supabase()
     updates = {}
     if payload.role is not None:
@@ -94,7 +106,11 @@ _WARM_UP_MAX = 14
 
 
 @router.post("/{number_id}/sync-meta")
-async def sync_number_from_meta(number_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def sync_number_from_meta(
+    number_id: UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_numbers_manage),
+):
     db = get_supabase()
     row_result = (
         db.table("phone_numbers")
@@ -175,7 +191,11 @@ async def sync_number_from_meta(number_id: UUID, tenant_id: str = Depends(get_te
 
 
 @router.delete("/{number_id}")
-async def delete_phone_number(number_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def delete_phone_number(
+    number_id: UUID,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_numbers_manage),
+):
     """Hard delete a phone number. FK on incidents.phone_number_id is ON
     DELETE SET NULL so historical incidents stay intact, just lose the ref."""
     db = get_supabase()

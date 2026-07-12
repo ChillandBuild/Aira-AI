@@ -19,10 +19,24 @@ import ChangePasswordCard from "./settings/ChangePasswordCard";
 const PING_INTERVAL_MS = 8 * 60 * 1000; // 8 min — keeps Render warm (sleeps after 15 min)
 
 function DashboardAuthGuard({ children }: { children: React.ReactNode }) {
-  const { loading: roleLoading, forcePasswordReset } = useAuthRole();
+  const { loading: roleLoading, forcePasswordReset, bootstrapError } = useAuthRole();
 
   if (roleLoading) {
     return <AiraLoader showRetryAfterMs={15000} onRetry={() => window.location.reload()} />;
+  }
+
+  if (bootstrapError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white p-6 text-center shadow-sm">
+          <p className="font-label text-[10px] font-black uppercase tracking-wider text-red-600">Workspace access failed</p>
+          <p className="mt-3 font-body text-sm leading-6 text-ink-muted">{bootstrapError}</p>
+          <button type="button" onClick={() => window.location.reload()} className="btn-primary mt-5 justify-center">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (forcePasswordReset) {
