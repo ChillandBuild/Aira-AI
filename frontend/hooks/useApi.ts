@@ -21,6 +21,10 @@ const defaultConfig: SWRConfiguration = {
   revalidateOnReconnect: true,
   dedupingInterval: 5_000,
   errorRetryCount: 2,
+  shouldRetryOnError: (error) => {
+    const status = (error as { status?: number } | undefined)?.status;
+    return !status || ![401, 403, 404].includes(status);
+  },
 };
 
 export function useOverview(enabled = true, fallbackData?: AnalyticsOverview) {

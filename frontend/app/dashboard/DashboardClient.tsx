@@ -10,6 +10,7 @@ import {
   Inbox,
   Send as SendIcon,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuthRole } from "./contexts/AuthRoleContext";
@@ -182,7 +183,7 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
   // Seeded from the server for owners (instant paint); callers get null and are
   // redirected below. Enable the SWR key when role confirms owner OR we already
   // have server-seeded data (server only returns 200 to owners).
-  const { data: overview } = useOverview(
+  const { data: overview, error: overviewError } = useOverview(
     role === "owner" || permissions.includes("dashboard.view") || fallbackOverview !== null,
     fallbackOverview ?? undefined,
   );
@@ -235,6 +236,32 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
 
   if (role === "caller" && !permissions.includes("dashboard.view")) {
     return <AiraLoader />;
+  }
+
+  if (overviewError) {
+    const status = (overviewError as { status?: number }).status;
+    const message =
+      status === 403
+        ? "This role can open the dashboard, but the analytics overview is not allowed yet. Ask an admin to add Dashboard access or Analytics access."
+        : overviewError instanceof Error
+          ? overviewError.message
+          : "Dashboard analytics could not be loaded.";
+    return (
+      <div className="flex min-h-[55vh] items-center justify-center p-6">
+        <div className="w-full max-w-lg rounded-3xl border border-red-100 bg-white p-6 text-center shadow-sm">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+            <AlertCircle size={20} />
+          </div>
+          <p className="mt-4 font-label text-[10px] font-black uppercase tracking-wider text-red-600">
+            Dashboard data unavailable
+          </p>
+          <p className="mt-3 font-body text-sm leading-6 text-ink-muted">{message}</p>
+          <button type="button" onClick={() => window.location.reload()} className="btn-primary mt-5 justify-center">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Gate on DATA presence, not role: seeded owners skip the spinner entirely.

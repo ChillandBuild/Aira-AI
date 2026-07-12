@@ -38,3 +38,13 @@ def test_analytics_has_inbound_endpoint():
     assert '@router.get("/inbound")' in src
     assert "aggregate_inbound" in src
     assert 'in_("source", list(INBOUND_SOURCES))' in src
+
+
+def test_analytics_routes_use_rbac_view_permissions():
+    src = read("app/routes/analytics.py")
+    assert "get_dashboard_analytics_tenant_id" in src
+    assert "tenant_id: str = Depends(get_dashboard_analytics_tenant_id)" in src
+    assert "get_analytics_tenant_id" in src
+    assert "require_analytics_view" in src
+    assert "get_owner_tenant_id" not in src
+    assert "require_owner" not in src

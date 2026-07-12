@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_owner_tenant_id, require_owner
+from app.dependencies.tenant import get_tenant_and_role
 from app.services.inbound_leads_logic import INBOUND_SOURCES, aggregate_inbound
 from app.services.assignment import get_telecalling_config
 
@@ -23,6 +23,27 @@ router = APIRouter()
 
 IST_OFFSET = timedelta(hours=5, minutes=30)
 MANUAL_STATUS_KEYS = ("connected", "not_picked", "busy", "wrong_number", "interested", "not_interested", "callback")
+
+
+def _tenant_id_for_permission(ctx: dict, permissions: set[str]) -> str:
+    user_permissions = set(ctx.get("permissions") or [])
+    if ctx.get("role") == "owner" or user_permissions.intersection(permissions):
+        return ctx["tenant_id"]
+    required = " or ".join(sorted(permissions))
+    raise HTTPException(status_code=403, detail=f"Permission required: {required}")
+
+
+def get_dashboard_analytics_tenant_id(ctx: dict = Depends(get_tenant_and_role)) -> str:
+    return _tenant_id_for_permission(ctx, {"dashboard.view", "analytics.view"})
+
+
+def get_analytics_tenant_id(ctx: dict = Depends(get_tenant_and_role)) -> str:
+    return _tenant_id_for_permission(ctx, {"analytics.view"})
+
+
+def require_analytics_view(ctx: dict = Depends(get_tenant_and_role)) -> dict:
+    _tenant_id_for_permission(ctx, {"analytics.view"})
+    return ctx
 
 
 def _today_start() -> str:
@@ -176,7 +197,7 @@ def _window_aggregate(
 
 
 @router.get("/whatsapp")
-async def whatsapp_analytics(tenant_id: str = Depends(get_owner_tenant_id)):
+async def whatsapp_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
     db = get_supabase()
     today = _today_start()
 
@@ -205,7 +226,7 @@ async def whatsapp_analytics(tenant_id: str = Depends(get_owner_tenant_id)):
 
 
 @router.get("/template-performance")
-async def template_performance(tenant_id: str = Depends(get_owner_tenant_id)):
+async def template_performance(tenant_id: str = Depends(get_analytics_tenant_id)):
     """Per-template broadcast performance: Sent / Read / Replied / Hot leads."""
     db = get_supabase()
     try:
@@ -222,7 +243,7 @@ async def template_performance(tenant_id: str = Depends(get_owner_tenant_id)):
 async def telecalling_analytics(
     from_date: str | None = Query(None, alias="from"),
     to_date: str | None = Query(None, alias="to"),
-    tenant_id: str = Depends(get_owner_tenant_id),
+    tenant_id: str = Depends(get_analytics_tenant_id),
 ):
     db = get_supabase()
 
@@ -627,7 +648,7 @@ async def telecalling_analytics(
 async def caller_timeline(
     caller_id: UUID = Query(...),
     date: str | None = Query(None),
-    ctx: dict = Depends(require_owner),
+    ctx: dict = Depends(require_analytics_view),
 ):
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
@@ -703,7 +724,7 @@ async def caller_timeline(
 @router.get("/qa-queue")
 async def qa_queue(
     limit: int = Query(20, ge=1, le=100),
-    ctx: dict = Depends(require_owner),
+    ctx: dict = Depends(require_analytics_view),
 ):
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
@@ -736,7 +757,7 @@ async def qa_queue(
 
 @router.get("/telecalling/export")
 async def export_telecalling(
-    ctx: dict = Depends(require_owner)
+    ctx: dict = Depends(require_analytics_view)
 ):
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
@@ -802,7 +823,7 @@ async def export_telecalling(
 
 
 @router.get("/funnel")
-async def funnel_analytics(tenant_id: str = Depends(get_owner_tenant_id)):
+async def funnel_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
     db = get_supabase()
     week = _week_start()
 
@@ -899,7 +920,7 @@ async def funnel_analytics(tenant_id: str = Depends(get_owner_tenant_id)):
 
 @router.get("/overview")
 async def overview_analytics(
-    tenant_id: str = Depends(get_owner_tenant_id),
+    tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
     range: str = Query("7d"),
 ):
     """Dashboard root — KPIs and N-day series."""
@@ -1035,7 +1056,7 @@ async def overview_analytics(
 
 @router.get("/messaging")
 async def messaging_analytics(
-    tenant_id: str = Depends(get_owner_tenant_id),
+    tenant_id: str = Depends(get_analytics_tenant_id),
     channel: str = Query("all"),
     range: str = Query("7d"),
 ):
@@ -1120,7 +1141,7 @@ async def messaging_analytics(
 
 
 @router.get("/ad-performance")
-async def ad_performance_summary(tenant_id: str = Depends(get_owner_tenant_id)):
+async def ad_performance_summary(tenant_id: str = Depends(get_analytics_tenant_id)):
     db = get_supabase()
     from app.services.growth import build_ad_performance
     return build_ad_performance(tenant_id=tenant_id, db=db)
@@ -1129,7 +1150,7 @@ async def ad_performance_summary(tenant_id: str = Depends(get_owner_tenant_id)):
 @router.get("/inbound")
 async def inbound_analytics(
     range: str = Query("7d"),
-    tenant_id: str = Depends(get_owner_tenant_id),
+    tenant_id: str = Depends(get_analytics_tenant_id),
 ):
     """New inbound leads acquired, split organic vs ad. Range: today|7d|30d."""
     db = get_supabase()
