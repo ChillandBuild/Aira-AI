@@ -25,19 +25,17 @@ type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "ai_me
 
 type ReplyModelId =
   | "sarvam-30b"
+  | "sarvam-105b"
   | "meta-llama/llama-3.3-70b-instruct"
-  | "openai/gpt-5-mini"
-  | "google/gemini-2.5-flash"
-  | "openai/gpt-5"
-  | "google/gemini-2.5-pro";
+  | "google/gemini-2.5-flash-lite"
+  | "google/gemini-3.1-flash-lite";
 
 const REPLY_MODELS: { id: ReplyModelId; label: string; provider: string; costTier: "$" | "$$" | "$$$"; desc: string }[] = [
   { id: "sarvam-30b", label: "Sarvam 30B", provider: "Sarvam", costTier: "$", desc: "Default. Best fit for Tamil/Hindi/Hinglish conversations." },
+  { id: "sarvam-105b", label: "Sarvam 105B", provider: "Sarvam", costTier: "$$", desc: "Sarvam's flagship model. Stronger reasoning, same Indic-language focus as the 30B." },
   { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "Groq via OpenRouter", costTier: "$", desc: "Cheapest option. Fast, strong in English, weaker on Indic-language nuance." },
-  { id: "openai/gpt-5-mini", label: "GPT-5 Mini", provider: "OpenAI via OpenRouter", costTier: "$$", desc: "Balanced quality and cost." },
-  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "Google via OpenRouter", costTier: "$$", desc: "Balanced quality and cost, strong multimodal support." },
-  { id: "openai/gpt-5", label: "GPT-5", provider: "OpenAI via OpenRouter", costTier: "$$$", desc: "Highest quality, highest cost." },
-  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "Google via OpenRouter", costTier: "$$$", desc: "Highest quality, highest cost." },
+  { id: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", provider: "Google via OpenRouter", costTier: "$", desc: "Cheap and fast, good general quality." },
+  { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite", provider: "Google via OpenRouter", costTier: "$", desc: "Newer generation, similar cost to 2.5 Flash-Lite." },
 ];
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
