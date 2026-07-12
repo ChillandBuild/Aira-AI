@@ -35,20 +35,18 @@ function formatHour(h: number): string {
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function AdminCallerCard({
-  caller, editingAgentIdFor, agentIdInputValue, agentPwdInputValue, savingAgentId,
-  onEditAgentId, onSaveAgentId, onCancelEditAgentId, onAgentIdInputChange, onAgentPwdInputChange,
+  caller, editingAgentIdFor, agentIdInputValue, savingAgentId,
+  onEditAgentId, onSaveAgentId, onCancelEditAgentId, onAgentIdInputChange,
   callingProvider,
 }: {
   caller: Caller;
   editingAgentIdFor: string | null;
   agentIdInputValue: string;
-  agentPwdInputValue: string;
   savingAgentId: string | null;
   onEditAgentId: (id: string, current: string | null) => void;
   onSaveAgentId: (id: string) => Promise<void>;
   onCancelEditAgentId: () => void;
   onAgentIdInputChange: (v: string) => void;
-  onAgentPwdInputChange: (v: string) => void;
   callingProvider: "telecmi" | "sim_basic";
 }) {
   const [editingPhone, setEditingPhone] = useState(false);
@@ -136,13 +134,6 @@ function AdminCallerCard({
                   placeholder="e.g. 101_33335739"
                   className="w-28 px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
                 />
-                <input
-                  type="password"
-                  value={agentPwdInputValue}
-                  onChange={(e) => onAgentPwdInputChange(e.target.value)}
-                  placeholder={caller.has_telecmi_agent_password ? "password set" : "password"}
-                  className="w-28 px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
-                />
                 <button onClick={() => onSaveAgentId(caller.id)} disabled={savingAgentId === caller.id}
                   className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200">
                   {savingAgentId === caller.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
@@ -155,12 +146,9 @@ function AdminCallerCard({
             ) : (
               <span className="flex items-center gap-1 text-[#292524]">
                 {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
-                {caller.telecmi_agent_id && !caller.has_telecmi_agent_password && (
-                  <span className="text-amber-500 text-[10px] font-bold" title="No TeleCMI password set">⚠</span>
-                )}
                 <button onClick={() => onEditAgentId(caller.id, caller.telecmi_agent_id || null)}
                   className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                  title="Edit TeleCMI agent id + password">
+                  title="Edit TeleCMI agent ID">
                   <Pencil size={9} />
                 </button>
               </span>
@@ -182,8 +170,10 @@ export default function LiveAgentStatus({
 }: LiveAgentStatusProps) {
   const [editingAgentIdFor, setEditingAgentIdFor] = useState<string | null>(null);
   const [agentIdInputValue, setAgentIdInputValue] = useState<string>("");
-  const [agentPwdInputValue, setAgentPwdInputValue] = useState<string>("");
   const [savingAgentId, setSavingAgentId] = useState<string | null>(null);
+  const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null);
+  const [phoneInputValue, setPhoneInputValue] = useState<string>("");
+  const [savingPhoneFor, setSavingPhoneFor] = useState<string | null>(null);
 
   // Shift config local editing state
   const [localShiftConfig, setLocalShiftConfig] = useState<ShiftConfig>(shiftConfig);
@@ -228,12 +218,7 @@ export default function LiveAgentStatus({
     setSavingAgentId(callerId);
     try {
       const trimmedId = agentIdInputValue.trim();
-      const trimmedPwd = agentPwdInputValue.trim();
-      const data: { telecmi_agent_id: string | null; telecmi_agent_password?: string } = {
-        telecmi_agent_id: trimmedId || null,
-      };
-      if (trimmedPwd) data.telecmi_agent_password = trimmedPwd; // blank = leave existing password untouched
-      const updated = await api.callers.update(callerId, data);
+      const updated = await api.callers.update(callerId, { telecmi_agent_id: trimmedId || null });
       onCallersChange((prev) =>
         prev.map((c) =>
           c.id === callerId
@@ -243,12 +228,33 @@ export default function LiveAgentStatus({
       );
       setEditingAgentIdFor(null);
       setAgentIdInputValue("");
-      setAgentPwdInputValue("");
     } catch (err) {
-      console.error("Failed to update TeleCMI agent credentials:", err);
-      toast.error("Failed to update TeleCMI agent credentials");
+      console.error("Failed to update TeleCMI agent ID:", err);
+      toast.error("Failed to update TeleCMI agent ID");
     } finally {
       setSavingAgentId(null);
+    }
+  };
+
+  const handleSavePhone = async (callerId: string) => {
+    setSavingPhoneFor(callerId);
+    try {
+      const trimmedPhone = phoneInputValue.trim();
+      const updated = await api.callers.update(callerId, { phone: trimmedPhone || undefined });
+      onCallersChange((prev) =>
+        prev.map((c) =>
+          c.id === callerId
+            ? { ...c, phone: updated.phone }
+            : c
+        )
+      );
+      setEditingPhoneFor(null);
+      setPhoneInputValue("");
+    } catch (err) {
+      console.error("Failed to update caller phone:", err);
+      toast.error("Failed to update phone number");
+    } finally {
+      setSavingPhoneFor(null);
     }
   };
 
@@ -429,13 +435,11 @@ export default function LiveAgentStatus({
               caller={adminCaller}
               editingAgentIdFor={editingAgentIdFor}
               agentIdInputValue={agentIdInputValue}
-              agentPwdInputValue={agentPwdInputValue}
               savingAgentId={savingAgentId}
-              onEditAgentId={(id, current) => { setEditingAgentIdFor(id); setAgentIdInputValue(current || ""); setAgentPwdInputValue(""); }}
+              onEditAgentId={(id, current) => { setEditingAgentIdFor(id); setAgentIdInputValue(current || ""); }}
               onSaveAgentId={handleSaveAgentId}
-              onCancelEditAgentId={() => { setEditingAgentIdFor(null); setAgentIdInputValue(""); setAgentPwdInputValue(""); }}
+              onCancelEditAgentId={() => { setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
               onAgentIdInputChange={setAgentIdInputValue}
-              onAgentPwdInputChange={setAgentPwdInputValue}
               callingProvider={callingProvider}
             />
           </div>
@@ -481,7 +485,46 @@ export default function LiveAgentStatus({
                   <span className="block text-[10px] text-[#a8a29e] font-medium">Since {timeAgo(c.status_changed_at)}</span>
                 )}
                 <div className="flex items-center gap-1.5 text-xs text-[#78716c] mt-0.5">
-                  <span>{c.phone || "—"}</span>
+                  {editingPhoneFor === c.id ? (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="tel"
+                        value={phoneInputValue}
+                        onChange={(e) => setPhoneInputValue(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                        placeholder="+919876543210"
+                        className="w-28 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleSavePhone(c.id); }}
+                        disabled={savingPhoneFor === c.id}
+                        className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
+                        title="Save phone number"
+                      >
+                        {savingPhoneFor === c.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingPhoneFor(null); setPhoneInputValue(""); }}
+                        disabled={savingPhoneFor === c.id}
+                        className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]"
+                        title="Cancel"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      {c.phone || "—"}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingPhoneFor(c.id); setPhoneInputValue(c.phone || ""); }}
+                        className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
+                        title="Edit phone number"
+                      >
+                        <Pencil size={9} />
+                      </button>
+                    </span>
+                  )}
                   {callingProvider === "telecmi" && <span className="text-[#d6cfc9]">&middot;</span>}
                   {callingProvider === "telecmi" && (editingAgentIdFor === c.id ? (
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -494,24 +537,16 @@ export default function LiveAgentStatus({
                         placeholder="agent id"
                         className="w-20 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
                       />
-                      <input
-                        type="password"
-                        value={agentPwdInputValue}
-                        onChange={(e) => setAgentPwdInputValue(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        placeholder={c.has_telecmi_agent_password ? "password set" : "password"}
-                        className="w-20 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
                       <button
                         onClick={(e) => { e.stopPropagation(); handleSaveAgentId(c.id); }}
                         disabled={savingAgentId === c.id}
                         className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                        title="Save TeleCMI credentials"
+                        title="Save TeleCMI agent ID"
                       >
                         {savingAgentId === c.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
                       </button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(null); setAgentIdInputValue(""); setAgentPwdInputValue(""); }}
+                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
                         disabled={savingAgentId === c.id}
                         className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]"
                         title="Cancel"
@@ -522,13 +557,10 @@ export default function LiveAgentStatus({
                   ) : (
                     <span className="flex items-center gap-1">
                       {c.telecmi_agent_id || "—"}
-                      {c.telecmi_agent_id && !c.has_telecmi_agent_password && (
-                        <span className="text-amber-500 text-[10px] font-bold" title="No TeleCMI password set">⚠</span>
-                      )}
                       <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(c.id); setAgentIdInputValue(c.telecmi_agent_id || ""); setAgentPwdInputValue(""); }}
+                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(c.id); setAgentIdInputValue(c.telecmi_agent_id || ""); }}
                         className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                        title="Edit TeleCMI agent id + password"
+                        title="Edit TeleCMI agent ID"
                       >
                         <Pencil size={9} />
                       </button>

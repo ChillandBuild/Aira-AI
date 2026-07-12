@@ -116,6 +116,7 @@ def list_team(ctx: dict = Depends(get_tenant_and_role)):
         raise HTTPException(status_code=403, detail="Only owners can view team")
     db = get_supabase()
     ensure_default_roles(db, ctx["tenant_id"])
+    calling_provider = get_telecalling_config(ctx["tenant_id"]).get("calling_provider", "telecmi")
     members = (
         db.table("tenant_users")
         .select("user_id, role, role_id, full_name, force_password_reset, created_at")
@@ -152,7 +153,7 @@ def list_team(ctx: dict = Depends(get_tenant_and_role)):
             "permissions": (roles.get(m.get("role_id")) or {}).get("permissions") or [],
             "caller_profile": callers.get(m["user_id"]),
         })
-    return {"data": result}
+    return {"data": result, "calling_provider": calling_provider}
 
 
 @router.post("/invite")

@@ -110,7 +110,8 @@ def is_telecaller_role(role: dict | None) -> bool:
     if not role:
         return False
     permissions = normalize_permissions(role.get("permissions"))
-    return role.get("slug") == "telecaller" or "telecalling.dialer" in permissions
+    role_name = (role.get("name") or "").strip().lower()
+    return role.get("slug") == "telecaller" or "telecaller" in role_name or "telecalling.dialer" in permissions
 
 
 def get_user_role(db, tenant_id: str, role_id: str | None) -> dict | None:

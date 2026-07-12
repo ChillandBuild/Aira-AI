@@ -1507,7 +1507,7 @@ export const api = {
   },
   team: {
     me: () => apiFetch<MyProfile>("/api/v1/team/me"),
-    list: () => apiFetch<{ data: TeamMember[] }>("/api/v1/team/"),
+    list: () => apiFetch<{ data: TeamMember[]; calling_provider?: "telecmi" | "sim_basic" }>("/api/v1/team/"),
     invite: (email: string, password: string, name?: string, phone?: string, telecmiAgentId?: string, telecmiAgentPassword?: string) =>
       apiFetch<{ invited: boolean; email: string; user_id: string }>("/api/v1/team/invite", {
         method: "POST",
