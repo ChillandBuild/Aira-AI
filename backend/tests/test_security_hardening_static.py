@@ -52,11 +52,16 @@ def test_telecmi_webhook_secret_is_dynamic_setting():
     assert 'get_setting("telecmi_webhook_secret", tenant_id=tenant_id)' in source
 
 
-def test_owner_only_gated_routers():
-    for router_file in ["upload.py", "knowledge.py", "numbers.py"]:
+def test_permission_gated_routers():
+    for router_file, resource in [
+        ("upload.py", "outbound_leads"),
+        ("knowledge.py", "knowledge"),
+        ("numbers.py", "numbers"),
+    ]:
         source = read(f"app/routes/{router_file}")
-        assert "require_owner" in source
-        assert "APIRouter(dependencies=[Depends(require_owner)])" in source
+        assert f'require_permission("{resource}.view")' in source
+        assert f'require_permission("{resource}.manage")' in source
+        assert "router = APIRouter(dependencies=[Depends(require_" in source
 
     settings_source = read("app/routes/app_settings.py")
     assert "Depends(require_owner)" in settings_source

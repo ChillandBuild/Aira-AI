@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies.auth import get_current_user
-from app.dependencies.tenant import get_tenant_id, require_owner
+from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
 
 
 class NumbersPoolEnforcementTests(unittest.TestCase):
@@ -17,7 +17,7 @@ class NumbersPoolEnforcementTests(unittest.TestCase):
         self.client = TestClient(app)
         app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
         app.dependency_overrides[get_tenant_id] = lambda: "tenant-1"
-        app.dependency_overrides[require_owner] = lambda: {"tenant_id": "tenant-1", "role": "owner"}
+        app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": "tenant-1", "role": "owner"}
 
     def tearDown(self):
         app.dependency_overrides.clear()
