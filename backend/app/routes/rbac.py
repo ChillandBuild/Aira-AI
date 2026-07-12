@@ -24,6 +24,13 @@ router = APIRouter()
 require_roles_manage = require_permission("roles.manage")
 
 
+def require_roles_read(ctx: dict = Depends(get_tenant_and_role)) -> dict:
+    permissions = ctx.get("permissions") or []
+    if ctx.get("role") == "owner" or "roles.view" in permissions or "roles.manage" in permissions:
+        return ctx
+    raise HTTPException(status_code=403, detail="Permission required: roles.view")
+
+
 class RolePayload(BaseModel):
     name: str
     permissions: list[str]
@@ -163,12 +170,12 @@ def _serialize_user(db, tenant_id: str, member: dict, roles: dict[str, dict]) ->
 
 
 @router.get("/permissions")
-def list_permissions(_ctx: dict = Depends(require_roles_manage)):
+def list_permissions(_ctx: dict = Depends(require_roles_read)):
     return {"data": PERMISSION_CATALOG}
 
 
 @router.get("/roles")
-def list_roles(ctx: dict = Depends(require_roles_manage)):
+def list_roles(ctx: dict = Depends(require_roles_read)):
     db = get_supabase()
     ensure_default_roles(db, ctx["tenant_id"])
     roles = db.table("tenant_roles").select("*").eq("tenant_id", ctx["tenant_id"]).order("name").execute()
@@ -226,7 +233,7 @@ def delete_role(role_id: str, ctx: dict = Depends(require_roles_manage)):
 
 
 @router.get("/users")
-def list_users(ctx: dict = Depends(require_roles_manage)):
+def list_users(ctx: dict = Depends(require_roles_read)):
     db = get_supabase()
     ensure_default_roles(db, ctx["tenant_id"])
     roles = _role_map(db, ctx["tenant_id"])

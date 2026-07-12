@@ -30,6 +30,15 @@ class RbacServiceTests(unittest.TestCase):
         permissions = rbac.normalize_permissions("{dashboard.view,telecalling.dialer,unknown.permission}")
         self.assertEqual(permissions, ["dashboard.view", "telecalling.dialer"])
 
+    def test_normalize_permissions_accepts_read_only_page_keys(self):
+        permissions = rbac.normalize_permissions([
+            "outbound_leads.view",
+            "templates.view",
+            "roles.view",
+            "unknown.permission",
+        ])
+        self.assertEqual(permissions, ["outbound_leads.view", "roles.view", "templates.view"])
+
     def test_telecaller_role_detects_custom_name(self):
         role = {"name": "Senior Telecaller", "slug": None, "permissions": ["dashboard.view"]}
         self.assertTrue(rbac.is_telecaller_role(role))

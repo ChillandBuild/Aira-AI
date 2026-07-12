@@ -29,6 +29,13 @@ const TC_FEATURE_MAP: Record<string, string> = {
   "/dashboard/notes": "telecalling.notes",
 };
 
+const TC_PERMISSION_MAP: Record<string, string[]> = {
+  "/dashboard/telecalling/upload": ["telecalling.upload.view", "telecalling.upload"],
+  "/dashboard/telecalling": ["telecalling.dialer.view", "telecalling.dialer"],
+  "/dashboard/telecalling/scheduled": ["telecalling.scheduled.view", "telecalling.scheduled"],
+  "/dashboard/notes": ["telecalling.notes.view", "telecalling.notes"],
+};
+
 const TELECALLING_ITEMS: NavItem[] = [
   { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload" },
   { href: "/dashboard/telecalling", icon: Phone, label: "Dialer" },
@@ -120,6 +127,7 @@ export function Sidebar() {
 
   const isSubscribed = subStatus === "active";
   const can = (permission: string) => role === "owner" || permissions.includes(permission);
+  const canAny = (items: string[]) => role === "owner" || items.some((permission) => permissions.includes(permission));
 
   // Gate telecalling sub-items by sub-feature flags with backwards compatibility
   const hasTcSubFeatures = enabledFeatures.some(f => f.startsWith("telecalling."));
@@ -131,8 +139,8 @@ export function Sidebar() {
     : TELECALLING_ITEMS;
 
   const tcGroupItems = visibleTcItems.filter((item) => {
-    const featureKey = TC_FEATURE_MAP[item.href];
-    return !featureKey || can(featureKey);
+    const permissionKeys = TC_PERMISSION_MAP[item.href];
+    return !permissionKeys || canAny(permissionKeys);
   });
 
   const isTcActive = tcGroupItems.some(item => pathname.startsWith(item.href));
@@ -182,7 +190,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Conversations */}
-        {isSubscribed && messagingOn && <Link
+        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && <Link
           href="/dashboard/conversations"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
@@ -233,7 +241,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Outbound Leads */}
-        {isSubscribed && can("outbound_leads.manage") && outboundOn && (
+        {isSubscribed && canAny(["outbound_leads.view", "outbound_leads.manage"]) && outboundOn && (
           <Link
             href="/dashboard/outbound-leads"
             className={cn(
@@ -249,7 +257,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Templates */}
-        {isSubscribed && can("templates.manage") && outboundOn && (
+        {isSubscribed && canAny(["templates.view", "templates.manage"]) && outboundOn && (
           <Link
             href="/dashboard/templates"
             className={cn(
@@ -265,7 +273,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Numbers Pool */}
-        {isSubscribed && can("numbers.manage") && messagingOn && (
+        {isSubscribed && canAny(["numbers.view", "numbers.manage"]) && messagingOn && (
           <Link
             href="/dashboard/numbers"
             className={cn(
@@ -281,7 +289,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Knowledge Base */}
-        {isSubscribed && can("knowledge.manage") && messagingOn && (
+        {isSubscribed && canAny(["knowledge.view", "knowledge.manage"]) && messagingOn && (
           <Link
             href="/dashboard/knowledge"
             className={cn(
@@ -297,7 +305,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Catalog */}
-        {isSubscribed && can("catalog.manage") && messagingOn && (
+        {isSubscribed && canAny(["catalog.view", "catalog.manage"]) && messagingOn && (
           <Link
             href="/dashboard/catalog"
             className={cn(
@@ -329,7 +337,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Subscription */}
-        {can("subscription.manage") && (
+        {canAny(["subscription.view", "subscription.manage"]) && (
           <Link
             href="/dashboard/subscription"
             className={cn(
@@ -361,7 +369,7 @@ export function Sidebar() {
         )}
 
         {/* TOP LEVEL: Roles */}
-        {isSubscribed && can("roles.manage") && (
+        {isSubscribed && canAny(["roles.view", "roles.manage"]) && (
           <Link
             href="/dashboard/roles"
             className={cn(

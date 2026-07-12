@@ -34,21 +34,21 @@ const ACCESS_MODULES: AccessModule[] = [
   { id: "dashboard", title: "Dashboard", description: "View executive metrics and workspace status.", group: "Overview", readKeys: ["dashboard.view"], writeKeys: [] },
   { id: "conversations", title: "Conversations", description: "Open inbox threads and reply to customers.", group: "Messaging", readKeys: ["conversations.view"], writeKeys: ["conversations.reply"] },
   { id: "segments", title: "Segments", description: "View and update lead segments.", group: "Leads", readKeys: ["leads.view"], writeKeys: ["leads.manage"] },
-  { id: "inbound", title: "Inbound Leads", description: "Review inbound enquiries and handoffs.", group: "Leads", readKeys: ["inbound_leads.view"], writeKeys: [] },
-  { id: "outbound", title: "Outbound Leads", description: "Prepare outbound lead workflows.", group: "Messaging", readKeys: ["outbound_leads.manage"], writeKeys: ["outbound_leads.manage"] },
-  { id: "templates", title: "Templates", description: "Create and sync WhatsApp templates.", group: "Messaging", readKeys: ["templates.manage"], writeKeys: ["templates.manage"] },
-  { id: "numbers", title: "Numbers Pool", description: "Manage sender numbers and health.", group: "Messaging", readKeys: ["numbers.manage"], writeKeys: ["numbers.manage"] },
-  { id: "knowledge", title: "Knowledge Base", description: "Maintain AI answer sources.", group: "AI", readKeys: ["knowledge.manage"], writeKeys: ["knowledge.manage"] },
-  { id: "catalog", title: "Catalog", description: "Maintain product and service items.", group: "AI", readKeys: ["catalog.manage"], writeKeys: ["catalog.manage"] },
+  { id: "inbound", title: "Inbound Leads", description: "Review inbound enquiries and handoffs.", group: "Leads", readKeys: ["inbound_leads.view"], writeKeys: ["inbound_leads.manage"] },
+  { id: "outbound", title: "Outbound Leads", description: "Review outbound batches and campaign history.", group: "Messaging", readKeys: ["outbound_leads.view"], writeKeys: ["outbound_leads.manage"] },
+  { id: "templates", title: "Templates", description: "Review and manage WhatsApp templates.", group: "Messaging", readKeys: ["templates.view"], writeKeys: ["templates.manage"] },
+  { id: "numbers", title: "Numbers Pool", description: "Review and manage sender numbers.", group: "Messaging", readKeys: ["numbers.view"], writeKeys: ["numbers.manage"] },
+  { id: "knowledge", title: "Knowledge Base", description: "Review and maintain AI answer sources.", group: "AI", readKeys: ["knowledge.view"], writeKeys: ["knowledge.manage"] },
+  { id: "catalog", title: "Catalog", description: "Review and maintain product and service items.", group: "AI", readKeys: ["catalog.view"], writeKeys: ["catalog.manage"] },
   { id: "analytics", title: "Analytics", description: "View campaign, funnel, and performance reports.", group: "Reports", readKeys: ["analytics.view"], writeKeys: [] },
-  { id: "subscription", title: "Subscription", description: "Review and update subscription controls.", group: "Admin", readKeys: ["subscription.manage"], writeKeys: ["subscription.manage"] },
+  { id: "subscription", title: "Subscription", description: "Review and update subscription controls.", group: "Admin", readKeys: ["subscription.view"], writeKeys: ["subscription.manage"] },
   { id: "team", title: "Team", description: "View performance and manage caller operations.", group: "Team", readKeys: ["team.view"], writeKeys: ["team.manage"] },
-  { id: "roles", title: "Roles", description: "Create roles and assign user access.", group: "Admin", readKeys: ["roles.manage"], writeKeys: ["roles.manage"] },
-  { id: "settings", title: "Settings", description: "Configure workspace settings.", group: "Admin", readKeys: ["settings.manage"], writeKeys: ["settings.manage"] },
-  { id: "dialer", title: "Telecalling Dialer", description: "Use the calling cockpit and agent workflow.", group: "Telecalling", readKeys: ["telecalling.dialer"], writeKeys: ["telecalling.dialer"] },
-  { id: "upload", title: "Telecalling Upload", description: "Upload call lists and assign batches.", group: "Telecalling", readKeys: ["telecalling.upload"], writeKeys: ["telecalling.upload"] },
-  { id: "scheduled", title: "Scheduled Calls", description: "Work callback queues and scheduled follow-ups.", group: "Telecalling", readKeys: ["telecalling.scheduled"], writeKeys: ["telecalling.scheduled"] },
-  { id: "notes", title: "Call Notes", description: "Read and write call notes.", group: "Telecalling", readKeys: ["telecalling.notes"], writeKeys: ["telecalling.notes"] },
+  { id: "roles", title: "Roles", description: "Review roles or manage user access.", group: "Admin", readKeys: ["roles.view"], writeKeys: ["roles.manage"] },
+  { id: "settings", title: "Settings", description: "Review or configure workspace settings.", group: "Admin", readKeys: ["settings.view"], writeKeys: ["settings.manage"] },
+  { id: "dialer", title: "Telecalling Dialer", description: "View or use the calling cockpit.", group: "Telecalling", readKeys: ["telecalling.dialer.view"], writeKeys: ["telecalling.dialer"] },
+  { id: "upload", title: "Telecalling Upload", description: "View or upload call lists and batches.", group: "Telecalling", readKeys: ["telecalling.upload.view"], writeKeys: ["telecalling.upload"] },
+  { id: "scheduled", title: "Scheduled Calls", description: "View or work callback queues.", group: "Telecalling", readKeys: ["telecalling.scheduled.view"], writeKeys: ["telecalling.scheduled"] },
+  { id: "notes", title: "Call Notes", description: "Read or write call notes.", group: "Telecalling", readKeys: ["telecalling.notes.view"], writeKeys: ["telecalling.notes"] },
 ];
 
 const emptyRole = { name: "", permissions: [] as string[] };
@@ -88,7 +88,8 @@ function providerLabel(provider: CallingProvider) {
 
 export default function RolesPage() {
   const { role, permissions: myPermissions, loading: roleLoading } = useAuthRole();
-  const canManage = role === "owner" || myPermissions.includes("roles.manage");
+  const canWrite = role === "owner" || myPermissions.includes("roles.manage");
+  const canView = canWrite || myPermissions.includes("roles.view");
   const [tab, setTab] = useState<Tab>("roles");
   const [roles, setRoles] = useState<ClientRole[]>([]);
   const [users, setUsers] = useState<RbacUser[]>([]);
@@ -148,9 +149,9 @@ export default function RolesPage() {
   }
 
   useEffect(() => {
-    if (!roleLoading && canManage) load();
+    if (!roleLoading && canView) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleLoading, canManage]);
+  }, [roleLoading, canView]);
 
   function startRole(role: ClientRole) {
     setEditingRoleId(role.id);
@@ -284,8 +285,8 @@ export default function RolesPage() {
     return <div className="flex min-h-[400px] items-center justify-center"><Loader2 size={24} className="animate-spin text-primary" /></div>;
   }
 
-  if (!canManage) {
-    return <div className="py-20 text-center"><p className="font-body text-sm text-ink-muted">Only admins with role management access can open this page.</p></div>;
+  if (!canView) {
+    return <div className="py-20 text-center"><p className="font-body text-sm text-ink-muted">Only admins with role access can open this page.</p></div>;
   }
 
   return (
@@ -320,7 +321,7 @@ export default function RolesPage() {
               </button>
             ))}
           </div>
-          {tab === "roles" && (
+          {tab === "roles" && canWrite && (
             <button type="button" onClick={resetRole} className="btn-primary justify-center">
               <Plus size={14} /> Add New Role
             </button>
@@ -352,7 +353,8 @@ export default function RolesPage() {
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" size={16} />
               <input
-                className="input pl-9"
+                className="input"
+                style={{ paddingLeft: "2.5rem" }}
                 placeholder="Search roles..."
                 value={roleSearch}
                 onChange={(e) => setRoleSearch(e.target.value)}
@@ -401,7 +403,7 @@ export default function RolesPage() {
                   </h2>
                   <p className="mt-1 font-body text-sm text-ink-muted">Configure module-level read and write access. Delete access is intentionally omitted.</p>
                 </div>
-                {editingRoleId && (
+                {editingRoleId && canWrite && (
                   <button type="button" onClick={resetRole} className="btn-secondary w-fit text-xs">
                     <Plus size={14} /> New Role
                   </button>
@@ -414,6 +416,7 @@ export default function RolesPage() {
                   placeholder="Example: Telecaller"
                   value={roleDraft.name}
                   onChange={(e) => setRoleDraft((d) => ({ ...d, name: e.target.value }))}
+                  disabled={!canWrite}
                   required
                 />
               </div>
@@ -431,9 +434,11 @@ export default function RolesPage() {
                 </thead>
                 <tbody>
                   {availableModules.map((module) => {
-                    const readChecked = hasAnyPermission(roleDraft.permissions, [...module.readKeys, ...module.writeKeys]);
-                    const writeChecked = hasAnyPermission(roleDraft.permissions, module.writeKeys);
-                    const writeAvailable = module.writeKeys.length > 0;
+                    const effectiveReadKeys = module.readKeys.filter((key) => catalogKeys.size === 0 || catalogKeys.has(key));
+                    const effectiveWriteKeys = module.writeKeys.filter((key) => catalogKeys.size === 0 || catalogKeys.has(key));
+                    const readChecked = hasAnyPermission(roleDraft.permissions, [...effectiveReadKeys, ...effectiveWriteKeys]);
+                    const writeChecked = hasAnyPermission(roleDraft.permissions, effectiveWriteKeys);
+                    const writeAvailable = effectiveWriteKeys.length > 0;
                     return (
                       <tr key={module.id} className="border-t border-border-subtle">
                         <td className="border-t border-border-subtle px-4 py-4">
@@ -444,6 +449,7 @@ export default function RolesPage() {
                           <input
                             type="checkbox"
                             checked={readChecked}
+                            disabled={!canWrite}
                             onChange={(e) => setModuleAccess(module, "read", e.target.checked)}
                             className="h-4 w-4 rounded border-border-subtle accent-primary"
                             aria-label={`${module.title} read access`}
@@ -453,7 +459,7 @@ export default function RolesPage() {
                           <input
                             type="checkbox"
                             checked={writeChecked}
-                            disabled={!writeAvailable}
+                            disabled={!canWrite || !writeAvailable}
                             onChange={(e) => setModuleAccess(module, "write", e.target.checked)}
                             className="h-4 w-4 rounded border-border-subtle accent-primary disabled:opacity-30"
                             aria-label={`${module.title} write access`}
@@ -463,6 +469,7 @@ export default function RolesPage() {
                           <button
                             type="button"
                             onClick={() => clearModule(module)}
+                            disabled={!canWrite}
                             className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 font-label text-xs font-bold text-ink-muted hover:bg-surface-subtle hover:text-ink"
                           >
                             <RotateCcw size={12} /> Clear
@@ -477,15 +484,20 @@ export default function RolesPage() {
 
             <div className="flex flex-col gap-3 border-t border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="font-body text-xs text-ink-muted">{moduleActiveCount(roleDraft.permissions)} modules selected for this role.</p>
-              <button type="submit" disabled={saving} className="btn-primary justify-center">
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                {editingRoleId ? "Save Role" : "Create Role"}
-              </button>
+              {canWrite ? (
+                <button type="submit" disabled={saving} className="btn-primary justify-center">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                  {editingRoleId ? "Save Role" : "Create Role"}
+                </button>
+              ) : (
+                <span className="rounded-full bg-surface-subtle px-3 py-2 font-label text-xs font-bold text-ink-muted">Read-only view</span>
+              )}
             </div>
           </form>
         </div>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+          {canWrite && (
           <form onSubmit={saveUser} className="card rounded-3xl space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -525,6 +537,7 @@ export default function RolesPage() {
               {editingUserId ? "Save User" : "Create User"}
             </button>
           </form>
+          )}
 
           <div className="card rounded-3xl overflow-hidden">
             <h2 className="mb-4 font-display text-base font-bold text-ink">Users</h2>
@@ -535,12 +548,13 @@ export default function RolesPage() {
                     <p className="truncate font-body text-sm font-bold text-ink">{user.full_name || user.email}</p>
                     <p className="truncate font-body text-xs text-ink-muted">{user.email}</p>
                     <div className="mt-1 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-primary-light px-2 py-0.5 font-label text-[10px] font-bold text-primary">{user.role_name}</span>
+                      <span className="rounded-full bg-primary-light px-2 py-0.5 font-label text-[10px] font-bold text-primary">{user.role === "owner" ? "Master" : user.role_name}</span>
                       {user.force_password_reset && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-label text-[10px] font-bold text-amber-700">Reset required</span>}
-                      {user.caller_profile && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-label text-[10px] font-bold text-emerald-700">Team visible</span>}
+                      {user.role === "owner" && <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-label text-[10px] font-bold text-ink-muted">Boss account</span>}
+                      {user.role !== "owner" && user.caller_profile && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-label text-[10px] font-bold text-emerald-700">Team visible</span>}
                     </div>
                   </div>
-                  {user.role !== "owner" && (
+                  {canWrite && user.role !== "owner" && (
                     <div className="flex gap-2">
                       <button type="button" className="btn-secondary px-3" onClick={() => startUser(user)}><Pencil size={14} /></button>
                       <button type="button" className="btn-secondary px-3" onClick={() => resetPassword(user)}><KeyRound size={14} /></button>
