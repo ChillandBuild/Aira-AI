@@ -533,3 +533,12 @@
 - **Implementation**: Added `backend/app/services/rbac.py`, `backend/app/routes/rbac.py`, migration `138_tenant_rbac.sql`, frontend API methods, `/dashboard/roles` UI, sidebar permission filtering, dashboard role context, force-reset prompt, and team-role integration.
 - **Production repair**: Added migration `139_repair_tenant_rbac_schema_cache.sql` after production returned `PGRST205` for `public.tenant_roles`. The migration safely recreates/exposes `tenant_roles`, backfills Telecaller, grants Data API access, and sends `notify pgrst, 'reload schema'`.
 - **Verification**: Frontend `npm.cmd run typecheck` passed; backend RBAC files passed `py_compile`; focused backend tests `test_rbac_service.py` and `test_team_seat_enforcement.py` passed (`4 passed`).
+
+---
+
+**2026-07-12 - RBAC roles page read/write refinement and provider-aware team fields**
+- **Decision**: Refined `/dashboard/roles` into a two-pane role editor with a module permission matrix that exposes only Read and Write. Delete access is intentionally not part of the role UI because the client dashboard does not need a separate delete permission concept.
+- **Decision**: Split read-only keys from write/manage keys for previously write-only modules (`outbound_leads.view`, `templates.view`, `numbers.view`, `knowledge.view`, `catalog.view`, `subscription.view`, `roles.view`, `settings.view`, and telecalling `*.view` keys). Write still implies read in the matrix, but read no longer enables write.
+- **Decision**: A role with `roles.view` may open the Roles page in read-only mode, while `roles.manage` or owner access is required to create/edit roles and users.
+- **Decision**: Team/user assignment remains provider-aware: SIM Basic telecallers need phone only; TeleCMI telecallers expose phone plus TeleCMI agent ID. The owner user is labeled as `Master` / `Boss account` in the Roles users list so it is not confused with a normal assigned team member.
+- **Verification**: Frontend `npm run typecheck` passed. Backend RBAC unittest passed with 4 tests through the bundled Python runtime.
