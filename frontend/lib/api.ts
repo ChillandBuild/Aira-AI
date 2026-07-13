@@ -71,6 +71,7 @@ export interface CatalogMedia {
   catalog_item_id: string;
   storage_path: string;
   label: string | null;
+  sort_order: number;
   created_at: string;
   item_name?: string | null;
   url?: string;
@@ -1304,10 +1305,11 @@ export const api = {
       apiFetch<{ success: boolean }>(`/api/v1/catalog/items/${id}`, {
         method: "DELETE",
       }),
-    uploadMedia: async (itemId: string, file: File): Promise<CatalogMedia> => {
+    uploadMedia: async (itemId: string, file: File, label?: string): Promise<CatalogMedia> => {
       const authHeaders = await getAuthHeaders();
       const fd = new FormData();
       fd.append("file", file);
+      if (label) fd.append("label", label);
       const res = await fetch(`${API_URL}/api/v1/catalog/items/${itemId}/media`, {
         method: "POST",
         body: fd,
@@ -1323,6 +1325,16 @@ export const api = {
       const res = await apiFetch<{ data: CatalogMedia[] }>(`/api/v1/catalog/media`);
       return res.data || [];
     },
+    updateMedia: (id: string, data: { label?: string }) =>
+      apiFetch<CatalogMedia>(`/api/v1/catalog/media/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    reorderMedia: (itemId: string, mediaIds: string[]) =>
+      apiFetch<{ success: boolean }>(`/api/v1/catalog/items/${itemId}/media/reorder`, {
+        method: "PATCH",
+        body: JSON.stringify({ media_ids: mediaIds }),
+      }),
     deleteMedia: (id: string) =>
       apiFetch<{ success: boolean }>(`/api/v1/catalog/media/${id}`, {
         method: "DELETE",
