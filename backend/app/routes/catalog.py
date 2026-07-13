@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
+from app.services.catalog_retrieval import embed_and_store_catalog_item, reindex_catalog_items
 
 logger = logging.getLogger(__name__)
 require_catalog_read = require_permission("catalog.view")
@@ -41,10 +42,20 @@ async def create_item(
         "item_type": payload.get("item_type") or "product",
         "description": payload.get("description"),
         "status": "draft",
+        "attributes": payload.get("attributes") or {},
+        "variant_group_id": payload.get("variant_group_id"),
     }).execute()
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create catalog item")
-    return res.data[0]
+    item = res.data[0]
+    try:
+        await embed_and_store_catalog_item(
+            db, tenant_id, item["id"], item["name"], item["item_type"],
+            item.get("description"), item.get("attributes") or {},
+        )
+    except Exception as e:
+        logger.warning(f"Failed to embed catalog item {item['id']}: {e}")
+    return item
 
 
 @router.patch("/items/{item_id}")
@@ -55,7 +66,10 @@ async def update_item(
     _ctx: dict = Depends(require_catalog_manage),
 ):
     db = get_supabase()
-    updates = {k: v for k, v in payload.items() if k in {"name", "item_type", "description", "status"}}
+    updates = {
+        k: v for k, v in payload.items()
+        if k in {"name", "item_type", "description", "status", "attributes", "variant_group_id"}
+    }
     if "status" in updates and updates["status"] not in _VALID_STATUSES:
         raise HTTPException(status_code=400, detail=f"status must be one of {_VALID_STATUSES}")
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -69,7 +83,16 @@ async def update_item(
     )
     if not res.data:
         raise HTTPException(status_code=404, detail="Catalog item not found")
-    return res.data[0]
+    item = res.data[0]
+    if {"name", "item_type", "description", "attributes"} & updates.keys():
+        try:
+            await embed_and_store_catalog_item(
+                db, tenant_id, item["id"], item["name"], item["item_type"],
+                item.get("description"), item.get("attributes") or {},
+            )
+        except Exception as e:
+            logger.warning(f"Failed to re-embed catalog item {item['id']}: {e}")
+    return item
 
 
 @router.delete("/items/{item_id}")
@@ -231,3 +254,43 @@ async def update_ai_rules(
     }, on_conflict="tenant_id,key").execute()
 
     return merged
+
+
+@router.post("/variant-groups")
+async def create_variant_group(
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
+    db = get_supabase()
+    res = db.table("catalog_variant_groups").insert({
+        "tenant_id": tenant_id,
+        "name": payload.get("name"),
+        "item_type": payload.get("item_type") or "product",
+    }).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create variant group")
+    return res.data[0]
+
+
+@router.get("/variant-groups")
+async def list_variant_groups(tenant_id: str = Depends(get_tenant_id)):
+    db = get_supabase()
+    res = (
+        db.table("catalog_variant_groups")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return {"data": res.data or []}
+
+
+@router.post("/reindex")
+async def reindex_catalog(
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
+    """Backfill embeddings for existing catalog items (run once after grouping variants)."""
+    result = await reindex_catalog_items(tenant_id)
+    return {"success": True, **result}

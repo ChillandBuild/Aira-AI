@@ -193,7 +193,7 @@ _FALLBACK_BY_LANG = {
     "kn": "ಧನ್ಯವಾದಗಳು! ನಾವು ಶೀಘ್ರದಲ್ಲೇ ನಿಮ್ಮನ್ನು ಸಂಪರ್ಕಿಸುತ್ತೇವೆ.",
     "ml": "നന്ദി! ഞങ്ങൾ ഉടൻ തന്നെ നിങ്ങളുമായി ബന്ധപ്പെടും.",
     "en": "Thank you for reaching out! We'll get back to you shortly.",
-    "tanglish": "Nandri! Naanga seekiram unga kooda contact pannuvom.",
+    "tanglish": "Nandri! Naanga seekiram ungale contact pandrom.",
 }
 
 # Common Tamil words/suffixes seen in Tanglish (Tamil written in Latin letters).
@@ -790,7 +790,7 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
         contention = contention_set(candidates)
         gate = classify_gate(contention)
         if gate == "confident":
-            items = [contention[0]]
+            items = contention
         elif gate == "same_group":
             items = []
             directive = differing_attribute_directive(contention)
