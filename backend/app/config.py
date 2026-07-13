@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str | None = None
     groq_api_key: str | None = None
     sarvam_api_key: str | None = None
+    gemini_api_key: str | None = None
     openrouter_api_key: str | None = None
     jina_api_key: str | None = None
     telecmi_user_id: str | None = None
@@ -44,6 +45,7 @@ class Settings(BaseSettings):
         critical = {
             "openrouter_api_key": "Non-Sarvam conversational reply models will fail",
             "sarvam_api_key": "WhatsApp AI replies, call transcription, and knowledge image OCR will fail",
+            "gemini_api_key": "WhatsApp AI voice replies will fail",
             "groq_api_key": "Scoring, call summaries, AI tuning, lead briefs, and conversation compaction will fail",
             "meta_app_secret": "Webhook signature verification will reject all inbound",
             "jina_api_key": "Knowledge base RAG embeddings will fail",

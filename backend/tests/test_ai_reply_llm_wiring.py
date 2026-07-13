@@ -73,9 +73,9 @@ def test_default_reply_model_is_sarvam_30b():
 
 
 @pytest.mark.asyncio
-async def test_send_whatsapp_voice_reply_uses_sarvam_tts_and_meta_audio_upload():
+async def test_send_whatsapp_voice_reply_uses_gemini_tts_and_meta_audio_upload():
     db = object()
-    with patch("app.services.sarvam_client.sarvam_text_to_speech", AsyncMock(return_value=b"audio-bytes")) as tts, \
+    with patch("app.services.gemini_client.gemini_text_to_speech", AsyncMock(return_value=b"audio-bytes")) as tts, \
          patch("app.services.meta_cloud.upload_media_to_meta", AsyncMock(return_value="media-123")) as upload, \
          patch("app.services.meta_cloud.send_media_message", AsyncMock(return_value={"messages": [{"id": "wamid.voice.1"}]})) as send, \
          patch.object(ai_reply, "meter") as meter:
@@ -91,13 +91,7 @@ async def test_send_whatsapp_voice_reply_uses_sarvam_tts_and_meta_audio_upload()
         )
 
     assert mid == "wamid.voice.1"
-    tts.assert_awaited_once_with(
-        text="Hi Prem",
-        target_language_code="en-IN",
-        speaker="shubh",
-        pace=1.2,
-        tenant_id="tenant-1",
-    )
+    tts.assert_awaited_once_with(text="Hi Prem")
     meter.assert_called_once_with(db, "tenant-1", "ai_text_to_speech")
     upload.assert_awaited_once_with(
         file_bytes=b"audio-bytes",
