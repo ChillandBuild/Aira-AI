@@ -737,10 +737,12 @@ function SortablePhoto({
   media,
   canManage,
   onLabelSave,
+  onDelete,
 }: {
   media: CatalogMedia;
   canManage: boolean;
   onLabelSave: (id: string, label: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: media.id });
   const [isEditing, setIsEditing] = useState(false);
@@ -783,6 +785,16 @@ function SortablePhoto({
           <GripVertical size={13} />
         </button>
       )}
+      {canManage && (
+        <button
+          type="button"
+          onClick={() => onDelete(media.id)}
+          className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-white/90 text-danger opacity-0 shadow-sm transition-opacity hover:bg-danger hover:text-white group-hover:opacity-100"
+          aria-label="Remove photo"
+        >
+          <X size={13} />
+        </button>
+      )}
       {media.url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={media.url} alt={media.label || "Catalog media"} className="h-full w-full rounded-xl object-cover" />
@@ -822,17 +834,17 @@ function SortablePhoto({
 }
 
 function MediaItemGroup({
-  itemName,
   photos,
   canManage,
   onReorder,
   onLabelSave,
+  onDelete,
 }: {
-  itemName: string;
   photos: CatalogMedia[];
   canManage: boolean;
   onReorder: (orderedIds: string[]) => void;
   onLabelSave: (id: string, label: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -846,18 +858,15 @@ function MediaItemGroup({
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm font-semibold text-ink">{itemName} <span className="font-normal text-ink-muted">({photos.length})</span></p>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={photos.map((p) => p.id)} strategy={rectSortingStrategy}>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {photos.map((photo) => (
-              <SortablePhoto key={photo.id} media={photo} canManage={canManage} onLabelSave={onLabelSave} />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-    </div>
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={photos.map((p) => p.id)} strategy={rectSortingStrategy}>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {photos.map((photo) => (
+            <SortablePhoto key={photo.id} media={photo} canManage={canManage} onLabelSave={onLabelSave} onDelete={onDelete} />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 }
 
@@ -868,6 +877,7 @@ function MediaTab({ canManage }: { canManage: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   async function loadAll() {
     setIsLoading(true);
@@ -932,6 +942,17 @@ function MediaTab({ canManage }: { canManage: boolean }) {
     }
   }
 
+  async function handleDelete(mediaId: string) {
+    const removed = media.find((m) => m.id === mediaId);
+    setMedia((prev) => prev.filter((m) => m.id !== mediaId));
+    try {
+      await api.catalog.deleteMedia(mediaId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove photo");
+      if (removed) setMedia((prev) => [...prev, removed]);
+    }
+  }
+
   const mediaCountByItem = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const m of media) {
@@ -951,6 +972,9 @@ function MediaTab({ canManage }: { canManage: boolean }) {
     return groups;
   }, [media]);
 
+  const selectedItem = items.find((item) => item.id === selectedItemId) || null;
+  const selectedPhotos = selectedItemId ? mediaGroupsByItem[selectedItemId] || [] : [];
+
   return (
     <div className="space-y-4">
       {error && (
@@ -959,7 +983,9 @@ function MediaTab({ canManage }: { canManage: boolean }) {
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-card border border-border bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold text-ink">Media Library</h2>
+            <h2 className="font-display text-lg font-bold text-ink">
+              Media Library{selectedItem ? ` — ${selectedItem.name}` : ""}
+            </h2>
           </div>
           {isLoading && (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-ink-muted">
@@ -967,38 +993,43 @@ function MediaTab({ canManage }: { canManage: boolean }) {
               Loading media...
             </div>
           )}
-          {!isLoading && media.length === 0 && (
-            <p className="py-10 text-center text-sm text-ink-muted">No media uploaded yet. Attach images to an item using the panel on the right.</p>
+          {!isLoading && !selectedItem && (
+            <p className="py-10 text-center text-sm text-ink-muted">Select an item on the right to view its photos.</p>
           )}
-          {!isLoading && media.length > 0 && (
-            <div className="space-y-6">
-              {items
-                .filter((item) => mediaGroupsByItem[item.id]?.length)
-                .map((item) => (
-                  <MediaItemGroup
-                    key={item.id}
-                    itemName={item.name}
-                    photos={mediaGroupsByItem[item.id]}
-                    canManage={canManage}
-                    onReorder={(orderedIds) => handleReorder(item.id, orderedIds)}
-                    onLabelSave={handleLabelSave}
-                  />
-                ))}
-            </div>
+          {!isLoading && selectedItem && selectedPhotos.length === 0 && (
+            <p className="py-10 text-center text-sm text-ink-muted">No photos yet for {selectedItem.name}. Upload some using the panel on the right.</p>
+          )}
+          {!isLoading && selectedItem && selectedPhotos.length > 0 && (
+            <MediaItemGroup
+              photos={selectedPhotos}
+              canManage={canManage}
+              onReorder={(orderedIds) => handleReorder(selectedItem.id, orderedIds)}
+              onLabelSave={handleLabelSave}
+              onDelete={handleDelete}
+            />
           )}
         </div>
         <div className="rounded-card border border-border bg-white p-5 shadow-sm">
           <h3 className="font-display text-base font-bold text-ink">Attach Media</h3>
           <p className="mt-1 text-sm text-ink-muted">
-            Each image belongs to an item so the AI can choose relevant visuals. Select multiple photos to upload them
-            all at once — drag to reorder them in the library on the left, whoever is listed first gets sent first.
+            Each image belongs to an item so the AI can choose relevant visuals. Click an item to view its photos in
+            the library on the left — select multiple photos to upload them all at once, drag to reorder, whoever is
+            listed first gets sent first.
           </p>
           <div className="mt-5 space-y-3">
             {items.length === 0 && !isLoading && (
               <p className="text-sm text-ink-muted">Add a catalog item first, then come back here to attach photos.</p>
             )}
             {items.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-surface-low px-3 py-2">
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedItemId(item.id)}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors",
+                  selectedItemId === item.id ? "bg-primary/10 ring-1 ring-primary/40" : "bg-surface-low hover:bg-surface-low/70"
+                )}
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-ink">{item.name}</p>
                   <p className="text-xs font-medium text-ink-muted">
@@ -1007,7 +1038,10 @@ function MediaTab({ canManage }: { canManage: boolean }) {
                       : `${mediaCountByItem[item.id] || 0} images`}
                   </p>
                 </div>
-                <label className={cn("btn-ghost inline-flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs", canManage ? "cursor-pointer" : "cursor-not-allowed opacity-45")}>
+                <label
+                  onClick={(event) => event.stopPropagation()}
+                  className={cn("btn-ghost inline-flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs", canManage ? "cursor-pointer" : "cursor-not-allowed opacity-45")}
+                >
                   {uploadingItemId === item.id ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                   {canManage ? "Upload" : "Disabled"}
                   <input
@@ -1018,12 +1052,15 @@ function MediaTab({ canManage }: { canManage: boolean }) {
                     disabled={uploadingItemId === item.id || !canManage}
                     onChange={(event) => {
                       const files = event.target.files;
-                      if (files && files.length > 0) handleUploadMultiple(item.id, files);
+                      if (files && files.length > 0) {
+                        setSelectedItemId(item.id);
+                        handleUploadMultiple(item.id, files);
+                      }
                       event.target.value = "";
                     }}
                   />
                 </label>
-              </div>
+              </button>
             ))}
           </div>
         </div>
