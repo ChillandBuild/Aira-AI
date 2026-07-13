@@ -43,3 +43,6 @@ test_leads.csv
 
 # Git worktrees (local dev isolation)
 .worktrees/
+
+# Local scratch space (test outputs, audio samples, etc. - never committed)
+tmp/
