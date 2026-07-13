@@ -590,3 +590,13 @@
 - **Decision**: A `500` from the read-only `/api/v1/analytics/overview` aggregate is retried through the existing GET retry policy before the dashboard renders its error card. Other application `500` responses are not globally retried.
 - **Live investigation**: Render `/health` returned `200`; Supabase project `Aira AI` was healthy; `tenant_roles`, RBAC membership columns, and the analytics query columns existed with RLS enabled; no current API/Postgres failure was present. The observed dashboard error was therefore transient rather than a persistent schema/access failure.
 - **Verification**: `frontend npm run typecheck` and `git diff --check` passed. The local frontend changes still require deployment before Bloom Matrix reflects them.
+
+---
+
+**2026-07-13 - Dashboard read-only RBAC enforcement: workflows, subscriptions, team, and conversations**
+- **Decision**: Read access remains navigable and inspectable; write actions are visibly disabled and backend-protected. This applies to Segments/Re-engagement message creation, Outbound tags and broadcasts, Templates submission, Subscription requests, Team shift/holiday controls, and Conversations.
+- **Permission model**: `require_permission()` now treats `*.manage` as satisfying the corresponding `*.view`. `conversations.reply` additionally implies `conversations.view`, matching the existing sidebar behavior so a reply-capable role can load the inbox. Mutations require their dedicated manage/reply permission; view-only API access cannot mutate by direct request.
+- **Conversations implementation**: Archive, escalation Resolve, escalation Pick up/Reply, text reply, and media reply require `conversations.reply`. View-only users see Archive/Resolve and reply controls disabled with a read-only tooltip; the conversation and escalation read endpoints require `conversations.view`.
+- **Re-engagement failure fix**: Re-engagement sequence reads use `leads.view`, while create/delete/trigger mutations use `leads.manage`, preventing the prior failed-sequence response for valid read roles and preserving outbound-leads-only write scope.
+- **Schema**: No migration was created or applied. The live Supabase schema already contains the tables/columns used by these changes, including `tenant_roles`, `reengagement_steps`, `broadcast_tags`, caller shifts, and attendance overrides.
+- **Verification**: frontend `npm run typecheck`, Python `py_compile` for affected backend routes, and `git diff --check` passed. A local Next production build did not return a final result because overlapping Node/Next workers remained active; it emitted only existing Sentry configuration warnings and must be rerun in a clean process state before deployment.

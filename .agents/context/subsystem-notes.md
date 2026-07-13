@@ -53,6 +53,7 @@
 
 ## Conversations UI (3-panel)
 - `conversations/page.tsx`: left list (340px) | center ChatThread | right LeadDetailsPanel (320px); both collapsible, state in localStorage. `getAvatarColor(id)` duplicated in conversation-list.tsx and chat-thread.tsx **by design**. Input bar is never AI-gated. All 3 panels stay in sync via `onLeadUpdate`.
+- **RBAC (2026-07-13)**: `conversations.view` gates inbox and escalation reads; `conversations.reply` gates Archive, escalation assign/resolve, text reply, and media reply. Treat `conversations.reply` as also satisfying view access, because the sidebar intentionally exposes Conversations to either permission. Read-only UI controls must use native `disabled` plus the read-only tooltip, but the API dependency is the security boundary.
 
 ## Telecalling assignment (services/assignment.py)
 - **State-based, not transition-triggered** (the original leak: channel webhooks force-assigned ungated, promotions never assigned). One `maybe_assign_lead()` funnel gated on `telecalling_config` (enabled+segment+channel; channel=None bypasses for call/manual/CSV) at every promotion site, PLUS a 2-min `sweep_unassigned_leads` guarantee.
