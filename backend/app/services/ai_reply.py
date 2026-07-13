@@ -243,15 +243,60 @@ _SCRIPT_NAMES = {"ta": "Tamil", "te": "Telugu", "kn": "Kannada", "ml": "Malayala
 
 
 def _latest_message_script_note(text: str) -> str:
-    """Per-turn instruction stating the customer's latest message script,
-    computed fresh every turn so the model can't anchor on its own prior
-    replies and miss a silent (non-verbal) script switch -- see
-    .agents/decisions/log.md 2026-07-06 for the live-tested failure this
-    fixes (0/3 on silent switches despite following explicit ones 3/3)."""
+    """Per-turn instruction stating the customer's latest message script. Live-tested
+    2026-07-13: does NOT fix silent script switches (0/6 across two prompt placements,
+    see subsystem-notes.md) -- the model overrides this instruction in favor of its own
+    prior reply style. Kept because it's harmless and doesn't regress the cases that
+    already work (explicit switch requests, no-switch). The actual fix for silent
+    switches is the post-reply check below (_reply_script_mismatch + regen)."""
     name = _SCRIPT_NAMES.get(_dominant_script(text))
     if name:
         return f"{name} script. Reply in {name} script."
     return "Latin/English script. Do not reply in Tamil script."
+
+
+_LANGUAGE_SWITCH_REQUEST_RE = re.compile(
+    r"\b(in\s+(english|tamil|hindi|telugu|kannada|malayalam)\b"
+    r"|reply\s+in\s+(english|tamil|hindi|telugu|kannada|malayalam)\b"
+    r"|(english|tamil|hindi|telugu|kannada|malayalam)[\s-]?la\s+(sollunga|solunga|solu))",
+    re.IGNORECASE,
+)
+
+
+def _is_explicit_language_switch_request(text: str) -> bool:
+    """Matches the same trigger phrasing already given to the model in the LANGUAGE
+    RULE prompt (e.g. 'in English please', 'tamil-la sollunga', 'reply in tamil').
+    Live-tested 3/3 reliable when the model handles this itself -- the mismatch check
+    below must not second-guess it, or it would force a wrong regeneration."""
+    return bool(_LANGUAGE_SWITCH_REQUEST_RE.search(text))
+
+
+def _reply_script_mismatch(customer_message: str, reply_text: str) -> bool:
+    """True if the reply's script bucket (Indic vs Latin) doesn't match the customer's
+    latest message, and the customer wasn't explicitly requesting a different language
+    (that case already works and must be left alone). This is the post-reply catch for
+    the silent-switch bug that preemptive prompt instructions could not fix -- see
+    subsystem-notes.md 2026-07-13."""
+    if _is_explicit_language_switch_request(customer_message):
+        return False
+    customer_is_indic = _dominant_script(customer_message) != "en"
+    reply_is_indic = _dominant_script(reply_text) != "en"
+    return customer_is_indic != reply_is_indic
+
+
+def _regen_target_instruction(customer_message: str) -> str:
+    """Target-language phrasing for the isolated regen call below. Must name the
+    actual language explicitly ('English or Tanglish') rather than 'Latin script' --
+    live-tested 2026-07-13: a vague 'Latin/English script' instruction let the model
+    drift into literal Latin (the dead language) once, since any Latin-alphabet
+    output technically satisfies 'not Tamil script'."""
+    name = _SCRIPT_NAMES.get(_dominant_script(customer_message))
+    if name:
+        return f"natural {name} script (the way a customer service agent in India would text)"
+    return (
+        "natural English or Tanglish (the way a customer service agent in India would "
+        "text over WhatsApp) -- never a foreign or unrelated language"
+    )
 
 
 _LAST_SEND_ERROR: str | None = None
@@ -1036,6 +1081,41 @@ async def generate_reply(
 
         if not reply_text:
             reply_text = _FALLBACK_BY_LANG.get(_detect_lang(message), _FALLBACK_BY_LANG["en"])
+        elif _reply_script_mismatch(message, reply_text):
+            # Preemptive prompt instructions (LANGUAGE RULE + the per-turn script note
+            # above) do not reliably stop silent script-switch anchoring -- live-tested
+            # 0/6, see subsystem-notes.md 2026-07-13. This catches it after generation,
+            # before anything is sent, and asks for one corrected regeneration.
+            #
+            # The regen call deliberately carries NO conversation history and is framed
+            # as an isolated translation task, not "continue the chat" -- live-tested
+            # 2026-07-13: feeding the wrong reply back in as part of the same history
+            # (i.e. asking the model to "redo" its own last turn) mostly failed (1/6,
+            # the anchor re-triggers even with an explicit correction). An isolated
+            # rewrite-only call with no prior turns to anchor to fixed it 10/10. The
+            # target language must be named explicitly ("English or Tanglish"), not
+            # "Latin script" -- a vague script-only instruction let the model drift
+            # into literal Latin (the dead language) once, since any Latin-alphabet
+            # text technically satisfies "not Tamil script".
+            try:
+                regen_messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a translator. Rewrite the following WhatsApp reply so it is in "
+                            f"{_regen_target_instruction(message)}. Keep the same meaning, tone, and "
+                            "length. Output ONLY the rewritten reply, nothing else."
+                        ),
+                    },
+                    {"role": "user", "content": reply_text},
+                ]
+                regenerated = (await _llm_chat(regen_messages, max_tokens=600, tenant_id=tenant_id)).strip()
+                if regenerated:
+                    if _reply_script_mismatch(message, regenerated):
+                        logger.warning(f"Script-mismatch regen still mismatched for lead {lead_id}")
+                    reply_text = regenerated
+            except Exception as regen_err:
+                logger.warning(f"Script-mismatch regeneration failed for lead {lead_id}: {regen_err}")
 
         # Trigger A: AI gave a generic fallback reply
         if _is_generic_fallback(reply_text):

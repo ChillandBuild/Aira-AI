@@ -5,7 +5,10 @@ from app.services.ai_reply import (
     _detect_lang,
     _dominant_script,
     _FALLBACK_BY_LANG,
+    _is_explicit_language_switch_request,
     _latest_message_script_note,
+    _regen_target_instruction,
+    _reply_script_mismatch,
 )
 
 
@@ -99,3 +102,69 @@ def test_generate_reply_injects_latest_message_script_note():
     source = inspect.getsource(ai_reply.generate_reply)
     assert "_latest_message_script_note(message)" in source
     assert "CUSTOMER'S LATEST MESSAGE SCRIPT" in source
+
+
+def test_explicit_switch_request_matches_prompt_examples():
+    assert _is_explicit_language_switch_request("in English please")
+    assert _is_explicit_language_switch_request("tamil-la sollunga")
+    assert _is_explicit_language_switch_request("reply in tamil")
+
+
+def test_explicit_switch_request_false_for_ordinary_message():
+    assert not _is_explicit_language_switch_request("eppo delivery aagum?")
+    assert not _is_explicit_language_switch_request("நல்லா இருக்கு, order பண்ணலாமா?")
+
+
+def test_reply_script_mismatch_detects_silent_switch_to_tamil():
+    customer_msg = "நல்லா இருக்கு, order பண்ணலாமா?"
+    wrong_reply = "Sari, order pannunga sir."
+    assert _reply_script_mismatch(customer_msg, wrong_reply)
+
+
+def test_reply_script_mismatch_detects_silent_switch_to_english():
+    customer_msg = "ok never mind, cancel it please"
+    wrong_reply = "சரி சார், cancel பண்ணிடலாம்."
+    assert _reply_script_mismatch(customer_msg, wrong_reply)
+
+
+def test_reply_script_mismatch_false_when_scripts_agree():
+    assert not _reply_script_mismatch("eppo delivery aagum?", "3-4 days aagum sir.")
+    assert not _reply_script_mismatch("எப்போது டெலிவரி ஆகும்?", "நாளைக்கு சார்.")
+
+
+def test_reply_script_mismatch_false_for_explicit_switch_request():
+    """The model correctly switching script to fulfil 'tamil-la sollunga' must not
+    be flagged as a bug -- that case is already 3/3 reliable and must be left alone."""
+    assert not _reply_script_mismatch("tamil-la sollunga", "சரி சார், தமிழில் சொல்றேன்")
+
+
+def test_generate_reply_wires_in_script_mismatch_regeneration():
+    source = inspect.getsource(ai_reply.generate_reply)
+    assert "_reply_script_mismatch(message, reply_text)" in source
+    assert "regen_messages" in source
+
+
+def test_regen_target_instruction_names_english_explicitly():
+    """Must name the actual language, not just 'Latin script' -- a vague script-only
+    instruction let the model drift into literal Latin (the dead language) in live
+    testing, since any Latin-alphabet output technically satisfies 'not Tamil script'."""
+    instruction = _regen_target_instruction("ok never mind, cancel it please")
+    assert "English" in instruction
+    assert "Latin script" not in instruction
+
+
+def test_regen_target_instruction_names_tamil_for_tamil_script_customer_message():
+    instruction = _regen_target_instruction("நல்லா இருக்கு, order பண்ணலாமா?")
+    assert "Tamil" in instruction
+
+
+def test_generate_reply_regen_call_carries_no_conversation_history():
+    """The regen call must be an isolated rewrite, not a 'continue the chat' call --
+    live-tested 2026-07-13: feeding the wrong reply back into full conversation
+    history mostly failed (1/6) because it re-triggers the same anchor. An isolated
+    call with no prior turns fixed it 10/10."""
+    source = inspect.getsource(ai_reply.generate_reply)
+    regen_block = source[source.index("elif _reply_script_mismatch(message, reply_text):"):]
+    regen_block = regen_block[: regen_block.index("except Exception as regen_err")]
+    assert "chat_messages +" not in regen_block
+    assert "_regen_target_instruction(message)" in regen_block
