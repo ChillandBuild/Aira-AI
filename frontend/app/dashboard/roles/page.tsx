@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  Trash2,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -108,6 +109,7 @@ export default function RolesPage() {
   const [temporaryPassword, setTemporaryPassword] = useState<{ label: string; value: string } | null>(null);
   const [showDraftPassword, setShowDraftPassword] = useState(false);
   const [showIssuedPassword, setShowIssuedPassword] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const catalogKeys = useMemo(() => new Set(permissions.map((permission) => permission.key)), [permissions]);
   const availableModules = useMemo(() => {
@@ -282,6 +284,40 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to reset password");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteRole(roleItem: ClientRole) {
+    if (!canWrite) return;
+    const confirmed = window.confirm(`Delete role "${roleItem.name}"? This only works when no users are assigned to it.`);
+    if (!confirmed) return;
+    setDeleting(`role:${roleItem.id}`);
+    setError(null);
+    try {
+      await api.rbac.deleteRole(roleItem.id);
+      if (editingRoleId === roleItem.id) resetRole();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete role");
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  async function deleteUser(user: RbacUser) {
+    if (!canWrite) return;
+    const confirmed = window.confirm(`Delete user "${user.full_name || user.email}"? This removes their tenant access and disables their caller profile.`);
+    if (!confirmed) return;
+    setDeleting(`user:${user.user_id}`);
+    setError(null);
+    try {
+      await api.rbac.deleteUser(user.user_id);
+      if (editingUserId === user.user_id) resetUser();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete user");
+    } finally {
+      setDeleting(null);
     }
   }
 
@@ -502,10 +538,23 @@ export default function RolesPage() {
             <div className="flex flex-col gap-3 border-t border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="font-body text-xs text-ink-muted">{moduleActiveCount(roleDraft.permissions)} modules selected for this role.</p>
               {canWrite ? (
-                <button type="submit" disabled={saving} className="btn-primary justify-center">
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                  {editingRoleId ? "Save Role" : "Create Role"}
-                </button>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  {editingRole && !editingRole.is_system_template && (
+                    <button
+                      type="button"
+                      disabled={deleting === `role:${editingRole.id}` || saving}
+                      onClick={() => deleteRole(editingRole)}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 font-label text-sm font-bold text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {deleting === `role:${editingRole.id}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      Delete Role
+                    </button>
+                  )}
+                  <button type="submit" disabled={saving || deleting !== null} className="btn-primary justify-center">
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                    {editingRoleId ? "Save Role" : "Create Role"}
+                  </button>
+                </div>
               ) : (
                 <span className="rounded-full bg-surface-subtle px-3 py-2 font-label text-xs font-bold text-ink-muted">Read-only view</span>
               )}
@@ -578,6 +627,15 @@ export default function RolesPage() {
                     <div className="flex gap-2">
                       <button type="button" className="btn-secondary px-3" onClick={() => startUser(user)}><Pencil size={14} /></button>
                       <button type="button" className="btn-secondary px-3" onClick={() => resetPassword(user)}><KeyRound size={14} /></button>
+                      <button
+                        type="button"
+                        className="inline-flex h-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => deleteUser(user)}
+                        disabled={deleting === `user:${user.user_id}` || saving}
+                        title="Delete user"
+                      >
+                        {deleting === `user:${user.user_id}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      </button>
                     </div>
                   )}
                 </div>
