@@ -25,19 +25,17 @@ type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "ai_me
 
 type ReplyModelId =
   | "sarvam-30b"
+  | "sarvam-105b"
   | "meta-llama/llama-3.3-70b-instruct"
-  | "openai/gpt-5-mini"
-  | "google/gemini-2.5-flash"
-  | "openai/gpt-5"
-  | "google/gemini-2.5-pro";
+  | "google/gemini-2.5-flash-lite"
+  | "google/gemini-3.1-flash-lite";
 
 const REPLY_MODELS: { id: ReplyModelId; label: string; provider: string; costTier: "$" | "$$" | "$$$"; desc: string }[] = [
   { id: "sarvam-30b", label: "Sarvam 30B", provider: "Sarvam", costTier: "$", desc: "Default. Best fit for Tamil/Hindi/Hinglish conversations." },
+  { id: "sarvam-105b", label: "Sarvam 105B", provider: "Sarvam", costTier: "$$", desc: "Sarvam's flagship model. Stronger reasoning, same Indic-language focus as the 30B." },
   { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "Groq via OpenRouter", costTier: "$", desc: "Cheapest option. Fast, strong in English, weaker on Indic-language nuance." },
-  { id: "openai/gpt-5-mini", label: "GPT-5 Mini", provider: "OpenAI via OpenRouter", costTier: "$$", desc: "Balanced quality and cost." },
-  { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", provider: "Google via OpenRouter", costTier: "$$", desc: "Balanced quality and cost, strong multimodal support." },
-  { id: "openai/gpt-5", label: "GPT-5", provider: "OpenAI via OpenRouter", costTier: "$$$", desc: "Highest quality, highest cost." },
-  { id: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", provider: "Google via OpenRouter", costTier: "$$$", desc: "Highest quality, highest cost." },
+  { id: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", provider: "Google via OpenRouter", costTier: "$", desc: "Cheap and fast, good general quality." },
+  { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite", provider: "Google via OpenRouter", costTier: "$", desc: "Newer generation, similar cost to 2.5 Flash-Lite." },
 ];
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
@@ -64,35 +62,42 @@ const VOICE_PACES = [
 
 const VOICE_SPEAKERS = [
   { value: "shubh", label: "Shubh" },
-  { value: "mani", label: "Mani" },
-  { value: "abhilash", label: "Abhilash" },
-  { value: "karun", label: "Karun" },
-  { value: "hitesh", label: "Hitesh" },
-  { value: "amol", label: "Amol" },
-  { value: "amartya", label: "Amartya" },
-  { value: "diya", label: "Diya" },
-  { value: "neel", label: "Neel" },
-  { value: "misha", label: "Misha" },
-  { value: "vian", label: "Vian" },
-  { value: "arvind", label: "Arvind" },
-  { value: "maya", label: "Maya" },
-  { value: "meera", label: "Meera" },
-  { value: "pavithra", label: "Pavithra" },
-  { value: "maitreyi", label: "Maitreyi" },
-  { value: "arushi", label: "Arushi" },
-  { value: "vidya", label: "Vidya" },
-  { value: "arya", label: "Arya" },
+  { value: "aditya", label: "Aditya" },
+  { value: "ritu", label: "Ritu" },
   { value: "priya", label: "Priya" },
-  { value: "anika", label: "Anika" },
-  { value: "ishani", label: "Ishani" },
-  { value: "pranav", label: "Pranav" },
-  { value: "rupika", label: "Rupika" },
-  { value: "abhishek", label: "Abhishek" },
-  { value: "rashmi", label: "Rashmi" },
-  { value: "kirti", label: "Kirti" },
-  { value: "anish", label: "Anish" },
-  { value: "saumya", label: "Saumya" },
-  { value: "kalpika", label: "Kalpika" },
+  { value: "neha", label: "Neha" },
+  { value: "rahul", label: "Rahul" },
+  { value: "pooja", label: "Pooja" },
+  { value: "rohan", label: "Rohan" },
+  { value: "simran", label: "Simran" },
+  { value: "kavya", label: "Kavya" },
+  { value: "amit", label: "Amit" },
+  { value: "dev", label: "Dev" },
+  { value: "ishita", label: "Ishita" },
+  { value: "shreya", label: "Shreya" },
+  { value: "ratan", label: "Ratan" },
+  { value: "varun", label: "Varun" },
+  { value: "manan", label: "Manan" },
+  { value: "sumit", label: "Sumit" },
+  { value: "roopa", label: "Roopa" },
+  { value: "kabir", label: "Kabir" },
+  { value: "aayan", label: "Aayan" },
+  { value: "ashutosh", label: "Ashutosh" },
+  { value: "advait", label: "Advait" },
+  { value: "anand", label: "Anand" },
+  { value: "tanya", label: "Tanya" },
+  { value: "tarun", label: "Tarun" },
+  { value: "sunny", label: "Sunny" },
+  { value: "mani", label: "Mani" },
+  { value: "gokul", label: "Gokul" },
+  { value: "vijay", label: "Vijay" },
+  { value: "shruti", label: "Shruti" },
+  { value: "suhani", label: "Suhani" },
+  { value: "mohit", label: "Mohit" },
+  { value: "kavitha", label: "Kavitha" },
+  { value: "rehan", label: "Rehan" },
+  { value: "soham", label: "Soham" },
+  { value: "rupali", label: "Rupali" },
 ];
 
 interface ConfigData {
