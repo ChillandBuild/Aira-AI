@@ -49,12 +49,12 @@ class ClassifyGateTests(unittest.TestCase):
         ]
         self.assertEqual(classify_gate(contention), "same_group")
 
-    def test_ungrouped_items_are_broad_browse(self):
+    def test_ungrouped_items_are_confident_on_top_candidate(self):
         contention = [
             {"id": "a", "variant_group_id": None},
             {"id": "b", "variant_group_id": None},
         ]
-        self.assertEqual(classify_gate(contention), "broad_browse")
+        self.assertEqual(classify_gate(contention), "confident")
 
     def test_different_variant_groups_are_broad_browse(self):
         contention = [

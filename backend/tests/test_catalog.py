@@ -257,9 +257,9 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
         mock_match.return_value = [
             {"id": "a", "name": "Chocolate Cake", "item_type": "product", "description": None,
-             "attributes": {}, "variant_group_id": None, "similarity": 0.80},
+             "attributes": {}, "variant_group_id": "vg-choc", "similarity": 0.80},
             {"id": "b", "name": "Red Velvet Cake", "item_type": "product", "description": None,
-             "attributes": {}, "variant_group_id": None, "similarity": 0.79},
+             "attributes": {}, "variant_group_id": "vg-redvelvet", "similarity": 0.79},
         ]
 
         text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "show me your cakes")
@@ -268,6 +268,24 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Red Velvet Cake", text)
         self.assertIn("do NOT send any photos", text)
         self.assertEqual(tools, [])
+
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_ungrouped_legacy_items_get_confident_recommendation_not_disambiguation(self, mock_match):
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        mock_match.return_value = [
+            {"id": "a", "name": "Chocolate Cake", "item_type": "product", "description": None,
+             "attributes": {}, "variant_group_id": None, "similarity": 0.83},
+            {"id": "b", "name": "Vanilla Cake", "item_type": "product", "description": None,
+             "attributes": {}, "variant_group_id": None, "similarity": 0.81},
+        ]
+
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "show me your cakes")
+
+        self.assertNotIn("DISAMBIGUATION NEEDED", text)
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(list(items_by_id.keys()), ["a"])
 
     @patch("app.services.ai_reply.match_catalog_items", side_effect=Exception("provider down"))
     async def test_retrieval_failure_falls_back_to_full_catalog_list(self, mock_match):
@@ -303,6 +321,37 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(rules["can_recommend"])
         self.assertTrue(rules["can_send_images"])  # from defaults
         self.assertEqual(rules["max_images_per_reply"], 3)  # from defaults
+
+    async def test_malformed_max_images_per_reply_falls_back_to_default(self):
+        # match_catalog_items has no mocked embedding provider here, so it raises and
+        # the function fails open to the catalog_items listing fallback. That fallback
+        # must return at least one item, or _build_catalog_context short-circuits via
+        # its "no items and no directive" early return before ever reaching the
+        # max_images coercion this test targets.
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+            {"value": json.dumps({"max_images_per_reply": "not-a-number"})}
+        ]
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+            {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake"}
+        ]
+
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "hello")
+        self.assertEqual(max_images, 3)
+
+    async def test_negative_max_images_per_reply_clamps_to_zero(self):
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+            {"value": json.dumps({"max_images_per_reply": -5})}
+        ]
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+            {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake"}
+        ]
+
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "hello")
+        self.assertEqual(max_images, 0)
 
     def test_generate_reply_static_import_scopes(self):
         import inspect

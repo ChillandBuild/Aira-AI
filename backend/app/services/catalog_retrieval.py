@@ -28,11 +28,20 @@ def contention_set(candidates: list[dict]) -> list[dict]:
 def classify_gate(contention: list[dict]) -> str:
     """Classify a non-empty contention set as "confident" (one item, safe to recommend
     directly), "same_group" (multiple variants of one item -- ask which one), or
-    "broad_browse" (multiple distinct items/groups -- list options, send no photos)."""
+    "broad_browse" (multiple distinct items/groups -- list options, send no photos).
+
+    A contention set where every candidate is ungrouped (variant_group_id is None for
+    all of them) is treated as "confident" on the top-ranked candidate -- items with no
+    variant-group data can't be "variants of one thing" or "distinct product families"
+    by definition, and legacy/ungrouped tenants must keep today's behavior (recommend
+    the best match, no clarifying question) rather than being newly gated.
+    """
     if len(contention) == 1:
         return "confident"
     group_ids = {c.get("variant_group_id") for c in contention}
-    if len(group_ids) == 1 and None not in group_ids:
+    if group_ids == {None}:
+        return "confident"
+    if len(group_ids) == 1:
         return "same_group"
     return "broad_browse"
 

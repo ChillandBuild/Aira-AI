@@ -833,7 +833,10 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
         )
     text_block += directive
 
-    max_images = rules.get("max_images_per_reply", 3)
+    try:
+        max_images = max(0, int(rules.get("max_images_per_reply", 3)))
+    except (TypeError, ValueError):
+        max_images = 3
     tools: list[dict] = []
     if rules.get("can_send_images", True) and items:
         tools = [dict(_CATALOG_RECOMMEND_TOOL)]
