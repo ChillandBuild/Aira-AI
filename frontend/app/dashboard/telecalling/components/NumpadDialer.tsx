@@ -7,9 +7,10 @@ interface NumpadDialerProps {
   onChange: (val: string) => void;
   onDial: () => void;
   dialing: boolean;
+  disabled?: boolean;
 }
 
-export default function NumpadDialer({ value, onChange, onDial, dialing }: NumpadDialerProps) {
+export default function NumpadDialer({ value, onChange, onDial, dialing, disabled = false }: NumpadDialerProps) {
   const buttons = [
     { digit: "1", sub: "" },
     { digit: "2", sub: "ABC" },
@@ -39,6 +40,7 @@ export default function NumpadDialer({ value, onChange, onDial, dialing }: Numpa
         <input
           type="text"
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Enter number to dial..."
           className="flex-1 bg-transparent font-body text-base font-bold text-[#292524] text-center tracking-wider outline-none"
@@ -46,6 +48,7 @@ export default function NumpadDialer({ value, onChange, onDial, dialing }: Numpa
         {value.length > 0 && (
           <button
             onClick={handleBackspace}
+            disabled={disabled}
             className="text-[#a8a29e] hover:text-[#57534e] transition-colors p-1"
           >
             <Delete size={16} />
@@ -58,7 +61,8 @@ export default function NumpadDialer({ value, onChange, onDial, dialing }: Numpa
           <button
             key={btn.digit}
             onClick={() => handleDigitClick(btn.digit)}
-            className="flex flex-col items-center justify-center bg-[#faf8f5] border border-[#e8e3db]/60 hover:bg-[#f5f3ff] hover:border-[#ede9fe] hover:text-[#5b21b6] active:scale-95 rounded-2xl py-2.5 transition-all"
+            disabled={disabled}
+            className="flex flex-col items-center justify-center bg-[#faf8f5] border border-[#e8e3db]/60 hover:bg-[#f5f3ff] hover:border-[#ede9fe] hover:text-[#5b21b6] active:scale-95 rounded-2xl py-2.5 transition-all disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#faf8f5] disabled:hover:text-inherit"
           >
             <span className="font-display text-base font-extrabold text-[#292524] hover:text-inherit">{btn.digit}</span>
             <span className="font-label text-[7.5px] text-[#a8a29e] font-bold tracking-wider uppercase mt-0.5">{btn.sub || "\u00A0"}</span>
@@ -67,7 +71,7 @@ export default function NumpadDialer({ value, onChange, onDial, dialing }: Numpa
 
         <button
           onClick={onDial}
-          disabled={dialing || !value.trim()}
+          disabled={disabled || dialing || !value.trim()}
           className="col-span-3 mt-1 py-3.5 bg-gradient-to-r from-[#5b21b6] to-[#7c3aed] hover:from-[#5b21b6] hover:to-[#6d28d9] text-white rounded-2xl flex items-center justify-center gap-2 font-display text-sm font-extrabold shadow-[0_4px_12px_rgba(99,102,241,0.25)] hover:shadow-[0_6px_16px_rgba(99,102,241,0.4)] disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
         >
           <Phone size={14} className="fill-white" />

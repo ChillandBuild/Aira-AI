@@ -26,28 +26,28 @@ type MoreMenuItem = {
   href: string;
   icon: typeof Users;
   label: string;
-  ownerOnly?: boolean;
+  permissionAny?: string[];
   feature?: string;
   anyFeature?: string[];
 };
 
 const MORE_ITEMS: MoreMenuItem[] = [
-  { href: "/dashboard/leads", icon: Users, label: "Leads", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", ownerOnly: true, feature: "outbound_messaging" },
-  { href: "/dashboard/templates", icon: SquarePen, label: "Templates", ownerOnly: true, feature: "outbound_messaging" },
-  { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", feature: "telecalling.scheduled" },
-  { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes", feature: "telecalling.notes" },
-  { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", ownerOnly: true, feature: "inbound_messaging" },
-  { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/catalog", icon: Package, label: "Catalog", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", ownerOnly: true, anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/team", icon: Grid3X3, label: "Team", ownerOnly: true },
-  { href: "/dashboard/settings", icon: Settings, label: "Settings", ownerOnly: true },
+  { href: "/dashboard/leads", icon: Users, label: "Leads", permissionAny: ["leads.view", "leads.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", permissionAny: ["outbound_leads.view", "outbound_leads.manage"], feature: "outbound_messaging" },
+  { href: "/dashboard/templates", icon: SquarePen, label: "Templates", permissionAny: ["templates.view", "templates.manage"], feature: "outbound_messaging" },
+  { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", permissionAny: ["telecalling.scheduled.view", "telecalling.scheduled"], feature: "telecalling.scheduled" },
+  { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes", permissionAny: ["telecalling.notes.view", "telecalling.notes"], feature: "telecalling.notes" },
+  { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", permissionAny: ["inbound_leads.view", "inbound_leads.manage"], feature: "inbound_messaging" },
+  { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/catalog", icon: Package, label: "Catalog", permissionAny: ["catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", permissionAny: ["analytics.view"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/team", icon: Grid3X3, label: "Team", permissionAny: ["team.view", "team.manage"] },
+  { href: "/dashboard/settings", icon: Settings, label: "Settings", permissionAny: ["settings.view", "settings.manage"] },
 ];
 
-function isVisible(item: MoreMenuItem, role: string | null, enabledFeatures: string[]) {
-  if (item.ownerOnly && role !== "owner") return false;
+function isVisible(item: MoreMenuItem, role: string | null, enabledFeatures: string[], permissions: string[]) {
+  if (role !== "owner" && item.permissionAny && !item.permissionAny.some((permission) => permissions.includes(permission))) return false;
   if (item.feature && !enabledFeatures.includes(item.feature)) return false;
   if (item.anyFeature && !item.anyFeature.some((feature) => enabledFeatures.includes(feature))) return false;
   return true;
@@ -55,10 +55,10 @@ function isVisible(item: MoreMenuItem, role: string | null, enabledFeatures: str
 
 export function MoreMenu() {
   const pathname = usePathname() || "/dashboard";
-  const { role, enabledFeatures } = useAuthRole();
+  const { role, enabledFeatures, permissions } = useAuthRole();
   const [isOpen, setIsOpen] = useState(false);
 
-  const items = MORE_ITEMS.filter((item) => isVisible(item, role, enabledFeatures));
+  const items = MORE_ITEMS.filter((item) => isVisible(item, role, enabledFeatures, permissions));
 
   return (
     <div className="relative md:hidden">

@@ -94,10 +94,10 @@ async function saveSettings(updates: SettingsMap): Promise<void> {
 }
 
 function OutlinedField({
-  label, value, onChange, placeholder, type = "text", rightSlot, hint,
+  label, value, onChange, placeholder, type = "text", rightSlot, hint, disabled = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; type?: "text" | "password"; rightSlot?: React.ReactNode; hint?: string;
+  placeholder?: string; type?: "text" | "password"; rightSlot?: React.ReactNode; hint?: string; disabled?: boolean;
 }) {
   return (
     <div className="space-y-1">
@@ -105,9 +105,10 @@ function OutlinedField({
         <input
           type={type}
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder ?? " "}
-          className="peer w-full px-4 pt-5 pb-2 pr-10 rounded-xl bg-white border border-border text-sm font-body text-ink placeholder:text-ink-muted/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition"
+          className="peer w-full px-4 pt-5 pb-2 pr-10 rounded-xl bg-white border border-border text-sm font-body text-ink placeholder:text-ink-muted/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
         />
         <label className="pointer-events-none absolute left-3 -top-2 px-1.5 text-[11px] font-label font-medium text-ink-muted bg-white tracking-wide">
           {label}
@@ -124,10 +125,10 @@ function OutlinedField({
 }
 
 function SecretField({
-  label, storedMask, isSet, newValue, onChange, hint,
+  label, storedMask, isSet, newValue, onChange, hint, disabled = false,
 }: {
   label: string; storedMask: string; isSet: boolean;
-  newValue: string; onChange: (v: string) => void; hint?: string;
+  newValue: string; onChange: (v: string) => void; hint?: string; disabled?: boolean;
 }) {
   const [show, setShow] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -136,8 +137,8 @@ function SecretField({
   return (
     <div className="space-y-1">
       {!showInput ? (
-        <button type="button" onClick={() => setEditing(true)} className="relative w-full text-left group">
-          <div className="w-full px-4 pt-5 pb-2 rounded-xl bg-white border border-border font-mono text-sm text-ink-secondary cursor-text group-hover:border-primary/40 transition">
+        <button type="button" disabled={disabled} onClick={() => setEditing(true)} className="relative w-full text-left group disabled:cursor-not-allowed">
+          <div className="w-full px-4 pt-5 pb-2 rounded-xl bg-white border border-border font-mono text-sm text-ink-secondary cursor-text group-hover:border-primary/40 transition group-disabled:cursor-not-allowed group-disabled:bg-surface-subtle group-disabled:text-ink-muted">
             {storedMask}
           </div>
           <span className="pointer-events-none absolute left-3 -top-2 px-1.5 text-[11px] font-label font-medium text-ink-muted bg-white tracking-wide">
@@ -159,6 +160,7 @@ function SecretField({
               {show ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           }
+          disabled={disabled}
         />
       )}
       {hint && <p className="text-[11px] text-ink-muted font-body pl-1">{hint}</p>}
@@ -175,7 +177,9 @@ export default function SettingsPage() {
   const requestedTab = searchParams.get("tab") || "general";
   const activeTab = requestedTab === "ai" ? "automations" : requestedTab;
 
-  const { role, loading: roleLoading } = useAuthRole();
+  const { role, permissions, loading: roleLoading } = useAuthRole();
+  const canViewSettings = role === "owner" || permissions.includes("settings.view") || permissions.includes("settings.manage");
+  const canManageSettings = role === "owner" || permissions.includes("settings.manage");
   const [settings, setSettings] = useState<Setting[]>([]);
   const [drafts, setDrafts] = useState<SettingsMap>({});
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
@@ -307,6 +311,7 @@ export default function SettingsPage() {
   const memberSince = createdAt ? new Date(createdAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : null;
 
   async function handleScoringThresholdsSave() {
+    if (!canManageSettings) return;
     const isOrderValid = scoringThresholds.A > scoringThresholds.B && scoringThresholds.B > scoringThresholds.C;
     if (!isOrderValid) return;
     setScoringState("saving");
@@ -367,6 +372,7 @@ export default function SettingsPage() {
   })();
 
   async function handleSave(sectionId: string, allKeys: string[]) {
+    if (!canManageSettings) return;
     setSaveStates(s => ({ ...s, [sectionId]: "saving" }));
     setError(null);
     const sectionDef = SECTIONS.find(s => s.id === sectionId);
@@ -408,7 +414,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (role !== "owner") {
+  if (!canViewSettings) {
     return (
       <div>
         <ChangePasswordCard />
@@ -548,7 +554,7 @@ export default function SettingsPage() {
           )}
 
           {/* TAB 2: Messaging Channels */}
-          {activeTab === "channels" && <ConnectChannelsPanel />}
+          {activeTab === "channels" && <ConnectChannelsPanel canManage={canManageSettings} />}
 
           {/* TAB 3: Telecalling Config */}
           {activeTab === "telecalling" && hasTelecmiConfig && (
@@ -600,6 +606,7 @@ export default function SettingsPage() {
                               newValue={draft}
                               onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
                               hint={field.hint}
+                              disabled={!canManageSettings}
                             />
                           );
                         }
@@ -611,6 +618,7 @@ export default function SettingsPage() {
                             onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
                             placeholder={field.placeholder}
                             hint={field.hint}
+                            disabled={!canManageSettings}
                           />
                         );
                       })}
@@ -655,11 +663,11 @@ export default function SettingsPage() {
                       </div>
                       <button
                         onClick={() => handleSave("voice", voiceSection.fields.map(f => f.key))}
-                        disabled={(saveStates.voice ?? "idle") === "saving" || (saveStates.voice ?? "idle") === "saved" || !(sectionDirty.voice ?? false)}
+                        disabled={!canManageSettings || (saveStates.voice ?? "idle") === "saving" || (saveStates.voice ?? "idle") === "saved" || !(sectionDirty.voice ?? false)}
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
                           (saveStates.voice ?? "idle") === "saved"
                             ? "bg-emerald-100 text-emerald-700 cursor-default"
-                            : (sectionDirty.voice ?? false)
+                            : canManageSettings && (sectionDirty.voice ?? false)
                             ? "bg-primary text-white hover:bg-primary/90"
                             : "bg-surface-subtle text-ink-muted cursor-default"
                         }`}
@@ -698,23 +706,25 @@ export default function SettingsPage() {
                   <div className="relative inline-flex p-0.5 rounded-full bg-border-subtle/80 border border-border/40 select-none shrink-0">
                     <button
                       type="button"
+                      disabled={!canManageSettings}
                       onClick={() => {
                         setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: "false" }));
                       }}
                       className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
                         !aiAutoReplyEnabled ? "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.06)]" : "text-ink-muted hover:text-ink"
-                      }`}
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       Off
                     </button>
                     <button
                       type="button"
+                      disabled={!canManageSettings}
                       onClick={() => {
                         setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: "true" }));
                       }}
                       className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
                         aiAutoReplyEnabled ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_8px_rgba(91,33,182,0.2)]" : "text-ink-muted hover:text-ink"
-                      }`}
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       On
                     </button>
@@ -738,11 +748,11 @@ export default function SettingsPage() {
                   </div>
                   <button
                     onClick={() => handleSave("automations_ai", [AI_AUTO_REPLY_TOGGLE.key])}
-                    disabled={(saveStates.automations_ai ?? "idle") === "saving" || (saveStates.automations_ai ?? "idle") === "saved" || !aiAutomationDirty}
+                    disabled={!canManageSettings || (saveStates.automations_ai ?? "idle") === "saving" || (saveStates.automations_ai ?? "idle") === "saved" || !aiAutomationDirty}
                     className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 font-label text-sm font-semibold transition-all ${
                       (saveStates.automations_ai ?? "idle") === "saved"
                         ? "bg-emerald-100 text-emerald-700 cursor-default"
-                        : aiAutomationDirty
+                        : canManageSettings && aiAutomationDirty
                         ? "bg-primary text-white hover:bg-primary/90"
                         : "bg-surface-subtle text-ink-muted cursor-default"
                     }`}
@@ -808,12 +818,13 @@ export default function SettingsPage() {
                                     min={1}
                                     max={10}
                                     value={scoringThresholds[seg]}
+                                    disabled={!canManageSettings}
                                     onChange={(e) => {
                                       const v = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
                                       setScoringThresholds(prev => ({ ...prev, [seg]: v }));
                                       setScoringState("dirty");
                                     }}
-                                    className="w-12 px-1.5 py-0.5 rounded border bg-white font-mono text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-current text-ink"
+                                    className="w-12 px-1.5 py-0.5 rounded border bg-white font-mono text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-current text-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
                                   />
                                 </div>
                               </div>
@@ -846,11 +857,11 @@ export default function SettingsPage() {
                           </div>
                           <button
                             onClick={handleScoringThresholdsSave}
-                            disabled={scoringState === "saving" || scoringState === "saved" || !isOrderValid || scoringState === "idle"}
+                            disabled={!canManageSettings || scoringState === "saving" || scoringState === "saved" || !isOrderValid || scoringState === "idle"}
                             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
                               scoringState === "saved"
                                 ? "bg-emerald-100 text-emerald-700 cursor-default"
-                                : scoringState === "dirty" && isOrderValid
+                                : canManageSettings && scoringState === "dirty" && isOrderValid
                                 ? "bg-primary text-white hover:bg-primary/90"
                                 : "bg-surface-subtle text-ink-muted cursor-default"
                             }`}
@@ -870,16 +881,16 @@ export default function SettingsPage() {
                 );
               })()}
 
-              <InboxConfigPanel />
+              <InboxConfigPanel canManage={canManageSettings} />
 
-              <TelecallingConfigPanel />
+              <TelecallingConfigPanel canManage={canManageSettings} />
             </div>
           )}
 
           {/* TAB 6: Notifications */}
           {activeTab === "notifications" && hasNotifications && (
             <div className="space-y-6">
-              <NotificationConfigPanel />
+              <NotificationConfigPanel canManage={canManageSettings} />
             </div>
           )}
 

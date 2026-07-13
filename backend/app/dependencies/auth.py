@@ -1,4 +1,5 @@
 import logging
+import time
 
 import httpx
 import jwt
@@ -16,6 +17,8 @@ _UPSTREAM = HTTPException(
     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
     detail="Auth service temporarily unavailable. Please retry.",
 )
+_TOKEN_CACHE: dict[str, tuple[float, dict]] = {}
+_TOKEN_CACHE_MAX_SECONDS = 300
 
 
 def _is_connection_error(e: Exception) -> bool:
@@ -40,6 +43,32 @@ def _user_from_claims(claims: dict) -> dict:
     return {"user_id": sub, "email": claims.get("email") or ""}
 
 
+def _cache_ttl(token: str) -> float:
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False, "verify_aud": False})
+        exp = float(claims.get("exp") or 0)
+    except Exception:
+        exp = 0
+    if exp <= 0:
+        return time.time() + 60
+    return min(exp, time.time() + _TOKEN_CACHE_MAX_SECONDS)
+
+
+def _get_cached_user(token: str) -> dict | None:
+    cached = _TOKEN_CACHE.get(token)
+    if not cached:
+        return None
+    expires_at, user = cached
+    if expires_at <= time.time():
+        _TOKEN_CACHE.pop(token, None)
+        return None
+    return user
+
+
+def _set_cached_user(token: str, user: dict) -> None:
+    _TOKEN_CACHE[token] = (_cache_ttl(token), user)
+
+
 def _verify_local(token: str) -> dict | None:
     """Verify the JWT signature locally (no network). Returns the user on
     success, or None if the token can't be locally verified — the caller then
@@ -61,6 +90,9 @@ def _verify_local(token: str) -> dict | None:
 def _verify_remote(token: str) -> dict:
     """Validate via Supabase auth, retrying once on transient connection drops.
     Connection failures -> 503 (not 401) so valid sessions aren't logged out."""
+    cached = _get_cached_user(token)
+    if cached is not None:
+        return cached
     last_err: Exception | None = None
     for attempt in range(2):
         try:
@@ -68,7 +100,9 @@ def _verify_remote(token: str) -> dict:
             user = response.user
             if not user:
                 raise _INVALID
-            return {"user_id": user.id, "email": user.email or ""}
+            verified = {"user_id": user.id, "email": user.email or ""}
+            _set_cached_user(token, verified)
+            return verified
         except HTTPException:
             raise
         except Exception as e:
@@ -91,5 +125,6 @@ def get_current_user(
     if settings.supabase_jwt_secret:
         user = _verify_local(token)
         if user is not None:
+            _set_cached_user(token, user)
             return user
     return _verify_remote(token)

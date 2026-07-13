@@ -75,6 +75,7 @@ export interface LeadDetailPanelProps {
   scriptExpanded: boolean;
   setScriptExpanded: (val: boolean) => void;
   setHistoryLead: (lead: Lead | null) => void;
+  readOnly?: boolean;
 }
 
 export default function LeadDetailPanel({
@@ -115,7 +116,8 @@ export default function LeadDetailPanel({
   telecallingConfig,
   scriptExpanded,
   setScriptExpanded,
-  setHistoryLead
+  setHistoryLead,
+  readOnly = false,
 }: LeadDetailPanelProps) {
 
   const [noteFilter, setNoteFilter] = useState<"all" | "notes" | "calls" | "whatsapp">("all");
@@ -298,6 +300,7 @@ export default function LeadDetailPanel({
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => handleRelease(selectedLead.id)}
+                disabled={readOnly}
                 className={`px-4 py-2.5 rounded-2xl border font-label text-xs font-bold transition-all text-[#d6cfc9] hover:text-white ${
                   confirmRelease === selectedLead.id
                     ? "bg-red-600 border-red-500 text-white animate-pulse"
@@ -308,7 +311,7 @@ export default function LeadDetailPanel({
               </button>
               <button
                 onClick={() => dialWithGuard(selectedLead.id, selectedLead)}
-                disabled={dialing === selectedLead.id}
+                disabled={readOnly || dialing === selectedLead.id}
                 className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl font-label text-sm font-extrabold shadow-[0_4px_15px_rgba(16,185,129,0.3)] hover:shadow-[0_6px_20px_rgba(16,185,129,0.45)] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
               >
                 <Phone size={14} className="fill-white" />
@@ -453,6 +456,7 @@ export default function LeadDetailPanel({
                   <button
                     onClick={() => saveQuickNote(selectedLead.id)}
                     disabled={
+                      readOnly ||
                       quickNoteSaving ||
                       (!quickNoteContent.trim() && !quickNoteTitle.trim() && quickNoteTags.length === 0 &&
                         !(showCallbackPicker && callbackDate && callbackTime))
@@ -482,6 +486,7 @@ export default function LeadDetailPanel({
                     <button
                       key={o.id}
                       onClick={() => handleQuickOutcome(o.id)}
+                      disabled={readOnly}
                       className={`py-2 px-2 text-[10px] font-extrabold rounded-xl border transition-all hover:scale-[1.01] active:scale-[0.99] shadow-sm text-center ${o.style}`}
                     >
                       {o.label}
@@ -499,7 +504,7 @@ export default function LeadDetailPanel({
                 </p>
                 <button
                   onClick={() => generatePreCallBrief(selectedLead.id)}
-                  disabled={briefLoading}
+                  disabled={readOnly || briefLoading}
                   className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-label text-[10px] font-extrabold disabled:opacity-60 transition-all flex items-center gap-1.5 shadow-sm"
                 >
                   {briefLoading ? <RefreshCw size={10} className="animate-spin" /> : <Sparkles size={10} />}

@@ -66,6 +66,12 @@ _MESSAGE_LEAD_SOURCES = {"whatsapp", "instagram", "facebook", "telegram"}
 _SEGMENT_RANK = {"A": 0, "B": 1, "C": 2, "D": 3}
 
 
+def _require_dialer_permission(ctx: dict) -> None:
+    if ctx.get("role") == "owner" or "telecalling.dialer" in (ctx.get("permissions") or []):
+        return
+    raise HTTPException(status_code=403, detail="Permission required: telecalling.dialer")
+
+
 def _timestamp_sort_value(value: str | None) -> float:
     if not value:
         return 0
@@ -132,6 +138,7 @@ class SimCdrPayload(BaseModel):
 
 @router.post("/send-to-mobile")
 async def send_lead_to_mobile(payload: SendToMobilePayload, ctx: dict = Depends(get_tenant_and_role)):
+    _require_dialer_permission(ctx)
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
 
@@ -202,6 +209,7 @@ async def send_lead_to_mobile(payload: SendToMobilePayload, ctx: dict = Depends(
 
 @router.post("/initiate")
 async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_and_role)):
+    _require_dialer_permission(ctx)
     tenant_id = ctx["tenant_id"]
     role = ctx.get("role")
     cfg = get_telecalling_config(tenant_id)
@@ -1363,6 +1371,7 @@ async def next_lead(
     caller_id: UUID | None = Query(None),
     ctx: dict = Depends(get_tenant_and_role)
 ):
+    _require_dialer_permission(ctx)
     tenant_id = ctx["tenant_id"]
     resolved_caller_id = str(caller_id) if caller_id else ctx.get("caller_id")
     if not resolved_caller_id:

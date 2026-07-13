@@ -7,6 +7,7 @@ import { TelecallingView } from "./TelecallingView";
 interface TeamMe {
   role: "owner" | "caller";
   caller_id: string | null;
+  permissions?: string[];
 }
 
 export default async function TelecallingPage() {
@@ -40,6 +41,7 @@ export default async function TelecallingPage() {
     <TelecallingView
       initialRole={me?.role ?? null}
       initialCallerId={me?.caller_id ?? null}
+      initialPermissions={me?.permissions ?? []}
       fallbackAdminData={fallbackAdminData}
     />
   );

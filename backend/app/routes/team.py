@@ -325,8 +325,12 @@ def get_team_attendance(
 
 @router.get("/attendance/{caller_id}")
 def get_caller_attendance(caller_id: str, months: int = 4, ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner" and ctx.get("caller_id") != caller_id:
-        raise HTTPException(status_code=403, detail="Only owners or the telecaller themselves can view this attendance")
+    if (
+        ctx["role"] != "owner"
+        and ctx.get("caller_id") != caller_id
+        and "team.view" not in (ctx.get("permissions") or [])
+    ):
+        raise HTTPException(status_code=403, detail="Permission required: team.view")
     db = get_supabase()
 
     caller = (

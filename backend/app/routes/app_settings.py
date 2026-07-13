@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.config import settings as env_settings
 from app.dependencies.auth import get_current_user
-from app.dependencies.tenant import get_tenant_id, require_owner
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.audit_log import record_audit_event
 from app.services.assignment import (
     get_inbox_config, get_telecalling_config,
@@ -18,6 +18,8 @@ from app.services.assignment import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_settings_read = require_permission("settings.view")
+require_settings_manage = require_permission("settings.manage")
 
 class SettingsUpdate(BaseModel):
     updates: dict[str, str | None]
@@ -114,7 +116,7 @@ async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, 
 
 
 @router.get("/")
-async def list_settings(ctx: dict = Depends(require_owner)):
+async def list_settings(ctx: dict = Depends(require_settings_read)):
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
     result = db.table("app_settings").select("*").eq("tenant_id", tenant_id).order("key").execute()
@@ -147,7 +149,7 @@ async def list_settings(ctx: dict = Depends(require_owner)):
 @router.patch("/")
 async def update_settings(
     payload: SettingsUpdate,
-    ctx: dict = Depends(require_owner),
+    ctx: dict = Depends(require_settings_manage),
     user: dict = Depends(get_current_user),
 ):
     tenant_id = ctx["tenant_id"]
@@ -274,7 +276,7 @@ async def update_settings(
 
 
 @router.get("/webhook-health")
-async def webhook_health(ctx: dict = Depends(require_owner)):
+async def webhook_health(ctx: dict = Depends(require_settings_read)):
     tenant_id = ctx["tenant_id"]
     """Return last inbound event timestamp per channel + recent token_invalid incidents."""
     from datetime import datetime, timezone, timedelta
@@ -321,7 +323,7 @@ async def webhook_health(ctx: dict = Depends(require_owner)):
 @router.post("/activate")
 async def activate_channel(
     payload: ActivateChannelRequest,
-    ctx: dict = Depends(require_owner),
+    ctx: dict = Depends(require_settings_manage),
     user: dict = Depends(get_current_user),
 ):
     tenant_id = ctx["tenant_id"]
@@ -533,7 +535,7 @@ async def activate_channel(
 @router.post("/whatsapp/embedded-signup")
 async def whatsapp_embedded_signup(
     payload: EmbeddedSignupRequest,
-    ctx: dict = Depends(require_owner),
+    ctx: dict = Depends(require_settings_manage),
     user: dict = Depends(get_current_user),
 ):
     """Finish WhatsApp Embedded Signup: exchange the popup's code for a token,
@@ -636,13 +638,13 @@ async def whatsapp_embedded_signup(
 
 
 @router.get("/inbox-config")
-async def get_inbox_config_route(ctx: dict = Depends(require_owner)):
+async def get_inbox_config_route(ctx: dict = Depends(require_settings_read)):
     tenant_id = ctx["tenant_id"]
     return get_inbox_config(tenant_id)
 
 
 @router.patch("/inbox-config")
-async def patch_inbox_config(payload: InboxConfigUpdate, ctx: dict = Depends(require_owner)):
+async def patch_inbox_config(payload: InboxConfigUpdate, ctx: dict = Depends(require_settings_manage)):
     tenant_id = ctx["tenant_id"]
     current = get_inbox_config(tenant_id)
     patch = payload.model_dump(exclude_none=True)
@@ -667,13 +669,13 @@ async def patch_inbox_config(payload: InboxConfigUpdate, ctx: dict = Depends(req
 
 
 @router.get("/telecalling-config")
-async def get_telecalling_config_route(ctx: dict = Depends(require_owner)):
+async def get_telecalling_config_route(ctx: dict = Depends(require_settings_read)):
     tenant_id = ctx["tenant_id"]
     return get_telecalling_config(tenant_id)
 
 
 @router.patch("/telecalling-config")
-async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict = Depends(require_owner)):
+async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict = Depends(require_settings_manage)):
     tenant_id = ctx["tenant_id"]
     current = get_telecalling_config(tenant_id)
     patch = payload.model_dump(exclude_none=True)

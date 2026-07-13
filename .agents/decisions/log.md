@@ -542,3 +542,13 @@
 - **Decision**: A role with `roles.view` may open the Roles page in read-only mode, while `roles.manage` or owner access is required to create/edit roles and users.
 - **Decision**: Team/user assignment remains provider-aware: SIM Basic telecallers need phone only; TeleCMI telecallers expose phone plus TeleCMI agent ID. The owner user is labeled as `Master` / `Boss account` in the Roles users list so it is not confused with a normal assigned team member.
 - **Verification**: Frontend `npm run typecheck` passed. Backend RBAC unittest passed with 4 tests through the bundled Python runtime.
+
+---
+
+**2026-07-12 - Dashboard analytics RBAC fix and live Supabase RBAC verification**
+- **Decision**: Dashboard home analytics now uses RBAC view permissions instead of owner-only access. `/api/v1/analytics/overview` accepts `dashboard.view` or `analytics.view`, while the full analytics endpoints require `analytics.view`.
+- **Decision**: Frontend SWR fetches no longer retry 401/403/404 responses as cold-start/server-wake failures, and the dashboard now shows a direct "Dashboard data unavailable" card for real overview errors instead of the generic Render wake-up loader.
+- **Implementation**: Updated `backend/app/routes/analytics.py`, `frontend/hooks/useApi.ts`, `frontend/app/dashboard/DashboardClient.tsx`, and added a static regression assertion in `backend/tests/test_inbound_leads_route_static.py`.
+- **Live Supabase verification**: The `Aira AI` Supabase project (`ayftynkgmfkaqmmnlmoc`) has `tenant_roles`, the RBAC columns on `tenant_users`, Telecaller role rows for both tenants, tenant_roles RLS policies/grants, and the `subscription_requests.start_date/end_date` columns. A PostgREST schema reload was requested with `notify pgrst, 'reload schema'`.
+- **Caveat**: Live migration history does not list `135_subscription_request_date_range`, `138_tenant_rbac`, or `139_repair_tenant_rbac_schema_cache` even though their functional schema changes are present. Treat this as migration-ledger drift until reconciled.
+- **Verification**: Frontend `npm run typecheck` passed; `py_compile` passed for analytics/static test files; direct static analytics assertions passed; `git diff --check` passed with only LF/CRLF warnings.

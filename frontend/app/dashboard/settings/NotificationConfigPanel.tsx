@@ -29,7 +29,7 @@ const SEGMENT_STYLES: Record<(typeof SEGMENTS)[number], string> = {
 };
 const E164_REGEX = /^\+[1-9]\d{6,14}$/;
 
-export function NotificationConfigPanel() {
+export function NotificationConfigPanel({ canManage = true }: { canManage?: boolean }) {
   const [cfg, setCfg] = useState<NotificationConfig | null>(null);
   const [callers, setCallers] = useState<Caller[]>([]);
   const [templates, setTemplates] = useState<WabaTemplate[]>([]);
@@ -44,12 +44,13 @@ export function NotificationConfigPanel() {
   }, []);
 
   function patch(next: Partial<NotificationConfig>) {
+    if (!canManage) return;
     setCfg((c) => (c ? { ...c, ...next } : c));
     setState("dirty");
   }
 
   async function save() {
-    if (!cfg) return;
+    if (!cfg || !canManage) return;
     setState("saving");
     try {
       const saved = await api.notifications.saveConfig(cfg);
@@ -132,7 +133,7 @@ export function NotificationConfigPanel() {
           <p className="font-body text-sm font-semibold text-ink">Enable push notifications</p>
           <p className="font-body text-xs text-ink-muted mt-0.5">Master switch for all phone/desktop pushes.</p>
         </div>
-        <Toggle on={cfg.push_enabled} onClick={() => patch({ push_enabled: !cfg.push_enabled })} />
+        <Toggle on={cfg.push_enabled} disabled={!canManage} onClick={() => patch({ push_enabled: !cfg.push_enabled })} />
       </div>
 
       {/* Per-event toggles */}
@@ -145,7 +146,7 @@ export function NotificationConfigPanel() {
               <span className="font-body text-sm text-ink">{EVENT_LABELS[key]}</span>
               <Toggle
                 on={on}
-                disabled={!cfg.push_enabled}
+                disabled={!canManage || !cfg.push_enabled}
                 onClick={() => patch({ events: { ...cfg.events, [key]: !on } })}
               />
             </div>
@@ -161,6 +162,7 @@ export function NotificationConfigPanel() {
           <input
             type="number" min={1} max={120}
             value={cfg.claimable_threshold_minutes}
+            disabled={!canManage}
             onChange={(e) => patch({ claimable_threshold_minutes: Math.max(1, Math.min(120, parseInt(e.target.value) || 1)) })}
             className="w-24 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
           />
@@ -170,6 +172,7 @@ export function NotificationConfigPanel() {
           <p className="font-body text-xs text-ink-muted mt-0.5 mb-2">Who gets the &quot;open to claim&quot; alert.</p>
           <select
             value={cfg.claimable_audience}
+            disabled={!canManage}
             onChange={(e) => patch({ claimable_audience: e.target.value as NotificationConfig["claimable_audience"] })}
             className="w-full px-3 py-2 rounded-xl bg-white border border-border text-sm text-ink focus:outline-none focus:border-primary"
           >
@@ -188,6 +191,7 @@ export function NotificationConfigPanel() {
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={!canManage}
                         onChange={() =>
                           patch({
                             claimable_caller_ids: checked
@@ -214,13 +218,13 @@ export function NotificationConfigPanel() {
             <p className="font-body text-sm font-semibold text-ink">Quiet hours</p>
             <p className="font-body text-xs text-ink-muted mt-0.5">Suppress pushes overnight (in-app bell still records them).</p>
           </div>
-          <Toggle on={cfg.quiet_hours.enabled} onClick={() => patch({ quiet_hours: { ...cfg.quiet_hours, enabled: !cfg.quiet_hours.enabled } })} />
+          <Toggle on={cfg.quiet_hours.enabled} disabled={!canManage} onClick={() => patch({ quiet_hours: { ...cfg.quiet_hours, enabled: !cfg.quiet_hours.enabled } })} />
         </div>
         {cfg.quiet_hours.enabled && (
           <div className="mt-3 flex items-center gap-2">
-            <HourSelect value={cfg.quiet_hours.start_hour} onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, start_hour: h } })} />
+            <HourSelect value={cfg.quiet_hours.start_hour} disabled={!canManage} onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, start_hour: h } })} />
             <span className="text-ink-muted text-sm">to</span>
-            <HourSelect value={cfg.quiet_hours.end_hour} onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, end_hour: h } })} />
+            <HourSelect value={cfg.quiet_hours.end_hour} disabled={!canManage} onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, end_hour: h } })} />
             <span className="text-ink-muted text-xs">IST</span>
           </div>
         )}
@@ -235,6 +239,7 @@ export function NotificationConfigPanel() {
           </div>
           <Toggle
             on={cfg.whatsapp_notifications.enabled}
+            disabled={!canManage}
             onClick={() =>
               patch({ whatsapp_notifications: { ...cfg.whatsapp_notifications, enabled: !cfg.whatsapp_notifications.enabled } })
             }
@@ -253,6 +258,7 @@ export function NotificationConfigPanel() {
                       key={s}
                       type="button"
                       aria-pressed={active}
+                      disabled={!canManage}
                       onClick={() => toggleWhatsappSegment(s)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-xs font-semibold border transition-colors ${
                         active ? SEGMENT_STYLES[s] : "bg-white text-ink-muted border-border"
@@ -288,6 +294,7 @@ export function NotificationConfigPanel() {
                 <input
                   type="text"
                   value={phoneInput}
+                  disabled={!canManage}
                   onChange={(e) => { setPhoneInput(e.target.value); setPhoneError(null); }}
                   placeholder="+919876543210"
                   className="flex-1 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
@@ -295,6 +302,7 @@ export function NotificationConfigPanel() {
                 <button
                   type="button"
                   onClick={addPhone}
+                  disabled={!canManage}
                   className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-border text-sm font-semibold text-ink hover:border-primary transition-colors flex-shrink-0"
                 >
                   <Plus size={14} />Add Number
@@ -307,6 +315,7 @@ export function NotificationConfigPanel() {
               <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Message template</label>
               <select
                 value={cfg.whatsapp_notifications.template_id ?? ""}
+                disabled={!canManage}
                 onChange={(e) =>
                   patch({ whatsapp_notifications: { ...cfg.whatsapp_notifications, template_id: e.target.value || null } })
                 }
@@ -332,6 +341,7 @@ export function NotificationConfigPanel() {
               <input
                 type="number" min={0} max={1440}
                 value={cfg.whatsapp_notifications.delay_minutes ?? 5}
+                disabled={!canManage}
                 onChange={(e) =>
                   patch({
                     whatsapp_notifications: {
@@ -353,10 +363,10 @@ export function NotificationConfigPanel() {
       <div className="mt-6 flex items-center justify-end border-t border-border-subtle pt-5">
         <button
           onClick={save}
-          disabled={state === "saving" || state === "idle" || state === "saved"}
+          disabled={!canManage || state === "saving" || state === "idle" || state === "saved"}
           className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
             state === "saved" ? "bg-emerald-100 text-emerald-700"
-            : state === "dirty" ? "bg-primary text-white hover:bg-primary/90"
+            : canManage && state === "dirty" ? "bg-primary text-white hover:bg-primary/90"
             : "bg-surface-subtle text-ink-muted cursor-default"
           }`}
         >
@@ -396,10 +406,11 @@ function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; d
   );
 }
 
-function HourSelect({ value, onChange }: { value: number; onChange: (h: number) => void }) {
+function HourSelect({ value, onChange, disabled }: { value: number; onChange: (h: number) => void; disabled?: boolean }) {
   return (
     <select
       value={value}
+      disabled={disabled}
       onChange={(e) => onChange(parseInt(e.target.value))}
       className="px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
     >

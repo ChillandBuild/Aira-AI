@@ -13,7 +13,7 @@ import { getLeadQueueSection, sortLeadsForCallQueue, type LeadQueueSection } fro
 import { CoachingOneLiner } from "@/components/CoachingDigest";
 import { useSearchParams } from "next/navigation";
 
-export default function CallerView({ callerId }: { callerId: string | null }) {
+export default function CallerView({ callerId, readOnly = false }: { callerId: string | null; readOnly?: boolean }) {
   const searchParams = useSearchParams();
   // caller profile + my assigned queue
   const [myStatus, setMyStatus] = useState<"active" | "break" | "logged_out">("active");
@@ -147,7 +147,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                 </button>
                 <button
                   onClick={cockpit.handleCallNext}
-                  disabled={cockpit.dialingNext || myStatus !== "active"}
+                  disabled={readOnly || cockpit.dialingNext || myStatus !== "active"}
                   className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-primary to-primary-dark text-white rounded-2xl font-label text-xs font-bold transition-all shadow-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                   title="Call next hot lead in queue"
                 >
@@ -195,7 +195,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
             {/* Lead cards or numpad */}
             {queueSubTab === "dialer" ? (
               <div className="flex-1 overflow-y-auto flex flex-col items-center pt-4 pb-2">
-                <NumpadDialer value={cockpit.manualPhone} onChange={cockpit.setManualPhone} onDial={cockpit.manualDialWithGuard} dialing={cockpit.manualDialing} />
+                <NumpadDialer value={cockpit.manualPhone} onChange={cockpit.setManualPhone} onDial={cockpit.manualDialWithGuard} dialing={cockpit.manualDialing} disabled={readOnly} />
               </div>
             ) : myLeads.length === 0 ? (
               <div className="text-center py-12 flex-1 flex flex-col justify-center items-center">
@@ -293,7 +293,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                           e.stopPropagation();
                           cockpit.dialWithGuard(lead.id, lead);
                         }}
-                        disabled={cockpit.dialing === lead.id}
+                        disabled={readOnly || cockpit.dialing === lead.id}
                         className={`p-2.5 rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center text-white ${callBtnBg} hover:scale-105 active:scale-95`}
                       >
                         <Phone size={14} className="fill-white" />
@@ -333,7 +333,7 @@ export default function CallerView({ callerId }: { callerId: string | null }) {
                 </div>
               </div>
             ) : (
-              <LeadDetailPanel {...cockpit.leadDetailProps} setHistoryLead={setHistoryLead} />
+              <LeadDetailPanel {...cockpit.leadDetailProps} setHistoryLead={setHistoryLead} readOnly={readOnly} />
             )}
           </div>
         </div>

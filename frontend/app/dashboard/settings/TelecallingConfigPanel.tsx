@@ -41,7 +41,7 @@ function toggle<T>(arr: T[], item: T): T[] {
   return arr.includes(item) ? arr.filter((x) => x !== item) : [...arr, item];
 }
 
-export function TelecallingConfigPanel() {
+export function TelecallingConfigPanel({ canManage = true }: { canManage?: boolean }) {
   const [config, setConfig] = useState<TelecallingConfig>(DEFAULT);
   const [draft, setDraft] = useState<TelecallingConfig>(DEFAULT);
   const [collapsed, setCollapsed] = useState(false);
@@ -70,6 +70,7 @@ export function TelecallingConfigPanel() {
   const isDirty = JSON.stringify(draft) !== JSON.stringify(config);
 
   async function handleSave() {
+    if (!canManage) return;
     setSaveState("saving");
     try {
       const auth = await getAuthHeaders();
@@ -319,11 +320,11 @@ export function TelecallingConfigPanel() {
           <div className="flex justify-end pt-2 border-t border-border">
             <button
               onClick={handleSave}
-              disabled={saveState === "saving" || saveState === "saved" || !isDirty}
+              disabled={!canManage || saveState === "saving" || saveState === "saved" || !isDirty}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
                 saveState === "saved"
                   ? "bg-emerald-100 text-emerald-700 cursor-default"
-                  : isDirty
+                  : canManage && isDirty
                   ? "bg-primary text-white hover:bg-primary/90"
                   : "bg-surface-subtle text-ink-muted cursor-default"
               }`}

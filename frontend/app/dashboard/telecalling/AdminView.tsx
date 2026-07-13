@@ -13,7 +13,7 @@ import { useCallingCockpit } from "./lib/useCallingCockpit";
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
-export default function AdminView({ fallbackData }: { fallbackData?: AdminDashboardData }) {
+export default function AdminView({ fallbackData, readOnly = false }: { fallbackData?: AdminDashboardData; readOnly?: boolean }) {
   const searchParams = useSearchParams();
   const { data: dashboard, mutate: refreshDashboard } = useAdminDashboard(fallbackData);
   const callers: Caller[] = dashboard?.callers ?? [];
@@ -113,7 +113,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
 
             {leftTab === "dialer" ? (
               <div className="flex-1 overflow-y-auto flex flex-col items-center pt-4 pb-2">
-                <NumpadDialer value={cockpit.manualPhone} onChange={cockpit.setManualPhone} onDial={cockpit.manualDialWithGuard} dialing={cockpit.manualDialing} />
+                <NumpadDialer value={cockpit.manualPhone} onChange={cockpit.setManualPhone} onDial={cockpit.manualDialWithGuard} dialing={cockpit.manualDialing} disabled={readOnly} />
               </div>
             ) : (
               <>
@@ -197,7 +197,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                           </div>
                           <button
                             onClick={(e) => { e.stopPropagation(); cockpit.dialWithGuard(lead.id, lead); }}
-                            disabled={cockpit.dialing === lead.id}
+                            disabled={readOnly || cockpit.dialing === lead.id}
                             className={`p-2.5 rounded-xl transition-all shadow-sm shrink-0 flex items-center justify-center text-white ${callBtnBg} hover:scale-105 active:scale-95`}
                           >
                             <Phone size={14} className="fill-white" />
@@ -229,7 +229,7 @@ export default function AdminView({ fallbackData }: { fallbackData?: AdminDashbo
                 </p>
               </div>
             ) : (
-              <LeadDetailPanel {...cockpit.leadDetailProps} setHistoryLead={setHistoryLead} />
+              <LeadDetailPanel {...cockpit.leadDetailProps} setHistoryLead={setHistoryLead} readOnly={readOnly} />
             )}
           </div>
         </div>

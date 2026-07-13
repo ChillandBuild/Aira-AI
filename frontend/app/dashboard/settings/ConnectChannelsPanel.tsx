@@ -264,10 +264,10 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function OutlinedField({
-  label, value, onChange, placeholder, type = "text", rightSlot, hint,
+  label, value, onChange, placeholder, type = "text", rightSlot, hint, disabled = false,
 }: {
   label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; type?: "text" | "password"; rightSlot?: React.ReactNode; hint?: string;
+  placeholder?: string; type?: "text" | "password"; rightSlot?: React.ReactNode; hint?: string; disabled?: boolean;
 }) {
   return (
     <div className="space-y-1">
@@ -275,9 +275,10 @@ function OutlinedField({
         <input
           type={type}
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder ?? " "}
-          className="peer w-full px-4 pt-5 pb-2 pr-10 rounded-xl bg-white border border-border text-sm font-body text-ink placeholder:text-ink-muted/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition"
+          className="peer w-full px-4 pt-5 pb-2 pr-10 rounded-xl bg-white border border-border text-sm font-body text-ink placeholder:text-ink-muted/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
         />
         <label className="pointer-events-none absolute left-3 -top-2 px-1.5 text-[11px] font-label font-medium text-ink-muted bg-white tracking-wide">
           {label}
@@ -294,10 +295,10 @@ function OutlinedField({
 }
 
 function SecretField({
-  label, storedMask, isSet, newValue, onChange, hint,
+  label, storedMask, isSet, newValue, onChange, hint, disabled = false,
 }: {
   label: string; storedMask: string; isSet: boolean;
-  newValue: string; onChange: (v: string) => void; hint?: string;
+  newValue: string; onChange: (v: string) => void; hint?: string; disabled?: boolean;
 }) {
   const [show, setShow] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -306,8 +307,8 @@ function SecretField({
   return (
     <div className="space-y-1">
       {!showInput ? (
-        <button type="button" onClick={() => setEditing(true)} className="relative w-full text-left group">
-          <div className="w-full px-4 pt-5 pb-2 rounded-xl bg-white border border-border font-mono text-sm text-ink-secondary cursor-text group-hover:border-primary/40 transition">
+        <button type="button" disabled={disabled} onClick={() => setEditing(true)} className="relative w-full text-left group disabled:cursor-not-allowed">
+          <div className="w-full px-4 pt-5 pb-2 rounded-xl bg-white border border-border font-mono text-sm text-ink-secondary cursor-text group-hover:border-primary/40 transition group-disabled:cursor-not-allowed group-disabled:bg-surface-subtle group-disabled:text-ink-muted">
             {storedMask}
           </div>
           <span className="pointer-events-none absolute left-3 -top-2 px-1.5 text-[11px] font-label font-medium text-ink-muted bg-white tracking-wide">
@@ -329,6 +330,7 @@ function SecretField({
               {show ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           }
+          disabled={disabled}
         />
       )}
       {hint && <p className="text-[11px] text-ink-muted font-body pl-1">{hint}</p>}
@@ -424,7 +426,7 @@ function WebhookConfigGuide({ channelId, tenantId }: { channelId: string; tenant
   return null;
 }
 
-export default function ConnectChannelsPanel() {
+export default function ConnectChannelsPanel({ canManage = true }: { canManage?: boolean }) {
   const [settings, setSettings] = useState<Setting[]>([]);
   const [drafts, setDrafts] = useState<SettingsMap>({});
   const [loading, setLoading] = useState(true);
@@ -541,6 +543,7 @@ export default function ConnectChannelsPanel() {
   }, [selectedChannel, drafts, settings]);
 
   async function handleSave() {
+    if (!canManage) return;
     if (!selectedChannel) return;
     setSaveState("saving");
     setError(null);
@@ -579,6 +582,7 @@ export default function ConnectChannelsPanel() {
   }
 
   async function handleActivate() {
+    if (!canManage) return;
     if (!selectedChannel) return;
     setActivating(true);
     setActivateResult(null);
@@ -619,6 +623,7 @@ export default function ConnectChannelsPanel() {
   }
 
   const finishEmbeddedSignup = useCallback(async () => {
+    if (!canManage) return;
     const code = esCodeRef.current;
     const session = esSessionRef.current;
     if (!code || !session.waba_id || !session.phone_number_id) return;
@@ -658,7 +663,7 @@ export default function ConnectChannelsPanel() {
       setEsState("error");
       setEsError(e instanceof Error ? e.message : "Connecting WhatsApp failed");
     }
-  }, [load, loadHealth]);
+  }, [canManage, load, loadHealth]);
 
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
@@ -680,6 +685,7 @@ export default function ConnectChannelsPanel() {
   }, [finishEmbeddedSignup]);
 
   async function handleConnectWithFacebook() {
+    if (!canManage) return;
     setEsState("connecting");
     setEsError(null);
     await loadFacebookSdk();
@@ -859,7 +865,7 @@ export default function ConnectChannelsPanel() {
                     <button
                       type="button"
                       onClick={handleConnectWithFacebook}
-                      disabled={esState === "connecting" || esState === "finishing"}
+                      disabled={!canManage || esState === "connecting" || esState === "finishing"}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold bg-[#1877F2] text-white hover:bg-[#1568d6] transition-all disabled:opacity-60 whitespace-nowrap"
                     >
                       {esState === "finishing" ? (
@@ -899,6 +905,7 @@ export default function ConnectChannelsPanel() {
                            newValue={draft}
                            onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
                            hint={field.hint}
+                           disabled={!canManage}
                         />
                       );
                     }
@@ -910,6 +917,7 @@ export default function ConnectChannelsPanel() {
                         onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
                         placeholder={field.placeholder}
                         hint={field.hint}
+                        disabled={!canManage}
                       />
                     );
                   })}
@@ -971,10 +979,10 @@ export default function ConnectChannelsPanel() {
                     <button
                       type="button"
                       onClick={handleActivate}
-                      disabled={activating || !isChannelConfigured(selectedChannel)}
-                      title={!isChannelConfigured(selectedChannel) ? "Save required fields first" : "Validate token and register webhook"}
+                      disabled={!canManage || activating || !isChannelConfigured(selectedChannel)}
+                      title={!canManage ? "Read-only role" : !isChannelConfigured(selectedChannel) ? "Save required fields first" : "Validate token and register webhook"}
                       className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all border",
-                        isChannelConfigured(selectedChannel)
+                        canManage && isChannelConfigured(selectedChannel)
                           ? "border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100"
                           : "border-border text-ink-muted bg-surface-subtle cursor-not-allowed opacity-50"
                       )}
@@ -989,11 +997,11 @@ export default function ConnectChannelsPanel() {
 
                   <button
                     onClick={handleSave}
-                    disabled={saveState === "saving" || saveState === "saved" || !isModalDirty}
+                    disabled={!canManage || saveState === "saving" || saveState === "saved" || !isModalDirty}
                     className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all",
                       saveState === "saved"
                         ? "bg-emerald-100 text-emerald-700 cursor-default"
-                        : isModalDirty
+                        : canManage && isModalDirty
                         ? "bg-primary text-white hover:bg-primary/90"
                         : "bg-surface-subtle text-ink-muted cursor-default"
                     )}

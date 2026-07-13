@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, require_owner
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.dependencies.auth import get_current_user
 from app.services.notification_config import (
     get_notification_config,
@@ -14,6 +14,8 @@ from app.services.notification_config import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_settings_read = require_permission("settings.view")
+require_settings_manage = require_permission("settings.manage")
 
 _VALID_AUDIENCE = {"telecallers_and_admin", "telecallers_only", "admin_only", "specific"}
 _VALID_SEGMENTS = {"A", "B", "C", "D"}
@@ -150,12 +152,12 @@ async def list_pool_items(
 
 
 @router.get("/config")
-async def get_config(ctx: dict = Depends(require_owner)):
+async def get_config(ctx: dict = Depends(require_settings_read)):
     return get_notification_config(ctx["tenant_id"])
 
 
 @router.put("/config")
-async def update_config(payload: NotificationConfigIn, ctx: dict = Depends(require_owner)):
+async def update_config(payload: NotificationConfigIn, ctx: dict = Depends(require_settings_manage)):
     if payload.claimable_audience not in _VALID_AUDIENCE:
         raise HTTPException(status_code=422, detail="Invalid claimable_audience")
     # Whitelist event keys to the known set; ignore unknown keys.
