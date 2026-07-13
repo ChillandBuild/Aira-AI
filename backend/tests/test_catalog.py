@@ -49,6 +49,44 @@ class CatalogItemsTests(unittest.TestCase):
         self.assertEqual(insert_call["tenant_id"], "tenant-1")
         self.assertEqual(insert_call["status"], "draft")
 
+    @patch("app.routes.catalog.embed_and_store_catalog_item")
+    @patch("app.routes.catalog.get_supabase")
+    def test_create_item_accepts_attributes_and_variant_group_and_embeds(self, mock_get_db, mock_embed):
+        db = MagicMock()
+        db.table.return_value.insert.return_value.execute.return_value.data = [
+            {"id": "item-1", "name": "2BHK Apartment", "item_type": "property", "status": "draft",
+             "attributes": {"location": "Coimbatore"}, "variant_group_id": "vg-1"}
+        ]
+        mock_get_db.return_value = db
+        mock_embed.return_value = None
+
+        res = self.client.post(
+            "/api/v1/catalog/items",
+            json={
+                "name": "2BHK Apartment", "item_type": "property",
+                "attributes": {"location": "Coimbatore"}, "variant_group_id": "vg-1",
+            },
+        )
+
+        self.assertEqual(res.status_code, 200)
+        insert_call = db.table.return_value.insert.call_args[0][0]
+        self.assertEqual(insert_call["attributes"], {"location": "Coimbatore"})
+        self.assertEqual(insert_call["variant_group_id"], "vg-1")
+        mock_embed.assert_called_once()
+
+    @patch("app.routes.catalog.embed_and_store_catalog_item")
+    @patch("app.routes.catalog.get_supabase")
+    def test_create_item_embedding_failure_does_not_fail_the_request(self, mock_get_db, mock_embed):
+        db = MagicMock()
+        db.table.return_value.insert.return_value.execute.return_value.data = [
+            {"id": "item-1", "name": "New Item", "item_type": "product", "status": "draft"}
+        ]
+        mock_get_db.return_value = db
+        mock_embed.side_effect = Exception("jina down")
+
+        res = self.client.post("/api/v1/catalog/items", json={"name": "New Item", "item_type": "product"})
+        self.assertEqual(res.status_code, 200)
+
     @patch("app.routes.catalog.get_supabase")
     def test_update_item_rejects_invalid_status(self, mock_get_db):
         db = MagicMock()
@@ -374,6 +412,28 @@ class CatalogImageCapEnforcementTests(unittest.TestCase):
 
         source = inspect.getsource(ai_reply.generate_reply)
         assert "catalog_images_to_send[:catalog_max_images]" in source
+
+
+class CatalogReindexTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_id] = lambda: "tenant-1"
+        app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": "tenant-1", "role": "owner"}
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    @patch("app.routes.catalog.reindex_catalog_items")
+    def test_reindex_returns_counts(self, mock_reindex):
+        async def fake_reindex(tenant_id):
+            return {"items_embedded": 2, "items_total": 3}
+
+        mock_reindex.side_effect = fake_reindex
+
+        res = self.client.post("/api/v1/catalog/reindex")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json(), {"success": True, "items_embedded": 2, "items_total": 3})
 
 
 if __name__ == "__main__":
