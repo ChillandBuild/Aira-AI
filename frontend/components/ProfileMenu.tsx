@@ -7,7 +7,7 @@ import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useLogout } from "@/hooks/useLogout";
 
 export function ProfileMenu() {
-  const { role } = useAuthRole();
+  const { role, permissions } = useAuthRole();
   const router = useRouter();
   const [email, setEmail] = useState<string>("");
   const [fullName, setFullName] = useState<string>("");
@@ -34,6 +34,10 @@ export function ProfileMenu() {
 
   const logout = useLogout();
   const initials = email ? email.charAt(0).toUpperCase() : "U";
+  const canAccessSettings =
+    role === "owner" ||
+    permissions.includes("settings.view") ||
+    permissions.includes("settings.manage");
 
   return (
     <div className="relative">
@@ -55,7 +59,7 @@ export function ProfileMenu() {
             </div>
 
             <div className="py-1">
-              {role === "owner" && (
+              {canAccessSettings && (
                 <button
                   onClick={() => {
                     setOpen(false);

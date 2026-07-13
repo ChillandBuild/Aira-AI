@@ -708,7 +708,10 @@ async function apiFetchOnce<T>(path: string, opts: RequestInit, timeoutMs: numbe
       if (res.status === 401 && typeof window !== "undefined") {
         window.location.href = "/aira/login";
       }
-      if (RETRYABLE_STATUS.has(res.status)) {
+      // The overview is a read-only dashboard aggregate. A transient database
+      // failure can surface as 500 while the service is recovering, so retry it
+      // the same way as gateway failures before showing an error state.
+      if (RETRYABLE_STATUS.has(res.status) || (res.status === 500 && path === "/api/v1/analytics/overview")) {
         throw new RetryableError(`Server unavailable (${res.status})`);
       }
       const err = await res.json().catch(() => ({ detail: "Request failed" }));
