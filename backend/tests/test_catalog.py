@@ -308,7 +308,7 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(tools, [])
 
     @patch("app.services.ai_reply.match_catalog_items")
-    async def test_ungrouped_legacy_items_get_confident_recommendation_not_disambiguation(self, mock_match):
+    async def test_ungrouped_legacy_multi_match_lists_full_contention_set_not_just_top(self, mock_match):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
@@ -322,8 +322,10 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "show me your cakes")
 
         self.assertNotIn("DISAMBIGUATION NEEDED", text)
+        self.assertIn("Chocolate Cake", text)
+        self.assertIn("Vanilla Cake", text)
         self.assertEqual(len(tools), 1)
-        self.assertEqual(list(items_by_id.keys()), ["a"])
+        self.assertEqual(set(items_by_id.keys()), {"a", "b"})
 
     @patch("app.services.ai_reply.match_catalog_items", side_effect=Exception("provider down"))
     async def test_retrieval_failure_falls_back_to_full_catalog_list(self, mock_match):
@@ -434,6 +436,43 @@ class CatalogReindexTests(unittest.TestCase):
         res = self.client.post("/api/v1/catalog/reindex")
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {"success": True, "items_embedded": 2, "items_total": 3})
+
+
+class CatalogVariantGroupsTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_id] = lambda: "tenant-1"
+        app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": "tenant-1", "role": "owner"}
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    @patch("app.routes.catalog.get_supabase")
+    def test_create_variant_group_returns_new_group(self, mock_get_db):
+        db = MagicMock()
+        db.table.return_value.insert.return_value.execute.return_value.data = [
+            {"id": "vg-1", "tenant_id": "tenant-1", "name": "2BHK Apartment", "item_type": "property"}
+        ]
+        mock_get_db.return_value = db
+
+        res = self.client.post("/api/v1/catalog/variant-groups", json={"name": "2BHK Apartment", "item_type": "property"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["name"], "2BHK Apartment")
+        insert_call = db.table.return_value.insert.call_args[0][0]
+        self.assertEqual(insert_call["tenant_id"], "tenant-1")
+
+    @patch("app.routes.catalog.get_supabase")
+    def test_list_variant_groups_returns_data(self, mock_get_db):
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+            {"id": "vg-1", "name": "2BHK Apartment"}
+        ]
+        mock_get_db.return_value = db
+
+        res = self.client.get("/api/v1/catalog/variant-groups")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["data"][0]["name"], "2BHK Apartment")
 
 
 if __name__ == "__main__":

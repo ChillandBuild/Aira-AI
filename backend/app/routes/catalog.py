@@ -256,6 +256,36 @@ async def update_ai_rules(
     return merged
 
 
+@router.post("/variant-groups")
+async def create_variant_group(
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
+    db = get_supabase()
+    res = db.table("catalog_variant_groups").insert({
+        "tenant_id": tenant_id,
+        "name": payload.get("name"),
+        "item_type": payload.get("item_type") or "product",
+    }).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Failed to create variant group")
+    return res.data[0]
+
+
+@router.get("/variant-groups")
+async def list_variant_groups(tenant_id: str = Depends(get_tenant_id)):
+    db = get_supabase()
+    res = (
+        db.table("catalog_variant_groups")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return {"data": res.data or []}
+
+
 @router.post("/reindex")
 async def reindex_catalog(
     tenant_id: str = Depends(get_tenant_id),

@@ -790,7 +790,7 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
         contention = contention_set(candidates)
         gate = classify_gate(contention)
         if gate == "confident":
-            items = [contention[0]]
+            items = contention
         elif gate == "same_group":
             items = []
             directive = differing_attribute_directive(contention)
