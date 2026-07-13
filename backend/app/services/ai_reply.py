@@ -204,9 +204,10 @@ _TANGLISH_MARKERS = frozenset({
 })
 
 
-def _detect_lang(text: str) -> str:
-    """Return dominant language code based on Unicode block frequency,
-    falling back to a Tanglish keyword heuristic when the script is pure Latin."""
+def _dominant_script(text: str) -> str:
+    """Return dominant script code based on Unicode block frequency alone
+    (no keyword heuristics -- this half of the detection is deterministic
+    and reliable, unlike the Tanglish-vs-English guess in _detect_lang)."""
     if not text:
         return "en"
     counts: dict[str, int] = {}
@@ -224,12 +225,33 @@ def _detect_lang(text: str) -> str:
             counts["hi"] = counts.get("hi", 0) + 1
         elif ch.isalpha() and cp < 128:
             counts["en"] = counts.get("en", 0) + 1
-    dominant = max(counts, key=counts.__getitem__) if counts else "en"
+    return max(counts, key=counts.__getitem__) if counts else "en"
+
+
+def _detect_lang(text: str) -> str:
+    """Return dominant language code based on Unicode block frequency,
+    falling back to a Tanglish keyword heuristic when the script is pure Latin."""
+    dominant = _dominant_script(text)
     if dominant == "en":
         tokens = set(re.findall(r"[a-zA-Z']+", text.lower()))
         if tokens & _TANGLISH_MARKERS:
             return "tanglish"
     return dominant
+
+
+_SCRIPT_NAMES = {"ta": "Tamil", "te": "Telugu", "kn": "Kannada", "ml": "Malayalam", "hi": "Hindi"}
+
+
+def _latest_message_script_note(text: str) -> str:
+    """Per-turn instruction stating the customer's latest message script,
+    computed fresh every turn so the model can't anchor on its own prior
+    replies and miss a silent (non-verbal) script switch -- see
+    .agents/decisions/log.md 2026-07-06 for the live-tested failure this
+    fixes (0/3 on silent switches despite following explicit ones 3/3)."""
+    name = _SCRIPT_NAMES.get(_dominant_script(text))
+    if name:
+        return f"{name} script. Reply in {name} script."
+    return "Latin/English script. Do not reply in Tamil script."
 
 
 _LAST_SEND_ERROR: str | None = None
@@ -931,6 +953,9 @@ async def generate_reply(
             "'tamil-la sollunga', 'reply in tamil'), you MUST fully switch to that requested language for this "
             "reply and continue in it afterward, overriding whatever style earlier messages in the conversation used."
         )
+        system_prompt += (
+            f"\n\nCUSTOMER'S LATEST MESSAGE SCRIPT: {_latest_message_script_note(message)}"
+        )
 
         if catalog_context:
             system_prompt += catalog_context
@@ -944,12 +969,12 @@ async def generate_reply(
             role = "assistant" if row.get("direction") == "outbound" else "user"
             chat_messages.append({"role": role, "content": content})
 
-        # No code-injected language tag on the user turn: the LANGUAGE RULE block above
-        # (plus any tenant-authored language-mirroring rules in their own system prompt)
-        # already instructs the model to detect and mirror the customer's language
-        # directly from their raw words. A pre-computed tag here would override that
-        # with _detect_lang()'s much cruder guess whenever the two disagree -- and the
-        # model is reliably better at this than a hardcoded keyword list can be.
+        # No code-injected tag on the user turn itself: the CUSTOMER'S LATEST MESSAGE
+        # SCRIPT line already added to system_prompt above covers the one thing that's
+        # reliably checkable (Tamil-block vs Latin script). We deliberately do NOT also
+        # inject _detect_lang()'s Tanglish-vs-English keyword guess here -- that half is
+        # fuzzy, and the model reading the raw words is reliably better at that call
+        # than a hardcoded keyword list.
         if not chat_messages or chat_messages[-1].get("role") != "user" or chat_messages[-1].get("content") != message:
             chat_messages.append({"role": "user", "content": message})
 
