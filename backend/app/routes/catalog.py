@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
@@ -119,6 +119,7 @@ async def upload_item_media(
     item_id: UUID,
     tenant_id: str = Depends(get_tenant_id),
     file: UploadFile = File(...),
+    label: str | None = Form(None),
     _ctx: dict = Depends(require_catalog_manage),
 ):
     db = get_supabase()
@@ -133,6 +134,17 @@ async def upload_item_media(
     if not item_res.data:
         raise HTTPException(status_code=404, detail="Catalog item not found")
 
+    existing_res = (
+        db.table("catalog_media")
+        .select("sort_order")
+        .eq("catalog_item_id", str(item_id))
+        .eq("tenant_id", tenant_id)
+        .order("sort_order", desc=True)
+        .limit(1)
+        .execute()
+    )
+    next_sort_order = (existing_res.data[0]["sort_order"] + 1) if existing_res.data else 0
+
     content = await file.read()
     storage_path = f"{tenant_id}/{item_id}/{uuid4()}_{file.filename}"
     db.storage.from_("catalog-media").upload(
@@ -144,12 +156,68 @@ async def upload_item_media(
         "tenant_id": tenant_id,
         "catalog_item_id": str(item_id),
         "storage_path": storage_path,
-        "label": file.filename,
+        "label": (label or "").strip() or file.filename,
+        "sort_order": next_sort_order,
     }).execute()
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to save catalog media record")
 
     return {**res.data[0], "url": url}
+
+
+@router.patch("/media/{media_id}")
+async def update_media(
+    media_id: UUID,
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
+    db = get_supabase()
+    updates: dict = {}
+    if "label" in payload:
+        updates["label"] = (payload.get("label") or "").strip() or None
+    if not updates:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+
+    res = (
+        db.table("catalog_media")
+        .update(updates)
+        .eq("id", str(media_id))
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Catalog media not found")
+    return res.data[0]
+
+
+@router.patch("/items/{item_id}/media/reorder")
+async def reorder_item_media(
+    item_id: UUID,
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_catalog_manage),
+):
+    media_ids = payload.get("media_ids")
+    if not isinstance(media_ids, list) or not media_ids:
+        raise HTTPException(status_code=400, detail="media_ids must be a non-empty list")
+
+    db = get_supabase()
+    owned_res = (
+        db.table("catalog_media")
+        .select("id")
+        .eq("catalog_item_id", str(item_id))
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+    owned_ids = {row["id"] for row in (owned_res.data or [])}
+    if not owned_ids.issuperset(set(media_ids)):
+        raise HTTPException(status_code=400, detail="media_ids must all belong to this item")
+
+    for index, media_id in enumerate(media_ids):
+        db.table("catalog_media").update({"sort_order": index}).eq("id", media_id).eq("tenant_id", tenant_id).execute()
+
+    return {"success": True}
 
 
 @router.get("/media")
@@ -159,7 +227,8 @@ async def list_media(tenant_id: str = Depends(get_tenant_id)):
         db.table("catalog_media")
         .select("*")
         .eq("tenant_id", tenant_id)
-        .order("created_at", desc=True)
+        .order("catalog_item_id")
+        .order("sort_order")
         .execute()
     )
     media_rows = media_res.data or []

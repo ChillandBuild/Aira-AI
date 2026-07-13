@@ -1092,18 +1092,19 @@ async def generate_reply(
                     reply_text = f"Here's our {item['name']}:"
 
                 # Load the item's images from the catalog-media storage bucket so we can
-                # send them as WhatsApp attachments. Only the most recent image per item.
+                # send them as WhatsApp attachments, in the client's ranked order, capped
+                # at max_images_per_reply.
                 try:
                     media_rows = (
                         db.table("catalog_media")
                         .select("id,storage_path,label")
                         .eq("catalog_item_id", item_id)
                         .eq("tenant_id", tenant_id)
-                        .order("created_at", desc=True)
-                        .limit(1)
+                        .order("sort_order")
+                        .limit(catalog_max_images)
                         .execute()
                     )
-                    for mrow in (media_rows.data or [])[:1]:
+                    for mrow in (media_rows.data or []):
                         path = mrow["storage_path"]
                         label = mrow["label"] or item["name"]
                         file_bytes = db.storage.from_("catalog-media").download(path)
@@ -1225,6 +1226,7 @@ async def generate_reply(
                         to_number=_wa_phone,
                         media_id=media_id,
                         wa_type="image",
+                        caption=img_filename,
                         tenant_id=lead_data.get("tenant_id"),
                         phone_number_id=phone_number_id,
                     )
