@@ -1540,7 +1540,7 @@ export const api = {
     permissions: () =>
       apiFetch<{ data: PermissionDef[] }>("/api/v1/rbac/permissions"),
     roles: () =>
-      apiFetch<{ data: ClientRole[]; permissions: PermissionDef[] }>("/api/v1/rbac/roles"),
+      apiFetch<{ data: ClientRole[]; permissions: PermissionDef[]; setup_required?: boolean; detail?: string }>("/api/v1/rbac/roles"),
     createRole: (data: { name: string; permissions: string[] }) =>
       apiFetch<ClientRole>("/api/v1/rbac/roles", {
         method: "POST",

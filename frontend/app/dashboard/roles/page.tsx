@@ -143,6 +143,9 @@ export default function RolesPage() {
       setPermissions(roleRes.permissions);
       setUsers(userRes.data);
       setCallingProvider(assignmentRes?.calling_provider ?? "telecmi");
+      if (roleRes.setup_required) {
+        setError(roleRes.detail ?? "RBAC setup is not complete yet.");
+      }
       setUserDraft((d) => ({
         ...d,
         role_id: d.role_id || roleRes.data.find((r) => r.slug === "telecaller")?.id || roleRes.data[0]?.id || "",

@@ -14,6 +14,7 @@ from app.services.rbac import (
     PERMISSION_CATALOG,
     ensure_default_roles,
     get_user_role,
+    is_rbac_schema_unavailable,
     is_telecaller_role,
     normalize_permissions,
     touch_updated_at,
@@ -177,8 +178,19 @@ def list_permissions(_ctx: dict = Depends(require_roles_read)):
 @router.get("/roles")
 def list_roles(ctx: dict = Depends(require_roles_read)):
     db = get_supabase()
-    ensure_default_roles(db, ctx["tenant_id"])
-    roles = db.table("tenant_roles").select("*").eq("tenant_id", ctx["tenant_id"]).order("name").execute()
+    try:
+        ensure_default_roles(db, ctx["tenant_id"])
+        roles = db.table("tenant_roles").select("*").eq("tenant_id", ctx["tenant_id"]).order("name").execute()
+    except Exception as exc:
+        if is_rbac_schema_unavailable(exc):
+            logger.error("RBAC roles schema unavailable for tenant %s: %s", ctx["tenant_id"], exc)
+            return {
+                "data": [],
+                "permissions": PERMISSION_CATALOG,
+                "setup_required": True,
+                "detail": "RBAC schema is not available yet. Apply the tenant RBAC repair migration.",
+            }
+        raise
     return {"data": [_serialize_role(role) for role in (roles.data or [])], "permissions": PERMISSION_CATALOG}
 
 
@@ -235,15 +247,28 @@ def delete_role(role_id: str, ctx: dict = Depends(require_roles_manage)):
 @router.get("/users")
 def list_users(ctx: dict = Depends(require_roles_read)):
     db = get_supabase()
-    ensure_default_roles(db, ctx["tenant_id"])
-    roles = _role_map(db, ctx["tenant_id"])
-    members = (
-        db.table("tenant_users")
-        .select("user_id, role, role_id, full_name, force_password_reset, created_at")
-        .eq("tenant_id", ctx["tenant_id"])
-        .order("created_at")
-        .execute()
-    )
+    try:
+        ensure_default_roles(db, ctx["tenant_id"])
+        roles = _role_map(db, ctx["tenant_id"])
+        members = (
+            db.table("tenant_users")
+            .select("user_id, role, role_id, full_name, force_password_reset, created_at")
+            .eq("tenant_id", ctx["tenant_id"])
+            .order("created_at")
+            .execute()
+        )
+    except Exception as exc:
+        if not is_rbac_schema_unavailable(exc):
+            raise
+        logger.error("RBAC users schema unavailable for tenant %s: %s", ctx["tenant_id"], exc)
+        roles = {}
+        members = (
+            db.table("tenant_users")
+            .select("user_id, role, created_at")
+            .eq("tenant_id", ctx["tenant_id"])
+            .order("created_at")
+            .execute()
+        )
     return {"data": [_serialize_user(db, ctx["tenant_id"], m, roles) for m in (members.data or [])]}
 
 

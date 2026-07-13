@@ -52,6 +52,45 @@ DEFAULT_TELECALLER_PERMISSIONS = [
     "telecalling.notes",
 ]
 
+RBAC_SCHEMA_ERROR_MARKERS = (
+    "tenant_roles",
+    "role_id",
+    "force_password_reset",
+    "temporary_password_issued_at",
+)
+
+
+def is_rbac_schema_unavailable(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    schema_cache_error = "pgrst205" in msg or "schema cache" in msg or "could not find" in msg
+    return schema_cache_error and any(marker in msg for marker in RBAC_SCHEMA_ERROR_MARKERS)
+
+
+def _legacy_access(tenant_id: str, user_id: str, legacy_role: str, exc: Exception) -> dict:
+    logger.error(
+        "RBAC schema unavailable for tenant %s user %s; using legacy %s access. Error: %s",
+        tenant_id,
+        user_id,
+        legacy_role,
+        exc,
+    )
+    if legacy_role == "owner":
+        permissions = ALL_PERMISSION_KEYS
+        role_name = "Owner"
+        role_slug = "owner"
+    else:
+        permissions = DEFAULT_TELECALLER_PERMISSIONS
+        role_name = "Telecaller"
+        role_slug = "telecaller"
+    return {
+        "role_id": None,
+        "role_name": role_name,
+        "role_slug": role_slug,
+        "permissions": normalize_permissions(permissions),
+        "force_password_reset": False,
+        "rbac_schema_unavailable": True,
+    }
+
 
 def _permission_values(values: list[str] | tuple[str, ...] | str | None) -> list[str]:
     if values is None:
@@ -151,20 +190,25 @@ def resolve_permissions(db, tenant_id: str, user_id: str, legacy_role: str) -> d
             "force_password_reset": False,
         }
 
-    ensure_default_roles(db, tenant_id)
-    membership = (
-        db.table("tenant_users")
-        .select("role_id, force_password_reset")
-        .eq("tenant_id", tenant_id)
-        .eq("user_id", user_id)
-        .limit(1)
-        .execute()
-    )
-    row = membership.data[0] if membership.data else {}
-    role = get_user_role(db, tenant_id, row.get("role_id"))
-    if not role:
-        role = ensure_default_roles(db, tenant_id)
-        db.table("tenant_users").update({"role_id": role["id"]}).eq("tenant_id", tenant_id).eq("user_id", user_id).execute()
+    try:
+        ensure_default_roles(db, tenant_id)
+        membership = (
+            db.table("tenant_users")
+            .select("role_id, force_password_reset")
+            .eq("tenant_id", tenant_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        row = membership.data[0] if membership.data else {}
+        role = get_user_role(db, tenant_id, row.get("role_id"))
+        if not role:
+            role = ensure_default_roles(db, tenant_id)
+            db.table("tenant_users").update({"role_id": role["id"]}).eq("tenant_id", tenant_id).eq("user_id", user_id).execute()
+    except Exception as exc:
+        if is_rbac_schema_unavailable(exc):
+            return _legacy_access(tenant_id, user_id, legacy_role, exc)
+        raise
 
     return {
         "role_id": role["id"],

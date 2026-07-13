@@ -8,6 +8,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard, ShieldCheck,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -381,6 +382,22 @@ export function Sidebar() {
           >
             <ShieldCheck size={16} className={pathname.startsWith("/dashboard/roles") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
             <span>Roles</span>
+          </Link>
+        )}
+
+        {/* TOP LEVEL: Settings */}
+        {canAny(["settings.view", "settings.manage"]) && (
+          <Link
+            href="/dashboard/settings"
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
+              pathname.startsWith("/dashboard/settings")
+                ? "bg-[#f5f3ff] text-[#5b21b6]"
+                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+            )}
+          >
+            <Settings size={16} className={pathname.startsWith("/dashboard/settings") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+            <span>Settings</span>
           </Link>
         )}
 
