@@ -3,14 +3,16 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
+from app.dependencies.tenant import get_tenant_and_role, require_permission
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_conversations_view = require_permission("conversations.view")
+require_conversations_reply = require_permission("conversations.reply")
 
 
 @router.get("/")
-def list_handovers(ctx: dict = Depends(get_tenant_and_role)):
+def list_handovers(ctx: dict = Depends(require_conversations_view)):
     db = get_supabase()
     query = (
         db.table("chat_handovers")
@@ -46,7 +48,7 @@ def list_handovers(ctx: dict = Depends(get_tenant_and_role)):
 
 
 @router.get("/count")
-def handover_count(ctx: dict = Depends(get_tenant_and_role)):
+def handover_count(ctx: dict = Depends(require_conversations_view)):
     """Sidebar badge polls this every 60s. Swallow transient Supabase
     HTTP/2 disconnects (RemoteProtocolError) so a flaky connection doesn't
     spam 500s into the UI — the next poll will succeed."""
@@ -72,8 +74,9 @@ class AssignBody(BaseModel):
 
 
 @router.patch("/{handover_id}/assign")
-def assign_handover(handover_id: str, body: AssignBody, tenant_id: str = Depends(get_tenant_id)):
+def assign_handover(handover_id: str, body: AssignBody, ctx: dict = Depends(require_conversations_reply)):
     db = get_supabase()
+    tenant_id = ctx["tenant_id"]
     caller = (
         db.table("callers")
         .select("id")
@@ -104,8 +107,9 @@ def assign_handover(handover_id: str, body: AssignBody, tenant_id: str = Depends
 
 
 @router.patch("/{handover_id}/resolve")
-def resolve_handover(handover_id: str, tenant_id: str = Depends(get_tenant_id)):
+def resolve_handover(handover_id: str, ctx: dict = Depends(require_conversations_reply)):
     db = get_supabase()
+    tenant_id = ctx["tenant_id"]
     result = db.table("chat_handovers").update({
         "status": "resolved",
         "resolved_at": datetime.now(timezone.utc).isoformat(),

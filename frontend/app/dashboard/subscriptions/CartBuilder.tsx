@@ -172,13 +172,14 @@ function Stepper({ value, onChange, min = 1 }: { value: number; onChange: (v: nu
 }
 
 export function CartBuilder({
-  mode, existingItems, onSubmitted, periodStart, periodEnd,
+  mode, existingItems, onSubmitted, periodStart, periodEnd, canSubmit = true,
 }: {
   mode: "initial" | "addon";
   existingItems: SubscriptionItem[];
   onSubmitted: () => void;
   periodStart?: string | null;
   periodEnd?: string | null;
+  canSubmit?: boolean;
 }) {
   const [catalog, setCatalog] = useState<CatalogRow[]>([]);
   const [packages, setPackages] = useState<PackageRow[]>([]);
@@ -295,6 +296,7 @@ export function CartBuilder({
   const dueNow = mode === "addon" ? total * prorationFactor : total;
 
   async function submit() {
+    if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -653,10 +655,11 @@ export function CartBuilder({
         </div>
         <button
           onClick={submit}
-          disabled={submitting || Object.keys(selected).length === 0}
+          disabled={submitting || Object.keys(selected).length === 0 || !canSubmit}
+          title={canSubmit ? "Submit subscription request" : "Read-only role: submission is disabled"}
           className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary-dark hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 shadow-sm disabled:opacity-40 disabled:scale-100 disabled:shadow-none"
         >
-          {submitting ? "Submitting…" : mode === "addon" ? "Request Increase" : "Submit for Approval"}
+          {submitting ? "Submitting…" : !canSubmit ? "Request Disabled" : mode === "addon" ? "Request Increase" : "Submit for Approval"}
         </button>
       </div>
     </div>

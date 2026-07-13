@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role, require_permission
-from app.services.assignment import get_telecalling_config
+from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.attendance import build_attendance_map, compute_team_summary, date_range
 from app.services.rbac import ensure_default_roles
 
@@ -32,6 +32,17 @@ class AttendancePayload(BaseModel):
 
 class MarkHolidayPayload(BaseModel):
     date: str
+
+
+class ShiftConfigPayload(BaseModel):
+    shift_mode: str
+    shift_start_hour: int
+    shift_end_hour: int
+
+
+class CallerShiftPayload(BaseModel):
+    shift_start_hour: int
+    shift_end_hour: int
 
 
 def _active_team_callers(db, tenant_id: str) -> list[dict]:
@@ -230,6 +241,49 @@ async def invite_member(payload: InvitePayload, ctx: dict = Depends(get_tenant_a
 
     logger.info(f"Created telecaller {payload.email} for tenant {ctx['tenant_id']}")
     return {"invited": True, "email": payload.email, "user_id": invited_user_id}
+
+
+@router.patch("/shift-config")
+def update_shift_config(payload: ShiftConfigPayload, ctx: dict = Depends(require_team_manage)):
+    if payload.shift_mode not in ("common", "individual"):
+        raise HTTPException(status_code=400, detail="shift_mode must be 'common' or 'individual'")
+    if not (0 <= payload.shift_start_hour <= 23 and 0 <= payload.shift_end_hour <= 23):
+        raise HTTPException(status_code=400, detail="Shift hours must be between 0 and 23")
+
+    current = get_telecalling_config(ctx["tenant_id"])
+    updated = {
+        **current,
+        "shift_mode": payload.shift_mode,
+        "shift_start_hour": payload.shift_start_hour,
+        "shift_end_hour": payload.shift_end_hour,
+    }
+    save_telecalling_config(ctx["tenant_id"], updated)
+    return updated
+
+
+@router.patch("/{caller_id}/shift")
+def update_caller_shift(
+    caller_id: str,
+    payload: CallerShiftPayload,
+    ctx: dict = Depends(require_team_manage),
+):
+    if not (0 <= payload.shift_start_hour <= 23 and 0 <= payload.shift_end_hour <= 23):
+        raise HTTPException(status_code=400, detail="Shift hours must be between 0 and 23")
+
+    db = get_supabase()
+    result = (
+        db.table("callers")
+        .update({
+            "shift_start_hour": payload.shift_start_hour,
+            "shift_end_hour": payload.shift_end_hour,
+        })
+        .eq("id", caller_id)
+        .eq("tenant_id", ctx["tenant_id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Caller not found")
+    return {"data": result.data[0]}
 
 
 @router.delete("/{user_id}")

@@ -88,7 +88,10 @@ def get_owner_tenant_id(ctx: dict = Depends(require_owner)) -> str:
 
 def require_permission(permission: str):
     def _dependency(ctx: dict = Depends(get_tenant_and_role)) -> dict:
-        if ctx.get("role") == "owner" or permission in (ctx.get("permissions") or []):
+        permissions = set(ctx.get("permissions") or [])
+        manage_permission = f"{permission[:-5]}.manage" if permission.endswith(".view") else None
+        reply_implies_view = permission == "conversations.view" and "conversations.reply" in permissions
+        if ctx.get("role") == "owner" or permission in permissions or manage_permission in permissions or reply_implies_view:
             return ctx
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

@@ -1567,6 +1567,16 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ date }),
       }),
+    updateShiftConfig: (config: { shift_mode: "common" | "individual"; shift_start_hour: number; shift_end_hour: number }) =>
+      apiFetch<{ shift_mode: "common" | "individual"; shift_start_hour: number; shift_end_hour: number }>("/api/v1/team/shift-config", {
+        method: "PATCH",
+        body: JSON.stringify(config),
+      }),
+    updateCallerShift: (callerId: string, shift_start_hour: number, shift_end_hour: number) =>
+      apiFetch<{ data: Caller }>(`/api/v1/team/${callerId}/shift`, {
+        method: "PATCH",
+        body: JSON.stringify({ shift_start_hour, shift_end_hour }),
+      }),
   },
   rbac: {
     permissions: () =>

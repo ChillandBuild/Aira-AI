@@ -34,6 +34,7 @@ interface EscalationPanelProps {
   onCountChange: (count: number) => void;
   currentCallerId?: string | null;
   currentCallerName?: string | null;
+  canReplyToConversations?: boolean;
 }
 
 async function fetchHandovers(): Promise<Handover[]> {
@@ -45,10 +46,11 @@ async function fetchHandovers(): Promise<Handover[]> {
 
 async function resolveHandover(id: string): Promise<void> {
   const auth = await getAuthHeaders();
-  await fetch(`${API_URL}/api/v1/chat-handovers/${id}/resolve`, {
+  const res = await fetch(`${API_URL}/api/v1/chat-handovers/${id}/resolve`, {
     method: "PATCH",
     headers: auth,
   });
+  if (!res.ok) throw new Error("Failed to resolve escalation");
 }
 
 async function fetchCallers(): Promise<Caller[]> {
@@ -84,7 +86,7 @@ function channelBadge(source?: string, lead?: Handover["leads"]) {
   return <span className="text-emerald-600 font-bold">WhatsApp · {lead?.phone}</span>;
 }
 
-export function EscalationPanel({ onReply, onCountChange, currentCallerId, currentCallerName }: EscalationPanelProps) {
+export function EscalationPanel({ onReply, onCountChange, currentCallerId, currentCallerName, canReplyToConversations = false }: EscalationPanelProps) {
   const { role } = useAuthRole();
   const [handovers, setHandovers] = useState<Handover[]>([]);
   const [callers, setCallers] = useState<Caller[]>([]);
@@ -134,6 +136,7 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
   }, []);
 
   async function handleResolve(id: string) {
+    if (!canReplyToConversations) return;
     const prev = handovers;
     setHandovers(handovers.filter((h) => h.id !== id));
     try {
@@ -163,6 +166,7 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
   const myName = callers.find((c) => c.id === currentCallerId)?.name ?? currentCallerName ?? "You";
 
   async function handleClaimAndReply(handover: Handover) {
+    if (!canReplyToConversations) return;
     if (currentCallerId && !handover.assigned_to) {
       const prev = handovers;
       setHandovers((hs) => hs.map((h) =>
@@ -311,14 +315,18 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
                   <div className="flex flex-row md:flex-col gap-2.5 flex-shrink-0 self-end md:self-start w-full md:w-auto md:min-w-[140px] mt-3 md:mt-0 border-t md:border-t-0 border-border-subtle pt-3 md:pt-0">
                     <button
                       onClick={() => handleClaimAndReply(h)}
-                      className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold shadow-sm"
+                      disabled={!canReplyToConversations}
+                      title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
+                      className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary disabled:hover:scale-100"
                     >
                       <MessageSquare size={14} /> {h.assigned_to ? "Reply" : "Pick up"}
                     </button>
-                    {(isMine || role === "owner") && (
+                    {(isMine || role === "owner" || !canReplyToConversations) && (
                       <button
                         onClick={() => handleResolve(h.id)}
-                        className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-2 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] bg-white font-bold shadow-xs"
+                        disabled={!canReplyToConversations}
+                        title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
+                        className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-2 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] bg-white font-bold shadow-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:scale-100"
                       >
                         <CheckCircle size={14} /> Resolve
                       </button>

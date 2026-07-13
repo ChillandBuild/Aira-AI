@@ -5,6 +5,7 @@ import { Loader2, CalendarCheck, UserCheck, UserX, Percent, CheckCircle2, XCircl
 import { toast } from "sonner";
 import { api, TeamAttendanceGridData } from "@/lib/api";
 import { dotColorClass, WEEKDAY_LABELS, buildMiniMonths } from "./helpers";
+import { useAuthRole } from "../contexts/AuthRoleContext";
 
 interface TeamAttendanceGridProps {
   selectedCallerId?: string | null;
@@ -12,6 +13,8 @@ interface TeamAttendanceGridProps {
 }
 
 export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerName }: TeamAttendanceGridProps) {
+  const { role, permissions } = useAuthRole();
+  const canManageTeam = role === "owner" || permissions.includes("team.manage");
   const today = format(new Date(), "yyyy-MM-dd");
   const [from, setFrom] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [to, setTo] = useState(() => format(new Date(), "yyyy-MM-dd"));
@@ -116,7 +119,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
   const sixMonths = useMemo(() => buildMiniMonths(sixMonthDays, 6), [sixMonthDays]);
 
   const handleMark = async (status: "present" | "absent") => {
-    if (!selectedCallerId || marking) return;
+    if (!canManageTeam || !selectedCallerId || marking) return;
     setMarking(true);
     try {
       await api.team.markAttendance(selectedCallerId, markDate, status);
@@ -129,7 +132,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
   };
 
   const handleMarkHoliday = async () => {
-    if (markingHoliday) return;
+    if (!canManageTeam || markingHoliday) return;
     setMarkingHoliday(true);
     try {
       const res = await api.team.markHoliday(holidayDate);
@@ -224,15 +227,17 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
               value={holidayDate}
               max={maxHolidayDate}
               onChange={(e) => setHolidayDate(e.target.value)}
+              disabled={!canManageTeam}
               className="px-1.5 py-0.5 rounded bg-white border border-sky-200 font-body text-xs text-[#292524] focus:outline-none"
             />
             <button
               onClick={handleMarkHoliday}
-              disabled={markingHoliday}
+              disabled={markingHoliday || !canManageTeam}
+              title={canManageTeam ? "Mark holiday" : "Read-only role: holiday marking is disabled"}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 text-white rounded-lg hover:bg-sky-600 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
             >
               {markingHoliday ? <Loader2 className="animate-spin" size={12} /> : <Sun size={12} />}
-              Whole Team
+              {canManageTeam ? "Whole Team" : "Read-only"}
             </button>
           </div>
 
@@ -252,18 +257,19 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
             value={markDate}
             max={today}
             onChange={(e) => setMarkDate(e.target.value)}
+            disabled={!canManageTeam}
             className="px-2 py-1 rounded bg-white border border-[#e8e3db] font-body text-[11px] text-[#292524] h-7 focus:outline-none"
           />
           <button
             onClick={() => handleMark("present")}
-            disabled={marking}
+            disabled={marking || !canManageTeam}
             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-label text-[11px] font-bold disabled:opacity-50 transition-colors"
           >
             <CheckCircle2 size={12} /> Present
           </button>
           <button
             onClick={() => handleMark("absent")}
-            disabled={marking}
+            disabled={marking || !canManageTeam}
             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 font-label text-[11px] font-bold disabled:opacity-50 transition-colors"
           >
             <XCircle size={12} /> Absent

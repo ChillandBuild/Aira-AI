@@ -3,11 +3,13 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Path
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.ai_reply import send_whatsapp
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_leads_view = require_permission("leads.view")
+require_leads_manage = require_permission("leads.manage")
 
 SEGMENTS = ("A", "B", "C", "D")
 
@@ -28,7 +30,10 @@ def _ensure_templates(db, tenant_id: str) -> list[dict]:
 
 
 @router.get("/templates")
-async def list_templates(tenant_id: str = Depends(get_tenant_id)):
+async def list_templates(
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_leads_view),
+):
     db = get_supabase()
     return {"data": _ensure_templates(db, tenant_id)}
 
@@ -38,6 +43,7 @@ async def upsert_template(
     updates: TemplateUpdate,
     segment: str = Path(pattern="^[ABCD]$"),
     tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_leads_manage),
 ):
     db = get_supabase()
     _ensure_templates(db, tenant_id)
@@ -54,7 +60,11 @@ async def upsert_template(
 
 
 @router.post("/{segment}/broadcast")
-async def broadcast_to_segment(segment: str = Path(pattern="^[ABCD]$"), tenant_id: str = Depends(get_tenant_id)):
+async def broadcast_to_segment(
+    segment: str = Path(pattern="^[ABCD]$"),
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_leads_manage),
+):
     db = get_supabase()
 
     tpl = db.table("segment_templates").select("*").eq("segment", segment).eq("tenant_id", tenant_id).limit(1).execute()

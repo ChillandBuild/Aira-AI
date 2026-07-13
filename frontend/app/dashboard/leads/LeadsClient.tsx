@@ -81,7 +81,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   D: "Disqualified",
 };
 
-function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => void }) {
+function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void; onSent: () => void; canManageLeads: boolean }) {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
@@ -89,6 +89,7 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
   const [error, setError] = useState<string | null>(null);
 
   async function send() {
+    if (!canManageLeads) return;
     if (!phone.trim() || !message.trim()) {
       setError("Phone and message are required");
       return;
@@ -177,11 +178,12 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
           </button>
           <button
             onClick={send}
-            disabled={sending}
+            disabled={sending || !canManageLeads}
+            title={canManageLeads ? "Send message" : "Read-only role: sending is disabled"}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50"
           >
             {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            {sending ? "Sending…" : "Send"}
+            {sending ? "Sending…" : canManageLeads ? "Send" : "Send Disabled"}
           </button>
         </div>
       </div>
@@ -190,7 +192,8 @@ function ComposeModal({ onClose, onSent }: { onClose: () => void; onSent: () => 
 }
 
 export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads: Lead[] | null; initialTab?: typeof SEGMENTS[number] }) {
-  const { role } = useAuthRole();
+  const { role, permissions } = useAuthRole();
+  const canManageLeads = role === "owner" || permissions.includes("leads.manage");
   const [tab, setTab] = useState<typeof SEGMENTS[number]>(initialTab);
   const [templates, setTemplates] = useState<Record<string, SegmentTemplate>>({});
   const [draft, setDraft] = useState("");
@@ -270,6 +273,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   }, [tab, templates]);
 
   async function saveTemplate() {
+    if (!canManageLeads) return;
     setSavingTpl(true);
     try {
       const updated = await api.segments.saveTemplate(tab, draft);
@@ -282,6 +286,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   }
 
   async function broadcast() {
+    if (!canManageLeads) return;
     if (!draft.trim()) return;
     const targetLabel = sourceFilter !== "ALL" ? "filtered" : `${SEGMENT_LABELS[tab]}`;
     if (!confirm(`Send this message to all ${targetLabel} leads?`)) return;
@@ -367,6 +372,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
       {composing && (
         <ComposeModal
           onClose={() => setComposing(false)}
+          canManageLeads={canManageLeads}
           onSent={() => {
             mutate();
           }}
@@ -393,7 +399,9 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
         <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
           <button
             onClick={() => setComposing(true)}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] sm:px-4"
+            disabled={!canManageLeads}
+            title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
           >
             <Plus size={14} />
             New Message
@@ -455,6 +463,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             type={reengageTrigger}
             broadcastId={reengageTrigger === "broadcast" ? selectedBroadcastId : undefined}
             templates={wabaTemplates}
+            canManage={canManageLeads}
           />
         </div>
       )}
@@ -584,7 +593,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             {sourceFilter === "ALL" && (
               <button
                 onClick={saveTemplate}
-                disabled={savingTpl || draft === (templates[tab]?.message ?? "")}
+            disabled={savingTpl || draft === (templates[tab]?.message ?? "") || !canManageLeads}
                 className="flex items-center gap-2 px-4 py-2 bg-surface-low text-on-surface rounded-xl font-label text-xs font-semibold hover:bg-surface-mid transition-colors disabled:opacity-50"
               >
                 <Save size={14} />
@@ -593,7 +602,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             )}
             <button
               onClick={broadcast}
-              disabled={broadcasting || !draft.trim()}
+            disabled={broadcasting || !draft.trim() || !canManageLeads}
               className="flex items-center gap-2 px-4 py-2 bg-secondary text-white rounded-xl font-label text-xs font-semibold hover:bg-secondary/90 transition-colors disabled:opacity-50"
             >
               <Send size={14} />

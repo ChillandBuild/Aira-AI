@@ -1,10 +1,11 @@
 import logging
 from fastapi import APIRouter, Depends, Query
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_and_role
+from app.dependencies.tenant import require_permission
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_conversations_view = require_permission("conversations.view")
 
 
 @router.get("")
@@ -12,7 +13,7 @@ async def list_conversations(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     folder: str = Query(default="chats", pattern="^(chats|archived|blocked)$"),
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_conversations_view),
 ):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]

@@ -26,6 +26,7 @@ interface LiveAgentStatusProps {
   shiftConfig: ShiftConfig;
   onShiftConfigSave: (config: ShiftConfig) => Promise<void>;
   callingProvider: "telecmi" | "sim_basic";
+  canManageShifts: boolean;
 }
 
 function formatHour(h: number): string {
@@ -166,7 +167,7 @@ export default function LiveAgentStatus({
   statsFrom, statsTo, onStatsFromChange, onStatsToChange,
   onCallersChange, onRemoved,
   shiftConfig, onShiftConfigSave,
-  callingProvider,
+  callingProvider, canManageShifts,
 }: LiveAgentStatusProps) {
   const [editingAgentIdFor, setEditingAgentIdFor] = useState<string | null>(null);
   const [agentIdInputValue, setAgentIdInputValue] = useState<string>("");
@@ -259,6 +260,7 @@ export default function LiveAgentStatus({
   };
 
   const handleSaveShiftConfig = async () => {
+    if (!canManageShifts) return;
     setSavingShiftConfig(true);
     try {
       await onShiftConfigSave(localShiftConfig);
@@ -268,14 +270,11 @@ export default function LiveAgentStatus({
   };
 
   const handleSaveIndividualShift = async () => {
-    if (!individualCallerId) return;
+    if (!canManageShifts || !individualCallerId) return;
     setSavingIndividual(true);
     try {
       await onShiftConfigSave(localShiftConfig);
-      const updated = await api.callers.update(individualCallerId, {
-        shift_start_hour: individualStart,
-        shift_end_hour: individualEnd,
-      });
+      const { data: updated } = await api.team.updateCallerShift(individualCallerId, individualStart, individualEnd);
       onCallersChange((prev) =>
         prev.map((c) =>
           c.id === individualCallerId
@@ -334,6 +333,7 @@ export default function LiveAgentStatus({
           <div className="flex rounded-lg border border-[#e8e3db] overflow-hidden">
             <button
               onClick={() => { setLocalShiftConfig((prev) => ({ ...prev, shift_mode: "common" })); setIndividualCallerId(""); }}
+              disabled={!canManageShifts}
               className={`px-3 py-1 text-xs font-bold transition-colors ${
                 localShiftConfig.shift_mode === "common"
                   ? "bg-primary text-white"
@@ -344,6 +344,7 @@ export default function LiveAgentStatus({
             </button>
             <button
               onClick={() => setLocalShiftConfig((prev) => ({ ...prev, shift_mode: "individual" }))}
+              disabled={!canManageShifts}
               className={`px-3 py-1 text-xs font-bold transition-colors ${
                 localShiftConfig.shift_mode === "individual"
                   ? "bg-primary text-white"
@@ -358,6 +359,7 @@ export default function LiveAgentStatus({
           {localShiftConfig.shift_mode === "individual" && (
             <select
               value={individualCallerId}
+              disabled={!canManageShifts}
               onChange={(e) => {
                 const id = e.target.value;
                 setIndividualCallerId(id);
@@ -381,6 +383,7 @@ export default function LiveAgentStatus({
             <span className="text-[#78716c] font-medium">Start:</span>
             <select
               value={localShiftConfig.shift_mode === "individual" && individualCallerId ? individualStart : localShiftConfig.shift_start_hour}
+              disabled={!canManageShifts}
               onChange={(e) => {
                 const val = parseInt(e.target.value);
                 if (localShiftConfig.shift_mode === "individual" && individualCallerId) {
@@ -398,6 +401,7 @@ export default function LiveAgentStatus({
             <span className="text-[#78716c] font-medium ml-1">End:</span>
             <select
               value={localShiftConfig.shift_mode === "individual" && individualCallerId ? individualEnd : localShiftConfig.shift_end_hour}
+              disabled={!canManageShifts}
               onChange={(e) => {
                 const val = parseInt(e.target.value);
                 if (localShiftConfig.shift_mode === "individual" && individualCallerId) {
@@ -417,11 +421,12 @@ export default function LiveAgentStatus({
           {/* Single Save button */}
           <button
             onClick={localShiftConfig.shift_mode === "individual" && individualCallerId ? handleSaveIndividualShift : handleSaveShiftConfig}
-            disabled={savingShiftConfig || savingIndividual}
+            disabled={savingShiftConfig || savingIndividual || !canManageShifts}
+            title={canManageShifts ? "Save shift hours" : "Read-only role: shift changes are disabled"}
             className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
           >
             {(savingShiftConfig || savingIndividual) ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
-            Save
+            {canManageShifts ? "Save" : "Save Disabled"}
           </button>
         </div>
       </div>

@@ -18,11 +18,14 @@ import ShiftTimeline from "./sections/ShiftTimeline";
 import QaReviewFeed from "./sections/QaReviewFeed";
 import BulkAssignment from "./sections/BulkAssignment";
 import LeadProfileModal from "./sections/LeadProfileModal";
+import { useAuthRole } from "../../contexts/AuthRoleContext";
 
 type SortField =
   | "name" | "calls_today" | "connect_rate" | "avg_talk_seconds" | "idle_minutes_today" | "overall_score";
 
 export default function PerformanceView({ callers, adminCaller }: { callers: Caller[]; adminCaller?: Caller | null }) {
+  const { role, permissions } = useAuthRole();
+  const canManageTeam = role === "owner" || permissions.includes("team.manage");
   const [stats, setStats] = useState<TelecallingAnalyticsExtended | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [callersList, setCallersList] = useState<Caller[]>(callers);
@@ -104,16 +107,10 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
   }, []);
 
   async function handleShiftConfigSave(config: typeof shiftConfig) {
-    const auth = await getAuthHeaders();
-    const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...auth },
-      body: JSON.stringify(config),
-    });
-    if (res.ok) {
-      setShiftConfig(config);
-      toast.success("Shift config saved");
-    }
+    if (!canManageTeam) return;
+    const updated = await api.team.updateShiftConfig(config);
+    setShiftConfig(updated);
+    toast.success("Shift config saved");
   }
 
   const handleUpdateTarget = async (callerId: string) => {
@@ -219,6 +216,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         shiftConfig={shiftConfig}
         onShiftConfigSave={handleShiftConfigSave}
         callingProvider={callingProvider}
+        canManageShifts={canManageTeam}
       />
 
       {/* Selection indicator */}

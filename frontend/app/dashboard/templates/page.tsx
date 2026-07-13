@@ -268,25 +268,13 @@ export default function TemplatesPage() {
               Carousel
             </Link>
           </div>
-          {canManageTemplates ? (
-            <Link
-              href="/dashboard/templates/new"
-              className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
-            >
-              <Plus size={14} />
-              Create Template
-            </Link>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="w-full py-2.5 bg-primary text-white rounded-xl font-label text-xs font-bold opacity-45 flex items-center justify-center gap-1.5"
-              title="Read-only role: template creation is disabled"
-            >
-              <Plus size={14} />
-              Create Disabled
-            </button>
-          )}
+          <Link
+            href="/dashboard/templates/new"
+            className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
+          >
+            <Plus size={14} />
+            Create Template
+          </Link>
         </div>
       </div>
 

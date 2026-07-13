@@ -95,9 +95,10 @@ interface ReengagementBuilderProps {
   type: "broadcast" | "inbound";
   broadcastId?: string;
   templates: WabaTemplate[];
+  canManage?: boolean;
 }
 
-export default function ReengagementBuilder({ type, broadcastId, templates }: ReengagementBuilderProps) {
+export default function ReengagementBuilder({ type, broadcastId, templates, canManage = false }: ReengagementBuilderProps) {
   const [steps, setSteps] = useState<ReengagementStep[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -162,6 +163,7 @@ export default function ReengagementBuilder({ type, broadcastId, templates }: Re
   }
 
   async function addStep() {
+    if (!canManage) return;
     if (delayHours < 1 || delayHours > MAX_DELAY) {
       toast.error(`Delay must be between 1 and ${MAX_DELAY} hours`);
       return;
@@ -210,6 +212,7 @@ export default function ReengagementBuilder({ type, broadcastId, templates }: Re
   }
 
   async function removeStep(id: string) {
+    if (!canManage) return;
     if (!confirm("Remove this message from the sequence?")) return;
     try {
       await api.reengagement.deleteStep(id);
@@ -310,7 +313,7 @@ export default function ReengagementBuilder({ type, broadcastId, templates }: Re
                   >
                     {expandedLog === s.id ? "Hide history" : "History"}
                   </button>
-                  <button onClick={() => removeStep(s.id)} className="text-xs text-red-500 hover:text-red-700">
+                  <button onClick={() => removeStep(s.id)} disabled={!canManage} className="text-xs text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">
                     Remove
                   </button>
                 </div>
@@ -453,15 +456,15 @@ export default function ReengagementBuilder({ type, broadcastId, templates }: Re
             <button onClick={() => { setShowAdd(false); resetForm(); }} className="rounded-xl px-4 py-2 text-sm text-on-surface-muted">
               Cancel
             </button>
-            <button onClick={addStep} className="rounded-xl bg-on-surface px-5 py-2 text-sm text-surface">
-              Save message
+            <button onClick={addStep} disabled={!canManage} title={canManage ? "Save message" : "Read-only role: saving is disabled"} className="rounded-xl bg-on-surface px-5 py-2 text-sm text-surface disabled:cursor-not-allowed disabled:opacity-40">
+              {canManage ? "Save message" : "Save Disabled"}
             </button>
           </div>
         </div>
       ) : (
         <button
           onClick={() => setShowAdd(true)}
-          disabled={type === "broadcast" && !broadcastId}
+          disabled={!canManage || (type === "broadcast" && !broadcastId)}
           className="w-full rounded-xl border-2 border-dashed border-on-surface/20 py-3 text-sm text-on-surface-muted hover:border-on-surface/40 disabled:opacity-40"
         >
           + Add message

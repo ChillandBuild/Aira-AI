@@ -2325,21 +2325,19 @@ export default function OutboundLeadsPage() {
                 <RefreshCw size={14} className={cn("transition-transform", tagsListLoading && "animate-spin")} />
                 Refresh
               </button>
-              {canManageOutbound && (
-                <button
-                  onClick={() => setShowCreateTag((p) => !p)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2.5 rounded-xl font-label text-sm font-semibold transition-colors border",
-                    showCreateTag ? "bg-violet-50 border-violet-200 text-violet-700" : "bg-surface border-surface-mid text-on-surface hover:border-violet-300"
-                  )}
-                >
-                  <Plus size={16} />{showCreateTag ? "Cancel" : "New Tag"}
-                </button>
-              )}
+              <button
+                onClick={() => setShowCreateTag((p) => !p)}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2.5 rounded-xl font-label text-sm font-semibold transition-colors border",
+                  showCreateTag ? "bg-violet-50 border-violet-200 text-violet-700" : "bg-surface border-surface-mid text-on-surface hover:border-violet-300"
+                )}
+              >
+                <Plus size={16} />{showCreateTag ? "Cancel" : "New Tag"}
+              </button>
             </div>
           </div>
 
-          {showCreateTag && canManageOutbound && (
+          {showCreateTag && (
             <div className="bg-surface rounded-2xl p-4 shadow-card ring-1 ring-[#c4c7c7]/15">
               <p className="font-label text-sm font-semibold text-on-surface mb-3">Create Tag</p>
               <div className="flex flex-col sm:flex-row gap-3 items-end">
@@ -2349,7 +2347,7 @@ export default function OutboundLeadsPage() {
                     type="text"
                     value={newTagName}
                     onChange={(e) => setNewTagName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+                    onKeyDown={(e) => e.key === "Enter" && canManageOutbound && handleCreateTag()}
                     placeholder="e.g. Biscuits, Ice Cream"
                     className="w-full px-3 py-2 rounded-lg border border-surface-mid bg-surface-low font-label text-sm text-on-surface placeholder:text-on-surface-muted/50 focus:outline-none focus:ring-2 focus:ring-violet-400"
                   />
@@ -2377,8 +2375,8 @@ export default function OutboundLeadsPage() {
                     <span className="font-mono text-xs text-on-surface-muted shrink-0">{customTagColor || newTagColor}</span>
                   </div>
                 </div>
-                <button onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim()} className="px-4 py-2 rounded-xl bg-primary text-white font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 flex items-center gap-2">
-                  {creatingTag && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}Create
+                <button onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim() || !canManageOutbound} title={canManageOutbound ? "Create tag" : "Read-only role: saving is disabled"} className="px-4 py-2 rounded-xl bg-primary text-white font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 flex items-center gap-2">
+                  {creatingTag && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}{canManageOutbound ? "Create" : "Create Disabled"}
                 </button>
               </div>
             </div>

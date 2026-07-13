@@ -3,7 +3,7 @@ import mimetypes
 from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import require_permission
 from app.services.meta_cloud import (
     upload_media_to_meta,
     send_media_message,
@@ -12,6 +12,7 @@ from app.services.meta_cloud import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_conversations_reply = require_permission("conversations.reply")
 
 # Max file sizes in bytes
 _MAX_IMAGE_BYTES = 5 * 1024 * 1024       # 5 MB
@@ -51,13 +52,14 @@ async def send_media_to_lead(
     lead_id: UUID,
     file: UploadFile = File(...),
     caption: str = Form(""),
-    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_conversations_reply),
 ):
     """
     Upload a file and send it as a WhatsApp media message to a lead.
     Supports: images (JPG, PNG, WEBP), documents (PDF, DOCX, XLSX, PPTX, CSV, TXT),
               audio (MP3, OGG, AAC, WAV, AMR), video (MP4).
     """
+    tenant_id = ctx["tenant_id"]
     db = get_supabase()
 
     # --- Fetch lead ---

@@ -63,7 +63,8 @@ function SharedInboxEmpty() {
 }
 
 export default function ConversationsPage() {
-  const { callerId } = useAuthRole();
+  const { callerId, role, permissions } = useAuthRole();
+  const canReplyToConversations = role === "owner" || permissions.includes("conversations.reply");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selected, setSelected] = useState<Lead | null>(null);
   const [error, setError] = useState(false);
@@ -161,6 +162,7 @@ export default function ConversationsPage() {
   // Archiving/blocking changes which folder a lead belongs to, so it leaves the
   // current list. Optimistically remove; reload on failure.
   function handleArchive(id: string) {
+    if (!canReplyToConversations) return;
     setLeads((prev) => prev.filter((l) => l.id !== id));
     if (selected?.id === id) setSelected(null);
     api.leads.archive(id)
@@ -203,6 +205,7 @@ export default function ConversationsPage() {
           onReply={handleEscalationReply}
           onCountChange={setEscalationCount}
           currentCallerId={callerId}
+          canReplyToConversations={canReplyToConversations}
         />
       </div>
     );
@@ -226,6 +229,7 @@ export default function ConversationsPage() {
           onPin={handlePin}
           onPinSelected={handlePinSelected}
           onArchive={handleArchive}
+          canArchive={canReplyToConversations}
           onBlock={handleBlock}
           folder={folder}
           onDeleted={(deletedIds) => {

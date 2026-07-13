@@ -4,13 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_and_role
+from app.dependencies.tenant import get_tenant_and_role, require_permission
 from app.services.entitlements import add_one_month, get_billing_period
 from datetime import date
 from app.services.subscription_requests import submit_request
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_subscription_manage = require_permission("subscription.manage")
 
 
 @router.get("/catalog")
@@ -80,9 +81,7 @@ class SubmitRequestPayload(BaseModel):
 
 
 @router.post("/requests")
-def create_subscription_request(payload: SubmitRequestPayload, ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can manage the subscription")
+def create_subscription_request(payload: SubmitRequestPayload, ctx: dict = Depends(require_subscription_manage)):
     if not payload.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 

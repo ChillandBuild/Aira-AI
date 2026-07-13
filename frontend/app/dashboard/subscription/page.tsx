@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, CreditCard, Activity, ArrowRight } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { CartBuilder, SubscriptionItem } from "../subscriptions/CartBuilder";
+import { useAuthRole } from "../contexts/AuthRoleContext";
 
 interface CatalogRow { feature_key: string; display_name: string }
 interface UsageMetric { metric: string; used: number; included: number; hard_cap: number | null }
@@ -62,6 +63,8 @@ function UsageMeterRow({ item }: { item: UsageMetric }) {
 }
 
 export default function SubscriptionPage() {
+  const { role, permissions } = useAuthRole();
+  const canManageSubscription = role === "owner" || permissions.includes("subscription.manage");
   const [me, setMe] = useState<MeResponse | null>(null);
   const [catalog, setCatalog] = useState<CatalogRow[]>([]);
   const [showAddon, setShowAddon] = useState(false);
@@ -114,7 +117,7 @@ export default function SubscriptionPage() {
             <p className="mt-2 text-sm text-ink-muted">We&apos;ll notify you as soon as it&apos;s reviewed.</p>
           </div>
         ) : (
-          <CartBuilder mode="initial" existingItems={me.items} onSubmitted={load} />
+          <CartBuilder mode="initial" existingItems={me.items} onSubmitted={load} canSubmit={canManageSubscription} />
         )}
       </div>
     );
@@ -185,11 +188,12 @@ export default function SubscriptionPage() {
             periodStart={me.period_start}
             periodEnd={me.period_end}
             onSubmitted={() => { setShowAddon(false); load(); }}
+            canSubmit={canManageSubscription}
           />
         </div>
       ) : (
-        <button onClick={() => setShowAddon(true)} className="btn-primary flex items-center gap-1.5">
-          Request more <ArrowRight size={14} />
+        <button onClick={() => setShowAddon(true)} disabled={!canManageSubscription} title={canManageSubscription ? "Request additional capacity" : "Read-only role: subscription requests are disabled"} className="btn-primary flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40">
+          {canManageSubscription ? "Request more" : "Request Disabled"} <ArrowRight size={14} />
         </button>
       )}
     </div>

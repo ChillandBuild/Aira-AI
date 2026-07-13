@@ -5,6 +5,7 @@ import { api, Lead, Message } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import {
   Bot, User, CheckCircle2, Send, PowerOff, Power,
   AlertTriangle, Pencil, MessageCircle, Trash2,
@@ -233,6 +234,8 @@ export function ChatThread({
   onLeadUpdate?: (updated: Lead) => void;
   onBack?: () => void;
 }) {
+  const { role, permissions } = useAuthRole();
+  const canReplyToConversations = role === "owner" || permissions.includes("conversations.reply");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState<Lead>(lead);
@@ -352,7 +355,7 @@ export function ChatThread({
 
   async function sendReply() {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (!canReplyToConversations || !text || sending) return;
     setSending(true);
     setSendError(null);
     try {
@@ -369,7 +372,7 @@ export function ChatThread({
   }
 
   async function sendMedia() {
-    if (!selectedFile || sending) return;
+    if (!canReplyToConversations || !selectedFile || sending) return;
     setSending(true);
     setSendError(null);
     try {
@@ -481,7 +484,7 @@ export function ChatThread({
   const isTelegram = current.source === "telegram";
   const isFacebook = current.source === "facebook";
   const isWhatsApp = !isInstagram && !isTelegram && !isFacebook;
-  const canSendMedia = !aiEnabled && isWhatsApp;
+  const canSendMedia = canReplyToConversations && !aiEnabled && isWhatsApp;
 
   const lastInbound = [...messages].reverse().find((m) => m.direction === "inbound");
   const hoursSinceInbound = lastInbound
@@ -693,9 +696,9 @@ export function ChatThread({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }
               }}
-              placeholder={isRecording ? "Recording… tap 🔴 to stop" : "Type a message…"}
               rows={1}
-              disabled={sending || isRecording}
+              disabled={!canReplyToConversations || sending || isRecording}
+              placeholder={canReplyToConversations ? (isRecording ? "Recording… tap 🔴 to stop" : "Type a message…") : "Read-only conversation"}
               className="flex-1 bg-transparent font-body text-[13.5px] resize-none focus:outline-none disabled:opacity-50 max-h-28 leading-relaxed"
               style={{ minHeight: "24px" }}
               onInput={(e) => {
@@ -720,8 +723,9 @@ export function ChatThread({
 
             <button
               onClick={sendReply}
-              disabled={sending || !draft.trim() || isRecording}
-              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 hover:bg-primary/90 disabled:opacity-40 transition-colors"
+              disabled={!canReplyToConversations || sending || !draft.trim() || isRecording}
+              title={canReplyToConversations ? "Send message" : "You have read-only access to conversations"}
+              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
             >
               <Send size={13} />
             </button>

@@ -3,10 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_and_role
+from app.dependencies.tenant import require_permission
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_leads_view = require_permission("leads.view")
+require_leads_manage = require_permission("leads.manage")
 
 
 class ReengagementStepCreate(BaseModel):
@@ -27,10 +29,8 @@ class ReengagementStepCreate(BaseModel):
 def list_steps(
     type: str | None = None,
     broadcast_id: str | None = None,
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_leads_view),
 ):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can manage re-engagement")
     db = get_supabase()
     q = db.table("reengagement_steps").select("*").eq("tenant_id", ctx["tenant_id"])
     if type:
@@ -45,10 +45,8 @@ def list_steps(
 @router.post("/steps")
 def create_step(
     payload: ReengagementStepCreate,
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_leads_manage),
 ):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can manage re-engagement")
     if payload.type not in ("broadcast", "inbound"):
         raise HTTPException(status_code=400, detail="Invalid step type")
     if payload.message_type not in ("freeform", "template"):
@@ -85,10 +83,8 @@ def create_step(
 @router.get("/logs")
 def list_logs(
     step_id: str | None = None,
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_leads_view),
 ):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can view re-engagement logs")
     db = get_supabase()
     q = (
         db.table("reengagement_logs")
@@ -102,9 +98,7 @@ def list_logs(
 
 
 @router.post("/trigger-now")
-async def trigger_now(ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can trigger re-engagement")
+async def trigger_now(ctx: dict = Depends(require_leads_manage)):
     from app.services.reengagement_service import process_due_reengagements
     fired = await process_due_reengagements()
     return {"fired": fired}
@@ -113,10 +107,8 @@ async def trigger_now(ctx: dict = Depends(get_tenant_and_role)):
 @router.delete("/steps/{step_id}")
 def delete_step(
     step_id: str,
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_leads_manage),
 ):
-    if ctx["role"] != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can manage re-engagement")
     db = get_supabase()
     result = db.table("reengagement_steps").delete().eq("id", step_id).eq("tenant_id", ctx["tenant_id"]).execute()
     if not result.data:

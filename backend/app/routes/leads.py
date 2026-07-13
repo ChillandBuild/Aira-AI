@@ -10,13 +10,16 @@ from groq import Groq
 from pydantic import BaseModel
 from app.config import settings
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, get_owner_tenant_id
+from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, get_owner_tenant_id, require_permission
 from app.models.schemas import Lead, LeadUpdate, LeadWithMessages, Message, PaginatedResponse
 from app.services.ai_reply import send_whatsapp, send_instagram, send_facebook, get_last_send_error
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.assignment import record_assignment_event
 
 logger = logging.getLogger(__name__)
+require_leads_view = require_permission("leads.view")
+require_leads_manage = require_permission("leads.manage")
+require_conversations_reply = require_permission("conversations.reply")
 router = APIRouter()
 
 
@@ -67,7 +70,7 @@ async def list_leads(
     ad_campaign_id: str | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_leads_view),
 ):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
@@ -158,7 +161,7 @@ async def list_leads(
 @router.post("/broadcast")
 async def broadcast_custom_message(
     body: CustomBroadcastRequest,
-    ctx: dict = Depends(get_tenant_and_role),
+    ctx: dict = Depends(require_leads_manage),
 ):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
@@ -775,9 +778,10 @@ async def toggle_pin(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.patch("/{lead_id}/archive")
-async def toggle_archive(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+async def toggle_archive(lead_id: UUID, ctx: dict = Depends(require_conversations_reply)):
     """Toggle a conversation's archived state (inbox tidy — does not stop AI)."""
     db = get_supabase()
+    tenant_id = ctx["tenant_id"]
     cur = db.table("leads").select("archived_at").eq("id", str(lead_id)).eq("tenant_id", tenant_id).maybe_single().execute()
     if not cur.data:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -802,7 +806,12 @@ async def toggle_block(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
 
 
 @router.post("/{lead_id}/send")
-async def send_human_message(lead_id: UUID, payload: HumanMessage, tenant_id: str = Depends(get_tenant_id)):
+async def send_human_message(
+    lead_id: UUID,
+    payload: HumanMessage,
+    ctx: dict = Depends(require_conversations_reply),
+):
+    tenant_id = ctx["tenant_id"]
     content = (payload.content or "").strip()
     if not content:
         raise HTTPException(status_code=400, detail="Message is empty")
@@ -875,8 +884,13 @@ class ComposeMessage(BaseModel):
 
 
 @router.post("/compose")
-async def compose_new_message(payload: ComposeMessage, background_tasks: BackgroundTasks, tenant_id: str = Depends(get_tenant_id)):
+async def compose_new_message(
+    payload: ComposeMessage,
+    background_tasks: BackgroundTasks,
+    ctx: dict = Depends(require_leads_manage),
+):
     """Send a WhatsApp message to any phone — creates lead if it doesn't exist."""
+    tenant_id = ctx["tenant_id"]
     content = (payload.content or "").strip()
     if not content:
         raise HTTPException(status_code=400, detail="Message is empty")

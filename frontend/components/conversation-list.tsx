@@ -88,11 +88,12 @@ interface Props {
   onPinSelected?: (ids: string[]) => void;
   onRefresh?: () => void;
   onArchive?: (id: string) => void;
+  canArchive?: boolean;
   onBlock?: (id: string) => void;
   folder?: "chats" | "archived" | "blocked";
 }
 
-export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, onBlock, folder = "chats" }: Props) {
+export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, canArchive = false, onBlock, folder = "chats" }: Props) {
   const [segment, setSegment] = useState<"A" | "B" | "C" | "D" | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
@@ -534,7 +535,12 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                     {cardMenuId === lead.id && (
                       <div className="absolute right-0 top-full mt-1 w-40 bg-surface border border-surface-mid rounded-xl shadow-xl overflow-hidden z-50 py-1">
                         {onArchive && (
-                          <button onClick={() => { setCardMenuId(null); onArchive(lead.id); }} className="w-full flex items-center gap-2 px-3 py-2 text-left font-body text-[12.5px] text-on-surface hover:bg-surface-low transition-colors">
+                          <button
+                            onClick={() => { setCardMenuId(null); onArchive(lead.id); }}
+                            disabled={!canArchive}
+                            title={canArchive ? undefined : "You have read-only access to conversations"}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left font-body text-[12.5px] text-on-surface hover:bg-surface-low transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                          >
                             <Archive size={14} className="text-on-surface-muted" />
                             {folder === "archived" ? "Unarchive" : "Archive"}
                           </button>
