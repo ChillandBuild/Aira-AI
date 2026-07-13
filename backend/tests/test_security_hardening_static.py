@@ -64,7 +64,10 @@ def test_permission_gated_routers():
         assert "router = APIRouter(dependencies=[Depends(require_" in source
 
     settings_source = read("app/routes/app_settings.py")
-    assert "Depends(require_owner)" in settings_source
+    assert 'require_settings_read = require_permission("settings.view")' in settings_source
+    assert 'require_settings_manage = require_permission("settings.manage")' in settings_source
+    assert "Depends(require_settings_read)" in settings_source
+    assert "Depends(require_settings_manage)" in settings_source
 
 
 def test_segments_ensure_templates_scopes_by_tenant():
