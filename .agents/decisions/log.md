@@ -552,3 +552,10 @@
 - **Live Supabase verification**: The `Aira AI` Supabase project (`ayftynkgmfkaqmmnlmoc`) has `tenant_roles`, the RBAC columns on `tenant_users`, Telecaller role rows for both tenants, tenant_roles RLS policies/grants, and the `subscription_requests.start_date/end_date` columns. A PostgREST schema reload was requested with `notify pgrst, 'reload schema'`.
 - **Caveat**: Live migration history does not list `135_subscription_request_date_range`, `138_tenant_rbac`, or `139_repair_tenant_rbac_schema_cache` even though their functional schema changes are present. Treat this as migration-ledger drift until reconciled.
 - **Verification**: Frontend `npm run typecheck` passed; `py_compile` passed for analytics/static test files; direct static analytics assertions passed; `git diff --check` passed with only LF/CRLF warnings.
+
+---
+
+**2026-07-13 - Backend CI security test aligned with settings RBAC**
+- **Decision**: The settings route security regression test now asserts `settings.view` and `settings.manage` permission gates instead of the older `require_owner` expectation.
+- **Rationale**: Settings are part of the read/write RBAC model. Read-only roles need safe visibility through `settings.view`, while mutations still require `settings.manage`; forcing owner-only would regress the role-based dashboard behavior.
+- **Verification**: Reproduced the failing backend CI locally with CI-like dummy Supabase env values, then reran the focused test and the full backend suite: 396 passed, 3 warnings.

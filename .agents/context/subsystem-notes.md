@@ -219,3 +219,6 @@
 - Frontend SWR/API retry policy must not retry 401/403/404 responses as transient Render wake-ups. Retrying forbidden requests creates repeated console noise and hides real access errors behind cold-start copy.
 - Live Supabase project `Aira AI` (`ayftynkgmfkaqmmnlmoc`) was verified on 2026-07-12: `tenant_roles`, RBAC `tenant_users` columns, tenant_roles policies/grants, Telecaller seed rows, and `subscription_requests.start_date/end_date` exist. `notify pgrst, 'reload schema'` was requested.
 - Migration history drift exists: live migration history does not list `135_subscription_request_date_range`, `138_tenant_rbac`, or `139_repair_tenant_rbac_schema_cache`, even though their schema effects are present. Future schema work should reconcile ledger state deliberately instead of blindly reapplying idempotent files or assuming the ledger is complete.
+
+## Settings RBAC security tests (2026-07-13)
+- `app/routes/app_settings.py` intentionally uses `require_permission("settings.view")` for read endpoints and `require_permission("settings.manage")` for write/activation/config patch endpoints. Do not restore the old `require_owner` assertion in `test_security_hardening_static.py`; that would break the read/write role model and reintroduce backend CI failures after RBAC changes.
