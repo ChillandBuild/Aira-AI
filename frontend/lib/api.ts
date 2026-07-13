@@ -44,6 +44,14 @@ export interface Lead {
   blocked_at?: string | null;
 }
 
+export interface CatalogVariantGroup {
+  id: string;
+  tenant_id: string;
+  name: string;
+  item_type: string;
+  created_at: string;
+}
+
 export interface CatalogItem {
   id: string;
   tenant_id: string;
@@ -53,6 +61,8 @@ export interface CatalogItem {
   status: "draft" | "ready";
   created_at: string;
   updated_at: string;
+  attributes: Record<string, string>;
+  variant_group_id: string | null;
 }
 
 export interface CatalogMedia {
@@ -1268,14 +1278,20 @@ export const api = {
       const res = await apiFetch<{ data: CatalogItem[] }>(`/api/v1/catalog/items${qs}`);
       return res.data || [];
     },
-    createItem: (data: { name: string; item_type: string; description?: string | null }) =>
+    createItem: (data: {
+      name: string;
+      item_type: string;
+      description?: string | null;
+      attributes?: Record<string, string>;
+      variant_group_id?: string | null;
+    }) =>
       apiFetch<CatalogItem>(`/api/v1/catalog/items`, {
         method: "POST",
         body: JSON.stringify(data),
       }),
     updateItem: (
       id: string,
-      data: Partial<Pick<CatalogItem, "name" | "item_type" | "description" | "status">>
+      data: Partial<Pick<CatalogItem, "name" | "item_type" | "description" | "status" | "attributes" | "variant_group_id">>
     ) =>
       apiFetch<CatalogItem>(`/api/v1/catalog/items/${id}`, {
         method: "PATCH",
@@ -1313,6 +1329,19 @@ export const api = {
       apiFetch<CatalogAiRules>(`/api/v1/catalog/ai-rules`, {
         method: "PATCH",
         body: JSON.stringify(data),
+      }),
+    listVariantGroups: async () => {
+      const res = await apiFetch<{ data: CatalogVariantGroup[] }>(`/api/v1/catalog/variant-groups`);
+      return res.data || [];
+    },
+    createVariantGroup: (data: { name: string; item_type?: string }) =>
+      apiFetch<CatalogVariantGroup>(`/api/v1/catalog/variant-groups`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    reindex: () =>
+      apiFetch<{ success: boolean; items_embedded: number; items_total: number }>(`/api/v1/catalog/reindex`, {
+        method: "POST",
       }),
   },
   aiTune: {

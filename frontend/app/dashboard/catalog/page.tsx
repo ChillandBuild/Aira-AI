@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   CheckCircle2,
+  ChevronDown,
   Image as ImageIcon,
+  Layers,
   Loader2,
   Package,
+  Pencil,
   Plus,
   Search,
   Sparkles,
@@ -17,7 +20,7 @@ import {
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { api, CatalogAiRules, CatalogItem, CatalogMedia } from "@/lib/api";
+import { api, CatalogAiRules, CatalogItem, CatalogMedia, CatalogVariantGroup } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 
 type CatalogTab = "items" | "media" | "ai-rules" | "insights";
@@ -93,10 +96,22 @@ export default function CatalogPage() {
 
 function ItemsTab({ canManage }: { canManage: boolean }) {
   const [items, setItems] = useState<CatalogItem[]>([]);
+  const [variantGroups, setVariantGroups] = useState<CatalogVariantGroup[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [groupsError, setGroupsError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<CatalogItem | null>(null);
+  const [isReindexing, setIsReindexing] = useState(false);
+
+  // Variant groups panel state
+  const [newPanelGroupName, setNewPanelGroupName] = useState("");
+  const [newPanelGroupType, setNewPanelGroupType] = useState(ITEM_TYPES[0]);
+  const [isCreatingGroupFromPanel, setIsCreatingGroupFromPanel] = useState(false);
+  const [panelGroupError, setPanelGroupError] = useState<string | null>(null);
 
   async function loadItems(q?: string) {
     setIsLoading(true);
@@ -111,11 +126,35 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
     }
   }
 
+  async function loadVariantGroups() {
+    setIsLoadingGroups(true);
+    setGroupsError(null);
+    try {
+      const data = await api.catalog.listVariantGroups();
+      setVariantGroups(data);
+    } catch (err) {
+      setGroupsError(err instanceof Error ? err.message : "Failed to load variant groups");
+    } finally {
+      setIsLoadingGroups(false);
+    }
+  }
+
   useEffect(() => {
     const handle = setTimeout(() => loadItems(query || undefined), 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
+
+  useEffect(() => {
+    loadVariantGroups();
+  }, []);
+
+  useEffect(() => {
+    if (successMessage) {
+      const t = setTimeout(() => setSuccessMessage(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [successMessage]);
 
   async function handleToggleStatus(item: CatalogItem) {
     if (!canManage) return;
@@ -138,6 +177,43 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
     }
   }
 
+  async function handleReindex() {
+    if (!canManage) return;
+    setIsReindexing(true);
+    setError(null);
+    setSuccessMessage(null);
+    try {
+      const res = await api.catalog.reindex();
+      if (res.success) {
+        setSuccessMessage(`Catalog reindexed successfully! Embedded ${res.items_embedded} of ${res.items_total} items.`);
+      } else {
+        setError("Reindexing failed");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to reindex catalog");
+    } finally {
+      setIsReindexing(false);
+    }
+  }
+
+  async function handleCreateGroupFromPanel() {
+    if (!canManage || !newPanelGroupName.trim()) return;
+    setIsCreatingGroupFromPanel(true);
+    setPanelGroupError(null);
+    try {
+      const newGroup = await api.catalog.createVariantGroup({
+        name: newPanelGroupName.trim(),
+        item_type: newPanelGroupType,
+      });
+      setVariantGroups((prev) => [...prev, newGroup]);
+      setNewPanelGroupName("");
+    } catch (err) {
+      setPanelGroupError(err instanceof Error ? err.message : "Failed to create group");
+    } finally {
+      setIsCreatingGroupFromPanel(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 rounded-card border border-border bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
@@ -156,14 +232,26 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
             />
           </label>
           {canManage && (
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="btn-primary inline-flex items-center justify-center gap-2 self-start md:self-auto"
-            >
-              <Plus size={16} />
-              Add item
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleReindex}
+                disabled={isReindexing}
+                className="btn-ghost border border-border bg-white text-ink inline-flex items-center justify-center gap-2 self-start md:self-auto h-10 px-4 rounded-xl text-sm transition-colors hover:bg-surface-low disabled:opacity-50"
+                title="Reindex catalog items to refresh AI embeddings"
+              >
+                {isReindexing ? <Loader2 size={15} className="animate-spin text-ink-muted" /> : <Sparkles size={15} className="text-primary" />}
+                <span>{isReindexing ? "Reindexing..." : "Reindex"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(true)}
+                className="btn-primary inline-flex items-center justify-center gap-2 self-start md:self-auto"
+              >
+                <Plus size={16} />
+                Add item
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -172,10 +260,100 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
         <div className="rounded-card border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</div>
       )}
 
+      {successMessage && (
+        <div className="rounded-card border border-success/30 bg-success/5 px-4 py-3 text-sm text-success flex justify-between items-center">
+          <span>{successMessage}</span>
+          <button type="button" onClick={() => setSuccessMessage(null)} className="text-success hover:opacity-70">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Variant Groups Panel */}
+      <div className="rounded-card border border-border bg-white p-4 shadow-sm">
+        <details className="group">
+          <summary className="flex cursor-pointer items-center justify-between font-display text-base font-bold text-ink list-none">
+            <span className="flex items-center gap-2">
+              <Layers size={18} className="text-primary" />
+              <span>Variant Groups ({variantGroups.length})</span>
+            </span>
+            <span className="text-ink-muted transition-transform group-open:rotate-180">
+              <ChevronDown size={18} />
+            </span>
+          </summary>
+          <div className="mt-4 border-t border-border-subtle pt-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+              <p className="text-sm text-ink-muted">
+                Group variants (e.g. properties in different locations) so Aira can disambiguate them.
+              </p>
+              {canManage && (
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    value={newPanelGroupName}
+                    onChange={(e) => setNewPanelGroupName(e.target.value)}
+                    className="h-9 rounded-xl border border-border bg-surface-low px-3 text-sm outline-none focus:border-primary w-48"
+                    placeholder="New group name"
+                  />
+                  <select
+                    value={newPanelGroupType}
+                    onChange={(e) => setNewPanelGroupType(e.target.value)}
+                    className="h-9 rounded-xl border border-border bg-surface-low px-3 text-sm outline-none focus:border-primary capitalize"
+                  >
+                    {ITEM_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleCreateGroupFromPanel}
+                    disabled={isCreatingGroupFromPanel || !newPanelGroupName.trim()}
+                    className="btn-primary inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs"
+                  >
+                    <Plus size={12} />
+                    Add Group
+                  </button>
+                </div>
+              )}
+            </div>
+            {panelGroupError && <p className="mb-3 text-sm text-danger">{panelGroupError}</p>}
+            {groupsError && (
+              <p className="mb-3 text-sm text-danger">Failed to load variant groups: {groupsError}</p>
+            )}
+            {isLoadingGroups ? (
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-ink-muted">
+                <Loader2 size={15} className="animate-spin" />
+                Loading variant groups...
+              </div>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {variantGroups.map((group) => {
+                  const count = items.filter((i) => i.variant_group_id === group.id).length;
+                  return (
+                    <div key={group.id} className="rounded-xl border border-border bg-surface-low p-3">
+                      <p className="font-semibold text-ink truncate">{group.name}</p>
+                      <div className="mt-1 flex items-center justify-between text-xs text-ink-muted">
+                        <span className="capitalize">{group.item_type}</span>
+                        <span>{count} {count === 1 ? "item" : "items"}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {variantGroups.length === 0 && !groupsError && (
+                  <p className="text-sm text-ink-muted col-span-full text-center py-4">No variant groups created yet.</p>
+                )}
+              </div>
+            )}
+          </div>
+        </details>
+      </div>
+
       <div className="overflow-x-auto rounded-card border border-border bg-white shadow-sm">
         <div className="min-w-[640px]">
-          <div className="grid grid-cols-[1fr_120px_100px_90px_110px_60px] gap-3 border-b border-border bg-surface-low px-4 py-3 text-xs font-bold uppercase text-ink-muted">
+          <div className="grid grid-cols-[1.2fr_150px_120px_100px_80px_100px_80px] gap-3 border-b border-border bg-surface-low px-4 py-3 text-xs font-bold uppercase text-ink-muted">
             <span>Item</span>
+            <span>Variant Group</span>
             <span>Type</span>
             <span>Status</span>
             <span>Images</span>
@@ -195,8 +373,11 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
           )}
           {!isLoading &&
             items.map((item) => (
-              <div key={item.id} className="grid grid-cols-[1fr_120px_100px_90px_110px_60px] gap-3 border-b border-border-subtle px-4 py-3 text-sm last:border-b-0">
-                <span className="font-semibold text-ink">{item.name}</span>
+              <div key={item.id} className="grid grid-cols-[1.2fr_150px_120px_100px_80px_100px_80px] gap-3 border-b border-border-subtle px-4 py-3 text-sm last:border-b-0">
+                <span className="font-semibold text-ink truncate" title={item.name}>{item.name}</span>
+                <span className="text-ink-muted truncate" title={variantGroups.find((g) => g.id === item.variant_group_id)?.name || "Ungrouped"}>
+                  {variantGroups.find((g) => g.id === item.variant_group_id)?.name || "—"}
+                </span>
                 <span className="capitalize text-ink-muted">{item.item_type}</span>
                 <span>
                   <button
@@ -213,46 +394,131 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
                 </span>
                 <span className="text-ink-muted">—</span>
                 <span className="text-ink-muted">{new Date(item.updated_at).toLocaleDateString()}</span>
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item)}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
-                    aria-label={`Delete ${item.name}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
+                <div className="flex justify-end items-center gap-1">
+                  {canManage && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setEditingItem(item)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-low hover:text-ink"
+                        aria-label={`Edit ${item.name}`}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-danger/10 hover:text-danger"
+                        aria-label={`Delete ${item.name}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             ))}
         </div>
       </div>
 
       {showAddModal && (
-        <AddItemModal
+        <AddEditItemModal
           onClose={() => setShowAddModal(false)}
-          onCreated={(item) => {
+          onSaved={(item) => {
             setItems((prev) => [item, ...prev]);
             setShowAddModal(false);
           }}
+          variantGroups={variantGroups}
+          onGroupCreated={(newGroup) => setVariantGroups((prev) => [...prev, newGroup])}
+        />
+      )}
+
+      {editingItem && (
+        <AddEditItemModal
+          itemToEdit={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSaved={(updated) => {
+            setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
+            setEditingItem(null);
+          }}
+          variantGroups={variantGroups}
+          onGroupCreated={(newGroup) => setVariantGroups((prev) => [...prev, newGroup])}
         />
       )}
     </div>
   );
 }
 
-function AddItemModal({
+function AddEditItemModal({
   onClose,
-  onCreated,
+  onSaved,
+  itemToEdit = null,
+  variantGroups,
+  onGroupCreated,
 }: {
   onClose: () => void;
-  onCreated: (item: CatalogItem) => void;
+  onSaved: (item: CatalogItem) => void;
+  itemToEdit?: CatalogItem | null;
+  variantGroups: CatalogVariantGroup[];
+  onGroupCreated: (group: CatalogVariantGroup) => void;
 }) {
-  const [name, setName] = useState("");
-  const [itemType, setItemType] = useState(ITEM_TYPES[0]);
-  const [description, setDescription] = useState("");
+  const [name, setName] = useState(itemToEdit?.name || "");
+  const [itemType, setItemType] = useState(itemToEdit?.item_type || ITEM_TYPES[0]);
+  const [description, setDescription] = useState(itemToEdit?.description || "");
+  const [variantGroupId, setVariantGroupId] = useState(itemToEdit?.variant_group_id || "");
+
+  const nextAttrId = useRef(0);
+  const [attributes, setAttributes] = useState<{ id: number; key: string; value: string }[]>(() => {
+    if (itemToEdit?.attributes) {
+      const entries = Object.entries(itemToEdit.attributes);
+      return entries.length > 0
+        ? entries.map(([key, value]) => ({ id: nextAttrId.current++, key, value }))
+        : [{ id: nextAttrId.current++, key: "", value: "" }];
+    }
+    return [{ id: nextAttrId.current++, key: "", value: "" }];
+  });
+
+  const [showNewGroupInput, setShowNewGroupInput] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [groupError, setGroupError] = useState<string | null>(null);
+
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function handleCreateGroup() {
+    if (!newGroupName.trim()) return;
+    setIsCreatingGroup(true);
+    setGroupError(null);
+    try {
+      const newGroup = await api.catalog.createVariantGroup({
+        name: newGroupName.trim(),
+        item_type: itemType,
+      });
+      onGroupCreated(newGroup);
+      setVariantGroupId(newGroup.id);
+      setNewGroupName("");
+      setShowNewGroupInput(false);
+    } catch (err) {
+      setGroupError(err instanceof Error ? err.message : "Failed to create group");
+    } finally {
+      setIsCreatingGroup(false);
+    }
+  }
+
+  function handleAddAttribute() {
+    setAttributes((prev) => [...prev, { id: nextAttrId.current++, key: "", value: "" }]);
+  }
+
+  function handleRemoveAttribute(id: number) {
+    setAttributes((prev) => prev.filter((attr) => attr.id !== id));
+  }
+
+  function handleAttributeChange(id: number, field: "key" | "value", val: string) {
+    setAttributes((prev) =>
+      prev.map((attr) => (attr.id === id ? { ...attr, [field]: val } : attr))
+    );
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -262,11 +528,34 @@ function AddItemModal({
     }
     setIsSaving(true);
     setError(null);
+
+    const attrRecord: Record<string, string> = {};
+    for (const attr of attributes) {
+      const k = attr.key.trim();
+      const v = attr.value.trim();
+      if (k) {
+        attrRecord[k] = v;
+      }
+    }
+
     try {
-      const item = await api.catalog.createItem({ name: name.trim(), item_type: itemType, description: description.trim() || null });
-      onCreated(item);
+      let savedItem: CatalogItem;
+      const payload = {
+        name: name.trim(),
+        item_type: itemType,
+        description: description.trim() || null,
+        variant_group_id: variantGroupId || null,
+        attributes: attrRecord,
+      };
+
+      if (itemToEdit) {
+        savedItem = await api.catalog.updateItem(itemToEdit.id, payload);
+      } else {
+        savedItem = await api.catalog.createItem(payload);
+      }
+      onSaved(savedItem);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create item");
+      setError(err instanceof Error ? err.message : "Failed to save item");
     } finally {
       setIsSaving(false);
     }
@@ -274,9 +563,11 @@ function AddItemModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-card bg-white p-5 shadow-xl">
+      <div className="w-full max-w-md rounded-card bg-white p-5 shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-lg font-bold text-ink">Add catalog item</h3>
+          <h3 className="font-display text-lg font-bold text-ink">
+            {itemToEdit ? "Edit catalog item" : "Add catalog item"}
+          </h3>
           <button type="button" onClick={onClose} className="text-ink-muted hover:text-ink" aria-label="Close">
             <X size={18} />
           </button>
@@ -316,6 +607,100 @@ function AddItemModal({
               placeholder="Short description Aira can use when recommending this item"
             />
           </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-ink-muted">Variant Group</label>
+            {!showNewGroupInput ? (
+              <select
+                value={variantGroupId}
+                onChange={(event) => {
+                  const val = event.target.value;
+                  if (val === "__new__") {
+                    setShowNewGroupInput(true);
+                  } else {
+                    setVariantGroupId(val);
+                  }
+                }}
+                className="h-10 w-full rounded-xl border border-border bg-surface-low px-3 text-sm outline-none focus:border-primary cursor-pointer"
+              >
+                <option value="">None (Ungrouped)</option>
+                {variantGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name} ({group.item_type})
+                  </option>
+                ))}
+                <option value="__new__">+ New group</option>
+              </select>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={newGroupName}
+                  onChange={(event) => setNewGroupName(event.target.value)}
+                  className="h-10 flex-1 rounded-xl border border-border bg-surface-low px-3 text-sm outline-none focus:border-primary"
+                  placeholder="New group name"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateGroup}
+                  disabled={isCreatingGroup}
+                  className="btn-primary px-3 text-xs font-semibold shrink-0"
+                >
+                  {isCreatingGroup ? <Loader2 size={12} className="animate-spin" /> : "Create"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNewGroupInput(false);
+                    setNewGroupName("");
+                  }}
+                  className="btn-ghost px-3 text-xs shrink-0"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            {groupError && <p className="mt-1 text-xs text-danger">{groupError}</p>}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-ink-muted">Attributes</label>
+            <div className="space-y-2">
+              {attributes.map((attr) => (
+                <div key={attr.id} className="flex items-center gap-2">
+                  <input
+                    value={attr.key}
+                    onChange={(e) => handleAttributeChange(attr.id, "key", e.target.value)}
+                    className="h-9 flex-1 rounded-xl border border-border bg-surface-low px-3 text-xs outline-none focus:border-primary"
+                    placeholder="Key (e.g. location)"
+                  />
+                  <input
+                    value={attr.value}
+                    onChange={(e) => handleAttributeChange(attr.id, "value", e.target.value)}
+                    className="h-9 flex-1 rounded-xl border border-border bg-surface-low px-3 text-xs outline-none focus:border-primary"
+                    placeholder="Value (e.g. Coimbatore)"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttribute(attr.id)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted hover:bg-danger/10 hover:text-danger"
+                    aria-label="Remove attribute"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleAddAttribute}
+                className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+              >
+                <Plus size={12} />
+                Add attribute
+              </button>
+            </div>
+          </div>
+
           {error && <p className="text-sm text-danger">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button type="button" onClick={onClose} className="btn-ghost px-4 py-2">
@@ -323,7 +708,7 @@ function AddItemModal({
             </button>
             <button type="submit" disabled={isSaving} className="btn-primary inline-flex items-center gap-2 px-4 py-2 disabled:opacity-60">
               {isSaving && <Loader2 size={14} className="animate-spin" />}
-              Add item
+              {itemToEdit ? "Save changes" : "Add item"}
             </button>
           </div>
         </form>
