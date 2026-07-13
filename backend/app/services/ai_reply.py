@@ -7,6 +7,13 @@ from app.db.supabase import get_supabase
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.segmentation import score_to_segment, parse_thresholds
 from app.services.knowledge_service import get_knowledge_context
+from app.services.catalog_retrieval import (
+    contention_set,
+    classify_gate,
+    differing_attribute_directive,
+    broad_browse_directive,
+    match_catalog_items,
+)
 from app.services.assignment import (
     maybe_assign_lead,
     get_inbox_config,
@@ -759,32 +766,54 @@ def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
     return defaults
 
 
-def _build_catalog_context(db, tenant_id: str) -> tuple[str, list[dict], dict[str, dict]]:
-    """Fetch ready catalog items and build the prompt context + tool definitions.
+async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str, list[dict], dict[str, dict], int]:
+    """Fetch relevant catalog items for this message and build the prompt context + tool
+    definitions, gating disambiguation when multiple variants of one item are in contention.
 
-    Returns (catalog_text_block, tool_definitions, items_by_id).
-    catalog_text_block is empty when no items exist or can_recommend is disabled.
+    Returns (catalog_text_block, tool_definitions, items_by_id, max_images_per_reply).
+    catalog_text_block is empty when no items exist or can_recommend is disabled. On any
+    retrieval failure (or when nothing matches), falls back to listing every ready item --
+    today's original behavior -- so a provider hiccup never blocks a reply.
     """
     rules = _load_catalog_ai_rules(db, tenant_id)
     if not rules.get("can_recommend"):
-        return "", [], {}
+        return "", [], {}, 0
 
+    candidates: list[dict] = []
     try:
-        res = (
-            db.table("catalog_items")
-            .select("id,name,item_type,description")
-            .eq("tenant_id", tenant_id)
-            .eq("status", "ready")
-            .order("name")
-            .execute()
-        )
-        items = res.data or []
+        candidates = await match_catalog_items(db, tenant_id, message)
     except Exception as e:
-        logger.warning(f"Failed to load catalog items for tenant {tenant_id}: {e}")
-        return "", [], {}
+        logger.warning(f"Catalog retrieval failed for tenant {tenant_id}, falling back to full catalog: {e}")
 
-    if not items:
-        return "", [], {}
+    directive = ""
+    if candidates:
+        contention = contention_set(candidates)
+        gate = classify_gate(contention)
+        if gate == "confident":
+            items = [contention[0]]
+        elif gate == "same_group":
+            items = []
+            directive = differing_attribute_directive(contention)
+        else:
+            items = []
+            directive = broad_browse_directive(contention)
+    else:
+        try:
+            res = (
+                db.table("catalog_items")
+                .select("id,name,item_type,description")
+                .eq("tenant_id", tenant_id)
+                .eq("status", "ready")
+                .order("name")
+                .execute()
+            )
+            items = res.data or []
+        except Exception as e:
+            logger.warning(f"Failed to load catalog items for tenant {tenant_id}: {e}")
+            return "", [], {}, 0
+
+    if not items and not directive:
+        return "", [], {}, 0
 
     items_by_id = {row["id"]: row for row in items}
     item_lines: list[str] = []
@@ -794,21 +823,23 @@ def _build_catalog_context(db, tenant_id: str) -> tuple[str, list[dict], dict[st
             line += f" — {row['description']}"
         item_lines.append(line)
 
-    text_block = (
-        "\n\nCATALOG:\nWhen the customer asks about what's available or shows interest in a type of "
-        "product/service, use your catalog below. Mention items by name — and when you do, call the "
-        "recommend_catalog_item tool with the item's [id] so the customer receives its photo automatically.\n"
-        + "\n".join(item_lines)
-    )
+    text_block = ""
+    if item_lines:
+        text_block = (
+            "\n\nCATALOG:\nWhen the customer asks about what's available or shows interest in a type of "
+            "product/service, use your catalog below. Mention items by name — and when you do, call the "
+            "recommend_catalog_item tool with the item's [id] so the customer receives its photo automatically.\n"
+            + "\n".join(item_lines)
+        )
+    text_block += directive
 
-    can_send = rules.get("can_send_images", True)
     max_images = rules.get("max_images_per_reply", 3)
     tools: list[dict] = []
-    if can_send:
+    if rules.get("can_send_images", True) and items:
         tools = [dict(_CATALOG_RECOMMEND_TOOL)]
         text_block += f"\n\nYou may recommend up to {max_images} item(s) with photos per reply."
 
-    return text_block, tools, items_by_id
+    return text_block, tools, items_by_id, max_images
 
 
 async def generate_reply(
@@ -960,8 +991,11 @@ async def generate_reply(
 
     catalog_tools: list[dict] = []
     catalog_items_by_id: dict[str, dict] = {}
+    catalog_max_images = 0
     try:
-        catalog_context, catalog_tools, catalog_items_by_id = _build_catalog_context(db, tenant_id)
+        catalog_context, catalog_tools, catalog_items_by_id, catalog_max_images = await _build_catalog_context(
+            db, tenant_id, message
+        )
     except Exception:
         catalog_context = ""
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
@@ -1175,7 +1209,7 @@ async def generate_reply(
         # Send catalog recommendation images as follow-up WhatsApp media
         if _wa_phone and sid and catalog_images_to_send:
             from app.services.meta_cloud import upload_media_to_meta, send_media_message
-            for img_filename, img_bytes in catalog_images_to_send:
+            for img_filename, img_bytes in catalog_images_to_send[:catalog_max_images]:
                 try:
                     media_id = await upload_media_to_meta(
                         file_bytes=img_bytes,

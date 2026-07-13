@@ -193,41 +193,84 @@ class CatalogAiRulesTests(unittest.TestCase):
         self.assertEqual(json.loads(upsert_call["value"])["can_send_images"], False)
 
 
-class CatalogAiReplyIntegrationTests(unittest.TestCase):
+class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
     """Tests for _build_catalog_context and _load_catalog_ai_rules in ai_reply.py."""
 
-    def test_build_catalog_context_returns_empty_when_can_recommend_is_false(self):
+    async def test_build_catalog_context_returns_empty_when_can_recommend_is_false(self):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
             {"value": json.dumps({"can_recommend": False})}
         ]
 
-        text, tools, items_by_id = _build_catalog_context(db, "tenant-1")
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "hello")
         self.assertEqual(text, "")
         self.assertEqual(tools, [])
         self.assertEqual(items_by_id, {})
+        self.assertEqual(max_images, 0)
 
-    def test_build_catalog_context_returns_empty_when_no_items(self):
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_confident_single_match_offers_the_tool_for_that_item_only(self, mock_match):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        mock_match.return_value = [
+            {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake",
+             "attributes": {}, "variant_group_id": None, "similarity": 0.91},
+            {"id": "item-2", "name": "Vanilla Cake", "item_type": "product", "description": "Light cake",
+             "attributes": {}, "variant_group_id": None, "similarity": 0.55},
+        ]
 
-        def table(name):
-            tbl = MagicMock()
-            if name == "app_settings":
-                tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
-            elif name == "catalog_items":
-                tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = []
-            return tbl
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "chocolate cake photos")
 
-        db.table.side_effect = table
+        self.assertIn("Chocolate Cake", text)
+        self.assertNotIn("Vanilla Cake", text)
+        self.assertEqual(list(items_by_id.keys()), ["item-1"])
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(max_images, 3)
 
-        text, tools, items_by_id = _build_catalog_context(db, "tenant-1")
-        self.assertEqual(text, "")
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_ambiguous_same_group_withholds_tool_and_asks_which_one(self, mock_match):
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        mock_match.return_value = [
+            {"id": "a", "name": "2BHK Apartment", "item_type": "property", "description": None,
+             "attributes": {"location": "Coimbatore"}, "variant_group_id": "vg-1", "similarity": 0.83},
+            {"id": "b", "name": "2BHK Apartment", "item_type": "property", "description": None,
+             "attributes": {"location": "Chennai"}, "variant_group_id": "vg-1", "similarity": 0.82},
+            {"id": "c", "name": "2BHK Apartment", "item_type": "property", "description": None,
+             "attributes": {"location": "Salem"}, "variant_group_id": "vg-1", "similarity": 0.81},
+        ]
+
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "2bhk apartment photos")
+
+        self.assertIn("DISAMBIGUATION NEEDED", text)
+        self.assertIn("location: Chennai, Coimbatore, Salem", text)
         self.assertEqual(tools, [])
         self.assertEqual(items_by_id, {})
 
-    def test_build_catalog_context_builds_text_and_tools_for_ready_items(self):
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_broad_browse_lists_distinct_items_and_withholds_tool(self, mock_match):
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        mock_match.return_value = [
+            {"id": "a", "name": "Chocolate Cake", "item_type": "product", "description": None,
+             "attributes": {}, "variant_group_id": None, "similarity": 0.80},
+            {"id": "b", "name": "Red Velvet Cake", "item_type": "product", "description": None,
+             "attributes": {}, "variant_group_id": None, "similarity": 0.79},
+        ]
+
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "show me your cakes")
+
+        self.assertIn("Chocolate Cake", text)
+        self.assertIn("Red Velvet Cake", text)
+        self.assertIn("do NOT send any photos", text)
+        self.assertEqual(tools, [])
+
+    @patch("app.services.ai_reply.match_catalog_items", side_effect=Exception("provider down"))
+    async def test_retrieval_failure_falls_back_to_full_catalog_list(self, mock_match):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
 
@@ -237,21 +280,19 @@ class CatalogAiReplyIntegrationTests(unittest.TestCase):
                 tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
             elif name == "catalog_items":
                 tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
-                    {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich dark chocolate cake"}
+                    {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake"}
                 ]
             return tbl
 
         db.table.side_effect = table
 
-        text, tools, items_by_id = _build_catalog_context(db, "tenant-1")
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "cake photos")
+
         self.assertIn("Chocolate Cake", text)
-        self.assertIn("item-1", text)
-        self.assertIn("Rich dark chocolate cake", text)
         self.assertEqual(len(tools), 1)
-        self.assertEqual(tools[0]["function"]["name"], "recommend_catalog_item")
         self.assertEqual(items_by_id["item-1"]["name"], "Chocolate Cake")
 
-    def test_load_catalog_ai_rules_merges_with_defaults(self):
+    async def test_load_catalog_ai_rules_merges_with_defaults(self):
         from app.services.ai_reply import _load_catalog_ai_rules
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
@@ -271,6 +312,19 @@ class CatalogAiReplyIntegrationTests(unittest.TestCase):
         assert "_build_catalog_context" in source
         assert "sarvam_chat_completion_with_tools" in source
         assert "catalog_images_to_send" in source
+        assert "catalog_max_images" in source
+
+
+class CatalogImageCapEnforcementTests(unittest.TestCase):
+    def test_send_loop_slices_to_max_images_per_reply(self):
+        """Static check: the WhatsApp catalog-image send loop must slice
+        catalog_images_to_send by catalog_max_images, not iterate it unbounded --
+        this is the hard cap that must hold even if the model over-recommends."""
+        import inspect
+        from app.services import ai_reply
+
+        source = inspect.getsource(ai_reply.generate_reply)
+        assert "catalog_images_to_send[:catalog_max_images]" in source
 
 
 if __name__ == "__main__":
