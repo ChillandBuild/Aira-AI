@@ -26,16 +26,33 @@ type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "ai_me
 type ReplyModelId =
   | "sarvam-30b"
   | "sarvam-105b"
-  | "meta-llama/llama-3.3-70b-instruct"
-  | "google/gemini-2.5-flash-lite"
-  | "google/gemini-3.1-flash-lite";
+  | "google/gemini-3.1-flash-lite"
+  | "google/gemini-3.5-flash"
+  | "openai/gpt-5.4-nano-2026-03-17"
+  | "openai/gpt-5-nano-2025-08-07"
+  | "groq/llama-3.3-70b-versatile";
 
-const REPLY_MODELS: { id: ReplyModelId; label: string; provider: string; costTier: "$" | "$$" | "$$$"; desc: string }[] = [
-  { id: "sarvam-30b", label: "Sarvam 30B", provider: "Sarvam", costTier: "$", desc: "Default. Best fit for Tamil/Hindi/Hinglish conversations." },
-  { id: "sarvam-105b", label: "Sarvam 105B", provider: "Sarvam", costTier: "$$", desc: "Sarvam's flagship model. Stronger reasoning, same Indic-language focus as the 30B." },
-  { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B", provider: "Groq via OpenRouter", costTier: "$", desc: "Cheapest option. Fast, strong in English, weaker on Indic-language nuance." },
-  { id: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", provider: "Google via OpenRouter", costTier: "$", desc: "Cheap and fast, good general quality." },
-  { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite", provider: "Google via OpenRouter", costTier: "$", desc: "Newer generation, similar cost to 2.5 Flash-Lite." },
+type AiProviderKey = "sarvam" | "gemini" | "openai" | "groq";
+
+// Each provider is integrated directly (no OpenRouter middleman) and requires its own
+// API key configured per client -- there is no platform-wide fallback key for any
+// provider, including Sarvam. If a client hasn't had a provider's key set up here, that
+// provider's models simply won't work for them.
+const AI_PROVIDERS: { key: AiProviderKey; label: string; credKey: string; settingKey: string }[] = [
+  { key: "sarvam", label: "Sarvam", credKey: "ai_sarvam", settingKey: "sarvam_api_key" },
+  { key: "gemini", label: "Gemini", credKey: "ai_gemini", settingKey: "gemini_api_key" },
+  { key: "openai", label: "OpenAI", credKey: "ai_openai", settingKey: "openai_api_key" },
+  { key: "groq", label: "Groq", credKey: "ai_groq", settingKey: "groq_api_key" },
+];
+
+const REPLY_MODELS: { id: ReplyModelId; label: string; provider: AiProviderKey; costTier: "$" | "$$" | "$$$"; desc: string }[] = [
+  { id: "sarvam-30b", label: "Sarvam 30B", provider: "sarvam", costTier: "$", desc: "Default. Best fit for Tamil/Hindi/Hinglish conversations." },
+  { id: "sarvam-105b", label: "Sarvam 105B", provider: "sarvam", costTier: "$$", desc: "Sarvam's flagship model. Stronger reasoning, same Indic-language focus as the 30B." },
+  { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite", provider: "gemini", costTier: "$", desc: "Cheap and fast, good general quality." },
+  { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash", provider: "gemini", costTier: "$$", desc: "Newer generation, stronger reasoning than Flash Lite." },
+  { id: "openai/gpt-5.4-nano-2026-03-17", label: "GPT-5.4 Nano", provider: "openai", costTier: "$", desc: "Cheapest OpenAI tier, fast responses." },
+  { id: "openai/gpt-5-nano-2025-08-07", label: "GPT-5 Nano", provider: "openai", costTier: "$", desc: "Previous-generation nano tier." },
+  { id: "groq/llama-3.3-70b-versatile", label: "Llama 3.3 70B", provider: "groq", costTier: "$", desc: "Cheapest option overall. Fast, strong in English, weaker on Indic-language nuance." },
 ];
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
@@ -142,11 +159,15 @@ interface CallingProviderData {
 const CRED_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp (Meta)",
   telecalling: "TeleCMI",
-  ai: "Sarvam AI",
   telegram: "Telegram",
   instagram: "Instagram",
   facebook: "Facebook",
 };
+
+// Legacy/superseded credential_status keys, kept in the API response for backward
+// compatibility but no longer shown in the generic Credential Status grid -- per-provider
+// AI keys now render inside the AI Integrations section instead.
+const CRED_KEYS_HANDLED_ELSEWHERE = new Set(["ai", "ai_sarvam", "ai_gemini", "ai_openai", "ai_groq"]);
 
 function usageMetricCount(usage: ConfigData["usage"], metricNames: string[]) {
   const counters = Array.isArray(usage) ? usage : usage?.counters;
@@ -187,8 +208,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
   const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
   const [mediaRecommendationSaving, setMediaRecommendationSaving] = useState<MediaRecommendationSettingKey | null>(null);
-  const [sarvamApiKeyDraft, setSarvamApiKeyDraft] = useState("");
-  const [sarvamSaving, setSarvamSaving] = useState(false);
+  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<AiProviderKey, string>>({ sarvam: "", gemini: "", openai: "", groq: "" });
+  const [apiKeySaving, setApiKeySaving] = useState<AiProviderKey | null>(null);
   const [replyModelSaving, setReplyModelSaving] = useState<ReplyModelId | null>(null);
 
   async function updateRetrievalMode(mode: RetrievalMode) {
@@ -372,33 +393,34 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     }
   }
 
-  async function updateSarvamApiKey() {
-    const value = sarvamApiKeyDraft.trim();
+  async function updateProviderApiKey(provider: AiProviderKey) {
+    const meta = AI_PROVIDERS.find((p) => p.key === provider)!;
+    const value = apiKeyDrafts[provider].trim();
     if (!config || !value) return;
-    setSarvamSaving(true);
+    setApiKeySaving(provider);
     setError(null);
     try {
       await apiFetch<{ status: string }>(
         `/api/v1/operator/clients/${tenantId}/config`,
         {
           method: "PATCH",
-          body: JSON.stringify({ settings: { sarvam_api_key: value } })
+          body: JSON.stringify({ settings: { [meta.settingKey]: value } })
         }
       );
-      setSarvamApiKeyDraft("");
+      setApiKeyDrafts((prev) => ({ ...prev, [provider]: "" }));
       setConfig({
         ...config,
         credentials_status: {
           ...config.credentials_status,
-          ai: "configured",
+          [meta.credKey]: "configured",
         }
       });
-      toast.success("Client Sarvam API key saved.");
+      toast.success(`${meta.label} API key saved.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update Sarvam API key");
-      toast.error("Failed to update Sarvam API key.");
+      setError(e instanceof Error ? e.message : `Failed to update ${meta.label} API key`);
+      toast.error(`Failed to update ${meta.label} API key.`);
     } finally {
-      setSarvamSaving(false);
+      setApiKeySaving(null);
     }
   }
 
@@ -594,39 +616,16 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           Credential Status
         </h3>
         <div className="grid grid-cols-2 gap-4">
-          {Object.entries(config.credentials_status).map(([provider, status]) => (
-            <div key={provider} className="bg-white rounded-card border border-border p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-ink">{CRED_LABELS[provider] || provider}</p>
-                {statusBadge(status)}
+          {Object.entries(config.credentials_status)
+            .filter(([provider]) => !CRED_KEYS_HANDLED_ELSEWHERE.has(provider))
+            .map(([provider, status]) => (
+              <div key={provider} className="bg-white rounded-card border border-border p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-ink">{CRED_LABELS[provider] || provider}</p>
+                  {statusBadge(status)}
+                </div>
               </div>
-            </div>
           ))}
-        </div>
-        <div className="mt-4 rounded-card border border-border bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end">
-            <label className="block min-w-0 flex-1">
-              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-                <Sparkles size={13} /> Client Sarvam API Key
-              </span>
-              <input
-                type="password"
-                value={sarvamApiKeyDraft}
-                onChange={(e) => setSarvamApiKeyDraft(e.target.value)}
-                placeholder={config.credentials_status.ai === "configured" ? "Configured - enter a new key to replace" : "Paste this client's Sarvam API key"}
-                disabled={sarvamSaving}
-                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary disabled:opacity-60"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={updateSarvamApiKey}
-              disabled={sarvamSaving || !sarvamApiKeyDraft.trim()}
-              className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:text-ink-muted"
-            >
-              {sarvamSaving ? <Loader2 size={16} className="animate-spin" /> : "Save Key"}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -810,50 +809,82 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
-      {/* Conversational Reply Model */}
+      {/* AI Integrations */}
       <div>
         <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
           <Sparkles size={16} className="text-ink-muted" />
-          Conversational Reply Model
+          AI Integrations
         </h3>
-        <p className="mb-3 text-xs leading-relaxed text-ink-muted">
-          Controls which AI model generates auto-replies and reengagement messages for this client.
+        <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+          Each provider is integrated directly and needs its own API key for this client — there is no shared platform key. A provider's models won't work for this client until its key is added below. The highlighted model is what currently generates auto-replies, reengagement messages, and product-recommendation replies.
         </p>
-        <p className="mb-3 text-xs leading-relaxed text-ink-muted">
-          Note: product-recommendation replies (when catalog tools are active) always use Sarvam, regardless of this setting.
-        </p>
-        <div className="grid gap-4 md:grid-cols-3">
-          {REPLY_MODELS.map((option) => {
-            const selected = config.settings.ai_reply_model === option.id;
-            const saving = replyModelSaving === option.id;
+        <div className="flex flex-col gap-5">
+          {AI_PROVIDERS.map((providerMeta) => {
+            const status = config.credentials_status[providerMeta.credKey] || "not_configured";
+            const draft = apiKeyDrafts[providerMeta.key];
+            const savingKey = apiKeySaving === providerMeta.key;
+            const models = REPLY_MODELS.filter((m) => m.provider === providerMeta.key);
             return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => updateReplyModel(option.id)}
-                disabled={!!replyModelSaving || selected}
-                className={`rounded-card border p-4 text-left shadow-sm transition-all ${
-                  selected
-                    ? "border-primary bg-primary-light text-ink ring-1 ring-primary/10"
-                    : "border-border bg-white hover:border-primary-muted"
-                } ${replyModelSaving && !saving ? "opacity-70" : ""} disabled:cursor-default`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 justify-between">
-                      <p className="text-sm font-semibold text-ink">{option.label}</p>
-                      {saving && <Loader2 size={14} className="animate-spin text-primary" />}
-                      {selected && !saving && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-success/10 text-success">
-                          Active
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-[11px] font-medium text-ink-muted">{option.provider} · {option.costTier}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-ink-muted">{option.desc}</p>
-                  </div>
+              <div key={providerMeta.key} className="rounded-card border border-border bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-ink">{providerMeta.label}</p>
+                  {statusBadge(status)}
                 </div>
-              </button>
+                <div className="flex flex-col gap-3 md:flex-row md:items-end mb-4">
+                  <label className="block min-w-0 flex-1">
+                    <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                      <Sparkles size={13} /> {providerMeta.label} API Key
+                    </span>
+                    <input
+                      type="password"
+                      value={draft}
+                      onChange={(e) => setApiKeyDrafts((prev) => ({ ...prev, [providerMeta.key]: e.target.value }))}
+                      placeholder={status === "configured" ? "Configured — enter a new key to replace" : `Paste this client's ${providerMeta.label} API key`}
+                      disabled={savingKey}
+                      className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary disabled:opacity-60"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => updateProviderApiKey(providerMeta.key)}
+                    disabled={savingKey || !draft.trim()}
+                    className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:text-ink-muted"
+                  >
+                    {savingKey ? <Loader2 size={16} className="animate-spin" /> : "Save Key"}
+                  </button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {models.map((option) => {
+                    const selected = config.settings.ai_reply_model === option.id;
+                    const saving = replyModelSaving === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => updateReplyModel(option.id)}
+                        disabled={!!replyModelSaving || selected}
+                        className={`rounded-card border p-3 text-left shadow-sm transition-all ${
+                          selected
+                            ? "border-primary bg-primary-light text-ink ring-1 ring-primary/10"
+                            : "border-border bg-white hover:border-primary-muted"
+                        } ${replyModelSaving && !saving ? "opacity-70" : ""} disabled:cursor-default`}
+                      >
+                        <div className="flex items-center gap-2 justify-between">
+                          <p className="text-sm font-semibold text-ink">{option.label}</p>
+                          {saving && <Loader2 size={14} className="animate-spin text-primary" />}
+                          {selected && !saving && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-success/10 text-success">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[11px] font-medium text-ink-muted">{option.costTier}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-ink-muted">{option.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
         </div>

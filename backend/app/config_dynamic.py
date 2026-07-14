@@ -63,6 +63,16 @@ def save_setting(key: str, value: str, tenant_id: Optional[str] = None) -> None:
     _CACHE[cache_key] = (time.monotonic(), value)
 
 
+def require_tenant_setting(key: str, tenant_id: Optional[str]) -> str:
+    """Like get_setting, but with no fallback of any kind -- raises if this tenant hasn't
+    explicitly configured the key. Used for per-tenant AI provider credentials, where each
+    provider must be independently configured per client with no shared/platform default."""
+    value = get_setting(key, tenant_id=tenant_id)
+    if not value:
+        raise RuntimeError(f"{key} not configured for this client")
+    return value
+
+
 def invalidate_cache(key: Optional[str] = None) -> None:
     if key:
         keys_to_remove = [cache_key for cache_key in _CACHE if cache_key.endswith(f":{key}")]

@@ -69,6 +69,8 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("telecmi_user_id", False), ("telecmi_secret", True),
     ("telecmi_callerid", False), ("telecmi_recording_base_url", False),
     ("sarvam_api_key", True), ("groq_api_key", True),
+    ("gemini_api_key", True), ("openai_api_key", True),
+    ("ai_reply_model", False),
     ("telegram_bot_token", True),
     ("instagram_page_id", False), ("instagram_access_token", True),
     ("facebook_page_id", False), ("facebook_access_token", True),
@@ -994,6 +996,10 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "whatsapp": cred_status(["meta_phone_number_id", "meta_access_token", "meta_waba_id", "meta_webhook_verify_token"]),
             "telecalling": cred_status(["telecmi_user_id", "telecmi_secret", "telecmi_callerid"]),
             "ai": cred_status(["sarvam_api_key"]),
+            "ai_sarvam": cred_status(["sarvam_api_key"]),
+            "ai_gemini": cred_status(["gemini_api_key"]),
+            "ai_openai": cred_status(["openai_api_key"]),
+            "ai_groq": cred_status(["groq_api_key"]),
             "telegram": cred_status(["telegram_bot_token"]),
             "instagram": cred_status(["instagram_page_id", "instagram_access_token"]),
             "facebook": cred_status(["facebook_page_id", "facebook_access_token"]),
@@ -1043,6 +1049,8 @@ def update_client_config(
     secret_keys = {
         "sarvam_api_key",
         "groq_api_key",
+        "gemini_api_key",
+        "openai_api_key",
         "meta_access_token",
         "meta_webhook_verify_token",
         "meta_app_secret",
@@ -1065,6 +1073,10 @@ def update_client_config(
     from app.config_dynamic import invalidate_cache
     invalidate_cache()
 
+    redacted_settings = {
+        key: ("***redacted***" if key in secret_keys else value)
+        for key, value in payload.settings.items()
+    }
     record_audit_event(
         db,
         tenant_id=tenant_id,
@@ -1073,7 +1085,7 @@ def update_client_config(
         action="operator.client_config.updated",
         target_type="app_settings",
         target_id=tenant_id,
-        metadata={"settings": payload.settings},
+        metadata={"settings": redacted_settings},
     )
 
     return {"status": "ok"}

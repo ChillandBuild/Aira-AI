@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     groq_api_key: str | None = None
     sarvam_api_key: str | None = None
     gemini_api_key: str | None = None
-    openrouter_api_key: str | None = None
     jina_api_key: str | None = None
     telecmi_user_id: str | None = None
     telecmi_secret: str | None = None
@@ -43,7 +42,6 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _warn_missing_secrets(self) -> "Settings":
         critical = {
-            "openrouter_api_key": "Non-Sarvam conversational reply models will fail",
             "sarvam_api_key": "WhatsApp AI replies, call transcription, and knowledge image OCR will fail",
             "gemini_api_key": "WhatsApp AI voice replies will fail",
             "groq_api_key": "Scoring, call summaries, AI tuning, lead briefs, and conversation compaction will fail",

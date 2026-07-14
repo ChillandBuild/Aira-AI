@@ -89,3 +89,130 @@ async def test_gemini_text_to_speech_raises_when_api_key_missing():
     ):
         with pytest.raises(RuntimeError, match="not configured"):
             await gemini_client.gemini_text_to_speech(text="Hi")
+
+
+def test_messages_to_gemini_input_splits_system_and_converts_roles():
+    system, steps = gemini_client._messages_to_gemini_input([
+        {"role": "system", "content": "You are helpful."},
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+        {"role": "user", "content": "bye"},
+    ])
+    assert system == "You are helpful."
+    assert steps == [
+        {"type": "user_input", "content": [{"type": "text", "text": "hi"}]},
+        {"type": "model_output", "content": [{"type": "text", "text": "hello"}]},
+        {"type": "user_input", "content": [{"type": "text", "text": "bye"}]},
+    ]
+
+
+def test_messages_to_gemini_input_no_system_message():
+    system, steps = gemini_client._messages_to_gemini_input([{"role": "user", "content": "hi"}])
+    assert system is None
+    assert steps == [{"type": "user_input", "content": [{"type": "text", "text": "hi"}]}]
+
+
+def test_openai_tools_to_gemini_flattens_function_wrapper():
+    result = gemini_client._openai_tools_to_gemini([{
+        "type": "function",
+        "function": {"name": "recommend_catalog_item", "description": "desc", "parameters": {"type": "object"}},
+    }])
+    assert result == [{
+        "type": "function", "name": "recommend_catalog_item", "description": "desc", "parameters": {"type": "object"},
+    }]
+
+
+def test_gemini_output_text_skips_thought_steps():
+    steps = [
+        {"type": "thought", "signature": "abc"},
+        {"type": "model_output", "content": [{"type": "text", "text": "Hi there!"}]},
+    ]
+    assert gemini_client._gemini_output_text(steps) == "Hi there!"
+
+
+def test_gemini_output_text_empty_when_no_model_output():
+    assert gemini_client._gemini_output_text([{"type": "thought", "signature": "abc"}]) == ""
+
+
+def test_gemini_steps_to_tool_calls_converts_function_call_steps():
+    steps = [
+        {"type": "thought"},
+        {"type": "function_call", "id": "xyz", "name": "recommend_catalog_item", "arguments": {"item_id": "abc-123"}},
+    ]
+    result = gemini_client._gemini_steps_to_tool_calls(steps)
+    assert result == [{
+        "id": "xyz", "type": "function",
+        "function": {"name": "recommend_catalog_item", "arguments": '{"item_id": "abc-123"}'},
+    }]
+
+
+def test_gemini_steps_to_tool_calls_empty_when_no_function_calls():
+    assert gemini_client._gemini_steps_to_tool_calls([{"type": "model_output", "content": []}]) == []
+
+
+@pytest.mark.asyncio
+async def test_gemini_chat_completion_sends_translated_request_and_parses_text():
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {"steps": [{"type": "model_output", "content": [{"type": "text", "text": "Hello!"}]}]}
+    mock_instance = AsyncMock()
+    mock_instance.post = AsyncMock(return_value=resp)
+
+    with patch("app.services.gemini_client.require_tenant_setting", return_value="test-key"), \
+         patch("app.services.gemini_client.httpx.AsyncClient") as mock_client_cls:
+        mock_client_cls.return_value.__aenter__.return_value = mock_instance
+        text = await gemini_client.gemini_chat_completion(
+            messages=[{"role": "system", "content": "Be nice."}, {"role": "user", "content": "hi"}],
+            model="gemini-3.1-flash-lite",
+            max_tokens=100,
+            tenant_id="tenant-1",
+        )
+
+    assert text == "Hello!"
+    call_kwargs = mock_instance.post.call_args.kwargs
+    assert call_kwargs["json"]["model"] == "gemini-3.1-flash-lite"
+    assert call_kwargs["json"]["system_instruction"] == "Be nice."
+    assert call_kwargs["json"]["input"] == [{"type": "user_input", "content": [{"type": "text", "text": "hi"}]}]
+    assert call_kwargs["json"]["generation_config"] == {"temperature": 0.4, "max_output_tokens": 100}
+
+
+@pytest.mark.asyncio
+async def test_gemini_chat_completion_raises_when_tenant_key_missing():
+    with patch(
+        "app.services.gemini_client.require_tenant_setting",
+        side_effect=RuntimeError("gemini_api_key not configured for this client"),
+    ):
+        with pytest.raises(RuntimeError, match="not configured"):
+            await gemini_client.gemini_chat_completion(messages=[{"role": "user", "content": "hi"}], model="gemini-3.1-flash-lite", tenant_id="tenant-1")
+
+
+@pytest.mark.asyncio
+async def test_gemini_chat_completion_with_tools_parses_content_and_tool_calls():
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {
+        "steps": [
+            {"type": "model_output", "content": [{"type": "text", "text": "Sure!"}]},
+            {"type": "function_call", "id": "call1", "name": "recommend_catalog_item", "arguments": {"item_id": "abc-123"}},
+        ]
+    }
+    mock_instance = AsyncMock()
+    mock_instance.post = AsyncMock(return_value=resp)
+
+    with patch("app.services.gemini_client.require_tenant_setting", return_value="test-key"), \
+         patch("app.services.gemini_client.httpx.AsyncClient") as mock_client_cls:
+        mock_client_cls.return_value.__aenter__.return_value = mock_instance
+        content, tool_calls = await gemini_client.gemini_chat_completion_with_tools(
+            messages=[{"role": "user", "content": "show me cakes"}],
+            tools=[{"type": "function", "function": {"name": "recommend_catalog_item", "parameters": {}}}],
+            model="gemini-3.1-flash-lite",
+            tenant_id="tenant-1",
+        )
+
+    assert content == "Sure!"
+    assert tool_calls == [{
+        "id": "call1", "type": "function",
+        "function": {"name": "recommend_catalog_item", "arguments": '{"item_id": "abc-123"}'},
+    }]
+    call_kwargs = mock_instance.post.call_args.kwargs
+    assert call_kwargs["json"]["tools"] == [{"type": "function", "name": "recommend_catalog_item", "description": None, "parameters": {}}]
