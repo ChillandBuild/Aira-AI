@@ -380,7 +380,7 @@ export default function RolesPage() {
       )}
 
       {tab === "roles" ? (
-        <div className="grid gap-5 xl:min-h-[calc(100vh-9rem)] xl:grid-cols-[380px_minmax(0,1fr)]">
+        <div className="grid gap-5 xl:h-[calc(100vh-9rem)] xl:grid-cols-[380px_minmax(0,1fr)]">
           <aside className="card rounded-3xl p-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" size={16} />
@@ -426,7 +426,7 @@ export default function RolesPage() {
             </div>
           </aside>
 
-          <form onSubmit={saveRole} className="card flex min-h-0 flex-col overflow-hidden rounded-3xl p-0 xl:min-h-[calc(100vh-9rem)]">
+          <form onSubmit={saveRole} className="card flex min-h-0 flex-col overflow-hidden rounded-3xl p-0 xl:h-full">
             <div className="shrink-0 border-b border-border-subtle bg-gradient-to-br from-surface-subtle via-white to-primary-light/20 px-5 py-3 sm:px-6">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
