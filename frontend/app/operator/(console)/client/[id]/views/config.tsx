@@ -731,11 +731,9 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           <Sparkles size={16} className="text-ink-muted" />
           AI Integrations
         </h3>
-        {/* eslint-disable react/no-unescaped-entities */}
         <p className="mb-4 text-xs leading-relaxed text-ink-muted">
           Each provider is integrated directly and needs its own API key for this client — there is no shared platform key. A provider&apos;s models won&apos;t work for this client until its key is added below. The highlighted model is what currently generates auto-replies, reengagement messages, and product-recommendation replies.
         </p>
-        {/* eslint-enable react/no-unescaped-entities */}
         <div className="flex flex-col gap-5">
           {AI_PROVIDERS.map((providerMeta) => {
             const status = config.credentials_status[providerMeta.credKey] || "not_configured";
