@@ -179,7 +179,7 @@ class CatalogMediaTests(unittest.TestCase):
         def table(name):
             tbl = MagicMock()
             if name == "catalog_media":
-                tbl.select.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+                tbl.select.return_value.eq.return_value.order.return_value.order.return_value.execute.return_value.data = [
                     {"id": "media-1", "catalog_item_id": "item-1", "storage_path": "path/a.jpg", "label": "a.jpg"}
                 ]
             elif name == "catalog_items":
