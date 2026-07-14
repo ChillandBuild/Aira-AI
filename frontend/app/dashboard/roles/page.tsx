@@ -380,7 +380,7 @@ export default function RolesPage() {
       )}
 
       {tab === "roles" ? (
-        <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <div className="grid gap-5 xl:min-h-[calc(100vh-9rem)] xl:grid-cols-[380px_minmax(0,1fr)]">
           <aside className="card rounded-3xl p-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" size={16} />
@@ -426,8 +426,8 @@ export default function RolesPage() {
             </div>
           </aside>
 
-          <form onSubmit={saveRole} className="card flex min-h-0 flex-col overflow-hidden rounded-3xl p-0 xl:max-h-[calc(100vh-12rem)]">
-            <div className="shrink-0 border-b border-border-subtle bg-gradient-to-br from-surface-subtle via-white to-primary-light/20 px-5 py-4 sm:px-6">
+          <form onSubmit={saveRole} className="card flex min-h-0 flex-col overflow-hidden rounded-3xl p-0 xl:min-h-[calc(100vh-9rem)]">
+            <div className="shrink-0 border-b border-border-subtle bg-gradient-to-br from-surface-subtle via-white to-primary-light/20 px-5 py-3 sm:px-6">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h2 className="font-display text-base font-black text-ink">
@@ -441,10 +441,10 @@ export default function RolesPage() {
                   </button>
                 )}
               </div>
-              <div className="mt-4">
+              <div className="mt-3">
                 <label className="mb-1.5 block font-label text-[9px] font-black uppercase tracking-wider text-ink-muted">Role title</label>
                 <input
-                  className="input h-10 bg-white text-sm"
+                  className="input h-9 bg-white text-sm"
                   placeholder="Example: Telecaller"
                   value={roleDraft.name}
                   onChange={(e) => setRoleDraft((d) => ({ ...d, name: e.target.value }))}
@@ -454,7 +454,7 @@ export default function RolesPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto overflow-x-auto p-4 sm:p-5">
+            <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto overflow-x-auto p-3 sm:p-4">
               <table className="w-full min-w-[760px] border-separate border-spacing-0 overflow-hidden rounded-2xl border border-border-subtle bg-white">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-surface-subtle shadow-[0_1px_0_0_var(--color-border-subtle)]">
@@ -473,11 +473,11 @@ export default function RolesPage() {
                     const writeAvailable = effectiveWriteKeys.length > 0;
                     return (
                       <tr key={module.id} className="border-t border-border-subtle">
-                        <td className="border-t border-border-subtle px-4 py-4">
+                        <td className="border-t border-border-subtle px-4 py-3">
                           <p className="font-body text-sm font-bold text-ink">{module.title}</p>
                           <p className="mt-1 font-body text-xs text-ink-muted">{module.description}</p>
                         </td>
-                        <td className="border-t border-border-subtle px-4 py-4 text-center">
+                        <td className="border-t border-border-subtle px-4 py-3 text-center">
                           <input
                             type="checkbox"
                             checked={readChecked}
@@ -487,7 +487,7 @@ export default function RolesPage() {
                             aria-label={`${module.title} read access`}
                           />
                         </td>
-                        <td className="border-t border-border-subtle px-4 py-4 text-center">
+                        <td className="border-t border-border-subtle px-4 py-3 text-center">
                           <input
                             type="checkbox"
                             checked={writeChecked}
@@ -497,7 +497,7 @@ export default function RolesPage() {
                             aria-label={`${module.title} write access`}
                           />
                         </td>
-                        <td className="border-t border-border-subtle px-4 py-4 text-right">
+                        <td className="border-t border-border-subtle px-4 py-3 text-right">
                           <button
                             type="button"
                             onClick={() => clearModule(module)}
@@ -514,7 +514,7 @@ export default function RolesPage() {
               </table>
             </div>
 
-            <div className="flex shrink-0 flex-col gap-3 border-t border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex shrink-0 flex-col gap-3 border-t border-border-subtle px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="font-body text-xs text-ink-muted">{moduleActiveCount(roleDraft.permissions)} modules selected for this role.</p>
               {canWrite ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
