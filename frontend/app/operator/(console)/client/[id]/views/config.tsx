@@ -160,16 +160,16 @@ interface CallingProviderData {
 
 const CRED_LABELS: Record<string, string> = {
   whatsapp: "WhatsApp (Meta)",
-  telecalling: "TeleCMI",
   telegram: "Telegram",
   instagram: "Instagram",
   facebook: "Facebook",
 };
 
 // Legacy/superseded credential_status keys, kept in the API response for backward
-// compatibility but no longer shown in the generic Credential Status grid -- per-provider
-// AI keys now render inside the AI Integrations section instead.
-const CRED_KEYS_HANDLED_ELSEWHERE = new Set(["ai", "ai_sarvam", "ai_gemini", "ai_openai", "ai_groq"]);
+// compatibility but shown elsewhere instead of the generic Messaging Channels grid --
+// per-provider AI keys render inside the AI Integrations section, and telecalling status
+// is already covered by the Calling Provider card above.
+const CRED_KEYS_HANDLED_ELSEWHERE = new Set(["ai", "ai_sarvam", "ai_gemini", "ai_openai", "ai_groq", "telecalling"]);
 
 function usageMetricCount(usage: ConfigData["usage"], metricNames: string[]) {
   const counters = Array.isArray(usage) ? usage : usage?.counters;
@@ -611,11 +611,11 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </div>
       )}
 
-      {/* Credential Status */}
+      {/* Messaging Channels */}
       <div>
         <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
           <Shield size={16} className="text-ink-muted" />
-          Credential Status
+          Messaging Channels
         </h3>
         <div className="grid grid-cols-2 gap-4">
           {Object.entries(config.credentials_status)
