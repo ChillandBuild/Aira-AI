@@ -30,7 +30,8 @@ type ReplyModelId =
   | "google/gemini-3.5-flash"
   | "openai/gpt-5.4-nano-2026-03-17"
   | "openai/gpt-5-nano-2025-08-07"
-  | "groq/llama-3.3-70b-versatile";
+  | "groq/llama-3.3-70b-versatile"
+  | "groq/qwen/qwen3-32b";
 
 type AiProviderKey = "sarvam" | "gemini" | "openai" | "groq";
 
@@ -52,7 +53,8 @@ const REPLY_MODELS: { id: ReplyModelId; label: string; provider: AiProviderKey; 
   { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash", provider: "gemini", costTier: "$$", desc: "Newer generation, stronger reasoning than Flash Lite." },
   { id: "openai/gpt-5.4-nano-2026-03-17", label: "GPT-5.4 Nano", provider: "openai", costTier: "$", desc: "Cheapest OpenAI tier, fast responses." },
   { id: "openai/gpt-5-nano-2025-08-07", label: "GPT-5 Nano", provider: "openai", costTier: "$", desc: "Previous-generation nano tier." },
-  { id: "groq/llama-3.3-70b-versatile", label: "Llama 3.3 70B", provider: "groq", costTier: "$", desc: "Cheapest option overall. Fast, strong in English, weaker on Indic-language nuance." },
+  { id: "groq/llama-3.3-70b-versatile", label: "Llama 3.3 70B", provider: "groq", costTier: "$", desc: "Cheapest option overall. Fast, strong in English, weaker on Indic-language nuance. Tamil isn't in Llama's officially supported language list." },
+  { id: "groq/qwen/qwen3-32b", label: "Qwen 3 32B", provider: "groq", costTier: "$", desc: "Live-tested for Tanglish -- handles Tamil-English code-mixing well, including tool calls. Slightly slower than Llama (runs a hidden reasoning pass first)." },
 ];
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
