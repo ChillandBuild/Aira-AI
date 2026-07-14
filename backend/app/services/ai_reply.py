@@ -755,8 +755,13 @@ _CATALOG_RECOMMEND_TOOL = {
 
 
 def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
-    """Read catalog_ai_rules from app_settings, merged with defaults."""
+    """Read catalog_ai_rules (the client's own preferences, set via the catalog dashboard)
+    merged with defaults, then apply the operator's controls on top: ai_media_recommendations_enabled
+    is a hard master switch (client's can_recommend has no effect while it's off), and
+    catalog_ai_max_images_ceiling caps max_images_per_reply regardless of what the client
+    chose -- the client can pick anything under the ceiling, never over it."""
     defaults = {"can_recommend": True, "can_send_images": True, "max_images_per_reply": 3}
+    rules = dict(defaults)
     try:
         row = (
             db.table("app_settings")
@@ -768,10 +773,26 @@ def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
         )
         if row.data:
             stored = json.loads(row.data[0]["value"])
-            return {**defaults, **stored}
+            rules = {**defaults, **stored}
     except Exception:
         logger.warning(f"Failed to load catalog_ai_rules for tenant {tenant_id}")
-    return defaults
+
+    operator_enabled = get_setting("ai_media_recommendations_enabled", fallback="true", tenant_id=tenant_id) == "true"
+    if not operator_enabled:
+        rules["can_recommend"] = False
+
+    ceiling_raw = get_setting("catalog_ai_max_images_ceiling", fallback="5", tenant_id=tenant_id) or "5"
+    try:
+        ceiling = max(0, int(float(ceiling_raw)))
+    except (TypeError, ValueError):
+        ceiling = 5
+    try:
+        client_max = int(rules.get("max_images_per_reply", 3))
+    except (TypeError, ValueError):
+        client_max = 3
+    rules["max_images_per_reply"] = min(client_max, ceiling)
+
+    return rules
 
 
 async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str, list[dict], dict[str, dict], int]:

@@ -205,18 +205,23 @@ class CatalogAiRulesTests(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.clear()
 
+    @patch("app.routes.catalog.get_setting", side_effect=lambda key, fallback=None, tenant_id=None: fallback)
     @patch("app.routes.catalog.get_supabase")
-    def test_get_ai_rules_returns_defaults_when_no_row_exists(self, mock_get_db):
+    def test_get_ai_rules_returns_defaults_when_no_row_exists(self, mock_get_db, mock_get_setting):
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
         mock_get_db.return_value = db
 
         res = self.client.get("/api/v1/catalog/ai-rules")
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json(), {"can_recommend": True, "can_send_images": True, "max_images_per_reply": 3})
+        self.assertEqual(res.json(), {
+            "can_recommend": True, "can_send_images": True, "max_images_per_reply": 3,
+            "feature_enabled": True, "max_images_ceiling": 5,
+        })
 
+    @patch("app.routes.catalog.get_setting", side_effect=lambda key, fallback=None, tenant_id=None: fallback)
     @patch("app.routes.catalog.get_supabase")
-    def test_patch_ai_rules_merges_partial_update(self, mock_get_db):
+    def test_patch_ai_rules_merges_partial_update(self, mock_get_db, mock_get_setting):
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
             {"value": json.dumps({"can_recommend": True, "can_send_images": True, "max_images_per_reply": 3})}
@@ -225,10 +230,41 @@ class CatalogAiRulesTests(unittest.TestCase):
 
         res = self.client.patch("/api/v1/catalog/ai-rules", json={"can_send_images": False})
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json(), {"can_recommend": True, "can_send_images": False, "max_images_per_reply": 3})
+        self.assertEqual(res.json(), {
+            "can_recommend": True, "can_send_images": False, "max_images_per_reply": 3,
+            "feature_enabled": True, "max_images_ceiling": 5,
+        })
 
         upsert_call = db.table.return_value.upsert.call_args[0][0]
         self.assertEqual(json.loads(upsert_call["value"])["can_send_images"], False)
+
+    @patch("app.routes.catalog.get_setting")
+    @patch("app.routes.catalog.get_supabase")
+    def test_patch_ai_rules_rejects_max_images_above_operator_ceiling(self, mock_get_db, mock_get_setting):
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        mock_get_db.return_value = db
+        mock_get_setting.side_effect = lambda key, fallback=None, tenant_id=None: {
+            "ai_media_recommendations_enabled": "true", "catalog_ai_max_images_ceiling": "5",
+        }.get(key, fallback)
+
+        res = self.client.patch("/api/v1/catalog/ai-rules", json={"max_images_per_reply": 8})
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("cannot exceed 5", res.json()["detail"])
+
+    @patch("app.routes.catalog.get_setting")
+    @patch("app.routes.catalog.get_supabase")
+    def test_patch_ai_rules_allows_max_images_at_or_under_ceiling(self, mock_get_db, mock_get_setting):
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        mock_get_db.return_value = db
+        mock_get_setting.side_effect = lambda key, fallback=None, tenant_id=None: {
+            "ai_media_recommendations_enabled": "true", "catalog_ai_max_images_ceiling": "5",
+        }.get(key, fallback)
+
+        res = self.client.patch("/api/v1/catalog/ai-rules", json={"max_images_per_reply": 5})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["max_images_per_reply"], 5)
 
 
 class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
@@ -357,10 +393,53 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
             {"value": json.dumps({"can_recommend": False})}
         ]
 
-        rules = _load_catalog_ai_rules(db, "tenant-1")
+        with patch("app.services.ai_reply.get_setting", return_value=None):
+            rules = _load_catalog_ai_rules(db, "tenant-1")
         self.assertFalse(rules["can_recommend"])
         self.assertTrue(rules["can_send_images"])  # from defaults
         self.assertEqual(rules["max_images_per_reply"], 3)  # from defaults
+
+    async def test_load_catalog_ai_rules_operator_switch_off_overrides_client_can_recommend(self):
+        from app.services.ai_reply import _load_catalog_ai_rules
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+            {"value": json.dumps({"can_recommend": True})}
+        ]
+
+        def fake_get_setting(key, fallback=None, tenant_id=None):
+            return {"ai_media_recommendations_enabled": "false"}.get(key, fallback)
+
+        with patch("app.services.ai_reply.get_setting", side_effect=fake_get_setting):
+            rules = _load_catalog_ai_rules(db, "tenant-1")
+        self.assertFalse(rules["can_recommend"])
+
+    async def test_load_catalog_ai_rules_clamps_max_images_to_operator_ceiling(self):
+        from app.services.ai_reply import _load_catalog_ai_rules
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+            {"value": json.dumps({"max_images_per_reply": 9})}
+        ]
+
+        def fake_get_setting(key, fallback=None, tenant_id=None):
+            return {"ai_media_recommendations_enabled": "true", "catalog_ai_max_images_ceiling": "4"}.get(key, fallback)
+
+        with patch("app.services.ai_reply.get_setting", side_effect=fake_get_setting):
+            rules = _load_catalog_ai_rules(db, "tenant-1")
+        self.assertEqual(rules["max_images_per_reply"], 4)
+
+    async def test_load_catalog_ai_rules_leaves_client_value_under_ceiling_untouched(self):
+        from app.services.ai_reply import _load_catalog_ai_rules
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+            {"value": json.dumps({"max_images_per_reply": 2})}
+        ]
+
+        def fake_get_setting(key, fallback=None, tenant_id=None):
+            return {"ai_media_recommendations_enabled": "true", "catalog_ai_max_images_ceiling": "5"}.get(key, fallback)
+
+        with patch("app.services.ai_reply.get_setting", side_effect=fake_get_setting):
+            rules = _load_catalog_ai_rules(db, "tenant-1")
+        self.assertEqual(rules["max_images_per_reply"], 2)
 
     async def test_malformed_max_images_per_reply_falls_back_to_default(self):
         # match_catalog_items has no mocked embedding provider here, so it raises and

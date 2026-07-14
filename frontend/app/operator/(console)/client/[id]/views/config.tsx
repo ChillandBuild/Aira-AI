@@ -21,7 +21,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 type RetrievalMode = "semantic" | "keyword" | "hybrid";
 type VoiceSettingKey = "ai_voice_reply_speaker";
-type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "ai_media_max_images_per_reply";
+type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "catalog_ai_max_images_ceiling";
 
 type ReplyModelId =
   | "sarvam-30b"
@@ -109,7 +109,7 @@ interface ConfigData {
     ai_voice_reply_enabled: boolean;
     ai_voice_reply_speaker?: string | null;
     ai_media_recommendations_enabled?: boolean;
-    ai_media_max_images_per_reply?: number | string | null;
+    catalog_ai_max_images_ceiling?: number | string | null;
     reengagement_enabled: boolean;
     kb_retrieval_mode: RetrievalMode;
     ai_reply_model: ReplyModelId;
@@ -456,7 +456,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     speaker: config.settings.ai_voice_reply_speaker ?? "Kore",
   };
   const mediaRecommendationsEnabled = config.settings.ai_media_recommendations_enabled ?? false;
-  const mediaMaxImages = Number(config.settings.ai_media_max_images_per_reply ?? 3);
+  const mediaMaxImagesCeiling = Number(config.settings.catalog_ai_max_images_ceiling ?? 5);
   const mediaUsageCount = usageMetricCount(config.usage, ["ai_media_recommendation", "ai_media_recommendations", "catalog_image_sent"]) ?? 0;
 
   return (
@@ -647,7 +647,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">Recommend catalog images</p>
               <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                Controls whether this client&apos;s AI can recommend catalog items and send item images inside WhatsApp replies.
+                Master switch for this client&apos;s catalog AI recommendations. When off, recommendations are hard-disabled regardless of what the client has chosen in their own catalog settings. The client controls whether it&apos;s on and how many images per reply within the ceiling below.
               </p>
             </div>
             <OperatorToggle
@@ -660,18 +660,19 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-                <ImageIcon size={13} /> Max images per reply
+                <ImageIcon size={13} /> Maximum images ceiling
               </span>
               <select
-                value={Number.isFinite(mediaMaxImages) ? String(mediaMaxImages) : "3"}
-                onChange={(e) => updateMediaRecommendationSetting("ai_media_max_images_per_reply", e.target.value)}
-                disabled={mediaRecommendationSaving === "ai_media_max_images_per_reply"}
+                value={Number.isFinite(mediaMaxImagesCeiling) ? String(mediaMaxImagesCeiling) : "5"}
+                onChange={(e) => updateMediaRecommendationSetting("catalog_ai_max_images_ceiling", e.target.value)}
+                disabled={mediaRecommendationSaving === "catalog_ai_max_images_ceiling"}
                 className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
               >
-                {[1, 2, 3, 4, 5].map((count) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((count) => (
                   <option key={count} value={count}>{count}</option>
                 ))}
               </select>
+              <span className="mt-1 block text-[11px] text-ink-muted">The client can choose any value up to this; they can never exceed it.</span>
             </label>
             <div className="rounded-xl bg-surface-mid px-3 py-2">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Usage count</p>
