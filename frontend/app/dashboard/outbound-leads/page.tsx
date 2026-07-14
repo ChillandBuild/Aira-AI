@@ -2127,10 +2127,10 @@ export default function OutboundLeadsPage() {
                     onClick={handleSend}
                     disabled={sendLoading || !canManageOutbound}
                     title={canManageOutbound ? "Dispatch campaign" : "Read-only role: dispatch is disabled"}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:blur-[0.5px] disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     <Upload size={14} />
-                    {sendLoading ? "Sending…" : canManageOutbound ? "Confirm & Dispatch" : "Dispatch Disabled"}
+                    {sendLoading ? "Sending…" : "Confirm & Dispatch"}
                   </button>
                 </div>
               </div>
@@ -2375,8 +2375,8 @@ export default function OutboundLeadsPage() {
                     <span className="font-mono text-xs text-on-surface-muted shrink-0">{customTagColor || newTagColor}</span>
                   </div>
                 </div>
-                <button onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim() || !canManageOutbound} title={canManageOutbound ? "Create tag" : "Read-only role: saving is disabled"} className="px-4 py-2 rounded-xl bg-primary text-white font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 flex items-center gap-2">
-                  {creatingTag && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}{canManageOutbound ? "Create" : "Create Disabled"}
+                <button onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim() || !canManageOutbound} title={canManageOutbound ? "Create tag" : "Read-only role: saving is disabled"} className="px-4 py-2 rounded-xl bg-primary text-white font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:blur-[0.5px] flex items-center gap-2">
+                  {creatingTag && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}Create
                 </button>
               </div>
             </div>

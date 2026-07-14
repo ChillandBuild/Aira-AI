@@ -456,8 +456,8 @@ export default function ReengagementBuilder({ type, broadcastId, templates, canM
             <button onClick={() => { setShowAdd(false); resetForm(); }} className="rounded-xl px-4 py-2 text-sm text-on-surface-muted">
               Cancel
             </button>
-            <button onClick={addStep} disabled={!canManage} title={canManage ? "Save message" : "Read-only role: saving is disabled"} className="rounded-xl bg-on-surface px-5 py-2 text-sm text-surface disabled:cursor-not-allowed disabled:opacity-40">
-              {canManage ? "Save message" : "Save Disabled"}
+            <button onClick={addStep} disabled={!canManage} title={canManage ? "Save message" : "Read-only role: saving is disabled"} className="rounded-xl bg-on-surface px-5 py-2 text-sm text-surface disabled:cursor-not-allowed disabled:opacity-40 disabled:blur-[0.5px]">
+              Save message
             </button>
           </div>
         </div>

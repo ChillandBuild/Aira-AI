@@ -1040,10 +1040,10 @@ function MediaTab({ canManage }: { canManage: boolean }) {
                 </div>
                 <label
                   onClick={(event) => event.stopPropagation()}
-                  className={cn("btn-ghost inline-flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs", canManage ? "cursor-pointer" : "cursor-not-allowed opacity-45")}
+                  className={cn("btn-ghost inline-flex shrink-0 items-center gap-2 px-3 py-1.5 text-xs", canManage ? "cursor-pointer" : "cursor-not-allowed opacity-45 blur-[0.5px]")}
                 >
                   {uploadingItemId === item.id ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                  {canManage ? "Upload" : "Disabled"}
+                  Upload
                   <input
                     type="file"
                     accept="image/*"

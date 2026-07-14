@@ -423,10 +423,10 @@ export default function LiveAgentStatus({
             onClick={localShiftConfig.shift_mode === "individual" && individualCallerId ? handleSaveIndividualShift : handleSaveShiftConfig}
             disabled={savingShiftConfig || savingIndividual || !canManageShifts}
             title={canManageShifts ? "Save shift hours" : "Read-only role: shift changes are disabled"}
-            className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 font-label text-xs font-semibold transition-colors"
+            className="flex items-center gap-1 px-3 py-1 bg-primary text-white rounded-lg hover:bg-primary/95 disabled:opacity-50 disabled:blur-[0.5px] font-label text-xs font-semibold transition-colors"
           >
             {(savingShiftConfig || savingIndividual) ? <Loader2 className="animate-spin" size={12} /> : <Check size={12} />}
-            {canManageShifts ? "Save" : "Save Disabled"}
+            Save
           </button>
         </div>
       </div>

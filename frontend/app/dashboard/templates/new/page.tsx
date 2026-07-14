@@ -616,9 +616,9 @@ export default function NewTemplatePage() {
                 onClick={handleSubmit}
                 disabled={loading || !name.trim() || !bodyText.trim() || !canManageTemplates}
                 title={canManageTemplates ? "Submit template to WhatsApp" : "Read-only role: submit is disabled"}
-                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-medium text-sm text-white transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-medium text-sm text-white transition-colors disabled:opacity-50 disabled:blur-[0.5px]"
               >
-                {loading ? "Submitting..." : canManageTemplates ? "Submit to WhatsApp" : "Submit Disabled"}
+                {loading ? "Submitting..." : "Submit to WhatsApp"}
               </button>
             )}
           </div>

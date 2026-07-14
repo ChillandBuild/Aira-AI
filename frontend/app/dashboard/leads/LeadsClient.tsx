@@ -180,10 +180,10 @@ function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void
             onClick={send}
             disabled={sending || !canManageLeads}
             title={canManageLeads ? "Send message" : "Read-only role: sending is disabled"}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:blur-[0.5px]"
           >
             {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            {sending ? "Sending…" : canManageLeads ? "Send" : "Send Disabled"}
+            {sending ? "Sending…" : "Send"}
           </button>
         </div>
       </div>

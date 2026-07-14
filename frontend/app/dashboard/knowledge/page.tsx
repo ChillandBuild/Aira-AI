@@ -344,9 +344,9 @@ export default function KnowledgePage() {
                 </p>
               </div>
             )}
-            <label className={cn("inline-flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold shadow-card transition-all", canManageKnowledge ? "bg-primary text-white hover:bg-primary/90 cursor-pointer" : "bg-primary text-white opacity-45 cursor-not-allowed")}>
+            <label className={cn("inline-flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold shadow-card transition-all", canManageKnowledge ? "bg-primary text-white hover:bg-primary/90 cursor-pointer" : "bg-primary text-white opacity-45 blur-[0.5px] cursor-not-allowed")}>
               {uploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
-              {uploading ? "Uploading & Indexing..." : canManageKnowledge ? "Choose File" : "Upload Disabled"}
+              {uploading ? "Uploading & Indexing..." : "Choose File"}
               <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.txt,image/*" onChange={handleFileUpload} disabled={uploading || !canManageKnowledge} />
             </label>
             {uploadError && (

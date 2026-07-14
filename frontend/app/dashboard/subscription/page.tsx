@@ -192,8 +192,8 @@ export default function SubscriptionPage() {
           />
         </div>
       ) : (
-        <button onClick={() => setShowAddon(true)} disabled={!canManageSubscription} title={canManageSubscription ? "Request additional capacity" : "Read-only role: subscription requests are disabled"} className="btn-primary flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40">
-          {canManageSubscription ? "Request more" : "Request Disabled"} <ArrowRight size={14} />
+        <button onClick={() => setShowAddon(true)} disabled={!canManageSubscription} title={canManageSubscription ? "Request additional capacity" : "Read-only role: subscription requests are disabled"} className="btn-primary flex items-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:blur-[0.5px]">
+          Request more <ArrowRight size={14} />
         </button>
       )}
     </div>
