@@ -351,19 +351,6 @@ export default function RolesPage() {
 
   return (
     <div className="min-w-0 space-y-6">
-      <div className="flex justify-end">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="rounded-2xl border border-border-subtle bg-white px-4 py-2 font-body text-xs font-semibold text-ink-muted shadow-sm">
-            Calling provider: <span className="text-ink">{providerLabel(callingProvider)}</span>
-          </div>
-          {tab === "roles" && canWrite && (
-            <button type="button" onClick={resetRole} className="btn-primary inline-flex h-9 items-center justify-center gap-1.5 px-3 text-xs">
-              <Plus size={13} /> Add New Role
-            </button>
-          )}
-        </div>
-      </div>
-
       {error && <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 font-body text-sm text-red-700">{error}</div>}
 
       {temporaryPassword && (
@@ -440,19 +427,24 @@ export default function RolesPage() {
           </aside>
 
           <form onSubmit={saveRole} className="card flex min-h-0 flex-col overflow-hidden rounded-3xl p-0 xl:max-h-[calc(100vh-12rem)]">
-            <div className="shrink-0 border-b border-border-subtle bg-gradient-to-br from-surface-subtle via-white to-primary-light/20 px-5 py-5 sm:px-6">
+            <div className="shrink-0 border-b border-border-subtle bg-gradient-to-br from-surface-subtle via-white to-primary-light/20 px-5 py-4 sm:px-6">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <h2 className="font-display text-lg font-black text-ink">
+                  <h2 className="font-display text-base font-black text-ink">
                     Role Details: {roleDraft.name || editingRole?.name || "New Role"}
                   </h2>
-                  <p className="mt-1 font-body text-sm text-ink-muted">Configure module-level read and write access. Delete access is intentionally omitted.</p>
+                  <p className="mt-1 font-body text-xs text-ink-muted">Configure module-level read and write access. Delete access is intentionally omitted.</p>
                 </div>
+                {canWrite && (
+                  <button type="button" onClick={resetRole} className="btn-primary inline-flex h-8 w-fit items-center justify-center gap-1.5 px-2.5 text-xs">
+                    <Plus size={12} /> Add New Role
+                  </button>
+                )}
               </div>
-              <div className="mt-5">
-                <label className="mb-2 block font-label text-[10px] font-black uppercase tracking-wider text-ink-muted">Role title</label>
+              <div className="mt-4">
+                <label className="mb-1.5 block font-label text-[9px] font-black uppercase tracking-wider text-ink-muted">Role title</label>
                 <input
-                  className="input bg-white"
+                  className="input h-10 bg-white text-sm"
                   placeholder="Example: Telecaller"
                   value={roleDraft.name}
                   onChange={(e) => setRoleDraft((d) => ({ ...d, name: e.target.value }))}

@@ -6,6 +6,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
+import { api } from "@/lib/api";
 
 import { cn } from "@/lib/utils";
 
@@ -192,6 +193,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
   const tab = searchParams.get("tab") || "";
   const rolesTab = searchParams.get("tab") === "users" ? "users" : "roles";
+  const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
 
   // Action states for conditional header buttons
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -209,6 +211,17 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (pathname !== "/dashboard/roles") return;
+    let active = true;
+    api.calls.assignmentMode().then((data) => {
+      if (active) setCallingProvider(data.calling_provider ?? "telecmi");
+    }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
 
 
 
@@ -322,6 +335,12 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 {item}
               </button>
             ))}
+          </div>
+        )}
+
+        {pathname === "/dashboard/roles" && (
+          <div className="hidden rounded-xl border border-border-subtle bg-white px-3 py-1.5 font-body text-xs font-semibold text-ink-muted shadow-sm md:block">
+            Calling provider: <span className="text-ink">{callingProvider === "sim_basic" ? "SIM Basic" : "TeleCMI"}</span>
           </div>
         )}
 
