@@ -801,8 +801,9 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
 
     Returns (catalog_text_block, tool_definitions, items_by_id, max_images_per_reply).
     catalog_text_block is empty when no items exist or can_recommend is disabled. On any
-    retrieval failure (or when nothing matches), falls back to listing every ready item --
-    today's original behavior -- so a provider hiccup never blocks a reply.
+    retrieval failure, when nothing matches, or when the tenant's ready items aren't fully
+    embedded yet, falls back to listing every ready item -- today's original behavior --
+    so a provider hiccup or a partially-migrated catalog never hides items from the AI.
     """
     rules = _load_catalog_ai_rules(db, tenant_id)
     if not rules.get("can_recommend"):
@@ -810,9 +811,30 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
 
     candidates: list[dict] = []
     try:
-        candidates = await match_catalog_items(db, tenant_id, message)
+        unembedded = (
+            db.table("catalog_items")
+            .select("id", count="exact")
+            .eq("tenant_id", tenant_id)
+            .eq("status", "ready")
+            .is_("embedding", "null")
+            .execute()
+        )
+        has_full_embedding_coverage = not (unembedded.count or 0)
     except Exception as e:
-        logger.warning(f"Catalog retrieval failed for tenant {tenant_id}, falling back to full catalog: {e}")
+        logger.warning(f"Embedding coverage check failed for tenant {tenant_id}, treating as partial: {e}")
+        has_full_embedding_coverage = False
+
+    if has_full_embedding_coverage:
+        # Smart retrieval is only trustworthy when every ready item has an embedding --
+        # match_catalog_items filters to embedding IS NOT NULL, so a partially-embedded
+        # catalog would silently hide the un-embedded items the moment ANY item matches
+        # elsewhere. Falling back to the full-catalog listing below (same as a zero-match
+        # result) guarantees no item is ever invisible, at the cost of losing the smart
+        # gate for that one reply.
+        try:
+            candidates = await match_catalog_items(db, tenant_id, message)
+        except Exception as e:
+            logger.warning(f"Catalog retrieval failed for tenant {tenant_id}, falling back to full catalog: {e}")
 
     directive = ""
     if candidates:

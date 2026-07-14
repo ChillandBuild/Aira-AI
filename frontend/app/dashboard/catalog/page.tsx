@@ -122,6 +122,10 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogItem | null>(null);
   const [isReindexing, setIsReindexing] = useState(false);
+  const itemsMissingEmbedding = useMemo(
+    () => items.filter((item) => item.status === "ready" && !item.embedding).length,
+    [items]
+  );
 
   // Variant groups panel state
   const [newPanelGroupName, setNewPanelGroupName] = useState("");
@@ -202,6 +206,7 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
       const res = await api.catalog.reindex();
       if (res.success) {
         setSuccessMessage(`Catalog reindexed successfully! Embedded ${res.items_embedded} of ${res.items_total} items.`);
+        await loadItems(query);
       } else {
         setError("Reindexing failed");
       }
@@ -253,11 +258,20 @@ function ItemsTab({ canManage }: { canManage: boolean }) {
                 type="button"
                 onClick={handleReindex}
                 disabled={isReindexing}
-                className="btn-ghost border border-border bg-white text-ink inline-flex items-center justify-center gap-2 self-start md:self-auto h-10 px-4 rounded-xl text-sm transition-colors hover:bg-surface-low disabled:opacity-50"
-                title="Reindex catalog items to refresh AI embeddings"
+                className="btn-ghost relative border border-border bg-white text-ink inline-flex items-center justify-center gap-2 self-start md:self-auto h-10 px-4 rounded-xl text-sm transition-colors hover:bg-surface-low disabled:opacity-50"
+                title={
+                  itemsMissingEmbedding > 0
+                    ? `${itemsMissingEmbedding} item(s) aren't indexed yet -- the AI can't reliably find them. Reindex to fix.`
+                    : "Reindex catalog items to refresh AI embeddings"
+                }
               >
                 {isReindexing ? <Loader2 size={15} className="animate-spin text-ink-muted" /> : <Sparkles size={15} className="text-primary" />}
                 <span>{isReindexing ? "Reindexing..." : "Reindex"}</span>
+                {!isReindexing && itemsMissingEmbedding > 0 && (
+                  <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1 text-[11px] font-semibold text-white">
+                    {itemsMissingEmbedding}
+                  </span>
+                )}
               </button>
               <button
                 type="button"

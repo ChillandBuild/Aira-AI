@@ -288,6 +288,7 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
         mock_match.return_value = [
             {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake",
              "attributes": {}, "variant_group_id": None, "similarity": 0.91},
@@ -308,6 +309,7 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
         mock_match.return_value = [
             {"id": "a", "name": "2BHK Apartment", "item_type": "property", "description": None,
              "attributes": {"location": "Coimbatore"}, "variant_group_id": "vg-1", "similarity": 0.83},
@@ -329,6 +331,7 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
         mock_match.return_value = [
             {"id": "a", "name": "Chocolate Cake", "item_type": "product", "description": None,
              "attributes": {}, "variant_group_id": "vg-choc", "similarity": 0.80},
@@ -348,6 +351,7 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         from app.services.ai_reply import _build_catalog_context
         db = MagicMock()
         db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
         mock_match.return_value = [
             {"id": "a", "name": "Chocolate Cake", "item_type": "product", "description": None,
              "attributes": {}, "variant_group_id": None, "similarity": 0.83},
@@ -373,6 +377,67 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
             if name == "app_settings":
                 tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
             elif name == "catalog_items":
+                tbl.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
+                tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+                    {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake"}
+                ]
+            return tbl
+
+        db.table.side_effect = table
+
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "cake photos")
+
+        mock_match.assert_called_once()
+        self.assertIn("Chocolate Cake", text)
+        self.assertEqual(len(tools), 1)
+        self.assertEqual(items_by_id["item-1"]["name"], "Chocolate Cake")
+
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_partial_embedding_coverage_falls_back_to_full_catalog(self, mock_match):
+        """A tenant with even one un-embedded ready item must never have items silently
+        hidden -- match_catalog_items only sees embedded items, so a confident single-item
+        match here would otherwise hide 'Vanilla Cake' from the AI entirely."""
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+
+        def table(name):
+            tbl = MagicMock()
+            if name == "app_settings":
+                tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+            elif name == "catalog_items":
+                tbl.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 2
+                tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+                    {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake"},
+                    {"id": "item-2", "name": "Vanilla Cake", "item_type": "product", "description": "Light cake"},
+                ]
+            return tbl
+
+        db.table.side_effect = table
+        mock_match.return_value = [
+            {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake",
+             "attributes": {}, "variant_group_id": None, "similarity": 0.95},
+        ]
+
+        text, tools, items_by_id, max_images = await _build_catalog_context(db, "tenant-1", "chocolate cake photos")
+
+        mock_match.assert_not_called()
+        self.assertIn("Chocolate Cake", text)
+        self.assertIn("Vanilla Cake", text)
+        self.assertEqual(set(items_by_id.keys()), {"item-1", "item-2"})
+
+    async def test_embedding_coverage_check_failure_fails_safe_to_full_catalog(self):
+        """If the coverage-check query itself errors, treat it as partial coverage
+        (never trust a smart match we couldn't verify is complete) rather than crashing
+        or silently defaulting to the narrower smart-retrieval path."""
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+
+        def table(name):
+            tbl = MagicMock()
+            if name == "app_settings":
+                tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+            elif name == "catalog_items":
+                tbl.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.side_effect = Exception("db down")
                 tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
                     {"id": "item-1", "name": "Chocolate Cake", "item_type": "product", "description": "Rich cake"}
                 ]
@@ -384,7 +449,6 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("Chocolate Cake", text)
         self.assertEqual(len(tools), 1)
-        self.assertEqual(items_by_id["item-1"]["name"], "Chocolate Cake")
 
     async def test_load_catalog_ai_rules_merges_with_defaults(self):
         from app.services.ai_reply import _load_catalog_ai_rules

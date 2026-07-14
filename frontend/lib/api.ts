@@ -63,6 +63,7 @@ export interface CatalogItem {
   updated_at: string;
   attributes: Record<string, string>;
   variant_group_id: string | null;
+  embedding: string | null;
 }
 
 export interface CatalogMedia {
