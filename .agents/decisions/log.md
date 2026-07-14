@@ -600,3 +600,11 @@
 - **Re-engagement failure fix**: Re-engagement sequence reads use `leads.view`, while create/delete/trigger mutations use `leads.manage`, preventing the prior failed-sequence response for valid read roles and preserving outbound-leads-only write scope.
 - **Schema**: No migration was created or applied. The live Supabase schema already contains the tables/columns used by these changes, including `tenant_roles`, `reengagement_steps`, `broadcast_tags`, caller shifts, and attendance overrides.
 - **Verification**: frontend `npm run typecheck`, Python `py_compile` for affected backend routes, and `git diff --check` passed. A local Next production build did not return a final result because overlapping Node/Next workers remained active; it emitted only existing Sentry configuration warnings and must be rerun in a clean process state before deployment.
+
+---
+
+**2026-07-14 - Roles page header and internal permission-matrix layout**
+- **Decision**: Keep the Roles/Users switch and calling-provider indicator in the shared `AppHeader`; keep the compact Add New Role action inside the Role Details editor header instead of duplicating page-level controls.
+- **Decision**: The role editor uses a desktop viewport-based height with a fixed header/footer and an independently scrollable module/resource matrix. Compact spacing keeps at least five resources visible before scrolling.
+- **Implementation**: Updated `frontend/components/AppHeader.tsx` and `frontend/app/dashboard/roles/page.tsx`; no database or RBAC permission-model changes.
+- **Verification**: Frontend `npm.cmd run typecheck`, `npm.cmd run lint`, and `git diff --check` passed. Lint reports only existing hook dependency warnings in unrelated telecalling/notes files.
