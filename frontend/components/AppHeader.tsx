@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Clock, RefreshCw, LayoutGrid, List } from "lucide-react";
+import { Clock, RefreshCw, LayoutGrid, List, ShieldCheck, Users } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
@@ -155,6 +155,12 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "Browse and manage notes across your leads.",
     };
   }
+  if (pathname === "/dashboard/roles") {
+    return {
+      title: "Roles",
+      description: "Define read and write access for every dashboard area, then assign one role to each team member.",
+    };
+  }
 
   // fallback/prefix matches
   if (pathname.startsWith("/dashboard/templates/")) {
@@ -185,6 +191,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   }
 
   const tab = searchParams.get("tab") || "";
+  const rolesTab = searchParams.get("tab") === "users" ? "users" : "roles";
 
   // Action states for conditional header buttons
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -288,6 +295,31 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 )}
               >
                 {t === "upload" ? "Broadcast Message" : t === "history" ? "Broadcast History" : "Tags"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {pathname === "/dashboard/roles" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {(["roles", "users"] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (item === "users") params.set("tab", "users");
+                  else params.delete("tab");
+                  const query = params.toString();
+                  router.replace(`/dashboard/roles${query ? `?${query}` : ""}`, { scroll: false });
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-label text-xs font-bold capitalize transition-all",
+                  rolesTab === item ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                )}
+              >
+                {item === "roles" ? <ShieldCheck size={13} /> : <Users size={13} />}
+                {item}
               </button>
             ))}
           </div>

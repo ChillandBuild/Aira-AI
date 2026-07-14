@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
   Copy,
@@ -93,7 +94,10 @@ export default function RolesPage() {
   const { role, permissions: myPermissions, loading: roleLoading } = useAuthRole();
   const canWrite = role === "owner" || myPermissions.includes("roles.manage");
   const canView = canWrite || myPermissions.includes("roles.view");
-  const [tab, setTab] = useState<Tab>("roles");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlTab: Tab = searchParams.get("tab") === "users" ? "users" : "roles";
+  const [tab, setTab] = useState<Tab>(urlTab);
   const [roles, setRoles] = useState<ClientRole[]>([]);
   const [users, setUsers] = useState<RbacUser[]>([]);
   const [permissions, setPermissions] = useState<PermissionDef[]>([]);
@@ -110,6 +114,19 @@ export default function RolesPage() {
   const [showDraftPassword, setShowDraftPassword] = useState(false);
   const [showIssuedPassword, setShowIssuedPassword] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTab(urlTab);
+  }, [urlTab]);
+
+  function setActiveTab(nextTab: Tab) {
+    setTab(nextTab);
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextTab === "users") params.set("tab", "users");
+    else params.delete("tab");
+    const query = params.toString();
+    router.replace(`/dashboard/roles${query ? `?${query}` : ""}`, { scroll: false });
+  }
 
   const catalogKeys = useMemo(() => new Set(permissions.map((permission) => permission.key)), [permissions]);
   const availableModules = useMemo(() => {
@@ -168,7 +185,7 @@ export default function RolesPage() {
       name: role.name,
       permissions: role.permissions,
     });
-    setTab("roles");
+    setActiveTab("roles");
   }
 
   function resetRole() {
@@ -186,7 +203,7 @@ export default function RolesPage() {
       phone: user.caller_profile?.phone ?? "",
       telecmi_agent_id: user.caller_profile?.telecmi_agent_id ?? "",
     });
-    setTab("users");
+    setActiveTab("users");
   }
 
   function resetUser() {
@@ -348,24 +365,6 @@ export default function RolesPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="rounded-2xl border border-border-subtle bg-white px-4 py-2 font-body text-xs font-semibold text-ink-muted shadow-sm">
             Calling provider: <span className="text-ink">{providerLabel(callingProvider)}</span>
-          </div>
-          <div className="flex w-full gap-1 rounded-2xl border border-border-subtle bg-white p-1 shadow-sm sm:w-fit">
-            {(["roles", "users"] as Tab[]).map((item) => {
-              const Icon = item === "roles" ? ShieldCheck : Users;
-              return (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setTab(item)}
-                className={cn(
-                  "inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-label text-xs font-bold capitalize transition-all sm:flex-none",
-                  tab === item ? "bg-primary text-white shadow-sm" : "text-[#78716c] hover:bg-surface-subtle hover:text-[#292524]",
-                )}
-              >
-                <Icon size={14} />
-                {item}
-              </button>
-            )})}
           </div>
           {tab === "roles" && canWrite && (
             <button type="button" onClick={resetRole} className="btn-primary justify-center">
