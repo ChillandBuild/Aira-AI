@@ -351,24 +351,14 @@ export default function RolesPage() {
 
   return (
     <div className="min-w-0 space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary-light px-3 py-1 font-label text-[10px] font-black uppercase tracking-wider text-primary">
-            <ShieldCheck size={13} />
-            Role & Permission Management
-          </div>
-          <h1 className="font-display text-2xl font-black text-ink sm:text-3xl">Roles</h1>
-          <p className="mt-2 max-w-2xl font-body text-sm leading-6 text-ink-muted">
-            Define read and write access for every dashboard area, then assign one role to each team member.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="rounded-2xl border border-border-subtle bg-white px-4 py-2 font-body text-xs font-semibold text-ink-muted shadow-sm">
             Calling provider: <span className="text-ink">{providerLabel(callingProvider)}</span>
           </div>
           {tab === "roles" && canWrite && (
-            <button type="button" onClick={resetRole} className="btn-primary justify-center">
-              <Plus size={14} /> Add New Role
+            <button type="button" onClick={resetRole} className="btn-primary inline-flex h-9 items-center justify-center gap-1.5 px-3 text-xs">
+              <Plus size={13} /> Add New Role
             </button>
           )}
         </div>
@@ -449,8 +439,8 @@ export default function RolesPage() {
             </div>
           </aside>
 
-          <form onSubmit={saveRole} className="card rounded-3xl overflow-hidden p-0">
-            <div className="border-b border-border-subtle bg-surface-subtle px-5 py-5">
+          <form onSubmit={saveRole} className="card flex min-h-0 flex-col overflow-hidden rounded-3xl p-0 xl:max-h-[calc(100vh-12rem)]">
+            <div className="shrink-0 border-b border-border-subtle bg-gradient-to-br from-surface-subtle via-white to-primary-light/20 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <h2 className="font-display text-lg font-black text-ink">
@@ -458,11 +448,6 @@ export default function RolesPage() {
                   </h2>
                   <p className="mt-1 font-body text-sm text-ink-muted">Configure module-level read and write access. Delete access is intentionally omitted.</p>
                 </div>
-                {editingRoleId && canWrite && (
-                  <button type="button" onClick={resetRole} className="btn-secondary w-fit text-xs">
-                    <Plus size={14} /> New Role
-                  </button>
-                )}
               </div>
               <div className="mt-5">
                 <label className="mb-2 block font-label text-[10px] font-black uppercase tracking-wider text-ink-muted">Role title</label>
@@ -477,10 +462,10 @@ export default function RolesPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto p-5">
+            <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto overflow-x-auto p-4 sm:p-5">
               <table className="w-full min-w-[760px] border-separate border-spacing-0 overflow-hidden rounded-2xl border border-border-subtle bg-white">
-                <thead>
-                  <tr className="bg-surface-subtle">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-surface-subtle shadow-[0_1px_0_0_var(--color-border-subtle)]">
                     <th className="w-[48%] px-4 py-3 text-left font-label text-[10px] font-black uppercase tracking-wider text-ink-muted">Module / Resource</th>
                     <th className="px-4 py-3 text-center font-label text-[10px] font-black uppercase tracking-wider text-ink-muted">Read</th>
                     <th className="px-4 py-3 text-center font-label text-[10px] font-black uppercase tracking-wider text-ink-muted">Write</th>
@@ -537,7 +522,7 @@ export default function RolesPage() {
               </table>
             </div>
 
-            <div className="flex flex-col gap-3 border-t border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex shrink-0 flex-col gap-3 border-t border-border-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="font-body text-xs text-ink-muted">{moduleActiveCount(roleDraft.permissions)} modules selected for this role.</p>
               {canWrite ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
