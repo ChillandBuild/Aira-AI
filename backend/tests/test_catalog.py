@@ -399,7 +399,7 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         source = inspect.getsource(ai_reply.generate_reply)
         assert "_build_catalog_context" in source
-        assert "sarvam_chat_completion_with_tools" in source
+        assert "_llm_chat_with_tools" in source
         assert "catalog_images_to_send" in source
         assert "catalog_max_images" in source
 

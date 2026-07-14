@@ -150,8 +150,10 @@ class OperatorClientConfigTests(unittest.TestCase):
         mock_invalidate_cache.assert_called_once()
         mock_record_audit.assert_called_once()
         audit_kwargs = mock_record_audit.call_args.kwargs
-        self.assertEqual(audit_kwargs["metadata"], {"settings": payload["settings"]})
+        expected_settings = {**payload["settings"], "sarvam_api_key": "***redacted***"}
+        self.assertEqual(audit_kwargs["metadata"], {"settings": expected_settings})
         self.assertNotIn("new_value", audit_kwargs)
+        self.assertNotIn("client-secret", str(audit_kwargs))
 
     @patch("app.routes.operator.get_supabase")
     def test_get_client_config_survives_usage_counter_lookup_failure(self, mock_get_db):

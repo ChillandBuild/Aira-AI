@@ -24,51 +24,74 @@ from app.services.entitlements import meter, check_quota
 
 logger = logging.getLogger(__name__)
 
-from app.config_dynamic import get_setting
+from app.config_dynamic import get_setting, require_tenant_setting
 from app.services.sarvam_client import sarvam_chat_completion, sarvam_chat_completion_with_tools
-from app.services.openrouter_client import openrouter_chat_completion
+from app.services.gemini_client import gemini_chat_completion, gemini_chat_completion_with_tools
+from app.services.openai_client import openai_chat_completion, openai_chat_completion_with_tools
+from app.services.groq_client import groq_chat_completion, groq_chat_completion_with_tools
 
 _DEFAULT_REPLY_MODEL = "sarvam-30b"
 
+# Each entry: stored ai_reply_model prefix -> (provider name, native-model-id prefix to
+# strip). Sarvam has no prefix since its native IDs ("sarvam-30b") are used directly.
+_PROVIDER_PREFIXES: list[tuple[str, str]] = [
+    ("google/", "gemini"),
+    ("openai/", "openai"),
+    ("groq/", "groq"),
+]
 
 def _resolve_reply_model(tenant_id: str | None) -> str:
     return get_setting("ai_reply_model", fallback=_DEFAULT_REPLY_MODEL, tenant_id=tenant_id) or _DEFAULT_REPLY_MODEL
 
 
-async def _llm_complete(prompt: str, max_tokens: int = 300, tenant_id: str | None = None) -> str:
-    model = _resolve_reply_model(tenant_id)
+def _provider_and_native_model(model: str) -> tuple[str, str]:
     if model.startswith("sarvam"):
-        return await sarvam_chat_completion(
-            messages=[{"role": "user", "content": prompt}],
-            model=model,
-            temperature=0.4,
-            max_tokens=max_tokens,
-            tenant_id=tenant_id,
-        )
-    return await openrouter_chat_completion(
-        messages=[{"role": "user", "content": prompt}],
-        model=model,
-        temperature=0.4,
-        max_tokens=max_tokens,
-    )
+        return "sarvam", model
+    for prefix, provider in _PROVIDER_PREFIXES:
+        if model.startswith(prefix):
+            return provider, model[len(prefix):]
+    raise RuntimeError(f"Unrecognized reply model '{model}'")
+
+
+def _resolve_provider(tenant_id: str | None) -> tuple[str, str]:
+    """Resolves (provider, native_model) for this tenant's selected ai_reply_model, and
+    enforces that the tenant has explicitly configured that provider's API key. No
+    fallback to a platform-wide key for any provider, including Sarvam -- every client's
+    keys are configured independently in the operator console (see decisions/log.md)."""
+    provider, native_model = _provider_and_native_model(_resolve_reply_model(tenant_id))
+    require_tenant_setting(f"{provider}_api_key", tenant_id)
+    return provider, native_model
 
 
 async def _llm_chat(messages: list[dict], max_tokens: int = 300, tenant_id: str | None = None) -> str:
-    model = _resolve_reply_model(tenant_id)
-    if model.startswith("sarvam"):
-        return await sarvam_chat_completion(
-            messages=messages,
-            model=model,
-            temperature=0.4,
-            max_tokens=max_tokens,
-            tenant_id=tenant_id,
-        )
-    return await openrouter_chat_completion(
-        messages=messages,
-        model=model,
-        temperature=0.4,
-        max_tokens=max_tokens,
-    )
+    provider, native_model = _resolve_provider(tenant_id)
+    kwargs = dict(messages=messages, model=native_model, temperature=0.4, max_tokens=max_tokens, tenant_id=tenant_id)
+    if provider == "sarvam":
+        return await sarvam_chat_completion(**kwargs)
+    if provider == "gemini":
+        return await gemini_chat_completion(**kwargs)
+    if provider == "openai":
+        return await openai_chat_completion(**kwargs)
+    return await groq_chat_completion(**kwargs)
+
+
+async def _llm_complete(prompt: str, max_tokens: int = 300, tenant_id: str | None = None) -> str:
+    return await _llm_chat([{"role": "user", "content": prompt}], max_tokens=max_tokens, tenant_id=tenant_id)
+
+
+async def _llm_chat_with_tools(
+    messages: list[dict], tools: list[dict], max_tokens: int = 300, tenant_id: str | None = None
+) -> tuple[str, list[dict]]:
+    """Tool-calling counterpart to _llm_chat -- routes catalog-recommendation replies
+    through the tenant's selected ai_reply_model instead of hardcoding Sarvam."""
+    provider, native_model = _resolve_provider(tenant_id)
+    if provider == "sarvam":
+        return await sarvam_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
+    if provider == "gemini":
+        return await gemini_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
+    if provider == "openai":
+        return await openai_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
+    return await groq_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
 
 
 def _resolve_campaign(db, lead_id: str) -> tuple[str | None, str | None]:
@@ -325,55 +348,6 @@ def _tts_language_code(text: str) -> str:
     }.get(lang, "en-IN")
 
 
-# Live-tested 2026-07-13 (Tamil only, see subsystem-notes.md): Sarvam Bulbul mispronounces
-# Romanized Tanglish with a non-Tamil accent regardless of target_language_code=ta-IN, and
-# fully transliterating EVERY word (including English loanwords) into Tamil-phonetic script
-# via Sarvam's own Transliteration API produces the same wrong accent. Only true code-switched
-# text -- native Tamil script for Tamil-origin words, Latin script preserved for genuine
-# English loanwords -- produces an authentic accent, confirmed on both formal and colloquial
-# content. Gated to ta-IN only: the mechanism likely generalizes to Hindi/Telugu/Kannada/
-# Malayalam, but that is UNVERIFIED -- a Tamil-specific few-shot example would bias the model
-# toward Tamil output for other languages, so do not extend to other codes without a
-# language-appropriate example tested live first.
-_VOICE_SCRIPT_STYLE_EXAMPLE = (
-    "வணக்கம்! உங்க ஆர்டர் ரெடி ஆயிடுச்சு. நீங்க வந்து pick பண்ணிக்கோங்க. "
-    "எங்க shop 6pm வரைக்கும் open இருக்கும். Evening-ல வந்து collect பண்ணுங்க."
-)
-
-
-async def _to_native_script_for_voice(text: str, target_language_code: str, tenant_id: str | None) -> str:
-    """Convert Romanized code-mixed reply text to proper native-script code-switching before
-    TTS. Falls back to the original text on any failure so a broken conversion never blocks
-    the voice reply. Isolated single-turn call, no conversation history -- mirrors the proven
-    pattern from _reply_script_mismatch's regen call: feeding prior context back in
-    re-triggers script anchoring (see subsystem-notes.md 2026-07-13)."""
-    if target_language_code != "ta-IN":
-        return text
-    try:
-        converted = await sarvam_chat_completion(
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Convert Romanized Tanglish-style text into proper mixed-script Tamil: write "
-                        "Tamil-origin words (grammar, verbs, particles) using ONLY native Tamil Unicode "
-                        "script -- never Latin letters for a Tamil word. Genuine English words/loanwords "
-                        f"stay in Latin script. Example of the required style:\n'{_VOICE_SCRIPT_STYLE_EXAMPLE}'\n"
-                        "Convert the following message to that same style, keeping its meaning and tone. "
-                        "Output ONLY the converted text."
-                    ),
-                },
-                {"role": "user", "content": text},
-            ],
-            max_tokens=300,
-            tenant_id=tenant_id,
-        )
-        return converted.strip() or text
-    except Exception as e:
-        logger.warning(f"Voice-script conversion failed, using original text for TTS: {e}")
-        return text
-
-
 async def send_whatsapp_voice_reply(
     to_phone: str,
     message: str,
@@ -385,21 +359,17 @@ async def send_whatsapp_voice_reply(
     db=None,
 ) -> str | None:
     try:
-        from app.services.sarvam_client import sarvam_text_to_speech
+        from app.services.gemini_client import gemini_text_to_speech
         from app.services.meta_cloud import upload_media_to_meta, send_media_message
 
-        resolved_language_code = target_language_code or _tts_language_code(message)
-        tts_text = message
-        if resolved_language_code == "ta-IN" and _dominant_script(message) == "en":
-            tts_text = await _to_native_script_for_voice(message, resolved_language_code, tenant_id)
-
-        audio_bytes = await sarvam_text_to_speech(
-            text=tts_text,
-            target_language_code=resolved_language_code,
-            speaker=speaker or "shubh",
-            pace=pace if pace is not None else 1.0,
-            tenant_id=tenant_id,
-        )
+        # speaker/pace/target_language_code are Sarvam-era params, kept in the signature for
+        # caller compatibility. Gemini's TTS is LLM-native and handles raw Roman-script
+        # Tanglish correctly with no language hint (live-tested 2026-07-13/14, see
+        # subsystem-notes.md -- Sarvam Bulbul mispronounced the same text as North-Indian-
+        # accented regardless of target_language_code). Gemini's voice names (e.g. "Kore")
+        # aren't compatible with the stored Sarvam speaker names (e.g. "shubh"), so per-tenant
+        # voice selection is a no-op here until the dashboard is updated to offer Gemini voices.
+        audio_bytes = await gemini_text_to_speech(text=message)
         if db is not None and tenant_id:
             meter(db, tenant_id, "ai_text_to_speech")
         media_id = await upload_media_to_meta(
@@ -1117,9 +1087,8 @@ async def generate_reply(
         catalog_images_to_send: list[tuple[str, bytes]] = []  # (filename, image_bytes)
 
         if catalog_tools:
-            reply_text, tool_calls = await sarvam_chat_completion_with_tools(
-                chat_messages, tools=catalog_tools, model=_DEFAULT_REPLY_MODEL,
-                max_tokens=600, tenant_id=tenant_id,
+            reply_text, tool_calls = await _llm_chat_with_tools(
+                chat_messages, tools=catalog_tools, max_tokens=600, tenant_id=tenant_id,
             )
             reply_text = reply_text.strip()
 

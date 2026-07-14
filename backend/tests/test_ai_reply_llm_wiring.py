@@ -4,9 +4,31 @@ from unittest.mock import AsyncMock, patch
 from app.services import ai_reply
 
 
+def test_provider_and_native_model_maps_all_known_prefixes():
+    assert ai_reply._provider_and_native_model("sarvam-30b") == ("sarvam", "sarvam-30b")
+    assert ai_reply._provider_and_native_model("sarvam-105b") == ("sarvam", "sarvam-105b")
+    assert ai_reply._provider_and_native_model("google/gemini-3.1-flash-lite") == ("gemini", "gemini-3.1-flash-lite")
+    assert ai_reply._provider_and_native_model("openai/gpt-5.4-nano-2026-03-17") == ("openai", "gpt-5.4-nano-2026-03-17")
+    assert ai_reply._provider_and_native_model("groq/llama-3.3-70b-versatile") == ("groq", "llama-3.3-70b-versatile")
+
+
+def test_provider_and_native_model_raises_for_unrecognized_model():
+    with pytest.raises(RuntimeError, match="Unrecognized reply model"):
+        ai_reply._provider_and_native_model("anthropic/claude-4")
+
+
+def test_resolve_provider_raises_when_tenant_key_not_configured():
+    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.1-flash-lite"), \
+         patch.object(ai_reply, "require_tenant_setting", side_effect=RuntimeError("gemini_api_key not configured for this client")) as mock_require:
+        with pytest.raises(RuntimeError, match="gemini_api_key not configured"):
+            ai_reply._resolve_provider("tenant-1")
+    mock_require.assert_called_once_with("gemini_api_key", "tenant-1")
+
+
 @pytest.mark.asyncio
 async def test_llm_complete_defaults_to_sarvam_when_no_tenant_setting():
     with patch.object(ai_reply, "get_setting", return_value=None), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
          patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
         text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
 
@@ -21,17 +43,53 @@ async def test_llm_complete_defaults_to_sarvam_when_no_tenant_setting():
 
 
 @pytest.mark.asyncio
-async def test_llm_complete_routes_to_openrouter_for_non_sarvam_model():
-    with patch.object(ai_reply, "get_setting", return_value="openai/gpt-5-mini"), \
-         patch.object(ai_reply, "openrouter_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
+async def test_llm_complete_routes_to_gemini_and_strips_prefix():
+    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.1-flash-lite"), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "gemini_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
         text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
 
     assert text == "a poem"
     mock_call.assert_called_once_with(
         messages=[{"role": "user", "content": "write a poem"}],
-        model="openai/gpt-5-mini",
+        model="gemini-3.1-flash-lite",
         temperature=0.4,
         max_tokens=120,
+        tenant_id="tenant-1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_complete_routes_to_openai_and_strips_prefix():
+    with patch.object(ai_reply, "get_setting", return_value="openai/gpt-5.4-nano-2026-03-17"), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "openai_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
+        text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
+
+    assert text == "a poem"
+    mock_call.assert_called_once_with(
+        messages=[{"role": "user", "content": "write a poem"}],
+        model="gpt-5.4-nano-2026-03-17",
+        temperature=0.4,
+        max_tokens=120,
+        tenant_id="tenant-1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_complete_routes_to_groq_and_strips_prefix():
+    with patch.object(ai_reply, "get_setting", return_value="groq/llama-3.3-70b-versatile"), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "groq_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
+        text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
+
+    assert text == "a poem"
+    mock_call.assert_called_once_with(
+        messages=[{"role": "user", "content": "write a poem"}],
+        model="llama-3.3-70b-versatile",
+        temperature=0.4,
+        max_tokens=120,
+        tenant_id="tenant-1",
     )
 
 
@@ -39,6 +97,7 @@ async def test_llm_complete_routes_to_openrouter_for_non_sarvam_model():
 async def test_llm_chat_defaults_to_sarvam_when_no_tenant_setting():
     messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
     with patch.object(ai_reply, "get_setting", return_value=None), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
          patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
         text = await ai_reply._llm_chat(messages, max_tokens=600, tenant_id="tenant-2")
 
@@ -53,18 +112,20 @@ async def test_llm_chat_defaults_to_sarvam_when_no_tenant_setting():
 
 
 @pytest.mark.asyncio
-async def test_llm_chat_routes_to_openrouter_for_non_sarvam_model():
+async def test_llm_chat_routes_to_gemini_for_google_prefixed_model():
     messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
-    with patch.object(ai_reply, "get_setting", return_value="google/gemini-2.5-flash"), \
-         patch.object(ai_reply, "openrouter_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
+    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.5-flash"), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "gemini_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
         text = await ai_reply._llm_chat(messages, max_tokens=600, tenant_id="tenant-2")
 
     assert text == "a reply"
     mock_call.assert_called_once_with(
         messages=messages,
-        model="google/gemini-2.5-flash",
+        model="gemini-3.5-flash",
         temperature=0.4,
         max_tokens=600,
+        tenant_id="tenant-2",
     )
 
 
@@ -73,9 +134,69 @@ def test_default_reply_model_is_sarvam_30b():
 
 
 @pytest.mark.asyncio
-async def test_send_whatsapp_voice_reply_uses_sarvam_tts_and_meta_audio_upload():
+async def test_llm_chat_with_tools_defaults_to_sarvam_when_no_tenant_setting():
+    messages = [{"role": "user", "content": "show me cakes"}]
+    tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
+    with patch.object(ai_reply, "get_setting", return_value=None), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "sarvam_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
+        content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
+
+    assert (content, tool_calls) == ("here", [])
+    mock_call.assert_called_once_with(
+        messages, tools=tools, model="sarvam-30b", max_tokens=600, tenant_id="tenant-1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_with_tools_routes_to_gemini_and_strips_prefix():
+    messages = [{"role": "user", "content": "show me cakes"}]
+    tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
+    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.1-flash-lite"), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "gemini_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
+        content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
+
+    assert (content, tool_calls) == ("here", [])
+    mock_call.assert_called_once_with(
+        messages, tools=tools, model="gemini-3.1-flash-lite", max_tokens=600, tenant_id="tenant-1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_with_tools_routes_to_openai_and_strips_prefix():
+    messages = [{"role": "user", "content": "show me cakes"}]
+    tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
+    with patch.object(ai_reply, "get_setting", return_value="openai/gpt-5-nano-2025-08-07"), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "openai_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
+        content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
+
+    assert (content, tool_calls) == ("here", [])
+    mock_call.assert_called_once_with(
+        messages, tools=tools, model="gpt-5-nano-2025-08-07", max_tokens=600, tenant_id="tenant-1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_with_tools_routes_to_groq_and_strips_prefix():
+    messages = [{"role": "user", "content": "show me cakes"}]
+    tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
+    with patch.object(ai_reply, "get_setting", return_value="groq/llama-3.3-70b-versatile"), \
+         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+         patch.object(ai_reply, "groq_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
+        content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
+
+    assert (content, tool_calls) == ("here", [])
+    mock_call.assert_called_once_with(
+        messages, tools=tools, model="llama-3.3-70b-versatile", max_tokens=600, tenant_id="tenant-1",
+    )
+
+
+@pytest.mark.asyncio
+async def test_send_whatsapp_voice_reply_uses_gemini_tts_and_meta_audio_upload():
     db = object()
-    with patch("app.services.sarvam_client.sarvam_text_to_speech", AsyncMock(return_value=b"audio-bytes")) as tts, \
+    with patch("app.services.gemini_client.gemini_text_to_speech", AsyncMock(return_value=b"audio-bytes")) as tts, \
          patch("app.services.meta_cloud.upload_media_to_meta", AsyncMock(return_value="media-123")) as upload, \
          patch("app.services.meta_cloud.send_media_message", AsyncMock(return_value={"messages": [{"id": "wamid.voice.1"}]})) as send, \
          patch.object(ai_reply, "meter") as meter:
@@ -91,13 +212,7 @@ async def test_send_whatsapp_voice_reply_uses_sarvam_tts_and_meta_audio_upload()
         )
 
     assert mid == "wamid.voice.1"
-    tts.assert_awaited_once_with(
-        text="Hi Prem",
-        target_language_code="en-IN",
-        speaker="shubh",
-        pace=1.2,
-        tenant_id="tenant-1",
-    )
+    tts.assert_awaited_once_with(text="Hi Prem")
     meter.assert_called_once_with(db, "tenant-1", "ai_text_to_speech")
     upload.assert_awaited_once_with(
         file_bytes=b"audio-bytes",
