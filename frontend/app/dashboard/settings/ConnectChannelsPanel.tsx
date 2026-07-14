@@ -878,6 +878,14 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     </button>
                   </div>
                   {esError && <p className="text-xs text-red-700 font-body">{esError}</p>}
+                  <div className="flex items-start gap-2 pt-1 border-t border-blue-100/80">
+                    <AlertCircle size={13} className="flex-shrink-0 mt-0.5 text-amber-600" />
+                    <p className="text-[11px] text-ink-muted font-body leading-snug">
+                      Migrating a number from another WhatsApp API provider? Ask them to disable
+                      two-step verification on it first — Meta requires this before the number can
+                      fully connect here.
+                    </p>
+                  </div>
                 </div>
               )}
 
