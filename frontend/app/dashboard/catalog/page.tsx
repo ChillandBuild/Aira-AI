@@ -772,37 +772,39 @@ function SortablePhoto({
     <div
       ref={setNodeRef}
       style={style}
-      className="group relative aspect-[4/3] overflow-hidden rounded-card border border-border bg-surface-low p-2"
+      className="group relative overflow-hidden rounded-card border border-border bg-surface-low p-2"
     >
-      {canManage && (
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="absolute left-3 top-3 z-10 flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-white/90 text-ink-muted opacity-0 shadow-sm transition-opacity group-hover:opacity-100 active:cursor-grabbing"
-          aria-label="Drag to reorder"
-        >
-          <GripVertical size={13} />
-        </button>
-      )}
-      {canManage && (
-        <button
-          type="button"
-          onClick={() => onDelete(media.id)}
-          className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-white/90 text-danger opacity-0 shadow-sm transition-opacity hover:bg-danger hover:text-white group-hover:opacity-100"
-          aria-label="Remove photo"
-        >
-          <X size={13} />
-        </button>
-      )}
-      {media.url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={media.url} alt={media.label || "Catalog media"} className="h-full w-full rounded-xl object-cover" />
-      ) : (
-        <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-border text-ink-muted">
-          <ImageIcon size={26} />
-        </div>
-      )}
+      <div className="relative aspect-[4/3] overflow-hidden rounded-xl">
+        {canManage && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="absolute left-2 top-2 z-10 flex h-6 w-6 cursor-grab items-center justify-center rounded-md bg-white/90 text-ink-muted opacity-0 shadow-sm transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+            aria-label="Drag to reorder"
+          >
+            <GripVertical size={13} />
+          </button>
+        )}
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => onDelete(media.id)}
+            className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-white/90 text-danger opacity-0 shadow-sm transition-opacity hover:bg-danger hover:text-white group-hover:opacity-100"
+            aria-label="Remove photo"
+          >
+            <X size={13} />
+          </button>
+        )}
+        {media.url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={media.url} alt={media.label || "Catalog media"} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center border border-dashed border-border text-ink-muted">
+            <ImageIcon size={26} />
+          </div>
+        )}
+      </div>
       {isEditing ? (
         <input
           autoFocus
@@ -816,17 +818,24 @@ function SortablePhoto({
               setIsEditing(false);
             }
           }}
-          className="mt-2 w-full rounded-md border border-primary/40 px-2 py-1 text-center text-xs font-semibold text-ink outline-none"
+          placeholder="Name this photo..."
+          className="mt-2 w-full rounded-md border border-primary px-2 py-1.5 text-center text-xs font-semibold text-ink outline-none"
         />
       ) : (
         <button
           type="button"
           disabled={!canManage}
           onClick={() => canManage && setIsEditing(true)}
-          className="mt-2 w-full truncate text-center text-xs font-semibold text-ink-muted hover:text-ink disabled:cursor-default"
+          className={cn(
+            "mt-2 flex w-full items-center justify-center gap-1.5 truncate rounded-md border px-2 py-1.5 text-xs font-semibold transition-colors disabled:cursor-default",
+            media.label
+              ? "border-border bg-white text-ink hover:border-primary/40"
+              : "border-dashed border-primary/40 bg-primary/5 text-primary hover:bg-primary/10"
+          )}
           title={canManage ? "Click to rename this photo" : undefined}
         >
-          {media.label || "Untitled photo"}
+          {canManage && <Pencil size={11} className="shrink-0" />}
+          <span className="truncate">{media.label || "Click to name this photo"}</span>
         </button>
       )}
     </div>
