@@ -33,10 +33,7 @@ class OperatorClientConfigTests(unittest.TestCase):
                 tbl.select.return_value.eq.return_value.execute.return_value.data = [
                     {"key": "ai_auto_reply_enabled", "value": "true"},
                     {"key": "ai_voice_reply_enabled", "value": "true"},
-                    {"key": "ai_voice_reply_speaker", "value": "shubh"},
-                    {"key": "ai_voice_reply_pace", "value": "1.2"},
-                    {"key": "ai_voice_reply_language_mode", "value": "fixed"},
-                    {"key": "ai_voice_reply_language_code", "value": "ta-IN"},
+                    {"key": "ai_voice_reply_speaker", "value": "Kore"},
                     {"key": "sarvam_api_key", "value": "client-sarvam-key"},
                     {"key": "telegram_bot_token", "value": "123:abc"},
                     {"key": "instagram_page_id", "value": "ig-page"},
@@ -65,10 +62,7 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["enabled_features"], ["whatsapp", "telecalling"])
         self.assertEqual(body["settings"]["ai_auto_reply_enabled"], True)
         self.assertEqual(body["settings"]["ai_voice_reply_enabled"], True)
-        self.assertEqual(body["settings"]["ai_voice_reply_speaker"], "shubh")
-        self.assertEqual(body["settings"]["ai_voice_reply_pace"], 1.2)
-        self.assertEqual(body["settings"]["ai_voice_reply_language_mode"], "fixed")
-        self.assertEqual(body["settings"]["ai_voice_reply_language_code"], "ta-IN")
+        self.assertEqual(body["settings"]["ai_voice_reply_speaker"], "Kore")
         self.assertEqual(body["settings"]["reengagement_enabled"], False)
         self.assertEqual(body["settings"]["kb_retrieval_mode"], "hybrid")
         self.assertEqual(body["settings"]["ai_reply_model"], "openai/gpt-5-mini")
@@ -133,10 +127,7 @@ class OperatorClientConfigTests(unittest.TestCase):
                 "kb_retrieval_mode": "keyword",
                 "reengagement_enabled": True,
                 "ai_voice_reply_enabled": True,
-                "ai_voice_reply_speaker": "shubh",
-                "ai_voice_reply_pace": "1.2",
-                "ai_voice_reply_language_mode": "fixed",
-                "ai_voice_reply_language_code": "ta-IN",
+                "ai_voice_reply_speaker": "Kore",
                 "sarvam_api_key": "client-secret",
             }
         }

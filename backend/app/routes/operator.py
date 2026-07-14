@@ -77,11 +77,8 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("ai_auto_reply_enabled", False),
     ("ai_voice_reply_enabled", False),
     ("ai_voice_reply_speaker", False),
-    ("ai_voice_reply_pace", False),
-    ("ai_voice_reply_language_mode", False),
-    ("ai_voice_reply_language_code", False),
     ("ai_media_recommendations_enabled", False),
-    ("ai_media_max_images_per_reply", False),
+    ("catalog_ai_max_images_ceiling", False),
     ("reengagement_enabled", False),
 ]
 
@@ -1007,12 +1004,9 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         "settings": {
             "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") == "true",
             "ai_voice_reply_enabled": settings_map.get("ai_voice_reply_enabled") == "true",
-            "ai_voice_reply_speaker": settings_map.get("ai_voice_reply_speaker") or "shubh",
-            "ai_voice_reply_pace": float_setting("ai_voice_reply_pace", 1.0),
-            "ai_voice_reply_language_mode": settings_map.get("ai_voice_reply_language_mode") or "auto",
-            "ai_voice_reply_language_code": settings_map.get("ai_voice_reply_language_code") or "en-IN",
+            "ai_voice_reply_speaker": settings_map.get("ai_voice_reply_speaker") or "Kore",
             "ai_media_recommendations_enabled": settings_map.get("ai_media_recommendations_enabled") == "true",
-            "ai_media_max_images_per_reply": float_setting("ai_media_max_images_per_reply", 3),
+            "catalog_ai_max_images_ceiling": float_setting("catalog_ai_max_images_ceiling", 5),
             "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
             "ai_reply_model": settings_map.get("ai_reply_model") or "sarvam-30b",

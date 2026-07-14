@@ -336,40 +336,24 @@ def get_last_send_error() -> str | None:
     return _LAST_SEND_ERROR
 
 
-def _tts_language_code(text: str) -> str:
-    lang = _detect_lang(text)
-    return {
-        "ta": "ta-IN",
-        "tanglish": "ta-IN",
-        "hi": "hi-IN",
-        "te": "te-IN",
-        "kn": "kn-IN",
-        "ml": "ml-IN",
-    }.get(lang, "en-IN")
-
-
 async def send_whatsapp_voice_reply(
     to_phone: str,
     message: str,
     tenant_id: str | None = None,
     phone_number_id: str | None = None,
     speaker: str | None = None,
-    pace: float | None = None,
-    target_language_code: str | None = None,
     db=None,
 ) -> str | None:
     try:
-        from app.services.gemini_client import gemini_text_to_speech
+        from app.services.gemini_client import gemini_text_to_speech, DEFAULT_GEMINI_VOICE
         from app.services.meta_cloud import upload_media_to_meta, send_media_message
 
-        # speaker/pace/target_language_code are Sarvam-era params, kept in the signature for
-        # caller compatibility. Gemini's TTS is LLM-native and handles raw Roman-script
-        # Tanglish correctly with no language hint (live-tested 2026-07-13/14, see
-        # subsystem-notes.md -- Sarvam Bulbul mispronounced the same text as North-Indian-
-        # accented regardless of target_language_code). Gemini's voice names (e.g. "Kore")
-        # aren't compatible with the stored Sarvam speaker names (e.g. "shubh"), so per-tenant
-        # voice selection is a no-op here until the dashboard is updated to offer Gemini voices.
-        audio_bytes = await gemini_text_to_speech(text=message)
+        # Gemini's TTS is LLM-native and handles raw Roman-script Tanglish correctly with
+        # no language hint (live-tested 2026-07-13/14, see subsystem-notes.md -- Sarvam
+        # Bulbul mispronounced the same text as North-Indian-accented regardless of the
+        # target_language_code it was given), so there's no pace or language param here --
+        # only speaker/voice carries through, using Gemini's own voice names (e.g. "Kore").
+        audio_bytes = await gemini_text_to_speech(text=message, voice=speaker or DEFAULT_GEMINI_VOICE)
         if db is not None and tenant_id:
             meter(db, tenant_id, "ai_text_to_speech")
         media_id = await upload_media_to_meta(
@@ -771,8 +755,13 @@ _CATALOG_RECOMMEND_TOOL = {
 
 
 def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
-    """Read catalog_ai_rules from app_settings, merged with defaults."""
+    """Read catalog_ai_rules (the client's own preferences, set via the catalog dashboard)
+    merged with defaults, then apply the operator's controls on top: ai_media_recommendations_enabled
+    is a hard master switch (client's can_recommend has no effect while it's off), and
+    catalog_ai_max_images_ceiling caps max_images_per_reply regardless of what the client
+    chose -- the client can pick anything under the ceiling, never over it."""
     defaults = {"can_recommend": True, "can_send_images": True, "max_images_per_reply": 3}
+    rules = dict(defaults)
     try:
         row = (
             db.table("app_settings")
@@ -784,10 +773,26 @@ def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
         )
         if row.data:
             stored = json.loads(row.data[0]["value"])
-            return {**defaults, **stored}
+            rules = {**defaults, **stored}
     except Exception:
         logger.warning(f"Failed to load catalog_ai_rules for tenant {tenant_id}")
-    return defaults
+
+    operator_enabled = get_setting("ai_media_recommendations_enabled", fallback="true", tenant_id=tenant_id) == "true"
+    if not operator_enabled:
+        rules["can_recommend"] = False
+
+    ceiling_raw = get_setting("catalog_ai_max_images_ceiling", fallback="5", tenant_id=tenant_id) or "5"
+    try:
+        ceiling = max(0, int(float(ceiling_raw)))
+    except (TypeError, ValueError):
+        ceiling = 5
+    try:
+        client_max = int(rules.get("max_images_per_reply", 3))
+    except (TypeError, ValueError):
+        client_max = 3
+    rules["max_images_per_reply"] = min(client_max, ceiling)
+
+    return rules
 
 
 async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str, list[dict], dict[str, dict], int]:
@@ -1209,22 +1214,14 @@ async def generate_reply(
         sid = None
         voice_reply_enabled = get_setting("ai_voice_reply_enabled", fallback="false", tenant_id=tenant_id) == "true"
         if _wa_phone and voice_reply_enabled and inbound_media_type == "audio":
-            voice_language_mode = get_setting("ai_voice_reply_language_mode", fallback="auto", tenant_id=tenant_id) or "auto"
-            voice_language_code = get_setting("ai_voice_reply_language_code", fallback="en-IN", tenant_id=tenant_id) or "en-IN"
-            voice_speaker = get_setting("ai_voice_reply_speaker", fallback="shubh", tenant_id=tenant_id) or "shubh"
-            voice_pace_raw = get_setting("ai_voice_reply_pace", fallback="1.0", tenant_id=tenant_id) or "1.0"
-            try:
-                voice_pace = float(voice_pace_raw)
-            except (TypeError, ValueError):
-                voice_pace = 1.0
+            from app.services.gemini_client import DEFAULT_GEMINI_VOICE
+            voice_speaker = get_setting("ai_voice_reply_speaker", fallback=DEFAULT_GEMINI_VOICE, tenant_id=tenant_id) or DEFAULT_GEMINI_VOICE
             sid = await send_whatsapp_voice_reply(
                 _wa_phone,
                 reply_text,
                 tenant_id=lead_data.get("tenant_id"),
                 phone_number_id=phone_number_id,
                 speaker=voice_speaker,
-                pace=voice_pace,
-                target_language_code=voice_language_code if voice_language_mode == "fixed" else _tts_language_code(reply_text),
                 db=db,
             )
             if sid:

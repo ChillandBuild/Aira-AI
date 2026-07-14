@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, File
 
+from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.catalog_retrieval import embed_and_store_catalog_item, reindex_catalog_items
@@ -283,9 +284,10 @@ async def delete_media(
     return {"success": True}
 
 
-@router.get("/ai-rules")
-async def get_ai_rules(tenant_id: str = Depends(get_tenant_id)):
-    db = get_supabase()
+def _catalog_ai_rules_stored(db, tenant_id: str) -> dict:
+    """The client's own catalog_ai_rules preferences, merged with defaults -- no operator
+    overlay. Operator controls (feature_enabled, max_images_ceiling) are surfaced
+    separately so they never get written back into the client's stored blob."""
     row = (
         db.table("app_settings")
         .select("value")
@@ -303,6 +305,26 @@ async def get_ai_rules(tenant_id: str = Depends(get_tenant_id)):
     return {**_AI_RULES_DEFAULTS, **stored}
 
 
+def _operator_media_recommendation_controls(tenant_id: str) -> tuple[bool, int]:
+    """(feature_enabled, max_images_ceiling) as set by the operator console. The client
+    can choose anything under the ceiling but never above it -- see decisions/log.md."""
+    enabled = get_setting("ai_media_recommendations_enabled", fallback="true", tenant_id=tenant_id) == "true"
+    ceiling_raw = get_setting("catalog_ai_max_images_ceiling", fallback="5", tenant_id=tenant_id) or "5"
+    try:
+        ceiling = max(0, int(float(ceiling_raw)))
+    except (TypeError, ValueError):
+        ceiling = 5
+    return enabled, ceiling
+
+
+@router.get("/ai-rules")
+async def get_ai_rules(tenant_id: str = Depends(get_tenant_id)):
+    db = get_supabase()
+    rules = _catalog_ai_rules_stored(db, tenant_id)
+    feature_enabled, ceiling = _operator_media_recommendation_controls(tenant_id)
+    return {**rules, "feature_enabled": feature_enabled, "max_images_ceiling": ceiling}
+
+
 @router.patch("/ai-rules")
 async def update_ai_rules(
     payload: dict,
@@ -310,8 +332,20 @@ async def update_ai_rules(
     _ctx: dict = Depends(require_catalog_manage),
 ):
     db = get_supabase()
-    current = await get_ai_rules(tenant_id)
+    current = _catalog_ai_rules_stored(db, tenant_id)
     updates = {k: v for k, v in payload.items() if k in _AI_RULES_DEFAULTS}
+
+    feature_enabled, ceiling = _operator_media_recommendation_controls(tenant_id)
+    if "max_images_per_reply" in updates:
+        try:
+            requested = int(updates["max_images_per_reply"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="max_images_per_reply must be a whole number")
+        if requested < 0:
+            raise HTTPException(status_code=400, detail="max_images_per_reply cannot be negative")
+        if requested > ceiling:
+            raise HTTPException(status_code=400, detail=f"max_images_per_reply cannot exceed {ceiling}, the limit set for your account")
+
     merged = {**current, **updates}
 
     db.table("app_settings").upsert({
@@ -322,7 +356,7 @@ async def update_ai_rules(
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }, on_conflict="tenant_id,key").execute()
 
-    return merged
+    return {**merged, "feature_enabled": feature_enabled, "max_images_ceiling": ceiling}
 
 
 @router.post("/variant-groups")

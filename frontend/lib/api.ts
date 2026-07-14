@@ -81,6 +81,9 @@ export interface CatalogAiRules {
   can_recommend: boolean;
   can_send_images: boolean;
   max_images_per_reply: number;
+  // Operator-set controls, read-only from the client side -- not part of the PATCH payload.
+  feature_enabled: boolean;
+  max_images_ceiling: number;
 }
 
 export interface Message {
@@ -1340,7 +1343,7 @@ export const api = {
         method: "DELETE",
       }),
     getAiRules: () => apiFetch<CatalogAiRules>(`/api/v1/catalog/ai-rules`),
-    updateAiRules: (data: Partial<CatalogAiRules>) =>
+    updateAiRules: (data: Partial<Pick<CatalogAiRules, "can_recommend" | "can_send_images" | "max_images_per_reply">>) =>
       apiFetch<CatalogAiRules>(`/api/v1/catalog/ai-rules`, {
         method: "PATCH",
         body: JSON.stringify(data),
