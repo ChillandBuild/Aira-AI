@@ -336,40 +336,24 @@ def get_last_send_error() -> str | None:
     return _LAST_SEND_ERROR
 
 
-def _tts_language_code(text: str) -> str:
-    lang = _detect_lang(text)
-    return {
-        "ta": "ta-IN",
-        "tanglish": "ta-IN",
-        "hi": "hi-IN",
-        "te": "te-IN",
-        "kn": "kn-IN",
-        "ml": "ml-IN",
-    }.get(lang, "en-IN")
-
-
 async def send_whatsapp_voice_reply(
     to_phone: str,
     message: str,
     tenant_id: str | None = None,
     phone_number_id: str | None = None,
     speaker: str | None = None,
-    pace: float | None = None,
-    target_language_code: str | None = None,
     db=None,
 ) -> str | None:
     try:
-        from app.services.gemini_client import gemini_text_to_speech
+        from app.services.gemini_client import gemini_text_to_speech, DEFAULT_GEMINI_VOICE
         from app.services.meta_cloud import upload_media_to_meta, send_media_message
 
-        # speaker/pace/target_language_code are Sarvam-era params, kept in the signature for
-        # caller compatibility. Gemini's TTS is LLM-native and handles raw Roman-script
-        # Tanglish correctly with no language hint (live-tested 2026-07-13/14, see
-        # subsystem-notes.md -- Sarvam Bulbul mispronounced the same text as North-Indian-
-        # accented regardless of target_language_code). Gemini's voice names (e.g. "Kore")
-        # aren't compatible with the stored Sarvam speaker names (e.g. "shubh"), so per-tenant
-        # voice selection is a no-op here until the dashboard is updated to offer Gemini voices.
-        audio_bytes = await gemini_text_to_speech(text=message)
+        # Gemini's TTS is LLM-native and handles raw Roman-script Tanglish correctly with
+        # no language hint (live-tested 2026-07-13/14, see subsystem-notes.md -- Sarvam
+        # Bulbul mispronounced the same text as North-Indian-accented regardless of the
+        # target_language_code it was given), so there's no pace or language param here --
+        # only speaker/voice carries through, using Gemini's own voice names (e.g. "Kore").
+        audio_bytes = await gemini_text_to_speech(text=message, voice=speaker or DEFAULT_GEMINI_VOICE)
         if db is not None and tenant_id:
             meter(db, tenant_id, "ai_text_to_speech")
         media_id = await upload_media_to_meta(
@@ -1209,22 +1193,14 @@ async def generate_reply(
         sid = None
         voice_reply_enabled = get_setting("ai_voice_reply_enabled", fallback="false", tenant_id=tenant_id) == "true"
         if _wa_phone and voice_reply_enabled and inbound_media_type == "audio":
-            voice_language_mode = get_setting("ai_voice_reply_language_mode", fallback="auto", tenant_id=tenant_id) or "auto"
-            voice_language_code = get_setting("ai_voice_reply_language_code", fallback="en-IN", tenant_id=tenant_id) or "en-IN"
-            voice_speaker = get_setting("ai_voice_reply_speaker", fallback="shubh", tenant_id=tenant_id) or "shubh"
-            voice_pace_raw = get_setting("ai_voice_reply_pace", fallback="1.0", tenant_id=tenant_id) or "1.0"
-            try:
-                voice_pace = float(voice_pace_raw)
-            except (TypeError, ValueError):
-                voice_pace = 1.0
+            from app.services.gemini_client import DEFAULT_GEMINI_VOICE
+            voice_speaker = get_setting("ai_voice_reply_speaker", fallback=DEFAULT_GEMINI_VOICE, tenant_id=tenant_id) or DEFAULT_GEMINI_VOICE
             sid = await send_whatsapp_voice_reply(
                 _wa_phone,
                 reply_text,
                 tenant_id=lead_data.get("tenant_id"),
                 phone_number_id=phone_number_id,
                 speaker=voice_speaker,
-                pace=voice_pace,
-                target_language_code=voice_language_code if voice_language_mode == "fixed" else _tts_language_code(reply_text),
                 db=db,
             )
             if sid:

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Gauge, Image as ImageIcon, Languages, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Image as ImageIcon, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
@@ -20,7 +20,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 type RetrievalMode = "semantic" | "keyword" | "hybrid";
-type VoiceSettingKey = "ai_voice_reply_speaker" | "ai_voice_reply_pace" | "ai_voice_reply_language_mode" | "ai_voice_reply_language_code";
+type VoiceSettingKey = "ai_voice_reply_speaker";
 type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "ai_media_max_images_per_reply";
 
 type ReplyModelId =
@@ -63,60 +63,42 @@ const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
   { id: "hybrid", label: "Best of both", desc: "Blends meaning + exact words for the highest accuracy." },
 ];
 
-const VOICE_LANGUAGES = [
-  { value: "auto", label: "Auto detect" },
-  { value: "en-IN", label: "English" },
-  { value: "hi-IN", label: "Hindi" },
-  { value: "ta-IN", label: "Tamil" },
-  { value: "te-IN", label: "Telugu" },
-  { value: "kn-IN", label: "Kannada" },
-  { value: "ml-IN", label: "Malayalam" },
-];
-
-const VOICE_PACES = [
-  { value: "0.85", label: "Slow" },
-  { value: "1.0", label: "Normal" },
-  { value: "1.2", label: "Fast" },
-];
-
+// Gemini's full set of prebuilt TTS voices. Only "Kore" has been live-tested for Tamil/
+// Tanglish accent authenticity (see subsystem-notes.md 2026-07-13/14) -- the others carry
+// the same language-handling capability (Gemini's TTS is LLM-native, not phoneme-based
+// per-voice), but their specific vocal character for Tanglish hasn't been individually
+// verified.
 const VOICE_SPEAKERS = [
-  { value: "shubh", label: "Shubh" },
-  { value: "aditya", label: "Aditya" },
-  { value: "ritu", label: "Ritu" },
-  { value: "priya", label: "Priya" },
-  { value: "neha", label: "Neha" },
-  { value: "rahul", label: "Rahul" },
-  { value: "pooja", label: "Pooja" },
-  { value: "rohan", label: "Rohan" },
-  { value: "simran", label: "Simran" },
-  { value: "kavya", label: "Kavya" },
-  { value: "amit", label: "Amit" },
-  { value: "dev", label: "Dev" },
-  { value: "ishita", label: "Ishita" },
-  { value: "shreya", label: "Shreya" },
-  { value: "ratan", label: "Ratan" },
-  { value: "varun", label: "Varun" },
-  { value: "manan", label: "Manan" },
-  { value: "sumit", label: "Sumit" },
-  { value: "roopa", label: "Roopa" },
-  { value: "kabir", label: "Kabir" },
-  { value: "aayan", label: "Aayan" },
-  { value: "ashutosh", label: "Ashutosh" },
-  { value: "advait", label: "Advait" },
-  { value: "anand", label: "Anand" },
-  { value: "tanya", label: "Tanya" },
-  { value: "tarun", label: "Tarun" },
-  { value: "sunny", label: "Sunny" },
-  { value: "mani", label: "Mani" },
-  { value: "gokul", label: "Gokul" },
-  { value: "vijay", label: "Vijay" },
-  { value: "shruti", label: "Shruti" },
-  { value: "suhani", label: "Suhani" },
-  { value: "mohit", label: "Mohit" },
-  { value: "kavitha", label: "Kavitha" },
-  { value: "rehan", label: "Rehan" },
-  { value: "soham", label: "Soham" },
-  { value: "rupali", label: "Rupali" },
+  { value: "Kore", label: "Kore (Firm) -- live-tested for Tamil" },
+  { value: "Zephyr", label: "Zephyr (Bright)" },
+  { value: "Puck", label: "Puck (Upbeat)" },
+  { value: "Charon", label: "Charon (Informative)" },
+  { value: "Fenrir", label: "Fenrir (Excitable)" },
+  { value: "Leda", label: "Leda (Youthful)" },
+  { value: "Orus", label: "Orus (Firm)" },
+  { value: "Aoede", label: "Aoede (Breezy)" },
+  { value: "Callirrhoe", label: "Callirrhoe (Easy-going)" },
+  { value: "Autonoe", label: "Autonoe (Bright)" },
+  { value: "Enceladus", label: "Enceladus (Breathy)" },
+  { value: "Iapetus", label: "Iapetus (Clear)" },
+  { value: "Umbriel", label: "Umbriel (Easy-going)" },
+  { value: "Algieba", label: "Algieba (Smooth)" },
+  { value: "Despina", label: "Despina (Smooth)" },
+  { value: "Erinome", label: "Erinome (Clear)" },
+  { value: "Algenib", label: "Algenib (Gravelly)" },
+  { value: "Rasalgethi", label: "Rasalgethi (Informative)" },
+  { value: "Laomedeia", label: "Laomedeia (Upbeat)" },
+  { value: "Achernar", label: "Achernar (Soft)" },
+  { value: "Alnilam", label: "Alnilam (Firm)" },
+  { value: "Schedar", label: "Schedar (Even)" },
+  { value: "Gacrux", label: "Gacrux (Mature)" },
+  { value: "Pulcherrima", label: "Pulcherrima (Forward)" },
+  { value: "Achird", label: "Achird (Friendly)" },
+  { value: "Zubenelgenubi", label: "Zubenelgenubi (Casual)" },
+  { value: "Vindemiatrix", label: "Vindemiatrix (Gentle)" },
+  { value: "Sadachbia", label: "Sadachbia (Lively)" },
+  { value: "Sadaltager", label: "Sadaltager (Knowledgeable)" },
+  { value: "Sulafat", label: "Sulafat (Warm)" },
 ];
 
 interface ConfigData {
@@ -126,9 +108,6 @@ interface ConfigData {
     ai_auto_reply_enabled: boolean;
     ai_voice_reply_enabled: boolean;
     ai_voice_reply_speaker?: string | null;
-    ai_voice_reply_pace?: number | string | null;
-    ai_voice_reply_language_mode?: "auto" | "fixed" | string | null;
-    ai_voice_reply_language_code?: string | null;
     ai_media_recommendations_enabled?: boolean;
     ai_media_max_images_per_reply?: number | string | null;
     reengagement_enabled: boolean;
@@ -334,37 +313,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     }
   }
 
-  async function updateVoiceLanguage(value: string) {
-    if (!config) return;
-    const nextSettings = value === "auto"
-      ? { ai_voice_reply_language_mode: "auto" }
-      : { ai_voice_reply_language_mode: "fixed", ai_voice_reply_language_code: value };
-    setVoiceSettingSaving("ai_voice_reply_language_code");
-    setError(null);
-    try {
-      await apiFetch<{ status: string }>(
-        `/api/v1/operator/clients/${tenantId}/config`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({ settings: nextSettings })
-        }
-      );
-      setConfig({
-        ...config,
-        settings: {
-          ...config.settings,
-          ...nextSettings,
-        }
-      });
-      toast.success("AI voice reply language updated.");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to update AI voice reply language");
-      toast.error("Failed to update AI voice reply language.");
-    } finally {
-      setVoiceSettingSaving(null);
-    }
-  }
-
   async function updateMediaRecommendationSetting(key: MediaRecommendationSettingKey, value: string | boolean) {
     if (!config || (config.settings[key] ?? "") === value) return;
     setMediaRecommendationSaving(key);
@@ -505,11 +453,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     ?? usageMetricCount(config.usage, ["ai_text_to_speech", "tts", "text_to_speech", "ai_voice_tts"]);
   const hasVoiceUsage = typeof sttUsageCount === "number" || typeof ttsUsageCount === "number";
   const voiceSettings = {
-    speaker: config.settings.ai_voice_reply_speaker ?? "shubh",
-    pace: String(config.settings.ai_voice_reply_pace ?? "1.0"),
-    language: config.settings.ai_voice_reply_language_mode === "fixed"
-      ? (config.settings.ai_voice_reply_language_code ?? "en-IN")
-      : "auto",
+    speaker: config.settings.ai_voice_reply_speaker ?? "Kore",
   };
   const mediaRecommendationsEnabled = config.settings.ai_media_recommendations_enabled ?? false;
   const mediaMaxImages = Number(config.settings.ai_media_max_images_per_reply ?? 3);
@@ -642,7 +586,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">Reply with WhatsApp audio</p>
               <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                When a customer sends a WhatsApp voice note, Aira transcribes it and replies back as a Bulbul voice note for this client.
+                When a customer sends a WhatsApp voice note, Aira transcribes it and replies back as a Gemini-generated voice note for this client.
               </p>
             </div>
             <OperatorToggle
@@ -656,10 +600,10 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           {!config.settings.ai_auto_reply_enabled && (
             <p className="mt-3 text-xs text-warning">Enable AI Auto-Reply before turning on voice replies.</p>
           )}
-          <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-3">
+          <div className="mt-4 border-t border-border-subtle pt-4">
             <label className="block">
               <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-                <Mic size={13} /> Speaker
+                <Mic size={13} /> Voice
               </span>
               <select
                 value={voiceSettings.speaker}
@@ -668,36 +612,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                 className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
               >
                 {VOICE_SPEAKERS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-                <Gauge size={13} /> Pace
-              </span>
-              <select
-                value={voiceSettings.pace}
-                onChange={(e) => updateVoiceSetting("ai_voice_reply_pace", e.target.value)}
-                disabled={voiceSettingSaving === "ai_voice_reply_pace"}
-                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
-              >
-                {VOICE_PACES.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-                <Languages size={13} /> Language
-              </span>
-              <select
-                value={voiceSettings.language}
-                onChange={(e) => updateVoiceLanguage(e.target.value)}
-                disabled={voiceSettingSaving === "ai_voice_reply_language_code"}
-                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
-              >
-                {VOICE_LANGUAGES.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
@@ -819,7 +733,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </h3>
         {/* eslint-disable react/no-unescaped-entities */}
         <p className="mb-4 text-xs leading-relaxed text-ink-muted">
-          Each provider is integrated directly and needs its own API key for this client — there is no shared platform key. A provider's models won't work for this client until its key is added below. The highlighted model is what currently generates auto-replies, reengagement messages, and product-recommendation replies.
+          Each provider is integrated directly and needs its own API key for this client — there is no shared platform key. A provider&apos;s models won&apos;t work for this client until its key is added below. The highlighted model is what currently generates auto-replies, reengagement messages, and product-recommendation replies.
         </p>
         {/* eslint-enable react/no-unescaped-entities */}
         <div className="flex flex-col gap-5">
