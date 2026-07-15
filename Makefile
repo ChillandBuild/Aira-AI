@@ -2,7 +2,7 @@
 # graphify python is resolved from the env graphify wrote; falls back to python3.
 PY := $(shell cat graphify-out/.graphify_python 2>/dev/null || echo python3)
 
-.PHONY: wiki wiki-refresh
+.PHONY: wiki wiki-refresh second-brain-close
 
 # Rebuild the curated module wiki from the EXISTING graph.json (fast, no extraction).
 # Use after running `make wiki-refresh`, or when you only tweaked labels in scripts/build_wiki.py.
@@ -17,3 +17,9 @@ wiki:
 wiki-refresh:
 	graphify update . --force
 	$(PY) scripts/build_wiki.py
+
+# Session-end second-brain health check (dead links, credential scan, generated-artifact
+# git churn, hook liveness, stale .agents/ claims). Read-only. Same script every project
+# scaffolded with bootstrapping-second-brain uses — see scripts/second_brain_close.py.
+second-brain-close:
+	python3 scripts/second_brain_close.py

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Aira Status"
-  short_description: "Session-end Aira repo status workflow"
-  default_prompt: "Use $aira-status to close the session and refresh local project context."
+  display_name: "Second Brain Close"
+  short_description: "Session-end second-brain health check + knowledge routing"
+  default_prompt: "Use $second-brain-close to close the session and refresh local project context."

@@ -72,7 +72,8 @@
 - **Contact Recycling Engine**: Automatic APScheduler recycling job to re-queue unreachable voice leads (Migration 111).
 
 ## Tooling Follow-ups
-- **Workspace root MUST be `Aira.AI\Aira-Ai` (inner), not the outer `Aira.AI`**: the git repo, `.claude/commands`, `.agents/`, `Makefile`, and all code live in the inner `Aira-Ai`. Opening Claude Code / the IDE at the outer `Aira.AI` makes `/aira-status` etc. invisible (Claude scans `<cwd>/.claude/commands`, which doesn't exist at the outer level) and breaks the commands' relative paths. The outer folder has its own separate (near-empty) `.git`/`.agents` — ignore it. Always open at the inner folder.
+- **Workspace root MUST be `Aira.AI\Aira-Ai` (inner), not the outer `Aira.AI`**: the git repo, `.claude/commands`, `.agents/`, `Makefile`, and all code live in the inner `Aira-Ai`. Opening Claude Code / the IDE at the outer `Aira.AI` makes `/second-brain-close` etc. invisible (Claude scans `<cwd>/.claude/commands`, which doesn't exist at the outer level) and breaks the commands' relative paths. The outer folder has its own separate (near-empty) `.git`/`.agents` — ignore it. Always open at the inner folder.
+- **`/aira-status` renamed to `/second-brain-close` (2026-07-15)** — same ritual, now backed by `scripts/second_brain_close.py` (shared with every other project using this pattern) instead of a hand-maintained duplicate per tool. Claude command, Codex skill, and the old `.agents/skills/` copy were consolidated into one. If a saved snippet/muscle-memory still says `/aira-status`, it no longer resolves — use `/second-brain-close`.
 - **Local wiki refresh toolchain on Windows**: `graphify-out/` is now ignored/local-only, but this machine currently lacks `make` and `graphify` on PATH, so `/aira-wiki` cannot rebuild the wiki after a fresh clone/pull. Install/expose graphify + make, or add a Windows-friendly script target.
 
 ## Session Follow-ups
