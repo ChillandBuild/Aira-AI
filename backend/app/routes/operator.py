@@ -169,16 +169,22 @@ def list_clients(_admin: dict = Depends(get_system_admin)):
     ).execute()
     result = []
     for c in (clients.data or []):
-        owner = (
-            db.table("tenant_users")
-            .select("user_id")
-            .eq("tenant_id", c["id"])
-            .eq("role", "owner")
-            .maybe_single()
-            .execute()
-        )
+        try:
+            owner = (
+                db.table("tenant_users")
+                .select("user_id")
+                .eq("tenant_id", c["id"])
+                .eq("role", "owner")
+                .maybe_single()
+                .execute()
+            )
+        except Exception:
+            # A tenant with a malformed tenant_users state (e.g. more than
+            # one "owner" row) must not take down the whole client list —
+            # just show that tenant without an owner email.
+            owner = None
         owner_email = None
-        if owner.data and owner.data.get("user_id"):
+        if owner and owner.data and owner.data.get("user_id"):
             try:
                 user = db.auth.admin.get_user_by_id(owner.data["user_id"])
                 owner_email = user.user.email if hasattr(user, "user") else None
