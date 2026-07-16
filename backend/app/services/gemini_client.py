@@ -100,13 +100,23 @@ async def gemini_chat_completion(
 ) -> str:
     """Plain chat completion via Gemini's interactions endpoint. No fallback to a platform
     key -- every client must configure their own gemini_api_key (operator decision, see
-    decisions/log.md)."""
+    decisions/log.md).
+
+    thinking_level="minimal" -- Gemini 3.x models default to "medium" thinking, which on
+    gemini-3.5-flash spent most of a 300-token max_output_tokens budget on the hidden
+    thought step, live-tested to either time out (30s client timeout) or return a reply
+    truncated mid-sentence. gemini-3.1-flash-lite happened to be fast enough not to show
+    it, but the same default applies there too."""
     api_key = require_tenant_setting("gemini_api_key", tenant_id)
     system_instruction, input_steps = _messages_to_gemini_input(messages)
     request_json: dict = {
         "model": model,
         "input": input_steps,
-        "generation_config": {"temperature": temperature, "max_output_tokens": max_tokens},
+        "generation_config": {
+            "temperature": temperature,
+            "max_output_tokens": max_tokens,
+            "thinking_level": "minimal",
+        },
     }
     if system_instruction:
         request_json["system_instruction"] = system_instruction
@@ -135,7 +145,11 @@ async def gemini_chat_completion_with_tools(
         "model": model,
         "input": input_steps,
         "tools": _openai_tools_to_gemini(tools),
-        "generation_config": {"temperature": temperature, "max_output_tokens": max_tokens},
+        "generation_config": {
+            "temperature": temperature,
+            "max_output_tokens": max_tokens,
+            "thinking_level": "minimal",
+        },
     }
     if system_instruction:
         request_json["system_instruction"] = system_instruction
