@@ -36,6 +36,10 @@ class EmbeddedSignupRequest(BaseModel):
     business_id: str | None = None
 
 
+class FacebookEmbeddedSignupRequest(BaseModel):
+    code: str
+
+
 class InboxConfigUpdate(BaseModel):
     enabled: bool | None = None
     auto_assign_enabled: bool | None = None
@@ -634,6 +638,123 @@ async def whatsapp_embedded_signup(
         "phone_number": display_phone,
         "business_name": info_data.get("verified_name"),
         "subscribed": subscribed,
+    }
+
+
+@router.post("/facebook/embedded-signup")
+async def facebook_embedded_signup(
+    payload: FacebookEmbeddedSignupRequest,
+    ctx: dict = Depends(require_settings_manage),
+    user: dict = Depends(get_current_user),
+):
+    """Finish Facebook Login for Business signup for Messenger + linked Instagram:
+    exchange the popup's code for a user token, find the granted Page, subscribe it
+    to webhooks, and save Page/Instagram credentials — the automated replacement for
+    manually pasting facebook_access_token/page_id and instagram_access_token/page_id."""
+    from app.services.meta_cloud import exchange_embedded_signup_code
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+
+    exchange = await exchange_embedded_signup_code(payload.code)
+    user_token = exchange["access_token"]
+
+    async with httpx.AsyncClient() as client:
+        pages_r = await client.get(
+            "https://graph.facebook.com/v21.0/me/accounts",
+            params={
+                "fields": "id,name,access_token,instagram_business_account",
+                "access_token": user_token,
+            },
+            timeout=10.0,
+        )
+    pages_data = pages_r.json()
+    if "error" in pages_data:
+        raise HTTPException(status_code=400, detail=pages_data["error"].get("message", "Could not list granted Facebook Pages"))
+    pages = pages_data.get("data", [])
+    if not pages:
+        raise HTTPException(status_code=400, detail="No Facebook Page was granted — select a Page during signup.")
+
+    # Only one Page/tenant is supported today — same single-asset shape as the WhatsApp flow.
+    page = pages[0]
+    if len(pages) > 1:
+        logger.info(f"Facebook embedded signup: tenant={tenant_id} granted {len(pages)} pages, connecting first ({page.get('name')}) only")
+
+    page_id = page["id"]
+    page_token = page["access_token"]
+    ig_account = page.get("instagram_business_account")
+
+    sub_fields = "messages,messaging_postbacks,message_deliveries,message_reads"
+    async with httpx.AsyncClient() as client:
+        sub_r = await client.post(
+            f"https://graph.facebook.com/v21.0/{page_id}/subscribed_apps",
+            params={"subscribed_fields": sub_fields, "access_token": page_token},
+            timeout=10.0,
+        )
+    sub_data = sub_r.json()
+    subscribed = sub_data.get("success", False)
+    if "error" in sub_data:
+        logger.warning(f"Facebook embedded signup: subscribed_apps failed tenant={tenant_id}: {sub_data['error']}")
+
+    connected_instagram = bool(ig_account and ig_account.get("id"))
+    creds_to_save = {
+        "facebook_access_token": page_token,
+        "facebook_page_id": page_id,
+    }
+    if connected_instagram:
+        # Page-linked Instagram messaging is authenticated with the same Page access
+        # token (Meta's Messenger Platform for Instagram) — not a separate IG token.
+        creds_to_save["instagram_access_token"] = page_token
+        creds_to_save["instagram_page_id"] = ig_account["id"]
+
+    for key, value in creds_to_save.items():
+        if not value:
+            continue
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": key,
+            "value": value,
+            "is_secret": key.endswith("_access_token"),
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+
+    db.table("app_settings").upsert({
+        "tenant_id": tenant_id,
+        "key": "facebook_status",
+        "value": "live",
+        "is_secret": False,
+        "updated_at": "now()",
+    }, on_conflict="tenant_id,key").execute()
+    if connected_instagram:
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "instagram_status",
+            "value": "live",
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+
+    logger.info(f"Facebook embedded signup: tenant={tenant_id} page={page.get('name')} instagram_connected={connected_instagram} subscribed={subscribed}")
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=user.get("user_id"),
+        actor_role="tenant_user",
+        action="settings.facebook_embedded_signup_connected",
+        target_type="channel",
+        target_id="facebook",
+        metadata={"channel": "facebook", "page_id": page_id, "subscribed": subscribed, "instagram_connected": connected_instagram},
+    )
+
+    return {
+        "success": True,
+        "page_name": page.get("name"),
+        "page_id": page_id,
+        "subscribed": subscribed,
+        "instagram_connected": connected_instagram,
     }
 
 

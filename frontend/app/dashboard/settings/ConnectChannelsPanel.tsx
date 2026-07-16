@@ -11,6 +11,10 @@ import { cn } from "@/lib/utils";
 // Not secrets — safe to expose client-side. Env var lets prod/staging override.
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
 const META_CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1063294086656120";
+// Separate Facebook Login for Business Configuration (Pages assets) — connects
+// Messenger + linked Instagram together. Set once the Configuration is created
+// in the Meta App Dashboard; the button is disabled until then.
+const META_PAGES_CONFIG_ID = process.env.NEXT_PUBLIC_META_PAGES_CONFIG_ID || "";
 
 declare global {
   interface Window {
@@ -447,6 +451,9 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const esSessionRef = useRef<EmbeddedSignupSession>({});
   const esCodeRef = useRef<string | null>(null);
 
+  const [fbEsState, setFbEsState] = useState<EmbeddedSignupState>("idle");
+  const [fbEsError, setFbEsError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const s = await fetchSettings();
@@ -707,6 +714,62 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     );
   }
 
+  const finishFacebookEmbeddedSignup = useCallback(async (code: string) => {
+    setFbEsState("finishing");
+    setFbEsError(null);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/settings/facebook/embedded-signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Connecting Facebook failed");
+      setFbEsState("idle");
+      setActivateResult({
+        success: true,
+        message: "Facebook connected",
+        detail: [
+          data.page_name,
+          data.subscribed ? "Webhook subscribed ✓" : null,
+          data.instagram_connected ? "Instagram linked ✓" : null,
+        ].filter(Boolean).join(" · "),
+      });
+      await load();
+      loadHealth();
+    } catch (e) {
+      setFbEsState("error");
+      setFbEsError(e instanceof Error ? e.message : "Connecting Facebook failed");
+    }
+  }, [load, loadHealth]);
+
+  async function handleConnectFacebookPages() {
+    if (!canManage) return;
+    if (!META_PAGES_CONFIG_ID) {
+      setFbEsError("Facebook/Instagram Connect isn't configured yet — set NEXT_PUBLIC_META_PAGES_CONFIG_ID.");
+      return;
+    }
+    setFbEsState("connecting");
+    setFbEsError(null);
+    await loadFacebookSdk();
+    window.FB?.login(
+      (response) => {
+        const code = response?.authResponse?.code;
+        if (!code) {
+          setFbEsState("idle");
+          return;
+        }
+        finishFacebookEmbeddedSignup(code);
+      },
+      {
+        config_id: META_PAGES_CONFIG_ID,
+        response_type: "code",
+        override_default_response_type: true,
+      }
+    );
+  }
+
   const openChannelModal = (channel: ChannelConfig) => {
     setSelectedChannel(channel);
     setSaveState("idle");
@@ -886,6 +949,36 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                       fully connect here.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* One-click Facebook Login for Business (Facebook + linked Instagram) */}
+              {(selectedChannel.id === "facebook" || selectedChannel.id === "instagram") && (
+                <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <p className="font-display font-bold text-ink text-sm">Connect with Facebook</p>
+                      <p className="font-body text-xs text-ink-muted mt-0.5">
+                        One-click setup — links your Facebook Page and its linked Instagram account together.
+                        No manual copy-pasting below.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleConnectFacebookPages}
+                      disabled={!canManage || fbEsState === "connecting" || fbEsState === "finishing"}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold bg-[#1877F2] text-white hover:bg-[#1568d6] transition-all disabled:opacity-60 whitespace-nowrap"
+                    >
+                      {fbEsState === "finishing" ? (
+                        <><Loader2 size={14} className="animate-spin" />Finishing…</>
+                      ) : fbEsState === "connecting" ? (
+                        <><Loader2 size={14} className="animate-spin" />Waiting…</>
+                      ) : (
+                        <>Connect with Facebook</>
+                      )}
+                    </button>
+                  </div>
+                  {fbEsError && <p className="text-xs text-red-700 font-body">{fbEsError}</p>}
                 </div>
               )}
 

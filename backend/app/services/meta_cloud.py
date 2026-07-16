@@ -130,8 +130,10 @@ def _creds(phone_number_id: Optional[str], access_token: Optional[str], tenant_i
 
 
 async def exchange_embedded_signup_code(code: str) -> dict:
-    """Exchange a WhatsApp Embedded Signup authorization code for a business access token.
+    """Exchange a Facebook Login for Business authorization code for an access token.
 
+    Shared by WhatsApp Embedded Signup and the Facebook/Instagram Connect flow —
+    both are the same underlying OAuth exchange, just different Configurations.
     The code expires ~30 seconds after the frontend receives it from the signup
     popup, so this must run immediately once the flow completes. Uses our own
     Meta app's id/secret (the same app every tenant's signup runs through), not
