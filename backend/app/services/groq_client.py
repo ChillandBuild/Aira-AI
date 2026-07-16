@@ -1,12 +1,13 @@
 # backend/app/services/groq_client.py
 from groq import Groq, AsyncGroq
-from app.config_dynamic import get_setting, require_tenant_setting
-from app.config import settings
+from app.config_dynamic import require_tenant_setting
 
 def get_groq_client(tenant_id: str | None = None, is_async: bool = True):
-    api_key = get_setting("groq_api_key", tenant_id=tenant_id) or settings.groq_api_key
-    if not api_key:
-        raise RuntimeError("Groq API key not configured")
+    """No fallback to a platform key -- every client must configure their own groq_api_key
+    for every Groq-backed workload (scoring, summaries, tuning, digests, coaching,
+    compaction, briefs), same policy as reply generation (operator decision, see
+    decisions/log.md)."""
+    api_key = require_tenant_setting("groq_api_key", tenant_id)
     return AsyncGroq(api_key=api_key) if is_async else Groq(api_key=api_key)
 
 
@@ -30,9 +31,7 @@ async def groq_chat_completion(
     tenant_id: str | None = None,
 ) -> str:
     """No fallback to a platform key -- every client must configure their own groq_api_key
-    for reply generation (operator decision, see decisions/log.md). This is stricter than
-    get_groq_client's fallback, which other Groq-backed features (scoring, summaries) keep
-    using unchanged."""
+    for reply generation (operator decision, see decisions/log.md)."""
     api_key = require_tenant_setting("groq_api_key", tenant_id)
     client = AsyncGroq(api_key=api_key)
     resp = await client.chat.completions.create(

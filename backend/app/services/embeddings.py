@@ -2,7 +2,7 @@ import logging
 
 import httpx
 
-from app.config import settings
+from app.config_dynamic import require_tenant_setting
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +20,15 @@ class EmbeddingError(RuntimeError):
     """Raised when the embedding provider is unavailable or returns a bad shape."""
 
 
-async def _call_jina(inputs: list[str], task: str) -> list[list[float]]:
-    if not settings.jina_api_key:
-        raise EmbeddingError("JINA_API_KEY not configured")
+async def _call_jina(inputs: list[str], task: str, tenant_id: str | None) -> list[list[float]]:
+    """No fallback to a platform key -- every client gets their own jina_api_key, same
+    policy as every other AI provider (operator decision, see decisions/log.md)."""
+    try:
+        api_key = require_tenant_setting("jina_api_key", tenant_id)
+    except RuntimeError as e:
+        raise EmbeddingError(str(e)) from e
     headers = {
-        "Authorization": f"Bearer {settings.jina_api_key}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -50,7 +54,7 @@ async def _call_jina(inputs: list[str], task: str) -> list[list[float]]:
     return vectors
 
 
-async def embed_texts(texts: list[str], input_type: str = "document") -> list[list[float]]:
+async def embed_texts(texts: list[str], input_type: str = "document", tenant_id: str | None = None) -> list[list[float]]:
     """Embed a batch of documents/chunks. Splits into provider-safe batches."""
     clean = [t for t in (s.strip() for s in texts) if t]
     if not clean:
@@ -58,13 +62,13 @@ async def embed_texts(texts: list[str], input_type: str = "document") -> list[li
     task = _TASK_QUERY if input_type == "query" else _TASK_DOCUMENT
     out: list[list[float]] = []
     for i in range(0, len(clean), _MAX_BATCH):
-        out.extend(await _call_jina(clean[i : i + _MAX_BATCH], task))
+        out.extend(await _call_jina(clean[i : i + _MAX_BATCH], task, tenant_id))
     return out
 
 
-async def embed_query(text: str) -> list[float]:
+async def embed_query(text: str, tenant_id: str | None = None) -> list[float]:
     """Embed a single search query (query task tunes for asymmetric retrieval)."""
-    vectors = await _call_jina([text.strip()], _TASK_QUERY)
+    vectors = await _call_jina([text.strip()], _TASK_QUERY, tenant_id)
     return vectors[0]
 
 

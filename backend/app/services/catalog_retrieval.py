@@ -109,7 +109,7 @@ async def embed_and_store_catalog_item(
     from app.services.embeddings import embed_texts, to_pgvector
 
     text = build_catalog_item_embedding_text(name, item_type, description, attributes)
-    vectors = await embed_texts([text], input_type="document")
+    vectors = await embed_texts([text], input_type="document", tenant_id=tenant_id)
     if not vectors:
         return
     db.rpc(
@@ -125,7 +125,7 @@ async def match_catalog_items(db, tenant_id: str, query: str, match_count: int =
     callers must catch and fail open to listing every ready item."""
     from app.services.embeddings import embed_query, to_pgvector
 
-    q_emb = await embed_query(query)
+    q_emb = await embed_query(query, tenant_id=tenant_id)
     res = db.rpc(
         "match_catalog_items",
         {"query_embedding": to_pgvector(q_emb), "p_tenant_id": tenant_id, "match_count": match_count},

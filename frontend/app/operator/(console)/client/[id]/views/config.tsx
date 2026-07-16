@@ -33,17 +33,19 @@ type ReplyModelId =
   | "groq/llama-3.3-70b-versatile"
   | "groq/qwen/qwen3-32b";
 
-type AiProviderKey = "sarvam" | "gemini" | "openai" | "groq";
+type AiProviderKey = "sarvam" | "gemini" | "openai" | "groq" | "jina";
 
 // Each provider is integrated directly (no OpenRouter middleman) and requires its own
 // API key configured per client -- there is no platform-wide fallback key for any
-// provider, including Sarvam. If a client hasn't had a provider's key set up here, that
-// provider's models simply won't work for them.
+// provider, including Sarvam and Jina. If a client hasn't had a provider's key set up
+// here, that provider's models (or, for Jina, knowledge-base/catalog search) simply
+// won't work for them.
 const AI_PROVIDERS: { key: AiProviderKey; label: string; credKey: string; settingKey: string }[] = [
   { key: "sarvam", label: "Sarvam", credKey: "ai_sarvam", settingKey: "sarvam_api_key" },
   { key: "gemini", label: "Gemini", credKey: "ai_gemini", settingKey: "gemini_api_key" },
   { key: "openai", label: "OpenAI", credKey: "ai_openai", settingKey: "openai_api_key" },
   { key: "groq", label: "Groq", credKey: "ai_groq", settingKey: "groq_api_key" },
+  { key: "jina", label: "Jina", credKey: "ai_jina", settingKey: "jina_api_key" },
 ];
 
 const REPLY_MODELS: { id: ReplyModelId; label: string; provider: AiProviderKey; costTier: "$" | "$$" | "$$$"; desc: string }[] = [
@@ -189,7 +191,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
   const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
   const [mediaRecommendationSaving, setMediaRecommendationSaving] = useState<MediaRecommendationSettingKey | null>(null);
-  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<AiProviderKey, string>>({ sarvam: "", gemini: "", openai: "", groq: "" });
+  const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<AiProviderKey, string>>({ sarvam: "", gemini: "", openai: "", groq: "", jina: "" });
   const [apiKeySaving, setApiKeySaving] = useState<AiProviderKey | null>(null);
   const [replyModelSaving, setReplyModelSaving] = useState<ReplyModelId | null>(null);
 
@@ -770,6 +772,11 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                     {savingKey ? <Loader2 size={16} className="animate-spin" /> : "Save Key"}
                   </button>
                 </div>
+                {models.length === 0 ? (
+                  <p className="text-xs leading-relaxed text-ink-muted">
+                    Used for knowledge-base and catalog search embeddings — no reply model choice for this provider.
+                  </p>
+                ) : (
                 <div className="grid gap-3 md:grid-cols-2">
                   {models.map((option) => {
                     const selected = config.settings.ai_reply_model === option.id;
@@ -801,6 +808,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                     );
                   })}
                 </div>
+                )}
               </div>
             );
           })}

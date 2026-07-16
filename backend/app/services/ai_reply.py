@@ -353,7 +353,7 @@ async def send_whatsapp_voice_reply(
         # Bulbul mispronounced the same text as North-Indian-accented regardless of the
         # target_language_code it was given), so there's no pace or language param here --
         # only speaker/voice carries through, using Gemini's own voice names (e.g. "Kore").
-        audio_bytes = await gemini_text_to_speech(text=message, voice=speaker or DEFAULT_GEMINI_VOICE)
+        audio_bytes = await gemini_text_to_speech(text=message, voice=speaker or DEFAULT_GEMINI_VOICE, tenant_id=tenant_id)
         if db is not None and tenant_id:
             meter(db, tenant_id, "ai_text_to_speech")
         media_id = await upload_media_to_meta(

@@ -41,12 +41,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _warn_missing_secrets(self) -> "Settings":
+        # sarvam_api_key/gemini_api_key/groq_api_key/jina_api_key are per-tenant only
+        # (app_settings, configured in the operator console) -- every AI provider has no
+        # platform-wide fallback, so those fields are unused at runtime by the AI code
+        # paths and are not listed as critical here (see decisions/log.md). meta_app_secret
+        # stays critical -- it's still read from here for the Embedded Signup OAuth
+        # exchange (one shared Meta app for every tenant), not per-tenant AI billing.
         critical = {
-            "sarvam_api_key": "WhatsApp AI replies, call transcription, and knowledge image OCR will fail",
-            "gemini_api_key": "WhatsApp AI voice replies will fail",
-            "groq_api_key": "Scoring, call summaries, AI tuning, lead briefs, and conversation compaction will fail",
             "meta_app_secret": "Webhook signature verification will reject all inbound",
-            "jina_api_key": "Knowledge base RAG embeddings will fail",
         }
         for key, impact in critical.items():
             if not getattr(self, key):

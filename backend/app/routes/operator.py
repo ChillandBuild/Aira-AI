@@ -70,6 +70,7 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("telecmi_callerid", False), ("telecmi_recording_base_url", False),
     ("sarvam_api_key", True), ("groq_api_key", True),
     ("gemini_api_key", True), ("openai_api_key", True),
+    ("jina_api_key", True),
     ("ai_reply_model", False),
     ("telegram_bot_token", True),
     ("instagram_page_id", False), ("instagram_access_token", True),
@@ -875,7 +876,7 @@ def client_overview(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
 
     tenant = db.table("tenants").select("id, name, status, enabled_features, created_at, plan").eq("id", tenant_id).maybe_single().execute()
-    if not tenant.data:
+    if not tenant or not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     owner_row = (
@@ -887,7 +888,7 @@ def client_overview(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         .execute()
     )
     owner_info: dict = {"user_id": None, "email": None, "created_at": None}
-    if owner_row.data:
+    if owner_row and owner_row.data:
         owner_info["user_id"] = owner_row.data["user_id"]
         owner_info["created_at"] = owner_row.data["created_at"]
         try:
@@ -1003,6 +1004,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "ai_gemini": cred_status(["gemini_api_key"]),
             "ai_openai": cred_status(["openai_api_key"]),
             "ai_groq": cred_status(["groq_api_key"]),
+            "ai_jina": cred_status(["jina_api_key"]),
             "telegram": cred_status(["telegram_bot_token"]),
             "instagram": cred_status(["instagram_page_id", "instagram_access_token"]),
             "facebook": cred_status(["facebook_page_id", "facebook_access_token"]),
@@ -1051,6 +1053,7 @@ def update_client_config(
         "groq_api_key",
         "gemini_api_key",
         "openai_api_key",
+        "jina_api_key",
         "meta_access_token",
         "meta_webhook_verify_token",
         "meta_app_secret",

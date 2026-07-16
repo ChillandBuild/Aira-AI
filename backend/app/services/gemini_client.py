@@ -5,21 +5,17 @@ import json
 import httpx
 import lameenc
 
-from app.config import settings
 from app.config_dynamic import require_tenant_setting
 
 GEMINI_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
-DEFAULT_GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+# gemini-2.5-flash-preview-tts started hard-400ing on every request ("Model tried to
+# generate text, but it should only be used for TTS") regardless of payload -- live-tested
+# 2026-07-17, confirmed dead at Google's end, not a request-shape bug. gemini-3.1-flash-
+# tts-preview accepts the identical request body and returns audio correctly.
+DEFAULT_GEMINI_TTS_MODEL = "gemini-3.1-flash-tts-preview"
 DEFAULT_GEMINI_VOICE = "Kore"
 _PCM_SAMPLE_RATE = 24000
 _PCM_CHANNELS = 1
-
-
-def get_gemini_api_key() -> str:
-    api_key = settings.gemini_api_key
-    if not api_key:
-        raise RuntimeError("Gemini API key not configured")
-    return api_key
 
 
 def _messages_to_gemini_input(messages: list[dict]) -> tuple[str | None, list[dict]]:
@@ -180,6 +176,7 @@ async def gemini_text_to_speech(
     text: str,
     voice: str = DEFAULT_GEMINI_VOICE,
     model: str = DEFAULT_GEMINI_TTS_MODEL,
+    tenant_id: str | None = None,
 ) -> bytes:
     """Sarvam Bulbul mispronounced Romanized Tanglish with a non-Tamil accent regardless
     of target_language_code (live-tested 2026-07-13/14, see subsystem-notes.md). Gemini's
@@ -187,8 +184,12 @@ async def gemini_text_to_speech(
     Roman-script Tanglish correctly with no code-switch preprocessing -- confirmed via live
     A/B audio testing. Returns MP3 bytes (transcoded from Gemini's raw PCM output via
     lameenc, since the API has no compressed-format response option and WhatsApp's Cloud
-    API doesn't accept raw PCM)."""
-    api_key = get_gemini_api_key()
+    API doesn't accept raw PCM).
+
+    No fallback to a platform key -- every client must configure their own gemini_api_key
+    for voice replies, same policy as every other AI provider (operator decision, see
+    decisions/log.md)."""
+    api_key = require_tenant_setting("gemini_api_key", tenant_id)
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(
             GEMINI_INTERACTIONS_URL,

@@ -72,7 +72,8 @@ async def compact_conversation(
         The new summary text
     """
     db = db or get_supabase()
-    
+    existing_summary = None
+
     try:
         client = get_groq_client(tenant_id, is_async=False)
     except Exception as e:

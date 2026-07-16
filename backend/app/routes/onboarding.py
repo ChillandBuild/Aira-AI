@@ -16,6 +16,7 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("telecmi_callerid", False), ("telecmi_recording_base_url", False),
     ("sarvam_api_key", True), ("groq_api_key", True),
     ("gemini_api_key", True), ("openai_api_key", True),
+    ("jina_api_key", True),
     ("ai_reply_model", False),
     ("telegram_bot_token", True),
     ("instagram_page_id", False), ("instagram_access_token", True),

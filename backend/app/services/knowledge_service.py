@@ -57,7 +57,7 @@ async def _index_chunks(
     chunks = _chunk_text(text)
     if not chunks:
         return 0
-    embeddings = await embed_texts(chunks, input_type="document")
+    embeddings = await embed_texts(chunks, input_type="document", tenant_id=tenant_id)
     if len(embeddings) != len(chunks):
         raise ValueError(f"Embedding count {len(embeddings)} != chunk count {len(chunks)}")
 
@@ -207,7 +207,7 @@ async def _semantic_search(
     """Vector similarity via Jina embeddings + match_knowledge_chunks RPC."""
     from app.services.embeddings import embed_query, to_pgvector
 
-    q_emb = await embed_query(query)
+    q_emb = await embed_query(query, tenant_id=tenant_id)
     res = db.rpc(
         "match_knowledge_chunks",
         {
