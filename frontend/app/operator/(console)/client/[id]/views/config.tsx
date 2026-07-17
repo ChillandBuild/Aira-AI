@@ -20,6 +20,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 type RetrievalMode = "semantic" | "keyword" | "hybrid";
+type ReplyLanguageMode = "mirror" | "tanglish" | "english" | "tamil";
 type VoiceSettingKey = "ai_voice_reply_speaker";
 type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "catalog_ai_max_images_ceiling";
 
@@ -63,6 +64,17 @@ const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
   { id: "semantic", label: "Smart", desc: "Understands meaning & language (Tamil/English), even when a lead rephrases. Recommended." },
   { id: "keyword", label: "Exact words", desc: "Matches the exact words in your documents. Fastest, no AI cost — weaker on reworded questions." },
   { id: "hybrid", label: "Best of both", desc: "Blends meaning + exact words for the highest accuracy." },
+];
+
+// Forced modes bypass the script-mismatch safety net entirely (there's nothing to
+// "correct" -- the reply script is intentional), so they always send exactly what the
+// model generates. Only "mirror" keeps the auto-regeneration check that catches a reply
+// drifting to the wrong script.
+const REPLY_LANGUAGE_MODES: { id: ReplyLanguageMode; label: string; desc: string }[] = [
+  { id: "mirror", label: "Mirror lead's language", desc: "Matches whatever the lead writes in — English, Tamil script, or Tanglish. Default." },
+  { id: "tanglish", label: "Tanglish only", desc: "Always replies in Tanglish (Tamil words in Roman letters), regardless of what the lead writes in." },
+  { id: "english", label: "English only", desc: "Always replies in English, regardless of what the lead writes in." },
+  { id: "tamil", label: "Tamil script only", desc: "Always replies in native Tamil script, regardless of what the lead writes in." },
 ];
 
 // Gemini's full set of prebuilt TTS voices. Only "Kore" has been live-tested for Tamil/
@@ -115,6 +127,7 @@ interface ConfigData {
     reengagement_enabled: boolean;
     kb_retrieval_mode: RetrievalMode;
     ai_reply_model: ReplyModelId;
+    reply_language_mode: ReplyLanguageMode;
   };
   usage_counts?: {
     stt?: number | null;
@@ -188,6 +201,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [providerSaving, setProviderSaving] = useState<"telecmi" | "sim_basic" | null>(null);
   const [pendingProvider, setPendingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
   const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
+  const [replyLanguageSaving, setReplyLanguageSaving] = useState<ReplyLanguageMode | null>(null);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
   const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
@@ -223,6 +237,36 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       toast.error("Failed to update search mode. Please try again.");
     } finally {
       setRetrievalSaving(null);
+    }
+  }
+
+  async function updateReplyLanguageMode(mode: ReplyLanguageMode) {
+    if (!config || config.settings.reply_language_mode === mode) return;
+    setReplyLanguageSaving(mode);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { reply_language_mode: mode }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          reply_language_mode: mode
+        }
+      });
+      toast.success(`Reply language set to "${REPLY_LANGUAGE_MODES.find(m => m.id === mode)?.label}".`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update reply language");
+      toast.error("Failed to update reply language. Please try again.");
+    } finally {
+      setReplyLanguageSaving(null);
     }
   }
 
@@ -762,6 +806,51 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                     ? "border-primary bg-primary-light text-ink ring-1 ring-primary/10"
                     : "border-border bg-white hover:border-primary-muted"
                 } ${retrievalSaving && !saving ? "opacity-70" : ""} disabled:cursor-default`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 justify-between">
+                      <p className="text-sm font-semibold text-ink">{option.label}</p>
+                      {saving && <Loader2 size={14} className="animate-spin text-primary" />}
+                      {selected && !saving && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-success/10 text-success">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-ink-muted">{option.desc}</p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Reply Language */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-ink-muted" />
+          Reply Language
+        </h3>
+        <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+          Controls what language/script AI replies use. Change this if the client asks for a fixed reply language instead of matching each lead.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {REPLY_LANGUAGE_MODES.map((option) => {
+            const selected = config.settings.reply_language_mode === option.id;
+            const saving = replyLanguageSaving === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => updateReplyLanguageMode(option.id)}
+                disabled={!!replyLanguageSaving || selected}
+                className={`rounded-card border p-4 text-left shadow-sm transition-all ${
+                  selected
+                    ? "border-primary bg-primary-light text-ink ring-1 ring-primary/10"
+                    : "border-border bg-white hover:border-primary-muted"
+                } ${replyLanguageSaving && !saving ? "opacity-70" : ""} disabled:cursor-default`}
               >
                 <div className="flex items-start gap-3">
                   <div className="min-w-0">

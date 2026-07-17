@@ -2,13 +2,16 @@ import inspect
 
 from app.services import ai_reply
 from app.services.ai_reply import (
+    _AI_ESCALATION_RE,
     _detect_lang,
     _dominant_script,
     _FALLBACK_BY_LANG,
     _is_explicit_language_switch_request,
+    _language_rule_block,
     _latest_message_script_note,
     _regen_target_instruction,
     _reply_script_mismatch,
+    _resolve_reply_language_mode,
 )
 
 
@@ -99,7 +102,10 @@ def test_latest_message_script_note_does_not_force_english_over_tanglish():
 
 
 def test_generate_reply_injects_latest_message_script_note():
-    source = inspect.getsource(ai_reply.generate_reply)
+    # Lives inside _language_rule_block's "mirror" branch (the default reply_language_mode)
+    # since the reply_language_mode refactor -- generate_reply calls it, it doesn't inline
+    # the LANGUAGE RULE text itself anymore.
+    source = inspect.getsource(ai_reply._language_rule_block)
     assert "_latest_message_script_note(message)" in source
     assert "CUSTOMER'S LATEST MESSAGE SCRIPT" in source
 
@@ -164,7 +170,61 @@ def test_generate_reply_regen_call_carries_no_conversation_history():
     history mostly failed (1/6) because it re-triggers the same anchor. An isolated
     call with no prior turns fixed it 10/10."""
     source = inspect.getsource(ai_reply.generate_reply)
-    regen_block = source[source.index("elif _reply_script_mismatch(message, reply_text):"):]
+    regen_block = source[source.index('elif reply_language_mode == "mirror" and _reply_script_mismatch(message, reply_text):'):]
     regen_block = regen_block[: regen_block.index("except Exception as regen_err")]
     assert "chat_messages +" not in regen_block
     assert "_regen_target_instruction(message)" in regen_block
+
+
+def test_resolve_reply_language_mode_defaults_to_mirror_with_no_tenant():
+    assert _resolve_reply_language_mode(None) == "mirror"
+
+
+def test_resolve_reply_language_mode_rejects_unknown_stored_value(monkeypatch):
+    monkeypatch.setattr(ai_reply, "get_setting", lambda *a, **k: "some-typo-value")
+    assert _resolve_reply_language_mode("tenant-1") == "mirror"
+
+
+def test_language_rule_block_mirror_matches_original_wording():
+    block = _language_rule_block("mirror", "Hi")
+    assert "LANGUAGE RULE" in block
+    assert "SAME language style" in block
+    assert "CUSTOMER'S LATEST MESSAGE SCRIPT" in block
+
+
+def test_language_rule_block_tanglish_forces_tanglish_regardless_of_input():
+    block = _language_rule_block("tanglish", "நல்லா இருக்கு")
+    assert "Tanglish" in block
+    assert "always" in block.lower()
+
+
+def test_language_rule_block_english_forces_english_regardless_of_input():
+    block = _language_rule_block("english", "நல்லா இருக்கு")
+    assert "English only" in block
+
+
+def test_language_rule_block_tamil_forces_native_script_regardless_of_input():
+    block = _language_rule_block("tamil", "Hi there")
+    assert "native Tamil script" in block
+
+
+def test_ai_escalation_re_matches_tanglish_verb_final_grammar():
+    """Live-tested 2026-07-17: Gemini's natural Tanglish escalation phrasing puts the
+    noun before the verb, joined by a Tamil postposition (kooda/oda/kitta), not English
+    word order -- 3/3 real replies in this shape were missed before this pattern was added."""
+    assert _AI_ESCALATION_RE.search("naan innum unga team-kooda connect panna vendiyadhu irukku.")
+    assert _AI_ESCALATION_RE.search("naan ungalai enga team kooda connect panren.")
+
+
+def test_ai_escalation_re_matches_tamil_script():
+    assert _AI_ESCALATION_RE.search("குழுவுடன் இணைக்கிறேன், விரைவில் தொடர்பு கொள்வோம்.")
+
+
+def test_ai_escalation_re_does_not_false_positive_on_ordinary_tanglish_reply():
+    """Regression guard for the Tanglish-grammar pattern above -- must not fire on
+    ordinary consultation/booking language that isn't an AI-to-human handoff."""
+    assert not _AI_ESCALATION_RE.search(
+        "namma astrologer kitta oru detailed consultation eduthukitta, "
+        "avanga ungaluku clear-ana vilakkathaiyum, parigarangalaiyum solluvanga."
+    )
+    assert not _AI_ESCALATION_RE.search("enga astrologer kitta pesi unga doubts-a clear pannalam.")

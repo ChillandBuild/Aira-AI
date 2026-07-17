@@ -329,6 +329,67 @@ def _regen_target_instruction(customer_message: str) -> str:
     )
 
 
+_LANGUAGE_MODES = {"mirror", "tanglish", "english", "tamil"}
+
+
+def _resolve_reply_language_mode(tenant_id: str | None) -> str:
+    """Per-tenant override of the default mirror-the-lead's-language behavior, set via
+    the operator console (config.tsx). Falls back to 'mirror' for any tenant that hasn't
+    configured it, or for an unrecognized stored value."""
+    mode = get_setting("reply_language_mode", fallback="mirror", tenant_id=tenant_id) or "mirror"
+    return mode if mode in _LANGUAGE_MODES else "mirror"
+
+
+def _language_rule_block(mode: str, message: str) -> str:
+    """System-prompt LANGUAGE instruction, branched on this tenant's reply_language_mode.
+    The three forced modes use calm/declarative phrasing only -- live-tested 2026-07-17:
+    an aggressive 'override everything / no matter what / never' framing reproducibly
+    made gpt-5-nano burn its entire token budget on hidden reasoning and return an empty
+    reply (0/8 across two prompt variants at the real 600-token production budget), while
+    this declarative framing was 100% reliable (12/12 on Gemini 3.1 Flash Lite, across
+    English, Tamil-script, and Tanglish input) at the same budget. Do not "strengthen"
+    this wording without re-running that test."""
+    if mode == "tanglish":
+        return (
+            "\n\nLANGUAGE STYLE: Your reply style is always Tanglish -- Tamil words spelled "
+            "out in Roman/English letters (e.g. 'eppo varuvinga', 'jaadhagam paakanum'), the "
+            "way a Tamil customer-service agent casually texts on WhatsApp. Use this Tanglish "
+            "style for every reply, even when the customer writes in English or in Tamil script."
+        )
+    if mode == "english":
+        return (
+            "\n\nLANGUAGE STYLE: Always reply in English only, regardless of what language or "
+            "script the customer's message is in -- English, Tamil script, or Tanglish."
+        )
+    if mode == "tamil":
+        return (
+            "\n\nLANGUAGE STYLE: Always reply in native Tamil script, regardless of what "
+            "language or script the customer's message is in -- English, Tamil script, or "
+            "Tanglish."
+        )
+    return (
+        "\n\nLANGUAGE RULE: Reply in the SAME language style the user just wrote in. "
+        "Tamil script -> reply in Tamil script. English -> reply in English. "
+        "Tanglish (Tamil words spelled in English letters, e.g. 'eppo varuvinga', 'jaadhagam paakanum') "
+        "-> reply in Tanglish too - do NOT convert it to pure Tamil script or to formal English. "
+        "If the customer's latest message explicitly requests a different language (e.g. 'in English please', "
+        "'tamil-la sollunga', 'reply in tamil'), you MUST fully switch to that requested language for this "
+        "reply and continue in it afterward, overriding whatever style earlier messages in the conversation used."
+    ) + f"\n\nCUSTOMER'S LATEST MESSAGE SCRIPT: {_latest_message_script_note(message)}"
+
+
+_ACCURACY_RULE = (
+    "\n\nACCURACY RULE: You do NOT have access to real consultation pricing, payment methods, "
+    "guarantees, or anything outside your knowledge base -- treat these as unknown to you, "
+    "even if a plausible-sounding number or answer occurs to you. Never state a specific price, "
+    "fee, or payment method under any circumstance. For pricing, payment, guarantees, or any "
+    "other question not directly answered by your knowledge base, always say the exact same "
+    "kind of thing: that you will connect them with the team for exact details. Do not treat "
+    "this as a fallback for only when you're unsure -- treat it as the mandatory answer for "
+    "these topics every time, regardless of how confident you feel."
+)
+
+
 _LAST_SEND_ERROR: str | None = None
 
 
@@ -590,6 +651,20 @@ _AI_ESCALATION_RE = re.compile(
         \b(?:get\s+back\s+to\s+you|get\s+in\s+touch|reach\s+out\s+to\s+you|contact\s+you\s+shortly)\b
         |
         \b(?:escalat\w*\s+(?:[^.?!]*?\s+)?(?:query|request|ticket|issue|case))\b
+        |
+        # Group 4: Tamil script -- AI indicates a team/expert will connect or follow up.
+        # No \b boundaries here (see _HUMAN_REQUEST_RE's native-script section above for
+        # why -- Unicode combining marks make \b unreliable on Indic script).
+        (?:குழு(?:வுடன்|வினர்|வினுடன்)?|அணியினர்|நிபுணர்|ஆலோசகர்)[^.?!]{0,25}(?:இணைக்க|தொடர்பு\s*கொள்|அனுப்ப|பேசு)\w*
+        |
+        (?:இணைக்கிறேன்|இணைக்கிறோம்|இணைப்போம்|தொடர்பு\s*கொள்வோம்|தொடர்பு\s*கொள்கிறோம்|தொடர்பு\s*கொள்கிறேன்)
+        |
+        # Group 5: Tanglish -- Tamil verb-final grammar puts the noun BEFORE the verb
+        # stem, often joined by a postposition (kooda/oda/kitta), not English word order
+        # (verb-then-noun, or noun-then-modal-then-verb) that Groups 1-2 expect. Live-
+        # tested 2026-07-17: 3/3 real Tanglish escalation replies from Gemini used this
+        # shape ("team-kooda connect panren") and Groups 1-2 missed all three.
+        \b(?:team|staff|group|owner|admin|human|person|agent|representative|expert|colleague)[\s-]*(?:kooda|oda|kitta)?\s*(?:connect|contact|transfer|refer|escalat)\w*\s*(?:pan\w*|irukk\w*|vendiyadhu|solren|solluven|soll\w*)\b
     )
     """,
     re.VERBOSE | re.IGNORECASE,
@@ -1077,18 +1152,9 @@ async def generate_reply(
             lead_facts.append(f"Earlier conversation summary:\n{summary}")
         system_prompt += "\n\nLEAD CONTEXT:\n" + "\n".join(lead_facts)
 
-        system_prompt += (
-            "\n\nLANGUAGE RULE: Reply in the SAME language style the user just wrote in. "
-            "Tamil script -> reply in Tamil script. English -> reply in English. "
-            "Tanglish (Tamil words spelled in English letters, e.g. 'eppo varuvinga', 'jaadhagam paakanum') "
-            "-> reply in Tanglish too - do NOT convert it to pure Tamil script or to formal English. "
-            "If the customer's latest message explicitly requests a different language (e.g. 'in English please', "
-            "'tamil-la sollunga', 'reply in tamil'), you MUST fully switch to that requested language for this "
-            "reply and continue in it afterward, overriding whatever style earlier messages in the conversation used."
-        )
-        system_prompt += (
-            f"\n\nCUSTOMER'S LATEST MESSAGE SCRIPT: {_latest_message_script_note(message)}"
-        )
+        reply_language_mode = _resolve_reply_language_mode(tenant_id)
+        system_prompt += _language_rule_block(reply_language_mode, message)
+        system_prompt += _ACCURACY_RULE
 
         if catalog_context:
             system_prompt += catalog_context
@@ -1169,7 +1235,7 @@ async def generate_reply(
 
         if not reply_text:
             reply_text = _FALLBACK_BY_LANG.get(_detect_lang(message), _FALLBACK_BY_LANG["en"])
-        elif _reply_script_mismatch(message, reply_text):
+        elif reply_language_mode == "mirror" and _reply_script_mismatch(message, reply_text):
             # Preemptive prompt instructions (LANGUAGE RULE + the per-turn script note
             # above) do not reliably stop silent script-switch anchoring -- live-tested
             # 0/6, see subsystem-notes.md 2026-07-13. This catches it after generation,

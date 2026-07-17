@@ -1018,6 +1018,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
             "ai_reply_model": settings_map.get("ai_reply_model") or "sarvam-30b",
+            "reply_language_mode": settings_map.get("reply_language_mode", "mirror") or "mirror",
         },
         "usage": {
             "period": period,
