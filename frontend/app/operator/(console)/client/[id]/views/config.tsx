@@ -150,7 +150,7 @@ const CRED_LABELS: Record<string, string> = {
 // compatibility but shown elsewhere instead of the generic Messaging Channels grid --
 // per-provider AI keys render inside the AI Integrations section, and telecalling status
 // is already covered by the Calling Provider card above.
-const CRED_KEYS_HANDLED_ELSEWHERE = new Set(["ai", "ai_sarvam", "ai_gemini", "ai_openai", "ai_groq", "telecalling"]);
+const CRED_KEYS_HANDLED_ELSEWHERE = new Set(["ai", "ai_sarvam", "ai_gemini", "ai_openai", "ai_groq", "ai_jina", "telecalling"]);
 
 function usageMetricCount(usage: ConfigData["usage"], metricNames: string[]) {
   const counters = Array.isArray(usage) ? usage : usage?.counters;
@@ -188,6 +188,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [providerSaving, setProviderSaving] = useState<"telecmi" | "sim_basic" | null>(null);
   const [pendingProvider, setPendingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
   const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
+  const [autoReplySaving, setAutoReplySaving] = useState(false);
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
   const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
   const [mediaRecommendationSaving, setMediaRecommendationSaving] = useState<MediaRecommendationSettingKey | null>(null);
@@ -252,6 +253,36 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       toast.error("Failed to update reply model. Please try again.");
     } finally {
       setReplyModelSaving(null);
+    }
+  }
+
+  async function updateAutoReply(enabled: boolean) {
+    if (!config || config.settings.ai_auto_reply_enabled === enabled) return;
+    setAutoReplySaving(true);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { ai_auto_reply_enabled: enabled }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          ai_auto_reply_enabled: enabled
+        }
+      });
+      toast.success(enabled ? "AI auto-reply enabled for this client." : "AI auto-reply disabled for this client.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to update AI auto-reply");
+      toast.error("Failed to update AI auto-reply.");
+    } finally {
+      setAutoReplySaving(false);
     }
   }
 
@@ -574,6 +605,30 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                 </div>
               </div>
           ))}
+        </div>
+      </div>
+
+      {/* AI Auto-Reply */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-ink-muted" />
+          AI Auto-Reply
+        </h3>
+        <div className="rounded-card border border-border bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">Auto-reply to inbound messages</p>
+              <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+                Allow Aira to automatically reply to inbound WhatsApp messages using AI for this client.
+              </p>
+            </div>
+            <OperatorToggle
+              checked={config.settings.ai_auto_reply_enabled}
+              onChange={updateAutoReply}
+              loading={autoReplySaving}
+              aria-label="Toggle AI auto-reply"
+            />
+          </div>
         </div>
       </div>
 
