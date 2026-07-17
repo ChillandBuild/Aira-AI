@@ -8,11 +8,16 @@ import lameenc
 from app.config_dynamic import require_tenant_setting
 
 GEMINI_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
-# gemini-2.5-flash-preview-tts started hard-400ing on every request ("Model tried to
-# generate text, but it should only be used for TTS") regardless of payload -- live-tested
-# 2026-07-17, confirmed dead at Google's end, not a request-shape bug. gemini-3.1-flash-
-# tts-preview accepts the identical request body and returns audio correctly.
-DEFAULT_GEMINI_TTS_MODEL = "gemini-3.1-flash-tts-preview"
+# gemini-2.5-flash-preview-tts hard-400'd on every request ("Model tried to generate
+# text, but it should only be used for TTS") on 2026-07-17, confirmed dead at Google's
+# end at the time (not a request-shape bug -- gemini-3.1-flash-tts-preview accepted the
+# identical body and worked). Re-tested later the same day: 2.5 was back to returning
+# real audio again, no code change involved -- a preview-model flake on Google's side,
+# not a permanent kill. Deliberately reverted to 2.5 anyway (costs ~half of 3.1) after
+# an explicit operator call accepting that a preview model can silently break or get
+# deprecated again with no warning -- if that happens, swap this constant back to
+# "gemini-3.1-flash-tts-preview".
+DEFAULT_GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
 DEFAULT_GEMINI_VOICE = "Kore"
 _PCM_SAMPLE_RATE = 24000
 _PCM_CHANNELS = 1
