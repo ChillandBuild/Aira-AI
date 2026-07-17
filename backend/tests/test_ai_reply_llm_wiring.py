@@ -210,7 +210,7 @@ async def test_send_whatsapp_voice_reply_uses_gemini_tts_and_meta_audio_upload()
         )
 
     assert mid == "wamid.voice.1"
-    tts.assert_awaited_once_with(text="Hi Prem", voice="Kore")
+    tts.assert_awaited_once_with(text="Hi Prem", voice="Kore", tenant_id="tenant-1")
     meter.assert_called_once_with(db, "tenant-1", "ai_text_to_speech")
     upload.assert_awaited_once_with(
         file_bytes=b"audio-bytes",
@@ -238,7 +238,7 @@ async def test_send_whatsapp_voice_reply_defaults_to_default_gemini_voice_when_n
             to_phone="+919999999999", message="Hi Prem", tenant_id="tenant-1",
         )
 
-    tts.assert_awaited_once_with(text="Hi Prem", voice=DEFAULT_GEMINI_VOICE)
+    tts.assert_awaited_once_with(text="Hi Prem", voice=DEFAULT_GEMINI_VOICE, tenant_id="tenant-1")
 
 
 def test_generate_reply_uses_voice_only_for_audio_inbound_whatsapp_dispatch():
