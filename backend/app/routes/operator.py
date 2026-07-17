@@ -80,7 +80,6 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("ai_voice_reply_speaker", False),
     ("ai_media_recommendations_enabled", False),
     ("catalog_ai_max_images_ceiling", False),
-    ("reengagement_enabled", False),
 ]
 
 
@@ -1010,14 +1009,19 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "facebook": cred_status(["facebook_page_id", "facebook_access_token"]),
         },
         "settings": {
-            "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") == "true",
+            # Backend gate (ai_reply.generate_reply) only disables on the literal string
+            # "false" -- null/never-configured defaults to enabled. Mirror that exact
+            # semantics here so the toggle never displays "Off" while replies are actually
+            # still going out (live-confirmed 2026-07-17: a never-touched tenant had this
+            # value stored as NULL, which a strict == "true" check rendered as Off).
+            "ai_auto_reply_enabled": settings_map.get("ai_auto_reply_enabled") != "false",
             "ai_voice_reply_enabled": settings_map.get("ai_voice_reply_enabled") == "true",
             "ai_voice_reply_speaker": settings_map.get("ai_voice_reply_speaker") or "Kore",
             "ai_media_recommendations_enabled": settings_map.get("ai_media_recommendations_enabled") == "true",
             "catalog_ai_max_images_ceiling": float_setting("catalog_ai_max_images_ceiling", 5),
-            "reengagement_enabled": settings_map.get("reengagement_enabled") == "true",
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
             "ai_reply_model": settings_map.get("ai_reply_model") or "sarvam-30b",
+            "reply_language_mode": settings_map.get("reply_language_mode", "mirror") or "mirror",
         },
         "usage": {
             "period": period,

@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone, timedelta
+from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.services.ai_reply import send_whatsapp
 from app.services.meta_cloud import send_template_message
@@ -224,10 +225,21 @@ async def _send_step_template(
 
 
 async def _send_reengagement(db, tenant_id: str, lead: dict, step: dict) -> bool:
-    """Send the re-engagement message to a single lead and write a log entry."""
+    """Send the re-engagement message to a single lead and write a log entry.
+
+    ai_auto_reply_enabled is the single master switch for every automated AI-authored
+    outbound message, not just inbound replies -- when a client turns it off, re-engagement
+    must stop too (no separate reengagement_enabled flag; that key existed but was never
+    actually wired to any send path, so it was deleted rather than kept as dead config).
+    No log row is written on this skip, matching the opted_out/undeliverable checks below --
+    re-engagement should resume for this lead+step once the tenant re-enables, not be
+    permanently marked processed."""
     lead_id = lead["id"]
     phone = lead["phone"]
     step_id = step["id"]
+    if get_setting("ai_auto_reply_enabled", fallback="true", tenant_id=tenant_id) == "false":
+        logger.info(f"Re-engagement step {step_id} skipped for lead {lead_id} (ai_auto_reply disabled for tenant {tenant_id})")
+        return False
     message_type = step["message_type"]
 
     # If lead doesn't have a phone number, we can't send WhatsApp
