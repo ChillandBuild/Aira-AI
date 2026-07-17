@@ -26,7 +26,6 @@ _SETTING_KEYS: list[tuple[str, bool]] = [
     ("ai_voice_reply_speaker", False),
     ("ai_media_recommendations_enabled", False),
     ("catalog_ai_max_images_ceiling", False),
-    ("reengagement_enabled", False),
 ]
 
 

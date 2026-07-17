@@ -40,7 +40,6 @@ class OperatorClientConfigTests(unittest.TestCase):
                     {"key": "instagram_access_token", "value": "ig-token"},
                     {"key": "facebook_page_id", "value": "fb-page"},
                     {"key": "facebook_access_token", "value": "fb-token"},
-                    {"key": "reengagement_enabled", "value": "false"},
                     {"key": "kb_retrieval_mode", "value": "hybrid"},
                     {"key": "ai_reply_model", "value": "openai/gpt-5-mini"}
                 ]
@@ -63,7 +62,6 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["settings"]["ai_auto_reply_enabled"], True)
         self.assertEqual(body["settings"]["ai_voice_reply_enabled"], True)
         self.assertEqual(body["settings"]["ai_voice_reply_speaker"], "Kore")
-        self.assertEqual(body["settings"]["reengagement_enabled"], False)
         self.assertEqual(body["settings"]["kb_retrieval_mode"], "hybrid")
         self.assertEqual(body["settings"]["ai_reply_model"], "openai/gpt-5-mini")
         self.assertEqual(body["credentials_status"]["ai"], "configured")
@@ -100,6 +98,12 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         body = res.json()
         self.assertEqual(body["settings"]["ai_reply_model"], "sarvam-30b")
+        # Regression: a tenant that has never touched ai_auto_reply_enabled (no row, or a
+        # row seeded with value=NULL at onboarding) must display as enabled, matching the
+        # backend gate's own default (ai_reply.generate_reply only disables on the literal
+        # string "false") -- a naive == "true" check previously showed this as Off while
+        # replies were actually still going out.
+        self.assertEqual(body["settings"]["ai_auto_reply_enabled"], True)
 
     @patch("app.config_dynamic.invalidate_cache")
     @patch("app.routes.operator.record_audit_event")
@@ -125,7 +129,6 @@ class OperatorClientConfigTests(unittest.TestCase):
         payload = {
             "settings": {
                 "kb_retrieval_mode": "keyword",
-                "reengagement_enabled": True,
                 "ai_voice_reply_enabled": True,
                 "ai_voice_reply_speaker": "Kore",
                 "sarvam_api_key": "client-secret",

@@ -124,7 +124,6 @@ interface ConfigData {
     ai_voice_reply_speaker?: string | null;
     ai_media_recommendations_enabled?: boolean;
     catalog_ai_max_images_ceiling?: number | string | null;
-    reengagement_enabled: boolean;
     kb_retrieval_mode: RetrievalMode;
     ai_reply_model: ReplyModelId;
     reply_language_mode: ReplyLanguageMode;
@@ -301,7 +300,12 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   }
 
   async function updateAutoReply(enabled: boolean) {
-    if (!config || config.settings.ai_auto_reply_enabled === enabled) return;
+    // No early-return-if-unchanged guard here: the displayed value can be stale relative
+    // to the DB (e.g. a never-configured tenant defaults to enabled on the backend but a
+    // naive `== "true"` read shows Off) -- a guard keyed off that display would silently
+    // no-op the very click meant to fix it. Live-confirmed 2026-07-17: this was exactly
+    // why clicking "Off" for a never-configured tenant sent no request at all.
+    if (!config) return;
     setAutoReplySaving(true);
     setError(null);
     try {
@@ -331,7 +335,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   }
 
   async function updateVoiceReplies(enabled: boolean) {
-    if (!config || config.settings.ai_voice_reply_enabled === enabled) return;
+    // Same reasoning as updateAutoReply -- no stale-display guard, always send the PATCH.
+    if (!config) return;
     setVoiceReplySaving(true);
     setError(null);
     try {

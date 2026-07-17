@@ -155,6 +155,27 @@ async def test_opted_out_lead_is_skipped_no_send_no_log():
 
 
 @pytest.mark.asyncio
+async def test_ai_auto_reply_disabled_skips_reengagement_no_send_no_log():
+    """ai_auto_reply_enabled is the single master switch for every automated AI-authored
+    outbound message, not just inbound replies -- when a tenant has it off, re-engagement
+    must not fire either, and (matching the opted_out/undeliverable skips) no log row is
+    written so the lead+step resumes automatically once re-enabled."""
+    from app.services import reengagement_service as svc
+    logs = []
+    db = _make_db(logs)
+    lead = _lead(2)  # window wide open — would normally send freeform
+    with patch.object(svc, "get_setting", return_value="false") as get_setting, \
+         patch.object(svc, "send_whatsapp", new=AsyncMock()) as wa, \
+         patch.object(svc, "send_template_message", new=AsyncMock()) as tpl:
+        ok = await svc._send_reengagement(db, "t1", lead, _step())
+    assert ok is False
+    wa.assert_not_awaited()
+    tpl.assert_not_awaited()
+    assert len(logs) == 0
+    get_setting.assert_called_once_with("ai_auto_reply_enabled", fallback="true", tenant_id="t1")
+
+
+@pytest.mark.asyncio
 async def test_template_step_always_sends_template():
     from app.services import reengagement_service as svc
     logs = []

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, HTTPException
 from pydantic import BaseModel
 
+from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_owner
 from app.dependencies.auth import get_current_user
@@ -34,6 +35,20 @@ async def summary(tenant_id: str = Depends(get_tenant_id)):
 async def run_due_follow_ups(limit: int = Query(20, ge=1, le=100), ctx: dict = Depends(require_owner)):
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
+
+    # ai_auto_reply_enabled is the master switch for every automated AI-authored outbound
+    # message, not just inbound replies -- leave due jobs untouched (still "pending") so
+    # they resume automatically once the client re-enables, rather than marking them
+    # skipped/consumed.
+    if get_setting("ai_auto_reply_enabled", fallback="true", tenant_id=tenant_id) == "false":
+        return {
+            "processed": 0,
+            "sent": 0,
+            "failed": 0,
+            "skipped": 0,
+            "summary": build_follow_up_summary(db=db),
+        }
+
     now = utcnow().isoformat()
     jobs = (
         db.table("follow_up_jobs")
