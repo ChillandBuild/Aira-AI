@@ -133,10 +133,11 @@ def resolve_handover(handover_id: str, ctx: dict = Depends(require_conversations
             .execute()
         )
         if not (remaining.count or 0):
+            # ai_enabled is deliberately not written here. Escalation no longer
+            # disables it, so setting it True would clobber a manual admin mute.
             db.table("leads").update({
                 "needs_human_attention": False,
                 "escalation_reason": None,
-                "ai_enabled": True,
             }).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
 
     return {"resolved": True}

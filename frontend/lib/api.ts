@@ -810,6 +810,14 @@ export type NotificationConfig = {
     target_segments: string[];
     delay_minutes?: number;
   };
+  /** Fired when a chat handover is created, not when a segment changes. */
+  whatsapp_escalation_notifications: {
+    enabled: boolean;
+    recipient_phones: string[];
+    template_id: string | null;
+    target_segments: string[];
+    delay_minutes?: number;
+  };
 };
 
 export interface TimelineEvent {

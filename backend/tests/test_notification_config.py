@@ -61,3 +61,58 @@ def test_get_config_merges_delay_minutes():
     assert cfg["whatsapp_notifications"]["delay_minutes"] == 10
     assert cfg["whatsapp_notifications"]["enabled"] is False
 
+
+
+# --- escalation WhatsApp config block ---------------------------------------
+
+def _cfg_db(stored_blob: dict):
+    """Fake Supabase client whose app_settings row holds the given blob."""
+    import json
+    from unittest.mock import MagicMock
+
+    db = MagicMock()
+    (db.table.return_value.select.return_value.eq.return_value.eq.return_value
+     .maybe_single.return_value.execute.return_value.data) = {"value": json.dumps(stored_blob)}
+    return db
+
+
+def test_escalation_block_defaults_when_absent():
+    """A stored blob with no escalation key still returns full defaults."""
+    from app.services.notification_config import get_notification_config
+
+    cfg = get_notification_config("tenant-1", db=_cfg_db({"push_enabled": False}))
+    esc = cfg["whatsapp_escalation_notifications"]
+    assert esc["enabled"] is False
+    assert esc["target_segments"] == ["A"]
+    assert esc["delay_minutes"] == 3
+    assert esc["recipient_phones"] == []
+    assert esc["template_id"] is None
+
+
+def test_escalation_block_merges_partial_stored_value():
+    """A partial stored escalation block keeps defaults for missing keys."""
+    from app.services.notification_config import get_notification_config
+
+    db = _cfg_db({
+        "whatsapp_escalation_notifications": {"enabled": True, "template_id": "tmpl-9"}
+    })
+    esc = get_notification_config("tenant-1", db=db)["whatsapp_escalation_notifications"]
+    assert esc["enabled"] is True
+    assert esc["template_id"] == "tmpl-9"
+    assert esc["delay_minutes"] == 3          # default survived
+    assert esc["target_segments"] == ["A"]    # default survived
+
+
+def test_escalation_block_independent_of_segment_block():
+    """The two WhatsApp blocks must not bleed into each other."""
+    from app.services.notification_config import get_notification_config
+
+    db = _cfg_db({
+        "whatsapp_notifications": {"enabled": True, "delay_minutes": 42},
+        "whatsapp_escalation_notifications": {"enabled": False},
+    })
+    cfg = get_notification_config("tenant-1", db=db)
+    assert cfg["whatsapp_notifications"]["delay_minutes"] == 42
+    assert cfg["whatsapp_escalation_notifications"]["delay_minutes"] == 3
+    assert cfg["whatsapp_notifications"]["enabled"] is True
+    assert cfg["whatsapp_escalation_notifications"]["enabled"] is False
