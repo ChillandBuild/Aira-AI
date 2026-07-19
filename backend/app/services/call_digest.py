@@ -113,6 +113,7 @@ def _pick_representative(rows: list[dict]) -> list[dict]:
 async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) -> None:
     """Compute stats + AI coaching report for one caller on for_date, upsert to caller_digests."""
     db = get_supabase()
+    date_str = for_date.isoformat()
     # Use IST-aligned boundaries (UTC+5:30) so calls between 00:00–05:30 IST
     # are attributed to the correct IST calendar day, not the previous UTC day.
     ist_offset = timedelta(hours=5, minutes=30)
