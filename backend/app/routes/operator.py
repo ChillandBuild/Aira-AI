@@ -242,6 +242,15 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
             for k, s in _SETTING_KEYS
         ]).execute()
 
+        # Seed this client's master prompt from the platform template. The template is
+        # COPIED, not referenced -- later edits to the template must not alter the
+        # behaviour of clients that are already live.
+        db.table("ai_prompts").insert({
+            "tenant_id": tenant_id,
+            "name": "master",
+            "content": get_default_master_prompt(),
+        }).execute()
+
         # No tenant_subscriptions row is created here — the new tenant starts
         # gated (status effectively "none") until they submit a subscription
         # cart from the client-facing Subscriptions page and an admin
@@ -277,6 +286,10 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
                 db.table("callers").delete().eq("tenant_id", tenant_id).execute()
             except Exception as cleanup_err:
                 logger.error(f"Failed to delete orphaned callers for {tenant_id}: {cleanup_err}")
+            try:
+                db.table("ai_prompts").delete().eq("tenant_id", tenant_id).execute()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete orphaned ai_prompts for {tenant_id}: {cleanup_err}")
         try:
             db.auth.admin.delete_user(user_id)
         except Exception as cleanup_err:
@@ -947,6 +960,47 @@ def client_overview(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     }
 
 
+class PromptTemplateUpdate(BaseModel):
+    template: str
+
+
+def get_default_master_prompt() -> str:
+    """Read the platform-wide master prompt template. Falls back to FALLBACK_PROMPT on
+    any failure -- onboarding must never break because a template row is missing."""
+    from app.services.ai_reply import FALLBACK_PROMPT
+    try:
+        db = get_supabase()
+        row = (
+            db.table("platform_defaults")
+            .select("value")
+            .eq("key", "default_master_prompt")
+            .limit(1)
+            .execute()
+        )
+        value = (row.data[0].get("value") if row.data else None) or ""
+        return value.strip() or FALLBACK_PROMPT
+    except Exception as e:
+        logger.warning(f"Default master prompt read failed, using fallback: {e}")
+        return FALLBACK_PROMPT
+
+
+@router.get("/prompt-template")
+def read_prompt_template(_admin: dict = Depends(get_system_admin)):
+    return {"template": get_default_master_prompt()}
+
+
+@router.put("/prompt-template")
+def write_prompt_template(
+    payload: PromptTemplateUpdate, _admin: dict = Depends(get_system_admin)
+):
+    db = get_supabase()
+    db.table("platform_defaults").upsert(
+        {"key": "default_master_prompt", "value": payload.template},
+        on_conflict="key",
+    ).execute()
+    return {"template": payload.template}
+
+
 @router.get("/clients/{tenant_id}/config")
 def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     db = get_supabase()
@@ -993,8 +1047,24 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         period = datetime.now(timezone.utc).strftime("%Y-%m")
     usage_by_metric = {r["metric"]: r for r in usage_counters}
 
+    master_prompt = ""
+    try:
+        prompt_row = (
+            db.table("ai_prompts")
+            .select("content")
+            .eq("tenant_id", tenant_id)
+            .eq("name", "master")
+            .limit(1)
+            .execute()
+        )
+        master_prompt = (prompt_row.data[0].get("content") if prompt_row.data else "") or ""
+    except Exception as e:
+        logger.warning("Master prompt read failed for tenant %s: %s", tenant_id, e)
+
     return {
         "enabled_features": tenant.data["enabled_features"],
+        "master_prompt": master_prompt,
+        "business_description": settings_map.get("business_description") or "",
         "credentials_status": {
             "whatsapp": cred_status(["meta_phone_number_id", "meta_access_token", "meta_waba_id", "meta_webhook_verify_token"]),
             "telecalling": cred_status(["telecmi_user_id", "telecmi_secret", "telecmi_callerid"]),
@@ -1036,6 +1106,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
 
 class ClientConfigUpdate(BaseModel):
     settings: dict[str, str | bool] | None = None
+    master_prompt: str | None = None
 
 
 @router.patch("/clients/{tenant_id}/config")
@@ -1044,13 +1115,23 @@ def update_client_config(
     payload: ClientConfigUpdate,
     _admin: dict = Depends(get_system_admin),
 ):
-    if not payload.settings:
+    if not payload.settings and payload.master_prompt is None:
         raise HTTPException(status_code=400, detail="No settings to update")
 
     db = get_supabase()
     tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
     if not tenant or not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
+
+    if payload.master_prompt is not None:
+        db.table("ai_prompts").upsert(
+            {"tenant_id": tenant_id, "name": "master", "content": payload.master_prompt},
+            on_conflict="tenant_id,name",
+        ).execute()
+        from app.services.ai_reply import invalidate_prompt_cache
+        invalidate_prompt_cache("master")
+        if not payload.settings:
+            return {"updated": ["master_prompt"]}
 
     secret_keys = {
         "sarvam_api_key",
@@ -2062,7 +2143,7 @@ _ALL_TENANT_TABLES = [
     "meta_templates", "phone_number_quality_history", "phone_numbers",
     "reengagement_logs", "reengagement_steps", "segment_templates",
     "telecalling_upload_batches", "voice_numbers", "whatsapp_insights_snapshots",
-    "ad_campaigns", "ai_prompts", "ai_tune_suggestions", "app_notifications",
+    "ad_campaigns", "ai_prompts", "app_notifications",
     "app_audit_logs", "leads", "app_settings", "tenant_users",
 ]
 
