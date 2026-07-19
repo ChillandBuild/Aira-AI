@@ -6,7 +6,6 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 type InboxConfig = {
   enabled: boolean;
   auto_assign_enabled: boolean;
-  segments: string[];
   channels: string[];
   triggers: string[];
 };
@@ -14,7 +13,6 @@ type InboxConfig = {
 const DEFAULT: InboxConfig = {
   enabled: false,
   auto_assign_enabled: false,
-  segments: ["A"],
   channels: ["whatsapp", "instagram", "facebook", "telegram"],
   triggers: ["A", "B", "C", "F"],
 };
@@ -25,12 +23,6 @@ const TRIGGER_LABELS: Record<string, { label: string; always?: boolean }> = {
   C: { label: "User explicitly asked to speak to a person", always: true },
   D: { label: "User repeated the same question (AI not resolving it)" },
   F: { label: "AI response indicated the team would follow up" },
-};
-
-const SEGMENT_LABELS: Record<string, string> = {
-  A: "Hot",
-  B: "Warm",
-  C: "Cold",
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -170,24 +162,6 @@ export function InboxConfigPanel({ canManage = true }: { canManage?: boolean }) 
                     <span className="font-body text-sm text-ink">{label}</span>
                     {always && <div className="text-xs text-amber-600 font-label mt-0.5">Always on — cannot be disabled (direct user request)</div>}
                   </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Segments */}
-          <div>
-            <div className="font-label text-sm font-semibold text-ink mb-2">Segments to Escalate</div>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(SEGMENT_LABELS).map(([seg, label]) => (
-                <label key={seg} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-surface-subtle cursor-pointer hover:border-violet-300 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={draft.segments.includes(seg)}
-                    onChange={() => setDraft({ ...draft, segments: toggle(draft.segments, seg) })}
-                    className="accent-violet-600"
-                  />
-                  <span className="font-label text-sm font-semibold text-ink">{label}</span>
                 </label>
               ))}
             </div>

@@ -48,6 +48,14 @@ class InboxConfigUpdate(BaseModel):
     triggers: list[str] | None = None
 
 
+class BusinessHoursUpdate(BaseModel):
+    enabled: bool | None = None
+    timezone: str | None = None
+    open_time: str | None = None
+    close_time: str | None = None
+    working_days: list[int] | None = None
+
+
 class TelecallingConfigUpdate(BaseModel):
     enabled: bool | None = None
     segments: list[str] | None = None
@@ -786,6 +794,48 @@ async def patch_inbox_config(payload: InboxConfigUpdate, ctx: dict = Depends(req
             raise HTTPException(status_code=400, detail=f"Invalid triggers: {bad}")
     merged = {**current, **patch}
     save_inbox_config(tenant_id, merged)
+    return merged
+
+
+@router.get("/business-hours")
+async def get_business_hours_route(ctx: dict = Depends(require_settings_read)):
+    from app.services.business_hours import get_business_hours
+    return get_business_hours(ctx["tenant_id"])
+
+
+@router.patch("/business-hours")
+async def patch_business_hours(
+    payload: BusinessHoursUpdate, ctx: dict = Depends(require_settings_manage)
+):
+    from zoneinfo import ZoneInfo
+    from app.services.business_hours import get_business_hours, save_business_hours
+
+    tenant_id = ctx["tenant_id"]
+    current = get_business_hours(tenant_id)
+    patch = payload.model_dump(exclude_none=True)
+
+    if "working_days" in patch:
+        bad = [d for d in patch["working_days"] if d not in {1, 2, 3, 4, 5, 6, 7}]
+        if bad:
+            raise HTTPException(status_code=400, detail=f"Invalid working_days: {bad}")
+
+    for key in ("open_time", "close_time"):
+        if key in patch:
+            try:
+                hh, mm = patch[key].split(":")
+                if not (0 <= int(hh) <= 23 and 0 <= int(mm) <= 59):
+                    raise ValueError
+            except Exception:
+                raise HTTPException(status_code=400, detail=f"{key} must be HH:MM")
+
+    if "timezone" in patch:
+        try:
+            ZoneInfo(patch["timezone"])
+        except Exception:
+            raise HTTPException(status_code=400, detail="Unknown timezone")
+
+    merged = {**current, **patch}
+    save_business_hours(tenant_id, merged)
     return merged
 
 

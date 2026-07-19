@@ -17,7 +17,6 @@ from app.services.catalog_retrieval import (
 from app.services.assignment import (
     maybe_assign_lead,
     get_inbox_config,
-    should_escalate_hot_lead,
     should_escalate_to_inbox,
 )
 from app.services.entitlements import meter, check_quota
@@ -197,6 +196,36 @@ def invalidate_prompt_cache(name: str | None = None) -> None:
             _prompt_cache.pop(k, None)
     else:
         _prompt_cache.clear()
+
+
+_CHANNEL_LABELS = {
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "instagram": "Instagram",
+    "facebook": "Facebook Messenger",
+}
+
+
+def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
+    """Assemble the developer-owned master prompt with the channel label and the
+    client-owned business description.
+
+    The master prompt (operator console) defines HOW to behave; the description
+    (client's Knowledge Base page) defines WHO the assistant is and what the business
+    sells. The description is always injected in full and never goes through RAG --
+    a retrieval miss would leave the assistant with no role at all.
+
+    The channel label is appended unconditionally rather than substituted into a
+    placeholder, so it works regardless of how the developer writes the master text.
+    """
+    prompt = _get_prompt("master", tenant_id=tenant_id)
+    prompt += f"\n\nCHANNEL: You are replying over {_CHANNEL_LABELS.get(channel, channel)}."
+
+    description = (get_setting("business_description", tenant_id=tenant_id) or "").strip()
+    if description:
+        prompt += "\n\nBUSINESS DESCRIPTION:\n" + description
+
+    return prompt
 
 
 def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
@@ -781,10 +810,13 @@ def _trigger_chat_escalation(
     if existing and existing.data:
         return  # already has an open handover
 
+    # NOTE: ai_enabled is deliberately NOT touched here. The AI stays live for
+    # the whole handover so an escalated customer is never met with silence —
+    # see _escalation_prompt_block for how its replies change. `ai_enabled` is
+    # a manual admin control only.
     db.table("leads").update({
         "needs_human_attention": True,
         "escalation_reason": reason,
-        "ai_enabled": False,
     }).eq("id", lead_id).execute()
 
     handover_res = db.table("chat_handovers").insert({
@@ -811,6 +843,54 @@ def _trigger_chat_escalation(
         )
     except Exception:
         pass
+
+    try:
+        from app.services.whatsapp_notify import queue_escalation_whatsapp_alert
+        queue_escalation_whatsapp_alert(
+            db,
+            tenant_id=tenant_id,
+            lead_id=lead_id,
+            handover_id=handover_id,
+            reason=reason,
+            assigned_to=assigned_to,
+        )
+    except Exception:
+        logger.exception("Escalation WhatsApp queue failed for lead %s", lead_id)
+
+
+def _escalation_prompt_block(bh: dict, now=None) -> str:
+    """System-prompt section telling the AI this lead is already escalated and
+    how to answer while they wait, based on whether the office is open."""
+    from app.services.business_hours import (
+        is_within_business_hours, describe_hours, next_open_description,
+    )
+
+    is_open = is_within_business_hours(bh, now=now)
+    status = "OPEN" if is_open else "CLOSED"
+    if is_open:
+        guidance = (
+            "Reassure them that the team has their request and will "
+            "contact them shortly."
+        )
+    else:
+        guidance = (
+            f"Tell them the team will call them {next_open_description(bh, now=now)}, "
+            "and state the office hours."
+        )
+
+    return (
+        "\n\nESCALATION CONTEXT:\n"
+        "This customer has already been escalated to the human team. A team member "
+        f"has been notified and will follow up. The office is currently {status}. "
+        f"Our office hours are {describe_hours(bh)}.\n"
+        "If the customer asks to speak to a person, asks about their request, or says "
+        f"nobody has contacted them yet: {guidance}\n"
+        "Rules:\n"
+        "- Never promise a specific time, a named person, or a callback within N minutes.\n"
+        "- Never claim someone has already called or messaged them.\n"
+        "- Never say the request was resolved.\n"
+        "- Otherwise keep answering their questions normally and helpfully.\n"
+    )
 
 
 _CATALOG_RECOMMEND_TOOL = {
@@ -1003,7 +1083,7 @@ async def generate_reply(
     # Step 0: fetch lead + load module configs
     lead_row = (
         db.table("leads")
-        .select("ai_enabled,score,segment,phone,converted_at,tenant_id,assigned_to,name,blocked_at")
+        .select("ai_enabled,score,segment,phone,converted_at,tenant_id,assigned_to,name,blocked_at,needs_human_attention")
         .eq("id", str(lead_id))
         .limit(1)
         .execute()
@@ -1138,7 +1218,7 @@ async def generate_reply(
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
 
     try:
-        system_prompt = _get_prompt(f"{channel}_reply", tenant_id=lead_data.get("tenant_id"))
+        system_prompt = _build_base_prompt(channel, lead_data.get("tenant_id"))
         if campaign_name:
             system_prompt += (
                 f'\n\nCAMPAIGN CONTEXT:\nThis lead came from the "{campaign_name}" campaign. '
@@ -1163,6 +1243,21 @@ async def generate_reply(
         reply_language_mode = _resolve_reply_language_mode(tenant_id)
         system_prompt += _language_rule_block(reply_language_mode, message)
         system_prompt += _ACCURACY_RULE
+
+        # Escalated leads keep talking to the AI, but it must answer as a
+        # holding presence, not as if nothing happened. Degrades to a normal
+        # reply if business hours can't be read — never to no reply.
+        if lead_data.get("needs_human_attention"):
+            try:
+                from app.services.business_hours import get_business_hours
+                system_prompt += _escalation_prompt_block(
+                    get_business_hours(tenant_id, db=db)
+                )
+            except Exception:
+                logger.exception(
+                    "Escalation prompt block failed for lead %s — replying without it",
+                    lead_id,
+                )
 
         if catalog_context:
             system_prompt += catalog_context

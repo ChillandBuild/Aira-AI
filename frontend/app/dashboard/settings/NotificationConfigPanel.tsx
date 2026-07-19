@@ -29,12 +29,13 @@ const SEGMENT_STYLES: Record<(typeof SEGMENTS)[number], string> = {
 };
 const E164_REGEX = /^\+[1-9]\d{6,14}$/;
 
+/** The two WhatsApp alert blocks share this shape. */
+type WhatsAppBlock = NotificationConfig["whatsapp_notifications"];
+
 export function NotificationConfigPanel({ canManage = true }: { canManage?: boolean }) {
   const [cfg, setCfg] = useState<NotificationConfig | null>(null);
   const [callers, setCallers] = useState<Caller[]>([]);
   const [templates, setTemplates] = useState<WabaTemplate[]>([]);
-  const [phoneInput, setPhoneInput] = useState("");
-  const [phoneError, setPhoneError] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "dirty" | "saving" | "saved">("idle");
 
   useEffect(() => {
@@ -67,51 +68,6 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
   }
 
   const approvedTemplates = templates.filter((t) => t.status === "APPROVED");
-  const selectedTemplate = approvedTemplates.find((t) => t.id === cfg.whatsapp_notifications.template_id) || null;
-
-  function toggleWhatsappSegment(segment: (typeof SEGMENTS)[number]) {
-    if (!cfg) return;
-    const active = cfg.whatsapp_notifications.target_segments.includes(segment);
-    patch({
-      whatsapp_notifications: {
-        ...cfg.whatsapp_notifications,
-        target_segments: active
-          ? cfg.whatsapp_notifications.target_segments.filter((s) => s !== segment)
-          : [...cfg.whatsapp_notifications.target_segments, segment],
-      },
-    });
-  }
-
-  function addPhone() {
-    if (!cfg) return;
-    const trimmed = phoneInput.trim();
-    if (!E164_REGEX.test(trimmed)) {
-      setPhoneError("Enter a valid number in E.164 format, e.g. +919876543210");
-      return;
-    }
-    if (cfg.whatsapp_notifications.recipient_phones.includes(trimmed)) {
-      setPhoneError("This number is already added.");
-      return;
-    }
-    patch({
-      whatsapp_notifications: {
-        ...cfg.whatsapp_notifications,
-        recipient_phones: [...cfg.whatsapp_notifications.recipient_phones, trimmed],
-      },
-    });
-    setPhoneInput("");
-    setPhoneError(null);
-  }
-
-  function removePhone(phone: string) {
-    if (!cfg) return;
-    patch({
-      whatsapp_notifications: {
-        ...cfg.whatsapp_notifications,
-        recipient_phones: cfg.whatsapp_notifications.recipient_phones.filter((p) => p !== phone),
-      },
-    });
-  }
 
   return (
     <div className="card rounded-3xl animate-slide-up">
@@ -230,135 +186,29 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
         )}
       </div>
 
-      {/* WhatsApp segment notifications */}
-      <div className="mt-4 p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-body text-sm font-semibold text-ink">WhatsApp lead notifications</p>
-            <p className="font-body text-xs text-ink-muted mt-0.5">Message your team on WhatsApp when a lead&apos;s segment changes.</p>
-          </div>
-          <Toggle
-            on={cfg.whatsapp_notifications.enabled}
-            disabled={!canManage}
-            onClick={() =>
-              patch({ whatsapp_notifications: { ...cfg.whatsapp_notifications, enabled: !cfg.whatsapp_notifications.enabled } })
-            }
-          />
-        </div>
+      {/* WhatsApp alerts on segment change */}
+      <WhatsAppAlertSection
+        title="WhatsApp lead notifications"
+        subtitle="Message your team on WhatsApp when a lead's segment changes."
+        segmentsLabel="Notify for segments"
+        delayHelp="How long the lead must stay in the segment before sending the notification. Set to 0 to send immediately."
+        block={cfg.whatsapp_notifications}
+        approvedTemplates={approvedTemplates}
+        canManage={canManage}
+        onChange={(next) => patch({ whatsapp_notifications: next })}
+      />
 
-        {cfg.whatsapp_notifications.enabled && (
-          <div className="mt-4 space-y-4">
-            <div>
-              <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Notify for segments</p>
-              <div className="flex flex-wrap gap-2">
-                {SEGMENTS.map((s) => {
-                  const active = cfg.whatsapp_notifications.target_segments.includes(s);
-                  return (
-                    <button
-                      key={s}
-                      type="button"
-                      aria-pressed={active}
-                      disabled={!canManage}
-                      onClick={() => toggleWhatsappSegment(s)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-xs font-semibold border transition-colors ${
-                        active ? SEGMENT_STYLES[s] : "bg-white text-ink-muted border-border"
-                      }`}
-                    >
-                      {s} · {SEGMENT_LABELS[s]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Recipient phone numbers</p>
-              {cfg.whatsapp_notifications.recipient_phones.length > 0 && (
-                <div className="space-y-1.5 mb-2">
-                  {cfg.whatsapp_notifications.recipient_phones.map((phone) => (
-                    <div key={phone} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-border">
-                      <span className="font-mono text-sm text-ink">{phone}</span>
-                      <button
-                        type="button"
-                        onClick={() => removePhone(phone)}
-                        className="text-ink-muted hover:text-red-600 transition-colors"
-                        aria-label={`Remove ${phone}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={phoneInput}
-                  disabled={!canManage}
-                  onChange={(e) => { setPhoneInput(e.target.value); setPhoneError(null); }}
-                  placeholder="+919876543210"
-                  className="flex-1 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
-                />
-                <button
-                  type="button"
-                  onClick={addPhone}
-                  disabled={!canManage}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-border text-sm font-semibold text-ink hover:border-primary transition-colors flex-shrink-0"
-                >
-                  <Plus size={14} />Add Number
-                </button>
-              </div>
-              {phoneError && <p className="font-body text-xs text-red-600 mt-1.5">{phoneError}</p>}
-            </div>
-
-            <div>
-              <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Message template</label>
-              <select
-                value={cfg.whatsapp_notifications.template_id ?? ""}
-                disabled={!canManage}
-                onChange={(e) =>
-                  patch({ whatsapp_notifications: { ...cfg.whatsapp_notifications, template_id: e.target.value || null } })
-                }
-                className="w-full px-3 py-2 rounded-xl bg-white border border-border text-sm text-ink focus:outline-none focus:border-primary"
-              >
-                <option value="">Select a template…</option>
-                {approvedTemplates.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              {selectedTemplate && (
-                <div className="mt-2 p-3 rounded-xl bg-white border border-border-subtle">
-                  <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">Preview</p>
-                  <p className="font-mono text-xs text-ink-muted whitespace-pre-wrap">
-                    {selectedTemplate.body_text || "No body text available."}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Delay before sending (minutes)</label>
-              <input
-                type="number" min={0} max={1440}
-                value={cfg.whatsapp_notifications.delay_minutes ?? 5}
-                disabled={!canManage}
-                onChange={(e) =>
-                  patch({
-                    whatsapp_notifications: {
-                      ...cfg.whatsapp_notifications,
-                      delay_minutes: Math.max(0, Math.min(1440, parseInt(e.target.value) || 0)),
-                    },
-                  })
-                }
-                className="w-24 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
-              />
-              <p className="font-body text-[11px] text-ink-muted mt-1">
-                How long the lead must stay in the segment before sending the notification. Set to 0 to send immediately.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* WhatsApp alerts on escalation */}
+      <WhatsAppAlertSection
+        title="WhatsApp escalation alerts"
+        subtitle="Message your team on WhatsApp when a conversation is escalated to a human."
+        segmentsLabel="Alert for segments"
+        delayHelp="How long to wait before alerting. If a teammate claims or resolves the handover first, the message is not sent."
+        block={cfg.whatsapp_escalation_notifications}
+        approvedTemplates={approvedTemplates}
+        canManage={canManage}
+        onChange={(next) => patch({ whatsapp_escalation_notifications: next })}
+      />
 
       <div className="mt-6 flex items-center justify-end border-t border-border-subtle pt-5">
         <button
@@ -375,6 +225,184 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
             : <><Save size={14} />Save Changes</>}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * One WhatsApp alert configuration block: segments, recipients, template, delay.
+ * Shared by the segment-change and escalation alerts, which differ only in copy.
+ */
+function WhatsAppAlertSection({
+  title,
+  subtitle,
+  segmentsLabel,
+  delayHelp,
+  block,
+  approvedTemplates,
+  canManage,
+  onChange,
+}: {
+  title: string;
+  subtitle: string;
+  segmentsLabel: string;
+  delayHelp: string;
+  block: WhatsAppBlock;
+  approvedTemplates: WabaTemplate[];
+  canManage: boolean;
+  onChange: (next: WhatsAppBlock) => void;
+}) {
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  const selectedTemplate = approvedTemplates.find((t) => t.id === block.template_id) || null;
+
+  function toggleSegment(segment: (typeof SEGMENTS)[number]) {
+    const active = block.target_segments.includes(segment);
+    onChange({
+      ...block,
+      target_segments: active
+        ? block.target_segments.filter((s) => s !== segment)
+        : [...block.target_segments, segment],
+    });
+  }
+
+  function addPhone() {
+    const trimmed = phoneInput.trim();
+    if (!E164_REGEX.test(trimmed)) {
+      setPhoneError("Enter a valid number in E.164 format, e.g. +919876543210");
+      return;
+    }
+    if (block.recipient_phones.includes(trimmed)) {
+      setPhoneError("This number is already added.");
+      return;
+    }
+    onChange({ ...block, recipient_phones: [...block.recipient_phones, trimmed] });
+    setPhoneInput("");
+    setPhoneError(null);
+  }
+
+  function removePhone(phone: string) {
+    onChange({ ...block, recipient_phones: block.recipient_phones.filter((p) => p !== phone) });
+  }
+
+  return (
+    <div className="mt-4 p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-body text-sm font-semibold text-ink">{title}</p>
+          <p className="font-body text-xs text-ink-muted mt-0.5">{subtitle}</p>
+        </div>
+        <Toggle
+          on={block.enabled}
+          disabled={!canManage}
+          onClick={() => onChange({ ...block, enabled: !block.enabled })}
+        />
+      </div>
+
+      {block.enabled && (
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">{segmentsLabel}</p>
+            <div className="flex flex-wrap gap-2">
+              {SEGMENTS.map((s) => {
+                const active = block.target_segments.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={active}
+                    disabled={!canManage}
+                    onClick={() => toggleSegment(s)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-xs font-semibold border transition-colors ${
+                      active ? SEGMENT_STYLES[s] : "bg-white text-ink-muted border-border"
+                    }`}
+                  >
+                    {s} · {SEGMENT_LABELS[s]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Recipient phone numbers</p>
+            {block.recipient_phones.length > 0 && (
+              <div className="space-y-1.5 mb-2">
+                {block.recipient_phones.map((phone) => (
+                  <div key={phone} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-border">
+                    <span className="font-mono text-sm text-ink">{phone}</span>
+                    <button
+                      type="button"
+                      onClick={() => removePhone(phone)}
+                      className="text-ink-muted hover:text-red-600 transition-colors"
+                      aria-label={`Remove ${phone}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={phoneInput}
+                disabled={!canManage}
+                onChange={(e) => { setPhoneInput(e.target.value); setPhoneError(null); }}
+                placeholder="+919876543210"
+                className="flex-1 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
+              />
+              <button
+                type="button"
+                onClick={addPhone}
+                disabled={!canManage}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-border text-sm font-semibold text-ink hover:border-primary transition-colors flex-shrink-0"
+              >
+                <Plus size={14} />Add Number
+              </button>
+            </div>
+            {phoneError && <p className="font-body text-xs text-red-600 mt-1.5">{phoneError}</p>}
+          </div>
+
+          <div>
+            <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Message template</label>
+            <select
+              value={block.template_id ?? ""}
+              disabled={!canManage}
+              onChange={(e) => onChange({ ...block, template_id: e.target.value || null })}
+              className="w-full px-3 py-2 rounded-xl bg-white border border-border text-sm text-ink focus:outline-none focus:border-primary"
+            >
+              <option value="">Select a template…</option>
+              {approvedTemplates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            {selectedTemplate && (
+              <div className="mt-2 p-3 rounded-xl bg-white border border-border-subtle">
+                <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">Preview</p>
+                <p className="font-mono text-xs text-ink-muted whitespace-pre-wrap">
+                  {selectedTemplate.body_text || "No body text available."}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Delay before sending (minutes)</label>
+            <input
+              type="number" min={0} max={1440}
+              value={block.delay_minutes ?? 5}
+              disabled={!canManage}
+              onChange={(e) =>
+                onChange({ ...block, delay_minutes: Math.max(0, Math.min(1440, parseInt(e.target.value) || 0)) })
+              }
+              className="w-24 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
+            />
+            <p className="font-body text-[11px] text-ink-muted mt-1">{delayHelp}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

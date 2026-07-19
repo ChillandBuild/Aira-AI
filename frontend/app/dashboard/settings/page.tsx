@@ -11,6 +11,7 @@ import ConnectChannelsPanel from "./ConnectChannelsPanel";
 import { TelecallingConfigPanel } from "./TelecallingConfigPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
 import { NotificationConfigPanel } from "./NotificationConfigPanel";
+import { BusinessHoursPanel } from "./BusinessHoursPanel";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -890,6 +891,7 @@ export default function SettingsPage() {
           {/* TAB 6: Notifications */}
           {activeTab === "notifications" && hasNotifications && (
             <div className="space-y-6">
+              <BusinessHoursPanel canManage={canManageSettings} />
               <NotificationConfigPanel canManage={canManageSettings} />
             </div>
           )}

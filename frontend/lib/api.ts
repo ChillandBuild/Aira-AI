@@ -318,28 +318,6 @@ export interface ReengagementLog {
   leads?: { name: string | null; phone: string; segment: string | null } | null;
 }
 
-export interface AIPrompt {
-  id: string;
-  name: string;
-  content: string;
-  updated_at: string;
-}
-
-export interface TuneSuggestion {
-  id: string;
-  for_prompt: string;
-  suggestion: string;
-  rationale: string | null;
-  status: "pending" | "applied" | "rejected";
-  created_at: string;
-}
-
-export interface AnalyzeResult {
-  analyzed_leads: number;
-  suggestions_created: number;
-  data: TuneSuggestion[];
-}
-
 export interface SystemStatus {
   has_meta: boolean;
   has_gemini: boolean;
@@ -804,6 +782,14 @@ export type NotificationConfig = {
   claimable_caller_ids: string[];
   quiet_hours: { enabled: boolean; start_hour: number; end_hour: number };
   whatsapp_notifications: {
+    enabled: boolean;
+    recipient_phones: string[];
+    template_id: string | null;
+    target_segments: string[];
+    delay_minutes?: number;
+  };
+  /** Fired when a chat handover is created, not when a segment changes. */
+  whatsapp_escalation_notifications: {
     enabled: boolean;
     recipient_phones: string[];
     template_id: string | null;
@@ -1364,34 +1350,14 @@ export const api = {
       }),
   },
   aiTune: {
-    prompts: async () => {
-      const res = await apiFetch<{ data: AIPrompt[] }>(`/api/v1/ai-tune/prompts`);
-      return res.data || [];
+    description: async () => {
+      const res = await apiFetch<{ description: string }>(`/api/v1/ai-tune/description`);
+      return res.description || "";
     },
-    updatePrompt: (name: string, content: string) =>
-      apiFetch<AIPrompt>(`/api/v1/ai-tune/prompts/${name}`, {
+    updateDescription: (description: string) =>
+      apiFetch<{ description: string }>(`/api/v1/ai-tune/description`, {
         method: "PUT",
-        body: JSON.stringify({ content }),
-      }),
-    analyze: (forPrompt = "whatsapp_reply") =>
-      apiFetch<AnalyzeResult>(
-        `/api/v1/ai-tune/analyze?for_prompt=${encodeURIComponent(forPrompt)}`,
-        { method: "POST" },
-      ),
-    suggestions: async (status: "pending" | "applied" | "rejected" | "all" = "pending") => {
-      const res = await apiFetch<{ data: TuneSuggestion[] }>(
-        `/api/v1/ai-tune/suggestions?status=${status}`,
-      );
-      return res.data || [];
-    },
-    apply: (id: string) =>
-      apiFetch<{ applied: boolean; for_prompt: string; new_length: number }>(
-        `/api/v1/ai-tune/suggestions/${id}/apply`,
-        { method: "POST" },
-      ),
-    reject: (id: string) =>
-      apiFetch<{ rejected: boolean }>(`/api/v1/ai-tune/suggestions/${id}/reject`, {
-        method: "POST",
+        body: JSON.stringify({ description }),
       }),
   },
   system: {

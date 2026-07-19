@@ -117,6 +117,8 @@ const VOICE_SPEAKERS = [
 
 interface ConfigData {
   enabled_features: string[];
+  master_prompt: string;
+  business_description: string;
   credentials_status: Record<string, "configured" | "incomplete" | "not_configured">;
   settings: {
     ai_auto_reply_enabled: boolean;
@@ -208,6 +210,29 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<AiProviderKey, string>>({ sarvam: "", gemini: "", openai: "", groq: "", jina: "" });
   const [apiKeySaving, setApiKeySaving] = useState<AiProviderKey | null>(null);
   const [replyModelSaving, setReplyModelSaving] = useState<ReplyModelId | null>(null);
+  const [masterPrompt, setMasterPrompt] = useState<string>("");
+  const [savedMasterPrompt, setSavedMasterPrompt] = useState<string>("");
+  const [promptSaving, setPromptSaving] = useState(false);
+  const [promptError, setPromptError] = useState<string | null>(null);
+
+  async function saveMasterPrompt() {
+    setPromptSaving(true);
+    setPromptError(null);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/operator/clients/${tenantId}/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ master_prompt: masterPrompt }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setSavedMasterPrompt(masterPrompt);
+    } catch {
+      setPromptError("Could not save the master prompt. Please try again.");
+    } finally {
+      setPromptSaving(false);
+    }
+  }
 
   async function updateRetrievalMode(mode: RetrievalMode) {
     if (!config || config.settings.kb_retrieval_mode === mode) return;
@@ -464,6 +489,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       .then(([configData, providerData]) => {
         setConfig(configData);
         setProvider(providerData);
+        setMasterPrompt(configData.master_prompt || "");
+        setSavedMasterPrompt(configData.master_prompt || "");
       })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load config"))
       .finally(() => setLoading(false));
@@ -829,6 +856,52 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Master Prompt */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-ink-muted" />
+          Master Prompt
+        </h3>
+        <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+          Defines how this client&apos;s assistant behaves — reply length, tone, and worked
+          examples. The client cannot edit this. They supply only the business description
+          shown below, which tells the assistant what it is talking about.
+        </p>
+
+        <textarea
+          value={masterPrompt}
+          onChange={(e) => setMasterPrompt(e.target.value)}
+          rows={20}
+          spellCheck={false}
+          className="w-full rounded-card border border-border bg-white p-4 font-mono text-xs leading-relaxed shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/30 resize-y"
+        />
+
+        {promptError && (
+          <p className="mt-2 text-xs font-medium text-danger">{promptError}</p>
+        )}
+
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={saveMasterPrompt}
+            disabled={promptSaving || masterPrompt === savedMasterPrompt}
+            className="inline-flex items-center gap-2 rounded-card bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-default disabled:opacity-50"
+          >
+            {promptSaving && <Loader2 size={14} className="animate-spin" />}
+            {promptSaving ? "Saving…" : "Save Master Prompt"}
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-card border border-border bg-surface-low p-4 shadow-sm">
+          <p className="mb-2 text-xs font-semibold text-ink">
+            Client&apos;s business description (read-only)
+          </p>
+          <pre className="whitespace-pre-wrap font-body text-xs leading-relaxed text-ink-muted">
+            {config.business_description || "The client has not written a description yet."}
+          </pre>
         </div>
       </div>
 

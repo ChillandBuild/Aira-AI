@@ -27,6 +27,15 @@ _NOTIFICATION_CONFIG_DEFAULT: dict = {
         "target_segments": ["A"],
         "delay_minutes": 5,
     },
+    # Fired when a chat handover is created, not when a segment changes.
+    # Shorter default delay: an unclaimed escalation is more urgent.
+    "whatsapp_escalation_notifications": {
+        "enabled": False,
+        "recipient_phones": [],
+        "template_id": None,
+        "target_segments": ["A"],
+        "delay_minutes": 3,
+    },
 }
 
 
@@ -38,6 +47,9 @@ def get_notification_config(tenant_id: str, db=None) -> dict:
         "events": dict(_NOTIFICATION_CONFIG_DEFAULT["events"]),
         "quiet_hours": dict(_NOTIFICATION_CONFIG_DEFAULT["quiet_hours"]),
         "whatsapp_notifications": dict(_NOTIFICATION_CONFIG_DEFAULT["whatsapp_notifications"]),
+        "whatsapp_escalation_notifications": dict(
+            _NOTIFICATION_CONFIG_DEFAULT["whatsapp_escalation_notifications"]
+        ),
     }
     try:
         row = (
@@ -54,6 +66,10 @@ def get_notification_config(tenant_id: str, db=None) -> dict:
                 merged["events"] = {**merged["events"], **(stored.get("events") or {})}
                 merged["quiet_hours"] = {**merged["quiet_hours"], **(stored.get("quiet_hours") or {})}
                 merged["whatsapp_notifications"] = {**merged["whatsapp_notifications"], **(stored.get("whatsapp_notifications") or {})}
+                merged["whatsapp_escalation_notifications"] = {
+                    **merged["whatsapp_escalation_notifications"],
+                    **(stored.get("whatsapp_escalation_notifications") or {}),
+                }
                 for k in ("push_enabled", "claimable_threshold_minutes", "claimable_audience", "claimable_caller_ids"):
                     if k in stored:
                         merged[k] = stored[k]

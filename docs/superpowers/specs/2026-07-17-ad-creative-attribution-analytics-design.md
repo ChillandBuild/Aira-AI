@@ -42,6 +42,14 @@ No third "match to most recent click" fallback — deliberately dropped. Without
 
 Meta does not emit a webhook event for a click that never becomes a message — this is a hard limitation of native Click-to-WhatsApp ads, not a gap in this design. The click count per creative comes from **Meta's Ads Insights API** (`level=ad`), pulled by a scheduled backend job (new: `backend/app/services/meta_ads_insights_sync.py`) and stored in `ad_insights_daily`.
 
+Verified against current Meta documentation (not assumed from training knowledge): the Ads Insights API supports `level=ad` queries returning `clicks`/`spend` per ad, using `ads_read`/`business_management` scopes, and Meta's own recommended token type for unattended server-side access is a Business Manager **System User token** (no short expiry, unlike a regular OAuth user token). Sources: [Ads Insights API](https://developers.facebook.com/documentation/ads-commerce/marketing-api/insights), [Click to WhatsApp ads](https://developers.facebook.com/documentation/ads-commerce/marketing-api/ad-creative/messaging-ads/click-to-whatsapp/).
+
+### Per-tenant credentials
+
+There is currently no Marketing/Ads Insights API integration anywhere in this codebase — only WhatsApp Cloud API (messaging scopes). This is new integration work, not an extension of `meta_cloud.py`.
+
+Aira AI's existing pattern for Meta-family credentials (`meta_access_token`, `instagram_access_token`, `facebook_access_token` in `onboarding.py`/`app_settings`) is manual paste-in, not an OAuth consent flow — and that pattern is actually the *correct* fit here too: a System User token (what we want, since it doesn't expire) can only be generated manually in Meta Business Manager, never via an OAuth redirect. A real "Login with Facebook" flow would both require additional Meta App Review for ads permissions and yield a worse (expiring, ~60-day) token than what tenants would paste in manually. So: two new per-tenant settings fields, `meta_ads_access_token` and `meta_ads_account_id`, following the exact existing settings-paste pattern — no OAuth flow, no token refresh cron. The sync job iterates over tenants that have these fields populated.
+
 Per creative, "clicked but no message" is a **derived dashboard number**, not an individual lead status:
 
 ```
@@ -64,8 +72,8 @@ message_received → qualified → hot_lead → converted
 
 - **Frontend**: new Analytics section inside `frontend/app/dashboard/inbound-leads/` (not the top-level `dashboard/analytics/` page — inbound-leads already models ad-attributed vs. organic leads via `ad_campaign_id`, making it the closer conceptual home). Campaign filter → per-creative breakdown table (Clicks, Messages, Clicked/no-message, Qualified, Hot leads, Sales, Spend, Cost per click, Cost per WhatsApp conversation, Cost per qualified lead, Cost per hot lead, Sales revenue, ROAS) → CSV export button.
 - **Backend**: new endpoints in `backend/app/routes/inbound_leads.py` (which already has the `ad_campaign_id`-based filtering plumbing), including a CSV export endpoint following the proven `csv.DictWriter` + `Response(media_type="text/csv")` pattern already used in `backend/app/routes/leads.py:474`.
-- **Schema**: one new Supabase migration adding `ad_creatives`, `ad_insights_daily`, and `leads.attributed_ad_creative_id`, numbered after the latest existing migration.
-- **Sync job**: new scheduled service pulling Meta Ads Insights data daily per `meta_ad_id`.
+- **Schema**: one new Supabase migration adding `ad_creatives`, `ad_insights_daily`, `leads.attributed_ad_creative_id`, and the two new `app_settings` fields (`meta_ads_access_token`, `meta_ads_account_id`), numbered after the latest existing migration.
+- **Sync job**: new scheduled service (`backend/app/services/meta_ads_insights_sync.py`) pulling Meta Ads Insights data daily per `meta_ad_id`, for each tenant with `meta_ads_access_token`/`meta_ads_account_id` configured.
 
 ## Explicitly out of scope for this build (Phase 2)
 
