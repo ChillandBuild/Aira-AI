@@ -163,6 +163,7 @@ async def analyze_call(
             temperature=0.2,
             max_tokens=1500,
             tenant_id=tenant_id,
+            purpose="call_analysis",
         )
         summary = {k: data[k] for k in _SUMMARY_KEYS if k in data}
         evaluation = {k: data[k] for k in _EVAL_KEYS if k in data}

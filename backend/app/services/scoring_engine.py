@@ -28,6 +28,7 @@ from app.services.segmentation import score_to_segment, parse_thresholds
 logger = logging.getLogger(__name__)
 
 from app.services.groq_client import get_groq_client
+from app.services.token_meter import record_groq_sdk
 _MODEL = "llama-3.3-70b-versatile"
 
 # ── Intent signal patterns ────────────────────────────────────────────────────
@@ -233,6 +234,7 @@ async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5
             temperature=0.0,
             max_tokens=4,
         )
+        record_groq_sdk(tenant_id, "scoring", _MODEL, resp)
         raw = resp.choices[0].message.content.strip()
         match = re.search(r'\d+', raw)
         return max(1, min(10, int(match.group()))) if match else fallback

@@ -2,8 +2,17 @@
 import httpx
 
 from app.config_dynamic import require_tenant_setting
+from app.services.token_meter import record_tokens
 
 OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
+
+
+def _record(tenant_id: str | None, purpose: str, model: str, data: dict) -> None:
+    usage = data.get("usage") or {}
+    record_tokens(
+        tenant_id, purpose, "openai", model,
+        usage.get("prompt_tokens"), usage.get("completion_tokens"),
+    )
 
 
 def _completion_payload(messages: list[dict], model: str, temperature: float, max_tokens: int) -> dict:
@@ -32,6 +41,7 @@ async def openai_chat_completion(
     temperature: float = 0.4,
     max_tokens: int = 300,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> str:
     """OpenAI's Chat Completions API. No fallback to a platform key -- every client must
     configure their own openai_api_key (operator decision, see decisions/log.md)."""
@@ -44,6 +54,7 @@ async def openai_chat_completion(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     return (data["choices"][0]["message"]["content"] or "").strip()
 
 
@@ -54,6 +65,7 @@ async def openai_chat_completion_with_tools(
     temperature: float = 0.4,
     max_tokens: int = 300,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> tuple[str, list[dict]]:
     api_key = require_tenant_setting("openai_api_key", tenant_id)
     payload = _completion_payload(messages, model, temperature, max_tokens)
@@ -66,6 +78,7 @@ async def openai_chat_completion_with_tools(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     message = data["choices"][0]["message"]
     content = (message.get("content") or "").strip()
     tool_calls = message.get("tool_calls") or []

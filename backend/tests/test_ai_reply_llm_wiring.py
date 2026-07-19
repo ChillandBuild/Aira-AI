@@ -81,6 +81,7 @@ async def test_llm_complete_routes_to_sarvam_for_sarvam_model():
         temperature=0.4,
         max_tokens=120,
         tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 
@@ -97,6 +98,7 @@ async def test_llm_complete_routes_to_gemini_and_strips_prefix():
         temperature=0.4,
         max_tokens=120,
         tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 
@@ -113,6 +115,7 @@ async def test_llm_complete_routes_to_openai_and_strips_prefix():
         temperature=0.4,
         max_tokens=120,
         tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 
@@ -129,6 +132,7 @@ async def test_llm_complete_routes_to_groq_and_strips_prefix():
         temperature=0.4,
         max_tokens=120,
         tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 
@@ -157,6 +161,7 @@ async def test_llm_chat_routes_to_gemini_for_google_prefixed_model():
         temperature=0.4,
         max_tokens=600,
         tenant_id="tenant-2",
+        purpose="ai_reply",
     )
 
 
@@ -182,7 +187,8 @@ async def test_llm_chat_with_tools_routes_to_sarvam_for_sarvam_model():
 
     assert (content, tool_calls) == ("here", [])
     mock_call.assert_called_once_with(
-        messages, tools=tools, model="sarvam-30b", max_tokens=600, tenant_id="tenant-1",
+        messages=messages, tools=tools, model="sarvam-30b", max_tokens=600, tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 
@@ -196,7 +202,8 @@ async def test_llm_chat_with_tools_routes_to_gemini_and_strips_prefix():
 
     assert (content, tool_calls) == ("here", [])
     mock_call.assert_called_once_with(
-        messages, tools=tools, model="gemini-3.1-flash-lite", max_tokens=600, tenant_id="tenant-1",
+        messages=messages, tools=tools, model="gemini-3.1-flash-lite", max_tokens=600, tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 
@@ -210,7 +217,8 @@ async def test_llm_chat_with_tools_routes_to_openai_and_strips_prefix():
 
     assert (content, tool_calls) == ("here", [])
     mock_call.assert_called_once_with(
-        messages, tools=tools, model="gpt-5-nano-2025-08-07", max_tokens=600, tenant_id="tenant-1",
+        messages=messages, tools=tools, model="gpt-5-nano-2025-08-07", max_tokens=600, tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 
@@ -224,7 +232,8 @@ async def test_llm_chat_with_tools_routes_to_groq_and_strips_prefix():
 
     assert (content, tool_calls) == ("here", [])
     mock_call.assert_called_once_with(
-        messages, tools=tools, model="llama-3.3-70b-versatile", max_tokens=600, tenant_id="tenant-1",
+        messages=messages, tools=tools, model="llama-3.3-70b-versatile", max_tokens=600, tenant_id="tenant-1",
+        purpose="ai_reply",
     )
 
 

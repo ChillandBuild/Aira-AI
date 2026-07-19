@@ -1,6 +1,7 @@
 # backend/app/services/groq_client.py
 from groq import Groq, AsyncGroq
 from app.config_dynamic import require_tenant_setting
+from app.services.token_meter import record_groq_sdk as _record
 
 def get_groq_client(tenant_id: str | None = None, is_async: bool = True):
     """No fallback to a platform key -- every client must configure their own groq_api_key
@@ -29,6 +30,7 @@ async def groq_chat_completion(
     temperature: float = 0.4,
     max_tokens: int = 300,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> str:
     """No fallback to a platform key -- every client must configure their own groq_api_key
     for reply generation (operator decision, see decisions/log.md)."""
@@ -38,6 +40,7 @@ async def groq_chat_completion(
         model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
         **_reasoning_kwargs(model),
     )
+    _record(tenant_id, purpose, model, resp)
     return (resp.choices[0].message.content or "").strip()
 
 
@@ -48,6 +51,7 @@ async def groq_chat_completion_with_tools(
     temperature: float = 0.4,
     max_tokens: int = 300,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> tuple[str, list[dict]]:
     api_key = require_tenant_setting("groq_api_key", tenant_id)
     client = AsyncGroq(api_key=api_key)
@@ -55,6 +59,7 @@ async def groq_chat_completion_with_tools(
         model=model, messages=messages, temperature=temperature, max_tokens=max_tokens, tools=tools,
         **_reasoning_kwargs(model),
     )
+    _record(tenant_id, purpose, model, resp)
     message = resp.choices[0].message
     content = (message.content or "").strip()
     tool_calls = [tc.model_dump() for tc in (message.tool_calls or [])]

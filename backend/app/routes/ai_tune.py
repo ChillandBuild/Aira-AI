@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_owner)])
 
 from app.services.groq_client import get_groq_client
+from app.services.token_meter import record_groq_sdk
 _TUNE_MODEL = "llama-3.3-70b-versatile"
 
 META_PROMPT = """You are a prompt-engineering coach. Below is the current SYSTEM PROMPT
@@ -119,6 +120,7 @@ Reply with ONLY the 5 rubric lines. No explanation, no preamble."""
             temperature=0.3,
             max_tokens=300,
         )
+        record_groq_sdk(tenant_id, "ai_tune", _TUNE_MODEL, resp)
         rubric = resp.choices[0].message.content.strip()
         if rubric and "9-10" in rubric:
             save_setting("scoring_rubric", rubric, tenant_id=tenant_id)
@@ -198,6 +200,7 @@ async def analyze(for_prompt: str = "whatsapp_reply", limit: int = 5, tenant_id:
             temperature=0.4,
             max_tokens=1000,
         )
+        record_groq_sdk(tenant_id, "ai_tune", _TUNE_MODEL, resp)
         text = (resp.choices[0].message.content or "").strip()
     except Exception as e:
         logger.error(f"Groq analyze failed: {e}")

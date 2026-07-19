@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { operatorFetch } from "@/lib/operator";
 import { ClientDetailSidebar, type SectionType } from "./sidebar";
 import { OverviewView } from "./views/overview";
@@ -20,9 +20,20 @@ import { EntitlementsView } from "./views/entitlements";
 
 import type { OverviewData } from "./types";
 
+const VALID_SECTIONS: SectionType[] = [
+  "overview", "inbox", "conversations", "segments", "inbound", "outbound",
+  "templates", "numbers", "knowledge", "analytics", "team",
+  "tc-upload", "tc-dialer", "tc-scheduled", "tc-notes",
+  "config", "entitlements", "health", "management", "data-ops", "audit-logs", "delete-client",
+];
+
 export default function ClientDetailPage() {
   const { id: tenantId } = useParams<{ id: string }>();
-  const [section, setSection] = useState<SectionType>("overview");
+  const searchParams = useSearchParams();
+  const initialSection = searchParams.get("section");
+  const [section, setSection] = useState<SectionType>(
+    VALID_SECTIONS.includes(initialSection as SectionType) ? (initialSection as SectionType) : "overview"
+  );
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

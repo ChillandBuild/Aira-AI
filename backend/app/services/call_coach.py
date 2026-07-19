@@ -1,6 +1,7 @@
 import logging
 from app.db.supabase import get_supabase
 from app.services.groq_client import get_groq_client
+from app.services.token_meter import record_groq_sdk
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ async def coaching_tip(caller_id: str) -> str:
             temperature=0.5,
             max_tokens=80,
         )
+        record_groq_sdk(tenant_id, "coaching", _MODEL, response)
         return response.choices[0].message.content.strip()
     except Exception as e:
         logger.warning(f"Coaching tip generation failed: {e}")

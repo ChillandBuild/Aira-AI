@@ -12,6 +12,7 @@ from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
 from app.services.entitlements import compute_period_key, get_billing_period
+from app.services.token_pricing import estimate_cost, get_rates, upsert_rate
 from app.services.subscription_requests import approve_request, reject_request
 from app.utils.db_retry import execute_with_retry
 
@@ -867,6 +868,262 @@ def get_client_usage(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     ).eq("tenant_id", tenant_id).eq("period", period).execute()
     
     return {"data": counters.data or [], "period": period}
+
+
+@router.get("/clients/{tenant_id}/token-usage")
+def get_client_token_usage(
+    tenant_id: str,
+    range_days: int = 30,
+    all_time: bool = False,
+    _admin: dict = Depends(get_system_admin),
+):
+    """Per-tenant LLM token consumption (migration 142), broken down by feature
+    and model plus a daily series for the trend chart. all_time=true skips the
+    date filter entirely (range_days is then ignored). Small row volume per
+    tenant (one row per day/purpose/provider/model) -- aggregated in Python
+    rather than a dedicated SQL rollup. Estimated cost (migration 143's
+    admin-set rate card) is None per row/group when no rate is configured for
+    that (provider, model) -- never silently treated as ₹0."""
+    db = get_supabase()
+
+    query = db.table("tenant_token_usage").select(
+        "usage_date, purpose, provider, model, calls, input_tokens, output_tokens"
+    ).eq("tenant_id", tenant_id)
+    if not all_time:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=range_days)).date().isoformat()
+        query = query.gte("usage_date", cutoff)
+    rows = query.execute().data or []
+    rates = get_rates(db)
+
+    totals = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "estimated_cost": 0.0}
+    by_feature: dict[str, dict] = {}
+    by_model: dict[tuple[str, str], dict] = {}
+    by_day: dict[str, dict] = {}
+    unrated_models: set[tuple[str, str]] = set()
+    any_unrated = False
+
+    for r in rows:
+        calls, in_tok, out_tok = r["calls"], r["input_tokens"], r["output_tokens"]
+        row_cost = estimate_cost(rates, r["provider"], r["model"], in_tok, out_tok)
+        if row_cost is None:
+            unrated_models.add((r["provider"], r["model"]))
+            any_unrated = True
+
+        totals["calls"] += calls
+        totals["input_tokens"] += in_tok
+        totals["output_tokens"] += out_tok
+        if row_cost is not None:
+            totals["estimated_cost"] += row_cost
+
+        feat = by_feature.setdefault(r["purpose"], {"purpose": r["purpose"], "calls": 0, "input_tokens": 0, "output_tokens": 0, "estimated_cost": 0.0, "has_unrated": False})
+        feat["calls"] += calls
+        feat["input_tokens"] += in_tok
+        feat["output_tokens"] += out_tok
+        if row_cost is not None:
+            feat["estimated_cost"] += row_cost
+        else:
+            feat["has_unrated"] = True
+
+        model_key = (r["provider"], r["model"])
+        model_row = by_model.setdefault(model_key, {"provider": r["provider"], "model": r["model"], "calls": 0, "input_tokens": 0, "output_tokens": 0, "estimated_cost": 0.0, "has_unrated": False})
+        model_row["calls"] += calls
+        model_row["input_tokens"] += in_tok
+        model_row["output_tokens"] += out_tok
+        if row_cost is not None:
+            model_row["estimated_cost"] += row_cost
+        else:
+            model_row["has_unrated"] = True
+
+        day = by_day.setdefault(r["usage_date"], {"date": r["usage_date"], "input_tokens": 0, "output_tokens": 0})
+        day["input_tokens"] += in_tok
+        day["output_tokens"] += out_tok
+
+    return {
+        "data": {
+            "totals": {**totals, "has_unrated": any_unrated},
+            "by_feature": sorted(by_feature.values(), key=lambda x: x["input_tokens"] + x["output_tokens"], reverse=True),
+            "by_model": sorted(by_model.values(), key=lambda x: x["input_tokens"] + x["output_tokens"], reverse=True),
+            "daily": sorted(by_day.values(), key=lambda x: x["date"]),
+            "unrated_models": [{"provider": p, "model": m} for p, m in sorted(unrated_models)],
+        },
+        "range_days": None if all_time else range_days,
+    }
+
+
+class ProviderRateUpsert(BaseModel):
+    provider: str
+    model: str
+    input_rate_per_1k_inr: float
+    output_rate_per_1k_inr: float
+
+
+@router.get("/provider-rates")
+def list_provider_rates(_admin: dict = Depends(get_system_admin)):
+    """Configured rates (migration 143) plus every (provider, model) pair ever
+    recorded in tenant_token_usage that still has no rate -- the rate-
+    management screen's todo list. DISTINCT is computed in Postgres (migration
+    144's RPC), not via a plain SELECT + Python set(), to avoid silently
+    missing pairs if the table grows past a REST page size."""
+    db = get_supabase()
+    configured = db.table("provider_model_rates").select(
+        "provider, model, input_rate_per_1k_inr, output_rate_per_1k_inr, updated_at"
+    ).execute().data or []
+    configured_keys = {(r["provider"], r["model"]) for r in configured}
+
+    seen = db.rpc("distinct_token_usage_pairs", {}).execute().data or []
+    missing = sorted({(r["provider"], r["model"]) for r in seen} - configured_keys)
+
+    return {
+        "data": {
+            "configured": configured,
+            "missing": [{"provider": p, "model": m} for p, m in missing],
+        }
+    }
+
+
+@router.put("/provider-rates")
+def set_provider_rate(payload: ProviderRateUpsert, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    upsert_rate(db, payload.provider, payload.model, payload.input_rate_per_1k_inr, payload.output_rate_per_1k_inr)
+    return {"data": {"status": "ok"}}
+
+
+def _aggregate_token_rows(rows: list[dict], rates: dict) -> dict:
+    """Shared aggregation core for the fleet endpoint -- run once on the
+    current window and once on the prior window (for trend deltas)."""
+    totals = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "estimated_cost": 0.0, "has_unrated": False}
+    by_provider: dict[str, dict] = {}
+    by_feature: dict[str, dict] = {}
+    by_client: dict[str, dict] = {}
+    by_day: dict[str, dict] = {}
+
+    for r in rows:
+        calls, in_tok, out_tok = r["calls"], r["input_tokens"], r["output_tokens"]
+        cost = estimate_cost(rates, r["provider"], r["model"], in_tok, out_tok)
+
+        totals["calls"] += calls
+        totals["input_tokens"] += in_tok
+        totals["output_tokens"] += out_tok
+        if cost is not None:
+            totals["estimated_cost"] += cost
+        else:
+            totals["has_unrated"] = True
+
+        for bucket, key in ((by_provider, r["provider"]), (by_feature, r["purpose"]), (by_client, r["tenant_id"])):
+            entry = bucket.setdefault(key, {"calls": 0, "input_tokens": 0, "output_tokens": 0, "estimated_cost": 0.0, "has_unrated": False})
+            entry["calls"] += calls
+            entry["input_tokens"] += in_tok
+            entry["output_tokens"] += out_tok
+            if cost is not None:
+                entry["estimated_cost"] += cost
+            else:
+                entry["has_unrated"] = True
+
+        day = by_day.setdefault(r["usage_date"], {"date": r["usage_date"]})
+        day[r["provider"]] = day.get(r["provider"], 0) + in_tok + out_tok
+
+    return {
+        "totals": totals,
+        "by_provider": by_provider,
+        "by_feature": by_feature,
+        "by_client": by_client,
+        "by_day": by_day,
+    }
+
+
+def _pct_trend(current: int, prior: int) -> float | None:
+    """None when there's no meaningful baseline (all-time view, or the prior
+    window had zero activity) -- a client that went from 0 to any usage isn't
+    a "% increase," it's new, and dividing by zero would misrepresent that."""
+    if prior <= 0:
+        return None
+    return round((current - prior) / prior * 100)
+
+
+@router.get("/token-usage/fleet")
+def get_fleet_token_usage(
+    range_days: int = 90,
+    all_time: bool = False,
+    _admin: dict = Depends(get_system_admin),
+):
+    """Cross-tenant token/cost view (migration 142 aggregated across every
+    tenant) -- the "who is costing me the most" leaderboard, since Aira funds
+    every provider account rather than the tenant. Computes a trend by also
+    aggregating the immediately-preceding, equal-length window; skipped
+    entirely for all_time (no meaningful "prior all-time" baseline)."""
+    db = get_supabase()
+    rates = get_rates(db)
+
+    def fetch(gte_date: str | None, lt_date: str | None = None) -> list[dict]:
+        q = db.table("tenant_token_usage").select(
+            "tenant_id, usage_date, purpose, provider, model, calls, input_tokens, output_tokens"
+        )
+        if gte_date is not None:
+            q = q.gte("usage_date", gte_date)
+        if lt_date is not None:
+            q = q.lt("usage_date", lt_date)
+        return q.execute().data or []
+
+    if all_time:
+        rows = fetch(None)
+        prior = None
+    else:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=range_days)).date()
+        prior_cutoff = cutoff - timedelta(days=range_days)
+        rows = fetch(cutoff.isoformat())
+        prior = _aggregate_token_rows(fetch(prior_cutoff.isoformat(), cutoff.isoformat()), rates)
+
+    current = _aggregate_token_rows(rows, rates)
+
+    tenant_ids = list(current["by_client"].keys())
+    tenant_names: dict[str, str] = {}
+    if tenant_ids:
+        trows = db.table("tenants").select("id, name").in_("id", tenant_ids).execute().data or []
+        tenant_names = {t["id"]: t["name"] for t in trows}
+
+    total_clients_row = db.table("tenants").select("id", count="exact").execute()
+    total_clients = total_clients_row.count or 0
+
+    cur_total_tokens = current["totals"]["input_tokens"] + current["totals"]["output_tokens"]
+    prior_total_tokens = (prior["totals"]["input_tokens"] + prior["totals"]["output_tokens"]) if prior else 0
+    fleet_trend_pct = None if all_time else _pct_trend(cur_total_tokens, prior_total_tokens)
+
+    leaderboard = []
+    for tid, c in current["by_client"].items():
+        cur_tok = c["input_tokens"] + c["output_tokens"]
+        prior_c = prior["by_client"].get(tid) if prior else None
+        prior_tok = (prior_c["input_tokens"] + prior_c["output_tokens"]) if prior_c else 0
+        leaderboard.append({
+            "tenant_id": tid,
+            "tenant_name": tenant_names.get(tid, tid),
+            "calls": c["calls"],
+            "input_tokens": c["input_tokens"],
+            "output_tokens": c["output_tokens"],
+            "estimated_cost": c["estimated_cost"],
+            "has_unrated": c["has_unrated"],
+            "share_of_fleet": (cur_tok / cur_total_tokens) if cur_total_tokens > 0 else 0.0,
+            "trend_pct": None if all_time else _pct_trend(cur_tok, prior_tok),
+        })
+    leaderboard.sort(key=lambda x: x["input_tokens"] + x["output_tokens"], reverse=True)
+
+    return {
+        "data": {
+            "totals": {**current["totals"], "trend_pct": fleet_trend_pct},
+            "active_clients": len(current["by_client"]),
+            "total_clients": total_clients,
+            "by_provider": sorted(
+                [{"provider": p, **v} for p, v in current["by_provider"].items()],
+                key=lambda x: x["input_tokens"] + x["output_tokens"], reverse=True,
+            ),
+            "by_feature": sorted(
+                [{"purpose": p, **v} for p, v in current["by_feature"].items()],
+                key=lambda x: x["input_tokens"] + x["output_tokens"], reverse=True,
+            ),
+            "daily": sorted(current["by_day"].values(), key=lambda x: x["date"]),
+            "leaderboard": leaderboard,
+        },
+        "range_days": None if all_time else range_days,
+    }
 
 
 @router.get("/clients/{tenant_id}/overview")

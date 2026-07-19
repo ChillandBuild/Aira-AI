@@ -6,6 +6,7 @@ import httpx
 import lameenc
 
 from app.config_dynamic import require_tenant_setting
+from app.services.token_meter import record_tokens
 
 # Single model for STT, doc-digitization/OCR, and call analysis (operator decision:
 # 3.1 Flash-Lite over the stronger-but-costlier 3.5 Flash, see decisions/log.md).
@@ -14,6 +15,19 @@ from app.config_dynamic import require_tenant_setting
 DEFAULT_GEMINI_TEXT_MODEL = "gemini-3.1-flash-lite"
 
 GEMINI_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
+
+
+def _record(tenant_id: str | None, purpose: str, model: str, data: dict) -> None:
+    """Interactions responses carry a top-level usage block (live-probed 2026-07-18):
+    total_input_tokens / total_output_tokens plus separately-counted thought and
+    tool-use tokens, which bill like output and are folded into output here."""
+    usage = data.get("usage") or {}
+    output_total = (
+        (usage.get("total_output_tokens") or 0)
+        + (usage.get("total_thought_tokens") or 0)
+        + (usage.get("total_tool_use_tokens") or 0)
+    ) if usage else None
+    record_tokens(tenant_id, purpose, "gemini", model, usage.get("total_input_tokens"), output_total)
 # gemini-2.5-flash-preview-tts hard-400'd on every request ("Model tried to generate
 # text, but it should only be used for TTS") on 2026-07-17, confirmed dead at Google's
 # end at the time (not a request-shape bug -- gemini-3.1-flash-tts-preview accepted the
@@ -104,6 +118,7 @@ async def gemini_chat_completion(
     temperature: float = 0.4,
     max_tokens: int = 300,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> str:
     """Plain chat completion via Gemini's interactions endpoint. No fallback to a platform
     key -- every client must configure their own gemini_api_key (operator decision, see
@@ -135,6 +150,7 @@ async def gemini_chat_completion(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     return _gemini_output_text(data.get("steps") or [])
 
 
@@ -145,6 +161,7 @@ async def gemini_chat_completion_with_tools(
     temperature: float = 0.4,
     max_tokens: int = 300,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> tuple[str, list[dict]]:
     api_key = require_tenant_setting("gemini_api_key", tenant_id)
     system_instruction, input_steps = _messages_to_gemini_input(messages)
@@ -168,6 +185,7 @@ async def gemini_chat_completion_with_tools(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     steps = data.get("steps") or []
     content = _gemini_output_text(steps)
     tool_calls = _gemini_steps_to_tool_calls(steps)
@@ -179,6 +197,7 @@ async def gemini_speech_to_text(
     mime_type: str,
     model: str = DEFAULT_GEMINI_TEXT_MODEL,
     tenant_id: str | None = None,
+    purpose: str = "speech_to_text",
 ) -> str:
     """Transcribe audio via Gemini's interactions endpoint. Live-tested 2026-07-18: the
     audio content-part shape is NOT the standard Gemini API's nested inline_data
@@ -209,6 +228,7 @@ async def gemini_speech_to_text(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     return _gemini_output_text(data.get("steps") or [])
 
 
@@ -217,6 +237,7 @@ def gemini_extract_document_text(
     mime_type: str,
     model: str = DEFAULT_GEMINI_TEXT_MODEL,
     tenant_id: str | None = None,
+    purpose: str = "doc_digitization",
 ) -> str:
     """OCR/extraction for scanned PDFs and images via Gemini's interactions endpoint.
     Content-part type is "document" for PDFs, "image" for anything else -- live-tested
@@ -253,6 +274,7 @@ def gemini_extract_document_text(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     return _gemini_output_text(data.get("steps") or [])
 
 
@@ -263,6 +285,7 @@ async def gemini_chat_completion_json(
     temperature: float = 0.2,
     max_tokens: int = 1500,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> dict:
     """Prompt-based JSON completion. Gemini's interactions endpoint has a formal
     response_format={"type": "object", "schema": ...} mode, but live-tested 2026-07-18:
@@ -281,6 +304,7 @@ async def gemini_chat_completion_json(
     for _ in range(2):
         raw = await gemini_chat_completion(
             messages, model=model, temperature=temperature, max_tokens=max_tokens, tenant_id=tenant_id,
+            purpose=purpose,
         )
         cleaned = raw.strip()
         if cleaned.startswith("```"):
@@ -306,6 +330,7 @@ async def gemini_text_to_speech(
     voice: str = DEFAULT_GEMINI_VOICE,
     model: str = DEFAULT_GEMINI_TTS_MODEL,
     tenant_id: str | None = None,
+    purpose: str = "voice_reply_tts",
 ) -> bytes:
     """Sarvam Bulbul mispronounced Romanized Tanglish with a non-Tamil accent regardless
     of target_language_code (live-tested 2026-07-13/14, see subsystem-notes.md). Gemini's
@@ -332,6 +357,7 @@ async def gemini_text_to_speech(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     steps = data.get("steps") or []
     content = steps[0].get("content") if steps else None
     if not content:

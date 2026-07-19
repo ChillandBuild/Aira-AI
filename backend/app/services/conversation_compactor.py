@@ -8,6 +8,7 @@ from app.db.supabase import get_supabase
 logger = logging.getLogger(__name__)
 
 from app.services.groq_client import get_groq_client
+from app.services.token_meter import record_groq_sdk
 _COMPACTOR_MODEL = "llama-3.1-8b-instant"
 
 INITIAL_COMPACT_PROMPT = """You are summarizing a WhatsApp conversation for a sales lead scoring system.
@@ -136,6 +137,7 @@ async def compact_conversation(
             temperature=0.0,
             max_tokens=300,
         )
+        record_groq_sdk(tenant_id, "conversation_compaction", _COMPACTOR_MODEL, response)
         new_summary = response.choices[0].message.content.strip()
         
         # Update state

@@ -9,6 +9,7 @@ import { AlertBell } from "./alert-bell";
 
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },
+  { href: "/operator/ai-spend", label: "AI Spend" },
   { href: "/operator/subscription", label: "Subscription" },
   { href: "/operator/subscription-requests", label: "Requests" },
   { href: "/operator/scheduler", label: "Schedulers" },
