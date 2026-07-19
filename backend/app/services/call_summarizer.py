@@ -3,22 +3,12 @@ import logging
 
 import httpx
 
-from app.config import settings
-
 logger = logging.getLogger(__name__)
 
-from app.services.groq_client import get_groq_client
-from app.services.sarvam_client import SARVAM_BASE_URL, get_sarvam_api_key
-_TRANSCRIBE_MODEL = "saaras:v3"
-_SUMMARY_MODEL = "llama-3.3-70b-versatile"
+from app.services.gemini_client import gemini_chat_completion_json, gemini_speech_to_text
 
 
 async def transcribe_recording(recording_url: str, tenant_id: str | None = None) -> str:
-    try:
-        api_key = get_sarvam_api_key(tenant_id)
-    except Exception as e:
-        logger.warning(f"Sarvam API key not configured for tenant {tenant_id}: {e}")
-        return ""
     try:
         async with httpx.AsyncClient(timeout=60.0) as http_client:
             resp = await http_client.get(recording_url)
@@ -29,21 +19,12 @@ async def transcribe_recording(recording_url: str, tenant_id: str | None = None)
         return ""
 
     try:
-        logger.info(f"Sending {len(audio_bytes)} bytes to Sarvam Saaras for transcription")
-        async with httpx.AsyncClient(timeout=60.0) as http_client:
-            resp = await http_client.post(
-                f"{SARVAM_BASE_URL}/speech-to-text",
-                headers={"api-subscription-key": api_key},
-                files={"file": ("recording.mp3", audio_bytes, "audio/mp3")},
-                data={"model": _TRANSCRIBE_MODEL, "mode": "transcribe"},
-            )
-            resp.raise_for_status()
-            result = resp.json()
-        transcript = (result.get("transcript") or "").strip()
+        logger.info(f"Sending {len(audio_bytes)} bytes to Gemini for transcription")
+        transcript = await gemini_speech_to_text(audio_bytes, "audio/mp3", tenant_id=tenant_id)
         logger.info(f"Transcription complete: {len(transcript)} chars")
         return transcript
     except Exception as e:
-        logger.error(f"Sarvam transcription failed for {recording_url}: {e}")
+        logger.error(f"Gemini transcription failed for {recording_url}: {e}")
         return ""
 
 
@@ -154,11 +135,6 @@ async def analyze_call(
     """
     if not transcript:
         return {}, {}
-    try:
-        client = get_groq_client(tenant_id, is_async=True)
-    except Exception as e:
-        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
-        return {}, {}
 
     lead_line = f"Lead name: {lead_name}\n\n" if lead_name else ""
     outcome_line = f"Caller-recorded outcome: {outcome}\n\n" if outcome else ""
@@ -181,24 +157,20 @@ async def analyze_call(
     )
 
     try:
-        response = await client.chat.completions.create(
-            model=_SUMMARY_MODEL,
-            messages=[
-                {"role": "system", "content": _ANALYZE_SYSTEM},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
+        data = await gemini_chat_completion_json(
+            system_prompt=_ANALYZE_SYSTEM,
+            user_prompt=user_prompt,
             temperature=0.2,
-            max_tokens=1100,
+            max_tokens=1500,
+            tenant_id=tenant_id,
         )
-        data = json.loads(response.choices[0].message.content)
         summary = {k: data[k] for k in _SUMMARY_KEYS if k in data}
         evaluation = {k: data[k] for k in _EVAL_KEYS if k in data}
         evaluation = _finalize_evaluation(evaluation)
         return summary, evaluation
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse Groq analyze_call JSON: {e}")
+        logger.error(f"Failed to parse Gemini analyze_call JSON: {e}")
         return {}, {}
     except Exception as e:
-        logger.error(f"Groq analyze_call failed: {e}")
+        logger.error(f"Gemini analyze_call failed: {e}")
         return {}, {}

@@ -223,14 +223,12 @@ def _resolve_tenant_from_payload(payload: dict, db) -> str | None:
 
 async def _transcribe_whatsapp_audio(media_id: str, tenant_id: str) -> tuple[str, str]:
     from app.services.meta_cloud import download_media_from_meta
-    from app.services.sarvam_client import sarvam_speech_to_text
+    from app.services.gemini_client import gemini_speech_to_text
 
     audio_bytes, mime_type, _media_url = await download_media_from_meta(media_id, tenant_id=tenant_id)
-    transcript = await sarvam_speech_to_text(
-        file_bytes=audio_bytes,
+    transcript = await gemini_speech_to_text(
+        audio_bytes=audio_bytes,
         mime_type=mime_type,
-        filename=f"{media_id}.ogg",
-        mode="codemix",
         tenant_id=tenant_id,
     )
     return transcript, mime_type

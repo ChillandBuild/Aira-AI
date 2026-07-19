@@ -76,8 +76,7 @@ async def _index_chunks(
         ).execute()
     return len(chunks)
 
-from app.services.sarvam_client import get_sarvam_api_key
-from app.services.sarvam_document_intelligence import extract_text_from_image, extract_text_from_pdf
+from app.services.gemini_client import gemini_extract_document_text
 
 
 def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, tenant_id: str | None = None) -> str:
@@ -90,10 +89,8 @@ def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, t
 
             if not text.strip():
                 # Scanned PDF with no real text layer -- pdfplumber has no OCR capability
-                # and returns empty. Sarvam Document Digitization accepts PDF directly and
-                # can OCR it.
-                api_key = get_sarvam_api_key(tenant_id)
-                text = extract_text_from_pdf(file_content, api_key)
+                # and returns empty. Gemini takes the PDF directly and OCRs it.
+                text = gemini_extract_document_text(file_content, "application/pdf", tenant_id=tenant_id)
 
         elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or filename.endswith(".docx"):
             doc = DocxDocument(file_obj)
@@ -115,8 +112,7 @@ def extract_text_from_file(file_content: bytes, filename: str, mime_type: str, t
             text = df.to_string()
 
         elif mime_type.startswith("image/"):
-            api_key = get_sarvam_api_key(tenant_id)
-            text = extract_text_from_image(file_content, mime_type, api_key)
+            text = gemini_extract_document_text(file_content, mime_type, tenant_id=tenant_id)
 
         elif mime_type == "text/plain" or filename.endswith(".txt"):
             text = file_content.decode("utf-8")
