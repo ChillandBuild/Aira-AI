@@ -8,7 +8,6 @@ from app.config import settings
 
 SARVAM_BASE_URL = "https://api.sarvam.ai"
 SARVAM_CHAT_URL = f"{SARVAM_BASE_URL}/v1/chat/completions"
-SARVAM_STT_URL = f"{SARVAM_BASE_URL}/speech-to-text"
 SARVAM_TTS_URL = f"{SARVAM_BASE_URL}/text-to-speech"
 
 
@@ -103,28 +102,6 @@ async def sarvam_chat_completion_with_tools(
     content = (message.get("content") or "").strip()
     tool_calls = message.get("tool_calls") or []
     return content, tool_calls
-
-
-async def sarvam_speech_to_text(
-    file_bytes: bytes,
-    mime_type: str,
-    filename: str = "audio.ogg",
-    model: str = "saaras:v3",
-    mode: str = "codemix",
-    tenant_id: str | None = None,
-) -> str:
-    """Transcribe audio with Sarvam Saaras."""
-    api_key = get_sarvam_api_key(tenant_id)
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.post(
-            SARVAM_STT_URL,
-            headers={"api-subscription-key": api_key},
-            files={"file": (filename, file_bytes, mime_type)},
-            data={"model": model, "mode": mode},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    return (data.get("transcript") or "").strip()
 
 
 async def sarvam_text_to_speech(

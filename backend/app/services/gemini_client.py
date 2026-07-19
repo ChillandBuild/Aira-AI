@@ -7,6 +7,12 @@ import lameenc
 
 from app.config_dynamic import require_tenant_setting
 
+# Single model for STT, doc-digitization/OCR, and call analysis (operator decision:
+# 3.1 Flash-Lite over the stronger-but-costlier 3.5 Flash, see decisions/log.md).
+# Distinct from the operator-configurable ai_reply_model -- these three are internal
+# pipeline steps, not exposed as a per-tenant choice in the operator console.
+DEFAULT_GEMINI_TEXT_MODEL = "gemini-3.1-flash-lite"
+
 GEMINI_INTERACTIONS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
 # gemini-2.5-flash-preview-tts hard-400'd on every request ("Model tried to generate
 # text, but it should only be used for TTS") on 2026-07-17, confirmed dead at Google's
@@ -166,6 +172,124 @@ async def gemini_chat_completion_with_tools(
     content = _gemini_output_text(steps)
     tool_calls = _gemini_steps_to_tool_calls(steps)
     return content, tool_calls
+
+
+async def gemini_speech_to_text(
+    audio_bytes: bytes,
+    mime_type: str,
+    model: str = DEFAULT_GEMINI_TEXT_MODEL,
+    tenant_id: str | None = None,
+) -> str:
+    """Transcribe audio via Gemini's interactions endpoint. Live-tested 2026-07-18: the
+    audio content-part shape is NOT the standard Gemini API's nested inline_data
+    convention -- it's {"type": "audio", "data": <base64>, "mime_type": ...} as a flat
+    sibling to the text part, same pattern confirmed for "image" and "document" types.
+    Replaces Sarvam Saaras for both WhatsApp voice notes and call-recording transcripts."""
+    api_key = require_tenant_setting("gemini_api_key", tenant_id)
+    request_json = {
+        "model": model,
+        "input": [{
+            "type": "user_input",
+            "content": [
+                {"type": "text", "text": "Transcribe this audio verbatim. Return only the transcript, no commentary."},
+                {"type": "audio", "data": base64.b64encode(audio_bytes).decode(), "mime_type": mime_type},
+            ],
+        }],
+        "generation_config": {
+            "temperature": 0.2,
+            "max_output_tokens": 4000,
+            "thinking_level": "minimal",
+        },
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            GEMINI_INTERACTIONS_URL,
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json=request_json,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    return _gemini_output_text(data.get("steps") or [])
+
+
+def gemini_extract_document_text(
+    file_bytes: bytes,
+    mime_type: str,
+    model: str = DEFAULT_GEMINI_TEXT_MODEL,
+    tenant_id: str | None = None,
+) -> str:
+    """OCR/extraction for scanned PDFs and images via Gemini's interactions endpoint.
+    Content-part type is "document" for PDFs, "image" for anything else -- live-tested
+    2026-07-18, same flat {"data": <base64>, "mime_type": ...} shape as audio, confirmed
+    with real output (exact verbatim OCR text back from a test image). Replaces Sarvam
+    Document Digitization's whole create->upload->start->poll->download->unzip job
+    lifecycle with one request -- no polling needed.
+
+    Deliberately synchronous (httpx.Client, not AsyncClient) -- the only caller
+    (knowledge_service.extract_text_from_file) is itself a sync function dispatched via
+    asyncio.to_thread, matching the same execution model the Sarvam version used."""
+    api_key = require_tenant_setting("gemini_api_key", tenant_id)
+    content_type = "document" if mime_type == "application/pdf" else "image"
+    request_json = {
+        "model": model,
+        "input": [{
+            "type": "user_input",
+            "content": [
+                {"type": "text", "text": "Extract all text from this document, verbatim, as markdown. Return only the extracted text, no commentary."},
+                {"type": content_type, "data": base64.b64encode(file_bytes).decode(), "mime_type": mime_type},
+            ],
+        }],
+        "generation_config": {
+            "temperature": 0.2,
+            "max_output_tokens": 4000,
+            "thinking_level": "minimal",
+        },
+    }
+    with httpx.Client(timeout=60.0) as client:
+        resp = client.post(
+            GEMINI_INTERACTIONS_URL,
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json=request_json,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    return _gemini_output_text(data.get("steps") or [])
+
+
+async def gemini_chat_completion_json(
+    system_prompt: str,
+    user_prompt: str,
+    model: str = DEFAULT_GEMINI_TEXT_MODEL,
+    temperature: float = 0.2,
+    max_tokens: int = 1500,
+    tenant_id: str | None = None,
+) -> dict:
+    """Prompt-based JSON completion. Gemini's interactions endpoint has a formal
+    response_format={"type": "object", "schema": ...} mode, but live-tested 2026-07-18:
+    it's broken -- the model emits '{' followed by unbounded whitespace and never
+    completes, regardless of max_output_tokens (tried up to 800). Falls back to the same
+    "return JSON only" prompt discipline gemini_chat_completion already relies on for
+    plain text, plus one retry on a parse failure -- unlike Groq's
+    response_format={"type": "json_object"}, there's no hard guarantee here. Raises on a
+    second failure so callers decide their own fallback rather than silently returning
+    something wrong."""
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+    last_error: Exception = ValueError("gemini_chat_completion_json: no attempts made")
+    for _ in range(2):
+        raw = await gemini_chat_completion(
+            messages, model=model, temperature=temperature, max_tokens=max_tokens, tenant_id=tenant_id,
+        )
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            last_error = e
+    raise last_error
 
 
 def _pcm_to_mp3(pcm_bytes: bytes) -> bytes:

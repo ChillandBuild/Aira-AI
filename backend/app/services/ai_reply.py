@@ -30,8 +30,6 @@ from app.services.gemini_client import gemini_chat_completion, gemini_chat_compl
 from app.services.openai_client import openai_chat_completion, openai_chat_completion_with_tools
 from app.services.groq_client import groq_chat_completion, groq_chat_completion_with_tools
 
-_DEFAULT_REPLY_MODEL = "sarvam-30b"
-
 # Each entry: stored ai_reply_model prefix -> (provider name, native-model-id prefix to
 # strip). Sarvam has no prefix since its native IDs ("sarvam-30b") are used directly.
 _PROVIDER_PREFIXES: list[tuple[str, str]] = [
@@ -41,7 +39,10 @@ _PROVIDER_PREFIXES: list[tuple[str, str]] = [
 ]
 
 def _resolve_reply_model(tenant_id: str | None) -> str:
-    return get_setting("ai_reply_model", fallback=_DEFAULT_REPLY_MODEL, tenant_id=tenant_id) or _DEFAULT_REPLY_MODEL
+    """No silent fallback -- every tenant must explicitly pick a reply model in the
+    operator console. Raises if unset, same as the per-provider API key requirement
+    below (operator decision, see decisions/log.md)."""
+    return require_tenant_setting("ai_reply_model", tenant_id)
 
 
 def _provider_and_native_model(model: str) -> tuple[str, str]:

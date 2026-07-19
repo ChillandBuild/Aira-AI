@@ -70,33 +70,6 @@ async def test_sarvam_chat_completion_raises_when_api_key_missing():
 
 
 @pytest.mark.asyncio
-async def test_sarvam_speech_to_text_posts_audio_bytes_with_subscription_key():
-    resp = MagicMock()
-    resp.raise_for_status = MagicMock()
-    resp.json.return_value = {"transcript": "  Andheri la flat venum  "}
-    mock_instance = AsyncMock()
-    mock_instance.post = AsyncMock(return_value=resp)
-
-    with patch("app.services.sarvam_client.get_sarvam_api_key", return_value="test-key"), \
-         patch("app.services.sarvam_client.httpx.AsyncClient") as mock_client_cls:
-        mock_client_cls.return_value.__aenter__.return_value = mock_instance
-        text = await sarvam_client.sarvam_speech_to_text(
-            file_bytes=b"audio-bytes",
-            mime_type="audio/ogg",
-            filename="voice.ogg",
-            mode="codemix",
-            tenant_id="tenant-1",
-        )
-
-    assert text == "Andheri la flat venum"
-    call_args, call_kwargs = mock_instance.post.call_args
-    assert call_args[0] == "https://api.sarvam.ai/speech-to-text"
-    assert call_kwargs["headers"] == {"api-subscription-key": "test-key"}
-    assert call_kwargs["files"] == {"file": ("voice.ogg", b"audio-bytes", "audio/ogg")}
-    assert call_kwargs["data"] == {"model": "saaras:v3", "mode": "codemix"}
-
-
-@pytest.mark.asyncio
 async def test_sarvam_text_to_speech_decodes_bulbul_audio_with_subscription_key():
     resp = MagicMock()
     resp.raise_for_status = MagicMock()

@@ -1020,7 +1020,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "ai_media_recommendations_enabled": settings_map.get("ai_media_recommendations_enabled") == "true",
             "catalog_ai_max_images_ceiling": float_setting("catalog_ai_max_images_ceiling", 5),
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
-            "ai_reply_model": settings_map.get("ai_reply_model") or "sarvam-30b",
+            "ai_reply_model": settings_map.get("ai_reply_model"),
             "reply_language_mode": settings_map.get("reply_language_mode", "mirror") or "mirror",
         },
         "usage": {

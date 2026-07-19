@@ -73,7 +73,11 @@ class OperatorClientConfigTests(unittest.TestCase):
         self.assertEqual(body["voice_usage"]["text_to_speech"], 5)
 
     @patch("app.routes.operator.get_supabase")
-    def test_get_client_config_defaults_ai_reply_model_to_sarvam(self, mock_get_db):
+    def test_get_client_config_reports_null_ai_reply_model_when_unconfigured(self, mock_get_db):
+        """No silent fallback -- an unconfigured tenant's config must report null, not a
+        hardcoded model, so the operator console's picker correctly shows nothing selected
+        rather than falsely claiming a model the operator never chose (operator decision,
+        see decisions/log.md)."""
         db = MagicMock()
 
         def table(name):
@@ -97,7 +101,7 @@ class OperatorClientConfigTests(unittest.TestCase):
         res = self.client.get("/api/v1/operator/clients/tenant-1/config")
         self.assertEqual(res.status_code, 200)
         body = res.json()
-        self.assertEqual(body["settings"]["ai_reply_model"], "sarvam-30b")
+        self.assertIsNone(body["settings"]["ai_reply_model"])
         # Regression: a tenant that has never touched ai_auto_reply_enabled (no row, or a
         # row seeded with value=NULL at onboarding) must display as enabled, matching the
         # backend gate's own default (ai_reply.generate_reply only disables on the literal

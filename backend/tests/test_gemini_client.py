@@ -1,4 +1,5 @@
 import base64
+import json
 import wave
 import io
 
@@ -203,3 +204,128 @@ async def test_gemini_chat_completion_with_tools_parses_content_and_tool_calls()
     }]
     call_kwargs = mock_instance.post.call_args.kwargs
     assert call_kwargs["json"]["tools"] == [{"type": "function", "name": "recommend_catalog_item", "description": None, "parameters": {}}]
+
+
+@pytest.mark.asyncio
+async def test_gemini_speech_to_text_sends_flat_audio_content_part():
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {"steps": [{"type": "model_output", "content": [{"type": "text", "text": "  Andheri la flat venum  "}]}]}
+    mock_instance = AsyncMock()
+    mock_instance.post = AsyncMock(return_value=resp)
+
+    with patch("app.services.gemini_client.require_tenant_setting", return_value="test-key"), \
+         patch("app.services.gemini_client.httpx.AsyncClient") as mock_client_cls:
+        mock_client_cls.return_value.__aenter__.return_value = mock_instance
+        text = await gemini_client.gemini_speech_to_text(b"audio-bytes", "audio/ogg", tenant_id="tenant-1")
+
+    assert text == "Andheri la flat venum"
+    call_kwargs = mock_instance.post.call_args.kwargs
+    content = call_kwargs["json"]["input"][0]["content"]
+    audio_part = next(c for c in content if c["type"] == "audio")
+    assert audio_part["mime_type"] == "audio/ogg"
+    assert audio_part["data"] == base64.b64encode(b"audio-bytes").decode()
+
+
+@pytest.mark.asyncio
+async def test_gemini_speech_to_text_raises_when_api_key_missing():
+    with patch(
+        "app.services.gemini_client.require_tenant_setting",
+        side_effect=RuntimeError("gemini_api_key not configured for this client"),
+    ):
+        with pytest.raises(RuntimeError, match="not configured"):
+            await gemini_client.gemini_speech_to_text(b"audio-bytes", "audio/ogg", tenant_id="tenant-1")
+
+
+def test_gemini_extract_document_text_uses_image_type_for_non_pdf():
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {"steps": [{"type": "model_output", "content": [{"type": "text", "text": "INVOICE TOTAL: Rs 4,500"}]}]}
+    mock_instance = MagicMock()
+    mock_instance.post = MagicMock(return_value=resp)
+
+    with patch("app.services.gemini_client.require_tenant_setting", return_value="test-key"), \
+         patch("app.services.gemini_client.httpx.Client") as mock_client_cls:
+        mock_client_cls.return_value.__enter__.return_value = mock_instance
+        text = gemini_client.gemini_extract_document_text(b"image-bytes", "image/png", tenant_id="tenant-1")
+
+    assert text == "INVOICE TOTAL: Rs 4,500"
+    call_kwargs = mock_instance.post.call_args.kwargs
+    content = call_kwargs["json"]["input"][0]["content"]
+    file_part = next(c for c in content if c["type"] in ("image", "document"))
+    assert file_part["type"] == "image"
+    assert file_part["mime_type"] == "image/png"
+
+
+def test_gemini_extract_document_text_uses_document_type_for_pdf():
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.json.return_value = {"steps": [{"type": "model_output", "content": [{"type": "text", "text": "blank page"}]}]}
+    mock_instance = MagicMock()
+    mock_instance.post = MagicMock(return_value=resp)
+
+    with patch("app.services.gemini_client.require_tenant_setting", return_value="test-key"), \
+         patch("app.services.gemini_client.httpx.Client") as mock_client_cls:
+        mock_client_cls.return_value.__enter__.return_value = mock_instance
+        text = gemini_client.gemini_extract_document_text(b"pdf-bytes", "application/pdf", tenant_id="tenant-1")
+
+    assert text == "blank page"
+    call_kwargs = mock_instance.post.call_args.kwargs
+    content = call_kwargs["json"]["input"][0]["content"]
+    file_part = next(c for c in content if c["type"] in ("image", "document"))
+    assert file_part["type"] == "document"
+    assert file_part["mime_type"] == "application/pdf"
+
+
+def test_gemini_extract_document_text_raises_when_api_key_missing():
+    with patch(
+        "app.services.gemini_client.require_tenant_setting",
+        side_effect=RuntimeError("gemini_api_key not configured for this client"),
+    ):
+        with pytest.raises(RuntimeError, match="not configured"):
+            gemini_client.gemini_extract_document_text(b"pdf-bytes", "application/pdf", tenant_id="tenant-1")
+
+
+@pytest.mark.asyncio
+async def test_gemini_chat_completion_json_parses_clean_json_first_try():
+    with patch.object(gemini_client, "gemini_chat_completion", AsyncMock(return_value='{"sentiment": "positive"}')) as mock_call:
+        data = await gemini_client.gemini_chat_completion_json(
+            system_prompt="sys", user_prompt="user", tenant_id="tenant-1",
+        )
+
+    assert data == {"sentiment": "positive"}
+    mock_call.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_gemini_chat_completion_json_strips_markdown_code_fence():
+    with patch.object(gemini_client, "gemini_chat_completion", AsyncMock(return_value='```json\n{"ok": true}\n```')):
+        data = await gemini_client.gemini_chat_completion_json(
+            system_prompt="sys", user_prompt="user", tenant_id="tenant-1",
+        )
+
+    assert data == {"ok": True}
+
+
+@pytest.mark.asyncio
+async def test_gemini_chat_completion_json_retries_once_then_succeeds():
+    mock_call = AsyncMock(side_effect=["not json at all", '{"ok": true}'])
+    with patch.object(gemini_client, "gemini_chat_completion", mock_call):
+        data = await gemini_client.gemini_chat_completion_json(
+            system_prompt="sys", user_prompt="user", tenant_id="tenant-1",
+        )
+
+    assert data == {"ok": True}
+    assert mock_call.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_gemini_chat_completion_json_raises_after_two_failures():
+    mock_call = AsyncMock(side_effect=["not json", "still not json"])
+    with patch.object(gemini_client, "gemini_chat_completion", mock_call):
+        with pytest.raises(json.JSONDecodeError):
+            await gemini_client.gemini_chat_completion_json(
+                system_prompt="sys", user_prompt="user", tenant_id="tenant-1",
+            )
+
+    assert mock_call.call_count == 2

@@ -72,12 +72,12 @@ class FinalizeEvaluationTests(unittest.TestCase):
 
 class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.mock_client = MagicMock()
-        self._orig_get_groq_client = call_summarizer.get_groq_client
-        call_summarizer.get_groq_client = MagicMock(return_value=self.mock_client)
+        self._orig_gemini_json = call_summarizer.gemini_chat_completion_json
+        self.mock_gemini_json = AsyncMock()
+        call_summarizer.gemini_chat_completion_json = self.mock_gemini_json
 
     def tearDown(self):
-        call_summarizer.get_groq_client = self._orig_get_groq_client
+        call_summarizer.gemini_chat_completion_json = self._orig_gemini_json
 
     async def test_analyze_call_returns_v2_evaluation_with_derived_fields(self):
         llm_payload = {
@@ -112,11 +112,7 @@ class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
             "missed_opportunity_note": "Didn't offer the premium plan when asked about pricing tiers.",
             "coaching_tip": "Acknowledge the price objection before pivoting to value.",
         }
-        mock_message = MagicMock()
-        mock_message.content = json.dumps(llm_payload)
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=mock_message)]
-        self.mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        self.mock_gemini_json.return_value = llm_payload
 
         summary, evaluation = await call_summarizer.analyze_call(
             "transcript text",
@@ -147,12 +143,11 @@ class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(evaluation["quality_label"], call_summarizer._quality_label(expected_overall))
         self.assertEqual(evaluation["evaluation_version"], 2)
 
-        # Prompt grounding: KB context, outcome, and bumped max_tokens reached Groq
-        sent_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
-        user_msg = sent_kwargs["messages"][1]["content"]
-        self.assertIn("CRM Pro costs 4999/month per seat.", user_msg)
-        self.assertIn("converted", user_msg)
-        self.assertEqual(sent_kwargs["max_tokens"], 1100)
+        # Prompt grounding: KB context, outcome, and bumped max_tokens reached Gemini
+        sent_kwargs = self.mock_gemini_json.call_args.kwargs
+        self.assertIn("CRM Pro costs 4999/month per seat.", sent_kwargs["user_prompt"])
+        self.assertIn("converted", sent_kwargs["user_prompt"])
+        self.assertEqual(sent_kwargs["max_tokens"], 1500)
 
     async def test_analyze_call_without_kb_context_still_grades_leniently(self):
         llm_payload = {
@@ -172,11 +167,7 @@ class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
             "missed_opportunity": False, "missed_opportunity_note": None,
             "coaching_tip": "Keep going.",
         }
-        mock_message = MagicMock()
-        mock_message.content = json.dumps(llm_payload)
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=mock_message)]
-        self.mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        self.mock_gemini_json.return_value = llm_payload
 
         summary, evaluation = await call_summarizer.analyze_call(
             "transcript text", lead_name=None, outcome=None, kb_context=None,
@@ -184,9 +175,8 @@ class AnalyzeCallV2Tests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(evaluation["overall_score"], 7.0)
         self.assertEqual(evaluation["quality_label"], "Good")
-        sent_kwargs = self.mock_client.chat.completions.create.call_args.kwargs
-        user_msg = sent_kwargs["messages"][1]["content"]
-        self.assertIn("none available", user_msg.lower())
+        sent_kwargs = self.mock_gemini_json.call_args.kwargs
+        self.assertIn("none available", sent_kwargs["user_prompt"].lower())
 
 
 class TranscribeRecordingTests(unittest.IsolatedAsyncioTestCase):
@@ -199,64 +189,70 @@ class TranscribeRecordingTests(unittest.IsolatedAsyncioTestCase):
     the already-imported `call_summarizer` reference instead of re-resolving by dotted path."""
 
     def setUp(self):
-        self._orig_get_sarvam_api_key = call_summarizer.get_sarvam_api_key
+        self._orig_gemini_stt = call_summarizer.gemini_speech_to_text
 
     def tearDown(self):
-        call_summarizer.get_sarvam_api_key = self._orig_get_sarvam_api_key
+        call_summarizer.gemini_speech_to_text = self._orig_gemini_stt
 
     async def test_transcribe_recording_success(self):
         download_resp = MagicMock()
         download_resp.content = b"fake-audio-bytes"
         download_resp.raise_for_status = MagicMock()
 
-        sarvam_resp = MagicMock()
-        sarvam_resp.raise_for_status = MagicMock()
-        sarvam_resp.json.return_value = {"transcript": "Hello, how are you?", "language_code": "en-IN"}
-
         mock_instance = AsyncMock()
         mock_instance.get = AsyncMock(return_value=download_resp)
-        mock_instance.post = AsyncMock(return_value=sarvam_resp)
 
-        call_summarizer.get_sarvam_api_key = MagicMock(return_value="test-key")
+        call_summarizer.gemini_speech_to_text = AsyncMock(return_value="Hello, how are you?")
         with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
             mock_client_cls.return_value.__aenter__.return_value = mock_instance
             transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
 
         self.assertEqual(transcript, "Hello, how are you?")
-        post_args, post_kwargs = mock_instance.post.call_args
-        self.assertEqual(post_args[0], "https://api.sarvam.ai/speech-to-text")
-        self.assertEqual(post_kwargs["headers"], {"api-subscription-key": "test-key"})
-        self.assertEqual(post_kwargs["data"]["model"], "saaras:v3")
-        self.assertEqual(post_kwargs["data"]["mode"], "transcribe")
+        call_summarizer.gemini_speech_to_text.assert_called_once_with(
+            b"fake-audio-bytes", "audio/mp3", tenant_id=None
+        )
 
     async def test_transcribe_recording_missing_api_key_returns_empty(self):
-        call_summarizer.get_sarvam_api_key = MagicMock(
-            side_effect=RuntimeError("Sarvam API key not configured")
-        )
-        transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
-        self.assertEqual(transcript, "")
-
-    async def test_transcribe_recording_download_failure_returns_empty(self):
-        mock_instance = AsyncMock()
-        mock_instance.get = AsyncMock(side_effect=Exception("network error"))
-
-        call_summarizer.get_sarvam_api_key = MagicMock(return_value="test-key")
-        with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
-            mock_client_cls.return_value.__aenter__.return_value = mock_instance
-            transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
-
-        self.assertEqual(transcript, "")
-
-    async def test_transcribe_recording_sarvam_api_failure_returns_empty(self):
+        """gemini_speech_to_text raises RuntimeError for a missing gemini_api_key -- same
+        RuntimeError-on-missing-key contract as every other provider client (no separate
+        pre-check anymore, unlike the old Sarvam version)."""
         download_resp = MagicMock()
         download_resp.content = b"fake-audio-bytes"
         download_resp.raise_for_status = MagicMock()
 
         mock_instance = AsyncMock()
         mock_instance.get = AsyncMock(return_value=download_resp)
-        mock_instance.post = AsyncMock(side_effect=Exception("503 Service Unavailable"))
 
-        call_summarizer.get_sarvam_api_key = MagicMock(return_value="test-key")
+        call_summarizer.gemini_speech_to_text = AsyncMock(
+            side_effect=RuntimeError("gemini_api_key not configured for this client")
+        )
+        with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__.return_value = mock_instance
+            transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
+
+        self.assertEqual(transcript, "")
+
+    async def test_transcribe_recording_download_failure_returns_empty(self):
+        mock_instance = AsyncMock()
+        mock_instance.get = AsyncMock(side_effect=Exception("network error"))
+
+        call_summarizer.gemini_speech_to_text = AsyncMock()
+        with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
+            mock_client_cls.return_value.__aenter__.return_value = mock_instance
+            transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")
+
+        self.assertEqual(transcript, "")
+        call_summarizer.gemini_speech_to_text.assert_not_called()
+
+    async def test_transcribe_recording_gemini_api_failure_returns_empty(self):
+        download_resp = MagicMock()
+        download_resp.content = b"fake-audio-bytes"
+        download_resp.raise_for_status = MagicMock()
+
+        mock_instance = AsyncMock()
+        mock_instance.get = AsyncMock(return_value=download_resp)
+
+        call_summarizer.gemini_speech_to_text = AsyncMock(side_effect=Exception("503 Service Unavailable"))
         with patch.object(call_summarizer.httpx, "AsyncClient") as mock_client_cls:
             mock_client_cls.return_value.__aenter__.return_value = mock_instance
             transcript = await call_summarizer.transcribe_recording("https://example.com/rec.mp3")

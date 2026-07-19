@@ -50,7 +50,7 @@ const AI_PROVIDERS: { key: AiProviderKey; label: string; credKey: string; settin
 ];
 
 const REPLY_MODELS: { id: ReplyModelId; label: string; provider: AiProviderKey; costTier: "$" | "$$" | "$$$"; desc: string }[] = [
-  { id: "sarvam-30b", label: "Sarvam 30B", provider: "sarvam", costTier: "$", desc: "Default. Best fit for Tamil/Hindi/Hinglish conversations." },
+  { id: "sarvam-30b", label: "Sarvam 30B", provider: "sarvam", costTier: "$", desc: "Sarvam's compact model, Tamil/Hindi/Hinglish support." },
   { id: "sarvam-105b", label: "Sarvam 105B", provider: "sarvam", costTier: "$$", desc: "Sarvam's flagship model. Stronger reasoning, same Indic-language focus as the 30B." },
   { id: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite", provider: "gemini", costTier: "$", desc: "Cheap and fast, good general quality." },
   { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash", provider: "gemini", costTier: "$$", desc: "Newer generation, stronger reasoning than Flash Lite." },
@@ -125,7 +125,7 @@ interface ConfigData {
     ai_media_recommendations_enabled?: boolean;
     catalog_ai_max_images_ceiling?: number | string | null;
     kb_retrieval_mode: RetrievalMode;
-    ai_reply_model: ReplyModelId;
+    ai_reply_model: ReplyModelId | null;
     reply_language_mode: ReplyLanguageMode;
   };
   usage_counts?: {
