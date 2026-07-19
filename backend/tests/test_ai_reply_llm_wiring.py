@@ -4,6 +4,23 @@ from unittest.mock import AsyncMock, patch
 from app.services import ai_reply
 
 
+def _require_setting(model_value, key_should_raise=False):
+    """Build a require_tenant_setting side_effect that mirrors the real function's
+    per-key contract: "ai_reply_model" resolves to model_value; any other key (the
+    provider's own API key, e.g. "gemini_api_key") resolves to a stub key unless
+    key_should_raise is True, in which case that provider-key lookup raises instead.
+    Needed because _resolve_provider now makes two separate require_tenant_setting
+    calls (ai_reply_model, then {provider}_api_key) through the same mocked name --
+    a single blanket return_value can't tell them apart."""
+    def _side_effect(key, tenant_id):
+        if key == "ai_reply_model":
+            return model_value
+        if key_should_raise:
+            raise RuntimeError(f"{key} not configured for this client")
+        return "key"
+    return _side_effect
+
+
 def test_provider_and_native_model_maps_all_known_prefixes():
     assert ai_reply._provider_and_native_model("sarvam-30b") == ("sarvam", "sarvam-30b")
     assert ai_reply._provider_and_native_model("sarvam-105b") == ("sarvam", "sarvam-105b")
@@ -17,18 +34,43 @@ def test_provider_and_native_model_raises_for_unrecognized_model():
         ai_reply._provider_and_native_model("anthropic/claude-4")
 
 
+def test_resolve_reply_model_raises_when_tenant_has_not_configured_one():
+    """No silent fallback -- an unconfigured tenant gets no AI replies at all rather
+    than quietly running on a hardcoded default model (operator decision, see
+    decisions/log.md)."""
+    with patch.object(
+        ai_reply, "require_tenant_setting",
+        side_effect=RuntimeError("ai_reply_model not configured for this client"),
+    ) as mock_require:
+        with pytest.raises(RuntimeError, match="ai_reply_model not configured"):
+            ai_reply._resolve_reply_model("tenant-1")
+    mock_require.assert_called_once_with("ai_reply_model", "tenant-1")
+
+
 def test_resolve_provider_raises_when_tenant_key_not_configured():
-    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.1-flash-lite"), \
-         patch.object(ai_reply, "require_tenant_setting", side_effect=RuntimeError("gemini_api_key not configured for this client")) as mock_require:
+    with patch.object(
+        ai_reply, "require_tenant_setting",
+        side_effect=_require_setting("google/gemini-3.1-flash-lite", key_should_raise=True),
+    ) as mock_require:
         with pytest.raises(RuntimeError, match="gemini_api_key not configured"):
             ai_reply._resolve_provider("tenant-1")
-    mock_require.assert_called_once_with("gemini_api_key", "tenant-1")
+    mock_require.assert_any_call("ai_reply_model", "tenant-1")
+    mock_require.assert_any_call("gemini_api_key", "tenant-1")
 
 
 @pytest.mark.asyncio
-async def test_llm_complete_defaults_to_sarvam_when_no_tenant_setting():
-    with patch.object(ai_reply, "get_setting", return_value=None), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+async def test_llm_complete_raises_when_no_tenant_reply_model_configured():
+    with patch.object(
+        ai_reply, "require_tenant_setting",
+        side_effect=RuntimeError("ai_reply_model not configured for this client"),
+    ):
+        with pytest.raises(RuntimeError, match="ai_reply_model not configured"):
+            await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
+
+
+@pytest.mark.asyncio
+async def test_llm_complete_routes_to_sarvam_for_sarvam_model():
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("sarvam-30b")), \
          patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
         text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
 
@@ -44,8 +86,7 @@ async def test_llm_complete_defaults_to_sarvam_when_no_tenant_setting():
 
 @pytest.mark.asyncio
 async def test_llm_complete_routes_to_gemini_and_strips_prefix():
-    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.1-flash-lite"), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("google/gemini-3.1-flash-lite")), \
          patch.object(ai_reply, "gemini_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
         text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
 
@@ -61,8 +102,7 @@ async def test_llm_complete_routes_to_gemini_and_strips_prefix():
 
 @pytest.mark.asyncio
 async def test_llm_complete_routes_to_openai_and_strips_prefix():
-    with patch.object(ai_reply, "get_setting", return_value="openai/gpt-5.4-nano-2026-03-17"), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("openai/gpt-5.4-nano-2026-03-17")), \
          patch.object(ai_reply, "openai_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
         text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
 
@@ -78,8 +118,7 @@ async def test_llm_complete_routes_to_openai_and_strips_prefix():
 
 @pytest.mark.asyncio
 async def test_llm_complete_routes_to_groq_and_strips_prefix():
-    with patch.object(ai_reply, "get_setting", return_value="groq/llama-3.3-70b-versatile"), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("groq/llama-3.3-70b-versatile")), \
          patch.object(ai_reply, "groq_chat_completion", AsyncMock(return_value="a poem")) as mock_call:
         text = await ai_reply._llm_complete("write a poem", max_tokens=120, tenant_id="tenant-1")
 
@@ -94,28 +133,20 @@ async def test_llm_complete_routes_to_groq_and_strips_prefix():
 
 
 @pytest.mark.asyncio
-async def test_llm_chat_defaults_to_sarvam_when_no_tenant_setting():
+async def test_llm_chat_raises_when_no_tenant_reply_model_configured():
     messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
-    with patch.object(ai_reply, "get_setting", return_value=None), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
-         patch.object(ai_reply, "sarvam_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
-        text = await ai_reply._llm_chat(messages, max_tokens=600, tenant_id="tenant-2")
-
-    assert text == "a reply"
-    mock_call.assert_called_once_with(
-        messages=messages,
-        model="sarvam-30b",
-        temperature=0.4,
-        max_tokens=600,
-        tenant_id="tenant-2",
-    )
+    with patch.object(
+        ai_reply, "require_tenant_setting",
+        side_effect=RuntimeError("ai_reply_model not configured for this client"),
+    ):
+        with pytest.raises(RuntimeError, match="ai_reply_model not configured"):
+            await ai_reply._llm_chat(messages, max_tokens=600, tenant_id="tenant-2")
 
 
 @pytest.mark.asyncio
 async def test_llm_chat_routes_to_gemini_for_google_prefixed_model():
     messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "hi"}]
-    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.5-flash"), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("google/gemini-3.5-flash")), \
          patch.object(ai_reply, "gemini_chat_completion", AsyncMock(return_value="a reply")) as mock_call:
         text = await ai_reply._llm_chat(messages, max_tokens=600, tenant_id="tenant-2")
 
@@ -129,16 +160,23 @@ async def test_llm_chat_routes_to_gemini_for_google_prefixed_model():
     )
 
 
-def test_default_reply_model_is_sarvam_30b():
-    assert ai_reply._DEFAULT_REPLY_MODEL == "sarvam-30b"
+@pytest.mark.asyncio
+async def test_llm_chat_with_tools_raises_when_no_tenant_reply_model_configured():
+    messages = [{"role": "user", "content": "show me cakes"}]
+    tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
+    with patch.object(
+        ai_reply, "require_tenant_setting",
+        side_effect=RuntimeError("ai_reply_model not configured for this client"),
+    ):
+        with pytest.raises(RuntimeError, match="ai_reply_model not configured"):
+            await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
 
 
 @pytest.mark.asyncio
-async def test_llm_chat_with_tools_defaults_to_sarvam_when_no_tenant_setting():
+async def test_llm_chat_with_tools_routes_to_sarvam_for_sarvam_model():
     messages = [{"role": "user", "content": "show me cakes"}]
     tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
-    with patch.object(ai_reply, "get_setting", return_value=None), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("sarvam-30b")), \
          patch.object(ai_reply, "sarvam_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
         content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
 
@@ -152,8 +190,7 @@ async def test_llm_chat_with_tools_defaults_to_sarvam_when_no_tenant_setting():
 async def test_llm_chat_with_tools_routes_to_gemini_and_strips_prefix():
     messages = [{"role": "user", "content": "show me cakes"}]
     tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
-    with patch.object(ai_reply, "get_setting", return_value="google/gemini-3.1-flash-lite"), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("google/gemini-3.1-flash-lite")), \
          patch.object(ai_reply, "gemini_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
         content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
 
@@ -167,8 +204,7 @@ async def test_llm_chat_with_tools_routes_to_gemini_and_strips_prefix():
 async def test_llm_chat_with_tools_routes_to_openai_and_strips_prefix():
     messages = [{"role": "user", "content": "show me cakes"}]
     tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
-    with patch.object(ai_reply, "get_setting", return_value="openai/gpt-5-nano-2025-08-07"), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("openai/gpt-5-nano-2025-08-07")), \
          patch.object(ai_reply, "openai_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
         content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
 
@@ -182,8 +218,7 @@ async def test_llm_chat_with_tools_routes_to_openai_and_strips_prefix():
 async def test_llm_chat_with_tools_routes_to_groq_and_strips_prefix():
     messages = [{"role": "user", "content": "show me cakes"}]
     tools = [{"type": "function", "function": {"name": "recommend_catalog_item"}}]
-    with patch.object(ai_reply, "get_setting", return_value="groq/llama-3.3-70b-versatile"), \
-         patch.object(ai_reply, "require_tenant_setting", return_value="key"), \
+    with patch.object(ai_reply, "require_tenant_setting", side_effect=_require_setting("groq/llama-3.3-70b-versatile")), \
          patch.object(ai_reply, "groq_chat_completion_with_tools", AsyncMock(return_value=("here", []))) as mock_call:
         content, tool_calls = await ai_reply._llm_chat_with_tools(messages, tools, max_tokens=600, tenant_id="tenant-1")
 
