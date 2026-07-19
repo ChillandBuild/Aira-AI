@@ -2,7 +2,7 @@
 # graphify python is resolved from the env graphify wrote; falls back to python3.
 PY := $(shell cat graphify-out/.graphify_python 2>/dev/null || echo python3)
 
-.PHONY: wiki wiki-refresh second-brain-close
+.PHONY: wiki wiki-refresh second-brain-close doctor
 
 # Rebuild the curated module wiki from the EXISTING graph.json (fast, no extraction).
 # Use after running `make wiki-refresh`, or when you only tweaked labels in scripts/build_wiki.py.
@@ -23,3 +23,10 @@ wiki-refresh:
 # scaffolded with bootstrapping-second-brain uses — see scripts/second_brain_close.py.
 second-brain-close:
 	python3 scripts/second_brain_close.py
+
+# Check for a partially-destroyed dev environment (antivirus quarantine has
+# deleted individual files out of the stdlib, site-packages, and node_modules
+# on this project before). Run when imports fail in ways that make no sense.
+# Uses the CURRENT interpreter on purpose — run it from the venv you suspect.
+doctor:
+	python scripts/check_env_integrity.py

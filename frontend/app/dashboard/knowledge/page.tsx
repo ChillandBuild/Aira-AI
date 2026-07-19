@@ -4,41 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search, Plus, Trash2, CheckCircle2, XCircle,
   Upload, FileText, Loader2, Info, AlertCircle,
-  Database, Sparkles, Save, MessageCircle
+  Database, Sparkles, Save
 } from "lucide-react";
-import { api, AIPrompt, API_URL, getAuthHeaders } from "@/lib/api";
+import { api, API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { timeAgo } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { useSearchParams, useRouter } from "next/navigation";
-
-function IgIcon({ size = 14, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function TgIcon({ size = 14, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="22" y1="2" x2="11" y2="13" />
-      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-    </svg>
-  );
-}
-
-function FbIcon({ size = 14, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-    </svg>
-  );
-}
 
 interface KnowledgeDoc {
   id: string;
@@ -62,9 +34,12 @@ export default function KnowledgePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
-  const tab = (rawTab === "ai-tune" ? "ai-tune" : "documents") as "documents" | "ai-tune";
+  // "ai-tune" is still accepted so existing bookmarks and links keep working.
+  const tab = (rawTab === "description" || rawTab === "ai-tune" ? "description" : "documents") as
+    | "documents"
+    | "description";
 
-  const setTab = (val: "documents" | "ai-tune") => {
+  const setTab = (val: "documents" | "description") => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", val);
     router.replace(`/dashboard/knowledge?${params.toString()}`, { scroll: false });
@@ -76,12 +51,10 @@ export default function KnowledgePage() {
   const [campaignTags, setCampaignTags] = useState<Array<{ id: string; name: string; color?: string }>>([]);
   const [selectedCampaignTag, setSelectedCampaignTag] = useState<string>("");
 
-  // AI Tune
-  const [prompts, setPrompts] = useState<AIPrompt[]>([]);
-  const [activeName, setActiveName] = useState<string>("whatsapp_reply");
-  const [draft, setDraft] = useState<string>("");
-  const [tuneMsg, setTuneMsg] = useState<string | null>(null);
-  const [tuneSaving, setTuneSaving] = useState(false);
+  // Business Description
+  const [description, setDescription] = useState<string>("");
+  const [savedDescription, setSavedDescription] = useState<string>("");
+  const [descSaving, setDescSaving] = useState(false);
 
   // Scoring Rubric
   const [scoringRubric, setScoringRubric] = useState<string>("");
@@ -102,16 +75,11 @@ export default function KnowledgePage() {
   usePolling(loadDocuments, 5000, hasProcessing);
 
   useEffect(() => {
-    if (tab === "ai-tune") {
-      if (prompts.length === 0) loadPrompts();
+    if (tab === "description") {
+      loadDescription();
       loadAiTuneSettings();
     }
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const cur = prompts.find((x) => x.name === activeName);
-    if (cur) setDraft(cur.content);
-  }, [activeName, prompts]);
 
   if (roleLoading) {
     return (
@@ -151,15 +119,11 @@ export default function KnowledgePage() {
   }
 
 
-  async function loadPrompts() {
+  async function loadDescription() {
     try {
-      const p = await api.aiTune.prompts();
-      setPrompts(p);
-      const cur = p.find((x: AIPrompt) => x.name === activeName) ?? p[0];
-      if (cur) {
-        setActiveName(cur.name);
-        setDraft(cur.content);
-      }
+      const d = await api.aiTune.description();
+      setDescription(d);
+      setSavedDescription(d);
     } catch {}
   }
 
@@ -235,34 +199,20 @@ export default function KnowledgePage() {
     }
   }
 
-  // AI Tune Handlers
-  function handleChannelSwitch(channelId: string) {
-    if (draft !== activePrompt?.content) {
-      if (!confirm("You have unsaved changes. Switch channel anyway?")) {
-        return;
-      }
-    }
-    setActiveName(channelId);
-  }
-
-  async function savePrompt() {
-    setTuneSaving(true);
+  // Business Description Handler
+  async function saveDescription() {
+    setDescSaving(true);
     try {
-      await api.aiTune.updatePrompt(activeName, draft);
-      setTuneMsg("Prompt saved. Generating scoring rubric…");
-      await loadPrompts();
-      setTimeout(async () => {
-        await loadAiTuneSettings();
-        setTuneMsg("Prompt saved.");
-      }, 4000);
-    } catch (err) {
-      setTuneMsg(err instanceof Error ? err.message : "Save failed");
+      await api.aiTune.updateDescription(description);
+      setSavedDescription(description);
+      toast.success("Description saved. Updating scoring rubric…");
+      setTimeout(loadAiTuneSettings, 4000);
+    } catch {
+      toast.error("Failed to save description. Please try again.");
     } finally {
-      setTuneSaving(false);
+      setDescSaving(false);
     }
   }
-
-  const activePrompt = prompts.find((p) => p.name === activeName);
 
   return (
     <div className="space-y-6">
@@ -282,21 +232,21 @@ export default function KnowledgePage() {
           </div>
         </button>
         <button
-          onClick={() => setTab("ai-tune")}
+          onClick={() => setTab("description")}
           className={cn(
             "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
-            tab === "ai-tune"
+            tab === "description"
               ? "bg-white text-primary shadow-sm"
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
           <div className="flex items-center gap-2">
-            <Sparkles size={16} /> AI Tune
+            <Sparkles size={16} /> Description
           </div>
         </button>
       </div>
 
-      {tab !== "ai-tune" && (
+      {tab !== "description" && (
         <div className="relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted" />
           <input
@@ -492,71 +442,34 @@ export default function KnowledgePage() {
           </div>
         </div>
       ) : (
-        /* AI Tune Tab */
+        /* Description Tab */
         <div className="space-y-4 animate-in fade-in duration-200">
-          {tuneMsg && (
-            <div className="p-3 rounded-xl bg-surface-low text-primary font-label text-sm">
-              {tuneMsg}
-            </div>
-          )}
-
-          {/* Channel Selector Pills */}
-          <div className="flex flex-wrap gap-2 p-1.5 bg-surface-low rounded-2xl border border-surface-mid/60 w-fit">
-            {[
-              { id: "whatsapp_reply", label: "WhatsApp", icon: <MessageCircle size={14} className="shrink-0" />, colorClass: "hover:bg-surface-mid text-on-surface-muted hover:text-on-surface", activeClass: "bg-green-600 text-white shadow-sm" },
-              { id: "telegram_reply", label: "Telegram", icon: <TgIcon size={14} className="shrink-0" />, colorClass: "hover:bg-surface-mid text-on-surface-muted hover:text-on-surface", activeClass: "bg-sky-600 text-white shadow-sm" },
-              { id: "instagram_reply", label: "Instagram", icon: <IgIcon size={14} className="shrink-0" />, colorClass: "hover:bg-surface-mid text-on-surface-muted hover:text-on-surface", activeClass: "bg-pink-600 text-white shadow-sm" },
-              { id: "facebook_reply", label: "Facebook Messenger", icon: <FbIcon size={14} className="shrink-0" />, colorClass: "hover:bg-surface-mid text-on-surface-muted hover:text-on-surface", activeClass: "bg-blue-600 text-white shadow-sm" },
-            ].map((chan) => {
-              const isActive = activeName === chan.id;
-              return (
-                <button
-                  key={chan.id}
-                  onClick={() => handleChannelSwitch(chan.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold font-label transition-all duration-200",
-                    isActive ? chan.activeClass : chan.colorClass
-                  )}
-                >
-                  {chan.icon}
-                  <span>{chan.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
           <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
             <div className="mb-4">
-              <h2 className="font-display text-lg font-bold text-primary">
-                Active Prompt: {activeName === "whatsapp_reply" ? "WhatsApp" : activeName === "telegram_reply" ? "Telegram" : activeName === "instagram_reply" ? "Instagram" : "Facebook Messenger"}
-              </h2>
+              <h2 className="font-display text-lg font-bold text-primary">Business Description</h2>
               <p className="font-body text-sm text-on-surface-muted mt-0.5">
-                {activeName === "whatsapp_reply" && "Edit the system prompt used by the WhatsApp AI auto-reply."}
-                {activeName === "telegram_reply" && "Edit the system prompt used by the Telegram AI auto-reply."}
-                {activeName === "instagram_reply" && "Edit the system prompt used by the Instagram AI auto-reply."}
-                {activeName === "facebook_reply" && "Edit the system prompt used by the Facebook Messenger AI auto-reply."}
+                Describe your business, your products or services, and the role your
+                assistant plays for customers. Write it in plain language — how you would
+                explain it to a new employee on their first day. Your assistant uses this
+                to understand who it is and what it is talking about.
               </p>
             </div>
-            {activePrompt && (
-              <p className="font-label text-sm text-on-surface-muted mb-3">
-                Updated {timeAgo(activePrompt.updated_at)} — {activePrompt.content.length} chars
-              </p>
-            )}
             <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={18}
-              spellCheck={false}
-              className="w-full px-5 py-4 rounded-xl bg-surface-low border border-surface-mid font-mono text-base leading-7 focus:outline-none focus:ring-2 focus:ring-primary"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={!canManageKnowledge}
+              rows={14}
+              placeholder="Example: We are a Vedic astrology consultancy based in Chennai. We offer birth-chart readings, marriage compatibility matching, and gemstone guidance. Consultations happen online over video call or in person at our office. Most customers come to us with questions about marriage timing, career direction, or family matters."
+              className="w-full px-5 py-4 rounded-xl bg-surface-low border border-surface-mid font-body leading-7 focus:outline-none focus:ring-2 focus:ring-primary"
               style={{ fontSize: "15px", lineHeight: "1.7" }}
             />
             <div className="mt-4 flex gap-3">
               <button
-                onClick={savePrompt}
-                disabled={tuneSaving || draft === activePrompt?.content || !canManageKnowledge}
+                onClick={saveDescription}
+                disabled={descSaving || description === savedDescription || !canManageKnowledge}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
-                <Save size={14} /> {tuneSaving ? "Saving…" : "Save"}
+                <Save size={14} /> {descSaving ? "Saving…" : "Save Description"}
               </button>
             </div>
           </div>

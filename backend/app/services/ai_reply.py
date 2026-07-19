@@ -191,6 +191,36 @@ def invalidate_prompt_cache(name: str | None = None) -> None:
         _prompt_cache.clear()
 
 
+_CHANNEL_LABELS = {
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "instagram": "Instagram",
+    "facebook": "Facebook Messenger",
+}
+
+
+def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
+    """Assemble the developer-owned master prompt with the channel label and the
+    client-owned business description.
+
+    The master prompt (operator console) defines HOW to behave; the description
+    (client's Knowledge Base page) defines WHO the assistant is and what the business
+    sells. The description is always injected in full and never goes through RAG --
+    a retrieval miss would leave the assistant with no role at all.
+
+    The channel label is appended unconditionally rather than substituted into a
+    placeholder, so it works regardless of how the developer writes the master text.
+    """
+    prompt = _get_prompt("master", tenant_id=tenant_id)
+    prompt += f"\n\nCHANNEL: You are replying over {_CHANNEL_LABELS.get(channel, channel)}."
+
+    description = (get_setting("business_description", tenant_id=tenant_id) or "").strip()
+    if description:
+        prompt += "\n\nBUSINESS DESCRIPTION:\n" + description
+
+    return prompt
+
+
 def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
     # Fetch extra rows so we can filter out [Template] messages without falling short of the requested limit
     raw = (
@@ -1181,7 +1211,7 @@ async def generate_reply(
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
 
     try:
-        system_prompt = _get_prompt(f"{channel}_reply", tenant_id=lead_data.get("tenant_id"))
+        system_prompt = _build_base_prompt(channel, lead_data.get("tenant_id"))
         if campaign_name:
             system_prompt += (
                 f'\n\nCAMPAIGN CONTEXT:\nThis lead came from the "{campaign_name}" campaign. '
