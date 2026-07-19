@@ -52,6 +52,13 @@ class WhatsAppNotificationConfig(BaseModel):
         return v
 
 
+class WhatsAppEscalationConfig(WhatsAppNotificationConfig):
+    """Same shape and validation as the segment-change block, but fired on
+    handover creation. Shorter default delay — an unclaimed escalation is
+    more urgent than a segment promotion."""
+    delay_minutes: int = Field(3, ge=0, le=1440)
+
+
 class NotificationConfigIn(BaseModel):
     push_enabled: bool = True
     events: dict[str, bool] = {}
@@ -60,6 +67,7 @@ class NotificationConfigIn(BaseModel):
     claimable_caller_ids: list[str] = []
     quiet_hours: QuietHours = QuietHours()
     whatsapp_notifications: WhatsAppNotificationConfig = WhatsAppNotificationConfig()
+    whatsapp_escalation_notifications: WhatsAppEscalationConfig = WhatsAppEscalationConfig()
 
 @router.get("/")
 async def list_notifications(
@@ -176,6 +184,7 @@ async def update_config(payload: NotificationConfigIn, ctx: dict = Depends(requi
         "claimable_caller_ids": caller_ids,
         "quiet_hours": payload.quiet_hours.model_dump(),
         "whatsapp_notifications": payload.whatsapp_notifications.model_dump(),
+        "whatsapp_escalation_notifications": payload.whatsapp_escalation_notifications.model_dump(),
     }
     save_notification_config(ctx["tenant_id"], config)
     return config
