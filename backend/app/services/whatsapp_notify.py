@@ -74,6 +74,192 @@ def _build_components(template: dict, lead: dict, to_segment: str) -> list[dict]
     return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in values]}]
 
 
+def _build_escalation_components(template: dict, lead: dict, reason: str) -> list[dict] | None:
+    """Map ordinal {{n}} placeholders in the template body to escalation values.
+
+    Returns None when the template has no variables — nothing safe to send.
+    """
+    body_text = template.get("body_text") or ""
+    indices = sorted(set(int(m) for m in re.findall(r"\{\{(\d+)\}\}", body_text)))
+    if not indices:
+        return None
+
+    candidate_values = [
+        lead.get("name") or "Lead",
+        lead.get("phone") or "",
+        (reason or "")[:120],
+        f"https://aira.ai/dashboard/conversations?lead_id={lead['id']}",
+    ]
+    values = candidate_values[: len(indices)]
+    return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in values]}]
+
+
+def queue_escalation_whatsapp_alert(
+    db,
+    tenant_id: str,
+    lead_id: str,
+    handover_id: str,
+    reason: str,
+    assigned_to: str | None,
+) -> None:
+    """Queue a delayed WhatsApp alert for a newly created chat handover.
+
+    No cooldown check is needed: _trigger_chat_escalation returns early when an
+    open handover already exists, so there is exactly one alert per handover.
+    Never raises — escalation must not fail because of a notification.
+    """
+    try:
+        cfg = get_notification_config(tenant_id, db=db).get(
+            "whatsapp_escalation_notifications"
+        ) or {}
+
+        if not cfg.get("enabled"):
+            return
+        template_id = cfg.get("template_id")
+        recipient_phones = cfg.get("recipient_phones") or []
+        if not template_id or not recipient_phones:
+            return
+
+        lead_res = (
+            db.table("leads")
+            .select("id,segment")
+            .eq("id", lead_id)
+            .limit(1)
+            .execute()
+        )
+        lead = (lead_res.data or [None])[0]
+        if not lead:
+            return
+        if lead.get("segment") not in (cfg.get("target_segments") or []):
+            return
+
+        delay_minutes = cfg.get("delay_minutes")
+        if delay_minutes is None:
+            delay_minutes = 3
+        send_at = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
+
+        db.table("pending_whatsapp_alerts").insert({
+            "tenant_id": tenant_id,
+            "lead_id": lead_id,
+            "handover_id": handover_id,
+            "assigned_to_at_queue": assigned_to,
+            "escalation_reason": reason,
+            "alert_type": "escalation",
+            "to_segment": None,
+            "from_segment": None,
+            "send_at": send_at.isoformat(),
+            "status": "pending",
+        }).execute()
+
+        logger.info(
+            "Queued escalation WhatsApp alert lead=%s handover=%s send_at=%s",
+            lead_id, handover_id, send_at,
+        )
+    except Exception as e:
+        logger.exception(
+            "queue_escalation_whatsapp_alert failed tenant=%s lead=%s", tenant_id, lead_id
+        )
+        _log_incident(db, tenant_id, {
+            "lead_id": lead_id,
+            "handover_id": handover_id,
+            "reason": "escalation_queue_failed",
+            "error": str(e)[:500],
+        })
+
+
+async def _process_escalation_alert(db, alert: dict) -> None:
+    """Send one due escalation alert, unless the handover was claimed or resolved.
+
+    'Claimed' is a change in assigned_to since queue time, NOT simply a non-null
+    assigned_to — _trigger_chat_escalation seeds it with the lead's existing owner.
+    """
+    alert_id = alert["id"]
+    tenant_id = alert["tenant_id"]
+    lead_id = alert["lead_id"]
+    handover_id = alert.get("handover_id")
+
+    def _cancel():
+        db.table("pending_whatsapp_alerts").update(
+            {"status": "cancelled"}
+        ).eq("id", alert_id).execute()
+
+    ho_res = (
+        db.table("chat_handovers")
+        .select("id,status,assigned_to")
+        .eq("id", handover_id)
+        .limit(1)
+        .execute()
+    )
+    handover = (ho_res.data or [None])[0]
+    if not handover:
+        _cancel()
+        return
+    if handover.get("status") != "pending":
+        _cancel()          # resolved before the delay elapsed
+        return
+    if handover.get("assigned_to") != alert.get("assigned_to_at_queue"):
+        _cancel()          # claimed by a teammate
+        return
+
+    cfg = get_notification_config(tenant_id, db=db).get(
+        "whatsapp_escalation_notifications"
+    ) or {}
+    template_id = cfg.get("template_id")
+    recipient_phones = cfg.get("recipient_phones") or []
+    if not cfg.get("enabled") or not template_id or not recipient_phones:
+        _cancel()
+        return
+
+    lead_res = (
+        db.table("leads")
+        .select("id,name,phone,score,segment")
+        .eq("id", lead_id)
+        .eq("tenant_id", tenant_id)
+        .limit(1)
+        .execute()
+    )
+    lead = (lead_res.data or [None])[0]
+    if not lead:
+        _cancel()
+        _log_incident(db, tenant_id, {"lead_id": lead_id, "reason": "lead_not_found"})
+        return
+
+    template_res = (
+        db.table("message_templates")
+        .select("id,name,language,body_text,status")
+        .eq("id", template_id)
+        .eq("tenant_id", tenant_id)
+        .eq("status", "APPROVED")
+        .limit(1)
+        .execute()
+    )
+    template = (template_res.data or [None])[0]
+    if not template:
+        db.table("pending_whatsapp_alerts").update(
+            {"status": "failed"}
+        ).eq("id", alert_id).execute()
+        _log_incident(db, tenant_id, {
+            "lead_id": lead_id,
+            "template_id": template_id,
+            "reason": "escalation_template_not_found_or_not_approved",
+        })
+        return
+
+    components = _build_escalation_components(
+        template, lead, alert.get("escalation_reason") or ""
+    )
+    if components is None:
+        db.table("pending_whatsapp_alerts").update(
+            {"status": "failed"}
+        ).eq("id", alert_id).execute()
+        return
+
+    await _dispatch_alerts(recipient_phones, template, components, tenant_id, lead_id)
+    db.table("pending_whatsapp_alerts").update(
+        {"status": "sent"}
+    ).eq("id", alert_id).execute()
+
+
 async def _dispatch_alerts(
     recipient_phones: list[str],
     template: dict,
@@ -189,6 +375,11 @@ async def process_due_whatsapp_alerts() -> None:
                 db.table("pending_whatsapp_alerts").update(
                     {"status": "processing"}
                 ).eq("id", alert_id).execute()
+
+                # Escalation alerts have their own verification rules.
+                if alert.get("alert_type") == "escalation":
+                    await _process_escalation_alert(db, alert)
+                    continue
 
                 # Verify lead is still in the target segment
                 lead_res = (
