@@ -1359,6 +1359,15 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ description }),
       }),
+    appLink: async () => {
+      const res = await apiFetch<{ app_link: string }>(`/api/v1/ai-tune/app-link`);
+      return res.app_link || "";
+    },
+    updateAppLink: (appLink: string) =>
+      apiFetch<{ app_link: string }>(`/api/v1/ai-tune/app-link`, {
+        method: "PUT",
+        body: JSON.stringify({ app_link: appLink }),
+      }),
   },
   system: {
     status: () => apiFetch<SystemStatus>(`/api/v1/system/status`),

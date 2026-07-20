@@ -19,6 +19,10 @@ class DescriptionUpdate(BaseModel):
     description: str
 
 
+class AppLinkUpdate(BaseModel):
+    app_link: str
+
+
 def _rubric_prompt(description: str) -> str:
     """Build the rubric-generation prompt from the client's business description.
 
@@ -94,3 +98,16 @@ async def update_description(
         _task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
     return {"description": description}
+
+
+@router.get("/app-link")
+async def get_app_link(tenant_id: str = Depends(get_tenant_id)):
+    return {"app_link": get_setting("app_download_link", tenant_id=tenant_id) or ""}
+
+
+@router.put("/app-link")
+async def update_app_link(payload: AppLinkUpdate, tenant_id: str = Depends(get_tenant_id)):
+    app_link = payload.app_link.strip()
+    save_setting("app_download_link", app_link, tenant_id=tenant_id)
+    invalidate_cache("app_download_link")
+    return {"app_link": app_link}

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search, Plus, Trash2, CheckCircle2, XCircle,
   Upload, FileText, Loader2, Info, AlertCircle,
-  Database, Sparkles, Save
+  Database, Sparkles, Save, Link as LinkIcon
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -56,6 +56,11 @@ export default function KnowledgePage() {
   const [savedDescription, setSavedDescription] = useState<string>("");
   const [descSaving, setDescSaving] = useState(false);
 
+  // App / Download Link
+  const [appLink, setAppLink] = useState<string>("");
+  const [savedAppLink, setSavedAppLink] = useState<string>("");
+  const [appLinkSaving, setAppLinkSaving] = useState(false);
+
   // Scoring Rubric
   const [scoringRubric, setScoringRubric] = useState<string>("");
   const [savedRubric, setSavedRubric] = useState<string>("");
@@ -77,6 +82,7 @@ export default function KnowledgePage() {
   useEffect(() => {
     if (tab === "description") {
       loadDescription();
+      loadAppLink();
       loadAiTuneSettings();
     }
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -124,6 +130,14 @@ export default function KnowledgePage() {
       const d = await api.aiTune.description();
       setDescription(d);
       setSavedDescription(d);
+    } catch {}
+  }
+
+  async function loadAppLink() {
+    try {
+      const l = await api.aiTune.appLink();
+      setAppLink(l);
+      setSavedAppLink(l);
     } catch {}
   }
 
@@ -211,6 +225,20 @@ export default function KnowledgePage() {
       toast.error("Failed to save description. Please try again.");
     } finally {
       setDescSaving(false);
+    }
+  }
+
+  // App Link Handler
+  async function saveAppLink() {
+    setAppLinkSaving(true);
+    try {
+      await api.aiTune.updateAppLink(appLink);
+      setSavedAppLink(appLink);
+      toast.success("App link saved.");
+    } catch {
+      toast.error("Failed to save app link. Please try again.");
+    } finally {
+      setAppLinkSaving(false);
     }
   }
 
@@ -470,6 +498,38 @@ export default function KnowledgePage() {
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
               >
                 <Save size={14} /> {descSaving ? "Saving…" : "Save Description"}
+              </button>
+            </div>
+          </div>
+
+          {/* App / Download Link */}
+          <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
+            <div className="mb-4">
+              <h2 className="font-display text-lg font-bold text-primary flex items-center gap-2">
+                <LinkIcon size={18} /> App / Download Link
+              </h2>
+              <p className="font-body text-sm text-on-surface-muted mt-0.5">
+                Your app, booking page, or consultation link. Your assistant shares this exact
+                link whenever it needs to point a customer to your app — it never has to guess
+                or make one up.
+              </p>
+            </div>
+            <input
+              type="url"
+              value={appLink}
+              onChange={(e) => setAppLink(e.target.value)}
+              disabled={!canManageKnowledge}
+              placeholder="https://yourapp.com/download"
+              className="w-full px-5 py-4 rounded-xl bg-surface-low border border-surface-mid font-body focus:outline-none focus:ring-2 focus:ring-primary"
+              style={{ fontSize: "15px" }}
+            />
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={saveAppLink}
+                disabled={appLinkSaving || appLink === savedAppLink || !canManageKnowledge}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40"
+              >
+                <Save size={14} /> {appLinkSaving ? "Saving…" : "Save Link"}
               </button>
             </div>
           </div>
