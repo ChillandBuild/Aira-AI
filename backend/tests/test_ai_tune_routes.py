@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from app.routes import ai_tune
 
 
@@ -22,3 +24,19 @@ def test_rubric_prompt_is_built_from_the_description():
     built = ai_tune._rubric_prompt("We are a Vedic astrology consultancy.")
     assert "We are a Vedic astrology consultancy." in built
     assert "9-10" in built
+
+
+def test_rubric_auto_update_defaults_to_off():
+    """Off by default so saving a description never silently overwrites a hand-tuned
+    rubric. A tenant that has never touched the setting must not regenerate."""
+    with patch.object(ai_tune, "get_setting", return_value=None):
+        assert ai_tune._rubric_auto_update_enabled("tenant-1") is False
+
+
+def test_rubric_auto_update_reads_the_setting():
+    with patch.object(ai_tune, "get_setting", return_value="true") as mock_get:
+        assert ai_tune._rubric_auto_update_enabled("tenant-1") is True
+    mock_get.assert_called_once_with("rubric_auto_update", fallback="false", tenant_id="tenant-1")
+
+    with patch.object(ai_tune, "get_setting", return_value="false"):
+        assert ai_tune._rubric_auto_update_enabled("tenant-1") is False

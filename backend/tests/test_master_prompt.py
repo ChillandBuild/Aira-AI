@@ -63,6 +63,8 @@ def test_language_rule_forced_modes_still_present():
     assert "Always reply in native Tamil script" in ai_reply._language_rule_block("tamil", "hi")
 
 
-def test_accuracy_rule_still_forbids_stating_prices():
-    assert "ACCURACY RULE:" in ai_reply._ACCURACY_RULE
-    assert "Never state a specific price, fee, or payment method" in ai_reply._ACCURACY_RULE
+def test_accuracy_rule_is_gone():
+    """The hardcoded ACCURACY RULE was removed 2026-07-20 (operator decision) so each
+    client's master prompt can decide how to handle pricing. If this test fails, it was
+    re-added -- which would silently override every client's own pricing instructions."""
+    assert not hasattr(ai_reply, "_ACCURACY_RULE")

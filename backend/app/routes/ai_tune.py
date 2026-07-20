@@ -79,6 +79,12 @@ async def get_description(tenant_id: str = Depends(get_tenant_id)):
     return {"description": get_setting("business_description", tenant_id=tenant_id) or ""}
 
 
+def _rubric_auto_update_enabled(tenant_id: str) -> bool:
+    """Opt-in per client. Defaults to OFF so saving a description never silently
+    overwrites a hand-tuned scoring rubric -- that is the whole point of the toggle."""
+    return get_setting("rubric_auto_update", fallback="false", tenant_id=tenant_id) == "true"
+
+
 @router.put("/description")
 async def update_description(
     payload: DescriptionUpdate, tenant_id: str = Depends(get_tenant_id)
@@ -87,8 +93,10 @@ async def update_description(
     save_setting("business_description", description, tenant_id=tenant_id)
     invalidate_cache("business_description")
 
-    if description:
+    rubric_queued = False
+    if description and _rubric_auto_update_enabled(tenant_id):
         _task = asyncio.create_task(_auto_generate_rubric(description, tenant_id, force=True))
         _task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+        rubric_queued = True
 
-    return {"description": description}
+    return {"description": description, "rubric_queued": rubric_queued}
