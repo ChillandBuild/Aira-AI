@@ -6,7 +6,7 @@
 | Backend | FastAPI, Python 3.11+, Pydantic v2 | backend/app/ |
 | DB | Supabase (PostgreSQL + Realtime) | — |
 | Frontend | Next.js 14 App Router, TypeScript, Tailwind | frontend/app/dashboard/ |
-| AI | Sarvam-30B for WhatsApp replies; Sarvam Saaras/Vision for transcription/OCR; Groq remains for scoring/coaching/digests/tuning/briefs | services/ai_reply.py, services/sarvam_client.py, services/scoring_engine.py |
+| AI | Replies: per-tenant operator choice of Sarvam / Groq / Gemini / OpenAI (`ai_reply_model`, no default); Gemini 3.1 Flash-Lite for STT, doc digitization, call analysis; Gemini TTS for voice replies; Groq for scoring/coaching/digests/tuning/briefs/compaction | services/ai_reply.py, services/{sarvam,groq,gemini,openai}_client.py |
 | WhatsApp | Meta Cloud API Direct | — |
 | Voice | TeleCMI click-to-call + recording | services/telecmi_client.py |
 | Payments | Razorpay Payment Links API | services/payment_razorpay.py |
@@ -16,7 +16,7 @@
 ## Provider Decisions (Locked)
 - **WhatsApp**: Meta Cloud API Direct.
 - **Voice**: TeleCMI (click-to-call + recording).
-- **AI providers**: Sarvam powers WhatsApp AI replies (`sarvam-30b`), call transcription (`saaras:v3`), and knowledge image OCR (Sarvam Vision). Groq still powers scoring, call coaching/digests, AI tuning, lead briefs, and conversation compaction until explicitly migrated. Do NOT add Gemini/OpenAI imports.
+- **AI providers (per-workload, updated 2026-07-18)**: WhatsApp AI replies route to the tenant's explicit `ai_reply_model` choice — Sarvam, Groq, Gemini, or OpenAI as **equal peers**, no hardcoded default (operator picks per tenant, same contract as provider keys). STT (voice notes + call recordings), knowledge doc digitization, and `analyze_call` run on Gemini 3.1 Flash-Lite via the `/v1beta/interactions` endpoint; voice-reply TTS on Gemini. Groq powers scoring, coaching/digests, AI tuning, lead briefs, and conversation compaction. Every provider key is strictly per-tenant (see subsystem-notes) — never add a platform-key fallback.
 - **Payments**: Razorpay (Payment Links API — no SDK, direct httpx/httpx-async calls).
 
 ## Production Configs

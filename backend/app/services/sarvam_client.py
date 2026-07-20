@@ -5,10 +5,20 @@ import httpx
 
 from app.config_dynamic import get_setting
 from app.config import settings
+from app.services.token_meter import record_tokens
 
 SARVAM_BASE_URL = "https://api.sarvam.ai"
 SARVAM_CHAT_URL = f"{SARVAM_BASE_URL}/v1/chat/completions"
 SARVAM_TTS_URL = f"{SARVAM_BASE_URL}/text-to-speech"
+
+
+def _record(tenant_id: str | None, purpose: str, model: str, data: dict) -> None:
+    """Sarvam's chat completions usage block is OpenAI-shaped (live-probed 2026-07-18)."""
+    usage = data.get("usage") or {}
+    record_tokens(
+        tenant_id, purpose, "sarvam", model,
+        usage.get("prompt_tokens"), usage.get("completion_tokens"),
+    )
 
 
 def get_sarvam_api_key(tenant_id: str | None = None) -> str:
@@ -30,6 +40,7 @@ async def sarvam_chat_completion(
     max_tokens: int = 300,
     frequency_penalty: float = 0.5,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> str:
     """Sarvam's Chat Completions API (OpenAI-compatible response shape). Unlike the
     Speech-to-Text/Document Digitization endpoints (api-subscription-key header),
@@ -60,6 +71,7 @@ async def sarvam_chat_completion(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     return (data["choices"][0]["message"]["content"] or "").strip()
 
 
@@ -71,6 +83,7 @@ async def sarvam_chat_completion_with_tools(
     max_tokens: int = 300,
     frequency_penalty: float = 0.5,
     tenant_id: str | None = None,
+    purpose: str = "unknown",
 ) -> tuple[str, list[dict]]:
     """Sarvam Chat Completions with tool/function calling support. Returns a tuple of
     (content_text, tool_calls) — content may be empty if the model only makes a tool
@@ -97,6 +110,7 @@ async def sarvam_chat_completion_with_tools(
         )
         resp.raise_for_status()
         data = resp.json()
+    _record(tenant_id, purpose, model, data)
     choice = data["choices"][0]
     message = choice["message"]
     content = (message.get("content") or "").strip()

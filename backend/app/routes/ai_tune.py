@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.config_dynamic import get_setting, save_setting, invalidate_cache
 from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.groq_client import get_groq_client
+from app.services.token_meter import record_groq_sdk
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_owner)])
@@ -16,6 +17,10 @@ _TUNE_MODEL = "llama-3.3-70b-versatile"
 
 class DescriptionUpdate(BaseModel):
     description: str
+
+
+class AppLinkUpdate(BaseModel):
+    app_link: str
 
 
 def _rubric_prompt(description: str) -> str:
@@ -66,6 +71,7 @@ async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = 
             temperature=0.3,
             max_tokens=300,
         )
+        record_groq_sdk(tenant_id, "ai_tune", _TUNE_MODEL, resp)
         rubric = resp.choices[0].message.content.strip()
         if rubric and "9-10" in rubric:
             save_setting("scoring_rubric", rubric, tenant_id=tenant_id)
@@ -100,3 +106,16 @@ async def update_description(
         rubric_queued = True
 
     return {"description": description, "rubric_queued": rubric_queued}
+
+
+@router.get("/app-link")
+async def get_app_link(tenant_id: str = Depends(get_tenant_id)):
+    return {"app_link": get_setting("app_download_link", tenant_id=tenant_id) or ""}
+
+
+@router.put("/app-link")
+async def update_app_link(payload: AppLinkUpdate, tenant_id: str = Depends(get_tenant_id)):
+    app_link = payload.app_link.strip()
+    save_setting("app_download_link", app_link, tenant_id=tenant_id)
+    invalidate_cache("app_download_link")
+    return {"app_link": app_link}

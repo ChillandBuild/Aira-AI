@@ -16,6 +16,7 @@ from app.services.call_summarizer import _SCORE_KEYS
 logger = logging.getLogger(__name__)
 
 from app.services.groq_client import get_groq_client
+from app.services.token_meter import record_groq_sdk
 _MODEL = "llama-3.3-70b-versatile"
 
 _DIGEST_PROMPT = (
@@ -190,6 +191,7 @@ async def generate_daily_digest(caller_id: str, tenant_id: str, for_date: date) 
                     temperature=0.4,
                     max_tokens=250,
                 )
+                record_groq_sdk(tenant_id, "coaching_digest", _MODEL, response)
                 coaching_report = response.choices[0].message.content.strip()
                 logger.info(f"Digest generated for caller {caller_id} on {date_str}")
             except Exception as e:

@@ -65,7 +65,10 @@ def _resolve_provider(tenant_id: str | None) -> tuple[str, str]:
 
 async def _llm_chat(messages: list[dict], max_tokens: int = 300, tenant_id: str | None = None) -> str:
     provider, native_model = _resolve_provider(tenant_id)
-    kwargs = dict(messages=messages, model=native_model, temperature=0.4, max_tokens=max_tokens, tenant_id=tenant_id)
+    kwargs = dict(
+        messages=messages, model=native_model, temperature=0.4, max_tokens=max_tokens,
+        tenant_id=tenant_id, purpose="ai_reply",
+    )
     if provider == "sarvam":
         return await sarvam_chat_completion(**kwargs)
     if provider == "gemini":
@@ -85,13 +88,17 @@ async def _llm_chat_with_tools(
     """Tool-calling counterpart to _llm_chat -- routes catalog-recommendation replies
     through the tenant's selected ai_reply_model instead of hardcoding Sarvam."""
     provider, native_model = _resolve_provider(tenant_id)
+    kwargs = dict(
+        messages=messages, tools=tools, model=native_model, max_tokens=max_tokens,
+        tenant_id=tenant_id, purpose="ai_reply",
+    )
     if provider == "sarvam":
-        return await sarvam_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
+        return await sarvam_chat_completion_with_tools(**kwargs)
     if provider == "gemini":
-        return await gemini_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
+        return await gemini_chat_completion_with_tools(**kwargs)
     if provider == "openai":
-        return await openai_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
-    return await groq_chat_completion_with_tools(messages, tools=tools, model=native_model, max_tokens=max_tokens, tenant_id=tenant_id)
+        return await openai_chat_completion_with_tools(**kwargs)
+    return await groq_chat_completion_with_tools(**kwargs)
 
 
 def _resolve_campaign(db, lead_id: str) -> tuple[str | None, str | None]:
@@ -217,6 +224,17 @@ def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
     description = (get_setting("business_description", tenant_id=tenant_id) or "").strip()
     if description:
         prompt += "\n\nBUSINESS DESCRIPTION:\n" + description
+
+    app_link = (get_setting("app_download_link", tenant_id=tenant_id) or "").strip()
+    if app_link:
+        prompt += (
+            f"\n\nAPP LINK: {app_link}\nUse this exact link whenever you need to share "
+            "the app or a download/consultation link."
+        )
+    prompt += (
+        "\n\nNEVER write a placeholder like \"[Insert Link Here]\" or \"[link]\" in a reply. "
+        "If you need a link you don't have, say a team member will send it instead of inventing one."
+    )
 
     return prompt
 

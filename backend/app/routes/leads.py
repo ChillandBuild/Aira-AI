@@ -24,6 +24,7 @@ router = APIRouter()
 
 
 from app.services.groq_client import get_groq_client
+from app.services.token_meter import record_groq_sdk
 _BRIEF_MODEL = "llama-3.3-70b-versatile"
 
 
@@ -1072,6 +1073,7 @@ Write EXACTLY this JSON (no markdown, no explanation):
             temperature=0.3,
             max_tokens=300,
         )
+        record_groq_sdk(tenant_id, "pre_call_brief", _BRIEF_MODEL, response)
         raw = response.choices[0].message.content.strip()
         parsed = json.loads(raw)
         return PreCallBriefResponse(brief=parsed["brief"], opener=parsed["opener"])
