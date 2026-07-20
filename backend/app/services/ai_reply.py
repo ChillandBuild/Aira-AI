@@ -225,6 +225,17 @@ def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
     if description:
         prompt += "\n\nBUSINESS DESCRIPTION:\n" + description
 
+    app_link = (get_setting("app_download_link", tenant_id=tenant_id) or "").strip()
+    if app_link:
+        prompt += (
+            f"\n\nAPP LINK: {app_link}\nUse this exact link whenever you need to share "
+            "the app or a download/consultation link."
+        )
+    prompt += (
+        "\n\nNEVER write a placeholder like \"[Insert Link Here]\" or \"[link]\" in a reply. "
+        "If you need a link you don't have, say a team member will send it instead of inventing one."
+    )
+
     return prompt
 
 
