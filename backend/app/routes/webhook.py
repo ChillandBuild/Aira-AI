@@ -13,8 +13,10 @@ from app.services.entitlements import meter
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Exact-match opt-out phrases (only 2 words)
-_STOP_WORDS = frozenset({"unsubscribe", "ஆர்வம் இல்லை"})
+# Exact-match opt-out phrases. Matched only on a lead's first reply after a template
+# send (see _is_first_in_broadcast) -- a "stop" later in a conversation falls through to
+# scoring, which drops the lead to segment D and out of re-engagement targeting.
+_STOP_WORDS = frozenset({"stop", "unsubscribe", "ஆர்வம் இல்லை"})
 
 
 def _is_opt_out(body: str) -> bool:
