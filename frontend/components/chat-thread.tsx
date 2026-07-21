@@ -170,17 +170,21 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
             {msg.content}
           </p>
         )}
-        {msg.direction === "outbound" && (
-          <p className="mt-1 text-[10px] opacity-60">
-            {isAiMediaRecommendation
-              ? "AI media recommendation"
-              : msg.is_ai_generated
-              ? msg.reply_source === "knowledge"
-                ? "📄 Knowledge Base"
-                : "✨ AI"
-              : "Sent by you"}
-          </p>
-        )}
+        <p className="mt-1 text-[10px] opacity-60">
+          {msg.direction === "outbound" && (
+            <>
+              {isAiMediaRecommendation
+                ? "AI media recommendation"
+                : msg.is_ai_generated
+                ? msg.reply_source === "knowledge"
+                  ? "📄 Knowledge Base"
+                  : "✨ AI"
+                : "Sent by you"}
+              {" · "}
+            </>
+          )}
+          {new Date(msg.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+        </p>
       </div>
     </div>
   );

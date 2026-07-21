@@ -102,6 +102,7 @@ export default function ReengagementBuilder({ type, broadcastId, templates, canM
   const [steps, setSteps] = useState<ReengagementStep[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
 
   const [delayHours, setDelayHours] = useState(6);
@@ -162,7 +163,26 @@ export default function ReengagementBuilder({ type, broadcastId, templates, canM
     setFallbackTemplate("");
   }
 
-  async function addStep() {
+  function startEdit(step: ReengagementStep) {
+    if (!canManage) return;
+    setEditingId(step.id);
+    setDelayHours(step.delay_hours);
+    setSegments(step.target_segments);
+    setSources(step.target_sources ?? []);
+    setMessageType(step.message_type);
+    setContent(step.message_content ?? "");
+    setTemplateName(step.template_name ?? "");
+    setFallbackTemplate(step.fallback_template_name ?? "");
+    setShowAdd(true);
+  }
+
+  function cancelForm() {
+    setShowAdd(false);
+    setEditingId(null);
+    resetForm();
+  }
+
+  async function saveStep() {
     if (!canManage) return;
     if (delayHours < 1 || delayHours > MAX_DELAY) {
       toast.error(`Delay must be between 1 and ${MAX_DELAY} hours`);
@@ -188,26 +208,33 @@ export default function ReengagementBuilder({ type, broadcastId, templates, canM
       toast.error("Multi-variable backup templates aren't supported yet");
       return;
     }
+    const payload = {
+      delay_hours: delayHours,
+      target_segments: segments,
+      target_sources: sources.length ? sources : null,
+      message_type: messageType,
+      message_content: messageType === "freeform" ? content : null,
+      template_name: messageType === "template" ? templateName : null,
+      template_variables: messageType === "template" ? varsFor(templateName) : null,
+      fallback_template_name: messageType === "freeform" && fallbackTemplate ? fallbackTemplate : null,
+      fallback_template_variables: messageType === "freeform" && fallbackTemplate ? varsFor(fallbackTemplate) : null,
+    };
     try {
-      await api.reengagement.createStep({
-        type,
-        broadcast_id: type === "broadcast" ? broadcastId : null,
-        delay_hours: delayHours,
-        target_segments: segments,
-        target_sources: sources.length ? sources : null,
-        message_type: messageType,
-        message_content: messageType === "freeform" ? content : null,
-        template_name: messageType === "template" ? templateName : null,
-        template_variables: messageType === "template" ? varsFor(templateName) : null,
-        fallback_template_name: messageType === "freeform" && fallbackTemplate ? fallbackTemplate : null,
-        fallback_template_variables: messageType === "freeform" && fallbackTemplate ? varsFor(fallbackTemplate) : null,
-      });
-      toast.success("Message added to sequence");
-      setShowAdd(false);
-      resetForm();
+      if (editingId) {
+        await api.reengagement.updateStep(editingId, payload);
+        toast.success("Message updated");
+      } else {
+        await api.reengagement.createStep({
+          type,
+          broadcast_id: type === "broadcast" ? broadcastId : null,
+          ...payload,
+        });
+        toast.success("Message added to sequence");
+      }
+      cancelForm();
       fetchSteps();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add message");
+      toast.error(err instanceof Error ? err.message : "Failed to save message");
     }
   }
 
@@ -312,6 +339,9 @@ export default function ReengagementBuilder({ type, broadcastId, templates, canM
                     className="text-xs text-on-surface-muted hover:text-on-surface"
                   >
                     {expandedLog === s.id ? "Hide history" : "History"}
+                  </button>
+                  <button onClick={() => startEdit(s)} disabled={!canManage} className="text-xs text-on-surface hover:text-primary disabled:cursor-not-allowed disabled:opacity-40">
+                    Edit
                   </button>
                   <button onClick={() => removeStep(s.id)} disabled={!canManage} className="text-xs text-red-500 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">
                     Remove
@@ -453,11 +483,11 @@ export default function ReengagementBuilder({ type, broadcastId, templates, canM
           )}
 
           <div className="flex justify-end gap-2">
-            <button onClick={() => { setShowAdd(false); resetForm(); }} className="rounded-xl px-4 py-2 text-sm text-on-surface-muted">
+            <button onClick={cancelForm} className="rounded-xl px-4 py-2 text-sm text-on-surface-muted">
               Cancel
             </button>
-            <button onClick={addStep} disabled={!canManage} title={canManage ? "Save message" : "Read-only role: saving is disabled"} className="rounded-xl bg-on-surface px-5 py-2 text-sm text-surface disabled:cursor-not-allowed disabled:opacity-40 disabled:blur-[0.5px]">
-              Save message
+            <button onClick={saveStep} disabled={!canManage} title={canManage ? "Save message" : "Read-only role: saving is disabled"} className="rounded-xl bg-on-surface px-5 py-2 text-sm text-surface disabled:cursor-not-allowed disabled:opacity-40 disabled:blur-[0.5px]">
+              {editingId ? "Save changes" : "Save message"}
             </button>
           </div>
         </div>

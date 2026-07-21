@@ -1229,6 +1229,24 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    updateStep: (
+      stepId: string,
+      data: {
+        delay_hours: number;
+        target_segments: string[];
+        target_sources?: string[] | null;
+        message_type: "freeform" | "template";
+        message_content?: string | null;
+        template_name?: string | null;
+        template_variables?: string[] | null;
+        fallback_template_name?: string | null;
+        fallback_template_variables?: string[] | null;
+      }
+    ) =>
+      apiFetch<ReengagementStep>(`/api/v1/reengagement/steps/${stepId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
     deleteStep: (stepId: string) =>
       apiFetch<{ success: boolean }>(`/api/v1/reengagement/steps/${stepId}`, {
         method: "DELETE",

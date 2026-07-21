@@ -108,7 +108,8 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
     const ig = h.leads?.ig_user_id?.toLowerCase() || "";
     const fb = h.leads?.fb_user_id?.toLowerCase() || "";
     const reason = h.reason?.toLowerCase() || "";
-    return name.includes(q) || phone.includes(q) || tg.includes(q) || ig.includes(q) || fb.includes(q) || reason.includes(q);
+    const channel = (h.leads?.source || "whatsapp").toLowerCase();
+    return name.includes(q) || phone.includes(q) || tg.includes(q) || ig.includes(q) || fb.includes(q) || reason.includes(q) || channel.includes(q);
   });
 
   const load = useCallback(async () => {
@@ -165,20 +166,28 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
 
   const myName = callers.find((c) => c.id === currentCallerId)?.name ?? currentCallerName ?? "You";
 
-  async function handleClaimAndReply(handover: Handover) {
+  async function handleClaim(handover: Handover) {
     if (!canReplyToConversations) return;
-    if (currentCallerId && !handover.assigned_to) {
-      const prev = handovers;
-      setHandovers((hs) => hs.map((h) =>
-        h.id === handover.id ? { ...h, assigned_to: currentCallerId, caller_name: myName } : h
-      ));
-      try {
-        await assignHandover(handover.id, currentCallerId);
-        toast.success("Claimed — you're handling this lead");
-      } catch {
-        setHandovers(prev);
-      }
+    if (!currentCallerId) {
+      // No caller profile to assign to — fall back to opening the chat directly.
+      onReply(handover.lead_id);
+      return;
     }
+    const prev = handovers;
+    setHandovers((hs) => hs.map((h) =>
+      h.id === handover.id ? { ...h, assigned_to: currentCallerId, caller_name: myName } : h
+    ));
+    try {
+      await assignHandover(handover.id, currentCallerId);
+      toast.success("Claimed — you're handling this lead");
+    } catch {
+      setHandovers(prev);
+      toast.error("Failed to claim");
+    }
+  }
+
+  function handleReply(handover: Handover) {
+    if (!canReplyToConversations) return;
     onReply(handover.lead_id);
   }
 
@@ -314,7 +323,7 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
                   </div>
                   <div className="flex flex-row md:flex-col gap-2.5 flex-shrink-0 self-end md:self-start w-full md:w-auto md:min-w-[140px] mt-3 md:mt-0 border-t md:border-t-0 border-border-subtle pt-3 md:pt-0">
                     <button
-                      onClick={() => handleClaimAndReply(h)}
+                      onClick={() => (h.assigned_to ? handleReply(h) : handleClaim(h))}
                       disabled={!canReplyToConversations}
                       title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
                       className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary disabled:hover:scale-100"

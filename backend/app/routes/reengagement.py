@@ -25,6 +25,18 @@ class ReengagementStepCreate(BaseModel):
     fallback_template_variables: list[str] | None = None
 
 
+class ReengagementStepUpdate(BaseModel):
+    delay_hours: int
+    target_segments: list[str]
+    target_sources: list[str] | None = None
+    message_type: str
+    message_content: str | None = None
+    template_name: str | None = None
+    template_variables: list[str] | None = None
+    fallback_template_name: str | None = None
+    fallback_template_variables: list[str] | None = None
+
+
 @router.get("/steps")
 def list_steps(
     type: str | None = None,
@@ -42,6 +54,24 @@ def list_steps(
     return {"data": rows.data or []}
 
 
+VALID_SOURCES = {"organic", "meta_ads", "csv", "telegram", "instagram", "facebook"}
+
+
+def _validate_step_fields(
+    delay_hours: int,
+    message_type: str,
+    target_sources: list[str] | None,
+) -> None:
+    if message_type not in ("freeform", "template"):
+        raise HTTPException(status_code=400, detail="Invalid message type")
+    if delay_hours <= 0:
+        raise HTTPException(status_code=400, detail="delay_hours must be positive")
+    if delay_hours > 24:
+        raise HTTPException(status_code=400, detail="delay_hours must be within the 24h window (1-24)")
+    if target_sources and not set(target_sources).issubset(VALID_SOURCES):
+        raise HTTPException(status_code=400, detail="Invalid source in target_sources")
+
+
 @router.post("/steps")
 def create_step(
     payload: ReengagementStepCreate,
@@ -49,17 +79,9 @@ def create_step(
 ):
     if payload.type not in ("broadcast", "inbound"):
         raise HTTPException(status_code=400, detail="Invalid step type")
-    if payload.message_type not in ("freeform", "template"):
-        raise HTTPException(status_code=400, detail="Invalid message type")
-    if payload.delay_hours <= 0:
-        raise HTTPException(status_code=400, detail="delay_hours must be positive")
-    if payload.delay_hours > 24:
-        raise HTTPException(status_code=400, detail="delay_hours must be within the 24h window (1-24)")
     if payload.type == "broadcast" and not payload.broadcast_id:
         raise HTTPException(status_code=400, detail="broadcast_id is required for broadcast steps")
-    valid_sources = {"organic", "meta_ads", "csv", "telegram", "instagram", "facebook"}
-    if payload.target_sources and not set(payload.target_sources).issubset(valid_sources):
-        raise HTTPException(status_code=400, detail="Invalid source in target_sources")
+    _validate_step_fields(payload.delay_hours, payload.message_type, payload.target_sources)
 
     db = get_supabase()
     row = {
@@ -78,6 +100,38 @@ def create_step(
     }
     res = db.table("reengagement_steps").insert(row).execute()
     return res.data[0] if res.data else {}
+
+
+@router.patch("/steps/{step_id}")
+def update_step(
+    step_id: str,
+    payload: ReengagementStepUpdate,
+    ctx: dict = Depends(require_leads_manage),
+):
+    _validate_step_fields(payload.delay_hours, payload.message_type, payload.target_sources)
+
+    db = get_supabase()
+    row = {
+        "delay_hours": payload.delay_hours,
+        "target_segments": payload.target_segments,
+        "target_sources": payload.target_sources or None,
+        "message_type": payload.message_type,
+        "message_content": payload.message_content,
+        "template_name": payload.template_name,
+        "template_variables": payload.template_variables,
+        "fallback_template_name": payload.fallback_template_name,
+        "fallback_template_variables": payload.fallback_template_variables,
+    }
+    result = (
+        db.table("reengagement_steps")
+        .update(row)
+        .eq("id", step_id)
+        .eq("tenant_id", ctx["tenant_id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Step not found")
+    return result.data[0]
 
 
 @router.get("/logs")
