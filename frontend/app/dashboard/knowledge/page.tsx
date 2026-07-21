@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search, Plus, Trash2, CheckCircle2, XCircle,
   Upload, FileText, Loader2, Info, AlertCircle,
-  Database, Sparkles, Save, Link as LinkIcon
+  Database, Sparkles, Save, Eye, Download, X, Link as LinkIcon
 } from "lucide-react";
-import { api, API_URL, getAuthHeaders } from "@/lib/api";
+import { api, API_URL, getAuthHeaders, KnowledgeDocContent } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
@@ -65,6 +65,13 @@ export default function KnowledgePage() {
   const [scoringRubric, setScoringRubric] = useState<string>("");
   const [savedRubric, setSavedRubric] = useState<string>("");
   const [rubricSaving, setRubricSaving] = useState(false);
+  const [rubricAutoUpdate, setRubricAutoUpdate] = useState(false);
+  const [rubricToggleSaving, setRubricToggleSaving] = useState(false);
+
+  // Document viewer
+  const [viewingDoc, setViewingDoc] = useState<KnowledgeDocContent | null>(null);
+  const [viewerLoading, setViewerLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
 
 
@@ -154,7 +161,56 @@ export default function KnowledgePage() {
         setScoringRubric(val);
         setSavedRubric(val);
       }
+      const auto = settings.find((s) => s.key === "rubric_auto_update");
+      setRubricAutoUpdate(auto?.display_value === "true");
     } catch {}
+  }
+
+  async function toggleRubricAutoUpdate() {
+    const next = !rubricAutoUpdate;
+    setRubricToggleSaving(true);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/settings/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ updates: { rubric_auto_update: next ? "true" : "false" } }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setRubricAutoUpdate(next);
+      toast.success(
+        next
+          ? "Rubric will update automatically when you save your description."
+          : "Rubric will no longer change when you save your description."
+      );
+    } catch {
+      toast.error("Could not change the setting. Please try again.");
+    } finally {
+      setRubricToggleSaving(false);
+    }
+  }
+
+  async function openDocument(docId: string) {
+    setViewerLoading(true);
+    try {
+      setViewingDoc(await api.knowledge.documentContent(docId));
+    } catch {
+      toast.error("Could not open this document.");
+    } finally {
+      setViewerLoading(false);
+    }
+  }
+
+  async function downloadDocument(docId: string) {
+    setDownloading(true);
+    try {
+      const { url } = await api.knowledge.documentDownloadUrl(docId);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      toast.error("The original file isn't available for this document.");
+    } finally {
+      setDownloading(false);
+    }
   }
 
   async function saveRubric() {
@@ -362,6 +418,13 @@ export default function KnowledgePage() {
                           </p>
                         )}
                       </div>
+                      <button
+                        onClick={() => openDocument(doc.id)}
+                        title="View extracted text"
+                        className="rounded-lg p-2 text-on-surface-muted transition-all hover:bg-primary/5 hover:text-primary"
+                      >
+                        <Eye size={16} />
+                      </button>
                       {canManageKnowledge && (
                         <button
                           onClick={() => deleteDocument(doc.id)}
@@ -445,14 +508,23 @@ export default function KnowledgePage() {
                         {new Date(doc.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {canManageKnowledge && (
+                        <div className="flex items-center justify-end gap-1">
                           <button
-                            onClick={() => deleteDocument(doc.id)}
-                            className="p-2 text-on-surface-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            onClick={() => openDocument(doc.id)}
+                            title="View extracted text"
+                            className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-all"
                           >
-                            <Trash2 size={16} />
+                            <Eye size={16} />
                           </button>
-                        )}
+                          {canManageKnowledge && (
+                            <button
+                              onClick={() => deleteDocument(doc.id)}
+                              className="p-2 text-on-surface-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -539,8 +611,40 @@ export default function KnowledgePage() {
             <div className="mb-4">
               <h2 className="font-display text-lg font-bold text-primary">Scoring Rubric</h2>
               <p className="font-body text-sm text-on-surface-muted mt-0.5">
-                Used to score leads 1–10. Auto-generated from your system prompt — edit to customize.
+                Used to score leads 1–10. Edit it directly, or let it regenerate from your description.
               </p>
+            </div>
+
+            <div className="mb-4 flex items-start justify-between gap-4 rounded-xl border border-surface-mid bg-surface-low p-4">
+              <div className="min-w-0">
+                <p className="font-label text-sm font-semibold text-on-surface">
+                  Update rubric automatically
+                </p>
+                <p className="mt-0.5 font-body text-xs leading-relaxed text-on-surface-muted">
+                  {rubricAutoUpdate
+                    ? "Saving your description will rewrite this rubric. Any manual edits below will be replaced."
+                    : "Your description won't touch this rubric. Turn on to have it rewritten from your description each time you save."}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={rubricAutoUpdate}
+                aria-label="Update rubric automatically"
+                onClick={toggleRubricAutoUpdate}
+                disabled={rubricToggleSaving || !canManageKnowledge}
+                className={cn(
+                  "relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50",
+                  rubricAutoUpdate ? "bg-primary" : "bg-surface-mid"
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                    rubricAutoUpdate ? "translate-x-[22px]" : "translate-x-0.5"
+                  )}
+                />
+              </button>
             </div>
             <textarea
               value={scoringRubric}
@@ -567,6 +671,73 @@ export default function KnowledgePage() {
             </div>
           </div>
 
+        </div>
+      )}
+
+      {viewerLoading && !viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <Loader2 size={28} className="animate-spin text-white" />
+        </div>
+      )}
+
+      {viewingDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setViewingDoc(null)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-card bg-surface shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-surface-mid px-6 py-4">
+              <div className="min-w-0">
+                <h3 className="truncate font-display text-base font-bold text-primary">
+                  {viewingDoc.name}
+                </h3>
+                <p className="mt-0.5 font-body text-xs text-on-surface-muted">
+                  {viewingDoc.file_type.split("/")[1]?.toUpperCase() || "FILE"} ·{" "}
+                  {(viewingDoc.size_bytes / 1024).toFixed(1)} KB ·{" "}
+                  {viewingDoc.full_text.length.toLocaleString()} characters extracted
+                </p>
+              </div>
+              <button
+                onClick={() => setViewingDoc(null)}
+                className="rounded-lg p-1.5 text-on-surface-muted transition-all hover:bg-surface-low hover:text-on-surface"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {viewingDoc.full_text ? (
+                <pre className="whitespace-pre-wrap break-words font-body text-sm leading-relaxed text-on-surface">
+                  {viewingDoc.full_text}
+                </pre>
+              ) : (
+                <p className="py-8 text-center font-body text-sm text-on-surface-muted">
+                  No text was extracted from this document.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-surface-mid px-6 py-4">
+              <p className="font-body text-xs text-on-surface-muted">
+                {viewingDoc.downloadable
+                  ? "This is the text the AI reads. The original file is also available."
+                  : "This is the text the AI reads. The original file wasn't kept for this upload — re-upload it to enable download."}
+              </p>
+              {viewingDoc.downloadable && (
+                <button
+                  onClick={() => downloadDocument(viewingDoc.id)}
+                  disabled={downloading}
+                  className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 font-label text-sm font-semibold text-white transition-all hover:bg-primary/90 disabled:opacity-40"
+                >
+                  <Download size={14} /> {downloading ? "Preparing…" : "Download original"}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

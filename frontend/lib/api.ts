@@ -318,6 +318,18 @@ export interface ReengagementLog {
   leads?: { name: string | null; phone: string; segment: string | null } | null;
 }
 
+export interface KnowledgeDocContent {
+  id: string;
+  name: string;
+  file_type: string;
+  size_bytes: number;
+  status: string;
+  created_at: string;
+  full_text: string;
+  /** False for documents uploaded before the original file was kept — text only. */
+  downloadable: boolean;
+}
+
 export interface SystemStatus {
   has_meta: boolean;
   has_gemini: boolean;
@@ -1279,6 +1291,10 @@ export const api = {
       apiFetch<{ success: boolean }>(`/api/v1/knowledge/documents/${id}`, {
         method: "DELETE",
       }),
+    documentContent: (id: string) =>
+      apiFetch<KnowledgeDocContent>(`/api/v1/knowledge/documents/${id}/content`),
+    documentDownloadUrl: (id: string) =>
+      apiFetch<{ url: string; name: string }>(`/api/v1/knowledge/documents/${id}/download`),
     listCampaignTags: async () => {
       const res = await apiFetch<{ data: Array<{ id: string; name: string; color?: string }> }>(`/api/v1/broadcast-tags/`);
       return res.data || [];

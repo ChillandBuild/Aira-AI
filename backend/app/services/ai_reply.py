@@ -426,16 +426,13 @@ def _language_rule_block(mode: str, message: str) -> str:
     ) + f"\n\nCUSTOMER'S LATEST MESSAGE SCRIPT: {_latest_message_script_note(message)}"
 
 
-_ACCURACY_RULE = (
-    "\n\nACCURACY RULE: You do NOT have access to real consultation pricing, payment methods, "
-    "guarantees, or anything outside your knowledge base -- treat these as unknown to you, "
-    "even if a plausible-sounding number or answer occurs to you. Never state a specific price, "
-    "fee, or payment method under any circumstance. For pricing, payment, guarantees, or any "
-    "other question not directly answered by your knowledge base, always say the exact same "
-    "kind of thing: that you will connect them with the team for exact details. Do not treat "
-    "this as a fallback for only when you're unsure -- treat it as the mandatory answer for "
-    "these topics every time, regardless of how confident you feel."
-)
+# NOTE: the hardcoded ACCURACY RULE was removed 2026-07-20 (operator decision). It
+# previously banned stating any price/fee/payment method and forced a "I'll connect you
+# with the team" answer for anything outside the knowledge base, for every client. It was
+# removed so each client's master prompt can decide how to handle pricing. Consequence:
+# there is no longer a platform-wide anti-invention guard -- each client's master prompt
+# must carry its own ("never invent prices, dates, predictions, or guarantees"), or that
+# client's AI may state a plausible-sounding number it made up.
 
 
 _LAST_SEND_ERROR: str | None = None
@@ -1253,7 +1250,6 @@ async def generate_reply(
 
         reply_language_mode = _resolve_reply_language_mode(tenant_id)
         system_prompt += _language_rule_block(reply_language_mode, message)
-        system_prompt += _ACCURACY_RULE
 
         # Escalated leads keep talking to the AI, but it must answer as a
         # holding presence, not as if nothing happened. Degrades to a normal
