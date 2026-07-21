@@ -26,6 +26,8 @@ No redirect domain, no custom tracking link, no change to Meta ad destination/ob
 **`ad_insights_daily`** — one row per creative per day, populated by a scheduled sync job:
 - `ad_creative_id`, `date`, `clicks`, `spend`
 
+Field note: Meta's Insights API returns two click metrics — `clicks` (all ad engagement, broader than intended) and `inline_link_clicks` (actual taps on the ad's CTA/link). Use `inline_link_clicks` as the "Clicks" value throughout the dashboard/CSV — it's the precise measure of people who tapped through toward WhatsApp, not general ad engagement.
+
 **`leads`** — new column:
 - `attributed_ad_creative_id` (nullable FK to `ad_creatives`)
 
@@ -42,7 +44,7 @@ No third "match to most recent click" fallback — deliberately dropped. Without
 
 Meta does not emit a webhook event for a click that never becomes a message — this is a hard limitation of native Click-to-WhatsApp ads, not a gap in this design. The click count per creative comes from **Meta's Ads Insights API** (`level=ad`), pulled by a scheduled backend job (new: `backend/app/services/meta_ads_insights_sync.py`) and stored in `ad_insights_daily`.
 
-Verified against current Meta documentation (not assumed from training knowledge): the Ads Insights API supports `level=ad` queries returning `clicks`/`spend` per ad, using `ads_read`/`business_management` scopes, and Meta's own recommended token type for unattended server-side access is a Business Manager **System User token** (no short expiry, unlike a regular OAuth user token). Sources: [Ads Insights API](https://developers.facebook.com/documentation/ads-commerce/marketing-api/insights), [Click to WhatsApp ads](https://developers.facebook.com/documentation/ads-commerce/marketing-api/ad-creative/messaging-ads/click-to-whatsapp/).
+Verified two ways, not just from documentation: (1) against current Meta docs — the Ads Insights API supports `level=ad` queries returning `clicks`/`spend` per ad, using `ads_read`/`business_management` scopes, with a Business Manager **System User token** as the recommended type for unattended server-side access (no short expiry, unlike a regular OAuth user token). Sources: [Ads Insights API](https://developers.facebook.com/documentation/ads-commerce/marketing-api/insights), [Click to WhatsApp ads](https://developers.facebook.com/documentation/ads-commerce/marketing-api/ad-creative/messaging-ads/click-to-whatsapp/). (2) Live-tested on 2026-07-21 against the real "Astro Tamil" ad account (`act_1910086849857231`) with a System User token scoped to `ads_read` — confirmed 11 distinct ads returned individual `clicks`/`inline_link_clicks`/`spend` values correctly at `level=ad`.
 
 ### Per-tenant credentials
 
