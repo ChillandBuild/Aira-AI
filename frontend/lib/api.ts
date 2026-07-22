@@ -1744,6 +1744,36 @@ export const api = {
       a.remove();
       window.URL.revokeObjectURL(url);
     },
+    adFilters: async () => apiFetch<AdFilterTree>(`/api/v1/inbound-leads/ad-filters`),
+    adPerformance: async (params?: AdPerformanceParams) => {
+      const qs = new URLSearchParams();
+      if (params?.campaign_id) qs.set("campaign_id", params.campaign_id);
+      if (params?.adset_id) qs.set("adset_id", params.adset_id);
+      if (params?.ad_creative_id) qs.set("ad_creative_id", params.ad_creative_id);
+      if (params?.date_from) qs.set("date_from", params.date_from);
+      if (params?.date_to) qs.set("date_to", params.date_to);
+      return apiFetch<{ data: AdPerformanceRow[] }>(`/api/v1/inbound-leads/ad-performance?${qs}`);
+    },
+    adPerformanceExportCsv: async (params?: AdPerformanceParams) => {
+      const qs = new URLSearchParams();
+      if (params?.campaign_id) qs.set("campaign_id", params.campaign_id);
+      if (params?.adset_id) qs.set("adset_id", params.adset_id);
+      if (params?.ad_creative_id) qs.set("ad_creative_id", params.ad_creative_id);
+      if (params?.date_from) qs.set("date_from", params.date_from);
+      if (params?.date_to) qs.set("date_to", params.date_to);
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/inbound-leads/ad-performance/export?${qs}`, { headers });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ad_performance.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    },
   },
   templates: {
     list: async () => {
@@ -1815,6 +1845,42 @@ export interface InboundLead {
   campaign_name: string;
   campaign_platform: string;
   keyword: string;
+}
+
+export interface AdPerformanceRow {
+  ad_creative_id: string;
+  creative_label: string;
+  meta_ad_id: string;
+  adset_id: string | null;
+  adset_name: string | null;
+  campaign_id: string | null;
+  inline_link_clicks: number;
+  messages: number;
+  clicked_no_message: number;
+  qualified: number;
+  hot: number;
+  sales: number;
+  spend: number;
+  revenue: number;
+  cpc: number | null;
+  cost_per_message: number | null;
+  cost_per_qualified: number | null;
+  cost_per_hot: number | null;
+  roas: number | null;
+}
+
+export interface AdFilterTree {
+  campaigns: { id: string; name: string }[];
+  adsets: { id: string; name: string; campaign_id: string | null }[];
+  creatives: { id: string; name: string; adset_id: string | null; campaign_id: string | null }[];
+}
+
+export interface AdPerformanceParams {
+  campaign_id?: string;
+  adset_id?: string;
+  ad_creative_id?: string;
+  date_from?: string;
+  date_to?: string;
 }
 
 export { API_URL };

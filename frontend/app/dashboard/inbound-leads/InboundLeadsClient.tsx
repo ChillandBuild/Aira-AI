@@ -11,6 +11,7 @@ import { cn, formatPhone } from "@/lib/utils";
 import { SegmentBadge } from "@/components/segment-badge";
 import { toast } from "sonner";
 import { MobileRecordCard, MobileRecordField, MobileRecordGrid, MobileRecordHeader } from "@/components/MobileRecord";
+import { AdPerformanceTab } from "./AdPerformanceTab";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -271,6 +272,7 @@ export function InboundLeadsClient({
 }: InboundLeadsClientProps) {
   const [exporting, setExporting] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [tab, setTab] = useState<"leads" | "performance">("leads");
 
   // Filters
   const [selectedCampaign, setSelectedCampaign] = useState("");
@@ -359,6 +361,32 @@ export function InboundLeadsClient({
 
   return (
     <div>
+      {/* Tab switch */}
+      <div className="mb-5 inline-flex gap-1 rounded-2xl border border-surface-mid bg-surface-mid/40 p-1">
+        <button
+          onClick={() => setTab("leads")}
+          className={cn(
+            "px-4 py-1.5 rounded-xl font-label text-[13px] font-bold transition-all",
+            tab === "leads" ? "bg-white text-violet-700 shadow-sm" : "text-on-surface-muted hover:text-on-surface",
+          )}
+        >
+          Leads
+        </button>
+        <button
+          onClick={() => setTab("performance")}
+          className={cn(
+            "px-4 py-1.5 rounded-xl font-label text-[13px] font-bold transition-all",
+            tab === "performance" ? "bg-white text-violet-700 shadow-sm" : "text-on-surface-muted hover:text-on-surface",
+          )}
+        >
+          Ad Performance
+        </button>
+      </div>
+
+      {tab === "performance" ? (
+        <AdPerformanceTab />
+      ) : (
+      <>
 
       {/* ── Filter Panel ───────────────────────────────────────── */}
       <div className={cn(
@@ -701,6 +729,8 @@ export function InboundLeadsClient({
           </>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
