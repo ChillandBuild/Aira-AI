@@ -9,6 +9,9 @@ import {
   CallLog,
   NoteWithLead,
   InboundLead,
+  AdFilterTree,
+  AdPerformanceRow,
+  AdPerformanceParams,
 } from "@/lib/api";
 
 import { fetchNotes } from "@/app/dashboard/telecalling/lib/notes-api";
@@ -174,6 +177,27 @@ export function useInboundCampaigns(
   return useSWR<{ id: string; campaign_name: string; platform: string }[]>(
     enabled ? "inbound-leads/campaigns" : null,
     () => api.inboundLeads.campaigns(),
+    { ...defaultConfig, fallbackData },
+  );
+}
+
+export function useAdFilters(enabled = true, fallbackData?: AdFilterTree) {
+  return useSWR<AdFilterTree>(
+    enabled ? "inbound-leads/ad-filters" : null,
+    () => api.inboundLeads.adFilters(),
+    { ...defaultConfig, fallbackData },
+  );
+}
+
+export function useAdPerformance(
+  params: AdPerformanceParams,
+  enabled = true,
+  fallbackData?: { data: AdPerformanceRow[] },
+) {
+  const key = enabled ? `ad-performance:${JSON.stringify(params)}` : null;
+  return useSWR<{ data: AdPerformanceRow[] }>(
+    key,
+    () => api.inboundLeads.adPerformance(params),
     { ...defaultConfig, fallbackData },
   );
 }
