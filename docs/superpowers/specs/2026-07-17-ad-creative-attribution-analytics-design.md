@@ -24,9 +24,9 @@ No redirect domain, no custom tracking link, no change to Meta ad destination/ob
 - `prefilled_message_code`
 
 **`ad_insights_daily`** — one row per creative per day, populated by a scheduled sync job:
-- `ad_creative_id`, `date`, `clicks`, `spend`
+- `ad_creative_id`, `date`, `clicks`, `inline_link_clicks`, `spend`
 
-Field note: Meta's Insights API returns two click metrics — `clicks` (all ad engagement, broader than intended) and `inline_link_clicks` (actual taps on the ad's CTA/link). Use `inline_link_clicks` as the "Clicks" value throughout the dashboard/CSV — it's the precise measure of people who tapped through toward WhatsApp, not general ad engagement.
+Field note: Meta's Insights API returns two click metrics — `clicks` (all ad engagement, broader than intended) and `inline_link_clicks` (actual taps on the ad's CTA/link). Store both, but use `inline_link_clicks` as the "Clicks" value throughout the dashboard/CSV and in the derived "clicked/no-message" formula — it's the precise measure of people who tapped through toward WhatsApp, not general ad engagement.
 
 **`leads`** — new column:
 - `attributed_ad_creative_id` (nullable FK to `ad_creatives`)
@@ -55,7 +55,7 @@ Aira AI's existing pattern for Meta-family credentials (`meta_access_token`, `in
 Per creative, "clicked but no message" is a **derived dashboard number**, not an individual lead status:
 
 ```
-clicked_no_message = ad_insights_daily.clicks (for the period) − count(leads where attributed_ad_creative_id = X)
+clicked_no_message = ad_insights_daily.inline_link_clicks (for the period) − count(leads where attributed_ad_creative_id = X)
 ```
 
 This number can be occasionally imprecise at date-range edges (Meta's click count and Aira's message count are independently sourced — e.g. someone clicks on the last day of a range and messages the next day), and self-corrects over a campaign's full lifetime. Not a defect to fix; an expected characteristic of combining two independent data sources.
@@ -70,12 +70,40 @@ message_received → qualified → hot_lead → converted
 
 `clicked` and `whatsapp_click_no_message` exist only as aggregate dashboard metrics per creative (see above), never as a value on an individual lead row.
 
-## Placement
+## Creative auto-import (zero-config)
 
-- **Frontend**: new Analytics section inside `frontend/app/dashboard/inbound-leads/` (not the top-level `dashboard/analytics/` page — inbound-leads already models ad-attributed vs. organic leads via `ad_campaign_id`, making it the closer conceptual home). Campaign filter → per-creative breakdown table (Clicks, Messages, Clicked/no-message, Qualified, Hot leads, Sales, Spend, Cost per click, Cost per WhatsApp conversation, Cost per qualified lead, Cost per hot lead, Sales revenue, ROAS) → CSV export button.
-- **Backend**: new endpoints in `backend/app/routes/inbound_leads.py` (which already has the `ad_campaign_id`-based filtering plumbing), including a CSV export endpoint following the proven `csv.DictWriter` + `Response(media_type="text/csv")` pattern already used in `backend/app/routes/leads.py:474`.
+Creatives are **not** manually registered. Meta's Insights API (`level=ad`) returns `ad_id`, `ad_name`, `adset_name`, `campaign_name`, and `campaign_id` for every ad alongside the metrics — verified live on 2026-07-21 (returned names like "Clarity", "Baby", "Office"). The sync job therefore **upserts `ad_creatives` rows directly from the Insights response**:
+
+- `meta_ad_id` ← `ad_id`
+- `creative_label` ← `ad_name` (tenant can rename later; sync never overwrites a tenant-edited label)
+- `campaign_id` ← resolved to the existing `ad_campaigns` row via `growth.get_or_create_campaign()` keyed on Meta's `campaign_id`/`campaign_name`, keeping one source of truth for campaigns
+
+Because the webhook's `referral.source_id` is that same `ad_id`, attribution matches an incoming message to an auto-imported creative with no setup step. A creative appears in the dashboard once it has spend/impressions (i.e., once Meta reports insights for it). Consequence to accept: a brand-new ad with zero delivery won't show until its first insights row syncs — expected, not a defect.
+
+## Inbound Analytics — "Ad Performance" sub-tab (chosen layout)
+
+The inbound-leads page gains a **two-tab switcher** at the top:
+
+- **Leads** — the existing lead table (`InboundLeadsClient`), completely unchanged.
+- **Ad Performance** — new. A per-creative comparison table, one row per `ad_creative`, grouped/filterable by campaign.
+
+Rationale for sub-tabs over stacked/expandable: keeps the existing lead list untouched (lowest risk), gives the wide metric table its own full-width surface, and matches the tab pattern already used on `dashboard/analytics/page.tsx`. The performance table is aggregate per-creative data, a different granularity from the individual-lead list, so separating them by tab avoids mixing two data shapes on one scroll.
+
+**Ad Performance table columns** (per creative), grouped for readability, horizontal scroll on narrow screens (reusing the existing `overflow-x-auto` table pattern):
+- *Volume*: Creative, Clicks (`inline_link_clicks`), Messages (attributed leads), Clicked/no-message (derived)
+- *Quality*: Qualified, Hot leads, Sales
+- *Money*: Spend, Cost per click, Cost per WhatsApp conversation, Cost per qualified lead, Cost per hot lead, Sales revenue, ROAS
+
+**Shared controls**: campaign filter and date range are shared with the Leads tab (same filter state), so switching tabs keeps the same campaign/date scope. Each tab has its own CSV export — Leads exports individual leads (existing `/inbound-leads/export`), Ad Performance exports the per-creative rows (new endpoint).
+
+**Frontend structure**: extract the tab shell into `inbound-leads/page.tsx`'s client; the current body becomes a `LeadsTab` and the new view an `AdPerformanceTab` component in its own file (the existing `InboundLeadsClient.tsx` is already 706 lines — the new view goes in a sibling file, not appended to it).
+
+## Placement summary
+
+- **Frontend**: `frontend/app/dashboard/inbound-leads/` — add tab switcher + new `AdPerformanceTab` component (sibling file). Existing `InboundLeadsClient` lead table unchanged.
+- **Backend**: new endpoints in `backend/app/routes/inbound_leads.py` — `GET /inbound-leads/ad-performance` (per-creative aggregation) and `GET /inbound-leads/ad-performance/export` (CSV, following the `csv.DictWriter` + `Response(media_type="text/csv")` pattern in `backend/app/routes/leads.py:474`). Aggregation logic in a new `growth.py` function joining `ad_creatives` × `ad_insights_daily` × `leads`.
 - **Schema**: one new Supabase migration adding `ad_creatives`, `ad_insights_daily`, `leads.attributed_ad_creative_id`, and the two new `app_settings` fields (`meta_ads_access_token`, `meta_ads_account_id`), numbered after the latest existing migration.
-- **Sync job**: new scheduled service (`backend/app/services/meta_ads_insights_sync.py`) pulling Meta Ads Insights data daily per `meta_ad_id`, for each tenant with `meta_ads_access_token`/`meta_ads_account_id` configured.
+- **Sync job**: new scheduled service (`backend/app/services/meta_ads_insights_sync.py`) that, per tenant with `meta_ads_access_token`/`meta_ads_account_id` configured, pulls `level=ad` insights, upserts `ad_creatives` (auto-import above), and writes daily rows into `ad_insights_daily`.
 
 ## Explicitly out of scope for this build (Phase 2)
 
