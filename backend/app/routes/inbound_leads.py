@@ -351,3 +351,67 @@ async def export_inbound_leads(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=inbound_leads.csv"},
     )
+
+
+@router.get("/ad-filters")
+async def ad_filters(tenant_id: str = Depends(get_tenant_id)):
+    """Campaign -> adset -> creative option tree for the cascading dropdowns."""
+    from app.services.ad_performance import build_ad_filter_tree
+    db = get_supabase()
+    return build_ad_filter_tree(db, tenant_id)
+
+
+@router.get("/ad-performance")
+async def ad_performance(
+    campaign_id: str | None = Query(None),
+    adset_id: str | None = Query(None),
+    ad_creative_id: str | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Per-creative performance rows for the Ad Performance tab."""
+    from app.services.ad_performance import build_creative_performance
+    db = get_supabase()
+    rows = build_creative_performance(
+        db, tenant_id,
+        campaign_id=campaign_id, adset_id=adset_id, ad_creative_id=ad_creative_id,
+        date_from=date_from, date_to=date_to,
+    )
+    return {"data": rows}
+
+
+@router.get("/ad-performance/export")
+async def ad_performance_export(
+    campaign_id: str | None = Query(None),
+    adset_id: str | None = Query(None),
+    ad_creative_id: str | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """CSV of the per-creative performance table, honoring the same filters."""
+    from app.services.ad_performance import build_creative_performance
+    db = get_supabase()
+    rows = build_creative_performance(
+        db, tenant_id,
+        campaign_id=campaign_id, adset_id=adset_id, ad_creative_id=ad_creative_id,
+        date_from=date_from, date_to=date_to,
+    )
+    fieldnames = [
+        "creative_label", "adset_name", "inline_link_clicks", "messages",
+        "clicked_no_message", "qualified", "hot", "sales", "spend",
+        "cpc", "cost_per_message", "cost_per_qualified", "cost_per_hot",
+        "revenue", "roas",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in fieldnames})
+    filename = f"ad_performance_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode("utf-8-sig")),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
