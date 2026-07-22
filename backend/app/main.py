@@ -37,6 +37,7 @@ _heartbeats = {
     "callback-notifications": None,
     "number-quality-sync": None,
     "daily-digest": None,
+    "ad-insights-sync": None,
 }
 
 
@@ -264,6 +265,18 @@ async def _sync_all_number_quality() -> None:
         logger.error(f"Number quality sync error: {e}")
 
 
+async def _sync_ad_insights() -> None:
+    """APScheduler job: pull Meta Ads Insights per tenant and store daily
+    clicks/spend for the Ad Performance tab."""
+    _heartbeats["ad-insights-sync"] = datetime.now(timezone.utc)
+    try:
+        import asyncio
+        from app.services.meta_ads_insights_sync import sync_all_tenants_ad_insights
+        await asyncio.to_thread(sync_all_tenants_ad_insights)
+    except Exception as e:
+        logger.error(f"Ad insights scheduler error: {e}")
+
+
 async def _generate_daily_digests() -> None:
     """APScheduler cron job: generate daily coaching digests for all callers."""
     _heartbeats["daily-digest"] = datetime.now(timezone.utc)
@@ -382,6 +395,13 @@ async def lifespan(app: FastAPI):
         trigger="interval",
         hours=24,
         id="number-quality-sync",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        _sync_ad_insights,
+        trigger="interval",
+        hours=6,
+        id="ad-insights-sync",
         replace_existing=True,
     )
     _scheduler.add_job(
