@@ -217,6 +217,7 @@ async def update_settings(
         "instagram_access_token",
         "instagram_app_secret",
         "facebook_access_token",
+        "meta_ads_access_token",
     }
     updated = []
     for key, value in payload.updates.items():

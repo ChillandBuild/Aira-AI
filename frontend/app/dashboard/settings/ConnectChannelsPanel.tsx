@@ -173,6 +173,8 @@ const CHANNELS: ChannelConfig[] = [
       { key: "meta_access_token", label: "Permanent Access Token", secret: true, required: true },
       { key: "meta_webhook_verify_token", label: "Webhook Verify Token", secret: true, required: true, hint: "Pick any string. Paste the same value into Meta Developer App → Webhook → Verify Token (shared by WhatsApp, Instagram, Facebook)." },
       { key: "meta_app_secret", label: "Meta App Secret", secret: true, required: true, hint: "Meta Developer App → Settings → Basic → App Secret. Used to verify inbound Facebook + Instagram webhooks." },
+      { key: "meta_ads_account_id", label: "Ads Account ID (optional)", secret: false, required: false, hint: "For the Ad Performance report. Business Settings → Accounts → Ad accounts. Digits or act_<digits>." },
+      { key: "meta_ads_access_token", label: "Ads System-User Token (optional)", secret: true, required: false, hint: "For the Ad Performance report. A System User token with the ads_read permission. Powers per-creative click & spend analytics." },
     ],
     hasActivation: true,
   },
