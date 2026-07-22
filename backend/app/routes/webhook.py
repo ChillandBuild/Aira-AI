@@ -455,6 +455,30 @@ async def whatsapp_webhook(
                                     db.table("leads").update({"ad_campaign_id": campaign["id"]}).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
                                     ad_attributed = True
                                     logger.info(f"CTWA referral: lead {lead_id} linked to ad campaign {campaign['id']} (ad_id={ad_id})")
+
+                                    # Per-creative attribution: match the referral ad_id to an
+                                    # auto-imported ad_creatives row. Only set when currently
+                                    # NULL so a repeat contact never re-attributes the lead.
+                                    try:
+                                        creative = (
+                                            db.table("ad_creatives").select("id")
+                                            .eq("tenant_id", tenant_id).eq("meta_ad_id", ad_id)
+                                            .limit(1).execute()
+                                        )
+                                        creative_row = (creative.data or [None])[0]
+                                        if creative_row:
+                                            current = (
+                                                db.table("leads").select("attributed_ad_creative_id")
+                                                .eq("id", lead_id).eq("tenant_id", tenant_id)
+                                                .limit(1).execute()
+                                            )
+                                            if current.data and not current.data[0].get("attributed_ad_creative_id"):
+                                                db.table("leads").update(
+                                                    {"attributed_ad_creative_id": creative_row["id"]}
+                                                ).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+                                                logger.info(f"CTWA creative: lead {lead_id} -> creative {creative_row['id']} (ad_id={ad_id})")
+                                    except Exception as cr_err:
+                                        logger.warning(f"Creative attribution failed for lead {lead_id}: {cr_err}")
                         except Exception as ctwa_err:
                             logger.warning(f"CTWA referral tracking failed for lead {lead_id}: {ctwa_err}")
 
