@@ -1,6 +1,7 @@
 from app.services.meta_ads_insights_sync import (
     normalize_account_id,
     upsert_creative_from_insight,
+    sync_tenant_ad_insights_verbose,
 )
 
 
@@ -34,6 +35,9 @@ class FakeTable:
     def update(self, payload):
         self._op, self._payload = "update", payload; return self
 
+    def upsert(self, payload, on_conflict=None):
+        self._op, self._payload, self._on_conflict = "upsert", payload, on_conflict; return self
+
     def _matches(self, r):
         for k, v in self._filters.items():
             if isinstance(v, tuple) and v[0] == "in":
@@ -59,6 +63,18 @@ class FakeTable:
                 if self._matches(r):
                     r.update(self._payload)
             class R: data = []
+            return R()
+        if self._op == "upsert":
+            key_cols = (self._on_conflict or "id").split(",")
+            existing = next(
+                (r for r in rows if all(r.get(k) == self._payload.get(k) for k in key_cols)),
+                None,
+            )
+            if existing:
+                existing.update(self._payload)
+            else:
+                rows.append(dict(self._payload))
+            class R: data = [self._payload]
             return R()
         class R: data = []
         return R()
@@ -99,3 +115,49 @@ def test_upsert_creative_does_not_overwrite_edited_label(monkeypatch):
         "adset_id": "as1", "adset_name": "Set", "campaign_id": "c1", "campaign_name": "Camp",
     })
     assert db.store["ad_creatives"][0]["creative_label"] == "My Renamed"
+
+
+def test_verbose_sync_reports_missing_credentials():
+    db = FakeDB()
+    result = sync_tenant_ad_insights_verbose(db, "t1")
+    assert result["ok"] is False
+    assert "credentials" in result["error"].lower() or "token" in result["error"].lower()
+    assert result["written"] == 0
+
+
+def test_verbose_sync_reports_fetch_failure(monkeypatch):
+    import app.services.meta_ads_insights_sync as mod
+    db = FakeDB()
+    db.store["app_settings"] = [
+        {"tenant_id": "t1", "key": "meta_ads_access_token", "value": "tok"},
+        {"tenant_id": "t1", "key": "meta_ads_account_id", "value": "act_1"},
+    ]
+    def boom(*a, **k):
+        raise RuntimeError("Meta 400: Missing Permissions")
+    monkeypatch.setattr(mod, "_fetch_insights", boom)
+    result = sync_tenant_ad_insights_verbose(db, "t1")
+    assert result["ok"] is False
+    assert "Missing Permissions" in result["error"]
+    assert result["written"] == 0
+
+
+def test_verbose_sync_writes_and_reports_success(monkeypatch):
+    import app.services.meta_ads_insights_sync as mod
+    monkeypatch.setattr(mod, "get_or_create_campaign", lambda **k: {"id": "camp-1"})
+    db = FakeDB()
+    db.store["app_settings"] = [
+        {"tenant_id": "t1", "key": "meta_ads_access_token", "value": "tok"},
+        {"tenant_id": "t1", "key": "meta_ads_account_id", "value": "act_1"},
+    ]
+    fake_rows = [{
+        "ad_id": "A1", "ad_name": "Clarity", "adset_id": "as1", "adset_name": "Set",
+        "campaign_id": "c1", "campaign_name": "Camp",
+        "clicks": "5", "inline_link_clicks": "4", "spend": "10.0", "date_start": "2026-07-20",
+    }]
+    monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: fake_rows)
+    result = sync_tenant_ad_insights_verbose(db, "t1")
+    assert result["ok"] is True
+    assert result["error"] is None
+    assert result["rows_fetched"] == 1
+    assert result["written"] == 1
+    assert len(db.store["ad_insights_daily"]) == 1

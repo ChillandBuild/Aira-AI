@@ -1745,6 +1745,11 @@ export const api = {
       window.URL.revokeObjectURL(url);
     },
     adFilters: async () => apiFetch<AdFilterTree>(`/api/v1/inbound-leads/ad-filters`),
+    adSyncNow: async () =>
+      apiFetch<{ ok: boolean; error: string | null; rows_fetched: number; written: number }>(
+        `/api/v1/inbound-leads/ad-sync-now`,
+        { method: "POST" },
+      ),
     adPerformance: async (params?: AdPerformanceParams) => {
       const qs = new URLSearchParams();
       if (params?.campaign_id) qs.set("campaign_id", params.campaign_id);
