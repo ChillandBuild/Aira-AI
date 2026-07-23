@@ -415,3 +415,12 @@ async def ad_performance_export(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.post("/ad-sync-now")
+async def ad_sync_now(tenant_id: str = Depends(get_tenant_id)):
+    """Manually trigger the Meta Ads Insights sync for this tenant, returning
+    a diagnostic result instead of waiting on the 6h scheduled job."""
+    from app.services.meta_ads_insights_sync import sync_tenant_ad_insights_verbose
+    db = get_supabase()
+    return sync_tenant_ad_insights_verbose(db, tenant_id)

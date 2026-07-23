@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { api, AdPerformanceRow } from "@/lib/api";
 import { useAdFilters, useAdPerformance } from "@/hooks/useApi";
-import { Download, RefreshCw, ChevronDown, Megaphone } from "lucide-react";
+import { Download, RefreshCw, ChevronDown, Megaphone, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ export function AdPerformanceTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const { data: filters } = useAdFilters();
   const params = {
@@ -57,6 +58,27 @@ export function AdPerformanceTab() {
     }
     return t;
   }, [rows]);
+
+  async function handleSyncNow() {
+    setSyncing(true);
+    try {
+      const result = await api.inboundLeads.adSyncNow();
+      if (result.ok) {
+        toast.success(
+          result.written > 0
+            ? `Synced ${result.written} row${result.written === 1 ? "" : "s"} from Meta`
+            : "Sync ran, but Meta returned no ad data for this account.",
+        );
+        mutate();
+      } else {
+        toast.error(result.error ?? "Sync failed — no details returned");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function handleExport() {
     setExporting(true);
@@ -123,6 +145,11 @@ export function AdPerformanceTab() {
           <button onClick={() => mutate()} disabled={isValidating}
             className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all disabled:opacity-40 shadow-sm">
             <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
+          </button>
+          <button onClick={handleSyncNow} disabled={syncing}
+            title="Pull the latest clicks & spend from Meta right now, instead of waiting for the scheduled sync"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 font-label text-xs font-bold transition-all disabled:opacity-40 shadow-sm">
+            <Zap size={12} className={syncing ? "animate-pulse" : ""} /> {syncing ? "Syncing…" : "Sync Now"}
           </button>
           <button onClick={handleExport} disabled={exporting || rows.length === 0}
             className="flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm">

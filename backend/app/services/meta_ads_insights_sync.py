@@ -123,9 +123,27 @@ def _fetch_insights(token: str, account: str, date_preset: str) -> list[dict]:
     return out
 
 
+def _write_insight_row(db, tenant_id: str, creative_id: str, row: dict) -> None:
+    """Upsert one ad_insights_daily row. Raises on failure — caller decides
+    whether to swallow (background job) or surface (manual trigger)."""
+    insight_date = row.get("date_start")  # present when time_increment=1
+    if not insight_date:
+        raise ValueError(f"insight row for ad_id={row.get('ad_id')} has no date_start")
+    db.table("ad_insights_daily").upsert({
+        "tenant_id": tenant_id,
+        "ad_creative_id": creative_id,
+        "insight_date": insight_date,
+        "clicks": int(float(row.get("clicks", 0) or 0)),
+        "inline_link_clicks": int(float(row.get("inline_link_clicks", 0) or 0)),
+        "spend": float(row.get("spend", 0) or 0),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }, on_conflict="tenant_id,ad_creative_id,insight_date").execute()
+
+
 def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d") -> int:
     """Pull level=ad daily insights, upsert creatives, write ad_insights_daily.
-    Returns number of daily rows written. Best-effort per row.
+    Returns number of daily rows written. Best-effort per row — used by the
+    background scheduler, which must never crash on one tenant's bad data.
     """
     creds = _get_ads_credentials(db, tenant_id)
     if not creds:
@@ -142,24 +160,54 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
         creative_id = upsert_creative_from_insight(db, tenant_id, row)
         if not creative_id:
             continue
-        insight_date = row.get("date_start")  # present when time_increment=1
-        if not insight_date:
-            continue
         try:
-            db.table("ad_insights_daily").upsert({
-                "tenant_id": tenant_id,
-                "ad_creative_id": creative_id,
-                "insight_date": insight_date,
-                "clicks": int(float(row.get("clicks", 0) or 0)),
-                "inline_link_clicks": int(float(row.get("inline_link_clicks", 0) or 0)),
-                "spend": float(row.get("spend", 0) or 0),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }, on_conflict="tenant_id,ad_creative_id,insight_date").execute()
+            _write_insight_row(db, tenant_id, creative_id, row)
             written += 1
         except Exception as e:
             logger.warning(f"insight row write failed (tenant {tenant_id}): {e}")
     logger.info(f"Ads insights sync: tenant {tenant_id} wrote {written} daily rows")
     return written
+
+
+def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "last_30d") -> dict:
+    """Manual-trigger variant for the 'Sync now' button: same pipeline as
+    sync_tenant_ad_insights, but returns a diagnostic result (credential
+    status, fetch errors, per-row write errors) instead of swallowing
+    everything into a background-job log line.
+    """
+    creds = _get_ads_credentials(db, tenant_id)
+    if not creds:
+        return {
+            "ok": False,
+            "error": "No Ads Account ID / Ads System-User Token configured for this tenant.",
+            "rows_fetched": 0,
+            "written": 0,
+        }
+    token, account = creds
+    try:
+        rows = _fetch_insights(token, account, date_preset)
+    except Exception as e:
+        return {"ok": False, "error": f"Meta API request failed: {e}", "rows_fetched": 0, "written": 0}
+
+    written = 0
+    row_errors: list[str] = []
+    for row in rows:
+        try:
+            creative_id = upsert_creative_from_insight(db, tenant_id, row)
+            if not creative_id:
+                row_errors.append(f"ad_id={row.get('ad_id')}: no ad_id in Meta response")
+                continue
+            _write_insight_row(db, tenant_id, creative_id, row)
+            written += 1
+        except Exception as e:
+            row_errors.append(f"ad_id={row.get('ad_id')}: {e}")
+
+    return {
+        "ok": not row_errors,
+        "error": "; ".join(row_errors[:3]) if row_errors else None,
+        "rows_fetched": len(rows),
+        "written": written,
+    }
 
 
 def sync_all_tenants_ad_insights() -> None:
