@@ -1,9 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
-import { MetaAdsPerfRow } from "@/lib/api";
+import { api, MetaAdsPerfRow } from "@/lib/api";
 import { useMetaAdsPerformance } from "@/hooks/useApi";
 import { RefreshCw, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type Props = {
   dateFrom: string; dateTo: string;
@@ -41,6 +42,30 @@ export function MetaAdsPerformanceTab({ dateFrom, dateTo, setDateFrom, setDateTo
   const params = { level, date_from: dateFrom || undefined, date_to: dateTo || undefined };
   const { data, isValidating, mutate } = useMetaAdsPerformance(params);
   const rows: MetaAdsPerfRow[] = useMemo(() => data?.data ?? [], [data]);
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+
+  async function toggleStatus(row: MetaAdsPerfRow) {
+    if (level !== "campaign") return;
+    const active = (row.status ?? "").toUpperCase() !== "ACTIVE";
+    setBusy((b) => ({ ...b, [row.group_id]: true }));
+    try {
+      const res = await api.metaAds.setStatus(row.group_id, active);
+      if (res.ok) { toast.success(active ? "Campaign activated" : "Campaign paused"); mutate(); }
+      else toast.error(res.error ?? "Status change failed");
+    } finally {
+      setBusy((b) => ({ ...b, [row.group_id]: false }));
+    }
+  }
+
+  async function editBudget(row: MetaAdsPerfRow) {
+    const raw = window.prompt(`New daily budget in ₹ for "${row.name}" (shared across the whole campaign):`);
+    if (!raw) return;
+    const val = Number(raw);
+    if (!val || val <= 0) { toast.error("Enter a valid amount"); return; }
+    const res = await api.metaAds.updateBudget(row.group_id, { daily_budget_inr: val });
+    if (res.ok) { toast.success("Budget updated"); mutate(); }
+    else toast.error(res.error ?? "Budget update failed");
+  }
 
   const headers = ["Name", "Status", "Budget", "Spend", "Impr.", "Reach", "Results",
     "Cost/Result", "Clicks", "Messages", "No message", "Qualified", "Hot"];
@@ -90,6 +115,7 @@ export function MetaAdsPerformanceTab({ dateFrom, dateTo, setDateFrom, setDateTo
             <table className="w-full min-w-[1000px]">
               <thead>
                 <tr className="border-b border-surface-mid bg-surface-low/60">
+                  <th className="px-3 py-3 font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider">On</th>
                   {headers.map((h, i) => (
                     <th key={h} className={cn(
                       "px-4 py-3 font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider whitespace-nowrap",
@@ -100,9 +126,25 @@ export function MetaAdsPerformanceTab({ dateFrom, dateTo, setDateFrom, setDateTo
               <tbody className="divide-y divide-surface-mid/50">
                 {rows.map((r) => (
                   <tr key={r.group_id} className="hover:bg-surface-low/60 transition-colors">
+                    <td className="px-3 py-3">
+                      {level === "campaign" ? (
+                        <button onClick={() => toggleStatus(r)} disabled={busy[r.group_id]}
+                          className={cn("relative h-5 w-9 rounded-full transition-colors disabled:opacity-50",
+                            (r.status ?? "").toUpperCase() === "ACTIVE" ? "bg-emerald-500" : "bg-surface-mid")}>
+                          <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform",
+                            (r.status ?? "").toUpperCase() === "ACTIVE" ? "translate-x-4" : "translate-x-0.5")} />
+                        </button>
+                      ) : <span className="text-on-surface-muted">—</span>}
+                    </td>
                     <td className="px-4 py-3"><span className="font-label text-sm font-semibold text-on-surface">{r.name}</span></td>
                     <td className="px-4 py-3 text-center"><StatusBadge status={r.status} /></td>
-                    <td className="px-4 py-3 text-right text-xs text-on-surface-muted whitespace-nowrap">{r.budget_label ?? "—"}</td>
+                    <td className="px-4 py-3 text-right text-xs whitespace-nowrap">
+                      {level === "campaign" ? (
+                        <button onClick={() => editBudget(r)} className="text-primary hover:underline">
+                          {r.budget_label ?? "Set"} ✎
+                        </button>
+                      ) : <span className="text-on-surface-muted">{r.budget_label ?? "—"}</span>}
+                    </td>
                     <td className="px-4 py-3 text-right tabular-nums">{money(r.spend)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-on-surface-muted">{r.impressions.toLocaleString("en-IN")}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-on-surface-muted">{r.reach.toLocaleString("en-IN")}</td>
