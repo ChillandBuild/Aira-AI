@@ -155,6 +155,9 @@ def test_verbose_sync_writes_and_reports_success(monkeypatch):
         "clicks": "5", "inline_link_clicks": "4", "spend": "10.0", "date_start": "2026-07-20",
     }]
     monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: fake_rows)
+    # Campaign metadata enrichment is a separate Meta call — mock it so the
+    # unit test stays hermetic (no live Graph API request).
+    monkeypatch.setattr(mod, "_fetch_campaigns", lambda *a, **k: [])
     result = sync_tenant_ad_insights_verbose(db, "t1")
     assert result["ok"] is True
     assert result["error"] is None

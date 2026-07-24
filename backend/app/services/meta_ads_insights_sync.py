@@ -16,8 +16,41 @@ logger = logging.getLogger(__name__)
 _GRAPH_BASE = "https://graph.facebook.com/v21.0"
 _INSIGHT_FIELDS = (
     "ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,"
-    "inline_link_clicks,clicks,spend"
+    "optimization_goal,inline_link_clicks,clicks,spend,impressions,reach,actions"
 )
+
+_CAMPAIGN_FIELDS = "id,name,objective,effective_status,daily_budget,lifetime_budget,bid_strategy"
+
+# Meta action_type sets mapped to a human "Results" label, checked in order.
+_RESULT_RULES: list[tuple[str, str, set[str]]] = [
+    ("CONVERSATIONS", "Messaging conversations", {"onsite_conversion.total_messaging_connection"}),
+    ("APP_INSTALLS", "App installs", {"mobile_app_install"}),
+    ("LINK_CLICKS", "Link clicks", set()),  # falls through to inline_link_clicks
+]
+
+
+def sum_actions(actions, action_types: set[str]) -> int:
+    """Sum the integer `value` across entries whose action_type is in the set."""
+    total = 0
+    for a in (actions or []):
+        if a.get("action_type") in action_types:
+            try:
+                total += int(float(a.get("value", 0) or 0))
+            except (TypeError, ValueError):
+                continue
+    return total
+
+
+def extract_result_metric(row: dict) -> tuple[str, int]:
+    """Return (result_label, result_count) for an ad row based on its optimization goal."""
+    goal = (row.get("optimization_goal") or "").upper()
+    actions = row.get("actions")
+    for goal_key, label, types in _RESULT_RULES:
+        if goal == goal_key:
+            if not types:  # LINK_CLICKS → inline_link_clicks
+                return label, int(float(row.get("inline_link_clicks", 0) or 0))
+            return label, sum_actions(actions, types)
+    return "Results", int(float(row.get("inline_link_clicks", 0) or 0))
 
 
 def normalize_account_id(raw: str) -> str:
@@ -123,6 +156,52 @@ def _fetch_insights(token: str, account: str, date_preset: str) -> list[dict]:
     return out
 
 
+def _fetch_campaigns(token: str, account: str) -> list[dict]:
+    url = f"{_GRAPH_BASE}/{account}/campaigns"
+    params = {"fields": _CAMPAIGN_FIELDS, "limit": "200", "access_token": token}
+    out: list[dict] = []
+    with httpx.Client(timeout=30) as client:
+        next_url, next_params = url, params
+        for _ in range(20):
+            resp = client.get(next_url, params=next_params)
+            resp.raise_for_status()
+            body = resp.json()
+            out.extend(body.get("data", []))
+            nxt = (body.get("paging") or {}).get("next")
+            if not nxt:
+                break
+            next_url, next_params = nxt, None
+    return out
+
+
+def sync_campaign_meta(db, tenant_id: str, token: str, account: str) -> int:
+    """Update ad_campaigns rows with objective/status/budget from Meta. Matches on
+    external_campaign_id (Meta campaign id). Best-effort; returns count updated."""
+    campaigns = _fetch_campaigns(token, account)
+    updated = 0
+    for c in campaigns:
+        cid = (c.get("id") or "").strip()
+        if not cid:
+            continue
+        daily = c.get("daily_budget")
+        lifetime = c.get("lifetime_budget")
+        payload = {
+            "objective": c.get("objective"),
+            "effective_status": c.get("effective_status"),
+            # Meta returns budgets in minor units (paise) as strings.
+            "daily_budget": (float(daily) / 100.0) if daily else None,
+            "lifetime_budget": (float(lifetime) / 100.0) if lifetime else None,
+            "bid_strategy": c.get("bid_strategy"),
+        }
+        res = (
+            db.table("ad_campaigns").update(payload)
+            .eq("external_campaign_id", cid).eq("tenant_id", tenant_id).execute()
+        )
+        if res.data:
+            updated += 1
+    return updated
+
+
 def _write_insight_row(db, tenant_id: str, creative_id: str, row: dict) -> None:
     """Upsert one ad_insights_daily row. Raises on failure — caller decides
     whether to swallow (background job) or surface (manual trigger)."""
@@ -136,6 +215,9 @@ def _write_insight_row(db, tenant_id: str, creative_id: str, row: dict) -> None:
         "clicks": int(float(row.get("clicks", 0) or 0)),
         "inline_link_clicks": int(float(row.get("inline_link_clicks", 0) or 0)),
         "spend": float(row.get("spend", 0) or 0),
+        "impressions": int(float(row.get("impressions", 0) or 0)),
+        "reach": int(float(row.get("reach", 0) or 0)),
+        "actions": row.get("actions") or [],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }, on_conflict="tenant_id,ad_creative_id,insight_date").execute()
 
@@ -165,6 +247,10 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
             written += 1
         except Exception as e:
             logger.warning(f"insight row write failed (tenant {tenant_id}): {e}")
+    try:
+        sync_campaign_meta(db, tenant_id, token, account)
+    except Exception as e:
+        logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
     logger.info(f"Ads insights sync: tenant {tenant_id} wrote {written} daily rows")
     return written
 
@@ -201,6 +287,14 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
             written += 1
         except Exception as e:
             row_errors.append(f"ad_id={row.get('ad_id')}: {e}")
+
+    # Campaign metadata is a best-effort enrichment — a failure here must NOT
+    # flip the sync's ok status, since the insight rows (the primary data) may
+    # have written fine. Log only, don't append to row_errors.
+    try:
+        sync_campaign_meta(db, tenant_id, token, account)
+    except Exception as e:
+        logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
 
     return {
         "ok": not row_errors,

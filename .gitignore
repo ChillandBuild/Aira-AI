@@ -46,3 +46,6 @@ test_leads.csv
 
 # Local scratch space (test outputs, audio samples, etc. - never committed)
 tmp/
+
+# Superpowers brainstorming companion (mockup scratch files, never committed)
+.superpowers/

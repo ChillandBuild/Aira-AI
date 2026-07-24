@@ -1780,6 +1780,22 @@ export const api = {
       window.URL.revokeObjectURL(url);
     },
   },
+  metaAds: {
+    performance: async (params?: { level?: string; date_from?: string; date_to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.level) qs.set("level", params.level);
+      if (params?.date_from) qs.set("date_from", params.date_from);
+      if (params?.date_to) qs.set("date_to", params.date_to);
+      return apiFetch<{ data: MetaAdsPerfRow[] }>(`/api/v1/meta-ads/performance?${qs}`);
+    },
+    analytics: async (params?: { date_from?: string; date_to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.date_from) qs.set("date_from", params.date_from);
+      if (params?.date_to) qs.set("date_to", params.date_to);
+      return apiFetch<{ data: MetaAdsAnalytics }>(`/api/v1/meta-ads/analytics?${qs}`);
+    },
+    filters: async () => apiFetch<AdFilterTree>(`/api/v1/meta-ads/filters`),
+  },
   templates: {
     list: async () => {
       const res = await apiFetch<{ data: WabaTemplate[] }>("/api/v1/templates/");
@@ -1886,6 +1902,37 @@ export interface AdPerformanceParams {
   ad_creative_id?: string;
   date_from?: string;
   date_to?: string;
+}
+
+export interface MetaAdsPerfRow {
+  group_id: string;
+  name: string;
+  status: string | null;
+  budget_label: string | null;
+  result_label: string;
+  results: number;
+  cost_per_result: number | null;
+  spend: number;
+  impressions: number;
+  reach: number;
+  clicks: number;
+  messages: number;
+  clicked_no_message: number;
+  qualified: number;
+  hot: number;
+}
+
+export interface MetaAdsAnalytics {
+  kpis: {
+    spend: number; messages: number; qualified: number; hot: number;
+    cost_per_hot: number | null; roas: number | null; revenue_available: boolean;
+  };
+  funnel: { stage: string; count: number }[];
+  leaderboard: { name: string; cost_per_hot: number | null; hot: number; spend: number }[];
+  trend: { date: string; spend: number; qualified: number }[];
+  heatmap: { dow: number; hour: number; qualified: number }[];
+  quadrant: { name: string; spend: number; cost_per_hot: number | null; hot: number }[];
+  spend_distribution: { name: string; spend: number }[];
 }
 
 export { API_URL };
