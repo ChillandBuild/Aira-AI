@@ -620,7 +620,11 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             <>
             <div className="space-y-3 p-3 md:hidden">
               {leads.map((lead) => (
-                <MobileRecordCard key={lead.id}>
+                <MobileRecordCard
+                  key={lead.id}
+                  onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
+                  className="cursor-pointer"
+                >
                   <MobileRecordHeader
                     title={lead.phone ? formatPhone(lead.phone) : (lead.name || "No contact")}
                     subtitle={<NameCell lead={lead} onUpdate={(updated) => mutate(leads.map((l) => (l.id === updated.id ? updated : l)), false)} />}
@@ -654,7 +658,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                     )}
                   </MobileRecordGrid>
                   {role === "owner" && (
-                    <div className="mt-4 flex justify-end">
+                    <div className="mt-4 flex justify-end" onClick={(e) => e.stopPropagation()}>
                       <AssignButton
                         leadId={lead.id}
                         currentAssignedTo={lead.assigned_to}
@@ -695,7 +699,8 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                 {leads.map((lead, i) => (
                   <tr
                     key={lead.id}
-                    className={`border-b border-surface-mid/50 hover:bg-surface-low transition-colors ${
+                    onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
+                    className={`cursor-pointer border-b border-surface-mid/50 hover:bg-surface-low transition-colors ${
                       i % 2 === 0 ? "" : "bg-surface-low/30"
                     }`}
                   >
@@ -739,7 +744,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                     </td>
                     <td className="px-6 py-4 font-label text-xs text-on-surface-muted">{timeAgo(lead.created_at)}</td>
                     {role === "owner" && (
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
                           <AssignButton
                             leadId={lead.id}

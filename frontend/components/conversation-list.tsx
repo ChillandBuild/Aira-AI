@@ -91,9 +91,12 @@ interface Props {
   canArchive?: boolean;
   onBlock?: (id: string) => void;
   folder?: "chats" | "archived" | "blocked";
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
-export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, canArchive = false, onBlock, folder = "chats" }: Props) {
+export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, canArchive = false, onBlock, folder = "chats", hasMore = false, loadingMore = false, onLoadMore }: Props) {
   const [segment, setSegment] = useState<"A" | "B" | "C" | "D" | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
@@ -148,7 +151,12 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
         if (!q) return true;
         const name = l.name?.toLowerCase() || "";
         const phone = l.phone?.toLowerCase() || "";
-        return name.includes(q) || phone.includes(q);
+        if (name.includes(q) || phone.includes(q)) return true;
+        // Phone numbers render space-formatted (formatPhone) but are stored
+        // digits-only — fall back to a digits-only comparison so a search
+        // copied from the UI still matches the raw stored value.
+        const qDigits = q.replace(/\D/g, "");
+        return qDigits.length > 0 && phone.replace(/\D/g, "").includes(qDigits);
       })
       .sort((a, b) => {
         const aPinned = a.pinned_at ? 1 : 0;
@@ -562,6 +570,17 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
             </div>
             );
           })
+        )}
+        {!searchQuery && !segment && hasMore && (
+          <div className="p-3">
+            <button
+              onClick={onLoadMore}
+              disabled={loadingMore}
+              className="w-full rounded-xl border border-surface-mid py-2.5 text-center font-label text-xs font-bold text-primary hover:bg-surface-low transition-colors disabled:opacity-50"
+            >
+              {loadingMore ? "Loading…" : "Load more conversations"}
+            </button>
+          </div>
         )}
       </div>
     </div>

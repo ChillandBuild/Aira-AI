@@ -20,12 +20,21 @@ function getDetailsPanelDefault(): boolean {
   return window.innerWidth >= 1280;
 }
 
-async function fetchConversations(folder: InboxFolder): Promise<Lead[]> {
+const CONVERSATIONS_PAGE_SIZE = 50;
+
+async function fetchConversations(
+  folder: InboxFolder,
+  limit: number,
+  offset: number,
+): Promise<{ leads: Lead[]; total: number }> {
   const auth = await getAuthHeaders();
-  const res = await fetch(`${API_URL}/api/v1/conversations?limit=50&folder=${folder}`, { headers: auth });
+  const res = await fetch(
+    `${API_URL}/api/v1/conversations?limit=${limit}&offset=${offset}&folder=${folder}`,
+    { headers: auth },
+  );
   if (!res.ok) throw new Error(`conversations fetch failed: ${res.status}`);
   const data = await res.json();
-  return data.leads ?? [];
+  return { leads: data.leads ?? [], total: data.total ?? 0 };
 }
 
 function togglePinInList(leads: Lead[], leadId: string): Lead[] {
@@ -72,6 +81,9 @@ export default function ConversationsPage() {
   const [folder, setFolder] = useState<InboxFolder>("chats");
   const [detailsOpen, setDetailsOpen] = useState(getDetailsPanelDefault);
   const [escalationCount, setEscalationCount] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const leadsCountRef = useRef(0);
 
   const searchParams = useSearchParams();
   const deepLinkLeadId = searchParams.get("lead");
@@ -97,15 +109,37 @@ export default function ConversationsPage() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchEscalationCount]);
 
+  // Refresh (initial load, folder switch, poll) always re-fetches from offset 0,
+  // sized to at least whatever's currently loaded — so a poll tick doesn't
+  // silently discard pages the user pulled in via "Load more".
   const load = useCallback(() => {
     if (folder === "escalations") return;
-    fetchConversations(folder)
-      .then((loadedLeads) => { setLeads(loadedLeads); setError(false); })
+    const limit = Math.max(CONVERSATIONS_PAGE_SIZE, leadsCountRef.current);
+    fetchConversations(folder, limit, 0)
+      .then(({ leads: loaded, total: t }) => { setLeads(loaded); setTotal(t); setError(false); })
       .catch(() => setError(true));
   }, [folder]);
 
+  useEffect(() => { leadsCountRef.current = leads.length; }, [leads]);
   useEffect(() => { load(); }, [load]);
   usePolling(load, 20000);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || leads.length >= total) return;
+    setLoadingMore(true);
+    try {
+      const { leads: more, total: t } = await fetchConversations(folder, CONVERSATIONS_PAGE_SIZE, leads.length);
+      setLeads((prev) => {
+        const seen = new Set(prev.map((l) => l.id));
+        return [...prev, ...more.filter((l) => !seen.has(l.id))];
+      });
+      setTotal(t);
+    } catch {
+      toast.error("Failed to load more conversations");
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [folder, leads.length, loadingMore, total]);
 
   // Auto-select lead from ?lead= query param (e.g. from Inbox Reply button)
   useEffect(() => {
@@ -122,6 +156,7 @@ export default function ConversationsPage() {
   }, [detailsOpen]);
 
   function handleFolderChange(next: InboxFolder) {
+    leadsCountRef.current = 0;
     setFolder(next);
     setSelected(null);
   }
@@ -232,6 +267,9 @@ export default function ConversationsPage() {
           canArchive={canReplyToConversations}
           onBlock={handleBlock}
           folder={folder}
+          hasMore={leads.length < total}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
           onDeleted={(deletedIds) => {
             setLeads((prev) => prev.filter((l) => !deletedIds.includes(l.id)));
             if (selected && deletedIds.includes(selected.id)) {

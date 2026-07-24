@@ -24,15 +24,20 @@ def _is_opt_out(body: str) -> bool:
     return normalized in _STOP_WORDS
 
 
-# Meta delivery error codes that are transient throttles (number still reachable, retry later).
-# These must NOT permanently flag a lead as undeliverable. 131049 = healthy-ecosystem engagement
-# throttle, 131048 = spam rate limit, 131056 = pair rate limit, 130472 = user in experiment.
-TRANSIENT_DELIVERY_ERROR_CODES = frozenset({131049, 131048, 131056, 130472})
+# Meta delivery error codes that mean the RECIPIENT's number itself is the problem
+# (invalid number / not on WhatsApp / blocked the business) — safe to permanently
+# exclude that one lead. 131026 matches upload.py's own "undeliverable" mapping.
+# Every other failure code (transient throttles like 131049/131048/131056/130472,
+# and account-level failures like 131031 "Business Account locked") is NOT
+# evidence this specific number is bad — flagging the lead for those would
+# wrongly blacklist a healthy contact every time the account itself gets
+# rate-limited or restricted.
+PERMANENT_UNDELIVERABLE_ERROR_CODES = frozenset({131026})
 
 
-def _is_transient_delivery_error(code) -> bool:
+def _is_recipient_undeliverable_error(code) -> bool:
     try:
-        return int(code) in TRANSIENT_DELIVERY_ERROR_CODES
+        return int(code) in PERMANENT_UNDELIVERABLE_ERROR_CODES
     except (TypeError, ValueError):
         return False
 
@@ -635,16 +640,19 @@ async def whatsapp_webhook(
                             # Mark lead as undeliverable so it's hidden from active views
                             # Also flip broadcast_recipients row so failed leads are excluded
                             # from Segment CSVs, scoring, and all dashboard analytics.
-                            # Skip the lead-level flag for transient throttle codes — number is
-                            # still reachable, just rate-limited; don't permanently exclude it.
+                            # Only flag the LEAD for error codes that specifically mean this
+                            # recipient's number is the problem (e.g. 131026 wrong number).
+                            # Everything else — transient throttles AND account-level failures
+                            # like 131031 "Business Account locked" — is not evidence this
+                            # number is bad, and must not permanently blacklist the lead.
                             if status == "failed" and updated.data:
                                 failed_lead_id = updated.data[0].get("lead_id")
                                 if failed_lead_id:
-                                    if _is_transient_delivery_error(err_code):
-                                        logger.info(f"Transient delivery error {err_code} for lead {failed_lead_id} — not flagging undeliverable")
-                                    else:
+                                    if _is_recipient_undeliverable_error(err_code):
                                         db.table("leads").update({"whatsapp_undeliverable": True}) \
                                             .eq("id", failed_lead_id).eq("tenant_id", tenant_id).execute()
+                                    else:
+                                        logger.info(f"Delivery error {err_code} for lead {failed_lead_id} is not recipient-specific — not flagging undeliverable")
                                     try:
                                         db.table("broadcast_recipients") \
                                             .update({"send_status": "delivery_failed"}) \
