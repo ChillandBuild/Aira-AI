@@ -79,6 +79,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   if (pathname === "/dashboard/meta-ads") {
     let desc = "Full-account ad performance and lead-quality analytics across your Meta campaigns.";
     if (tab === "analytics") desc = "Lead-quality analytics and insights beyond what Meta's own dashboard can show.";
+    if (tab === "create") desc = "Build and publish a Click-to-WhatsApp ad — no need to leave Aira.";
     return {
       title: "Meta Ads",
       description: desc,
@@ -323,13 +324,13 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/meta-ads" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
-            {(["performance", "analytics"] as const).map((t) => (
+            {(["create", "performance", "analytics"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => {
                   const params = new URLSearchParams(searchParams.toString());
-                  if (t === "analytics") params.set("tab", t);
-                  else params.delete("tab");
+                  if (t === "performance") params.delete("tab");
+                  else params.set("tab", t);
                   const query = params.toString();
                   router.replace(`/dashboard/meta-ads${query ? `?${query}` : ""}`, { scroll: false });
                 }}
@@ -340,7 +341,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                     : "text-[#78716c] hover:text-[#292524]"
                 )}
               >
-                {t === "performance" ? "Ad Performance" : "Analytics"}
+                {t === "create" ? "Create" : t === "performance" ? "Ad Performance" : "Analytics"}
               </button>
             ))}
           </div>
