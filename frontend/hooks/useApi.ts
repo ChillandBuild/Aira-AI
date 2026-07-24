@@ -228,6 +228,14 @@ export function useMetaAdsAnalytics(
   );
 }
 
+export function useMetaAdsPages(enabled = true) {
+  return useSWR<{ data: { id: string; name: string }[] }>(
+    enabled ? "meta-ads/pages" : null,
+    () => api.metaAds.pages(),
+    defaultConfig,
+  );
+}
+
 export function useNotes(leadId: string | null, enabled = true, fallbackData?: NotesResponse) {
   return useSWR<NotesResponse>(
     enabled && leadId ? `notes/${leadId}` : null,

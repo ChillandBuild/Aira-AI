@@ -76,6 +76,15 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "All inbound leads — organic and Meta Ad, across messaging channels.",
     };
   }
+  if (pathname === "/dashboard/meta-ads") {
+    let desc = "Full-account ad performance and lead-quality analytics across your Meta campaigns.";
+    if (tab === "analytics") desc = "Lead-quality analytics and insights beyond what Meta's own dashboard can show.";
+    if (tab === "create") desc = "Build and publish a Click-to-WhatsApp ad — no need to leave Aira.";
+    return {
+      title: "Meta Ads",
+      description: desc,
+    };
+  }
   if (pathname === "/dashboard/knowledge") {
     let tabLabel = "Documents (RAG)";
     if (tab === "ai-tune") tabLabel = "AI Tune";
@@ -308,6 +317,31 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 )}
               >
                 {t === "upload" ? "Broadcast Message" : t === "history" ? "Broadcast History" : "Tags"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {pathname === "/dashboard/meta-ads" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {(["create", "performance", "analytics"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (t === "performance") params.delete("tab");
+                  else params.set("tab", t);
+                  const query = params.toString();
+                  router.replace(`/dashboard/meta-ads${query ? `?${query}` : ""}`, { scroll: false });
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                  (tab === t || (t === "performance" && !tab))
+                    ? "bg-white text-primary shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
+              >
+                {t === "create" ? "Create" : t === "performance" ? "Ad Performance" : "Analytics"}
               </button>
             ))}
           </div>
