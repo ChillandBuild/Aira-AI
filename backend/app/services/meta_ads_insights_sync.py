@@ -288,10 +288,13 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
         except Exception as e:
             row_errors.append(f"ad_id={row.get('ad_id')}: {e}")
 
+    # Campaign metadata is a best-effort enrichment — a failure here must NOT
+    # flip the sync's ok status, since the insight rows (the primary data) may
+    # have written fine. Log only, don't append to row_errors.
     try:
         sync_campaign_meta(db, tenant_id, token, account)
     except Exception as e:
-        row_errors.append(f"campaign meta sync: {e}")
+        logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
 
     return {
         "ok": not row_errors,
