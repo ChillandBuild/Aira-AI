@@ -6,12 +6,15 @@ import { cn } from "@/lib/utils";
 export function MobileRecordCard({
   children,
   className,
+  onClick,
 }: {
   children: ReactNode;
   className?: string;
+  onClick?: () => void;
 }) {
   return (
     <article
+      onClick={onClick}
       className={cn(
         "rounded-2xl border border-surface-mid bg-white p-4 shadow-sm",
         className
