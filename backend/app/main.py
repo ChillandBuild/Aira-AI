@@ -149,19 +149,6 @@ async def _check_token_health() -> None:
     logger.info(f"Token health check complete for {len(tenant_cfg)} tenant(s)")
 
 
-async def _apply_engagement_decay() -> None:
-    """APScheduler 6h job: decay scores for leads silent >24h."""
-    try:
-        from app.db.supabase import get_supabase
-        from app.services.scoring_engine import apply_engagement_decay_all
-        db = get_supabase()
-        count = await apply_engagement_decay_all(db)
-        if count:
-            logger.info(f"Engagement decay: updated {count} lead(s)")
-    except Exception as e:
-        logger.error(f"Engagement decay scheduler error: {e}")
-
-
 def _create_token_incident(db, tenant_id: str, channel: str, error_msg: str) -> None:
     try:
         from datetime import datetime, timezone, timedelta
@@ -356,13 +343,6 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     _scheduler.add_job(
-        _apply_engagement_decay,
-        trigger="interval",
-        hours=6,
-        id="engagement-decay",
-        replace_existing=True,
-    )
-    _scheduler.add_job(
         _process_reengagement_rules,
         trigger="interval",
         minutes=1,
@@ -425,7 +405,7 @@ async def lifespan(app: FastAPI):
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + engagement-decay(6h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m)")
+    logger.info("Schedulers started: broadcasts(1m) + broadcast-retries(5m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m)")
 
     yield
 

@@ -4,7 +4,6 @@ No DB, no Groq — only deterministic logic.
 """
 import sys
 import unittest
-from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -35,7 +34,6 @@ with patch.dict("sys.modules", {"groq": MagicMock(), "app.config": MagicMock(set
     # Now safe to import
     from app.services.scoring_engine import (
         _compute_intent_delta,
-        _compute_decay,
         _apply_segment_lock,
         _should_score_arc,
         _REJECTION_SENTINEL,
@@ -211,41 +209,6 @@ class TestIntentDelta(unittest.TestCase):
         self.assertGreaterEqual(delta, -3)
 
 
-class TestDecay(unittest.TestCase):
-
-    def _hours_ago(self, hours: float) -> datetime:
-        return datetime.now(timezone.utc) - timedelta(hours=hours)
-
-    def test_within_1_hour_is_plus3(self):
-        self.assertEqual(_compute_decay(self._hours_ago(0.5)), 3)
-
-    def test_6_hours_ago_is_plus1(self):
-        self.assertEqual(_compute_decay(self._hours_ago(6)), 1)
-
-    def test_18_hours_ago_is_zero(self):
-        self.assertEqual(_compute_decay(self._hours_ago(18)), 0)
-
-    def test_2_days_silent_is_minus1(self):
-        self.assertEqual(_compute_decay(self._hours_ago(48)), -1)
-
-    def test_5_days_silent_is_minus2(self):
-        self.assertEqual(_compute_decay(self._hours_ago(120)), -2)
-
-    def test_10_days_silent_is_minus3(self):
-        self.assertEqual(_compute_decay(self._hours_ago(240)), -3)
-
-    def test_45_days_silent_is_minus4(self):
-        self.assertEqual(_compute_decay(self._hours_ago(1080)), -4)
-
-    def test_none_last_inbound_is_zero(self):
-        self.assertEqual(_compute_decay(None), 0)
-
-    def test_naive_datetime_handled(self):
-        naive = datetime.now() - timedelta(days=10)
-        result = _compute_decay(naive)
-        self.assertEqual(result, -3)
-
-
 class TestSegmentLock(unittest.TestCase):
 
     # ── Upgrades always immediate ─────────────────────────────────────────
@@ -324,47 +287,46 @@ class TestShouldScoreArc(unittest.TestCase):
 
 
 class TestCompositeScoreLogic(unittest.TestCase):
-    """Verify composite arithmetic stays correct and clamped."""
+    """Verify composite arithmetic stays correct and clamped.
 
-    def _composite(self, arc, intent, engagement, decay):
-        return max(1, min(10, arc + intent + engagement + decay))
+    No decay term: score is purely arc + intent + engagement. A lead going
+    silent must never change its score or segment on its own — there is no
+    time-based input into the composite at all.
+    """
+
+    def _composite(self, arc, intent, engagement):
+        return max(1, min(10, arc + intent + engagement))
 
     def test_hot_lead_ok_message_stays_high(self):
-        # arc=8, intent 0, engagement 0, decay 0
-        self.assertEqual(self._composite(8, 0, 0, 0), 8)
+        # arc=8, intent 0, engagement 0
+        self.assertEqual(self._composite(8, 0, 0), 8)
 
     def test_hot_lead_does_not_drop_on_ok(self):
-        self.assertGreaterEqual(self._composite(8, 0, 0, 0), 7)
+        self.assertGreaterEqual(self._composite(8, 0, 0), 7)
 
     def test_booking_keyword_pushes_above_threshold(self):
-        # arc=6, booking keyword +2, engagement 0, decay 0
-        self.assertGreaterEqual(self._composite(6, 2, 0, 0), 7)
-
-    def test_decay_drifts_hot_lead(self):
-        # arc=9, silent 10 days → decay -3 → 6 (Segment C)
-        self.assertEqual(self._composite(9, 0, 0, -3), 6)
-
-    def test_recency_boosts_score(self):
-        # arc=6, intent 0, engagement +1, replied within 1 hour → decay +3
-        self.assertEqual(self._composite(6, 0, 1, 3), 10)
+        # arc=6, booking keyword +2, engagement 0
+        self.assertGreaterEqual(self._composite(6, 2, 0), 7)
 
     def test_engagement_lifts_warm_to_hot(self):
         # arc=7 (Warm), engagement +2 boosts to 9 (Hot)
-        self.assertEqual(self._composite(7, 0, 2, 0), 9)
+        self.assertEqual(self._composite(7, 0, 2), 9)
 
     def test_score_clamped_at_10(self):
-        self.assertEqual(self._composite(9, 2, 2, 3), 10)
+        self.assertEqual(self._composite(9, 2, 2), 10)
 
     def test_score_clamped_at_1(self):
-        self.assertEqual(self._composite(1, -3, 0, -4), 1)
+        self.assertEqual(self._composite(1, -3, 0), 1)
 
     def test_rejection_overrides_everything(self):
         delta, reason = _compute_intent_delta("not interested at all", "idle")
         self.assertEqual(delta, _REJECTION_SENTINEL)
 
-    def test_high_intent_stale_lead(self):
-        # arc=9 (high intent), but 30+ days stale → decay -4, engagement 0
-        self.assertEqual(self._composite(9, 0, 0, -4), 5)
+    def test_silence_does_not_change_score(self):
+        # A hot lead (arc=9) that has gone quiet for any length of time has
+        # no decay input available to apply — score stays exactly where the
+        # conversation left it.
+        self.assertEqual(self._composite(9, 0, 0), 9)
 
 
 if __name__ == "__main__":
