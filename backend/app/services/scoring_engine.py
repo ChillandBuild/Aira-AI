@@ -43,17 +43,62 @@ _REJECTION_PATTERNS = [
     r"\bwrong number\b",
     r"\bdo not contact\b",
     r"\bdon'?t contact\b",
+    r"\bdo not message\b",
+    r"\bdon'?t message\b",
+    r"\bdo not msg\b",
+    r"\bdon'?t msg\b",
+    r"\bdo not text\b",
+    r"\bdon'?t text\b",
+    r"\bstop messaging\b",
+    r"\bstop texting\b",
+    r"\bdo not call\b",
+    r"\bdon'?t call\b",
+    r"\bstop calling\b",
     r"\bplease remove\b",
+    r"\bremove my number\b",
+    r"\bnot needed\b",
+    r"\bnot required\b",
+    r"\bno interest\b",
+    r"\bleave me alone\b",
     r"\bopt.?out\b",
     # Tamil
     r"வேண்டாம்",
     r"நிறுத்துங்கள்",
     r"தேவையில்லை",
     r"விலகு",
+    r"தொந்தரவு செய்யாதீர்கள்",
+    r"கூப்பிடாதீர்கள்",
+    # Tanglish (romanized Tamil — spelling varies a lot in real chat,
+    # these cover the most common forms seen on WhatsApp)
+    r"\bvena+m\b",
+    r"\bvenda\b",
+    r"\bthevai\s*illa(i)?\b",
+    r"\b(message|msg|call)\s*panna(adheenga|dheenga|thinga|theenga)\b",
     # Hindi
     r"नहीं चाहिए",
     r"रुको",
     r"बंद करो",
+    r"ज़?रूरत नहीं",
+    r"दिलचस्पी नहीं",
+    r"मैसेज मत करो",
+    r"कॉल मत करो",
+    # Hinglish (romanized Hindi)
+    r"\bzaroor?at nahi\b",
+    r"\binterest nahi\b",
+    r"\b(message|msg|call) mat karo\b",
+    # Telugu — core rejection words (vaddu/aapandi are unambiguous; verify
+    # phrasing with a native speaker before relying on this for compliance)
+    r"వద్దు",
+    r"ఆపండి",
+    r"అవసరం లేదు",
+    # Kannada — same caveat as Telugu above
+    r"ಬೇಡ",
+    r"ನಿಲ್ಲಿಸಿ",
+    r"ಅಗತ್ಯವಿಲ್ಲ",
+    # Malayalam — same caveat as Telugu above
+    r"വേണ്ട",
+    r"നിർത്തുക",
+    r"ആവശ്യമില്ല",
 ]
 
 _HIGH_INTENT_PATTERNS = [

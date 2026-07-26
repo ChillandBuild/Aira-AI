@@ -52,12 +52,112 @@ class TestIntentDelta(unittest.TestCase):
         delta, reason = _compute_intent_delta("please stop messaging me", "idle")
         self.assertEqual(delta, _REJECTION_SENTINEL)
 
+    def test_dont_message_me_returns_rejection(self):
+        delta, reason = _compute_intent_delta("Don't message me", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_do_not_text_me_returns_rejection(self):
+        delta, reason = _compute_intent_delta("do not text me anymore", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_not_needed_returns_rejection(self):
+        delta, reason = _compute_intent_delta("not needed sir", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_not_required_returns_rejection(self):
+        delta, reason = _compute_intent_delta("this is not required", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_no_interest_returns_rejection(self):
+        delta, reason = _compute_intent_delta("no interest in this", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_leave_me_alone_returns_rejection(self):
+        delta, reason = _compute_intent_delta("please leave me alone", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_remove_my_number_returns_rejection(self):
+        delta, reason = _compute_intent_delta("remove my number from your list", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_dont_call_returns_rejection(self):
+        delta, reason = _compute_intent_delta("don't call me again", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_stop_calling_returns_rejection(self):
+        delta, reason = _compute_intent_delta("stop calling this number", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    # ── Guard against overly broad matching (intentionally NOT added) ──────
+    def test_no_need_to_worry_is_not_rejection(self):
+        """'no need' alone is too generic a hedge phrase (e.g. reassurance) to
+        treat as rejection — only the specific 'not needed'/'not required'
+        phrasings are matched. Documents why 'no need' was deliberately left out."""
+        delta, reason = _compute_intent_delta("no need to worry, I'll send details later", "idle")
+        self.assertNotEqual(delta, _REJECTION_SENTINEL)
+
     def test_tamil_rejection_returns_rejection(self):
         delta, reason = _compute_intent_delta("வேண்டாம்", "idle")
         self.assertEqual(delta, _REJECTION_SENTINEL)
 
     def test_hindi_rejection_returns_rejection(self):
         delta, reason = _compute_intent_delta("नहीं चाहिए", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_hindi_zaroorat_nahi_returns_rejection(self):
+        delta, reason = _compute_intent_delta("ज़रूरत नहीं है", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_hindi_message_mat_karo_returns_rejection(self):
+        delta, reason = _compute_intent_delta("मैसेज मत करो", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_hinglish_zaroorat_nahi_returns_rejection(self):
+        delta, reason = _compute_intent_delta("zaroorat nahi hai bhai", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_hinglish_message_mat_karo_returns_rejection(self):
+        delta, reason = _compute_intent_delta("please message mat karo", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_tanglish_venaam_returns_rejection(self):
+        delta, reason = _compute_intent_delta("venaam pa", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_tanglish_thevai_illa_returns_rejection(self):
+        delta, reason = _compute_intent_delta("enakku thevai illa", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_tanglish_message_pannadheenga_returns_rejection(self):
+        delta, reason = _compute_intent_delta("message pannadheenga please", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_tanglish_call_pannathinga_returns_rejection(self):
+        delta, reason = _compute_intent_delta("call pannathinga ini", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_telugu_vaddu_returns_rejection(self):
+        delta, reason = _compute_intent_delta("వద్దు వద్దు", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_telugu_avasaram_ledu_returns_rejection(self):
+        delta, reason = _compute_intent_delta("నాకు అవసరం లేదు", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_kannada_beda_returns_rejection(self):
+        delta, reason = _compute_intent_delta("ನನಗೆ ಬೇಡ", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_kannada_agatyavilla_returns_rejection(self):
+        delta, reason = _compute_intent_delta("ಅಗತ್ಯವಿಲ್ಲ", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_malayalam_venda_returns_rejection(self):
+        delta, reason = _compute_intent_delta("എനിക്ക് വേണ്ട", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
+    def test_malayalam_aavashyamilla_returns_rejection(self):
+        delta, reason = _compute_intent_delta("ആവശ്യമില്ല", "idle")
         self.assertEqual(delta, _REJECTION_SENTINEL)
 
     # ── High intent keywords ──────────────────────────────────────────────
