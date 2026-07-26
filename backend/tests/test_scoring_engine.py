@@ -136,6 +136,10 @@ class TestIntentDelta(unittest.TestCase):
         delta, reason = _compute_intent_delta("call pannathinga ini", "idle")
         self.assertEqual(delta, _REJECTION_SENTINEL)
 
+    def test_tanglish_msg_pannadhinga_returns_rejection(self):
+        delta, reason = _compute_intent_delta("ok ennaku msg pannadhinga", "idle")
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+
     def test_telugu_vaddu_returns_rejection(self):
         delta, reason = _compute_intent_delta("వద్దు వద్దు", "idle")
         self.assertEqual(delta, _REJECTION_SENTINEL)

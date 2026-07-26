@@ -73,7 +73,7 @@ _REJECTION_PATTERNS = [
     r"\bvena+m\b",
     r"\bvenda\b",
     r"\bthevai\s*illa(i)?\b",
-    r"\b(message|msg|call)\s*panna(adheenga|dheenga|thinga|theenga)\b",
+    r"\b(message|msg|call)\s*panna{1,2}(dh|th)(ee|e|i)nga\b",
     # Hindi
     r"नहीं चाहिए",
     r"रुको",
