@@ -1,7 +1,7 @@
 """
 AIRA Score Engine v2
 
-Composite score = clamp(arc + intent_delta + engagement + decay, 1, 10)
+Composite score = clamp(arc + intent_delta + engagement, 1, 10)
 
   arc_score        — LLM scores the conversation thread, fires every 3 inbound
                      messages or on a significant trigger (high-intent keyword, first message).
@@ -9,8 +9,9 @@ Composite score = clamp(arc + intent_delta + engagement + decay, 1, 10)
                      Rejection phrases bypass everything → immediate score 1, segment D.
   engagement      — Rule-based engagement signal on message history. 0..+2.
                      Reply volume, message substance, media shared.
-  decay           — Bidirectional time-decay applied by APScheduler every 6 h. -4..+3.
-                     Recent activity boosts; silent leads drift to C/D.
+
+No time-based decay: score and segment only move on something the lead actually
+said. Going silent never changes either, by design.
 
 Segment lock: upgrade always immediate. Small drop (1 segment) needs 2 consecutive
 confirmations. Big drop (2+ segments) or rejection phrase: immediate.
@@ -132,30 +133,6 @@ def _compute_intent_delta(message: str, flow_state: str) -> tuple[int, str]:
         reasons.append("detailed_message")
 
     return max(-3, min(2, delta)), ",".join(reasons) or "neutral"
-
-
-def _compute_decay(last_inbound_at: datetime | None) -> int:
-    """Bidirectional time-decay: +3 (very recent) to -4 (stale)."""
-    if last_inbound_at is None:
-        return 0
-    now = datetime.now(timezone.utc)
-    if last_inbound_at.tzinfo is None:
-        last_inbound_at = last_inbound_at.replace(tzinfo=timezone.utc)
-    hours = (now - last_inbound_at).total_seconds() / 3600
-    if hours <= 1:
-        return 3
-    elif hours <= 12:
-        return 1
-    elif hours <= 24:
-        return 0
-    elif hours <= 72:
-        return -1
-    elif hours <= 168:
-        return -2
-    elif hours <= 720:
-        return -3
-    else:
-        return -4
 
 
 def _compute_engagement(lead_id: str, db) -> int:
@@ -281,15 +258,6 @@ def _apply_segment_lock(
     return current, new_count
 
 
-def _parse_dt(raw: str | None) -> datetime | None:
-    if not raw:
-        return None
-    try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except Exception:
-        return None
-
-
 async def compute_score(
     message: str,
     lead_id: str,
@@ -299,8 +267,12 @@ async def compute_score(
     """
     Main entry point. Computes composite score, persists to DB, returns breakdown.
 
+    Segment/score only move on something the lead actually said (arc, intent,
+    engagement) — going silent never changes either, by design. No time-based
+    decay term.
+
     Returns:
-        score, segment, arc_score, intent_delta, engagement, decay,
+        score, segment, arc_score, intent_delta, engagement,
         intent_reason, arc_updated, segment_drop_count
     """
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -309,8 +281,8 @@ async def compute_score(
     lead_row = (
         db.table("leads")
         .select(
-            "score,score_arc,score_intent_delta,score_engagement_delta,"
-            "score_engagement,arc_message_count,segment,segment_drop_count,last_inbound_at"
+            "score,score_arc,score_intent_delta,"
+            "score_engagement,arc_message_count,segment,segment_drop_count"
         )
         .eq("id", str(lead_id))
         .limit(1)
@@ -327,7 +299,6 @@ async def compute_score(
     current_seg   = global_segment
     current_drop  = global_drop
     arc_msg_count = global_arc_count
-    last_inbound_for_decay = _parse_dt(data.get("last_inbound_at"))
 
     # ── 3. Intent delta (instant, rule-based) ─────────────────────────────────
     intent_delta, intent_reason = _compute_intent_delta(message, "idle")
@@ -337,7 +308,7 @@ async def compute_score(
     if is_rejection:
         rejection_payload = {
             "score": 1, "score_arc": 1, "score_intent_delta": -3,
-            "score_engagement_delta": 0, "score_engagement": 0,
+            "score_engagement": 0,
             "segment": "D",
             "segment_drop_count": 0, "arc_message_count": 0,
             "last_inbound_at": now_iso,
@@ -348,15 +319,12 @@ async def compute_score(
         logger.info(f"Lead {lead_id} rejection detected — immediate D")
         return {
             "score": 1, "segment": "D", "arc_score": 1,
-            "intent_delta": -3, "engagement": 0, "decay": 0,
+            "intent_delta": -3, "engagement": 0,
             "intent_reason": "rejection", "arc_updated": True,
             "segment_drop_count": 0,
         }
 
-    # ── 6. Decay (bidirectional time-based) ──────────────────────────────────
-    decay = _compute_decay(last_inbound_for_decay)
-
-    # ── 6b. Engagement (rule-based, from message history) ─────────────────────
+    # ── 6. Engagement (rule-based, from message history) ─────────────────────
     engagement = _compute_engagement(lead_id, db)
 
     # ── 7. Arc score (LLM, conditional) ───────────────────────────────────────
@@ -386,7 +354,7 @@ async def compute_score(
         arc_msg_count = 1
 
     # ── 8. Composite final score ───────────────────────────────────────────────
-    final_score = max(1, min(10, current_arc + intent_delta + engagement + decay))
+    final_score = max(1, min(10, current_arc + intent_delta + engagement))
 
     # ── 9. Segment with lock ───────────────────────────────────────────────────
     try:
@@ -405,7 +373,6 @@ async def compute_score(
         "score": final_score,
         "score_arc": current_arc,
         "score_intent_delta": intent_delta,
-        "score_engagement_delta": decay,
         "score_engagement": engagement,
         "arc_message_count": global_arc_count if not arc_updated else 1,
         "segment": final_segment,
@@ -415,7 +382,7 @@ async def compute_score(
 
     logger.info(
         f"Lead {lead_id} scored: arc={current_arc} intent={intent_delta:+d} "
-        f"eng={engagement:+d} decay={decay:+d} → {final_score} ({final_segment}) "
+        f"eng={engagement:+d} → {final_score} ({final_segment}) "
         f"[arc_updated={arc_updated}, reason={intent_reason}]"
     )
 
@@ -425,74 +392,9 @@ async def compute_score(
         "arc_score": current_arc,
         "intent_delta": intent_delta,
         "engagement": engagement,
-        "decay": decay,
         "intent_reason": intent_reason,
         "arc_updated": arc_updated,
         "segment_drop_count": new_drop_count,
     }
-
-
-async def apply_engagement_decay_all(db, tenant_id: str | None = None) -> int:
-    """
-    Scheduler job: recompute decay and score for all leads
-    that have been silent for >24 hours. Returns count of leads updated.
-
-    Called by APScheduler every 6 hours.
-    """
-    from datetime import timedelta
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-
-    query = (
-        db.table("leads")
-        .select("id,score_arc,score_intent_delta,score_engagement_delta,score_engagement,segment,segment_drop_count,last_inbound_at,tenant_id")
-        .lt("last_inbound_at", cutoff)
-        .is_("deleted_at", "null")
-    )
-    if tenant_id:
-        query = query.eq("tenant_id", tenant_id)
-
-    leads = (query.execute().data or [])
-    updated = 0
-
-    for lead in leads:
-        try:
-            last_inbound = _parse_dt(lead.get("last_inbound_at"))
-            new_decay = _compute_decay(last_inbound)
-            old_decay = lead.get("score_engagement_delta") or 0
-
-            if new_decay == old_decay:
-                continue
-
-            arc        = lead.get("score_arc") or 5
-            intent     = lead.get("score_intent_delta") or 0
-            engagement = lead.get("score_engagement") or 0
-            final_score = max(1, min(10, arc + intent + engagement + new_decay))
-
-            lead_tenant = lead.get("tenant_id")
-            try:
-                from app.config_dynamic import get_setting as _gs
-                thresholds = parse_thresholds(_gs("scoring_segment_thresholds", tenant_id=lead_tenant))
-            except Exception:
-                thresholds = None
-
-            proposed_segment = score_to_segment(final_score, thresholds=thresholds)
-            current_segment  = lead.get("segment") or "C"
-            drop_count       = lead.get("segment_drop_count") or 0
-            final_segment, new_drop_count = _apply_segment_lock(
-                proposed_segment, current_segment, drop_count, big_drop=False
-            )
-
-            db.table("leads").update({
-                "score": final_score,
-                "score_engagement_delta": new_decay,
-                "segment": final_segment,
-                "segment_drop_count": new_drop_count,
-            }).eq("id", lead["id"]).execute()
-            updated += 1
-        except Exception as e:
-            logger.error(f"Engagement decay failed for lead {lead.get('id')}: {e}")
-
-    logger.info(f"Decay sweep applied to {updated} leads")
-    return updated
 
 
