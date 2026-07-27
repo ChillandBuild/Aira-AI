@@ -1,6 +1,6 @@
 "use client";
 import { toast } from "sonner";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import { api, Lead, Message } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,24 @@ function getInitials(name: string | null, phone: string | null): string {
   if (name) return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
   if (phone) return phone.slice(-2);
   return "?";
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatDateDivider(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  if (isSameDay(date, now)) return "Today";
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) return "Yesterday";
+  return date.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
+  });
 }
 
 function IgIcon({ size = 10, className = "" }: { size?: number; className?: string }) {
@@ -189,6 +207,17 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
     </div>
   );
 });
+
+// ─── Date divider (WhatsApp-style day separator) ──────────────────────────────
+function DateDivider({ dateStr }: { dateStr: string }) {
+  return (
+    <div className="flex justify-center my-3 select-none">
+      <span className="rounded-full bg-surface-low px-3 py-1 font-label text-[11px] font-semibold text-on-surface-muted shadow-sm">
+        {formatDateDivider(dateStr)}
+      </span>
+    </div>
+  );
+}
 
 // ─── Selected file preview ────────────────────────────────────────────────────
 function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
@@ -622,7 +651,16 @@ export function ChatThread({
             No messages yet
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} msg={msg} />)
+          messages.map((msg, i) => {
+            const prev = messages[i - 1];
+            const showDivider = !prev || !isSameDay(new Date(msg.created_at), new Date(prev.created_at));
+            return (
+              <Fragment key={msg.id}>
+                {showDivider && <DateDivider dateStr={msg.created_at} />}
+                <MessageBubble msg={msg} />
+              </Fragment>
+            );
+          })
         )}
         <div ref={bottomRef} />
       </div>
