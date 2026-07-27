@@ -90,7 +90,13 @@ const PROVIDER_LABELS: Record<string, string> = {
   sarvam: "Sarvam",
 };
 
-type Range = "30" | "90" | "all";
+type Range = "30" | "90" | "all" | "custom";
+
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -116,20 +122,28 @@ function TrendBadge({ pct }: { pct: number | null }) {
 
 export default function AiSpendPage() {
   const [range, setRange] = useState<Range>("90");
+  const [fromDate, setFromDate] = useState(() => isoDaysAgo(30));
+  const [toDate, setToDate] = useState(() => isoDaysAgo(0));
   const [data, setData] = useState<FleetData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [ratesVersion, setRatesVersion] = useState(0);
 
+  const customRangeInvalid = range === "custom" && (!fromDate || !toDate || fromDate > toDate);
+
   const load = useCallback(() => {
+    if (customRangeInvalid) return;
     setLoading(true);
     setError(null);
-    const query = range === "all" ? "all_time=true" : `range_days=${range}`;
+    const query =
+      range === "all" ? "all_time=true"
+      : range === "custom" ? `from_date=${fromDate}&to_date=${toDate}`
+      : `range_days=${range}`;
     operatorFetch<{ data: FleetData }>(`/api/v1/operator/token-usage/fleet?${query}`)
       .then(res => setData(res.data))
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
-  }, [range]);
+  }, [range, fromDate, toDate, customRangeInvalid]);
 
   useEffect(() => { load(); }, [load, ratesVersion]);
 
@@ -149,18 +163,43 @@ export default function AiSpendPage() {
             Fleet-wide token consumption and estimated cost across every client — you fund every provider account, so this is where you see who&apos;s costing you the most.
           </p>
         </div>
-        <div className="inline-flex rounded-lg bg-surface-mid p-0.5">
-          {(["30", "90", "all"] as Range[]).map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                range === r ? "bg-white text-ink shadow-sm" : "text-ink-secondary"
-              }`}
-            >
-              {r === "30" ? "30 days" : r === "90" ? "90 days" : "All time"}
-            </button>
-          ))}
+        <div className="flex flex-col items-end gap-2">
+          <div className="inline-flex rounded-lg bg-surface-mid p-0.5">
+            {(["30", "90", "all", "custom"] as Range[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                  range === r ? "bg-white text-ink shadow-sm" : "text-ink-secondary"
+                }`}
+              >
+                {r === "30" ? "30 days" : r === "90" ? "90 days" : r === "all" ? "All time" : "Custom"}
+              </button>
+            ))}
+          </div>
+          {range === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate}
+                onChange={e => setFromDate(e.target.value)}
+                className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:border-primary focus:outline-none"
+              />
+              <span className="text-xs text-ink-muted">to</span>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate}
+                max={isoDaysAgo(0)}
+                onChange={e => setToDate(e.target.value)}
+                className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+          )}
+          {customRangeInvalid && (
+            <p className="text-[11px] text-danger">Pick a &ldquo;to&rdquo; date on or after &ldquo;from&rdquo;.</p>
+          )}
         </div>
       </div>
 

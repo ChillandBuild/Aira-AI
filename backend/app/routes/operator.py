@@ -1057,13 +1057,18 @@ def _pct_trend(current: int, prior: int) -> float | None:
 def get_fleet_token_usage(
     range_days: int = 90,
     all_time: bool = False,
+    from_date: str | None = None,
+    to_date: str | None = None,
     _admin: dict = Depends(get_system_admin),
 ):
     """Cross-tenant token/cost view (migration 142 aggregated across every
     tenant) -- the "who is costing me the most" leaderboard, since Aira funds
     every provider account rather than the tenant. Computes a trend by also
     aggregating the immediately-preceding, equal-length window; skipped
-    entirely for all_time (no meaningful "prior all-time" baseline)."""
+    entirely for all_time (no meaningful "prior all-time" baseline).
+
+    from_date/to_date (YYYY-MM-DD, both required together) select a custom,
+    inclusive range and take priority over range_days/all_time."""
     db = get_supabase()
     rates = get_rates(db)
 
@@ -1077,7 +1082,19 @@ def get_fleet_token_usage(
             q = q.lt("usage_date", lt_date)
         return q.execute().data or []
 
-    if all_time:
+    if from_date and to_date:
+        try:
+            from_d = datetime.fromisoformat(from_date).date()
+            to_d = datetime.fromisoformat(to_date).date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="from_date/to_date must be YYYY-MM-DD")
+        if to_d < from_d:
+            raise HTTPException(status_code=400, detail="to_date must be on or after from_date")
+        window_days = (to_d - from_d).days + 1
+        rows = fetch(from_d.isoformat(), (to_d + timedelta(days=1)).isoformat())
+        prior_from = from_d - timedelta(days=window_days)
+        prior = _aggregate_token_rows(fetch(prior_from.isoformat(), from_d.isoformat()), rates)
+    elif all_time:
         rows = fetch(None)
         prior = None
     else:
@@ -1135,7 +1152,7 @@ def get_fleet_token_usage(
             "daily": sorted(current["by_day"].values(), key=lambda x: x["date"]),
             "leaderboard": leaderboard,
         },
-        "range_days": None if all_time else range_days,
+        "range_days": None if (all_time or (from_date and to_date)) else range_days,
     }
 
 

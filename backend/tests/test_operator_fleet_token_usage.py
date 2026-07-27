@@ -114,6 +114,35 @@ class FleetTokenUsageTests(unittest.TestCase):
         self.assertEqual(body["totals"]["trend_pct"], 50)
         self.assertEqual(body["leaderboard"][0]["trend_pct"], 50)
 
+    @patch("app.routes.operator.get_supabase")
+    def test_custom_date_range_takes_priority_and_reports_null_range_days(self, mock_get_db):
+        rows = [{"tenant_id": "t1", "usage_date": "2026-07-10", "purpose": "ai_reply", "provider": "groq", "model": "m1", "calls": 1, "input_tokens": 100, "output_tokens": 10}]
+        # A custom range's own fetch (not just the prior-window fetch) now goes
+        # through .gte().lt() too, since it always has an upper bound — pass the
+        # same rows as prior_rows so that shared mock chain returns them.
+        self._mock_db(mock_get_db, rows, prior_rows=rows, tenant_names={"t1": "A"})
+
+        # range_days=90 is also passed but must be ignored once from/to are given
+        res = self.client.get("/api/v1/operator/token-usage/fleet?range_days=90&from_date=2026-07-01&to_date=2026-07-15")
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIsNone(body["range_days"])
+        self.assertEqual(body["data"]["totals"]["calls"], 1)
+
+    @patch("app.routes.operator.get_supabase")
+    def test_custom_date_range_rejects_to_before_from(self, mock_get_db):
+        self._mock_db(mock_get_db, [])
+
+        res = self.client.get("/api/v1/operator/token-usage/fleet?from_date=2026-07-15&to_date=2026-07-01")
+        self.assertEqual(res.status_code, 400)
+
+    @patch("app.routes.operator.get_supabase")
+    def test_custom_date_range_rejects_bad_format(self, mock_get_db):
+        self._mock_db(mock_get_db, [])
+
+        res = self.client.get("/api/v1/operator/token-usage/fleet?from_date=07-01-2026&to_date=2026-07-15")
+        self.assertEqual(res.status_code, 400)
+
 
 if __name__ == "__main__":
     unittest.main()
