@@ -7,14 +7,13 @@ import {
   MessageSquare,
   Sparkles,
   TrendingUp,
-  Inbox,
-  Send as SendIcon,
   ArrowRight,
   AlertCircle,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuthRole } from "./contexts/AuthRoleContext";
 import { AiraLoader } from "@/components/AiraLoader";
+import { DayStrip } from "@/components/DayStrip";
 import { cn } from "@/lib/utils";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 
@@ -94,63 +93,13 @@ function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D",
 }
 
 function TodaySnapshot({ overview }: { overview: AnalyticsOverview | null }) {
-  const today = overview?.daily_messages?.at(-1);
-  const inbound = today?.inbound ?? 0;
-  const outbound = today?.outbound ?? 0;
-  const aiToday = overview?.ai_handled_today ?? 0;
-
   return (
     <div className="card rounded-[32px] h-full p-8 flex flex-col justify-between">
       <div>
         <h2 className="font-display font-bold text-ink mb-6 text-[18px]">
-          Today
+          Daily Activity
         </h2>
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-                <Inbox size={16} className="text-blue-600" />
-              </div>
-              <div>
-                <div className="font-body font-semibold text-[13px] text-ink">Inbound</div>
-                <div className="font-body text-xs text-ink-muted">Messages received</div>
-              </div>
-            </div>
-            <div className="font-mono font-bold text-ink text-[20px]">
-              {inbound}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                <SendIcon size={16} className="text-emerald-600" />
-              </div>
-              <div>
-                <div className="font-body font-semibold text-[13px] text-ink">Outbound</div>
-                <div className="font-body text-xs text-ink-muted">Replies sent</div>
-              </div>
-            </div>
-            <div className="font-mono font-bold text-ink text-[20px]">
-              {outbound}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center">
-                <Sparkles size={16} className="text-purple-600" />
-              </div>
-              <div>
-                <div className="font-body font-semibold text-[13px] text-ink">AI handled</div>
-                <div className="font-body text-xs text-ink-muted">Auto-replies sent</div>
-              </div>
-            </div>
-            <div className="font-mono font-bold text-ink text-[20px]">
-              {aiToday}
-            </div>
-          </div>
-        </div>
+        <DayStrip data={overview?.daily_messages ?? []} />
       </div>
     </div>
   );

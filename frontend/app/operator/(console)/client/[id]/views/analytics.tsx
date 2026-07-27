@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { BarChart2, TrendingUp, Target, Phone, Percent } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { DayStrip, type DailyMessageStat } from "@/components/DayStrip";
 import { StatCard } from "../components/stat-card";
 import { SkeletonCard } from "../components/skeleton";
 
@@ -29,6 +30,7 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dailyMessages, setDailyMessages] = useState<DailyMessageStat[] | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -36,6 +38,15 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
+  }, [tenantId]);
+
+  useEffect(() => {
+    setDailyMessages(null);
+    apiFetch<{ daily_messages: DailyMessageStat[] }>(
+      `/api/v1/operator/clients/${tenantId}/dashboard/daily-messages`,
+    )
+      .then((res) => setDailyMessages(res.daily_messages))
+      .catch(() => setDailyMessages([]));
   }, [tenantId]);
 
   if (loading) {
@@ -61,6 +72,17 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
 
   return (
     <div className="space-y-6">
+      <div className="bg-white rounded-card border border-border p-5 shadow-sm">
+        <h3 className="text-xs font-medium uppercase tracking-wider font-label text-ink-muted mb-4">
+          Daily Activity
+        </h3>
+        {dailyMessages === null ? (
+          <SkeletonCard />
+        ) : (
+          <DayStrip data={dailyMessages} />
+        )}
+      </div>
+
       <div className={`grid grid-cols-2 ${hasTelecalling ? "lg:grid-cols-3" : "lg:grid-cols-3"} gap-4`}>
         <StatCard
           icon={<BarChart2 size={18} />}

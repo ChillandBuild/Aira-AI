@@ -1811,6 +1811,51 @@ def client_dashboard_analytics(tenant_id: str, _admin: dict = Depends(get_system
     return result
 
 
+@router.get("/clients/{tenant_id}/dashboard/daily-messages")
+def client_dashboard_daily_messages(tenant_id: str, range: str = "7d", _admin: dict = Depends(get_system_admin)):
+    """Per-day inbound/outbound/AI-vs-human breakdown for one tenant — same shape
+    as the tenant dashboard's own /analytics/overview daily_messages, scoped by
+    an operator-supplied tenant_id instead of the caller's own tenant."""
+    from app.routes.analytics import _range_params
+
+    db = get_supabase()
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    window_start_dt, days_iso = _range_params(range)
+
+    msgs = (
+        db.table("messages")
+        .select("direction,is_ai_generated,created_at")
+        .eq("tenant_id", tenant_id)
+        .gte("created_at", window_start_dt.isoformat())
+        .execute()
+    ).data or []
+
+    daily_map = {d: {"inbound": 0, "outbound": 0, "ai": 0, "human": 0} for d in days_iso}
+    for m in msgs:
+        day = (m.get("created_at") or "")[:10]
+        if day not in daily_map:
+            continue
+        direction = m.get("direction")
+        if direction == "inbound":
+            daily_map[day]["inbound"] += 1
+        elif direction == "outbound":
+            daily_map[day]["outbound"] += 1
+            if m.get("is_ai_generated"):
+                daily_map[day]["ai"] += 1
+            else:
+                daily_map[day]["human"] += 1
+
+    return {
+        "daily_messages": [
+            {"day": d, **daily_map[d]}
+            for d in days_iso
+        ],
+    }
+
+
 @router.get("/clients/{tenant_id}/dashboard/telecalling")
 def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin: dict = Depends(get_system_admin)):
     from datetime import datetime, timezone, timedelta

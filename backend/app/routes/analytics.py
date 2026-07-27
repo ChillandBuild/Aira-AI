@@ -989,19 +989,23 @@ async def overview_analytics(
         )
     ).data or []
 
-    daily_msgs_map = {d: {"inbound": 0, "outbound": 0} for d in days_iso}
+    daily_msgs_map = {d: {"inbound": 0, "outbound": 0, "ai": 0, "human": 0} for d in days_iso}
     ai_count = 0
     human_count = 0
     ai_handled_today = 0
     for m in msgs_window:
         day = (m.get("created_at") or "")[:10]
+        direction = m.get("direction")
         if day in daily_msgs_map:
-            direction = m.get("direction")
             if direction == "inbound":
                 daily_msgs_map[day]["inbound"] += 1
             elif direction == "outbound":
                 daily_msgs_map[day]["outbound"] += 1
-        if m.get("direction") == "outbound":
+                if m.get("is_ai_generated"):
+                    daily_msgs_map[day]["ai"] += 1
+                else:
+                    daily_msgs_map[day]["human"] += 1
+        if direction == "outbound":
             if m.get("is_ai_generated"):
                 ai_count += 1
                 if (m.get("created_at") or "") >= today_start.isoformat():
@@ -1034,7 +1038,13 @@ async def overview_analytics(
     return {
         "daily_leads": [{"day": d, "count": daily_leads_map[d]} for d in days_iso],
         "daily_messages": [
-            {"day": d, "inbound": daily_msgs_map[d]["inbound"], "outbound": daily_msgs_map[d]["outbound"]}
+            {
+                "day": d,
+                "inbound": daily_msgs_map[d]["inbound"],
+                "outbound": daily_msgs_map[d]["outbound"],
+                "ai": daily_msgs_map[d]["ai"],
+                "human": daily_msgs_map[d]["human"],
+            }
             for d in days_iso
         ],
         "funnel": {

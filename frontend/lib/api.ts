@@ -340,7 +340,7 @@ export interface SystemStatus {
 
 export interface AnalyticsOverview {
   daily_leads: { day: string; count: number }[];
-  daily_messages: { day: string; inbound: number; outbound: number }[];
+  daily_messages: { day: string; inbound: number; outbound: number; ai: number; human: number }[];
   funnel: { inquiries: number; engaged: number; hot: number; converted: number };
   ai_vs_human: { ai: number; human: number };
   unreplied_24h: number;
@@ -589,7 +589,7 @@ export interface FunnelAnalytics {
 
 export interface AnalyticsOverviewExtended {
   daily_leads: { day: string; count: number }[];
-  daily_messages: { day: string; inbound: number; outbound: number }[];
+  daily_messages: { day: string; inbound: number; outbound: number; ai: number; human: number }[];
   funnel: { inquiries: number; engaged: number; hot: number; converted: number };
   ai_vs_human: { ai: number; human: number };
   unreplied_24h: number;
