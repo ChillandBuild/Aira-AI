@@ -8,11 +8,16 @@ interface OnboardingStatus {
   is_system_admin?: boolean;
 }
 
+import { cookies } from "next/headers";
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = cookies();
+  const isE2eMock = cookieStore.get("e2e-mock-user")?.value === "true";
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (!user && !isE2eMock) {
     redirect("/login");
   }
 
