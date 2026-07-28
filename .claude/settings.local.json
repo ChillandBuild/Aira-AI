@@ -26,9 +26,6 @@
       "Bash(cd backend && python -c*)",
       "Bash(uvicorn app.main:app*)",
       "Bash(curl -s http://127.0.0.1:8000/api/v1/*)",
-      "mcp__claude_ai_Supabase__list_migrations",
-      "mcp__claude_ai_Supabase__list_tables",
-      "mcp__claude_ai_Supabase__execute_sql",
       "Write(/Users/prem/Documents/Aira AI/graphify-out/*)"
     ]
   },
