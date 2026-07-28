@@ -17,6 +17,7 @@ import { DataOpsView } from "./views/data-ops";
 import { AuditLogsView } from "./views/audit-logs";
 import { DeleteClientView } from "./views/delete-client";
 import { EntitlementsView } from "./views/entitlements";
+import { TokenUsageCard } from "./views/TokenUsageCard";
 
 import type { OverviewData } from "./types";
 
@@ -24,7 +25,7 @@ const VALID_SECTIONS: SectionType[] = [
   "overview", "conversations", "segments", "inbound", "outbound",
   "templates", "numbers", "knowledge", "analytics", "team",
   "tc-upload", "tc-dialer", "tc-scheduled", "tc-notes",
-  "config", "entitlements", "health", "management", "data-ops", "audit-logs", "delete-client",
+  "config", "entitlements", "token-usage", "health", "management", "data-ops", "audit-logs", "delete-client",
 ];
 
 export default function ClientDetailPage() {
@@ -141,6 +142,7 @@ export default function ClientDetailPage() {
     "tc-notes": { title: "Telecalling / Notes", desc: "Call notes from telecallers." },
     config: { title: "Configuration", desc: "Credential status and key settings." },
     entitlements: { title: "Entitlements & Usage", desc: "Current purchased items, subscription status, and usage this cycle (read-only)." },
+    "token-usage": { title: "Token Consumption", desc: "AI provider token usage and estimated cost, on this client's own API keys." },
     health: { title: "Health", desc: "Channel health, delivery stats, and incidents." },
     management: { title: "Management", desc: "Owner management and account actions." },
     "data-ops": { title: "Data Operations", desc: "Clear specific data types for this client." },
@@ -238,6 +240,8 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
       return <ConfigView tenantId={tenantId} />;
     case "entitlements":
       return <EntitlementsView tenantId={tenantId} />;
+    case "token-usage":
+      return <TokenUsageCard tenantId={tenantId} />;
     case "health":
       return <HealthView tenantId={tenantId} />;
     case "management":

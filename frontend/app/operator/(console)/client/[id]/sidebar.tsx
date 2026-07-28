@@ -5,7 +5,7 @@ import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
   Wrench, Activity, Settings, Settings2, Database, ChevronDown, ChevronRight,
-  ArrowLeft, FileText, Trash2,
+  ArrowLeft, FileText, Trash2, Cpu,
 } from "lucide-react";
 import { OperatorToggle } from "../../components/operator-toggle";
 
@@ -14,7 +14,7 @@ export type SectionType =
   | "inbound" | "outbound" | "templates" | "numbers"
   | "knowledge" | "analytics" | "team"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
-  | "config" | "entitlements" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
+  | "config" | "entitlements" | "token-usage" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
 
 type NavItem = {
   key: SectionType;
@@ -47,6 +47,7 @@ const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; feature
 const OPERATOR_NAV: NavItem[] = [
   { key: "config", icon: Wrench, label: "Configuration" },
   { key: "entitlements", icon: Settings2, label: "Entitlements & Usage" },
+  { key: "token-usage", icon: Cpu, label: "Token Consumption" },
   { key: "health", icon: Activity, label: "Health" },
   { key: "management", icon: Settings, label: "Management" },
   { key: "data-ops", icon: Database, label: "Data Ops" },
