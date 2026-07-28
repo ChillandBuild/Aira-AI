@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Key, PowerOff, Power } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { ConfirmModal } from "../../../components/confirm-modal";
 import type { OverviewData } from "../types";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -30,6 +31,8 @@ export function ManagementView({
 }) {
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false);
 
   async function handleResetPassword() {
     setActionLoading("reset");
@@ -38,6 +41,7 @@ export function ManagementView({
         method: "POST",
       });
       setTempPassword(res.temp_password);
+      setShowResetConfirm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to reset password");
     } finally {
@@ -54,6 +58,7 @@ export function ManagementView({
         method: "PATCH",
         body: JSON.stringify({ status: newStatus }),
       });
+      setShowStatusConfirm(false);
       onReload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update status");
@@ -63,6 +68,7 @@ export function ManagementView({
   }
 
   const isActive = overview?.tenant.status === "active";
+  const clientName = overview?.tenant.name || "this client";
 
   return (
     <div className="space-y-6">
@@ -73,7 +79,7 @@ export function ManagementView({
           {/* Reset Password */}
           <div className="bg-white rounded-card border border-border p-4 shadow-sm hover:shadow-card transition-all">
             <button
-              onClick={handleResetPassword}
+              onClick={() => setShowResetConfirm(true)}
               disabled={actionLoading === "reset"}
               className="flex items-center gap-3 w-full text-left disabled:opacity-50"
             >
@@ -90,7 +96,7 @@ export function ManagementView({
           {/* Suspend / Activate */}
           <div className="bg-white rounded-card border border-border p-4 shadow-sm hover:shadow-card transition-all">
             <button
-              onClick={handleToggleStatus}
+              onClick={() => setShowStatusConfirm(true)}
               disabled={actionLoading === "status"}
               className="flex items-center gap-3 w-full text-left disabled:opacity-50"
             >
@@ -130,6 +136,34 @@ export function ManagementView({
         Team roster and owner details are on the <span className="font-medium text-ink-secondary">Team</span> tab.
         To wipe a client&apos;s lead data, use the <span className="font-medium text-ink-secondary">Data Ops</span> tab.
       </p>
+
+      {/* Reset Password Confirmation */}
+      <ConfirmModal
+        open={showResetConfirm}
+        onClose={() => setShowResetConfirm(false)}
+        onConfirm={handleResetPassword}
+        title="Reset owner password?"
+        description={`This will generate a new temporary password for ${clientName}'s account owner. Their current password will stop working immediately.`}
+        confirmLabel="Reset"
+        tone="primary"
+        loading={actionLoading === "reset"}
+      />
+
+      {/* Suspend/Activate Confirmation */}
+      <ConfirmModal
+        open={showStatusConfirm}
+        onClose={() => setShowStatusConfirm(false)}
+        onConfirm={handleToggleStatus}
+        title={isActive ? `Suspend ${clientName}?` : `Activate ${clientName}?`}
+        description={
+          isActive
+            ? `Suspended clients lose access to all services immediately. Are you sure you want to suspend ${clientName}?`
+            : `${clientName} will regain access to all services immediately. Are you sure you want to activate this client?`
+        }
+        confirmLabel={isActive ? "Suspend" : "Activate"}
+        tone={isActive ? "danger" : "primary"}
+        loading={actionLoading === "status"}
+      />
     </div>
   );
 }

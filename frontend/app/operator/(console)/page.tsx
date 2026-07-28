@@ -24,6 +24,8 @@ export default function OperatorPage() {
   const [pwCopied, setPwCopied] = useState(false);
   const [resetTarget, setResetTarget] = useState<Client | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<Client | null>(null);
+  const [statusLoading, setStatusLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -63,16 +65,25 @@ export default function OperatorPage() {
     return () => clearInterval(id);
   }, [load]);
 
-  async function handleToggleStatus(client: Client) {
-    const newStatus = client.status === "active" ? "suspended" : "active";
+  function handleToggleStatus(client: Client) {
+    setStatusTarget(client);
+  }
+
+  async function confirmToggleStatus() {
+    if (!statusTarget) return;
+    setStatusLoading(true);
+    const newStatus = statusTarget.status === "active" ? "suspended" : "active";
     try {
-      await operatorFetch(`/api/v1/operator/clients/${client.id}/status`, {
+      await operatorFetch(`/api/v1/operator/clients/${statusTarget.id}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status: newStatus }),
       });
+      setStatusTarget(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to update status");
+    } finally {
+      setStatusLoading(false);
     }
   }
 
@@ -306,6 +317,22 @@ export default function OperatorPage() {
         confirmLabel="Reset"
         tone="primary"
         loading={resetLoading}
+      />
+
+      {/* Single client status toggle confirmation */}
+      <ConfirmModal
+        open={statusTarget !== null}
+        onClose={() => setStatusTarget(null)}
+        onConfirm={confirmToggleStatus}
+        title={statusTarget?.status === "active" ? `Suspend ${statusTarget?.name ?? "client"}?` : `Activate ${statusTarget?.name ?? "client"}?`}
+        description={
+          statusTarget?.status === "active"
+            ? `Suspended clients will lose access immediately. Are you sure you want to suspend ${statusTarget?.name}?`
+            : `${statusTarget?.name} will regain access immediately. Are you sure you want to activate this client?`
+        }
+        confirmLabel={statusTarget?.status === "active" ? "Suspend" : "Activate"}
+        tone={statusTarget?.status === "active" ? "danger" : "primary"}
+        loading={statusLoading}
       />
 
       {/* Create modal */}
