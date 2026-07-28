@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { ClipboardList, Check, X } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
 
@@ -69,7 +70,11 @@ function RequestCard({ request, onReviewed }: { request: SubscriptionRequest; on
     <div className="bg-white rounded-card border border-border p-5 shadow-sm space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-ink">{request.tenant_name}</h3>
+          <h3 className="text-sm font-semibold text-ink">
+            <Link href={`/operator/client/${request.tenant_id}?section=entitlements`} className="text-primary hover:text-primary-dark">
+              {request.tenant_name}
+            </Link>
+          </h3>
           <p className="text-xs text-ink-muted mt-0.5">
             {request.is_initial ? "Initial subscription" : "Top-up request"} · {new Date(request.submitted_at).toLocaleString("en-IN")}
           </p>

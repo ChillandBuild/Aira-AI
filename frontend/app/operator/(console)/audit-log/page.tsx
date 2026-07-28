@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import Link from "next/link";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { relTime } from "@/lib/operator";
 
@@ -165,7 +166,15 @@ export default function AuditLogPage() {
                       {log.action}
                     </span>
                   </td>
-                  <td className="px-5 py-3 text-ink text-xs">{log.tenant_name}</td>
+                  <td className="px-5 py-3 text-ink text-xs">
+                    {log.tenant_id ? (
+                      <Link href={`/operator/client/${log.tenant_id}`} className="font-medium text-primary hover:text-primary-dark">
+                        {log.tenant_name}
+                      </Link>
+                    ) : (
+                      log.tenant_name
+                    )}
+                  </td>
                   <td className="px-5 py-3 text-ink-muted text-xs font-mono">
                     {log.target_type}{log.target_id ? `:${log.target_id.slice(0, 8)}` : ""}
                   </td>
