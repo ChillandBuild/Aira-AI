@@ -47,6 +47,8 @@ const METRIC_LABELS: Record<string, string> = {
   storage_gb: "Storage (GB)",
   ai_call_summary: "AI Call Summaries",
   ai_call_scoring: "AI Call Scoring",
+  ai_text_to_speech: "TTS",
+  ai_speech_to_text: "STT",
 };
 
 function UsageMeterRow({ item }: { item: UsageMetric }) {
