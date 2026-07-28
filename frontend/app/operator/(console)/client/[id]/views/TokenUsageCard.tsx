@@ -74,6 +74,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 type Range = "30" | "90" | "all" | "custom";
 
+const MIN_BAR_WIDTH = 28;
+
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -232,24 +234,28 @@ export function TokenUsageCard({ tenantId }: { tenantId: string }) {
           {data.daily.length > 0 && (
             <div className="mb-5" role="img" aria-label="Daily token consumption">
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">Daily tokens</p>
-              <ResponsiveContainer width="100%" height={140}>
-                <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 10, fill: "#a8a29e" }}
-                    tickFormatter={(d: string) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                  />
-                  <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} tickFormatter={fmt} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
-                    labelFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                    formatter={(value, name) => [fmt(Number(value) || 0), name === "input_tokens" ? "Input" : "Output"]}
-                  />
-                  <Bar dataKey="input_tokens" stackId="tokens" fill="#5b21b6" radius={[0, 0, 0, 0]} name="input_tokens" />
-                  <Bar dataKey="output_tokens" stackId="tokens" fill="#a78bfa" radius={[4, 4, 0, 0]} name="output_tokens" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="overflow-x-auto">
+                <div style={{ width: "100%", minWidth: `${data.daily.length * MIN_BAR_WIDTH}px` }}>
+                  <ResponsiveContainer width="100%" height={140}>
+                    <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: "#a8a29e" }}
+                        tickFormatter={(d: string) => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                      />
+                      <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} tickFormatter={fmt} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
+                        labelFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        formatter={(value, name) => [fmt(Number(value) || 0), name === "input_tokens" ? "Input" : "Output"]}
+                      />
+                      <Bar dataKey="input_tokens" stackId="tokens" fill="#5b21b6" radius={[0, 0, 0, 0]} name="input_tokens" />
+                      <Bar dataKey="output_tokens" stackId="tokens" fill="#a78bfa" radius={[4, 4, 0, 0]} name="output_tokens" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
           )}
 

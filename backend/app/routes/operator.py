@@ -1799,18 +1799,54 @@ def client_dashboard_analytics(tenant_id: str, _admin: dict = Depends(get_system
 
 
 @router.get("/clients/{tenant_id}/dashboard/daily-messages")
-def client_dashboard_daily_messages(tenant_id: str, range: str = "7d", _admin: dict = Depends(get_system_admin)):
-    """Per-day inbound/outbound/AI-vs-human breakdown for one tenant — same shape
-    as the tenant dashboard's own /analytics/overview daily_messages, scoped by
-    an operator-supplied tenant_id instead of the caller's own tenant."""
-    from app.routes.analytics import _range_params
+def client_dashboard_daily_messages(
+    tenant_id: str,
+    range_days: int = 7,
+    all_time: bool = False,
+    from_date: str | None = None,
+    to_date: str | None = None,
+    _admin: dict = Depends(get_system_admin),
+):
+    """Per-day inbound/outbound/AI-vs-human breakdown for one tenant, scoped by
+    an operator-supplied tenant_id instead of the caller's own tenant.
 
+    from_date/to_date (YYYY-MM-DD, both required together) select a custom,
+    inclusive range and take priority over range_days/all_time -- same
+    contract as get_client_token_usage."""
     db = get_supabase()
     tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
     if not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    window_start_dt, days_iso = _range_params(range)
+    now = datetime.now(timezone.utc)
+    if from_date and to_date:
+        try:
+            from_d = datetime.fromisoformat(from_date).date()
+            to_d = datetime.fromisoformat(to_date).date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="from_date/to_date must be YYYY-MM-DD")
+        if to_d < from_d:
+            raise HTTPException(status_code=400, detail="to_date must be on or after from_date")
+        window_start_dt = datetime.combine(from_d, datetime.min.time(), tzinfo=timezone.utc)
+        days_iso = [(from_d + timedelta(days=i)).isoformat() for i in range((to_d - from_d).days + 1)]
+    elif all_time:
+        earliest = (
+            db.table("messages")
+            .select("created_at")
+            .eq("tenant_id", tenant_id)
+            .order("created_at")
+            .limit(1)
+            .execute()
+        )
+        start_date = (
+            datetime.fromisoformat(earliest.data[0]["created_at"].replace("Z", "+00:00")).date()
+            if earliest.data else now.date()
+        )
+        window_start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.utc)
+        days_iso = [(start_date + timedelta(days=i)).isoformat() for i in range((now.date() - start_date).days + 1)]
+    else:
+        window_start_dt = now - timedelta(days=range_days)
+        days_iso = [(now - timedelta(days=i)).date().isoformat() for i in range(range_days - 1, -1, -1)]
 
     msgs = (
         db.table("messages")
