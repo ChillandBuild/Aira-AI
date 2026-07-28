@@ -340,13 +340,21 @@ export interface SystemStatus {
 
 export interface AnalyticsOverview {
   daily_leads: { day: string; count: number }[];
+  daily_leads_trend_pct: number | null;
   daily_messages: { day: string; inbound: number; outbound: number; ai: number; human: number }[];
   funnel: { inquiries: number; engaged: number; hot: number; converted: number };
   ai_vs_human: { ai: number; human: number };
   unreplied_24h: number;
   converted_7d: number;
+  converted_7d_trend_pct: number | null;
   ai_handled_today: number;
   by_segment: Record<"A" | "B" | "C" | "D", number>;
+  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
+  total_leads: number;
+  ad_attributed_leads: number;
+  new_hot_leads_7d: number;
+  new_hot_leads_7d_daily: { day: string; count: number }[];
+  new_hot_leads_7d_trend_pct: number | null;
 }
 
 export interface FollowUpQueueItem {
@@ -1853,6 +1861,7 @@ export const api = {
       }),
   },
   chatHandovers: {
+    count: () => apiFetch<{ count: number }>(`/api/v1/chat-handovers/count`),
     assign: (handoverId: string, callerId: string) =>
       apiFetch<{ assigned: boolean }>(`/api/v1/chat-handovers/${handoverId}/assign`, {
         method: "PATCH",
