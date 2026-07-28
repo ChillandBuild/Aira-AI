@@ -1,10 +1,98 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause, Play, Check } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause, Play, Check, Activity, HardDrive, Cpu } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { relTime } from "@/lib/operator";
-import { ActionConfirm } from "../components/action-confirm";
+import { relTime, operatorFetch } from "@/lib/operator";
+import { ConfirmModal } from "../components/confirm-modal";
 import { OperatorToggle } from "../components/operator-toggle";
+
+interface SystemHealth {
+  status: "healthy" | "unhealthy";
+  uptime_seconds: number;
+  uptime_human: string;
+  started_at: string;
+  server_time: string;
+  details: {
+    database: string;
+    scheduler_jobs: Record<string, { status: string; last_heartbeat: string | null }>;
+  };
+}
+
+interface OperatorHealth {
+  status: string;
+  uptime_seconds: number;
+  uptime_human: string;
+  memory_mb: number;
+  cpu_percent: number;
+  python_version: string;
+  server_time: string;
+  started_at: string;
+}
+
+function SystemHealthCard({ health, operatorHealth, loading }: { health: SystemHealth | null; operatorHealth: OperatorHealth | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="mb-6 p-4 bg-white rounded-card border border-border animate-pulse">
+        <div className="h-5 bg-surface-mid rounded w-32 mb-3" />
+        <div className="flex gap-6">
+          <div className="h-4 bg-surface-mid rounded w-24" />
+          <div className="h-4 bg-surface-mid rounded w-24" />
+          <div className="h-4 bg-surface-mid rounded w-24" />
+        </div>
+      </div>
+    );
+  }
+
+  const isHealthy = health?.status === "healthy";
+  const dbOk = health?.details?.database === "ok";
+  const uptime = operatorHealth?.uptime_human || health?.uptime_human || "—";
+  const memoryMb = operatorHealth?.memory_mb;
+  const cpuPercent = operatorHealth?.cpu_percent;
+
+  return (
+    <div className={`mb-6 rounded-card border shadow-card overflow-hidden ${
+      isHealthy ? "bg-white border-border" : "bg-red-50 border-danger/30"
+    }`}>
+      <div className="px-5 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`w-2.5 h-2.5 rounded-full ${isHealthy ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+          <span className="text-sm font-semibold text-ink">
+            Render Backend
+          </span>
+          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+            isHealthy ? "bg-emerald-50 text-emerald-700" : "bg-red-100 text-red-700"
+          }`}>
+            {isHealthy ? "LIVE" : "UNHEALTHY"}
+          </span>
+        </div>
+        <div className="flex items-center gap-5 text-xs text-ink-muted">
+          <div className="flex items-center gap-1.5" title="Uptime since last deploy">
+            <Clock size={12} className="opacity-60" />
+            <span className="font-mono">{uptime}</span>
+          </div>
+          {memoryMb != null && (
+            <div className="flex items-center gap-1.5" title="Memory usage">
+              <HardDrive size={12} className="opacity-60" />
+              <span className="font-mono">{memoryMb} MB</span>
+            </div>
+          )}
+          {cpuPercent != null && (
+            <div className="flex items-center gap-1.5" title="CPU usage">
+              <Cpu size={12} className="opacity-60" />
+              <span className="font-mono">{cpuPercent.toFixed(1)}%</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5" title="Database">
+            <Activity size={12} className="opacity-60" />
+            <span className={`font-medium ${dbOk ? "text-emerald-600" : "text-red-600"}`}>
+              DB {dbOk ? "OK" : "ERR"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface JobHealth {
   id: string;
@@ -70,6 +158,25 @@ export default function SchedulerHealthPage() {
   const [pauseConfirmJob, setPauseConfirmJob] = useState<JobHealth | null>(null);
   const [running, setRunning] = useState<string | null>(null);
   const [justRan, setJustRan] = useState<string | null>(null);
+
+  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
+  const [operatorHealth, setOperatorHealth] = useState<OperatorHealth | null>(null);
+  const [healthLoading, setHealthLoading] = useState(true);
+
+  const loadHealth = useCallback(async () => {
+    try {
+      const [healthRes, opRes] = await Promise.allSettled([
+        fetch(`${API_URL}/ready`).then(r => r.json()),
+        operatorFetch<OperatorHealth>("/api/v1/operator/system-health"),
+      ]);
+      if (healthRes.status === "fulfilled") setSystemHealth(healthRes.value);
+      if (opRes.status === "fulfilled") setOperatorHealth(opRes.value);
+    } catch {
+      // silent — card shows stale or loading state
+    } finally {
+      setHealthLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -168,9 +275,10 @@ export default function SchedulerHealthPage() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 30_000);
+    loadHealth();
+    const id = setInterval(() => { load(); loadHealth(); }, 30_000);
     return () => clearInterval(id);
-  }, [load]);
+  }, [load, loadHealth]);
 
   return (
     <div className="max-w-6xl mx-auto px-8 py-8">
@@ -186,6 +294,9 @@ export default function SchedulerHealthPage() {
       <p className="text-sm text-ink-muted mb-6">
         Platform-wide background jobs (run once for all tenants). Auto-refreshes every 30s.
       </p>
+
+      {/* System Health — Aira's own server, same "is our infrastructure OK" question this page already answers for background jobs */}
+      <SystemHealthCard health={systemHealth} operatorHealth={operatorHealth} loading={healthLoading} />
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>
@@ -286,13 +397,13 @@ export default function SchedulerHealthPage() {
         </div>
       )}
 
-      <ActionConfirm
+      <ConfirmModal
         open={pauseConfirmJob !== null}
         onClose={() => setPauseConfirmJob(null)}
         onConfirm={confirmPause}
         title={`Pause ${pauseConfirmJob ? (JOB_LABELS[pauseConfirmJob.id]?.name ?? pauseConfirmJob.id) : "job"}?`}
         description={`This is a platform-critical job that runs once for every tenant. Pausing it will halt "${pauseConfirmJob ? (JOB_LABELS[pauseConfirmJob.id]?.name ?? pauseConfirmJob.id) : ""}" for all clients until it is resumed.`}
-        confirmText="Pause job"
+        confirmLabel="Pause job"
         tone="warning"
         loading={toggling === pauseConfirmJob?.id}
       />

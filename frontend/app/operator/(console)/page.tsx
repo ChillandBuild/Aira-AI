@@ -1,108 +1,17 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, Activity, Clock, Cpu, HardDrive, X } from "lucide-react";
-import { API_URL } from "@/lib/api";
+import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, X } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
 import { OnboardingWizard } from "./components/onboarding-wizard";
-import { ActionConfirm } from "./components/action-confirm";
+import { ConfirmModal } from "./components/confirm-modal";
 
 type Client = {
   id: string;
   name: string;
-  enabled_features: string[];
   status: string;
   created_at: string;
-  owner_user_id: string | null;
 };
-
-type SystemHealth = {
-  status: "healthy" | "unhealthy";
-  uptime_seconds: number;
-  uptime_human: string;
-  started_at: string;
-  server_time: string;
-  details: {
-    database: string;
-    scheduler_jobs: Record<string, { status: string; last_heartbeat: string | null }>;
-  };
-};
-
-type OperatorHealth = {
-  status: string;
-  uptime_seconds: number;
-  uptime_human: string;
-  memory_mb: number;
-  cpu_percent: number;
-  python_version: string;
-  server_time: string;
-  started_at: string;
-};
-
-function SystemHealthCard({ health, operatorHealth, loading }: { health: SystemHealth | null; operatorHealth: OperatorHealth | null; loading: boolean }) {
-  if (loading) {
-    return (
-      <div className="mb-6 p-4 bg-white rounded-card border border-border animate-pulse">
-        <div className="h-5 bg-surface-mid rounded w-32 mb-3" />
-        <div className="flex gap-6">
-          <div className="h-4 bg-surface-mid rounded w-24" />
-          <div className="h-4 bg-surface-mid rounded w-24" />
-          <div className="h-4 bg-surface-mid rounded w-24" />
-        </div>
-      </div>
-    );
-  }
-
-  const isHealthy = health?.status === "healthy";
-  const dbOk = health?.details?.database === "ok";
-  const uptime = operatorHealth?.uptime_human || health?.uptime_human || "—";
-  const memoryMb = operatorHealth?.memory_mb;
-  const cpuPercent = operatorHealth?.cpu_percent;
-
-  return (
-    <div className={`mb-6 rounded-card border shadow-card overflow-hidden ${
-      isHealthy ? "bg-white border-border" : "bg-red-50 border-danger/30"
-    }`}>
-      <div className="px-5 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${isHealthy ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-          <span className="text-sm font-semibold text-ink">
-            Render Backend
-          </span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-            isHealthy ? "bg-emerald-50 text-emerald-700" : "bg-red-100 text-red-700"
-          }`}>
-            {isHealthy ? "LIVE" : "UNHEALTHY"}
-          </span>
-        </div>
-        <div className="flex items-center gap-5 text-xs text-ink-muted">
-          <div className="flex items-center gap-1.5" title="Uptime since last deploy">
-            <Clock size={12} className="opacity-60" />
-            <span className="font-mono">{uptime}</span>
-          </div>
-          {memoryMb != null && (
-            <div className="flex items-center gap-1.5" title="Memory usage">
-              <HardDrive size={12} className="opacity-60" />
-              <span className="font-mono">{memoryMb} MB</span>
-            </div>
-          )}
-          {cpuPercent != null && (
-            <div className="flex items-center gap-1.5" title="CPU usage">
-              <Cpu size={12} className="opacity-60" />
-              <span className="font-mono">{cpuPercent.toFixed(1)}%</span>
-            </div>
-          )}
-          <div className="flex items-center gap-1.5" title="Database">
-            <Activity size={12} className="opacity-60" />
-            <span className={`font-medium ${dbOk ? "text-emerald-600" : "text-red-600"}`}>
-              DB {dbOk ? "OK" : "ERR"}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function OperatorPage() {
   const router = useRouter();
@@ -123,10 +32,6 @@ export default function OperatorPage() {
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const [bulkSummary, setBulkSummary] = useState<{ succeeded: number; failed: number; failedNames: string[] } | null>(null);
 
-  const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
-  const [operatorHealth, setOperatorHealth] = useState<OperatorHealth | null>(null);
-  const [healthLoading, setHealthLoading] = useState(true);
-
   const [view, setView] = useState<"grid" | "table">(() => {
     if (typeof window !== "undefined") {
       return (localStorage.getItem("operator-clients-view") as "grid" | "table") || "grid";
@@ -137,21 +42,6 @@ export default function OperatorPage() {
   useEffect(() => {
     localStorage.setItem("operator-clients-view", view);
   }, [view]);
-
-  const loadHealth = useCallback(async () => {
-    try {
-      const [healthRes, opRes] = await Promise.allSettled([
-        fetch(`${API_URL}/ready`).then(r => r.json()),
-        operatorFetch<OperatorHealth>("/api/v1/operator/system-health"),
-      ]);
-      if (healthRes.status === "fulfilled") setSystemHealth(healthRes.value);
-      if (opRes.status === "fulfilled") setOperatorHealth(opRes.value);
-    } catch {
-      // silent — card shows stale or loading state
-    } finally {
-      setHealthLoading(false);
-    }
-  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -165,13 +55,13 @@ export default function OperatorPage() {
     }
   }, []);
 
-  useEffect(() => { load(); loadHealth(); }, [load, loadHealth]);
+  useEffect(() => { load(); }, [load]);
 
-  // Auto-refresh health every 60s — also refreshes the client list on the same cadence.
+  // Auto-refresh the client list every 60s.
   useEffect(() => {
-    const id = setInterval(() => { loadHealth(); load(); }, 60_000);
+    const id = setInterval(() => { load(); }, 60_000);
     return () => clearInterval(id);
-  }, [loadHealth, load]);
+  }, [load]);
 
   async function handleToggleStatus(client: Client) {
     const newStatus = client.status === "active" ? "suspended" : "active";
@@ -369,9 +259,6 @@ export default function OperatorPage() {
         </div>
       </div>
 
-      {/* System Health */}
-      <SystemHealthCard health={systemHealth} operatorHealth={operatorHealth} loading={healthLoading} />
-
       {/* Error alert */}
       {error && (
         <div className="mb-4 p-3 bg-red-50 border border-danger/20 rounded-lg text-sm text-danger">
@@ -410,13 +297,13 @@ export default function OperatorPage() {
       )}
 
       {/* Reset password confirmation */}
-      <ActionConfirm
+      <ConfirmModal
         open={resetTarget !== null}
         onClose={() => setResetTarget(null)}
         onConfirm={confirmResetPassword}
         title="Reset password?"
         description={`This will generate a new temporary password for ${resetTarget?.name ?? "this client"}. Their current password will stop working immediately.`}
-        confirmText="Reset"
+        confirmLabel="Reset"
         tone="primary"
         loading={resetLoading}
       />
@@ -596,7 +483,7 @@ export default function OperatorPage() {
       )}
 
       {/* Bulk action confirmation */}
-      <ActionConfirm
+      <ConfirmModal
         open={bulkAction !== null}
         onClose={() => { if (!bulkRunning) setBulkAction(null); }}
         onConfirm={confirmBulkAction}
@@ -612,7 +499,7 @@ export default function OperatorPage() {
               ? "Suspended clients will lose access immediately. This action is applied one at a time."
               : "These clients will regain access immediately. This action is applied one at a time."
         }
-        confirmText={bulkAction === "suspended" ? "Suspend" : "Activate"}
+        confirmLabel={bulkAction === "suspended" ? "Suspend" : "Activate"}
         tone={bulkAction === "suspended" ? "danger" : "primary"}
         loading={bulkRunning}
       />
