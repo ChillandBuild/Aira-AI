@@ -5,7 +5,7 @@ import {
   BookOpen, BarChart2, Tag, Upload,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { ConfirmDialog } from "../components/confirm-dialog";
+import { ConfirmModal } from "../../../components/confirm-modal";
 import { SkeletonCard } from "../components/skeleton";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -164,14 +164,17 @@ export function DataOpsView({ tenantId, clientName }: { tenantId: string; client
       )}
 
       {/* Confirm Dialog */}
-      <ConfirmDialog
+      <ConfirmModal
         open={!!confirmType}
         onClose={() => setConfirmType(null)}
         onConfirm={handleClear}
         title={`Clear ${activeType?.label || ""}`}
         description={`This will permanently delete the following data for "${clientName}". This action cannot be undone.\n\n${activeType?.desc || ""}`}
         details={confirmType ? [{ label: `${activeType?.label || ""} records`, count: counts[confirmType] ?? 0 }] : []}
-        confirmText={clientName}
+        tone="danger"
+        requireTypedConfirmation={clientName}
+        confirmLabel="Delete Forever"
+        loadingLabel="Deleting…"
         loading={clearing}
       />
     </div>

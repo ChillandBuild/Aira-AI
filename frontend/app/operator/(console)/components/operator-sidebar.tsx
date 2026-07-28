@@ -2,10 +2,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Clock, LogOut } from "lucide-react";
+import { Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
 import { AlertBell } from "./alert-bell";
+import { ConfirmModal } from "./confirm-modal";
 
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },
@@ -92,38 +93,15 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
       </header>
 
       {/* Sign Out Confirmation */}
-      {showSignOut && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-card shadow-xl w-full max-w-sm p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-danger/10 flex items-center justify-center">
-                <LogOut size={20} className="text-danger" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-ink">Sign Out</h3>
-                <p className="text-xs text-ink-muted">{userEmail}</p>
-              </div>
-            </div>
-            <p className="text-sm text-ink-secondary mb-6">
-              Are you sure you want to sign out of the operator console?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowSignOut(false)}
-                className="flex-1 px-4 py-2.5 border border-border text-sm text-ink-secondary rounded-xl hover:bg-surface-mid transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSignOut}
-                className="flex-1 px-4 py-2.5 bg-danger text-white text-sm font-medium rounded-xl hover:bg-danger/90 transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        open={showSignOut}
+        onClose={() => setShowSignOut(false)}
+        onConfirm={handleSignOut}
+        title="Sign Out"
+        description={`Are you sure you want to sign out of the operator console?\n\n${userEmail}`}
+        tone="danger"
+        confirmLabel="Sign Out"
+      />
     </>
   );
 }
