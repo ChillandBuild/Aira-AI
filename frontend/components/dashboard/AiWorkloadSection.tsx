@@ -22,7 +22,7 @@ export function AiWorkloadSection({ overview }: { overview: AnalyticsOverview })
       <h2 className="font-display font-bold text-ink mb-6 text-[18px]">
         Is my AI carrying its weight?
       </h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 divide-x divide-[#f0ece4]">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-6 divide-x divide-[#f0ece4]">
         <div>
           <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">AI Auto-Reply Share</div>
           <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{aiPct}%</div>
@@ -37,6 +37,12 @@ export function AiWorkloadSection({ overview }: { overview: AnalyticsOverview })
         <div className="pl-6">
           <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Outbound Today</div>
           <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{today?.outbound ?? 0}</div>
+        </div>
+        <div className="pl-6">
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Awaiting Response</div>
+          <div className={`font-display font-bold text-[32px] tracking-tight mt-2 ${overview.unreplied_24h > 0 ? "text-rose-600" : "text-ink"}`}>
+            {overview.unreplied_24h}
+          </div>
         </div>
         <div className="pl-6">
           <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Escalations Awaiting Human</div>
