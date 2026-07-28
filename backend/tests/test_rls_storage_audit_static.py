@@ -42,7 +42,11 @@ def test_operator_and_settings_write_audit_events():
     settings_source = read_backend("app/routes/app_settings.py")
     assert "record_audit_event" in operator_source
     assert "operator.client_created" in operator_source
-    assert "operator.leads_wiped" in operator_source
+    # Lead-wipe used to log its own "operator.leads_wiped" action via a
+    # dedicated /wipe-leads endpoint; that endpoint was merged into the
+    # generic /clients/{id}/clear/{data_type} endpoint, which audits every
+    # data type (including leads) under this one prefix instead.
+    assert "operator.data_cleared:" in operator_source
     assert "operator.password_reset" in operator_source
     assert "record_audit_event" in settings_source
     assert "settings.updated" in settings_source
