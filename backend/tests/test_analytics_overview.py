@@ -101,6 +101,37 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
         self.assertEqual(body["daily_leads_trend_pct"], 50)
 
     @patch("app.routes.analytics.get_supabase")
+    def test_converted_7d_trend_uses_full_lead_population_not_just_prior_created(self, mock_get_db):
+        """Regression: prior_converted_7d must scan the full leads_rows
+        population bounded to the prior window, not leads *created* in the
+        prior window (a lead can be created weeks earlier and convert this
+        week) -- and must not double-count conversions that already landed
+        in the current window's own converted_7d."""
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        prior_window_conversion = now - timedelta(days=10)  # inside prior window (7d range -> [-14d, -7d))
+        current_window_conversion = now - timedelta(days=2)  # inside current window, must NOT count as prior
+
+        leads_rows = [
+            # created 30 days ago (outside both windows) but converted inside
+            # the PRIOR window -- must count.
+            {"id": "l1", "created_at": (now - timedelta(days=30)).isoformat(),
+             "converted_at": prior_window_conversion.isoformat(), "segment": "A", "source": "whatsapp"},
+            # created 30 days ago, converted inside the CURRENT window --
+            # already counted in converted_7d, must NOT also land in prior_converted_7d.
+            {"id": "l2", "created_at": (now - timedelta(days=30)).isoformat(),
+             "converted_at": current_window_conversion.isoformat(), "segment": "A", "source": "whatsapp"},
+        ]
+        self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=[], prior_stage_events_rows=[])
+
+        res = self.client.get("/api/v1/analytics/overview?range=7d")
+        body = res.json()
+        self.assertEqual(body["converted_7d"], 1)  # only l2
+        # prior=1 (l1), current=1 (l2) -> 0% change
+        self.assertEqual(body["converted_7d_trend_pct"], 0)
+
+    @patch("app.routes.analytics.get_supabase")
     def test_new_hot_leads_7d_counted_from_lead_stage_events(self, mock_get_db):
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).date().isoformat()

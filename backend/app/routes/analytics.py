@@ -1032,9 +1032,15 @@ async def overview_analytics(
     current_new_leads = sum(daily_leads_map.values())
     daily_leads_trend_pct = _pct_trend(current_new_leads, prior_new_leads)
 
+    # Scans the full leads_rows population, not prior_leads_rows -- a lead's
+    # created_at and converted_at can fall in different windows (created 3
+    # weeks ago, converted this week), so filtering by created_at would miss
+    # it. Bounded above by window_start_dt so conversions already counted in
+    # the current converted_7d aren't double-counted into the baseline.
     prior_converted_7d = sum(
-        1 for lead in prior_leads_rows
-        if lead.get("converted_at") and lead["converted_at"] >= prior_window_start_dt.isoformat()
+        1 for lead in leads_rows
+        if lead.get("converted_at")
+        and prior_window_start_dt.isoformat() <= lead["converted_at"] < window_start_dt.isoformat()
     )
     converted_7d_trend_pct = _pct_trend(converted_7d, prior_converted_7d)
 
