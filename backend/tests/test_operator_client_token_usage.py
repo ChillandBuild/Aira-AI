@@ -31,6 +31,7 @@ class OperatorClientTokenUsageTests(unittest.TestCase):
                 if name == "tenant_token_usage":
                     tbl.select.return_value.eq.return_value.execute.return_value.data = usage_rows
                     tbl.select.return_value.eq.return_value.gte.return_value.execute.return_value.data = usage_rows
+                    tbl.select.return_value.eq.return_value.gte.return_value.lt.return_value.execute.return_value.data = usage_rows
                 elif name == "provider_model_rates":
                     tbl.select.return_value.execute.return_value.data = rate_rows or []
                 tables[name] = tbl
@@ -126,6 +127,32 @@ class OperatorClientTokenUsageTests(unittest.TestCase):
         self.assertFalse(by_model[("groq", "llama-3.3-70b-versatile")]["has_unrated"])
         self.assertAlmostEqual(by_model[("gemini", "gemini-3.1-flash-lite")]["estimated_cost"], 0.0)
         self.assertTrue(by_model[("gemini", "gemini-3.1-flash-lite")]["has_unrated"])
+
+    @patch("app.routes.operator.get_supabase")
+    def test_custom_date_range_takes_priority_and_reports_null_range_days(self, mock_get_db):
+        rows = [{"usage_date": "2026-07-10", "purpose": "ai_reply", "provider": "groq", "model": "m1", "calls": 1, "input_tokens": 100, "output_tokens": 10}]
+        self._mock_db(mock_get_db, rows)
+
+        # range_days=90 is also passed but must be ignored once from/to are given
+        res = self.client.get("/api/v1/operator/clients/tenant-1/token-usage?range_days=90&from_date=2026-07-01&to_date=2026-07-15")
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIsNone(body["range_days"])
+        self.assertEqual(body["data"]["totals"]["calls"], 1)
+
+    @patch("app.routes.operator.get_supabase")
+    def test_custom_date_range_rejects_to_before_from(self, mock_get_db):
+        self._mock_db(mock_get_db, [])
+
+        res = self.client.get("/api/v1/operator/clients/tenant-1/token-usage?from_date=2026-07-15&to_date=2026-07-01")
+        self.assertEqual(res.status_code, 400)
+
+    @patch("app.routes.operator.get_supabase")
+    def test_custom_date_range_rejects_bad_format(self, mock_get_db):
+        self._mock_db(mock_get_db, [])
+
+        res = self.client.get("/api/v1/operator/clients/tenant-1/token-usage?from_date=07-01-2026&to_date=2026-07-15")
+        self.assertEqual(res.status_code, 400)
 
 
 if __name__ == "__main__":

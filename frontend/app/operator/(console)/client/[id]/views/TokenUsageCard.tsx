@@ -72,7 +72,13 @@ const PROVIDER_LABELS: Record<string, string> = {
   sarvam: "Sarvam",
 };
 
-type Range = "30" | "90" | "all";
+type Range = "30" | "90" | "all" | "custom";
+
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -100,19 +106,27 @@ function FeatureBar({ item, maxTotal }: { item: FeatureUsage; maxTotal: number }
 
 export function TokenUsageCard({ tenantId }: { tenantId: string }) {
   const [range, setRange] = useState<Range>("30");
+  const [fromDate, setFromDate] = useState(() => isoDaysAgo(30));
+  const [toDate, setToDate] = useState(() => isoDaysAgo(0));
   const [data, setData] = useState<TokenUsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const customRangeInvalid = range === "custom" && (!fromDate || !toDate || fromDate > toDate);
+
   useEffect(() => {
+    if (customRangeInvalid) return;
     setLoading(true);
     setError(null);
-    const query = range === "all" ? "all_time=true" : `range_days=${range}`;
+    const query =
+      range === "all" ? "all_time=true"
+      : range === "custom" ? `from_date=${fromDate}&to_date=${toDate}`
+      : `range_days=${range}`;
     apiFetch<TokenUsageData>(`/api/v1/operator/clients/${tenantId}/token-usage?${query}`)
       .then(setData)
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
-  }, [tenantId, range]);
+  }, [tenantId, range, fromDate, toDate, customRangeInvalid]);
 
   const totals = data?.totals ?? { calls: 0, input_tokens: 0, output_tokens: 0, estimated_cost: 0, has_unrated: false };
   const totalTokens = totals.input_tokens + totals.output_tokens;
@@ -128,18 +142,43 @@ export function TokenUsageCard({ tenantId }: { tenantId: string }) {
           </h3>
           <p className="mt-0.5 text-xs text-ink-muted">Provider-reported usage across every AI feature, on this client&apos;s own API keys</p>
         </div>
-        <div className="inline-flex rounded-lg bg-surface-mid p-0.5">
-          {(["30", "90", "all"] as Range[]).map(r => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
-                range === r ? "bg-white text-ink shadow-sm" : "text-ink-secondary"
-              }`}
-            >
-              {r === "30" ? "30 days" : r === "90" ? "90 days" : "All time"}
-            </button>
-          ))}
+        <div className="flex flex-col items-end gap-2">
+          <div className="inline-flex rounded-lg bg-surface-mid p-0.5">
+            {(["30", "90", "all", "custom"] as Range[]).map(r => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                  range === r ? "bg-white text-ink shadow-sm" : "text-ink-secondary"
+                }`}
+              >
+                {r === "30" ? "30 days" : r === "90" ? "90 days" : r === "all" ? "All time" : "Custom"}
+              </button>
+            ))}
+          </div>
+          {range === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={fromDate}
+                max={toDate}
+                onChange={e => setFromDate(e.target.value)}
+                className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:border-primary focus:outline-none"
+              />
+              <span className="text-xs text-ink-muted">to</span>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate}
+                max={isoDaysAgo(0)}
+                onChange={e => setToDate(e.target.value)}
+                className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:border-primary focus:outline-none"
+              />
+            </div>
+          )}
+          {customRangeInvalid && (
+            <p className="text-[11px] text-danger">Pick a &ldquo;to&rdquo; date on or after &ldquo;from&rdquo;.</p>
+          )}
         </div>
       </div>
 

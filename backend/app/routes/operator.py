@@ -888,6 +888,8 @@ def get_client_token_usage(
     tenant_id: str,
     range_days: int = 30,
     all_time: bool = False,
+    from_date: str | None = None,
+    to_date: str | None = None,
     _admin: dict = Depends(get_system_admin),
 ):
     """Per-tenant LLM token consumption (migration 142), broken down by feature
@@ -896,15 +898,30 @@ def get_client_token_usage(
     tenant (one row per day/purpose/provider/model) -- aggregated in Python
     rather than a dedicated SQL rollup. Estimated cost (migration 143's
     admin-set rate card) is None per row/group when no rate is configured for
-    that (provider, model) -- never silently treated as ₹0."""
+    that (provider, model) -- never silently treated as ₹0.
+
+    from_date/to_date (YYYY-MM-DD, both required together) select a custom,
+    inclusive range and take priority over range_days/all_time -- same
+    contract as the fleet endpoint's custom range."""
     db = get_supabase()
 
     query = db.table("tenant_token_usage").select(
         "usage_date, purpose, provider, model, calls, input_tokens, output_tokens"
     ).eq("tenant_id", tenant_id)
-    if not all_time:
+
+    if from_date and to_date:
+        try:
+            from_d = datetime.fromisoformat(from_date).date()
+            to_d = datetime.fromisoformat(to_date).date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="from_date/to_date must be YYYY-MM-DD")
+        if to_d < from_d:
+            raise HTTPException(status_code=400, detail="to_date must be on or after from_date")
+        query = query.gte("usage_date", from_d.isoformat()).lt("usage_date", (to_d + timedelta(days=1)).isoformat())
+    elif not all_time:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=range_days)).date().isoformat()
         query = query.gte("usage_date", cutoff)
+
     rows = query.execute().data or []
     rates = get_rates(db)
 
@@ -959,7 +976,7 @@ def get_client_token_usage(
             "daily": sorted(by_day.values(), key=lambda x: x["date"]),
             "unrated_models": [{"provider": p, "model": m} for p, m in sorted(unrated_models)],
         },
-        "range_days": None if all_time else range_days,
+        "range_days": None if (all_time or (from_date and to_date)) else range_days,
     }
 
 
