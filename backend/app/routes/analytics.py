@@ -918,6 +918,15 @@ async def funnel_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
     }
 
 
+def _pct_trend(current: int, prior: int) -> float | None:
+    """None when there's no meaningful baseline (prior window had zero
+    activity) -- going from 0 to any activity isn't a "% increase," it's new,
+    and dividing by zero would misrepresent that."""
+    if prior <= 0:
+        return None
+    return round((current - prior) / prior * 100)
+
+
 @router.get("/overview")
 async def overview_analytics(
     tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
@@ -929,13 +938,50 @@ async def overview_analytics(
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     window_start_dt, days_iso = _range_params(range)
+    window_span = now - window_start_dt
+    prior_window_start_dt = window_start_dt - window_span
 
     leads_rows = (
         await asyncio.to_thread(
             db.table("leads")
-            .select("id,phone,segment,score,source,created_at,converted_at,ai_enabled,deleted_at")
+            .select("id,phone,segment,score,source,created_at,converted_at,ai_enabled,deleted_at,ad_campaign_id")
             .eq("tenant_id", tenant_id)
             .is_("deleted_at", "null")
+            .execute
+        )
+    ).data or []
+
+    prior_leads_rows = (
+        await asyncio.to_thread(
+            db.table("leads")
+            .select("id,created_at,converted_at")
+            .eq("tenant_id", tenant_id)
+            .is_("deleted_at", "null")
+            .gte("created_at", prior_window_start_dt.isoformat())
+            .lt("created_at", window_start_dt.isoformat())
+            .execute
+        )
+    ).data or []
+
+    stage_events_rows = (
+        await asyncio.to_thread(
+            db.table("lead_stage_events")
+            .select("lead_id,to_segment,created_at")
+            .eq("tenant_id", tenant_id)
+            .eq("to_segment", "A")
+            .gte("created_at", window_start_dt.isoformat())
+            .execute
+        )
+    ).data or []
+
+    prior_stage_events_rows = (
+        await asyncio.to_thread(
+            db.table("lead_stage_events")
+            .select("lead_id,to_segment,created_at")
+            .eq("tenant_id", tenant_id)
+            .eq("to_segment", "A")
+            .gte("created_at", prior_window_start_dt.isoformat())
+            .lt("created_at", window_start_dt.isoformat())
             .execute
         )
     ).data or []
@@ -953,6 +999,7 @@ async def overview_analytics(
     funnel_hot = 0
     funnel_converted = 0
     week_start_for_funnel = now - timedelta(days=7)
+    ad_attributed_leads = 0
 
     for lead in leads_rows:
         created = (lead.get("created_at") or "")[:10]
@@ -971,6 +1018,8 @@ async def overview_analytics(
         src = lead.get("source")
         if src in channel_breakdown:
             channel_breakdown[src] += 1
+        if lead.get("ad_campaign_id"):
+            ad_attributed_leads += 1
         funnel_inquiries += 1
         if seg in ("A", "B"):
             funnel_engaged += 1
@@ -978,6 +1027,25 @@ async def overview_analytics(
             funnel_hot += 1
 
     total_leads = len(leads_rows)
+
+    prior_new_leads = len(prior_leads_rows)
+    current_new_leads = sum(daily_leads_map.values())
+    daily_leads_trend_pct = _pct_trend(current_new_leads, prior_new_leads)
+
+    prior_converted_7d = sum(
+        1 for lead in prior_leads_rows
+        if lead.get("converted_at") and lead["converted_at"] >= prior_window_start_dt.isoformat()
+    )
+    converted_7d_trend_pct = _pct_trend(converted_7d, prior_converted_7d)
+
+    new_hot_leads_daily_map = {d: 0 for d in days_iso}
+    for event in stage_events_rows:
+        day = (event.get("created_at") or "")[:10]
+        if day in new_hot_leads_daily_map:
+            new_hot_leads_daily_map[day] += 1
+
+    new_hot_leads_7d = sum(new_hot_leads_daily_map.values())
+    new_hot_leads_7d_trend_pct = _pct_trend(new_hot_leads_7d, len(prior_stage_events_rows))
 
     msgs_window = (
         await asyncio.to_thread(
@@ -1037,6 +1105,7 @@ async def overview_analytics(
 
     return {
         "daily_leads": [{"day": d, "count": daily_leads_map[d]} for d in days_iso],
+        "daily_leads_trend_pct": daily_leads_trend_pct,
         "daily_messages": [
             {
                 "day": d,
@@ -1056,11 +1125,16 @@ async def overview_analytics(
         "ai_vs_human": {"ai": ai_count, "human": human_count},
         "unreplied_24h": unreplied_24h,
         "converted_7d": converted_7d,
+        "converted_7d_trend_pct": converted_7d_trend_pct,
         "converted_today": converted_today,
         "ai_handled_today": ai_handled_today,
         "by_segment": by_segment,
         "channel_breakdown": channel_breakdown,
         "total_leads": total_leads,
+        "ad_attributed_leads": ad_attributed_leads,
+        "new_hot_leads_7d": new_hot_leads_7d,
+        "new_hot_leads_7d_daily": [{"day": d, "count": new_hot_leads_daily_map[d]} for d in days_iso],
+        "new_hot_leads_7d_trend_pct": new_hot_leads_7d_trend_pct,
     }
 
 

@@ -1,0 +1,122 @@
+"""Tests for GET /api/v1/analytics/overview -- the tenant home dashboard's
+data source. Covers the prior-window trend fields (D6 of the 2026-07-28
+dashboard redesign spec): daily_leads_trend_pct, converted_7d_trend_pct,
+new_hot_leads_7d / new_hot_leads_7d_trend_pct."""
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from fastapi.testclient import TestClient
+from app.main import app
+from app.dependencies.auth import get_current_user
+from app.dependencies.tenant import get_tenant_and_role
+
+
+class AnalyticsOverviewTrendTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_and_role] = lambda: {
+            "tenant_id": "tenant-1", "role": "owner", "permissions": [],
+        }
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    def _mock_db(self, mock_get_db, leads_rows, prior_leads_rows, msgs_rows,
+                 stage_events_rows, prior_stage_events_rows, handover_count=0):
+        db = MagicMock()
+
+        leads_tbl = MagicMock()
+        leads_chain = leads_tbl.select.return_value.eq.return_value.is_.return_value
+        leads_chain.execute.return_value = MagicMock(data=leads_rows)
+        # prior-window leads fetch adds .gte().lt()
+        leads_chain.gte.return_value.lt.return_value.execute.return_value = MagicMock(data=prior_leads_rows)
+
+        msgs_tbl = MagicMock()
+        msgs_tbl.select.return_value.eq.return_value.gte.return_value.execute.return_value = MagicMock(data=msgs_rows)
+
+        events_tbl = MagicMock()
+        events_chain = events_tbl.select.return_value.eq.return_value.eq.return_value.gte.return_value
+        events_chain.execute.return_value = MagicMock(data=stage_events_rows)
+        # Prior-window fetch is select->eq->eq->gte->lt->execute (a single .gte()
+        # call, not two) -- .lt() is chained directly off events_chain, not off
+        # events_chain.gte again.
+        events_chain.lt.return_value.execute.return_value = MagicMock(data=prior_stage_events_rows)
+
+        def table(name):
+            return {"leads": leads_tbl, "messages": msgs_tbl, "lead_stage_events": events_tbl}[name]
+
+        db.table.side_effect = table
+        mock_get_db.return_value = db
+        return db
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_daily_leads_trend_pct_none_when_no_prior_baseline(self, mock_get_db):
+        self._mock_db(mock_get_db, leads_rows=[], prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=[], prior_stage_events_rows=[])
+
+        res = self.client.get("/api/v1/analytics/overview?range=7d")
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIsNone(body["daily_leads_trend_pct"])
+        self.assertIsNone(body["converted_7d_trend_pct"])
+        self.assertIsNone(body["new_hot_leads_7d_trend_pct"])
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_ad_attributed_leads_counts_leads_with_ad_campaign_id(self, mock_get_db):
+        current_leads = [
+            {"id": "l1", "created_at": "2026-07-20T10:00:00+00:00", "segment": "C",
+             "source": "whatsapp", "converted_at": None, "ad_campaign_id": "camp-1"},
+            {"id": "l2", "created_at": "2026-07-20T10:00:00+00:00", "segment": "C",
+             "source": "whatsapp", "converted_at": None, "ad_campaign_id": None},
+        ]
+        self._mock_db(mock_get_db, leads_rows=current_leads, prior_leads_rows=[],
+                       msgs_rows=[], stage_events_rows=[], prior_stage_events_rows=[])
+
+        res = self.client.get("/api/v1/analytics/overview?range=7d")
+        body = res.json()
+        self.assertEqual(body["ad_attributed_leads"], 1)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_daily_leads_trend_pct_computed_against_prior_window(self, mock_get_db):
+        from datetime import datetime, timezone, timedelta
+        today = datetime.now(timezone.utc).date().isoformat()
+        prior_day = (datetime.now(timezone.utc) - timedelta(days=10)).date().isoformat()
+
+        current_leads = [{"id": f"l{i}", "created_at": f"{today}T10:00:00+00:00", "segment": "C",
+                           "source": "whatsapp", "converted_at": None} for i in range(3)]
+        prior_leads = [{"id": f"p{i}", "created_at": f"{prior_day}T10:00:00+00:00", "segment": "C",
+                         "source": "whatsapp", "converted_at": None} for i in range(2)]
+
+        self._mock_db(mock_get_db, leads_rows=current_leads, prior_leads_rows=prior_leads,
+                       msgs_rows=[], stage_events_rows=[], prior_stage_events_rows=[])
+
+        res = self.client.get("/api/v1/analytics/overview?range=7d")
+        body = res.json()
+        # 3 current vs 2 prior -> +50%
+        self.assertEqual(body["daily_leads_trend_pct"], 50)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_new_hot_leads_7d_counted_from_lead_stage_events(self, mock_get_db):
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date().isoformat()
+        stage_events = [
+            {"lead_id": "l1", "to_segment": "A", "created_at": f"{today}T09:00:00+00:00"},
+            {"lead_id": "l2", "to_segment": "A", "created_at": f"{today}T11:00:00+00:00"},
+        ]
+        self._mock_db(mock_get_db, leads_rows=[], prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=stage_events, prior_stage_events_rows=[])
+
+        res = self.client.get("/api/v1/analytics/overview?range=7d")
+        body = res.json()
+        self.assertEqual(body["new_hot_leads_7d"], 2)
+        self.assertIsInstance(body["new_hot_leads_7d_daily"], list)
+        self.assertIsNone(body["new_hot_leads_7d_trend_pct"])  # empty prior window
+
+
+if __name__ == "__main__":
+    unittest.main()
