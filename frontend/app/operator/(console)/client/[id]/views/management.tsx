@@ -1,9 +1,7 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { Key, PowerOff, Power, Trash2, Mail, User, Clock } from "lucide-react";
+import { useState } from "react";
+import { Key, PowerOff, Power } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { ConfirmDialog } from "../components/confirm-dialog";
-import { SkeletonTable } from "../components/skeleton";
 import type { OverviewData } from "../types";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -19,16 +17,6 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-interface TeamMember {
-  id: string;
-  name: string;
-  role: string;
-  active: boolean;
-  overall_score: number | null;
-  shift_start_hour: number | null;
-  shift_end_hour: number | null;
-}
-
 export function ManagementView({
   tenantId,
   overview,
@@ -40,27 +28,8 @@ export function ManagementView({
   onReload: () => void;
   setError: (e: string | null) => void;
 }) {
-  const [team, setTeam] = useState<TeamMember[]>([]);
-  const [teamLoading, setTeamLoading] = useState(true);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [wipeDialogOpen, setWipeDialogOpen] = useState(false);
-  const [wipeLoading, setWipeLoading] = useState(false);
-  const [deletingMember, setDeletingMember] = useState<string | null>(null);
-
-  const loadTeam = useCallback(async () => {
-    setTeamLoading(true);
-    try {
-      const data = await apiFetch<{ owner: Record<string, unknown>; callers: TeamMember[] }>(`/api/v1/operator/clients/${tenantId}/team`);
-      setTeam(data.callers);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load team");
-    } finally {
-      setTeamLoading(false);
-    }
-  }, [tenantId, setError]);
-
-  useEffect(() => { loadTeam(); }, [loadTeam]);
 
   async function handleResetPassword() {
     setActionLoading("reset");
@@ -93,34 +62,6 @@ export function ManagementView({
     }
   }
 
-  async function handleWipeLeads() {
-    setWipeLoading(true);
-    try {
-      await apiFetch(`/api/v1/operator/clients/${tenantId}/wipe-leads`, {
-        method: "POST",
-      });
-      setWipeDialogOpen(false);
-      onReload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to wipe leads");
-    } finally {
-      setWipeLoading(false);
-    }
-  }
-
-  async function handleDeleteMember(member: TeamMember) {
-    if (!confirm(`Delete "${member.name}" from this client's team? This permanently removes the caller record.`)) return;
-    setDeletingMember(member.id);
-    try {
-      await apiFetch(`/api/v1/operator/clients/${tenantId}/team/${member.id}`, { method: "DELETE" });
-      setTeam(prev => prev.filter(m => m.id !== member.id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete member");
-    } finally {
-      setDeletingMember(null);
-    }
-  }
-
   const isActive = overview?.tenant.status === "active";
 
   return (
@@ -128,7 +69,7 @@ export function ManagementView({
       {/* Action Cards */}
       <div>
         <h3 className="text-sm font-semibold text-ink mb-3">Actions</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           {/* Reset Password */}
           <div className="bg-white rounded-card border border-border p-4 shadow-sm hover:shadow-card transition-all">
             <button
@@ -171,22 +112,6 @@ export function ManagementView({
               </div>
             </button>
           </div>
-
-          {/* Wipe Leads */}
-          <div className="bg-white rounded-card border border-border p-4 shadow-sm hover:shadow-card transition-all">
-            <button
-              onClick={() => setWipeDialogOpen(true)}
-              className="flex items-center gap-3 w-full text-left"
-            >
-              <div className="w-10 h-10 rounded-xl bg-danger/5 flex items-center justify-center">
-                <Trash2 size={18} className="text-danger" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-ink">Wipe All Leads</p>
-                <p className="text-xs text-ink-muted">Permanently delete all lead data</p>
-              </div>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -201,113 +126,10 @@ export function ManagementView({
         </div>
       )}
 
-      {/* Owner Info */}
-      {overview && (
-        <div className="bg-white rounded-card border border-border p-5 shadow-sm">
-          <h3 className="text-sm font-semibold text-ink mb-3">Owner Information</h3>
-          <div className="space-y-2">
-            {overview.owner?.email && (
-              <div className="flex items-center gap-2 text-sm">
-                <Mail size={14} className="text-ink-muted" />
-                <span className="text-ink-secondary">Email:</span>
-                <span className="text-ink">{overview.owner.email}</span>
-              </div>
-            )}
-            {overview.owner?.user_id && (
-              <div className="flex items-center gap-2 text-sm">
-                <User size={14} className="text-ink-muted" />
-                <span className="text-ink-secondary">User ID:</span>
-                <span className="text-ink font-mono text-xs">{overview.owner.user_id}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-2 text-sm">
-              <Clock size={14} className="text-ink-muted" />
-              <span className="text-ink-secondary">Since:</span>
-              <span className="text-ink">{new Date(overview.tenant.created_at).toLocaleDateString("en-IN")}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Team Table */}
-      <div className="bg-white rounded-card border border-border overflow-hidden shadow-sm">
-        <div className="px-5 py-3 bg-surface-mid border-b border-border-subtle">
-          <h3 className="text-sm font-semibold text-ink">Team Members</h3>
-        </div>
-        {teamLoading ? (
-          <SkeletonTable rows={4} />
-        ) : team.length === 0 ? (
-          <div className="p-8 text-center text-sm text-ink-muted">No team members found.</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-surface-mid text-left">
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Name</th>
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Role</th>
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Status</th>
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Score</th>
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider">Shift</th>
-                <th className="px-5 py-2.5 text-xs font-semibold text-ink-muted uppercase tracking-wider w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-subtle">
-              {team.map(m => (
-                <tr key={m.id} className="hover:bg-surface-mid/50 transition-colors">
-                  <td className="px-5 py-3 text-ink font-medium">{m.name}</td>
-                  <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      m.role === "owner" ? "bg-purple-50 text-purple-700" : "bg-surface-mid text-ink-muted"
-                    }`}>
-                      {m.role}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full ${m.active ? "bg-success" : "bg-ink-muted/30"}`} />
-                      <span className="text-xs text-ink-secondary">{m.active ? "Active" : "Inactive"}</span>
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-ink">{m.overall_score !== null ? m.overall_score : "—"}</td>
-                  <td className="px-5 py-3 text-ink-secondary text-xs">
-                    {m.shift_start_hour !== null && m.shift_end_hour !== null
-                      ? `${m.shift_start_hour}:00 - ${m.shift_end_hour}:00`
-                      : "Default"
-                    }
-                  </td>
-                  <td className="px-5 py-3">
-                    {m.role !== "owner" && (
-                      <button
-                        onClick={() => handleDeleteMember(m)}
-                        disabled={deletingMember === m.id}
-                        className="p-1.5 rounded-lg hover:bg-red-50 text-ink-muted hover:text-danger transition-colors disabled:opacity-40"
-                        title={`Delete ${m.name}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Wipe Confirm Dialog */}
-      <ConfirmDialog
-        open={wipeDialogOpen}
-        onClose={() => setWipeDialogOpen(false)}
-        onConfirm={handleWipeLeads}
-        title="Wipe All Leads"
-        description="This will permanently delete ALL leads and every piece of related data for this client. This cannot be undone."
-        details={overview ? [
-          { label: "leads (contacts, scores, segments)", count: overview.stats.total_leads },
-          { label: "messages (all channels)", count: overview.stats.messages_sent_30d + overview.stats.messages_received_30d },
-          { label: "call notes, chat handovers, follow-up jobs, broadcast recipient records", count: 0 },
-        ] : []}
-        confirmText={overview?.tenant.name || "CONFIRM"}
-        loading={wipeLoading}
-      />
+      <p className="text-xs text-ink-muted">
+        Team roster and owner details are on the <span className="font-medium text-ink-secondary">Team</span> tab.
+        To wipe a client&apos;s lead data, use the <span className="font-medium text-ink-secondary">Data Ops</span> tab.
+      </p>
     </div>
   );
 }
