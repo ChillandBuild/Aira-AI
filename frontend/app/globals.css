@@ -34,13 +34,19 @@ body {
   font-family: var(--font-manrope), sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* overflow-x here (not on html too) forces this element's overflow-y to
+     compute as "auto" (CSS overflow spec's visible/non-visible pairing
+     rule), making body the one scroll container. Setting it on BOTH html
+     and body creates two nested forced-auto scroll containers at once,
+     which is what broke position:sticky headers further down the tree --
+     browsers disagree about which one is "the" scrolling element. */
+  overflow-x: hidden;
 }
 
 html,
 body {
   width: 100%;
   min-height: 100%;
-  overflow-x: hidden;
 }
 
 img,
