@@ -111,8 +111,6 @@ interface CallRow {
   duration_seconds: number | null;
   disposition: string | null;
   manual_status: string | null;
-  provider?: "telecmi" | "sim_basic";
-  feedback_source?: "automatic" | "manual";
   created_at: string;
 }
 

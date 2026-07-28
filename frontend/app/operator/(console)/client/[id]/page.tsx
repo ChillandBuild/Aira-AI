@@ -21,7 +21,7 @@ import { EntitlementsView } from "./views/entitlements";
 import type { OverviewData } from "./types";
 
 const VALID_SECTIONS: SectionType[] = [
-  "overview", "inbox", "conversations", "segments", "inbound", "outbound",
+  "overview", "conversations", "segments", "inbound", "outbound",
   "templates", "numbers", "knowledge", "analytics", "team",
   "tc-upload", "tc-dialer", "tc-scheduled", "tc-notes",
   "config", "entitlements", "health", "management", "data-ops", "audit-logs", "delete-client",
@@ -126,7 +126,6 @@ export default function ClientDetailPage() {
   const tenant = overview?.tenant;
   const SECTION_TITLES: Record<string, { title: string; desc: string }> = {
     overview: { title: "Product Overview", desc: "Here's what's happening with your client's leads." },
-    inbox: { title: "Inbox", desc: "Conversations requiring attention." },
     conversations: { title: "Conversations", desc: "All lead conversations across channels." },
     segments: { title: "Segments", desc: "Leads grouped by segment — Hot, Warm, Cold, Disqualified." },
     inbound: { title: "Inbound Leads", desc: "Leads from organic and advertising channels." },
@@ -209,7 +208,6 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
   switch (section) {
     case "overview":
       return overview ? <OverviewView stats={overview.stats} /> : null;
-    case "inbox":
     case "conversations":
       return <InboxView tenantId={tenantId} />;
     case "segments":

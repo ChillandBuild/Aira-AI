@@ -91,10 +91,15 @@ export function HealthView({ tenantId }: { tenantId: string }) {
     <div className="space-y-6">
       {/* Channel Health */}
       <div>
-        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-          <Activity size={16} className="text-ink-muted" />
-          Channel Health
-        </h3>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+            <Activity size={16} className="text-ink-muted" />
+            Channel Health
+          </h3>
+          <span className="flex items-center gap-1.5 text-xs text-ink-muted">
+            WhatsApp Token: {tokenBadge(health.token_status)}
+          </span>
+        </div>
         <div className="grid grid-cols-4 gap-4">
           {channelEntries.map(([channel, ch]) => (
             <div key={channel} className="bg-white rounded-card border border-border p-4 shadow-sm">
@@ -102,12 +107,9 @@ export function HealthView({ tenantId }: { tenantId: string }) {
                 <span className={`w-2 h-2 rounded-full ${ch.status === "healthy" ? "bg-success animate-pulse" : ch.status === "not_configured" ? "bg-ink-muted" : "bg-danger"}`} />
                 <span className="text-sm font-medium text-ink capitalize">{channel}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className={`text-xs font-medium ${ch.status === "healthy" ? "text-success" : ch.status === "not_configured" ? "text-ink-muted" : "text-danger"}`}>
-                  {ch.status === "healthy" ? "Healthy" : ch.status === "not_configured" ? "Not Configured" : "Unhealthy"}
-                </span>
-                {tokenBadge(health.token_status)}
-              </div>
+              <span className={`text-xs font-medium ${ch.status === "healthy" ? "text-success" : ch.status === "not_configured" ? "text-ink-muted" : "text-danger"}`}>
+                {ch.status === "healthy" ? "Healthy" : ch.status === "not_configured" ? "Not Configured" : "Unhealthy"}
+              </span>
             </div>
           ))}
         </div>

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { BarChart2, TrendingUp, Target, Phone, Percent } from "lucide-react";
+import { TrendingUp, Target, Phone, Percent } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { DayStrip, type DailyMessageStat } from "@/components/DayStrip";
 import { StatCard } from "../components/stat-card";
@@ -19,7 +19,6 @@ async function apiFetch<T>(path: string): Promise<T> {
 }
 
 interface AnalyticsData {
-  messages_30d: number;
   delivery_rate: number | null;
   avg_score: number | null;
   total_calls?: number;
@@ -83,12 +82,7 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
         )}
       </div>
 
-      <div className={`grid grid-cols-2 ${hasTelecalling ? "lg:grid-cols-3" : "lg:grid-cols-3"} gap-4`}>
-        <StatCard
-          icon={<BarChart2 size={18} />}
-          label="Messages (30d)"
-          value={data.messages_30d}
-        />
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           icon={<TrendingUp size={18} />}
           label="Delivery Rate"

@@ -116,7 +116,6 @@ const VOICE_SPEAKERS = [
 ];
 
 interface ConfigData {
-  enabled_features: string[];
   master_prompt: string;
   business_description: string;
   credentials_status: Record<string, "configured" | "incomplete" | "not_configured">;
@@ -129,21 +128,6 @@ interface ConfigData {
     kb_retrieval_mode: RetrievalMode;
     ai_reply_model: ReplyModelId | null;
     reply_language_mode: ReplyLanguageMode;
-  };
-  usage_counts?: {
-    stt?: number | null;
-    tts?: number | null;
-    stt_count?: number | null;
-    tts_count?: number | null;
-    stt_requests?: number | null;
-    tts_requests?: number | null;
-  };
-  stt_usage_count?: number | null;
-  tts_usage_count?: number | null;
-  usage?: { counters?: { metric: string; used: number }[] } | { metric: string; used: number }[];
-  voice_usage?: {
-    speech_to_text?: number | null;
-    text_to_speech?: number | null;
   };
 }
 
@@ -165,11 +149,6 @@ const CRED_LABELS: Record<string, string> = {
 // per-provider AI keys render inside the AI Integrations section, and telecalling status
 // is already covered by the Calling Provider card above.
 const CRED_KEYS_HANDLED_ELSEWHERE = new Set(["ai", "ai_sarvam", "ai_gemini", "ai_openai", "ai_groq", "ai_jina", "telecalling"]);
-
-function usageMetricCount(usage: ConfigData["usage"], metricNames: string[]) {
-  const counters = Array.isArray(usage) ? usage : usage?.counters;
-  return counters?.find((item) => metricNames.includes(item.metric))?.used;
-}
 
 function statusBadge(status: string) {
   switch (status) {
@@ -548,25 +527,11 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
 
   if (!config) return null;
 
-  const sttUsageCount = config.voice_usage?.speech_to_text
-    ?? config.usage_counts?.stt
-    ?? config.usage_counts?.stt_count
-    ?? config.usage_counts?.stt_requests
-    ?? config.stt_usage_count
-    ?? usageMetricCount(config.usage, ["ai_speech_to_text", "stt", "speech_to_text", "ai_voice_stt"]);
-  const ttsUsageCount = config.voice_usage?.text_to_speech
-    ?? config.usage_counts?.tts
-    ?? config.usage_counts?.tts_count
-    ?? config.usage_counts?.tts_requests
-    ?? config.tts_usage_count
-    ?? usageMetricCount(config.usage, ["ai_text_to_speech", "tts", "text_to_speech", "ai_voice_tts"]);
-  const hasVoiceUsage = typeof sttUsageCount === "number" || typeof ttsUsageCount === "number";
   const voiceSettings = {
     speaker: config.settings.ai_voice_reply_speaker ?? "Kore",
   };
   const mediaRecommendationsEnabled = config.settings.ai_media_recommendations_enabled ?? false;
   const mediaMaxImagesCeiling = Number(config.settings.catalog_ai_max_images_ceiling ?? 5);
-  const mediaUsageCount = usageMetricCount(config.usage, ["ai_media_recommendation", "ai_media_recommendations", "catalog_image_sent"]) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -684,6 +649,10 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
+      <p className="text-xs text-ink-muted">
+        Usage counts for these AI features are on the <span className="font-medium text-ink-secondary">Entitlements &amp; Usage</span> tab.
+      </p>
+
       {/* AI Auto-Reply */}
       <div>
         <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
@@ -750,22 +719,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               </select>
             </label>
           </div>
-          {hasVoiceUsage && (
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-xl bg-surface-mid px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">STT usage</p>
-                <p className="mt-1 font-mono text-sm font-semibold text-ink">
-                  {(sttUsageCount ?? 0).toLocaleString("en-IN")}
-                </p>
-              </div>
-              <div className="rounded-xl bg-surface-mid px-3 py-2">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">TTS usage</p>
-                <p className="mt-1 font-mono text-sm font-semibold text-ink">
-                  {(ttsUsageCount ?? 0).toLocaleString("en-IN")}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -790,7 +743,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               aria-label="Toggle AI media recommendations"
             />
           </div>
-          <div className="mt-4 grid gap-3 border-t border-border-subtle pt-4 md:grid-cols-2">
+          <div className="mt-4 border-t border-border-subtle pt-4">
             <label className="block">
               <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
                 <ImageIcon size={13} /> Maximum images ceiling
@@ -807,12 +760,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               </select>
               <span className="mt-1 block text-[11px] text-ink-muted">The client can choose any value up to this; they can never exceed it.</span>
             </label>
-            <div className="rounded-xl bg-surface-mid px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Usage count</p>
-              <p className="mt-1 font-mono text-sm font-semibold text-ink">
-                {mediaUsageCount.toLocaleString("en-IN")}
-              </p>
-            </div>
           </div>
         </div>
       </div>

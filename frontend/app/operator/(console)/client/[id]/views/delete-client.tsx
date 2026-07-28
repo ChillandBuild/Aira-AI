@@ -60,7 +60,7 @@ export function DeleteClientView({ tenantId, clientName }: { tenantId: string; c
             <li>All leads, messages, and conversation history</li>
             <li>All call logs, notes, and recordings metadata</li>
             <li>All broadcasts, templates, and knowledge base</li>
-            <li>All automations, bot flows, and scheduled jobs</li>
+            <li>All scheduled broadcasts and follow-up jobs</li>
             <li>All team members and their Supabase auth accounts</li>
             <li>The tenant record itself and all settings</li>
           </ul>

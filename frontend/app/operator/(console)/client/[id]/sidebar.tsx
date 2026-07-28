@@ -10,7 +10,7 @@ import {
 import { OperatorToggle } from "../../components/operator-toggle";
 
 export type SectionType =
-  | "overview" | "inbox" | "conversations" | "segments"
+  | "overview" | "conversations" | "segments"
   | "inbound" | "outbound" | "templates" | "numbers"
   | "knowledge" | "analytics" | "team"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
