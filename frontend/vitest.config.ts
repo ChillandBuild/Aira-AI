@@ -3,7 +3,7 @@ import path from "node:path";
 
 export default defineConfig({
   oxc: {
-    jsx: "react-jsx",
+    jsx: "react-jsx" as any,
   },
   resolve: {
     alias: {
