@@ -566,6 +566,7 @@ async def whatsapp_webhook(
                             "is_ai_generated": False,
                             "meta_message_id": msg_id,
                             "tenant_id": tenant_id,
+                            "via_ad_referral": bool(referral and referral.get("source_type") == "ad"),
                         }
                         db.table("messages").insert(insert_row).execute()
 

@@ -1,15 +1,13 @@
 import logging
 import asyncio
 from datetime import datetime, timezone
-from groq import Groq
 from app.config import settings
 from app.db.supabase import get_supabase
 
 logger = logging.getLogger(__name__)
 
-from app.services.groq_client import get_groq_client
-from app.services.token_meter import record_groq_sdk
-_COMPACTOR_MODEL = "llama-3.1-8b-instant"
+from app.services.gemini_client import gemini_chat_completion
+_COMPACTOR_MODEL = "gemini-3.1-flash-lite"
 
 INITIAL_COMPACT_PROMPT = """You are summarizing a WhatsApp conversation for a sales lead scoring system.
 
@@ -76,12 +74,6 @@ async def compact_conversation(
     existing_summary = None
 
     try:
-        client = get_groq_client(tenant_id, is_async=False)
-    except Exception as e:
-        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
-        return existing_summary or ""
-    
-    try:
         # Fetch current state
         state_row = (
             db.table("lead_conversation_state")
@@ -130,15 +122,16 @@ async def compact_conversation(
                 new_messages=messages_text
             )
         
-        # Call Groq for summarization
-        response = client.chat.completions.create(
-            model=_COMPACTOR_MODEL,
+        # Call Gemini for summarization
+        raw = await gemini_chat_completion(
             messages=[{"role": "user", "content": prompt}],
+            model=_COMPACTOR_MODEL,
             temperature=0.0,
             max_tokens=300,
+            tenant_id=tenant_id,
+            purpose="conversation_compaction",
         )
-        record_groq_sdk(tenant_id, "conversation_compaction", _COMPACTOR_MODEL, response)
-        new_summary = response.choices[0].message.content.strip()
+        new_summary = raw.strip()
         
         # Update state
         db.table("lead_conversation_state").update({

@@ -21,16 +21,13 @@ import logging
 import re
 from datetime import datetime, timezone
 
-from groq import AsyncGroq
-
 from app.config import settings
 from app.services.segmentation import score_to_segment, parse_thresholds
 
 logger = logging.getLogger(__name__)
 
-from app.services.groq_client import get_groq_client
-from app.services.token_meter import record_groq_sdk
-_MODEL = "llama-3.3-70b-versatile"
+from app.services.gemini_client import gemini_chat_completion
+_MODEL = "gemini-3.1-flash-lite"
 
 # ── Intent signal patterns ────────────────────────────────────────────────────
 
@@ -221,14 +218,11 @@ _ARC_RUBRIC_DEFAULT = """
 1-2:  Low intent — unresponsive, dismissive, irrelevant, or repeated single-word replies with no context (excluding greetings)
 """
 
+_AD_PREFILL_MARKER = "[ad-prefilled entry message]"
+
 
 async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5) -> int:
     """LLM scores the conversation thread for overall purchase intent."""
-    try:
-        client = get_groq_client(tenant_id, is_async=True)
-    except Exception as e:
-        logger.warning(f"Groq API key not configured for tenant {tenant_id}: {e}")
-        return 5
     try:
         from app.config_dynamic import get_setting
         custom = get_setting("scoring_rubric", tenant_id=tenant_id) if tenant_id else None
@@ -244,21 +238,22 @@ async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5
         f"- Initial greetings, salutations, or first contact messages (e.g., \"Hi\", \"Hello\", \"Namaste\", \"Vanakkam\", \"Hi sir\") must be scored as 5 or 6 (Neutral), NOT penalized as low-intent or single-word replies.\n"
         f"- A message requesting communication in a regional language (Tamil, Hindi, Telugu, etc.) is an engagement signal — never score below 5 for it.\n"
         f"- Single-word answers in regional languages (e.g. \"சிம்மம்\", \"பூரம்\", \"ஆமா\") must be evaluated for their semantic intent, not penalised for brevity or language.\n"
-        f"- Non-English intent = same weight as English equivalent.\n\n"
+        f"- Non-English intent = same weight as English equivalent.\n"
+        f"- A line prefixed with \"{_AD_PREFILL_MARKER}\" is Meta's own click-to-WhatsApp auto-fill text — the lead tapped an ad and hit Send, they did not compose it. Treat it as a neutral first-contact signal only (score 5-6), never as evidence of the lead's own composed interest, even if it contains intent-sounding words like \"detailed\" or \"urgent\".\n\n"
         f"Score the OVERALL purchase intent trajectory of this conversation. "
         f"Consider the full arc — not just the last message. "
         f"Reply with ONLY a single integer 1-10."
     )
     try:
-        resp = await client.chat.completions.create(
-            model=_MODEL,
+        raw = await gemini_chat_completion(
             messages=[{"role": "user", "content": prompt}],
+            model=_MODEL,
             temperature=0.0,
             max_tokens=4,
+            tenant_id=tenant_id,
+            purpose="scoring",
         )
-        record_groq_sdk(tenant_id, "scoring", _MODEL, resp)
-        raw = resp.choices[0].message.content.strip()
-        match = re.search(r'\d+', raw)
+        match = re.search(r'\d+', raw.strip())
         return max(1, min(10, int(match.group()))) if match else fallback
     except Exception as e:
         logger.error(f"Arc scoring failed: {e}")
@@ -378,7 +373,7 @@ async def compute_score(
         try:
             msg_query = (
                 db.table("messages")
-                .select("direction,content,created_at")
+                .select("direction,content,created_at,via_ad_referral")
                 .eq("lead_id", str(lead_id))
                 .order("created_at", desc=True)
                 .limit(10)
@@ -389,7 +384,8 @@ async def compute_score(
                 role = "Bot" if m.get("direction") == "outbound" else "User"
                 content = (m.get("content") or "").strip()[:200]
                 if content and not content.startswith("[Template"):
-                    lines.append(f"{role}: {content}")
+                    prefix = f"{_AD_PREFILL_MARKER} " if m.get("via_ad_referral") else ""
+                    lines.append(f"{role}: {prefix}{content}")
             conversation = "\n".join(lines) if lines else f"User: {message}"
         except Exception:
             conversation = f"User: {message}"
