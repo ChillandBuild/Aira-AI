@@ -83,6 +83,8 @@ interface Props {
   onDeleted?: (ids: string[]) => void;
   platform: string;
   onPlatformChange: (platform: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
   onCollapse?: () => void;
   onPin?: (id: string) => void;
   onPinSelected?: (ids: string[]) => void;
@@ -96,13 +98,12 @@ interface Props {
   onLoadMore?: () => void;
 }
 
-export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, canArchive = false, onBlock, folder = "chats", hasMore = false, loadingMore = false, onLoadMore }: Props) {
+export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, searchQuery, onSearchChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, canArchive = false, onBlock, folder = "chats", hasMore = false, loadingMore = false, onLoadMore }: Props) {
   const [segment, setSegment] = useState<"A" | "B" | "C" | "D" | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cardMenuId, setCardMenuId] = useState<string | null>(null);
@@ -308,11 +309,11 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                   type="text"
                   placeholder="Type and submit to search"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => onSearchChange(e.target.value)}
                   className="w-full pl-8 pr-7 py-2 bg-surface-low border border-surface-mid rounded-xl text-[13px] text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted hover:text-on-surface p-0.5 rounded-full hover:bg-surface-mid transition-colors">
+                  <button onClick={() => onSearchChange("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted hover:text-on-surface p-0.5 rounded-full hover:bg-surface-mid transition-colors">
                     <X size={11} />
                   </button>
                 )}
@@ -406,7 +407,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
             {(searchQuery || segment || platform !== "all") && (
               <button
                 onClick={() => {
-                  setSearchQuery("");
+                  onSearchChange("");
                   setSegment(null);
                   onPlatformChange("all");
                 }}

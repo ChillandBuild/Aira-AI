@@ -41,7 +41,7 @@ export function LeadSourceSection({ overview }: { overview: AnalyticsOverview })
               <div className="flex-1 h-2 rounded-full bg-surface-mid overflow-hidden">
                 <div className="h-full bg-[#5b21b6]" style={{ width: `${pct}%` }} />
               </div>
-              <div className="w-16 text-right text-xs font-mono text-ink-muted">{count} · {pct}%</div>
+              <div className="w-16 shrink-0 whitespace-nowrap text-right text-xs font-mono text-ink-muted">{count} · {pct}%</div>
             </div>
           );
         })}

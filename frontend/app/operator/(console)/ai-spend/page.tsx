@@ -92,6 +92,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 
 type Range = "30" | "90" | "all" | "custom";
 
+const MIN_BAR_WIDTH = 28;
+
 function isoDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -249,26 +251,28 @@ export default function AiSpendPage() {
               <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-ink-muted">Fleet tokens by day, by provider</p>
               {data.daily.length > 0 ? (
                 <>
-                  <div role="img" aria-label="Daily fleet-wide token consumption stacked by provider">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                        <XAxis
-                          dataKey="date"
-                          tick={{ fontSize: 10, fill: "#a8a29e" }}
-                          tickFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                        />
-                        <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} tickFormatter={fmt} allowDecimals={false} />
-                        <Tooltip
-                          contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
-                          labelFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                          formatter={(value, name) => [fmt(Number(value) || 0), PROVIDER_LABELS[String(name)] || String(name)]}
-                        />
-                        {providersPresent.map(p => (
-                          <Bar key={p} dataKey={p} stackId="tokens" fill={PROVIDER_COLORS[p]} name={p} radius={p === providersPresent[providersPresent.length - 1] ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="overflow-x-auto" role="img" aria-label="Daily fleet-wide token consumption stacked by provider">
+                    <div style={{ width: "100%", minWidth: `${data.daily.length * MIN_BAR_WIDTH}px` }}>
+                      <ResponsiveContainer width="100%" height={200}>
+                        <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                          <XAxis
+                            dataKey="date"
+                            tick={{ fontSize: 10, fill: "#a8a29e" }}
+                            tickFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          />
+                          <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} tickFormatter={fmt} allowDecimals={false} />
+                          <Tooltip
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
+                            labelFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                            formatter={(value, name) => [fmt(Number(value) || 0), PROVIDER_LABELS[String(name)] || String(name)]}
+                          />
+                          {providersPresent.map(p => (
+                            <Bar key={p} dataKey={p} stackId="tokens" fill={PROVIDER_COLORS[p]} name={p} radius={p === providersPresent[providersPresent.length - 1] ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-4">
                     {providersPresent.map(p => (

@@ -13,15 +13,18 @@ async def list_conversations(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     folder: str = Query(default="chats", pattern="^(chats|archived|blocked)$"),
+    q: str | None = Query(default=None, max_length=100),
     ctx: dict = Depends(require_conversations_view),
 ):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
 
-    rpc_rows = db.rpc(
-        "get_conversation_leads",
-        {"p_tenant_id": tenant_id, "p_limit": limit, "p_offset": offset},
-    ).execute()
+    rpc_params = {"p_tenant_id": tenant_id, "p_limit": limit, "p_offset": offset}
+    search = q.strip() if q else None
+    if search:
+        rpc_params["p_search"] = search
+
+    rpc_rows = db.rpc("get_conversation_leads", rpc_params).execute()
 
     rows = rpc_rows.data or []
     if not rows:

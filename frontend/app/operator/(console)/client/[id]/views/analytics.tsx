@@ -25,11 +25,24 @@ interface AnalyticsData {
   connect_rate?: number;
 }
 
+type Range = "7" | "30" | "90" | "all" | "custom";
+
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function AnalyticsView({ tenantId }: { tenantId: string }) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dailyMessages, setDailyMessages] = useState<DailyMessageStat[] | null>(null);
+  const [range, setRange] = useState<Range>("7");
+  const [fromDate, setFromDate] = useState(() => isoDaysAgo(30));
+  const [toDate, setToDate] = useState(() => isoDaysAgo(0));
+
+  const customRangeInvalid = range === "custom" && (!fromDate || !toDate || fromDate > toDate);
 
   useEffect(() => {
     setLoading(true);
@@ -40,13 +53,18 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
   }, [tenantId]);
 
   useEffect(() => {
+    if (customRangeInvalid) return;
     setDailyMessages(null);
+    const query =
+      range === "all" ? "all_time=true"
+      : range === "custom" ? `from_date=${fromDate}&to_date=${toDate}`
+      : `range_days=${range}`;
     apiFetch<{ daily_messages: DailyMessageStat[] }>(
-      `/api/v1/operator/clients/${tenantId}/dashboard/daily-messages`,
+      `/api/v1/operator/clients/${tenantId}/dashboard/daily-messages?${query}`,
     )
       .then((res) => setDailyMessages(res.daily_messages))
       .catch(() => setDailyMessages([]));
-  }, [tenantId]);
+  }, [tenantId, range, fromDate, toDate, customRangeInvalid]);
 
   if (loading) {
     return (
@@ -72,9 +90,49 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-card border border-border p-5 shadow-sm">
-        <h3 className="text-xs font-medium uppercase tracking-wider font-label text-ink-muted mb-4">
-          Daily Activity
-        </h3>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xs font-medium uppercase tracking-wider font-label text-ink-muted">
+            Daily Activity
+          </h3>
+          <div className="flex flex-col items-end gap-2">
+            <div className="inline-flex rounded-lg bg-surface-mid p-0.5">
+              {(["7", "30", "90", "all", "custom"] as Range[]).map(r => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+                    range === r ? "bg-white text-ink shadow-sm" : "text-ink-secondary"
+                  }`}
+                >
+                  {r === "7" ? "7 days" : r === "30" ? "30 days" : r === "90" ? "90 days" : r === "all" ? "All time" : "Custom"}
+                </button>
+              ))}
+            </div>
+            {range === "custom" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={fromDate}
+                  max={toDate}
+                  onChange={e => setFromDate(e.target.value)}
+                  className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:border-primary focus:outline-none"
+                />
+                <span className="text-xs text-ink-muted">to</span>
+                <input
+                  type="date"
+                  value={toDate}
+                  min={fromDate}
+                  max={isoDaysAgo(0)}
+                  onChange={e => setToDate(e.target.value)}
+                  className="rounded-md border border-border px-2 py-1 text-xs font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+            )}
+            {customRangeInvalid && (
+              <p className="text-[11px] text-danger">Pick a &ldquo;to&rdquo; date on or after &ldquo;from&rdquo;.</p>
+            )}
+          </div>
+        </div>
         {dailyMessages === null ? (
           <SkeletonCard />
         ) : (
