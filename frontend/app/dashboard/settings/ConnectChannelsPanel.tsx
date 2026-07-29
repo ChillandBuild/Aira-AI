@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
-  CheckCircle2, Copy, Check, Zap, XCircle, X
+  CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -221,6 +221,38 @@ const CHANNELS: ChannelConfig[] = [
     hasActivation: true,
   },
 ];
+
+const WHATSAPP_CHANNEL = CHANNELS[0];
+const OTHER_CHANNELS = CHANNELS.slice(1);
+
+function ChannelStatusBadge({ configured, hasTokenAlert, isLive }: { configured: boolean; hasTokenAlert: boolean; isLive: boolean }) {
+  if (!configured) {
+    return <span className="inline-flex items-center gap-1 rounded-full bg-[#f0ece4] px-2.5 py-1 font-label text-[10px] font-bold text-[#78716c]">Not configured</span>;
+  }
+  if (hasTokenAlert) {
+    return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 font-label text-[10px] font-bold text-red-700">Token needs attention</span>;
+  }
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-label text-[10px] font-bold", isLive ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700")}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", isLive ? "bg-emerald-500" : "bg-amber-500")} />
+      {isLive ? "Live" : "Configured"}
+    </span>
+  );
+}
+
+function HealthRefreshButton({ loading, onClick }: { loading: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-white px-2.5 py-1.5 font-label text-[10px] font-bold text-[#57534e] shadow-sm transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-wait disabled:opacity-60"
+    >
+      <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+      Refresh health
+    </button>
+  );
+}
 
 async function fetchSettings(): Promise<Setting[]> {
   const auth = await getAuthHeaders();
@@ -509,26 +541,6 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     fetchTenantStatus();
   }, [load, loadHealth]);
 
-  // Bind health loading status to global header
-  useEffect(() => {
-    if (healthLoading) {
-      window.dispatchEvent(new CustomEvent("channels-health-loading-start"));
-    } else {
-      window.dispatchEvent(new CustomEvent("channels-health-loading-end"));
-    }
-  }, [healthLoading]);
-
-  // Listen to refresh request from global header
-  useEffect(() => {
-    const handleRefresh = () => {
-      loadHealth();
-    };
-    window.addEventListener("refresh-channels-health", handleRefresh);
-    return () => {
-      window.removeEventListener("refresh-channels-health", handleRefresh);
-    };
-  }, [loadHealth]);
-
   function settingFor(key: string) {
     return settings.find(s => s.key === key);
   }
@@ -782,6 +794,12 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     setSelectedChannel(null);
   };
 
+  const whatsappConfigured = isChannelConfigured(WHATSAPP_CHANNEL);
+  const whatsappHealth = webhookHealth?.health?.whatsapp;
+  const whatsappAlert = webhookHealth?.token_alerts?.find(a => a.channel === "whatsapp");
+  const whatsappStatus = settings.find(s => s.key === "whatsapp_status");
+  const whatsappIsLive = !WHATSAPP_CHANNEL.hasActivation || whatsappStatus?.display_value === "live" || !!whatsappHealth?.last_event;
+
   return (
     <div className="max-w-6xl mx-auto space-y-8">
       {error && (
@@ -799,64 +817,120 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {CHANNELS.map((channel) => {
+        <div className="space-y-6">
+          <section className="overflow-hidden rounded-[28px] border border-[#e8e3db] bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
+            <div className="flex flex-col gap-4 border-b border-[#e8e3db] bg-gradient-to-r from-[#fbfaf8] via-white to-[#f4f0ff] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                  <MessageSquare size={19} />
+                </div>
+                <div>
+                  <h2 className="font-display text-lg font-bold text-ink">Business Accounts</h2>
+                  <p className="mt-0.5 font-body text-xs text-ink-muted">Connect, manage, and monitor the channels that talk to your customers.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <ChannelStatusBadge configured={whatsappConfigured} hasTokenAlert={!!whatsappAlert} isLive={whatsappIsLive} />
+                <HealthRefreshButton loading={healthLoading} onClick={loadHealth} />
+              </div>
+            </div>
+
+            <div className="p-5 sm:p-7">
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">WhatsApp Cloud API</p>
+                  <h3 className="mt-1 font-display text-xl font-bold text-ink">Choose your connection method</h3>
+                </div>
+                <p className="font-body text-xs text-ink-muted">{whatsappHealth?.last_event ? <>Last activity {timeAgo(whatsappHealth.last_event)}</> : "No activity recorded yet"}</p>
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                <article className="flex min-h-[330px] flex-col overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
+                  <div className="flex items-start justify-between gap-4 border-b-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+                    <div>
+                      <h4 className="font-display text-base font-bold text-ink">Embedded Onboarding</h4>
+                      <p className="mt-1 font-body text-xs text-ink-muted">Connect with Meta in one guided flow. No manual tokens.</p>
+                    </div>
+                    <span className="rounded-lg bg-emerald-500 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Recommended</span>
+                  </div>
+                  <div className="flex flex-1 flex-col justify-between gap-6 p-5">
+                    <ul className="space-y-3 font-body text-sm text-[#57534e]">
+                      {["Secure one-click connection", "Official WhatsApp Cloud API", "Business number and webhook linked automatically"].map((item) => (
+                        <li key={item} className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-emerald-500" />{item}</li>
+                      ))}
+                    </ul>
+                    <div>
+                      {esError && <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{esError}</p>}
+                      {activateResult?.success && <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 font-body text-xs text-emerald-700">{activateResult.message}</p>}
+                      <button
+                        type="button"
+                        onClick={handleConnectWithFacebook}
+                        disabled={!canManage || esState === "connecting" || esState === "finishing"}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(16,185,129,0.22)] transition-all hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {esState === "connecting" || esState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect with Meta <ArrowRight size={16} /></>}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+
+                <article className="flex min-h-[330px] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm">
+                  <div className="flex items-start justify-between gap-4 border-b-2 border-violet-400 bg-gradient-to-r from-violet-50 to-white px-5 py-4">
+                    <div>
+                      <h4 className="font-display text-base font-bold text-ink">Manual API Connection</h4>
+                      <p className="mt-1 font-body text-xs text-ink-muted">Use your own Business Account ID and permanent access token.</p>
+                    </div>
+                    <span className="rounded-lg bg-violet-600 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Advanced</span>
+                  </div>
+                  <div className="flex flex-1 flex-col justify-between gap-6 p-5">
+                    <ul className="space-y-3 font-body text-sm text-[#57534e]">
+                      {["Use an existing Meta Business account", "Custom access token and webhook controls", "Flexible setup for complex integrations"].map((item) => (
+                        <li key={item} className="flex items-center gap-2"><ShieldCheck size={16} className="shrink-0 text-violet-500" />{item}</li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => openChannelModal(WHATSAPP_CHANNEL)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(109,40,217,0.2)] transition-all hover:bg-violet-700"
+                    >
+                      Configure API connection <ArrowRight size={16} />
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-4 px-1">
+              <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-[#78716c]">Additional channels</p>
+              <h2 className="mt-1 font-display text-lg font-bold text-ink">Keep every conversation connected</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {OTHER_CHANNELS.map((channel) => {
             const configured = isChannelConfigured(channel);
             const health = webhookHealth?.health?.[channel.id];
             const alert = webhookHealth?.token_alerts?.find(a => a.channel === channel.id);
+            const statusSetting = settings.find(s => s.key === `${channel.id}_status`);
+            const isLive = !channel.hasActivation || statusSetting?.display_value === "live" || !!health?.last_event;
 
             return (
-              <button
+              <article
                 key={channel.id}
-                onClick={() => openChannelModal(channel)}
-                className="card rounded-3xl p-6 text-left flex flex-col justify-between hover:shadow-lg hover:border-primary/25 hover:ring-2 hover:ring-primary/5 transition-all duration-300 group cursor-pointer relative bg-white border border-[#e8e3db] shadow-sm"
+                className="flex min-h-[270px] flex-col justify-between rounded-3xl border border-[#e8e3db] bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg"
               >
                 <div>
                   {/* Top Bar: Icon + Configuration Status */}
                   <div className="flex items-start justify-between mb-4">
-                    <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 group-hover:scale-105", channel.iconBg)}>
+                    <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-300", channel.iconBg)}>
                       <channel.icon size={22} className={channel.iconColor} />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      {/* Health Status badge */}
-                      {configured && (
-                        <>
-                          {alert ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-red-100 text-red-700">
-                              Token Invalid
-                            </span>
-                          ) : (
-                            (() => {
-                              const statusSetting = settings.find(s => s.key === `${channel.id}_status`);
-                              const isLive = !channel.hasActivation || statusSetting?.display_value === "live" || !!health?.last_event;
-                              if (isLive) {
-                                return (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-emerald-50 text-emerald-700 animate-fade-in">
-                                    Live
-                                  </span>
-                                );
-                              } else {
-                                return (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-amber-50 text-amber-700 animate-fade-in">
-                                    Configured
-                                  </span>
-                                );
-                              }
-                            })()
-                          )}
-                        </>
-                      )}
-                      {!configured && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-label font-bold bg-[#f0ece4] text-[#78716c]">
-                          Not Configured
-                        </span>
-                      )}
-                    </div>
+                    <ChannelStatusBadge configured={configured} hasTokenAlert={!!alert} isLive={isLive} />
                   </div>
 
                   {/* Title & Description */}
-                  <h3 className="font-display font-bold text-ink text-base mb-1.5 group-hover:text-primary transition-colors">
+                  <h3 className="font-display font-bold text-ink text-base mb-1.5">
                     {channel.name}
                   </h3>
                   <p className="font-body text-xs text-ink-muted leading-relaxed">
@@ -884,9 +958,21 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     Set up integration →
                   </div>
                 )}
-              </button>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <HealthRefreshButton loading={healthLoading} onClick={loadHealth} />
+                  <button
+                    type="button"
+                    onClick={() => openChannelModal(channel)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-[#f4f0ff] px-2.5 py-1.5 font-label text-[10px] font-bold text-primary transition-colors hover:bg-[#ede9fe]"
+                  >
+                    <Settings2 size={12} /> {configured ? "Manage" : "Set up"}
+                  </button>
+                </div>
+              </article>
             );
           })}
+            </div>
+          </section>
         </div>
       )}
 

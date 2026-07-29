@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Clock, RefreshCw, LayoutGrid, List, ShieldCheck, Users } from "lucide-react";
+import { Clock, LayoutGrid, List, ShieldCheck, Users } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
@@ -206,9 +206,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState(true);
   const [settingsHasNotifications, setSettingsHasNotifications] = useState(true);
 
-  // Action states for conditional header buttons
-  const [channelsLoading, setChannelsLoading] = useState(false);
-
   // Notes switcher states
   const [notesPageMode, setNotesPageMode] = useState<"by_lead" | "all_notes">("by_lead");
   const [notesViewMode, setNotesViewMode] = useState<"grid" | "list">("grid");
@@ -275,18 +272,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
 
 
-  // Listen to Channels loading state from Channels page
-  useEffect(() => {
-    const handleLoadingStart = () => setChannelsLoading(true);
-    const handleLoadingEnd = () => setChannelsLoading(false);
-    window.addEventListener("channels-health-loading-start", handleLoadingStart);
-    window.addEventListener("channels-health-loading-end", handleLoadingEnd);
-    return () => {
-      window.removeEventListener("channels-health-loading-start", handleLoadingStart);
-      window.removeEventListener("channels-health-loading-end", handleLoadingEnd);
-    };
-  }, []);
-
   // Listen to NotesClient page mode and view mode states
   useEffect(() => {
     const handlePageModeState = (e: Event) => {
@@ -316,10 +301,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   };
 
 
-
-  const onRefreshHealth = () => {
-    window.dispatchEvent(new CustomEvent("refresh-channels-health"));
-  };
 
   return (
     <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:h-20 md:gap-4 md:px-7">
@@ -558,17 +539,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
 
-
-        {(pathname === "/dashboard/channels" || (pathname === "/dashboard/settings" && tab === "channels")) && (
-          <button
-            onClick={onRefreshHealth}
-            disabled={channelsLoading}
-            className="hidden h-8 items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-white px-2.5 font-label text-[11px] font-semibold text-[#78716c] shadow-sm transition-all hover:text-[#292524] disabled:opacity-40 md:flex"
-          >
-            <RefreshCw size={12} className={channelsLoading ? "animate-spin" : ""} />
-            <span className="whitespace-nowrap">Refresh Health</span>
-          </button>
-        )}
 
         <button
           onClick={onOpenCalendar}
