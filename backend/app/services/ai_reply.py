@@ -878,12 +878,14 @@ def _escalation_prompt_block(bh: dict, now=None) -> str:
     if is_open:
         guidance = (
             "Reassure them that the team has their request and will "
-            "contact them shortly."
+            "contact them shortly. You may also mention they can self-serve "
+            "through the app in the meantime if that would help them sooner."
         )
     else:
         guidance = (
             f"Tell them the team will call them {next_open_description(bh, now=now)}, "
-            "and state the office hours."
+            "and state the office hours. You may also mention they can self-serve "
+            "through the app right now instead of waiting, if that would help them sooner."
         )
 
     return (

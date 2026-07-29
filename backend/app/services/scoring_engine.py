@@ -19,7 +19,7 @@ confirmations. Big drop (2+ segments) or rejection phrase: immediate.
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.services.segmentation import score_to_segment, parse_thresholds
@@ -219,6 +219,7 @@ _ARC_RUBRIC_DEFAULT = """
 """
 
 _AD_PREFILL_MARKER = "[ad-prefilled entry message]"
+_ESCALATION_MARKER = "[handover follow-up]"
 
 
 async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5) -> int:
@@ -239,7 +240,8 @@ async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5
         f"- A message requesting communication in a regional language (Tamil, Hindi, Telugu, etc.) is an engagement signal — never score below 5 for it.\n"
         f"- Single-word answers in regional languages (e.g. \"சிம்மம்\", \"பூரம்\", \"ஆமா\") must be evaluated for their semantic intent, not penalised for brevity or language.\n"
         f"- Non-English intent = same weight as English equivalent.\n"
-        f"- A line prefixed with \"{_AD_PREFILL_MARKER}\" is Meta's own click-to-WhatsApp auto-fill text — the lead tapped an ad and hit Send, they did not compose it. Treat it as a neutral first-contact signal only (score 5-6), never as evidence of the lead's own composed interest, even if it contains intent-sounding words like \"detailed\" or \"urgent\".\n\n"
+        f"- A line prefixed with \"{_AD_PREFILL_MARKER}\" is Meta's own click-to-WhatsApp auto-fill text — the lead tapped an ad and hit Send, they did not compose it. Treat it as a neutral first-contact signal only (score 5-6), never as evidence of the lead's own composed interest, even if it contains intent-sounding words like \"detailed\" or \"urgent\".\n"
+        f"- A line prefixed with \"{_ESCALATION_MARKER}\" is the lead chasing a human callback they were already promised (e.g. \"still no one contacted me\", \"when will they call\"). This is frustration about response time, NOT a signal about product interest — do not let it lower the score. Weigh the conversation's non-escalation lines to judge actual purchase intent instead.\n\n"
         f"Score the OVERALL purchase intent trajectory of this conversation. "
         f"Consider the full arc — not just the last message. "
         f"Reply with ONLY a single integer 1-10."
@@ -249,7 +251,7 @@ async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5
             messages=[{"role": "user", "content": prompt}],
             model=_MODEL,
             temperature=0.0,
-            max_tokens=4,
+            max_tokens=8,
             tenant_id=tenant_id,
             purpose="scoring",
         )
@@ -296,6 +298,15 @@ def _apply_segment_lock(
     if new_count >= 2:
         return proposed, 0
     return current, new_count
+
+
+def _parse_dt(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        return None
 
 
 async def compute_score(
@@ -379,12 +390,43 @@ async def compute_score(
                 .limit(10)
             )
             msgs = (msg_query.execute().data or [])
+
+            escalation_windows = []
+            try:
+                handovers = (
+                    db.table("chat_handovers")
+                    .select("opened_at,resolved_at")
+                    .eq("lead_id", str(lead_id))
+                    .execute()
+                ).data or []
+                for h in handovers:
+                    opened = _parse_dt(h.get("opened_at"))
+                    if opened:
+                        # opened_at is stamped a few seconds after the message that
+                        # triggers the handover, and back-to-back re-escalations can
+                        # leave a short gap between one resolved_at and the next
+                        # opened_at — pad the start so both cases stay in-window.
+                        start = opened - timedelta(minutes=5)
+                        closed = _parse_dt(h.get("resolved_at")) or datetime.now(timezone.utc)
+                        escalation_windows.append((start, closed))
+            except Exception:
+                escalation_windows = []
+
             lines = []
             for m in reversed(msgs):
                 role = "Bot" if m.get("direction") == "outbound" else "User"
                 content = (m.get("content") or "").strip()[:200]
                 if content and not content.startswith("[Template"):
-                    prefix = f"{_AD_PREFILL_MARKER} " if m.get("via_ad_referral") else ""
+                    created = _parse_dt(m.get("created_at"))
+                    is_escalation_followup = role == "User" and created and any(
+                        start <= created <= end for start, end in escalation_windows
+                    )
+                    if m.get("via_ad_referral"):
+                        prefix = f"{_AD_PREFILL_MARKER} "
+                    elif is_escalation_followup:
+                        prefix = f"{_ESCALATION_MARKER} "
+                    else:
+                        prefix = ""
                     lines.append(f"{role}: {prefix}{content}")
             conversation = "\n".join(lines) if lines else f"User: {message}"
         except Exception:
