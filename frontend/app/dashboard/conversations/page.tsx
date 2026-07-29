@@ -26,16 +26,18 @@ async function fetchConversations(
   folder: InboxFolder,
   limit: number,
   offset: number,
+  q?: string,
 ): Promise<{ leads: Lead[]; total: number }> {
   const auth = await getAuthHeaders();
-  const res = await fetch(
-    `${API_URL}/api/v1/conversations?limit=${limit}&offset=${offset}&folder=${folder}`,
-    { headers: auth },
-  );
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset), folder });
+  if (q) qs.set("q", q);
+  const res = await fetch(`${API_URL}/api/v1/conversations?${qs}`, { headers: auth });
   if (!res.ok) throw new Error(`conversations fetch failed: ${res.status}`);
   const data = await res.json();
   return { leads: data.leads ?? [], total: data.total ?? 0 };
 }
+
+const SEARCH_RESULTS_LIMIT = 200;
 
 function togglePinInList(leads: Lead[], leadId: string): Lead[] {
   return leads.map((l) =>
@@ -83,7 +85,14 @@ export default function ConversationsPage() {
   const [escalationCount, setEscalationCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const leadsCountRef = useRef(0);
+
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
 
   const searchParams = useSearchParams();
   const deepLinkLeadId = searchParams.get("lead");
@@ -111,14 +120,16 @@ export default function ConversationsPage() {
 
   // Refresh (initial load, folder switch, poll) always re-fetches from offset 0,
   // sized to at least whatever's currently loaded — so a poll tick doesn't
-  // silently discard pages the user pulled in via "Load more".
+  // silently discard pages the user pulled in via "Load more". A search query
+  // is resolved server-side (not just against whatever page is loaded) so it
+  // can find conversations outside the default page.
   const load = useCallback(() => {
     if (folder === "escalations") return;
-    const limit = Math.max(CONVERSATIONS_PAGE_SIZE, leadsCountRef.current);
-    fetchConversations(folder, limit, 0)
+    const limit = debouncedSearch ? SEARCH_RESULTS_LIMIT : Math.max(CONVERSATIONS_PAGE_SIZE, leadsCountRef.current);
+    fetchConversations(folder, limit, 0, debouncedSearch || undefined)
       .then(({ leads: loaded, total: t }) => { setLeads(loaded); setTotal(t); setError(false); })
       .catch(() => setError(true));
-  }, [folder]);
+  }, [folder, debouncedSearch]);
 
   useEffect(() => { leadsCountRef.current = leads.length; }, [leads]);
   useEffect(() => { load(); }, [load]);
@@ -141,15 +152,30 @@ export default function ConversationsPage() {
     }
   }, [folder, leads.length, loadingMore, total]);
 
+  // Selects a lead by id directly (via API), independent of whatever page of
+  // the conversation list happens to be loaded — a lead outside the currently
+  // fetched page would otherwise never be found by a client-side .find().
+  const selectLeadById = useCallback(async (leadId: string) => {
+    const existing = leads.find((l) => l.id === leadId);
+    if (existing) {
+      setSelected(existing);
+      return;
+    }
+    try {
+      const lead = await api.leads.get(leadId);
+      setLeads((prev) => (prev.some((l) => l.id === lead.id) ? prev : [lead, ...prev]));
+      setSelected(lead);
+    } catch {
+      toast.error("Couldn't open that conversation");
+    }
+  }, [leads]);
+
   // Auto-select lead from ?lead= query param (e.g. from Inbox Reply button)
   useEffect(() => {
-    if (!deepLinkLeadId || deepLinked.current || leads.length === 0) return;
-    const match = leads.find((l) => l.id === deepLinkLeadId);
-    if (match) {
-      setSelected(match);
-      deepLinked.current = true;
-    }
-  }, [deepLinkLeadId, leads]);
+    if (!deepLinkLeadId || deepLinked.current) return;
+    deepLinked.current = true;
+    selectLeadById(deepLinkLeadId);
+  }, [deepLinkLeadId, selectLeadById]);
 
   useEffect(() => {
     localStorage.setItem("lead_details_open", String(detailsOpen));
@@ -159,6 +185,7 @@ export default function ConversationsPage() {
     leadsCountRef.current = 0;
     setFolder(next);
     setSelected(null);
+    setSearchQuery("");
   }
 
   function handleSelect(lead: Lead) {
@@ -213,22 +240,10 @@ export default function ConversationsPage() {
       .catch(() => { toast.error("Failed to block"); load(); });
   }
 
-  const pendingReplyRef = useRef<string | null>(null);
-
   function handleEscalationReply(leadId: string) {
-    pendingReplyRef.current = leadId;
     setFolder("chats");
-    setSelected(null);
+    selectLeadById(leadId);
   }
-
-  useEffect(() => {
-    if (!pendingReplyRef.current || leads.length === 0) return;
-    const match = leads.find((l) => l.id === pendingReplyRef.current);
-    if (match) {
-      setSelected(match);
-      pendingReplyRef.current = null;
-    }
-  }, [leads]);
 
   if (folder === "escalations") {
     return (
@@ -260,6 +275,8 @@ export default function ConversationsPage() {
           onSelect={handleSelect}
           platform={platform}
           onPlatformChange={setPlatform}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
           onRefresh={load}
           onPin={handlePin}
           onPinSelected={handlePinSelected}
