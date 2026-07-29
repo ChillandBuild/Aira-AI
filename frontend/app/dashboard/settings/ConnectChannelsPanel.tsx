@@ -260,7 +260,7 @@ function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
       isEmbedded ? "border-emerald-100" : "border-violet-100"
     )}>
       <Image
-        src="/illustrations/aira-zephyr-couriers.png"
+        src="/aira/illustrations/aira-zephyr-couriers.png"
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
         sizes="(min-width: 1024px) 190px, 108px"
