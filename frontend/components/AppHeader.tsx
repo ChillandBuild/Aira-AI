@@ -347,6 +347,31 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           </div>
         )}
 
+        {pathname === "/dashboard/inbound-leads" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {(["leads", "performance"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (t === "leads") params.delete("tab");
+                  else params.set("tab", t);
+                  const query = params.toString();
+                  router.replace(`/dashboard/inbound-leads${query ? `?${query}` : ""}`, { scroll: false });
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                  (tab === t || (t === "leads" && !tab))
+                    ? "bg-white text-primary shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
+              >
+                {t === "leads" ? "Leads" : "Ad Performance"}
+              </button>
+            ))}
+          </div>
+        )}
+
         {pathname === "/dashboard/roles" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["roles", "users"] as const).map((item) => (

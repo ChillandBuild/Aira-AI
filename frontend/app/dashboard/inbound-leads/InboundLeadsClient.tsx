@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api, InboundLead } from "@/lib/api";
 import { useInboundLeads, useInboundCampaigns } from "@/hooks/useApi";
 import {
@@ -272,7 +273,10 @@ export function InboundLeadsClient({
 }: InboundLeadsClientProps) {
   const [exporting, setExporting] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [tab, setTab] = useState<"leads" | "performance">("leads");
+  // Tab is driven by the shared AppHeader via the ?tab= query param
+  // (same pattern as Meta Ads / Outbound Leads): no ?tab → Leads, ?tab=performance → Ad Performance.
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") === "performance" ? "performance" : "leads";
 
   // Filters
   const [selectedCampaign, setSelectedCampaign] = useState("");
@@ -361,28 +365,6 @@ export function InboundLeadsClient({
 
   return (
     <div>
-      {/* Tab switch */}
-      <div className="mb-5 inline-flex gap-1 rounded-2xl border border-surface-mid bg-surface-mid/40 p-1">
-        <button
-          onClick={() => setTab("leads")}
-          className={cn(
-            "px-4 py-1.5 rounded-xl font-label text-[13px] font-bold transition-all",
-            tab === "leads" ? "bg-white text-violet-700 shadow-sm" : "text-on-surface-muted hover:text-on-surface",
-          )}
-        >
-          Leads
-        </button>
-        <button
-          onClick={() => setTab("performance")}
-          className={cn(
-            "px-4 py-1.5 rounded-xl font-label text-[13px] font-bold transition-all",
-            tab === "performance" ? "bg-white text-violet-700 shadow-sm" : "text-on-surface-muted hover:text-on-surface",
-          )}
-        >
-          Ad Performance
-        </button>
-      </div>
-
       {tab === "performance" ? (
         <AdPerformanceTab />
       ) : (
