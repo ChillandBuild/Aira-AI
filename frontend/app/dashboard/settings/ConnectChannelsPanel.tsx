@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -882,12 +883,21 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     </div>
                     <span className="rounded-lg bg-violet-600 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Advanced</span>
                   </div>
-                  <div className="flex flex-1 flex-col justify-between gap-6 p-5">
-                    <ul className="space-y-3 font-body text-sm text-[#57534e]">
-                      {["Use an existing Meta Business account", "Custom access token and webhook controls", "Flexible setup for complex integrations"].map((item) => (
-                        <li key={item} className="flex items-center gap-2"><ShieldCheck size={16} className="shrink-0 text-violet-500" />{item}</li>
-                      ))}
-                    </ul>
+                  <div className="flex flex-1 flex-col justify-between gap-5 p-5">
+                    <div className="grid grid-cols-[minmax(0,1fr)_116px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_148px]">
+                      <ul className="space-y-3 font-body text-sm text-[#57534e]">
+                        {["Use an existing Meta Business account", "Custom access token and webhook controls", "Flexible setup for complex integrations"].map((item) => (
+                          <li key={item} className="flex items-center gap-2"><ShieldCheck size={16} className="shrink-0 text-violet-500" />{item}</li>
+                        ))}
+                      </ul>
+                      <Image
+                        src="/illustrations/aira-api-helper-v2.png"
+                        alt="Aira helper ready to configure an API connection"
+                        width={180}
+                        height={180}
+                        className="mx-auto w-full max-w-[148px] drop-shadow-[0_12px_18px_rgba(109,40,217,0.18)]"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => openChannelModal(WHATSAPP_CHANNEL)}
@@ -1003,43 +1013,6 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
 
             {/* Modal Body */}
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
-              {/* One-click Embedded Signup (WhatsApp only) */}
-              {selectedChannel.id === "whatsapp" && (
-                <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100 space-y-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="font-display font-bold text-ink text-sm">Connect with Facebook</p>
-                      <p className="font-body text-xs text-ink-muted mt-0.5">
-                        One-click setup — links your WhatsApp Business Account automatically. No manual copy-pasting below.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleConnectWithFacebook}
-                      disabled={!canManage || esState === "connecting" || esState === "finishing"}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold bg-[#1877F2] text-white hover:bg-[#1568d6] transition-all disabled:opacity-60 whitespace-nowrap"
-                    >
-                      {esState === "finishing" ? (
-                        <><Loader2 size={14} className="animate-spin" />Finishing…</>
-                      ) : esState === "connecting" ? (
-                        <><Loader2 size={14} className="animate-spin" />Waiting…</>
-                      ) : (
-                        <>Connect with Facebook</>
-                      )}
-                    </button>
-                  </div>
-                  {esError && <p className="text-xs text-red-700 font-body">{esError}</p>}
-                  <div className="flex items-start gap-2 pt-1 border-t border-blue-100/80">
-                    <AlertCircle size={13} className="flex-shrink-0 mt-0.5 text-amber-600" />
-                    <p className="text-[11px] text-ink-muted font-body leading-snug">
-                      Migrating a number from another WhatsApp API provider? Ask them to disable
-                      two-step verification on it first — Meta requires this before the number can
-                      fully connect here.
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* One-click Facebook Login for Business (Facebook + linked Instagram) */}
               {(selectedChannel.id === "facebook" || selectedChannel.id === "instagram") && (
                 <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100 space-y-3">
