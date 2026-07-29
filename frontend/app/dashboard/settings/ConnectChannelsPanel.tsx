@@ -255,21 +255,17 @@ function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
   const isEmbedded = variant === "embedded";
 
   return (
-    <div className={cn(
-      "relative aspect-[3/4] w-full overflow-hidden rounded-2xl border bg-white shadow-[0_12px_28px_rgba(28,25,23,0.08)]",
-      isEmbedded ? "border-emerald-100" : "border-violet-100"
-    )}>
+    <div className="relative aspect-[3/4] w-full">
       <Image
-        src="/aira/illustrations/aira-zephyr-couriers.png"
+        src={isEmbedded
+          ? "/aira/illustrations/aira-zephyr-embedded.svg"
+          : "/aira/illustrations/aira-zephyr-manual.svg"}
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
         sizes="(min-width: 1024px) 190px, 108px"
-        className={cn("object-cover", isEmbedded ? "object-left" : "object-right")}
+        className="object-contain"
+        unoptimized
       />
-      <div className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t to-transparent",
-        isEmbedded ? "from-emerald-50/60" : "from-violet-50/60"
-      )} />
     </div>
   );
 }
