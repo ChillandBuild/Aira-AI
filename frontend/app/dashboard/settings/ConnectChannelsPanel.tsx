@@ -262,7 +262,7 @@ function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
           : "/aira/illustrations/aira-zephyr-manual-3d.png"}
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
-        sizes="(min-width: 1024px) 190px, 108px"
+        sizes="(min-width: 1024px) 220px, 120px"
         className="object-contain"
         unoptimized
       />
@@ -811,7 +811,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     <span className="rounded-lg bg-emerald-500 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Recommended</span>
                   </div>
                   <div className="flex flex-1 flex-col justify-between gap-5 p-5">
-                    <div className="grid grid-cols-[minmax(0,1fr)_108px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_190px]">
+                    <div className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
                       <ul className="space-y-3 font-body text-sm text-[#57534e]">
                         {["Secure one-click connection", "Official WhatsApp Cloud API", "Business number and webhook linked automatically"].map((item) => (
                           <li key={item} className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-emerald-500" />{item}</li>
@@ -843,7 +843,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     <span className="rounded-lg bg-violet-600 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Advanced</span>
                   </div>
                   <div className="flex flex-1 flex-col justify-between gap-5 p-5">
-                    <div className="grid grid-cols-[minmax(0,1fr)_108px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_190px]">
+                    <div className="grid grid-cols-[minmax(0,1fr)_120px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_220px]">
                       <ul className="space-y-3 font-body text-sm text-[#57534e]">
                         {["Use an existing Meta Business account", "Custom access token and webhook controls", "Flexible setup for complex integrations"].map((item) => (
                           <li key={item} className="flex items-center gap-2"><ShieldCheck size={16} className="shrink-0 text-violet-500" />{item}</li>
