@@ -717,3 +717,12 @@
 
 - **Decision**: `ConnectChannelsPanel.tsx` uses two transparent 3D mascots: the green Zephyr courier with an envelope for Embedded Onboarding and the violet Zephyr navigator with a compass/network for Manual API Connection. They are local PNG assets in `frontend/public/illustrations/` rather than SVG illustrations.
 - **Rationale**: The selected visual direction is the high-fidelity, soft 3D pair that matches the approved reference composition. The assets are rendered from `/aira/illustrations/...` with direct loading so they remain sharp and work under the production Next.js base path.
+
+---
+
+**2026-07-30 — Lead scoring ranges and Cold-floor initialization**
+- **Decision**: Segment settings are displayed as non-overlapping score ranges, while persisting the existing `{A, B, C}` lower-bound configuration. Every newly created lead and every newly created per-broadcast score record starts at the tenant's configured Cold lower bound (for example, Cold `3–5` starts at score `3`).
+- **Scope**: Applied to inbound WhatsApp/Instagram/Facebook/Telegram leads, manual leads, CSV and telecalling uploads, call-created leads, and immediate/scheduled broadcast score records. Explicit segment overrides remain available.
+- **Invariant**: A scheduled broadcast opens a fresh `broadcast_lead_scores` record at the Cold floor but must not change the lead's global score/segment. A reply continues global scoring from that lead's prior state; sending a template alone is not a scoring signal.
+- **Known gap**: The immediate bulk-send route still upserts existing lead rows with the Cold-floor score, unlike the scheduled executor. Track and fix this before treating both send modes as behaviorally identical; see active backlog.
+- **Verification**: Frontend typecheck, Python syntax checks, range mapping, and mocked Cold-floor initialization checks passed. The local backend venv executable denied access, so the focused pytest command could not run in this environment.

@@ -9,6 +9,7 @@ from app.services.google_ads_attribution import parse_google_ref
 from app.services.failover import update_number_quality, handle_quality_red, handle_quality_yellow
 from app.services.meta_webhook_verify import verify_meta_signature
 from app.services.entitlements import meter
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -423,19 +424,20 @@ async def whatsapp_webhook(
                             except Exception as e:
                                 logger.warning(f"Failed to clear whatsapp_undeliverable for lead {lead_id}: {e}")
                     else:
+                        initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
                         new_lead = db.table("leads").insert({
                             "phone": phone,
                             "source": "whatsapp",
-                            "score": 5,
-                            "segment": "C",
+                            "score": initial_score,
+                            "segment": initial_segment,
                             "tenant_id": tenant_id,
                             "opt_in_source": "whatsapp",
                         }).execute()
                         lead_id = new_lead.data[0]["id"]
-                        record_stage_event(lead_id, to_segment="C", event_type="created", metadata={"source": "whatsapp"}, tenant_id=tenant_id, db=db)
+                        record_stage_event(lead_id, to_segment=initial_segment, event_type="created", metadata={"source": "whatsapp"}, tenant_id=tenant_id, db=db)
                         try:
                             from app.services.assignment import maybe_assign_lead
-                            maybe_assign_lead(lead_id, tenant_id, "C", "whatsapp", reason="created")
+                            maybe_assign_lead(lead_id, tenant_id, initial_segment, "whatsapp", reason="created")
                         except Exception as e:
                             logger.warning(f"Auto-assign failed for lead {lead_id}: {e}")
 

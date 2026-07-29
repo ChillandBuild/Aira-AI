@@ -15,6 +15,7 @@ from app.models.schemas import Lead, LeadUpdate, LeadWithMessages, Message, Pagi
 from app.services.ai_reply import send_whatsapp, send_instagram, send_facebook, get_last_send_error
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.assignment import record_assignment_event
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 require_leads_view = require_permission("leads.view")
@@ -909,12 +910,13 @@ async def compose_new_message(
         if payload.name:
             db.table("leads").update({"name": payload.name}).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
     else:
-        insert_data = {"phone": phone, "source": "manual", "score": 5, "segment": "C", "tenant_id": tenant_id}
+        initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
+        insert_data = {"phone": phone, "source": "manual", "score": initial_score, "segment": initial_segment, "tenant_id": tenant_id}
         if payload.name:
             insert_data["name"] = payload.name
         new_lead = db.table("leads").insert(insert_data).execute()
         lead_id = new_lead.data[0]["id"]
-        record_stage_event(lead_id, to_segment="C", event_type="created", metadata={"source": "manual"}, tenant_id=tenant_id, db=db)
+        record_stage_event(lead_id, to_segment=initial_segment, event_type="created", metadata={"source": "manual"}, tenant_id=tenant_id, db=db)
 
     sid = await send_whatsapp(phone, content, tenant_id=tenant_id)
     if not sid:

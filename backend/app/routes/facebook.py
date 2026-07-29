@@ -6,6 +6,7 @@ from app.config_dynamic import get_setting
 from app.services.growth import record_stage_event, get_or_create_campaign
 from app.services.ai_reply import generate_reply
 from app.services.meta_webhook_verify import verify_meta_signature, resolve_tenant_for_page
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -113,13 +114,14 @@ async def facebook_webhook(tenant_id: str, request: Request, background_tasks: B
                     logger.info(f"Restored soft-deleted Facebook lead {lead_id}")
             else:
                 name = f"Facebook User {sender_id[:6]}"
+                initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
                 new_lead = db.table("leads").insert({
                     "name": name,
                     "fb_user_id": sender_id,
                     "fb_page_id": page_id,
                     "source": "facebook",
-                    "score": 5,
-                    "segment": "C",
+                    "score": initial_score,
+                    "segment": initial_segment,
                     "tenant_id": tenant_id,
                     "opt_in_source": "facebook",
                 }).execute()
@@ -131,7 +133,7 @@ async def facebook_webhook(tenant_id: str, request: Request, background_tasks: B
                 lead_id = new_lead.data[0]["id"]
                 record_stage_event(
                     lead_id,
-                    to_segment="C",
+                    to_segment=initial_segment,
                     event_type="created",
                     metadata={"source": "facebook"},
                     tenant_id=tenant_id,
@@ -139,7 +141,7 @@ async def facebook_webhook(tenant_id: str, request: Request, background_tasks: B
                 )
                 try:
                     from app.services.assignment import maybe_assign_lead
-                    maybe_assign_lead(lead_id, tenant_id, "C", "facebook", reason="created")
+                    maybe_assign_lead(lead_id, tenant_id, initial_segment, "facebook", reason="created")
                 except Exception as e:
                     logger.warning(f"Auto-assign failed for Facebook lead {lead_id}: {e}")
 

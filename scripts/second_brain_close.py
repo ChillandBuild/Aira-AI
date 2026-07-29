@@ -89,7 +89,7 @@ def check_generated_artifact_churn():
 def check_hook_liveness():
     issues = []
     if (ROOT / "lefthook.yml").exists() or (ROOT / ".lefthook.yml").exists():
-        if subprocess.run(["which", "lefthook"], capture_output=True).returncode != 0:
+        if not shutil.which("lefthook"):
             issues.append("lefthook.yml present but `lefthook` binary not on PATH — hooks are silently no-op'ing")
     return issues
 
