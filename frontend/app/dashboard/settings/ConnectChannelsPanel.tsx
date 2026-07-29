@@ -255,7 +255,7 @@ function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
   const isEmbedded = variant === "embedded";
 
   return (
-    <div className="relative aspect-[3/4] w-full">
+    <div className="relative h-36 w-full sm:h-48">
       <Image
         src={isEmbedded
           ? "/aira/illustrations/aira-zephyr-embedded-3d.png"
@@ -263,7 +263,7 @@ function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
         sizes="(min-width: 1024px) 220px, 120px"
-        className="object-contain"
+        className="object-contain scale-[1.2]"
         unoptimized
       />
     </div>
@@ -802,7 +802,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
               </div>
 
               <div className="grid gap-5 lg:grid-cols-2">
-                <article className="flex min-h-[360px] flex-col overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
+                <article className="flex min-h-[330px] flex-col overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
                   <div className="flex items-start justify-between gap-4 border-b-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
                     <div>
                       <h4 className="font-display text-base font-bold text-ink">Embedded Onboarding</h4>
@@ -834,7 +834,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                   </div>
                 </article>
 
-                <article className="flex min-h-[360px] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm">
+                <article className="flex min-h-[330px] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm">
                   <div className="flex items-start justify-between gap-4 border-b-2 border-violet-400 bg-gradient-to-r from-violet-50 to-white px-5 py-4">
                     <div>
                       <h4 className="font-display text-base font-bold text-ink">Manual API Connection</h4>
