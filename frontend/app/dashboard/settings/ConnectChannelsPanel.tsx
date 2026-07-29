@@ -258,8 +258,8 @@ function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
     <div className="relative aspect-[3/4] w-full">
       <Image
         src={isEmbedded
-          ? "/aira/illustrations/aira-zephyr-embedded.svg"
-          : "/aira/illustrations/aira-zephyr-manual.svg"}
+          ? "/aira/illustrations/aira-zephyr-embedded-3d.png"
+          : "/aira/illustrations/aira-zephyr-manual-3d.png"}
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
         sizes="(min-width: 1024px) 190px, 108px"
