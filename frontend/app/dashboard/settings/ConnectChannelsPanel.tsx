@@ -1,9 +1,10 @@
 "use client";
+import Image from "next/image";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
-  CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck, Wind
+  CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -247,6 +248,29 @@ function HealthRefreshButton({ loading, onClick }: { loading: boolean; onClick: 
       <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
       Refresh health
     </button>
+  );
+}
+
+function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
+  const isEmbedded = variant === "embedded";
+
+  return (
+    <div className={cn(
+      "relative aspect-[3/4] w-full overflow-hidden rounded-2xl border bg-white shadow-[0_12px_28px_rgba(28,25,23,0.08)]",
+      isEmbedded ? "border-emerald-100" : "border-violet-100"
+    )}>
+      <Image
+        src="/illustrations/aira-zephyr-couriers.png"
+        alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
+        fill
+        sizes="(min-width: 1024px) 190px, 108px"
+        className={cn("object-cover", isEmbedded ? "object-left" : "object-right")}
+      />
+      <div className={cn(
+        "pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t to-transparent",
+        isEmbedded ? "from-emerald-50/60" : "from-violet-50/60"
+      )} />
+    </div>
   );
 }
 
@@ -782,7 +806,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
               </div>
 
               <div className="grid gap-5 lg:grid-cols-2">
-                <article className="flex min-h-[330px] flex-col overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
+                <article className="flex min-h-[360px] flex-col overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
                   <div className="flex items-start justify-between gap-4 border-b-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
                     <div>
                       <h4 className="font-display text-base font-bold text-ink">Embedded Onboarding</h4>
@@ -790,12 +814,15 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     </div>
                     <span className="rounded-lg bg-emerald-500 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Recommended</span>
                   </div>
-                  <div className="flex flex-1 flex-col justify-between gap-6 p-5">
-                    <ul className="space-y-3 font-body text-sm text-[#57534e]">
-                      {["Secure one-click connection", "Official WhatsApp Cloud API", "Business number and webhook linked automatically"].map((item) => (
-                        <li key={item} className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-emerald-500" />{item}</li>
-                      ))}
-                    </ul>
+                  <div className="flex flex-1 flex-col justify-between gap-5 p-5">
+                    <div className="grid grid-cols-[minmax(0,1fr)_108px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_190px]">
+                      <ul className="space-y-3 font-body text-sm text-[#57534e]">
+                        {["Secure one-click connection", "Official WhatsApp Cloud API", "Business number and webhook linked automatically"].map((item) => (
+                          <li key={item} className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-emerald-500" />{item}</li>
+                        ))}
+                      </ul>
+                      <ZephyrCourier variant="embedded" />
+                    </div>
                     <div>
                       {esError && <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{esError}</p>}
                       {activateResult?.success && <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 font-body text-xs text-emerald-700">{activateResult.message}</p>}
@@ -811,7 +838,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                   </div>
                 </article>
 
-                <article className="flex min-h-[330px] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm">
+                <article className="flex min-h-[360px] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-sm">
                   <div className="flex items-start justify-between gap-4 border-b-2 border-violet-400 bg-gradient-to-r from-violet-50 to-white px-5 py-4">
                     <div>
                       <h4 className="font-display text-base font-bold text-ink">Manual API Connection</h4>
@@ -820,24 +847,13 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     <span className="rounded-lg bg-violet-600 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Advanced</span>
                   </div>
                   <div className="flex flex-1 flex-col justify-between gap-5 p-5">
-                    <div className="grid grid-cols-[minmax(0,1fr)_132px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_190px]">
+                    <div className="grid grid-cols-[minmax(0,1fr)_108px] items-center gap-4 sm:grid-cols-[minmax(0,1fr)_190px]">
                       <ul className="space-y-3 font-body text-sm text-[#57534e]">
                         {["Use an existing Meta Business account", "Custom access token and webhook controls", "Flexible setup for complex integrations"].map((item) => (
                           <li key={item} className="flex items-center gap-2"><ShieldCheck size={16} className="shrink-0 text-violet-500" />{item}</li>
                         ))}
                       </ul>
-                      <div className="relative isolate overflow-hidden rounded-2xl border border-violet-100 bg-[radial-gradient(circle_at_82%_18%,#ede9fe_0%,transparent_34%),linear-gradient(145deg,#faf9ff_0%,#f4f0ff_100%)] px-3 py-4 text-violet-950">
-                        <div className="absolute -right-5 -top-6 h-20 w-20 rounded-full border-[10px] border-violet-100/80" />
-                        <div className="absolute -bottom-7 -left-5 h-16 w-16 rounded-full bg-violet-100/70" />
-                        <div className="relative">
-                          <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-[0_8px_18px_rgba(109,40,217,0.25)]">
-                            <Wind size={18} strokeWidth={2.4} />
-                          </span>
-                          <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-violet-600">Aira</p>
-                          <p className="mt-1 font-display text-sm font-bold leading-tight">Made to carry every message.</p>
-                          <p className="mt-2 font-body text-[11px] leading-4 text-violet-700">Wind · noble · messenger</p>
-                        </div>
-                      </div>
+                      <ZephyrCourier variant="manual" />
                     </div>
                     <button
                       type="button"
