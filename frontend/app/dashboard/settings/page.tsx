@@ -430,7 +430,7 @@ export default function SettingsPage() {
   return (
     <div className="min-w-0">
       {/* Curved Tab Switcher */}
-      <div className="-mx-1 mb-5 overflow-x-auto px-1 pb-1 sm:mx-0 sm:mb-6 sm:overflow-visible sm:p-0">
+      <div className="-mx-1 mb-5 overflow-x-auto px-1 pb-1 sm:mx-0 sm:mb-6 sm:overflow-visible sm:p-0 lg:hidden">
       <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:w-fit">
         <button
           onClick={() => router.push(`${pathname}?tab=general`)}

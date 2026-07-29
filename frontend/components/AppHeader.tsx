@@ -6,7 +6,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
-import { api } from "@/lib/api";
+import { API_URL, getAuthHeaders, api } from "@/lib/api";
 
 import { cn } from "@/lib/utils";
 
@@ -203,6 +203,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const tab = searchParams.get("tab") || "";
   const rolesTab = searchParams.get("tab") === "users" ? "users" : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
+  const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState(true);
+  const [settingsHasNotifications, setSettingsHasNotifications] = useState(true);
 
   // Action states for conditional header buttons
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -227,6 +229,45 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
     api.calls.assignmentMode().then((data) => {
       if (active) setCallingProvider(data.calling_provider ?? "telecmi");
     }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    if (pathname !== "/dashboard/settings") return;
+    let active = true;
+
+    const loadSettingsHeaderState = async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const [subscriptionRes, telecallingRes] = await Promise.all([
+          fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth }),
+          fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth }),
+        ]);
+
+        if (!active) return;
+
+        if (subscriptionRes.ok) {
+          const data = await subscriptionRes.json();
+          const purchasedFeatures = (data.items ?? []).map((item: { feature_key: string }) => item.feature_key);
+          setSettingsHasNotifications(
+            purchasedFeatures.length === 0 ||
+              purchasedFeatures.includes("inbound_messaging") ||
+              purchasedFeatures.includes("outbound_messaging"),
+          );
+        }
+
+        if (telecallingRes.ok) {
+          const data = await telecallingRes.json();
+          setSettingsHasTelecmiConfig(data.calling_provider !== "sim_basic");
+        }
+      } catch {
+        // Keep the tabs visible when availability checks fail.
+      }
+    };
+
+    void loadSettingsHeaderState();
     return () => {
       active = false;
     };
@@ -296,6 +337,41 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           )}
         </div>
       </div>
+
+      {pathname === "/dashboard/settings" && (
+        <nav aria-label="Account settings sections" className="hidden min-w-0 flex-1 justify-center lg:flex">
+          <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-2xl bg-[#e8e3db]/60 p-1">
+            {[
+              { key: "general", label: "General Settings" },
+              { key: "channels", label: "Messaging Channels" },
+              ...(settingsHasTelecmiConfig ? [{ key: "telecalling", label: "Telecalling Config" }] : []),
+              { key: "automations", label: "Automations" },
+              ...(settingsHasNotifications ? [{ key: "notifications", label: "Notifications" }] : []),
+            ].map(({ key, label }) => {
+              const isActive = tab === key || (key === "general" && !tab) || (key === "automations" && tab === "ai");
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams.toString());
+                    if (key === "general") params.delete("tab");
+                    else params.set("tab", key);
+                    const query = params.toString();
+                    router.replace(`/dashboard/settings${query ? `?${query}` : ""}`, { scroll: false });
+                  }}
+                  className={cn(
+                    "shrink-0 rounded-xl px-3 py-2 font-label text-[11px] font-bold transition-all xl:px-4 xl:text-xs",
+                    isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
 
       {/* Right side actions */}
       <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
@@ -487,10 +563,10 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           <button
             onClick={onRefreshHealth}
             disabled={channelsLoading}
-            className="hidden h-[34px] items-center gap-2 rounded-lg border border-[#e8e3db] bg-white px-3.5 font-label text-xs font-semibold text-[#78716c] shadow-sm transition-all hover:text-[#292524] disabled:opacity-40 md:flex"
+            className="hidden h-8 items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-white px-2.5 font-label text-[11px] font-semibold text-[#78716c] shadow-sm transition-all hover:text-[#292524] disabled:opacity-40 md:flex"
           >
-            <RefreshCw size={13} className={channelsLoading ? "animate-spin" : ""} />
-            <span>Refresh Health</span>
+            <RefreshCw size={12} className={channelsLoading ? "animate-spin" : ""} />
+            <span className="whitespace-nowrap">Refresh Health</span>
           </button>
         )}
 
