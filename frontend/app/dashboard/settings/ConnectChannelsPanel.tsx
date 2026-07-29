@@ -1,10 +1,9 @@
 "use client";
-import Image from "next/image";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
-  CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck
+  CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck, Wind
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -12,10 +11,6 @@ import { cn } from "@/lib/utils";
 // Not secrets — safe to expose client-side. Env var lets prod/staging override.
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
 const META_CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1063294086656120";
-// Separate Facebook Login for Business Configuration (Pages assets) — connects
-// Messenger + linked Instagram together. Set once the Configuration is created
-// in the Meta App Dashboard; the button is disabled until then.
-const META_PAGES_CONFIG_ID = process.env.NEXT_PUBLIC_META_PAGES_CONFIG_ID || "";
 
 declare global {
   interface Window {
@@ -486,9 +481,6 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const esSessionRef = useRef<EmbeddedSignupSession>({});
   const esCodeRef = useRef<string | null>(null);
 
-  const [fbEsState, setFbEsState] = useState<EmbeddedSignupState>("idle");
-  const [fbEsError, setFbEsError] = useState<string | null>(null);
-
   const load = useCallback(async () => {
     try {
       const s = await fetchSettings();
@@ -729,62 +721,6 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     );
   }
 
-  const finishFacebookEmbeddedSignup = useCallback(async (code: string) => {
-    setFbEsState("finishing");
-    setFbEsError(null);
-    try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/facebook/embedded-signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ code }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Connecting Facebook failed");
-      setFbEsState("idle");
-      setActivateResult({
-        success: true,
-        message: "Facebook connected",
-        detail: [
-          data.page_name,
-          data.subscribed ? "Webhook subscribed ✓" : null,
-          data.instagram_connected ? "Instagram linked ✓" : null,
-        ].filter(Boolean).join(" · "),
-      });
-      await load();
-      loadHealth();
-    } catch (e) {
-      setFbEsState("error");
-      setFbEsError(e instanceof Error ? e.message : "Connecting Facebook failed");
-    }
-  }, [load, loadHealth]);
-
-  async function handleConnectFacebookPages() {
-    if (!canManage) return;
-    if (!META_PAGES_CONFIG_ID) {
-      setFbEsError("Facebook/Instagram Connect isn't configured yet — set NEXT_PUBLIC_META_PAGES_CONFIG_ID.");
-      return;
-    }
-    setFbEsState("connecting");
-    setFbEsError(null);
-    await loadFacebookSdk();
-    window.FB?.login(
-      (response) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          setFbEsState("idle");
-          return;
-        }
-        finishFacebookEmbeddedSignup(code);
-      },
-      {
-        config_id: META_PAGES_CONFIG_ID,
-        response_type: "code",
-        override_default_response_type: true,
-      }
-    );
-  }
-
   const openChannelModal = (channel: ChannelConfig) => {
     setSelectedChannel(channel);
     setSaveState("idle");
@@ -802,7 +738,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const whatsappIsLive = !WHATSAPP_CHANNEL.hasActivation || whatsappStatus?.display_value === "live" || !!whatsappHealth?.last_event;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="mx-auto w-full max-w-[1440px] space-y-8">
       {error && (
         <div className="flex items-center gap-2 p-3.5 rounded-2xl bg-red-50 text-red-700 border border-red-100">
           <AlertCircle size={15} />
@@ -884,19 +820,24 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     <span className="rounded-lg bg-violet-600 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Advanced</span>
                   </div>
                   <div className="flex flex-1 flex-col justify-between gap-5 p-5">
-                    <div className="grid grid-cols-[minmax(0,1fr)_116px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_148px]">
+                    <div className="grid grid-cols-[minmax(0,1fr)_132px] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_190px]">
                       <ul className="space-y-3 font-body text-sm text-[#57534e]">
                         {["Use an existing Meta Business account", "Custom access token and webhook controls", "Flexible setup for complex integrations"].map((item) => (
                           <li key={item} className="flex items-center gap-2"><ShieldCheck size={16} className="shrink-0 text-violet-500" />{item}</li>
                         ))}
                       </ul>
-                      <Image
-                        src="/illustrations/aira-api-helper-v2.png"
-                        alt="Aira helper ready to configure an API connection"
-                        width={180}
-                        height={180}
-                        className="mx-auto w-full max-w-[148px] drop-shadow-[0_12px_18px_rgba(109,40,217,0.18)]"
-                      />
+                      <div className="relative isolate overflow-hidden rounded-2xl border border-violet-100 bg-[radial-gradient(circle_at_82%_18%,#ede9fe_0%,transparent_34%),linear-gradient(145deg,#faf9ff_0%,#f4f0ff_100%)] px-3 py-4 text-violet-950">
+                        <div className="absolute -right-5 -top-6 h-20 w-20 rounded-full border-[10px] border-violet-100/80" />
+                        <div className="absolute -bottom-7 -left-5 h-16 w-16 rounded-full bg-violet-100/70" />
+                        <div className="relative">
+                          <span className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-[0_8px_18px_rgba(109,40,217,0.25)]">
+                            <Wind size={18} strokeWidth={2.4} />
+                          </span>
+                          <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-violet-600">Aira</p>
+                          <p className="mt-1 font-display text-sm font-bold leading-tight">Made to carry every message.</p>
+                          <p className="mt-2 font-body text-[11px] leading-4 text-violet-700">Wind · noble · messenger</p>
+                        </div>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -1013,36 +954,6 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
 
             {/* Modal Body */}
             <div className="p-6 space-y-6 overflow-y-auto flex-1">
-              {/* One-click Facebook Login for Business (Facebook + linked Instagram) */}
-              {(selectedChannel.id === "facebook" || selectedChannel.id === "instagram") && (
-                <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100 space-y-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <p className="font-display font-bold text-ink text-sm">Connect with Facebook</p>
-                      <p className="font-body text-xs text-ink-muted mt-0.5">
-                        One-click setup — links your Facebook Page and its linked Instagram account together.
-                        No manual copy-pasting below.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleConnectFacebookPages}
-                      disabled={!canManage || fbEsState === "connecting" || fbEsState === "finishing"}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold bg-[#1877F2] text-white hover:bg-[#1568d6] transition-all disabled:opacity-60 whitespace-nowrap"
-                    >
-                      {fbEsState === "finishing" ? (
-                        <><Loader2 size={14} className="animate-spin" />Finishing…</>
-                      ) : fbEsState === "connecting" ? (
-                        <><Loader2 size={14} className="animate-spin" />Waiting…</>
-                      ) : (
-                        <>Connect with Facebook</>
-                      )}
-                    </button>
-                  </div>
-                  {fbEsError && <p className="text-xs text-red-700 font-body">{fbEsError}</p>}
-                </div>
-              )}
-
               {/* Dynamic Webhook Guide */}
               <WebhookConfigGuide channelId={selectedChannel.id} tenantId={tenantId} />
 
