@@ -828,16 +828,12 @@ export default function SettingsPage() {
                           <p className="font-body text-xs text-ink-muted">
                             Each score belongs to exactly one segment. Change a range&apos;s starting score; its ending score adjusts automatically to prevent gaps or overlaps.
                           </p>
-                          <div className="grid grid-cols-1 gap-2">
+                          <div className="grid grid-cols-1 gap-1.5">
                             {(["A", "B", "C"] as const).map((seg) => (
-                              <div key={seg} className={`rounded-xl border p-3 ${thresholdColors[seg]}`}>
-                                <div className="flex items-center justify-between gap-3 flex-wrap">
-                                  <label className="font-label text-xs font-bold uppercase">{thresholdLabels[seg]}</label>
-                                  <span className="font-mono text-sm font-bold">Score {scoringThresholds[seg]} to {rangeEnd[seg]}</span>
-                                </div>
-                                <div className="mt-3 flex items-end gap-3 flex-wrap">
-                                  <label className="flex flex-col gap-1">
-                                    <span className="font-label text-[10px] font-semibold uppercase">From</span>
+                              <div key={seg} className={`rounded-xl border px-3 py-2 flex items-center justify-between gap-3 flex-wrap ${thresholdColors[seg]}`}>
+                                <label className="font-label text-xs font-bold uppercase">{thresholdLabels[seg]}</label>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-label text-[10px] font-semibold uppercase opacity-70">From</span>
                                   <input
                                     type="number"
                                     min={seg === "A" ? scoringThresholds.B + 1 : seg === "B" ? scoringThresholds.C + 1 : 1}
@@ -845,14 +841,10 @@ export default function SettingsPage() {
                                     value={scoringThresholds[seg]}
                                     disabled={!canManageSettings}
                                     onChange={(e) => updateScoringThreshold(seg, e.target.value)}
-                                    className="w-16 px-2 py-1 rounded border bg-white font-mono text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-current text-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
+                                    className="w-12 px-1.5 py-1 rounded border bg-white font-mono text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-current text-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
                                   />
-                                  </label>
-                                  <div className="flex flex-col gap-1">
-                                    <span className="font-label text-[10px] font-semibold uppercase">To</span>
-                                    <span className="w-16 px-2 py-1 rounded border border-current/15 bg-white/60 font-mono text-sm font-bold text-center">{rangeEnd[seg]}</span>
-                                  </div>
-                                  <span className="pb-1 text-[10px] font-body opacity-80">End is set by the next range.</span>
+                                  <span className="font-label text-[10px] font-semibold uppercase opacity-70">to</span>
+                                  <span className="w-12 px-1.5 py-1 rounded border border-current/15 bg-white/60 font-mono text-sm font-bold text-center">{rangeEnd[seg]}</span>
                                 </div>
                               </div>
                             ))}
@@ -863,7 +855,7 @@ export default function SettingsPage() {
                               <span>Thresholds must be in order: A &gt; B &gt; C.</span>
                             </div>
                           )}
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center justify-between gap-3 flex-wrap text-slate-600">
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between gap-3 flex-wrap text-slate-600">
                             <span className="font-label text-xs font-bold uppercase">D - Disqualified</span>
                             <span className="font-mono text-sm font-bold">{scoringThresholds.C > 1 ? `Score 1 to ${scoringThresholds.C - 1}` : "No scores"}</span>
                           </div>
