@@ -6,7 +6,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.services.analytics_compare import resolve_period, previous_period
+from app.services.analytics_compare import (
+    align_series,
+    build_deltas,
+    build_summary,
+    fill_days,
+    pct_delta,
+    previous_period,
+    resolve_period,
+)
 
 
 class ResolvePeriodTests(unittest.TestCase):
@@ -76,6 +84,113 @@ class PreviousPeriodTests(unittest.TestCase):
             previous_period(date(2026, 7, 30), date(2026, 7, 30), "custom"),
             (date(2026, 7, 29), date(2026, 7, 29)),
         )
+
+
+class PctDeltaTests(unittest.TestCase):
+    def test_growth_is_a_positive_whole_percentage(self):
+        self.assertEqual(pct_delta(287, 190), 51)
+
+    def test_decline_is_negative(self):
+        self.assertEqual(pct_delta(50, 100), -50)
+
+    def test_no_baseline_returns_none_rather_than_infinity(self):
+        # 0 -> 287 is not a "% increase", it is new activity.
+        self.assertIsNone(pct_delta(287, 0))
+
+    def test_both_zero_returns_none(self):
+        self.assertIsNone(pct_delta(0, 0))
+
+    def test_missing_values_return_none(self):
+        self.assertIsNone(pct_delta(None, 100))
+        self.assertIsNone(pct_delta(100, None))
+
+
+class FillDaysTests(unittest.TestCase):
+    def test_gaps_are_zero_filled(self):
+        rows = [{"day": "2026-07-02", "inbound": 5, "outbound": 3}]
+        out = fill_days(rows, date(2026, 7, 1), date(2026, 7, 3), ("inbound", "outbound"))
+        self.assertEqual(out, [
+            {"day": "2026-07-01", "inbound": 0, "outbound": 0},
+            {"day": "2026-07-02", "inbound": 5, "outbound": 3},
+            {"day": "2026-07-03", "inbound": 0, "outbound": 0},
+        ])
+
+    def test_every_day_in_range_is_present(self):
+        out = fill_days([], date(2026, 7, 1), date(2026, 7, 31), ("inbound",))
+        self.assertEqual(len(out), 31)
+
+    def test_rows_outside_the_range_are_ignored(self):
+        rows = [{"day": "2026-06-30", "inbound": 99}]
+        out = fill_days(rows, date(2026, 7, 1), date(2026, 7, 1), ("inbound",))
+        self.assertEqual(out, [{"day": "2026-07-01", "inbound": 0}])
+
+
+class AlignSeriesTests(unittest.TestCase):
+    def test_series_are_aligned_by_day_index_not_calendar_date(self):
+        current = [{"day": "2026-07-01", "v": 10}, {"day": "2026-07-02", "v": 20}]
+        previous = [{"day": "2026-06-01", "v": 5}, {"day": "2026-06-02", "v": 7}]
+        out = align_series(current, previous, "v")
+        self.assertEqual(out[0], {
+            "index": 1, "label": "Day 1",
+            "current_day": "2026-07-01", "current": 10,
+            "previous_day": "2026-06-01", "previous": 5,
+        })
+
+    def test_longer_period_leaves_the_shorter_series_empty_at_the_tail(self):
+        current = [{"day": "2026-07-01", "v": 1}, {"day": "2026-07-02", "v": 2}]
+        previous = [{"day": "2026-06-01", "v": 9}]
+        out = align_series(current, previous, "v")
+        self.assertEqual(len(out), 2)
+        self.assertIsNone(out[1]["previous"])
+        self.assertIsNone(out[1]["previous_day"])
+        self.assertEqual(out[1]["current"], 2)
+
+
+class BuildDeltasTests(unittest.TestCase):
+    def test_each_metric_carries_both_values_and_the_change(self):
+        out = build_deltas({"new_leads": 287}, {"new_leads": 190}, ("new_leads",))
+        self.assertEqual(out["new_leads"], {"current": 287, "previous": 190, "delta_pct": 51})
+
+    def test_metric_absent_from_a_period_is_treated_as_zero(self):
+        out = build_deltas({}, {"new_leads": 10}, ("new_leads",))
+        self.assertEqual(out["new_leads"]["current"], 0)
+        self.assertEqual(out["new_leads"]["delta_pct"], -100)
+
+
+class BuildSummaryTests(unittest.TestCase):
+    CURRENT = {
+        "new_leads": 287, "hot": 38, "messages_in": 1204,
+        "messages_out": 1441, "ai_replies": 1437,
+    }
+    PREVIOUS = {
+        "new_leads": 190, "hot": 31, "messages_in": 890,
+        "messages_out": 1102, "ai_replies": 1090,
+    }
+
+    def test_summary_states_the_headline_count_and_the_change(self):
+        text = build_summary(self.CURRENT, self.PREVIOUS, date(2026, 7, 1), date(2026, 7, 30))
+        self.assertIn("287 new leads", text)
+        self.assertIn("51%", text)
+        self.assertIn("more", text)
+
+    def test_summary_mentions_hot_leads_and_automation(self):
+        text = build_summary(self.CURRENT, self.PREVIOUS, date(2026, 7, 1), date(2026, 7, 30))
+        self.assertIn("38", text)
+        self.assertIn("99%", text)
+
+    def test_decline_is_described_as_fewer_not_more(self):
+        text = build_summary({"new_leads": 90}, {"new_leads": 180}, date(2026, 7, 1), date(2026, 7, 30))
+        self.assertIn("fewer", text)
+        self.assertNotIn("more", text)
+
+    def test_no_baseline_avoids_a_percentage_claim(self):
+        text = build_summary({"new_leads": 50}, {"new_leads": 0}, date(2026, 7, 1), date(2026, 7, 30))
+        self.assertIn("50 new leads", text)
+        self.assertNotIn("%", text.split(".")[0])
+
+    def test_empty_period_reads_as_plain_english_not_a_crash(self):
+        text = build_summary({}, {}, date(2026, 7, 1), date(2026, 7, 30))
+        self.assertIn("0 new leads", text)
 
 
 if __name__ == "__main__":

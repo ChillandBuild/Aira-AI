@@ -6,6 +6,7 @@ dates; the caller converts them to timestamptz bounds.
 """
 
 from datetime import date, timedelta
+from math import floor
 
 PRESETS = (
     "this_month",
@@ -96,3 +97,124 @@ def previous_period(
     span_days = (end - start).days + 1
     prev_end = start - timedelta(days=1)
     return prev_end - timedelta(days=span_days - 1), prev_end
+
+
+def pct_delta(current: float | None, previous: float | None) -> float | None:
+    """Whole-number percentage change, or None when there is no baseline.
+
+    Mirrors the existing `_pct_trend` semantics in routes/analytics.py: a
+    prior window of zero is not a "% increase", it is new activity, and
+    dividing by it would misrepresent that.
+    """
+    if current is None or previous is None:
+        return None
+    if previous <= 0:
+        return None
+    return round((current - previous) / previous * 100)
+
+
+def fill_days(
+    rows: list[dict],
+    start: date,
+    end: date,
+    keys: tuple[str, ...],
+) -> list[dict]:
+    """Expand sparse aggregate rows into one entry per calendar day.
+
+    The RPCs only emit days that had activity; charts need every day so the
+    x-axis does not silently compress quiet periods.
+    """
+    by_day = {str(r.get("day")): r for r in rows}
+    out: list[dict] = []
+    cursor = start
+    while cursor <= end:
+        iso = cursor.isoformat()
+        row = by_day.get(iso) or {}
+        entry: dict = {"day": iso}
+        for key in keys:
+            entry[key] = int(row.get(key) or 0)
+        out.append(entry)
+        cursor += timedelta(days=1)
+    return out
+
+
+def align_series(current: list[dict], previous: list[dict], key: str) -> list[dict]:
+    """Pair two day series by position so periods of different lengths overlay.
+
+    July has 31 days and June has 30 -- plotting by calendar date would make
+    them incomparable, so both are plotted against "Day N of the period".
+    """
+    length = max(len(current), len(previous))
+    out: list[dict] = []
+    for i in range(length):
+        cur = current[i] if i < len(current) else None
+        prev = previous[i] if i < len(previous) else None
+        out.append({
+            "index": i + 1,
+            "label": f"Day {i + 1}",
+            "current_day": cur["day"] if cur else None,
+            "current": cur[key] if cur else None,
+            "previous_day": prev["day"] if prev else None,
+            "previous": prev[key] if prev else None,
+        })
+    return out
+
+
+def build_deltas(
+    current: dict,
+    previous: dict,
+    metrics: tuple[str, ...],
+) -> dict[str, dict]:
+    """Per-metric {current, previous, delta_pct} for the comparison table."""
+    out: dict[str, dict] = {}
+    for metric in metrics:
+        cur = current.get(metric) or 0
+        prev = previous.get(metric) or 0
+        out[metric] = {
+            "current": cur,
+            "previous": prev,
+            "delta_pct": pct_delta(cur, prev),
+        }
+    return out
+
+
+def _fmt_range(start: date, end: date) -> str:
+    if start.year == end.year and start.month == end.month:
+        return f"{start.day}–{end.day} {start.strftime('%b %Y')}"
+    return f"{start.strftime('%d %b')} – {end.strftime('%d %b %Y')}"
+
+
+def build_summary(current: dict, previous: dict, start: date, end: date) -> str:
+    """A deterministic plain-English paragraph describing the period.
+
+    Template with number slots -- never an LLM call. This text is shown to
+    the tenant's own clients, so it must be reproducible and incapable of
+    hallucinating a figure.
+    """
+    leads = int(current.get("new_leads") or 0)
+    hot = int(current.get("hot") or 0)
+    out = int(current.get("messages_out") or 0)
+    ai = int(current.get("ai_replies") or 0)
+
+    parts = [f"Between {_fmt_range(start, end)} you got {leads:,} new leads"]
+
+    delta = pct_delta(leads, previous.get("new_leads") or 0)
+    if delta is None:
+        parts.append(".")
+    else:
+        direction = "more" if delta >= 0 else "fewer"
+        parts.append(f", {abs(delta)}% {direction} than the previous period.")
+
+    if hot:
+        parts.append(f" {hot:,} of them were hot leads.")
+
+    if out:
+        # Floor, never round: 1437/1441 rounds to "100%" but 4 replies were
+        # human, and telling a client the AI handled everything when it did
+        # not is a false claim. Flooring can only understate.
+        ai_pct = floor(ai / out * 100)
+        parts.append(
+            f" The AI sent {out:,} replies and handled {ai_pct}% of them on its own."
+        )
+
+    return "".join(parts)
