@@ -20,7 +20,10 @@ _INSIGHT_FIELDS = (
 )
 
 _CAMPAIGN_FIELDS = "id,name,objective,effective_status,daily_budget,lifetime_budget,bid_strategy"
-_ADSET_FIELDS = "id,name,campaign_id,optimization_goal,effective_status,destination_type"
+_ADSET_FIELDS = (
+    "id,name,campaign_id,optimization_goal,effective_status,destination_type,"
+    "daily_budget,lifetime_budget"
+)
 
 # Meta action_type sets mapped to a human "Results" label, checked in order.
 _RESULT_RULES: list[tuple[str, str, set[str]]] = [
@@ -94,6 +97,16 @@ def is_click_to_whatsapp_adset(row: dict | None) -> bool:
     return (row or {}).get("destination_type") == "WHATSAPP"
 
 
+def _major_currency_units(value) -> float | None:
+    """Meta returns budget values in the account currency's minor unit."""
+    if value in (None, ""):
+        return None
+    try:
+        return float(value) / 100.0
+    except (TypeError, ValueError):
+        return None
+
+
 def upsert_creative_from_insight(
     db,
     tenant_id: str,
@@ -122,6 +135,19 @@ def upsert_creative_from_insight(
         db.table("ad_campaigns").update({
             "meta_ad_account_id": account,
         }).eq("id", campaign_id).eq("tenant_id", tenant_id).execute()
+    if adset_meta and adset_meta.get("id") and account:
+        db.table("ad_sets").upsert({
+            "tenant_id": tenant_id,
+            "campaign_id": campaign_id,
+            "meta_adset_id": adset_meta.get("id"),
+            "meta_ad_account_id": account,
+            "adset_name": adset_meta.get("name") or row.get("adset_name"),
+            "optimization_goal": adset_meta.get("optimization_goal"),
+            "effective_status": adset_meta.get("effective_status"),
+            "daily_budget": _major_currency_units(adset_meta.get("daily_budget")),
+            "lifetime_budget": _major_currency_units(adset_meta.get("lifetime_budget")),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }, on_conflict="tenant_id,meta_adset_id").execute()
 
     existing = (
         db.table("ad_creatives").select("id,label_edited")

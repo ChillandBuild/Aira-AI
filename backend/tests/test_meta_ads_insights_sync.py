@@ -166,9 +166,11 @@ def test_verbose_sync_writes_and_reports_success(monkeypatch):
     monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: fake_rows)
     monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [{
         "id": "as1",
+        "name": "Set",
         "destination_type": "WHATSAPP",
         "optimization_goal": "CONVERSATIONS",
         "effective_status": "ACTIVE",
+        "daily_budget": "80000",
     }])
     # Campaign metadata enrichment is a separate Meta call — mock it so the
     # unit test stays hermetic (no live Graph API request).
@@ -183,6 +185,8 @@ def test_verbose_sync_writes_and_reports_success(monkeypatch):
     assert len(db.store["ad_insights_daily"]) == 1
     assert db.store["ad_insights_daily"][0]["meta_ad_account_id"] == "act_1"
     assert db.store["ad_creatives"][0]["is_click_to_whatsapp"] is True
+    assert db.store["ad_sets"][0]["meta_ad_account_id"] == "act_1"
+    assert db.store["ad_sets"][0]["daily_budget"] == 800.0
 
 
 def test_verbose_sync_skips_non_whatsapp_ads(monkeypatch):

@@ -5,10 +5,17 @@ import {
   ChevronDown,
   Columns3,
   Download,
+  Filter,
+  type LucideIcon,
   Megaphone,
+  MessageCircle,
+  MessageSquareOff,
+  MousePointerClick,
+  Percent,
   RefreshCw,
   RotateCcw,
   SlidersHorizontal,
+  X,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +25,7 @@ import { cn } from "@/lib/utils";
 
 type MetricKey =
   | "campaign_status"
+  | "budget"
   | "impressions"
   | "reach"
   | "frequency"
@@ -26,6 +34,8 @@ type MetricKey =
   | "messages"
   | "meta_conversations"
   | "conversation_rate"
+  | "meta_conversation_rate"
+  | "attribution_gap"
   | "clicked_no_message"
   | "no_message_rate"
   | "spend"
@@ -34,27 +44,32 @@ type MetricKey =
   | "ctr"
   | "cpm"
   | "hot"
+  | "hot_rate"
   | "cost_per_hot";
 
 const METRICS: { key: MetricKey; label: string; defaultVisible: boolean; help: string }[] = [
   { key: "campaign_status", label: "Delivery", defaultVisible: true, help: "Current campaign delivery status from Meta" },
+  { key: "budget", label: "Budget", defaultVisible: false, help: "Daily or lifetime budget from the campaign or ad set in Meta" },
   { key: "impressions", label: "Impressions", defaultVisible: true, help: "Times the ad was shown" },
   { key: "reach", label: "Reach", defaultVisible: true, help: "Sum of daily Meta reach; people may repeat across days" },
   { key: "frequency", label: "Frequency", defaultVisible: false, help: "Impressions divided by summed daily reach" },
   { key: "inline_link_clicks", label: "WhatsApp clicks", defaultVisible: true, help: "Link clicks on Click-to-WhatsApp ads" },
   { key: "clicks_all", label: "Clicks (all)", defaultVisible: false, help: "All interactions Meta classifies as clicks" },
-  { key: "messages", label: "Aira conversations", defaultVisible: true, help: "WhatsApp conversations confirmed by Aira's webhook" },
-  { key: "meta_conversations", label: "Meta conversations", defaultVisible: false, help: "Messaging conversations reported by Meta" },
-  { key: "conversation_rate", label: "Conversation rate", defaultVisible: true, help: "Aira conversations divided by WhatsApp clicks" },
-  { key: "clicked_no_message", label: "No message", defaultVisible: true, help: "WhatsApp clicks without an Aira-confirmed conversation" },
+  { key: "messages", label: "Messages sent (Aira confirmed)", defaultVisible: true, help: "People whose attributed WhatsApp message was actually received by Aira" },
+  { key: "meta_conversations", label: "Meta-reported conversations", defaultVisible: false, help: "Meta's advertising-system count; optional and intended only for tracking comparison" },
+  { key: "conversation_rate", label: "Message rate", defaultVisible: true, help: "Aira-confirmed messages divided by WhatsApp clicks" },
+  { key: "meta_conversation_rate", label: "Meta-reported message rate", defaultVisible: false, help: "Meta-reported conversations divided by WhatsApp clicks" },
+  { key: "attribution_gap", label: "Tracking difference", defaultVisible: false, help: "Aira-confirmed messages minus Meta-reported conversations" },
+  { key: "clicked_no_message", label: "No message", defaultVisible: true, help: "WhatsApp clicks where Aira did not receive the pre-filled message" },
   { key: "no_message_rate", label: "No-message rate", defaultVisible: false, help: "No-message clicks divided by WhatsApp clicks" },
   { key: "spend", label: "Spend", defaultVisible: true, help: "Amount spent in the selected period" },
   { key: "cpc", label: "CPC", defaultVisible: true, help: "Spend divided by WhatsApp clicks" },
-  { key: "cost_per_message", label: "Cost / conversation", defaultVisible: true, help: "Spend divided by Aira conversations" },
-  { key: "ctr", label: "CTR", defaultVisible: false, help: "WhatsApp clicks divided by impressions" },
-  { key: "cpm", label: "CPM", defaultVisible: false, help: "Spend per 1,000 impressions" },
+  { key: "cost_per_message", label: "Cost / sent message", defaultVisible: true, help: "Spend divided by Aira-confirmed messages" },
+  { key: "ctr", label: "CTR", defaultVisible: false, help: "Click-through rate: WhatsApp clicks divided by impressions" },
+  { key: "cpm", label: "CPM", defaultVisible: false, help: "Cost per mille: spend per 1,000 impressions" },
   { key: "hot", label: "Hot", defaultVisible: false, help: "Aira leads currently in the Hot segment" },
-  { key: "cost_per_hot", label: "Cost / hot", defaultVisible: false, help: "Spend divided by Hot leads" },
+  { key: "hot_rate", label: "Hot lead rate", defaultVisible: false, help: "Hot leads divided by Aira-confirmed messages" },
+  { key: "cost_per_hot", label: "Cost / hot lead", defaultVisible: false, help: "Spend divided by Hot leads" },
 ];
 
 const DEFAULT_METRICS = new Set(METRICS.filter((metric) => metric.defaultVisible).map((metric) => metric.key));
@@ -83,6 +98,49 @@ function percent(value: number | null | undefined) {
 
 function decimal(value: number | null | undefined) {
   return value == null ? "—" : value.toFixed(2);
+}
+
+function budgetLabel(row: AdPerformanceRow) {
+  const suffix = row.budget_level === "ad_set"
+    ? " · Ad set"
+    : row.budget_level === "campaign"
+      ? " · Campaign"
+      : "";
+  if (row.daily_budget != null) return `${money(row.daily_budget)}/day${suffix}`;
+  if (row.lifetime_budget != null) return `${money(row.lifetime_budget)} lifetime${suffix}`;
+  return "—";
+}
+
+function signedCount(value: number) {
+  if (!value) return "0";
+  return `${value > 0 ? "+" : ""}${Math.round(value).toLocaleString("en-IN")}`;
+}
+
+function PerformanceKpiCard({
+  label,
+  value,
+  helper,
+  icon: Icon,
+  gradient,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+  icon: LucideIcon;
+  gradient: string;
+}) {
+  return (
+    <div className="flex min-h-[150px] items-center gap-4 rounded-2xl border border-surface-mid bg-white px-5 py-5 shadow-sm">
+      <span className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm", gradient)}>
+        <Icon size={23} />
+      </span>
+      <span className="min-w-0">
+        <span className="block font-display text-2xl font-bold tabular-nums text-on-surface">{value}</span>
+        <span className="block font-label text-xs font-semibold text-on-surface-muted">{label}</span>
+        <span className="mt-1 block font-body text-[10px] leading-4 text-stone-400">{helper}</span>
+      </span>
+    </div>
+  );
 }
 
 function statusLabel(status: string | null | undefined) {
@@ -151,10 +209,16 @@ function aggregateRows(rows: AdPerformanceRow[]): AdPerformanceRow {
     campaign_id: null,
     campaign_name: "Total",
     campaign_status: null,
+    daily_budget: null,
+    lifetime_budget: null,
+    budget_level: null,
     ...total,
     frequency: total.reach ? total.impressions / total.reach : null,
     conversation_rate: total.inline_link_clicks ? (total.messages / total.inline_link_clicks) * 100 : null,
+    meta_conversation_rate: total.inline_link_clicks ? (total.meta_conversations / total.inline_link_clicks) * 100 : null,
+    attribution_gap: total.messages - total.meta_conversations,
     no_message_rate: total.inline_link_clicks ? (total.clicked_no_message / total.inline_link_clicks) * 100 : null,
+    hot_rate: total.messages ? (total.hot / total.messages) * 100 : null,
     ctr: total.impressions ? (total.inline_link_clicks / total.impressions) * 100 : null,
     cpm: total.impressions ? (total.spend / total.impressions) * 1000 : null,
     cpc: total.inline_link_clicks ? total.spend / total.inline_link_clicks : null,
@@ -167,6 +231,8 @@ function metricValue(metric: MetricKey, row: AdPerformanceRow) {
   switch (metric) {
     case "campaign_status":
       return <StatusBadge status={row.campaign_status} />;
+    case "budget":
+      return budgetLabel(row);
     case "impressions":
     case "reach":
     case "inline_link_clicks":
@@ -176,8 +242,12 @@ function metricValue(metric: MetricKey, row: AdPerformanceRow) {
     case "clicked_no_message":
     case "hot":
       return count(row[metric]);
+    case "attribution_gap":
+      return signedCount(row.attribution_gap);
     case "conversation_rate":
+    case "meta_conversation_rate":
     case "no_message_rate":
+    case "hot_rate":
     case "ctr":
       return percent(row[metric]);
     case "spend":
@@ -199,6 +269,7 @@ export function AdPerformanceTab() {
   const [dateTo, setDateTo] = useState(() => localDate());
   const [exporting, setExporting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(() => new Set(DEFAULT_METRICS));
 
@@ -228,6 +299,7 @@ export function AdPerformanceTab() {
     ),
     [filters, campaignId, adsetId],
   );
+  const activeDimensionFilters = Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId));
 
   function toggleMetric(key: MetricKey) {
     setVisibleMetrics((current) => {
@@ -236,6 +308,14 @@ export function AdPerformanceTab() {
       else next.add(key);
       return next;
     });
+  }
+
+  function clearFilters() {
+    setCampaignId("");
+    setAdsetId("");
+    setCreativeId("");
+    setDateFrom(localDate(29));
+    setDateTo(localDate());
   }
 
   async function handleSyncNow() {
@@ -278,7 +358,168 @@ export function AdPerformanceTab() {
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+      <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          <PerformanceKpiCard
+            label="WhatsApp Clicks"
+            value={count(totals.inline_link_clicks)}
+            helper="Clicks intended to open WhatsApp"
+            icon={MousePointerClick}
+            gradient="bg-gradient-to-br from-violet-500 to-primary"
+          />
+          <PerformanceKpiCard
+            label="Messages Sent"
+            value={count(totals.messages)}
+            helper="WhatsApp messages actually received by Aira"
+            icon={MessageCircle}
+            gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
+          />
+          <PerformanceKpiCard
+            label="No Message"
+            value={count(totals.clicked_no_message)}
+            helper="Clicked WhatsApp, but Aira received no message"
+            icon={MessageSquareOff}
+            gradient="bg-gradient-to-br from-amber-500 to-orange-500"
+          />
+          <PerformanceKpiCard
+            label="Message Rate"
+            value={percent(totals.conversation_rate)}
+            helper="Messages sent ÷ WhatsApp clicks"
+            icon={Percent}
+            gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 p-1">
+          <button type="button" onClick={() => mutate()} disabled={isValidating}
+            className="flex items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-violet-300 hover:text-violet-700 disabled:opacity-40">
+            <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
+          </button>
+          <button type="button" onClick={handleSyncNow} disabled={syncing}
+            title="Pull the latest Click-to-WhatsApp performance from Meta"
+            className="flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-label text-xs font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-40">
+            <Zap size={12} className={syncing ? "animate-pulse" : ""} /> {syncing ? "Syncing…" : "Sync now"}
+          </button>
+
+          <button type="button" onClick={() => setShowFilters((visible) => !visible)}
+            aria-expanded={showFilters} aria-controls="ad-performance-filters"
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
+              showFilters || activeDimensionFilters > 0
+                ? "border-violet-200 bg-violet-50 text-violet-700"
+                : "border-surface-mid bg-white text-on-surface hover:border-violet-300 hover:text-violet-700",
+            )}>
+            <Filter size={12} /> Filters
+            {activeDimensionFilters > 0 && (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[9px] text-white">
+                {activeDimensionFilters}
+              </span>
+            )}
+          </button>
+
+          <div className="relative">
+            <button type="button" onClick={() => setShowColumns((visible) => !visible)}
+              aria-expanded={showColumns} aria-haspopup="dialog"
+              className="flex h-full w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 font-label text-xs font-bold text-indigo-700 shadow-sm transition-all hover:bg-indigo-50">
+              <Columns3 size={13} /> Columns
+              <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length}</span>
+            </button>
+            {showColumns && (
+              <div role="dialog" aria-label="Customize ad performance columns"
+                className="absolute right-0 top-11 z-30 w-[320px] rounded-2xl border border-[#e8e3db] bg-white p-3 shadow-xl">
+                <div className="mb-2 flex items-center justify-between border-b border-[#eee9e1] px-1 pb-2">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal size={13} className="text-indigo-600" />
+                    <span className="font-label text-xs font-bold text-[#292524]">Customize metrics</span>
+                  </div>
+                  <button type="button" onClick={() => setVisibleMetrics(new Set(DEFAULT_METRICS))}
+                    className="flex items-center gap-1 font-label text-[10px] font-bold text-indigo-600 hover:text-indigo-800">
+                    <RotateCcw size={10} /> Reset
+                  </button>
+                </div>
+                <div className="max-h-[380px] space-y-1 overflow-y-auto pr-1">
+                  {METRICS.map((metric) => (
+                    <label key={metric.key} className="flex cursor-pointer items-start gap-2 rounded-xl px-2 py-2 hover:bg-stone-50">
+                      <input type="checkbox" checked={visibleMetrics.has(metric.key)} onChange={() => toggleMetric(metric.key)}
+                        className="mt-0.5 h-3.5 w-3.5 rounded border-stone-300 accent-indigo-600" />
+                      <span>
+                        <span className="block font-label text-[11px] font-bold text-stone-700">{metric.label}</span>
+                        <span className="block font-body text-[10px] leading-4 text-stone-400">{metric.help}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button type="button" onClick={handleExport} disabled={exporting || rows.length === 0}
+            className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
+            <Download size={12} /> {exporting ? "Downloading…" : "Download CSV"}
+          </button>
+        </div>
+      </div>
+
+      {showFilters && (
+        <div id="ad-performance-filters" className="mb-4 rounded-2xl border border-surface-mid bg-surface-low/50 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="font-label text-xs font-bold text-on-surface">Filter Ad Performance</p>
+              <p className="font-body text-[10px] text-on-surface-muted">Date, campaign, ad set, and creative only</p>
+            </div>
+            <button type="button" onClick={clearFilters}
+              className="flex items-center gap-1 font-label text-[10px] font-bold text-violet-700 hover:text-violet-900">
+              <X size={11} /> Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-2 items-end gap-2.5 md:grid-cols-3 xl:grid-cols-[145px_145px_160px_160px_160px]">
+            <div>
+              <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From</label>
+              <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200" />
+            </div>
+            <div>
+              <label htmlFor="ad-performance-to" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To</label>
+              <input id="ad-performance-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200" />
+            </div>
+            <div>
+              <label htmlFor="ad-performance-campaign" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Campaign</label>
+              <div className="relative">
+                <select id="ad-performance-campaign" className={selectClass} value={campaignId}
+                  onChange={(event) => { setCampaignId(event.target.value); setAdsetId(""); setCreativeId(""); }}>
+                  <option value="">All campaigns</option>
+                  {(filters?.campaigns ?? []).map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="ad-performance-adset" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Ad set</label>
+              <div className="relative">
+                <select id="ad-performance-adset" className={selectClass} value={adsetId}
+                  onChange={(event) => { setAdsetId(event.target.value); setCreativeId(""); }}>
+                  <option value="">All ad sets</option>
+                  {adsetOptions.map((adset) => <option key={adset.id} value={adset.id}>{adset.name}</option>)}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="ad-performance-creative" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Creative</label>
+              <div className="relative">
+                <select id="ad-performance-creative" className={selectClass} value={creativeId} onChange={(event) => setCreativeId(event.target.value)}>
+                  <option value="">All creatives</option>
+                  {creativeOptions.map((creative) => <option key={creative.id} value={creative.id}>{creative.name}</option>)}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
             <Megaphone size={15} />
@@ -296,105 +537,6 @@ export function AdPerformanceTab() {
         <span className="rounded-full border border-indigo-200 bg-white px-3 py-1 font-label text-[10px] font-bold text-indigo-700">
           {dateFrom} — {dateTo}
         </span>
-      </div>
-
-      <div className="mb-4 flex flex-wrap items-end gap-2.5">
-        <div className="min-w-[170px] flex-1">
-          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Campaign</label>
-          <div className="relative">
-            <select className={selectClass} value={campaignId}
-              onChange={(event) => { setCampaignId(event.target.value); setAdsetId(""); setCreativeId(""); }}>
-              <option value="">All campaigns</option>
-              {(filters?.campaigns ?? []).map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
-            </select>
-            <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
-          </div>
-        </div>
-        <div className="min-w-[170px] flex-1">
-          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Ad set</label>
-          <div className="relative">
-            <select className={selectClass} value={adsetId}
-              onChange={(event) => { setAdsetId(event.target.value); setCreativeId(""); }}>
-              <option value="">All ad sets</option>
-              {adsetOptions.map((adset) => <option key={adset.id} value={adset.id}>{adset.name}</option>)}
-            </select>
-            <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
-          </div>
-        </div>
-        <div className="min-w-[170px] flex-1">
-          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Creative</label>
-          <div className="relative">
-            <select className={selectClass} value={creativeId} onChange={(event) => setCreativeId(event.target.value)}>
-              <option value="">All creatives</option>
-              {creativeOptions.map((creative) => <option key={creative.id} value={creative.id}>{creative.name}</option>)}
-            </select>
-            <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
-          </div>
-        </div>
-        <div className="w-[138px]">
-          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From</label>
-          <input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
-            className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200" />
-        </div>
-        <div className="w-[138px]">
-          <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To</label>
-          <input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}
-            className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200" />
-        </div>
-      </div>
-
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => mutate()} disabled={isValidating}
-            className="flex items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4] disabled:opacity-40">
-            <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
-          </button>
-          <button onClick={handleSyncNow} disabled={syncing}
-            title="Pull the latest Click-to-WhatsApp performance from Meta"
-            className="flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-label text-xs font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-40">
-            <Zap size={12} className={syncing ? "animate-pulse" : ""} /> {syncing ? "Syncing…" : "Sync now"}
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <div className="relative">
-            <button type="button" onClick={() => setShowColumns((visible) => !visible)}
-              aria-expanded={showColumns} aria-haspopup="dialog"
-              className="flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 font-label text-xs font-bold text-indigo-700 shadow-sm transition-all hover:bg-indigo-50">
-              <Columns3 size={13} /> Columns <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length}</span>
-            </button>
-            {showColumns && (
-              <div role="dialog" aria-label="Customize ad performance columns"
-                className="absolute right-0 top-11 z-30 w-[310px] rounded-2xl border border-[#e8e3db] bg-white p-3 shadow-xl">
-                <div className="mb-2 flex items-center justify-between border-b border-[#eee9e1] px-1 pb-2">
-                  <div className="flex items-center gap-2">
-                    <SlidersHorizontal size={13} className="text-indigo-600" />
-                    <span className="font-label text-xs font-bold text-[#292524]">Customize metrics</span>
-                  </div>
-                  <button onClick={() => setVisibleMetrics(new Set(DEFAULT_METRICS))}
-                    className="flex items-center gap-1 font-label text-[10px] font-bold text-indigo-600 hover:text-indigo-800">
-                    <RotateCcw size={10} /> Reset
-                  </button>
-                </div>
-                <div className="max-h-[360px] space-y-1 overflow-y-auto pr-1">
-                  {METRICS.map((metric) => (
-                    <label key={metric.key} className="flex cursor-pointer items-start gap-2 rounded-xl px-2 py-2 hover:bg-stone-50">
-                      <input type="checkbox" checked={visibleMetrics.has(metric.key)} onChange={() => toggleMetric(metric.key)}
-                        className="mt-0.5 h-3.5 w-3.5 rounded border-stone-300 accent-indigo-600" />
-                      <span>
-                        <span className="block font-label text-[11px] font-bold text-stone-700">{metric.label}</span>
-                        <span className="block font-body text-[10px] leading-4 text-stone-400">{metric.help}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-          <button onClick={handleExport} disabled={exporting || rows.length === 0}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
-            <Download size={12} /> {exporting ? "Downloading…" : "Download CSV"}
-          </button>
-        </div>
       </div>
 
       <div className="card overflow-hidden rounded-2xl">

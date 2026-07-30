@@ -400,9 +400,11 @@ async def ad_performance_export(
     )
     fieldnames = [
         "campaign_name", "campaign_status", "adset_name", "creative_label",
+        "daily_budget", "lifetime_budget", "budget_level",
         "impressions", "reach", "frequency", "inline_link_clicks", "clicks_all",
         "messages", "meta_conversations", "conversation_rate",
-        "clicked_no_message", "no_message_rate", "hot", "spend", "cpc",
+        "meta_conversation_rate", "attribution_gap",
+        "clicked_no_message", "no_message_rate", "hot", "hot_rate", "spend", "cpc",
         "cost_per_message", "ctr", "cpm", "cost_per_hot",
     ]
     output = io.StringIO()

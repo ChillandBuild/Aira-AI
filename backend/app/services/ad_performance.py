@@ -79,7 +79,9 @@ def build_creative_performance(
     campaigns: dict[str, dict] = {}
     if campaign_ids:
         campaign_rows = (
-            db.table("ad_campaigns").select("id,campaign_name,effective_status")
+            db.table("ad_campaigns").select(
+                "id,campaign_name,effective_status,daily_budget,lifetime_budget"
+            )
             .eq("tenant_id", tenant_id)
             .eq("meta_ad_account_id", account)
             .in_("id", campaign_ids)
@@ -87,6 +89,21 @@ def build_creative_performance(
             .data
         ) or []
         campaigns = {c["id"]: c for c in campaign_rows}
+
+    adset_ids = sorted({c["meta_adset_id"] for c in creatives if c.get("meta_adset_id")})
+    adsets: dict[str, dict] = {}
+    if adset_ids:
+        adset_rows = (
+            db.table("ad_sets").select(
+                "meta_adset_id,daily_budget,lifetime_budget"
+            )
+            .eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .in_("meta_adset_id", adset_ids)
+            .execute()
+            .data
+        ) or []
+        adsets = {a["meta_adset_id"]: a for a in adset_rows}
 
     # Insights (summed over the date range) per creative.
     ins_q = db.table("ad_insights_daily").select(
@@ -157,6 +174,11 @@ def build_creative_performance(
         })
         fn = funnel.get(c["id"], {"messages": 0, "hot": 0})
         campaign = campaigns.get(c.get("campaign_id"), {})
+        adset = adsets.get(c.get("meta_adset_id"), {})
+        uses_adset_budget = (
+            adset.get("daily_budget") is not None
+            or adset.get("lifetime_budget") is not None
+        )
         clicks = ins["inline_link_clicks"]
         messages = fn["messages"]
         no_message = max(clicks - messages, 0)
@@ -173,6 +195,22 @@ def build_creative_performance(
             "campaign_id": c.get("campaign_id"),
             "campaign_name": campaign.get("campaign_name") or "—",
             "campaign_status": campaign.get("effective_status") or c.get("effective_status"),
+            "daily_budget": (
+                adset.get("daily_budget") if uses_adset_budget
+                else campaign.get("daily_budget")
+            ),
+            "lifetime_budget": (
+                adset.get("lifetime_budget") if uses_adset_budget
+                else campaign.get("lifetime_budget")
+            ),
+            "budget_level": (
+                "ad_set" if uses_adset_budget
+                else "campaign" if (
+                    campaign.get("daily_budget") is not None
+                    or campaign.get("lifetime_budget") is not None
+                )
+                else None
+            ),
             "impressions": impressions,
             "reach": reach,
             "clicks_all": ins["clicks"],
@@ -186,7 +224,16 @@ def build_creative_performance(
             "ctr": (_safe_div(clicks, impressions) or 0) * 100 if impressions else None,
             "cpm": _safe_div(spend * 1000, impressions),
             "conversation_rate": (_safe_div(messages, clicks) or 0) * 100 if clicks else None,
+            "meta_conversation_rate": (
+                (_safe_div(ins["meta_conversations"], clicks) or 0) * 100
+                if clicks else None
+            ),
             "no_message_rate": (_safe_div(no_message, clicks) or 0) * 100 if clicks else None,
+            "hot_rate": (
+                (_safe_div(fn["hot"], messages) or 0) * 100
+                if messages else None
+            ),
+            "attribution_gap": messages - ins["meta_conversations"],
             "revenue": 0,
         }
         compute_cost_metrics(row)

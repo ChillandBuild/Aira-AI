@@ -1914,6 +1914,9 @@ export interface AdPerformanceRow {
   campaign_id: string | null;
   campaign_name: string;
   campaign_status: string | null;
+  daily_budget: number | null;
+  lifetime_budget: number | null;
+  budget_level: "campaign" | "ad_set" | null;
   impressions: number;
   reach: number;
   frequency: number | null;
@@ -1922,9 +1925,12 @@ export interface AdPerformanceRow {
   messages: number;
   meta_conversations: number;
   conversation_rate: number | null;
+  meta_conversation_rate: number | null;
+  attribution_gap: number;
   clicked_no_message: number;
   no_message_rate: number | null;
   hot: number;
+  hot_rate: number | null;
   spend: number;
   cpc: number | null;
   cost_per_message: number | null;
