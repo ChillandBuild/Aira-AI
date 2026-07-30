@@ -12,6 +12,7 @@ from app.services.analytics_compare import (
     build_summary,
     compare_csv_rows,
     fill_days,
+    summarise_movement,
     pct_delta,
     previous_period,
     resolve_period,
@@ -243,6 +244,50 @@ class CompareCsvRowsTests(unittest.TestCase):
         rows = compare_csv_rows(series)
         self.assertEqual(rows[0]["previous_date"], "")
         self.assertEqual(rows[0]["previous_leads_inbound"], "")
+
+
+class SummariseMovementTests(unittest.TestCase):
+    # Shape returned by analytics_segment_movement, using real proportions.
+    ROWS = [
+        {"from_segment": "C", "to_segment": "B", "total": 170},
+        {"from_segment": "C", "to_segment": "A", "total": 37},
+        {"from_segment": "B", "to_segment": "A", "total": 29},
+        {"from_segment": "B", "to_segment": "C", "total": 16},
+        {"from_segment": "A", "to_segment": "B", "total": 6},
+        {"from_segment": "C", "to_segment": "D", "total": 4},
+    ]
+
+    def test_counts_moves_toward_hot_as_promotions(self):
+        out = summarise_movement(self.ROWS)
+        # C->B 170 + C->A 37 + B->A 29
+        self.assertEqual(out["promoted"], 236)
+
+    def test_counts_moves_away_from_hot_as_demotions(self):
+        out = summarise_movement(self.ROWS)
+        # B->C 16 + A->B 6 + C->D 4
+        self.assertEqual(out["demoted"], 26)
+
+    def test_promoted_to_hot_counts_only_arrivals_at_segment_a(self):
+        out = summarise_movement(self.ROWS)
+        self.assertEqual(out["promoted_to_hot"], 66)
+
+    def test_flows_are_sorted_largest_first_for_display(self):
+        out = summarise_movement(self.ROWS)
+        self.assertEqual(out["flows"][0], {"from": "C", "to": "B", "total": 170})
+        totals = [f["total"] for f in out["flows"]]
+        self.assertEqual(totals, sorted(totals, reverse=True))
+
+    def test_empty_input_yields_zeros_not_a_crash(self):
+        out = summarise_movement([])
+        self.assertEqual(out["promoted"], 0)
+        self.assertEqual(out["demoted"], 0)
+        self.assertEqual(out["promoted_to_hot"], 0)
+        self.assertEqual(out["flows"], [])
+
+    def test_unknown_segment_labels_are_ignored_rather_than_miscounted(self):
+        out = summarise_movement([{"from_segment": "X", "to_segment": "A", "total": 5}])
+        self.assertEqual(out["promoted"], 0)
+        self.assertEqual(out["demoted"], 0)
 
 
 if __name__ == "__main__":

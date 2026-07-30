@@ -23,20 +23,28 @@ class AnalyticsCompareTests(unittest.TestCase):
     def tearDown(self):
         app.dependency_overrides.clear()
 
-    def _mock_db(self, mock_get_db, summaries, daily_leads, daily_messages):
-        """summaries/daily_* are lists: index 0 = current period, 1 = previous."""
+    def _mock_db(self, mock_get_db, summaries, daily_leads, daily_messages,
+                 money=None, movement=None, response=None):
+        """Each list is per-period: index 0 = current, 1 = previous."""
+        money = money if money is not None else [[], []]
+        movement = movement if movement is not None else [[], []]
+        response = response if response is not None else [[], []]
         db = MagicMock()
 
+        queues = {
+            "analytics_period_summary": summaries,
+            "analytics_daily_leads": daily_leads,
+            "analytics_daily_messages": daily_messages,
+            "analytics_period_money": money,
+            "analytics_segment_movement": movement,
+            "analytics_response_times": response,
+        }
+
         def rpc(name, params):
-            result = MagicMock()
-            if name == "analytics_period_summary":
-                result.execute.return_value = MagicMock(data=summaries.pop(0))
-            elif name == "analytics_daily_leads":
-                result.execute.return_value = MagicMock(data=daily_leads.pop(0))
-            elif name == "analytics_daily_messages":
-                result.execute.return_value = MagicMock(data=daily_messages.pop(0))
-            else:
+            if name not in queues:
                 raise AssertionError(f"unexpected rpc {name}")
+            result = MagicMock()
+            result.execute.return_value = MagicMock(data=queues[name].pop(0))
             return result
 
         db.rpc.side_effect = rpc
@@ -88,6 +96,84 @@ class AnalyticsCompareTests(unittest.TestCase):
         self.assertEqual(len(series), 2)
         self.assertEqual(series[0]["current"], 0)
         self.assertEqual(series[1]["current"], 5)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_money_block_carries_cost_per_lead_and_its_delta(self, mock_get_db):
+        self._mock_db(
+            mock_get_db,
+            summaries=[[{}], [{}]],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+            money=[
+                [{"spend": 1000, "impressions": 100, "clicks": 10,
+                  "ad_leads": 20, "ad_hot_leads": 4,
+                  "cost_per_lead": 50, "cost_per_hot_lead": 250}],
+                [{"spend": 800, "impressions": 80, "clicks": 8,
+                  "ad_leads": 8, "ad_hot_leads": 2,
+                  "cost_per_lead": 100, "cost_per_hot_lead": 400}],
+            ],
+        )
+        body = self.client.get("/api/v1/analytics/compare?preset=custom"
+                               "&start=2026-07-15&end=2026-07-16").json()
+        self.assertEqual(body["current"]["money"]["cost_per_lead"], 50)
+        # Cost halved: that is a -50% change, and cheaper is better.
+        self.assertEqual(body["money_metrics"]["cost_per_lead"]["delta_pct"], -50)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_movement_block_classifies_promotions_and_demotions(self, mock_get_db):
+        self._mock_db(
+            mock_get_db,
+            summaries=[[{}], [{}]],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+            movement=[
+                [{"from_segment": "C", "to_segment": "A", "total": 10},
+                 {"from_segment": "A", "to_segment": "C", "total": 3}],
+                [],
+            ],
+        )
+        body = self.client.get("/api/v1/analytics/compare?preset=custom"
+                               "&start=2026-07-15&end=2026-07-16").json()
+        movement = body["current"]["movement"]
+        self.assertEqual(movement["promoted"], 10)
+        self.assertEqual(movement["promoted_to_hot"], 10)
+        self.assertEqual(movement["demoted"], 3)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_response_block_carries_percentiles(self, mock_get_db):
+        self._mock_db(
+            mock_get_db,
+            summaries=[[{}], [{}]],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+            response=[
+                [{"inbound_total": 100, "answered": 100,
+                  "p50_seconds": 10.4, "p90_seconds": 22.9}],
+                [{"inbound_total": 50, "answered": 48,
+                  "p50_seconds": 20.0, "p90_seconds": 60.0}],
+            ],
+        )
+        body = self.client.get("/api/v1/analytics/compare?preset=custom"
+                               "&start=2026-07-15&end=2026-07-16").json()
+        self.assertEqual(body["current"]["response"]["p50_seconds"], 10.4)
+        self.assertEqual(body["response_metrics"]["p50_seconds"]["delta_pct"], -48)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_missing_optional_blocks_do_not_break_the_response(self, mock_get_db):
+        """A tenant with no ad spend and no segment events must still get 200."""
+        self._mock_db(
+            mock_get_db,
+            summaries=[[{}], [{}]],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+        )
+        res = self.client.get("/api/v1/analytics/compare?preset=custom"
+                              "&start=2026-07-15&end=2026-07-16")
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertEqual(body["current"]["money"], {})
+        self.assertEqual(body["current"]["movement"]["promoted"], 0)
+        self.assertEqual(body["money_metrics"]["spend"]["current"], 0)
 
     @patch("app.routes.analytics.get_supabase")
     def test_export_returns_csv_with_a_header_row(self, mock_get_db):

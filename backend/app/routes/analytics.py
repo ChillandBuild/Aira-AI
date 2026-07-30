@@ -26,6 +26,7 @@ from app.services.analytics_compare import (
     fill_days,
     previous_period,
     resolve_period,
+    summarise_movement,
 )
 
 logger = logging.getLogger(__name__)
@@ -1176,6 +1177,13 @@ SUMMARY_METRICS = (
     "messages_in", "messages_out", "ai_replies", "human_replies", "converted",
 )
 
+MONEY_METRICS = (
+    "spend", "impressions", "clicks", "ad_leads", "ad_hot_leads",
+    "cost_per_lead", "cost_per_hot_lead",
+)
+RESPONSE_METRICS = ("inbound_total", "answered", "p50_seconds", "p90_seconds")
+MOVEMENT_METRICS = ("promoted", "demoted", "promoted_to_hot")
+
 LEAD_SERIES_KEYS = ("inbound", "outbound", "hot", "warm", "cold", "disqualified")
 MESSAGE_SERIES_KEYS = ("inbound", "outbound", "ai", "human")
 
@@ -1192,19 +1200,26 @@ async def _period_payload(db, tenant_id: str, start: date, end: date) -> dict:
     start_iso, end_iso = _ist_bounds(start, end)
     params = {"p_tenant_id": tenant_id, "p_start": start_iso, "p_end": end_iso}
 
-    summary_res, leads_res, msgs_res = await asyncio.gather(
+    summary_res, leads_res, msgs_res, money_res, movement_res, response_res = await asyncio.gather(
         asyncio.to_thread(db.rpc("analytics_period_summary", params).execute),
         asyncio.to_thread(db.rpc("analytics_daily_leads", params).execute),
         asyncio.to_thread(db.rpc("analytics_daily_messages", params).execute),
+        asyncio.to_thread(db.rpc("analytics_period_money", params).execute),
+        asyncio.to_thread(db.rpc("analytics_segment_movement", params).execute),
+        asyncio.to_thread(db.rpc("analytics_response_times", params).execute),
     )
 
-    summary_rows = summary_res.data or []
-    summary = summary_rows[0] if summary_rows else {}
+    def first_row(res) -> dict:
+        rows = res.data or []
+        return rows[0] if rows else {}
 
     return {
         "start": start.isoformat(),
         "end": end.isoformat(),
-        "summary": summary,
+        "summary": first_row(summary_res),
+        "money": first_row(money_res),
+        "response": first_row(response_res),
+        "movement": summarise_movement(movement_res.data or []),
         "daily_leads": fill_days(leads_res.data or [], start, end, LEAD_SERIES_KEYS),
         "daily_messages": fill_days(msgs_res.data or [], start, end, MESSAGE_SERIES_KEYS),
     }
@@ -1247,13 +1262,26 @@ async def compare_analytics(
         "current": {
             "start": current["start"], "end": current["end"],
             "summary": cur_sum,
+            "money": current["money"],
+            "response": current["response"],
+            "movement": current["movement"],
         },
         "previous": {
             "start": previous["start"], "end": previous["end"],
             "summary": prev_sum,
+            "money": previous["money"],
+            "response": previous["response"],
+            "movement": previous["movement"],
         },
         "summary_text": build_summary(cur_sum, prev_sum, cur_start, cur_end),
         "metrics": build_deltas(cur_sum, prev_sum, SUMMARY_METRICS),
+        "money_metrics": build_deltas(current["money"], previous["money"], MONEY_METRICS),
+        "response_metrics": build_deltas(
+            current["response"], previous["response"], RESPONSE_METRICS
+        ),
+        "movement_metrics": build_deltas(
+            current["movement"], previous["movement"], MOVEMENT_METRICS
+        ),
         "series": {
             "leads_inbound": series_for("daily_leads", "inbound"),
             "leads_outbound": series_for("daily_leads", "outbound"),

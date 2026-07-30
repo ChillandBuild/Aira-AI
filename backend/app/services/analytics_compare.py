@@ -182,6 +182,48 @@ def build_deltas(
     return out
 
 
+# Segment warmth order. A=Hot is the destination everything is measured
+# toward; D=Disqualified is the floor. Used to classify a move as a promotion
+# or a demotion. Labels are immutable (Hard Invariant 2).
+_SEGMENT_RANK = {"D": 0, "C": 1, "B": 2, "A": 3}
+
+
+def summarise_movement(rows: list[dict]) -> dict:
+    """Turn raw segment transitions into the 'what the AI did' summary.
+
+    Rows come from analytics_segment_movement, which already filters to real
+    segment changes. Unrecognised labels are ignored rather than guessed at,
+    so a future segment can never be silently counted as a promotion.
+    """
+    promoted = 0
+    demoted = 0
+    promoted_to_hot = 0
+    flows: list[dict] = []
+
+    for row in rows:
+        src = row.get("from_segment")
+        dst = row.get("to_segment")
+        total = int(row.get("total") or 0)
+        if src not in _SEGMENT_RANK or dst not in _SEGMENT_RANK:
+            continue
+
+        flows.append({"from": src, "to": dst, "total": total})
+        if _SEGMENT_RANK[dst] > _SEGMENT_RANK[src]:
+            promoted += total
+            if dst == "A":
+                promoted_to_hot += total
+        elif _SEGMENT_RANK[dst] < _SEGMENT_RANK[src]:
+            demoted += total
+
+    flows.sort(key=lambda f: f["total"], reverse=True)
+    return {
+        "promoted": promoted,
+        "demoted": demoted,
+        "promoted_to_hot": promoted_to_hot,
+        "flows": flows,
+    }
+
+
 CSV_SERIES_KEYS = ("leads_inbound", "leads_outbound", "messages_in", "messages_out")
 
 CSV_FIELDNAMES = (
