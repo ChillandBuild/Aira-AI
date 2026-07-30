@@ -32,16 +32,6 @@ def compute_cost_metrics(row: dict) -> dict:
     return row
 
 
-def _lead_has_converted_column(db, tenant_id: str) -> bool:
-    """Detect whether leads.converted_at exists; if a select on it errors we
-    treat sales/revenue as unavailable (0). Cached per process is unnecessary."""
-    try:
-        db.table("leads").select("converted_at").eq("tenant_id", tenant_id).limit(1).execute()
-        return True
-    except Exception:
-        return False
-
-
 def build_creative_performance(
     db,
     tenant_id: str,
@@ -60,9 +50,21 @@ def build_creative_performance(
       ad_creative_id  -> ad_creatives.id
       date_from/to    -> bound both ad_insights_daily.insight_date and leads.created_at
     """
+    from app.services.meta_ads_insights_sync import (
+        get_current_ads_account_id,
+        sum_actions,
+    )
+
+    account = get_current_ads_account_id(db, tenant_id)
+    if not account:
+        return []
+
     q = db.table("ad_creatives").select(
-        "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,campaign_id"
-    ).eq("tenant_id", tenant_id)
+        "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,"
+        "campaign_id,effective_status"
+    ).eq("tenant_id", tenant_id).eq(
+        "meta_ad_account_id", account
+    ).eq("is_click_to_whatsapp", True)
     if campaign_id:
         q = q.eq("campaign_id", campaign_id)
     if adset_id:
@@ -73,11 +75,25 @@ def build_creative_performance(
     if not creatives:
         return []
     creative_ids = [c["id"] for c in creatives]
+    campaign_ids = sorted({c["campaign_id"] for c in creatives if c.get("campaign_id")})
+    campaigns: dict[str, dict] = {}
+    if campaign_ids:
+        campaign_rows = (
+            db.table("ad_campaigns").select("id,campaign_name,effective_status")
+            .eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .in_("id", campaign_ids)
+            .execute()
+            .data
+        ) or []
+        campaigns = {c["id"]: c for c in campaign_rows}
 
     # Insights (summed over the date range) per creative.
     ins_q = db.table("ad_insights_daily").select(
-        "ad_creative_id,inline_link_clicks,clicks,spend,insight_date"
-    ).eq("tenant_id", tenant_id).in_("ad_creative_id", creative_ids)
+        "ad_creative_id,inline_link_clicks,clicks,spend,impressions,reach,actions,insight_date"
+    ).eq("tenant_id", tenant_id).eq(
+        "meta_ad_account_id", account
+    ).in_("ad_creative_id", creative_ids)
     if date_from:
         ins_q = ins_q.gte("insight_date", date_from)
     if date_to:
@@ -87,18 +103,30 @@ def build_creative_performance(
     ins_by_creative: dict[str, dict] = {}
     for r in insights:
         acc = ins_by_creative.setdefault(
-            r["ad_creative_id"], {"inline_link_clicks": 0, "clicks": 0, "spend": 0.0}
+            r["ad_creative_id"],
+            {
+                "inline_link_clicks": 0,
+                "clicks": 0,
+                "spend": 0.0,
+                "impressions": 0,
+                "reach": 0,
+                "meta_conversations": 0,
+            },
         )
         acc["inline_link_clicks"] += int(r.get("inline_link_clicks", 0) or 0)
         acc["clicks"] += int(r.get("clicks", 0) or 0)
         acc["spend"] += float(r.get("spend", 0) or 0)
+        acc["impressions"] += int(r.get("impressions", 0) or 0)
+        acc["reach"] += int(r.get("reach", 0) or 0)
+        acc["meta_conversations"] += sum_actions(
+            r.get("actions"),
+            {"onsite_conversion.total_messaging_connection"},
+        )
 
     # Leads attributed to these creatives (funnel counts).
-    has_converted = _lead_has_converted_column(db, tenant_id)
-    lead_cols = "id,segment,attributed_ad_creative_id,created_at" + (
-        ",converted_at" if has_converted else ""
-    )
-    lead_q = db.table("leads").select(lead_cols).eq("tenant_id", tenant_id).in_(
+    lead_q = db.table("leads").select(
+        "id,segment,attributed_ad_creative_id,created_at"
+    ).eq("tenant_id", tenant_id).in_(
         "attributed_ad_creative_id", creative_ids
     ).is_("deleted_at", "null")
     if date_from:
@@ -112,37 +140,54 @@ def build_creative_performance(
         cid = lead.get("attributed_ad_creative_id")
         if not cid:
             continue
-        f = funnel.setdefault(cid, {"messages": 0, "qualified": 0, "hot": 0, "sales": 0})
+        f = funnel.setdefault(cid, {"messages": 0, "hot": 0})
         f["messages"] += 1
-        seg = lead.get("segment")
-        if seg in ("A", "B"):
-            f["qualified"] += 1
-        if seg == "A":
+        if lead.get("segment") == "A":
             f["hot"] += 1
-        if has_converted and lead.get("converted_at"):
-            f["sales"] += 1
 
     out: list[dict] = []
     for c in creatives:
-        ins = ins_by_creative.get(c["id"], {"inline_link_clicks": 0, "clicks": 0, "spend": 0.0})
-        fn = funnel.get(c["id"], {"messages": 0, "qualified": 0, "hot": 0, "sales": 0})
+        ins = ins_by_creative.get(c["id"], {
+            "inline_link_clicks": 0,
+            "clicks": 0,
+            "spend": 0.0,
+            "impressions": 0,
+            "reach": 0,
+            "meta_conversations": 0,
+        })
+        fn = funnel.get(c["id"], {"messages": 0, "hot": 0})
+        campaign = campaigns.get(c.get("campaign_id"), {})
         clicks = ins["inline_link_clicks"]
         messages = fn["messages"]
+        no_message = max(clicks - messages, 0)
+        spend = round(ins["spend"], 2)
+        impressions = ins["impressions"]
+        reach = ins["reach"]
         row = {
             "ad_creative_id": c["id"],
             "creative_label": c["creative_label"],
             "meta_ad_id": c["meta_ad_id"],
+            "meta_ad_account_id": account,
             "adset_id": c.get("meta_adset_id"),
             "adset_name": c.get("meta_adset_name"),
             "campaign_id": c.get("campaign_id"),
+            "campaign_name": campaign.get("campaign_name") or "—",
+            "campaign_status": campaign.get("effective_status") or c.get("effective_status"),
+            "impressions": impressions,
+            "reach": reach,
+            "clicks_all": ins["clicks"],
             "inline_link_clicks": clicks,
             "messages": messages,
-            "clicked_no_message": max(clicks - messages, 0),
-            "qualified": fn["qualified"],
+            "meta_conversations": ins["meta_conversations"],
+            "clicked_no_message": no_message,
             "hot": fn["hot"],
-            "sales": fn["sales"],
-            "spend": round(ins["spend"], 2),
-            "revenue": 0,  # no revenue source yet; see plan status-mapping note
+            "spend": spend,
+            "frequency": _safe_div(impressions, reach),
+            "ctr": (_safe_div(clicks, impressions) or 0) * 100 if impressions else None,
+            "cpm": _safe_div(spend * 1000, impressions),
+            "conversation_rate": (_safe_div(messages, clicks) or 0) * 100 if clicks else None,
+            "no_message_rate": (_safe_div(no_message, clicks) or 0) * 100 if clicks else None,
+            "revenue": 0,
         }
         compute_cost_metrics(row)
         out.append(row)
@@ -153,10 +198,19 @@ def build_creative_performance(
 
 def build_ad_filter_tree(db, tenant_id: str) -> dict:
     """Campaign -> adset -> creative option tree for cascading dropdowns."""
+    from app.services.meta_ads_insights_sync import get_current_ads_account_id
+
+    account = get_current_ads_account_id(db, tenant_id)
+    if not account:
+        return {"campaigns": [], "adsets": [], "creatives": [], "account_id": None}
+
     creatives = (
         db.table("ad_creatives").select(
             "id,creative_label,meta_adset_id,meta_adset_name,campaign_id"
-        ).eq("tenant_id", tenant_id).execute().data
+        ).eq("tenant_id", tenant_id)
+        .eq("meta_ad_account_id", account)
+        .eq("is_click_to_whatsapp", True)
+        .execute().data
     ) or []
 
     campaign_ids = sorted({c["campaign_id"] for c in creatives if c.get("campaign_id")})
@@ -164,7 +218,9 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
     if campaign_ids:
         camps = (
             db.table("ad_campaigns").select("id,campaign_name")
-            .eq("tenant_id", tenant_id).in_("id", campaign_ids).execute().data
+            .eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .in_("id", campaign_ids).execute().data
         ) or []
         camp_names = {c["id"]: c["campaign_name"] for c in camps}
 
@@ -182,4 +238,5 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
              "adset_id": c.get("meta_adset_id"), "campaign_id": c.get("campaign_id")}
             for c in creatives
         ],
+        "account_id": account,
     }

@@ -20,6 +20,7 @@ _INSIGHT_FIELDS = (
 )
 
 _CAMPAIGN_FIELDS = "id,name,objective,effective_status,daily_budget,lifetime_budget,bid_strategy"
+_ADSET_FIELDS = "id,name,campaign_id,optimization_goal,effective_status,destination_type"
 
 # Meta action_type sets mapped to a human "Results" label, checked in order.
 _RESULT_RULES: list[tuple[str, str, set[str]]] = [
@@ -75,7 +76,32 @@ def _get_ads_credentials(db, tenant_id: str) -> tuple[str, str] | None:
     return token, normalize_account_id(account)
 
 
-def upsert_creative_from_insight(db, tenant_id: str, row: dict) -> str | None:
+def get_current_ads_account_id(db, tenant_id: str) -> str | None:
+    """Return the configured account id without requiring the token."""
+    rows = (
+        db.table("app_settings").select("key,value")
+        .eq("tenant_id", tenant_id)
+        .eq("key", "meta_ads_account_id")
+        .limit(1)
+        .execute()
+    )
+    value = ((rows.data or [{}])[0]).get("value")
+    return normalize_account_id(value) if value else None
+
+
+def is_click_to_whatsapp_adset(row: dict | None) -> bool:
+    """Only single-destination WhatsApp ad sets belong in this report."""
+    return (row or {}).get("destination_type") == "WHATSAPP"
+
+
+def upsert_creative_from_insight(
+    db,
+    tenant_id: str,
+    row: dict,
+    *,
+    account: str | None = None,
+    adset_meta: dict | None = None,
+) -> str | None:
     """Insert-or-reuse an ad_creatives row keyed by (tenant_id, meta_ad_id).
     Links to an ad_campaigns row via get_or_create_campaign. Never overwrites a
     tenant-edited creative_label (label_edited=True). Returns ad_creatives.id.
@@ -92,6 +118,10 @@ def upsert_creative_from_insight(db, tenant_id: str, row: dict) -> str | None:
         external_campaign_id=row.get("campaign_id"),
     )
     campaign_id = campaign["id"] if campaign else None
+    if campaign_id and account:
+        db.table("ad_campaigns").update({
+            "meta_ad_account_id": account,
+        }).eq("id", campaign_id).eq("tenant_id", tenant_id).execute()
 
     existing = (
         db.table("ad_creatives").select("id,label_edited")
@@ -107,6 +137,11 @@ def upsert_creative_from_insight(db, tenant_id: str, row: dict) -> str | None:
             "meta_adset_name": row.get("adset_name"),
             "meta_campaign_id": row.get("campaign_id"),
             "campaign_id": campaign_id,
+            "meta_ad_account_id": account,
+            "is_click_to_whatsapp": is_click_to_whatsapp_adset(adset_meta),
+            "optimization_goal": (adset_meta or {}).get("optimization_goal") or row.get("optimization_goal"),
+            "effective_status": (adset_meta or {}).get("effective_status"),
+            "cta_type": "WHATSAPP_MESSAGE" if is_click_to_whatsapp_adset(adset_meta) else None,
             "updated_at": now_iso,
         }
         if not found.get("label_edited"):
@@ -123,7 +158,12 @@ def upsert_creative_from_insight(db, tenant_id: str, row: dict) -> str | None:
         "meta_adset_id": row.get("adset_id"),
         "meta_adset_name": row.get("adset_name"),
         "meta_campaign_id": row.get("campaign_id"),
+        "meta_ad_account_id": account,
         "creative_label": (row.get("ad_name") or ad_id),
+        "is_click_to_whatsapp": is_click_to_whatsapp_adset(adset_meta),
+        "optimization_goal": (adset_meta or {}).get("optimization_goal") or row.get("optimization_goal"),
+        "effective_status": (adset_meta or {}).get("effective_status"),
+        "cta_type": "WHATSAPP_MESSAGE" if is_click_to_whatsapp_adset(adset_meta) else None,
         "created_at": now_iso,
         "updated_at": now_iso,
     }).execute()
@@ -174,14 +214,39 @@ def _fetch_campaigns(token: str, account: str) -> list[dict]:
     return out
 
 
-def sync_campaign_meta(db, tenant_id: str, token: str, account: str) -> int:
+def _fetch_adsets(token: str, account: str) -> list[dict]:
+    url = f"{_GRAPH_BASE}/{account}/adsets"
+    params = {"fields": _ADSET_FIELDS, "limit": "200", "access_token": token}
+    out: list[dict] = []
+    with httpx.Client(timeout=30) as client:
+        next_url, next_params = url, params
+        for _ in range(20):
+            resp = client.get(next_url, params=next_params)
+            resp.raise_for_status()
+            body = resp.json()
+            out.extend(body.get("data", []))
+            nxt = (body.get("paging") or {}).get("next")
+            if not nxt:
+                break
+            next_url, next_params = nxt, None
+    return out
+
+
+def sync_campaign_meta(
+    db,
+    tenant_id: str,
+    token: str,
+    account: str,
+    *,
+    campaign_ids: set[str] | None = None,
+) -> int:
     """Update ad_campaigns rows with objective/status/budget from Meta. Matches on
     external_campaign_id (Meta campaign id). Best-effort; returns count updated."""
     campaigns = _fetch_campaigns(token, account)
     updated = 0
     for c in campaigns:
         cid = (c.get("id") or "").strip()
-        if not cid:
+        if not cid or (campaign_ids is not None and cid not in campaign_ids):
             continue
         daily = c.get("daily_budget")
         lifetime = c.get("lifetime_budget")
@@ -192,6 +257,7 @@ def sync_campaign_meta(db, tenant_id: str, token: str, account: str) -> int:
             "daily_budget": (float(daily) / 100.0) if daily else None,
             "lifetime_budget": (float(lifetime) / 100.0) if lifetime else None,
             "bid_strategy": c.get("bid_strategy"),
+            "meta_ad_account_id": account,
         }
         res = (
             db.table("ad_campaigns").update(payload)
@@ -202,7 +268,14 @@ def sync_campaign_meta(db, tenant_id: str, token: str, account: str) -> int:
     return updated
 
 
-def _write_insight_row(db, tenant_id: str, creative_id: str, row: dict) -> None:
+def _write_insight_row(
+    db,
+    tenant_id: str,
+    creative_id: str,
+    row: dict,
+    *,
+    account: str | None = None,
+) -> None:
     """Upsert one ad_insights_daily row. Raises on failure — caller decides
     whether to swallow (background job) or surface (manual trigger)."""
     insight_date = row.get("date_start")  # present when time_increment=1
@@ -211,6 +284,7 @@ def _write_insight_row(db, tenant_id: str, creative_id: str, row: dict) -> None:
     db.table("ad_insights_daily").upsert({
         "tenant_id": tenant_id,
         "ad_creative_id": creative_id,
+        "meta_ad_account_id": account,
         "insight_date": insight_date,
         "clicks": int(float(row.get("clicks", 0) or 0)),
         "inline_link_clicks": int(float(row.get("inline_link_clicks", 0) or 0)),
@@ -220,6 +294,31 @@ def _write_insight_row(db, tenant_id: str, creative_id: str, row: dict) -> None:
         "actions": row.get("actions") or [],
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }, on_conflict="tenant_id,ad_creative_id,insight_date").execute()
+
+
+def _whatsapp_rows(rows: list[dict], adsets: list[dict]) -> tuple[list[dict], dict[str, dict]]:
+    adset_by_id = {str(r.get("id")): r for r in adsets if r.get("id")}
+    filtered = [
+        row for row in rows
+        if is_click_to_whatsapp_adset(adset_by_id.get(str(row.get("adset_id"))))
+    ]
+    return filtered, adset_by_id
+
+
+def _record_sync_metadata(db, tenant_id: str, account: str, written: int) -> None:
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for key, value in (
+        ("meta_ads_last_sync_at", now_iso),
+        ("meta_ads_last_sync_count", str(written)),
+        ("meta_ads_last_synced_account_id", account),
+    ):
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": key,
+            "value": value,
+            "is_secret": False,
+            "updated_at": now_iso,
+        }, on_conflict="tenant_id,key").execute()
 
 
 def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d") -> int:
@@ -233,24 +332,39 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
     token, account = creds
     try:
         rows = _fetch_insights(token, account, date_preset)
+        adsets = _fetch_adsets(token, account)
     except Exception as e:
         logger.warning(f"Ads insights fetch failed for tenant {tenant_id}: {e}")
         return 0
+    whatsapp_rows, adset_by_id = _whatsapp_rows(rows, adsets)
 
     written = 0
-    for row in rows:
-        creative_id = upsert_creative_from_insight(db, tenant_id, row)
+    for row in whatsapp_rows:
+        creative_id = upsert_creative_from_insight(
+            db,
+            tenant_id,
+            row,
+            account=account,
+            adset_meta=adset_by_id.get(str(row.get("adset_id"))),
+        )
         if not creative_id:
             continue
         try:
-            _write_insight_row(db, tenant_id, creative_id, row)
+            _write_insight_row(db, tenant_id, creative_id, row, account=account)
             written += 1
         except Exception as e:
             logger.warning(f"insight row write failed (tenant {tenant_id}): {e}")
     try:
-        sync_campaign_meta(db, tenant_id, token, account)
+        sync_campaign_meta(
+            db,
+            tenant_id,
+            token,
+            account,
+            campaign_ids={str(r.get("campaign_id")) for r in whatsapp_rows if r.get("campaign_id")},
+        )
     except Exception as e:
         logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
+    _record_sync_metadata(db, tenant_id, account, written)
     logger.info(f"Ads insights sync: tenant {tenant_id} wrote {written} daily rows")
     return written
 
@@ -267,23 +381,42 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
             "ok": False,
             "error": "No Ads Account ID / Ads System-User Token configured for this tenant.",
             "rows_fetched": 0,
+            "whatsapp_rows": 0,
+            "skipped_non_whatsapp": 0,
+            "account_id": None,
             "written": 0,
         }
     token, account = creds
     try:
         rows = _fetch_insights(token, account, date_preset)
+        adsets = _fetch_adsets(token, account)
     except Exception as e:
-        return {"ok": False, "error": f"Meta API request failed: {e}", "rows_fetched": 0, "written": 0}
+        return {
+            "ok": False,
+            "error": f"Meta API request failed: {e}",
+            "rows_fetched": 0,
+            "whatsapp_rows": 0,
+            "skipped_non_whatsapp": 0,
+            "account_id": account,
+            "written": 0,
+        }
+    whatsapp_rows, adset_by_id = _whatsapp_rows(rows, adsets)
 
     written = 0
     row_errors: list[str] = []
-    for row in rows:
+    for row in whatsapp_rows:
         try:
-            creative_id = upsert_creative_from_insight(db, tenant_id, row)
+            creative_id = upsert_creative_from_insight(
+                db,
+                tenant_id,
+                row,
+                account=account,
+                adset_meta=adset_by_id.get(str(row.get("adset_id"))),
+            )
             if not creative_id:
                 row_errors.append(f"ad_id={row.get('ad_id')}: no ad_id in Meta response")
                 continue
-            _write_insight_row(db, tenant_id, creative_id, row)
+            _write_insight_row(db, tenant_id, creative_id, row, account=account)
             written += 1
         except Exception as e:
             row_errors.append(f"ad_id={row.get('ad_id')}: {e}")
@@ -292,14 +425,24 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
     # flip the sync's ok status, since the insight rows (the primary data) may
     # have written fine. Log only, don't append to row_errors.
     try:
-        sync_campaign_meta(db, tenant_id, token, account)
+        sync_campaign_meta(
+            db,
+            tenant_id,
+            token,
+            account,
+            campaign_ids={str(r.get("campaign_id")) for r in whatsapp_rows if r.get("campaign_id")},
+        )
     except Exception as e:
         logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
+    _record_sync_metadata(db, tenant_id, account, written)
 
     return {
         "ok": not row_errors,
         "error": "; ".join(row_errors[:3]) if row_errors else None,
         "rows_fetched": len(rows),
+        "whatsapp_rows": len(whatsapp_rows),
+        "skipped_non_whatsapp": len(rows) - len(whatsapp_rows),
+        "account_id": account,
         "written": written,
     }
 

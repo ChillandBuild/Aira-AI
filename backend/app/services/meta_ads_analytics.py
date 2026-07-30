@@ -67,7 +67,15 @@ def build_analytics(db, tenant_id: str, *, date_from: str | None = None,
 
 def _build_trend(db, tenant_id, date_from, date_to) -> list[dict]:
     """spend/day (from insights) joined with qualified-leads/day (from leads, IST)."""
-    ins_q = db.table("ad_insights_daily").select("insight_date,spend").eq("tenant_id", tenant_id)
+    account, creative_ids = _current_creative_scope(db, tenant_id)
+    if not account or not creative_ids:
+        return []
+
+    ins_q = db.table("ad_insights_daily").select(
+        "insight_date,spend"
+    ).eq("tenant_id", tenant_id).eq(
+        "meta_ad_account_id", account
+    ).in_("ad_creative_id", creative_ids)
     if date_from:
         ins_q = ins_q.gte("insight_date", date_from)
     if date_to:
@@ -76,8 +84,13 @@ def _build_trend(db, tenant_id, date_from, date_to) -> list[dict]:
     for r in (ins_q.execute().data or []):
         spend_by_day[r["insight_date"]] = spend_by_day.get(r["insight_date"], 0.0) + float(r.get("spend", 0) or 0)
 
-    lead_q = db.table("leads").select("segment,created_at").eq("tenant_id", tenant_id).in_(
-        "segment", ["A", "B"]).not_.is_("attributed_ad_creative_id", "null").is_("deleted_at", "null")
+    lead_q = db.table("leads").select(
+        "segment,created_at"
+    ).eq("tenant_id", tenant_id).in_(
+        "segment", ["A", "B"]
+    ).in_(
+        "attributed_ad_creative_id", creative_ids
+    ).is_("deleted_at", "null")
     if date_from:
         lead_q = lead_q.gte("created_at", date_from)
     if date_to:
@@ -95,8 +108,17 @@ def _build_trend(db, tenant_id, date_from, date_to) -> list[dict]:
 
 def _build_heatmap(db, tenant_id, date_from, date_to) -> list[dict]:
     """qualified leads by IST day-of-week (0=Mon) × hour (0-23)."""
-    lead_q = db.table("leads").select("segment,created_at").eq("tenant_id", tenant_id).in_(
-        "segment", ["A", "B"]).not_.is_("attributed_ad_creative_id", "null").is_("deleted_at", "null")
+    _, creative_ids = _current_creative_scope(db, tenant_id)
+    if not creative_ids:
+        return []
+
+    lead_q = db.table("leads").select(
+        "segment,created_at"
+    ).eq("tenant_id", tenant_id).in_(
+        "segment", ["A", "B"]
+    ).in_(
+        "attributed_ad_creative_id", creative_ids
+    ).is_("deleted_at", "null")
     if date_from:
         lead_q = lead_q.gte("created_at", date_from)
     if date_to:
@@ -109,6 +131,23 @@ def _build_heatmap(db, tenant_id, date_from, date_to) -> list[dict]:
         key = (dt.weekday(), dt.hour)
         grid[key] = grid.get(key, 0) + 1
     return [{"dow": dow, "hour": hour, "qualified": count} for (dow, hour), count in sorted(grid.items())]
+
+
+def _current_creative_scope(db, tenant_id: str) -> tuple[str | None, list[str]]:
+    from app.services.meta_ads_insights_sync import get_current_ads_account_id
+
+    account = get_current_ads_account_id(db, tenant_id)
+    if not account:
+        return None, []
+    rows = (
+        db.table("ad_creatives").select("id")
+        .eq("tenant_id", tenant_id)
+        .eq("meta_ad_account_id", account)
+        .eq("is_click_to_whatsapp", True)
+        .execute()
+        .data
+    ) or []
+    return account, [r["id"] for r in rows]
 
 
 def _ist_dt(iso: str | None):

@@ -399,10 +399,11 @@ async def ad_performance_export(
         date_from=date_from, date_to=date_to,
     )
     fieldnames = [
-        "creative_label", "adset_name", "inline_link_clicks", "messages",
-        "clicked_no_message", "qualified", "hot", "sales", "spend",
-        "cpc", "cost_per_message", "cost_per_qualified", "cost_per_hot",
-        "revenue", "roas",
+        "campaign_name", "campaign_status", "adset_name", "creative_label",
+        "impressions", "reach", "frequency", "inline_link_clicks", "clicks_all",
+        "messages", "meta_conversations", "conversation_rate",
+        "clicked_no_message", "no_message_rate", "hot", "spend", "cpc",
+        "cost_per_message", "ctr", "cpm", "cost_per_hot",
     ]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")

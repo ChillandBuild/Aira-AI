@@ -26,7 +26,7 @@ class SettingsUpdate(BaseModel):
 
 
 class ActivateChannelRequest(BaseModel):
-    channel: str  # whatsapp | instagram | facebook | telegram
+    channel: str  # whatsapp | instagram | facebook | telegram | meta_ads
 
 
 class EmbeddedSignupRequest(BaseModel):
@@ -240,10 +240,12 @@ async def update_settings(
     wa_keys = {"meta_access_token", "meta_phone_number_id", "meta_waba_id", "meta_app_secret", "meta_webhook_verify_token"}
     ig_keys = {"instagram_access_token", "instagram_page_id", "instagram_app_secret"}
     fb_keys = {"facebook_access_token", "facebook_page_id"}
+    ads_keys = {"meta_ads_access_token", "meta_ads_account_id"}
 
     reset_wa = any(k in updated for k in wa_keys)
     reset_ig = any(k in updated for k in ig_keys)
     reset_fb = any(k in updated for k in fb_keys)
+    reset_ads = any(k in updated for k in ads_keys)
 
     if reset_wa:
         db.table("app_settings").upsert({
@@ -265,6 +267,14 @@ async def update_settings(
         db.table("app_settings").upsert({
             "tenant_id": tenant_id,
             "key": "facebook_status",
+            "value": "configured",
+            "is_secret": False,
+            "updated_at": "now()",
+        }, on_conflict="tenant_id,key").execute()
+    if reset_ads:
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "meta_ads_status",
             "value": "configured",
             "is_secret": False,
             "updated_at": "now()",
@@ -340,12 +350,80 @@ async def activate_channel(
     user: dict = Depends(get_current_user),
 ):
     tenant_id = ctx["tenant_id"]
-    """Validate Meta credentials and auto-subscribe webhook for whatsapp / instagram / facebook."""
+    """Validate credentials and connect the requested messaging or ads integration."""
     channel = payload.channel
-    if channel not in ("whatsapp", "instagram", "facebook", "telegram"):
-        raise HTTPException(status_code=400, detail="Invalid channel. Must be whatsapp, instagram, facebook, or telegram.")
+    if channel not in ("whatsapp", "instagram", "facebook", "telegram", "meta_ads"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid channel. Must be whatsapp, instagram, facebook, telegram, or meta_ads.",
+        )
 
     db = get_supabase()
+
+    if channel == "meta_ads":
+        from app.services.meta_ads_insights_sync import normalize_account_id
+
+        token = _get_setting_value(db, tenant_id, "meta_ads_access_token")
+        raw_account = _get_setting_value(db, tenant_id, "meta_ads_account_id")
+        if not token or not raw_account:
+            raise HTTPException(
+                status_code=400,
+                detail="Save the Meta Ads Account ID and System User token first.",
+            )
+        account = normalize_account_id(raw_account)
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"https://graph.facebook.com/v21.0/{account}",
+                params={
+                    "fields": "id,name,account_status,currency,timezone_name",
+                    "access_token": token,
+                },
+                timeout=10.0,
+            )
+        data = response.json()
+        if "error" in data:
+            raise HTTPException(
+                status_code=400,
+                detail=data["error"].get("message", "Invalid Meta Ads credentials"),
+            )
+
+        now_value = "now()"
+        saved_values = {
+            "meta_ads_account_id": account,
+            "meta_ads_account_name": data.get("name") or account,
+            "meta_ads_currency": data.get("currency"),
+            "meta_ads_timezone": data.get("timezone_name"),
+            "meta_ads_status": "live",
+        }
+        for key, value in saved_values.items():
+            if value is None:
+                continue
+            db.table("app_settings").upsert({
+                "tenant_id": tenant_id,
+                "key": key,
+                "value": str(value),
+                "is_secret": False,
+                "updated_at": now_value,
+            }, on_conflict="tenant_id,key").execute()
+
+        record_audit_event(
+            db,
+            tenant_id=tenant_id,
+            actor_user_id=user.get("user_id"),
+            actor_role="tenant_user",
+            action="settings.channel_activated",
+            target_type="channel",
+            target_id="meta_ads",
+            metadata={"channel": "meta_ads", "account_id": account},
+        )
+        return {
+            "channel": "meta_ads",
+            "account_id": account,
+            "account_name": data.get("name"),
+            "account_status": data.get("account_status"),
+            "currency": data.get("currency"),
+            "timezone": data.get("timezone_name"),
+        }
 
     if channel == "telegram":
         token = _get_setting_value(db, tenant_id, "telegram_bot_token")
