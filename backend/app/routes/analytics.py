@@ -1063,47 +1063,63 @@ async def overview_analytics(
     new_hot_leads_7d = sum(new_hot_leads_daily_map.values())
     new_hot_leads_7d_trend_pct = _pct_trend(new_hot_leads_7d, len(prior_stage_events_rows))
 
-    msgs_window = (
+    # Aggregate in SQL, never by pulling raw rows: PostgREST caps result sets
+    # at 1000 and returns no error, which was silently dropping 250 of the
+    # 1250 messages in a 7-day window (and over half of a 30-day window),
+    # under-reporting AI replies as 579 when the true figure was 730.
+    # p_timezone='UTC' preserves this endpoint's existing day keys -- the
+    # dashboard home and operator console consume this shape.
+    daily_msg_rows = (
         await asyncio.to_thread(
-            db.table("messages")
-            .select("id,direction,is_ai_generated,created_at,lead_id")
-            .eq("tenant_id", tenant_id)
-            .gte("created_at", window_start_dt.isoformat())
-            .execute
+            db.rpc("analytics_daily_messages", {
+                "p_tenant_id": tenant_id,
+                "p_start": window_start_dt.isoformat(),
+                "p_end": now.isoformat(),
+                "p_channel": None,
+                "p_timezone": "UTC",
+            }).execute
         )
     ).data or []
 
     daily_msgs_map = {d: {"inbound": 0, "outbound": 0, "ai": 0, "human": 0} for d in days_iso}
     ai_count = 0
     human_count = 0
+    today_iso_day = today_start.date().isoformat()
     ai_handled_today = 0
-    for m in msgs_window:
-        day = (m.get("created_at") or "")[:10]
-        direction = m.get("direction")
+    for row in daily_msg_rows:
+        day = str(row.get("day") or "")
+        ai = int(row.get("ai") or 0)
+        human = int(row.get("human") or 0)
         if day in daily_msgs_map:
-            if direction == "inbound":
-                daily_msgs_map[day]["inbound"] += 1
-            elif direction == "outbound":
-                daily_msgs_map[day]["outbound"] += 1
-                if m.get("is_ai_generated"):
-                    daily_msgs_map[day]["ai"] += 1
-                else:
-                    daily_msgs_map[day]["human"] += 1
-        if direction == "outbound":
-            if m.get("is_ai_generated"):
-                ai_count += 1
-                if (m.get("created_at") or "") >= today_start.isoformat():
-                    ai_handled_today += 1
-            else:
-                human_count += 1
+            daily_msgs_map[day] = {
+                "inbound": int(row.get("inbound") or 0),
+                "outbound": int(row.get("outbound") or 0),
+                "ai": ai,
+                "human": human,
+            }
+        ai_count += ai
+        human_count += human
+        if day == today_iso_day:
+            ai_handled_today = ai
+
+    # unreplied_24h needs per-lead rows, but only over 24h -- a bounded set,
+    # explicitly limited so it can never silently truncate the way the
+    # window-wide fetch above did.
+    recent_msgs = (
+        await asyncio.to_thread(
+            db.table("messages")
+            .select("direction,created_at,lead_id")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", (now - timedelta(hours=24)).isoformat())
+            .limit(1000)
+            .execute
+        )
+    ).data or []
 
     last_inbound: dict[str, str] = {}
     last_outbound: dict[str, str] = {}
-    day_ago_iso = (now - timedelta(hours=24)).isoformat()
-    for m in msgs_window:
+    for m in recent_msgs:
         ts = m.get("created_at") or ""
-        if ts < day_ago_iso:
-            continue
         lid = m.get("lead_id")
         if not lid:
             continue
@@ -1285,16 +1301,22 @@ async def messaging_analytics(
 
     window_start_dt, days_iso = _range_params(range)
 
-    # Fetch messages within window
-    q = (
-        db.table("messages")
-        .select("id,direction,is_ai_generated,reply_source,created_at,channel")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", window_start_dt.isoformat())
+    # Aggregate in SQL -- a raw window fetch hits PostgREST's silent 1000-row
+    # cap (1250 rows in 7 days, 2143 in 30).
+    rpc_params = {
+        "p_tenant_id": tenant_id,
+        "p_start": window_start_dt.isoformat(),
+        "p_end": now.isoformat(),
+        "p_channel": None if channel == "all" else channel,
+    }
+    daily_res, reply_source_res = await asyncio.gather(
+        asyncio.to_thread(
+            db.rpc("analytics_daily_messages", {**rpc_params, "p_timezone": "UTC"}).execute
+        ),
+        asyncio.to_thread(db.rpc("analytics_reply_sources", rpc_params).execute),
     )
-    if channel != "all":
-        q = q.eq("channel", channel)
-    msgs = (await asyncio.to_thread(q.execute)).data or []
+    daily_rows = daily_res.data or []
+    reply_source_rows = reply_source_res.data or []
 
     # sent_today / received_today — always from today regardless of range
     today_q = (
@@ -1314,35 +1336,36 @@ async def messaging_analytics(
     daily_msgs_map = {d: {"inbound": 0, "outbound": 0} for d in days_iso}
     outbound_total = 0
     outbound_ai = 0
-    reply_source_counts: dict[str, int] = {"ai": 0, "knowledge": 0, "manual": 0, "unknown": 0}
-
-    for m in msgs:
-        day = (m.get("created_at") or "")[:10]
+    for row in daily_rows:
+        day = str(row.get("day") or "")
         if day in daily_msgs_map:
-            direction = m.get("direction")
-            if direction == "inbound":
-                daily_msgs_map[day]["inbound"] += 1
-            elif direction == "outbound":
-                daily_msgs_map[day]["outbound"] += 1
+            daily_msgs_map[day] = {
+                "inbound": int(row.get("inbound") or 0),
+                "outbound": int(row.get("outbound") or 0),
+            }
+        outbound_total += int(row.get("outbound") or 0)
+        outbound_ai += int(row.get("ai") or 0)
 
-        if m.get("direction") == "outbound":
-            outbound_total += 1
-            if m.get("is_ai_generated"):
-                outbound_ai += 1
-
-            # reply_source breakdown — outbound only (inbound has null reply_source)
-            rs = m.get("reply_source")
-            if rs in ("ai", "knowledge", "automation"):
-                # treat "automation" as a sub-type; map to "ai" bucket if not already named
-                key = rs if rs in reply_source_counts else "ai"
-                reply_source_counts[key] += 1
-            elif rs == "manual":
-                reply_source_counts["manual"] += 1
-            elif rs is None:
-                if not m.get("is_ai_generated"):
-                    reply_source_counts["manual"] += 1
-                else:
-                    reply_source_counts["unknown"] += 1
+    # reply_source breakdown — outbound only (inbound has null reply_source).
+    # 'reengagement' is a real, high-volume source (365 messages, 29% of
+    # outbound) that previously matched no branch and was silently dropped,
+    # so the bar's percentages were computed against an understated total.
+    reply_source_counts: dict[str, int] = {
+        "ai": 0, "knowledge": 0, "reengagement": 0, "manual": 0, "unknown": 0,
+    }
+    for row in reply_source_rows:
+        source = row.get("reply_source")
+        count = int(row.get("total") or 0)
+        if source in reply_source_counts:
+            reply_source_counts[source] += count
+        elif source == "automation":
+            reply_source_counts["ai"] += count
+        elif source is None:
+            key = "unknown" if row.get("is_ai_generated") else "manual"
+            reply_source_counts[key] += count
+        else:
+            # Any future reply_source lands here rather than vanishing.
+            reply_source_counts["unknown"] += count
 
     ai_reply_rate: float | None = round(outbound_ai / outbound_total, 4) if outbound_total > 0 else None
 

@@ -8,11 +8,16 @@
 -- p_channel is NULL for "all channels". It exists here (not only on
 -- analytics_reply_sources) because /messaging supports a channel filter and
 -- the daily series must honour it, not silently return every channel.
+--
+-- p_timezone lets /overview keep its existing UTC day keys (its response shape
+-- is consumed by the dashboard home and operator console, so it must not
+-- shift) while /compare buckets by IST. New surfaces should use the default.
 CREATE OR REPLACE FUNCTION public.analytics_daily_messages(
   p_tenant_id uuid,
   p_start timestamptz,
   p_end timestamptz,
-  p_channel text DEFAULT NULL
+  p_channel text DEFAULT NULL,
+  p_timezone text DEFAULT 'Asia/Kolkata'
 )
 RETURNS TABLE (
   day date,
@@ -26,7 +31,7 @@ STABLE
 SET search_path = public
 AS $$
   SELECT
-    (created_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
+    (created_at AT TIME ZONE p_timezone)::date AS day,
     count(*) FILTER (WHERE direction = 'inbound')                                   AS inbound,
     count(*) FILTER (WHERE direction = 'outbound')                                  AS outbound,
     count(*) FILTER (WHERE direction = 'outbound' AND is_ai_generated IS TRUE)      AS ai,
@@ -143,6 +148,25 @@ AS $$
   FROM l, m, c;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.analytics_daily_messages(uuid, timestamptz, timestamptz, text) FROM anon, authenticated;
+-- Reply-source split for /messaging. Aggregated here rather than pulling rows
+-- because the raw fetch was hitting the same 1000-row cap, and because the
+-- Python bucketing was silently discarding 'reengagement' (365 messages, 29%
+-- of outbound) by matching no branch.
+CREATE OR REPLACE FUNCTION public.analytics_reply_sources(
+  p_tenant_id uuid, p_start timestamptz, p_end timestamptz, p_channel text DEFAULT NULL
+)
+RETURNS TABLE (reply_source text, is_ai_generated boolean, total bigint)
+LANGUAGE sql STABLE SET search_path = public AS $$
+  SELECT reply_source, is_ai_generated, count(*)
+  FROM messages
+  WHERE tenant_id = p_tenant_id
+    AND direction = 'outbound'
+    AND created_at >= p_start AND created_at < p_end
+    AND (p_channel IS NULL OR channel = p_channel)
+  GROUP BY 1, 2;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.analytics_daily_messages(uuid, timestamptz, timestamptz, text, text) FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.analytics_reply_sources(uuid, timestamptz, timestamptz, text) FROM anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.analytics_daily_leads(uuid, timestamptz, timestamptz)    FROM anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.analytics_period_summary(uuid, timestamptz, timestamptz) FROM anon, authenticated;

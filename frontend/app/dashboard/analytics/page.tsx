@@ -319,12 +319,14 @@ const CHANNEL_OPTIONS: { id: ChannelFilter; label: string; Icon: React.ElementTy
 ];
 
 function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_source_breakdown"] }) {
-  const total = breakdown.ai + breakdown.knowledge + breakdown.manual;
+  const total =
+    breakdown.ai + breakdown.knowledge + breakdown.reengagement + breakdown.manual;
   if (total === 0) return <p className="font-label text-xs text-on-surface-muted">No data</p>;
 
   const segments = [
     { label: "AI", value: breakdown.ai, color: "bg-primary" },
     { label: "Knowledge Base", value: breakdown.knowledge, color: "bg-blue-400" },
+    { label: "Re-engagement", value: breakdown.reengagement, color: "bg-amber-400" },
     { label: "Manual", value: breakdown.manual, color: "bg-[#a8a29e]" },
   ];
 

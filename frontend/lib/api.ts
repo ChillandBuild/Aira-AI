@@ -613,7 +613,7 @@ export interface MessagingAnalytics {
   sent_today: number;
   received_today: number;
   ai_reply_rate: number | null;
-  reply_source_breakdown: { ai: number; knowledge: number; manual: number; unknown: number };
+  reply_source_breakdown: { ai: number; knowledge: number; reengagement: number; manual: number; unknown: number };
   daily_messages: { day: string; inbound: number; outbound: number }[];
 }
 
