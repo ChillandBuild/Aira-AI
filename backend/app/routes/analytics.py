@@ -18,9 +18,11 @@ from app.dependencies.tenant import get_tenant_and_role
 from app.services.inbound_leads_logic import INBOUND_SOURCES, aggregate_inbound
 from app.services.assignment import get_telecalling_config
 from app.services.analytics_compare import (
+    CSV_FIELDNAMES,
     align_series,
     build_deltas,
     build_summary,
+    compare_csv_rows,
     fill_days,
     previous_period,
     resolve_period,
@@ -1243,6 +1245,31 @@ async def compare_analytics(
             "messages_out": series_for("daily_messages", "outbound"),
         },
     }
+
+
+@router.get("/compare/export")
+async def export_compare(
+    preset: str = Query("last_7d"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
+):
+    """Same data as /compare, as a CSV the client can open in Excel."""
+    payload = await compare_analytics(preset=preset, start=start, end=end, tenant_id=tenant_id)
+    rows = compare_csv_rows(payload["series"])
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=CSV_FIELDNAMES)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+
+    filename = f"comparison_{payload['current']['start']}_vs_{payload['previous']['start']}.csv"
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.get("/messaging")

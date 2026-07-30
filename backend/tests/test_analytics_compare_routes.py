@@ -90,6 +90,22 @@ class AnalyticsCompareTests(unittest.TestCase):
         self.assertEqual(series[1]["current"], 5)
 
     @patch("app.routes.analytics.get_supabase")
+    def test_export_returns_csv_with_a_header_row(self, mock_get_db):
+        self._mock_db(
+            mock_get_db,
+            summaries=[[{}], [{}]],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+        )
+        res = self.client.get("/api/v1/analytics/compare/export?preset=custom"
+                              "&start=2026-07-15&end=2026-07-16")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("text/csv", res.headers["content-type"])
+        body = res.content.decode()
+        self.assertIn("day_index,current_date,current_leads_inbound", body)
+        self.assertEqual(len(body.strip().splitlines()), 3)  # header + 2 days
+
+    @patch("app.routes.analytics.get_supabase")
     def test_invalid_custom_range_returns_400(self, mock_get_db):
         mock_get_db.return_value = MagicMock()
         res = self.client.get("/api/v1/analytics/compare?preset=custom"

@@ -178,6 +178,47 @@ def build_deltas(
     return out
 
 
+CSV_SERIES_KEYS = ("leads_inbound", "leads_outbound", "messages_in", "messages_out")
+
+CSV_FIELDNAMES = (
+    ["day_index", "current_date"]
+    + [f"current_{k}" for k in CSV_SERIES_KEYS]
+    + ["previous_date"]
+    + [f"previous_{k}" for k in CSV_SERIES_KEYS]
+)
+
+
+def compare_csv_rows(series: dict) -> list[dict]:
+    """Flatten the aligned series into one CSV row per day index.
+
+    Both periods sit on the same row so the file opens in Excel as a
+    ready-made side-by-side comparison. Missing days render as blanks
+    rather than zeros -- a day that did not exist is not a day with no
+    activity.
+    """
+    length = max((len(series.get(k) or []) for k in CSV_SERIES_KEYS), default=0)
+    rows: list[dict] = []
+    for i in range(length):
+        first = next(
+            (series[k][i] for k in CSV_SERIES_KEYS if i < len(series.get(k) or [])),
+            {},
+        )
+        row: dict = {
+            "day_index": first.get("index", i + 1),
+            "current_date": first.get("current_day") or "",
+            "previous_date": first.get("previous_day") or "",
+        }
+        for key in CSV_SERIES_KEYS:
+            points = series.get(key) or []
+            point = points[i] if i < len(points) else {}
+            cur = point.get("current")
+            prev = point.get("previous")
+            row[f"current_{key}"] = "" if cur is None else cur
+            row[f"previous_{key}"] = "" if prev is None else prev
+        rows.append(row)
+    return rows
+
+
 def _fmt_range(start: date, end: date) -> str:
     if start.year == end.year and start.month == end.month:
         return f"{start.day}–{end.day} {start.strftime('%b %Y')}"

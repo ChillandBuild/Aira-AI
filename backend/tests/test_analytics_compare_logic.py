@@ -10,6 +10,7 @@ from app.services.analytics_compare import (
     align_series,
     build_deltas,
     build_summary,
+    compare_csv_rows,
     fill_days,
     pct_delta,
     previous_period,
@@ -191,6 +192,43 @@ class BuildSummaryTests(unittest.TestCase):
     def test_empty_period_reads_as_plain_english_not_a_crash(self):
         text = build_summary({}, {}, date(2026, 7, 1), date(2026, 7, 30))
         self.assertIn("0 new leads", text)
+
+
+class CompareCsvRowsTests(unittest.TestCase):
+    SERIES = {
+        "leads_inbound": [
+            {"index": 1, "label": "Day 1", "current_day": "2026-07-01", "current": 5,
+             "previous_day": "2026-06-01", "previous": 2},
+        ],
+        "leads_outbound": [
+            {"index": 1, "label": "Day 1", "current_day": "2026-07-01", "current": 0,
+             "previous_day": "2026-06-01", "previous": 0},
+        ],
+        "messages_in": [
+            {"index": 1, "label": "Day 1", "current_day": "2026-07-01", "current": 40,
+             "previous_day": "2026-06-01", "previous": 20},
+        ],
+        "messages_out": [
+            {"index": 1, "label": "Day 1", "current_day": "2026-07-01", "current": 45,
+             "previous_day": "2026-06-01", "previous": 22},
+        ],
+    }
+
+    def test_one_row_per_day_index_with_both_periods_side_by_side(self):
+        rows = compare_csv_rows(self.SERIES)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["day_index"], 1)
+        self.assertEqual(rows[0]["current_date"], "2026-07-01")
+        self.assertEqual(rows[0]["current_leads_inbound"], 5)
+        self.assertEqual(rows[0]["previous_date"], "2026-06-01")
+        self.assertEqual(rows[0]["previous_messages_out"], 22)
+
+    def test_missing_previous_day_becomes_blank_not_a_crash(self):
+        series = {k: [dict(v[0], previous_day=None, previous=None)]
+                  for k, v in self.SERIES.items()}
+        rows = compare_csv_rows(series)
+        self.assertEqual(rows[0]["previous_date"], "")
+        self.assertEqual(rows[0]["previous_leads_inbound"], "")
 
 
 if __name__ == "__main__":
