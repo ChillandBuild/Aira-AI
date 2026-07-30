@@ -17,6 +17,14 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
 from app.services.inbound_leads_logic import INBOUND_SOURCES, aggregate_inbound
 from app.services.assignment import get_telecalling_config
+from app.services.analytics_compare import (
+    align_series,
+    build_deltas,
+    build_summary,
+    fill_days,
+    previous_period,
+    resolve_period,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1141,6 +1149,99 @@ async def overview_analytics(
         "new_hot_leads_7d": new_hot_leads_7d,
         "new_hot_leads_7d_daily": [{"day": d, "count": new_hot_leads_daily_map[d]} for d in days_iso],
         "new_hot_leads_7d_trend_pct": new_hot_leads_7d_trend_pct,
+    }
+
+
+SUMMARY_METRICS = (
+    "new_leads", "inbound_leads", "outbound_leads",
+    "hot", "warm", "cold", "disqualified", "avg_score",
+    "messages_in", "messages_out", "ai_replies", "human_replies", "converted",
+)
+
+LEAD_SERIES_KEYS = ("inbound", "outbound", "hot", "warm", "cold", "disqualified")
+MESSAGE_SERIES_KEYS = ("inbound", "outbound", "ai", "human")
+
+
+def _ist_bounds(start: date, end: date) -> tuple[str, str]:
+    """Inclusive IST dates -> half-open UTC timestamptz bounds for the RPCs."""
+    start_utc = datetime.combine(start, datetime.min.time(), timezone.utc) - IST_OFFSET
+    end_utc = datetime.combine(end + timedelta(days=1), datetime.min.time(), timezone.utc) - IST_OFFSET
+    return start_utc.isoformat(), end_utc.isoformat()
+
+
+async def _period_payload(db, tenant_id: str, start: date, end: date) -> dict:
+    """Fetch summary + both daily series for one period. Three RPCs, concurrent."""
+    start_iso, end_iso = _ist_bounds(start, end)
+    params = {"p_tenant_id": tenant_id, "p_start": start_iso, "p_end": end_iso}
+
+    summary_res, leads_res, msgs_res = await asyncio.gather(
+        asyncio.to_thread(db.rpc("analytics_period_summary", params).execute),
+        asyncio.to_thread(db.rpc("analytics_daily_leads", params).execute),
+        asyncio.to_thread(db.rpc("analytics_daily_messages", params).execute),
+    )
+
+    summary_rows = summary_res.data or []
+    summary = summary_rows[0] if summary_rows else {}
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "summary": summary,
+        "daily_leads": fill_days(leads_res.data or [], start, end, LEAD_SERIES_KEYS),
+        "daily_messages": fill_days(msgs_res.data or [], start, end, MESSAGE_SERIES_KEYS),
+    }
+
+
+@router.get("/compare")
+async def compare_analytics(
+    preset: str = Query("last_7d"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
+):
+    """Compare a period against its natural predecessor.
+
+    Day bucketing and period boundaries are IST -- this is an India-based
+    product and a UTC "day" starts at 05:30 local, which shifts 6% of rows
+    into the wrong bucket.
+    """
+    today_ist = (datetime.now(timezone.utc) + IST_OFFSET).date()
+    try:
+        cur_start, cur_end = resolve_period(preset, start, end, today_ist)
+        prev_start, prev_end = previous_period(cur_start, cur_end, preset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    db = get_supabase()
+    current, previous = await asyncio.gather(
+        _period_payload(db, tenant_id, cur_start, cur_end),
+        _period_payload(db, tenant_id, prev_start, prev_end),
+    )
+
+    cur_sum = current["summary"]
+    prev_sum = previous["summary"]
+
+    def series_for(source: str, key: str) -> list[dict]:
+        return align_series(current[source], previous[source], key)
+
+    return {
+        "preset": preset,
+        "current": {
+            "start": current["start"], "end": current["end"],
+            "summary": cur_sum,
+        },
+        "previous": {
+            "start": previous["start"], "end": previous["end"],
+            "summary": prev_sum,
+        },
+        "summary_text": build_summary(cur_sum, prev_sum, cur_start, cur_end),
+        "metrics": build_deltas(cur_sum, prev_sum, SUMMARY_METRICS),
+        "series": {
+            "leads_inbound": series_for("daily_leads", "inbound"),
+            "leads_outbound": series_for("daily_leads", "outbound"),
+            "messages_in": series_for("daily_messages", "inbound"),
+            "messages_out": series_for("daily_messages", "outbound"),
+        },
     }
 
 
