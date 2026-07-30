@@ -713,7 +713,6 @@
 
 ---
 
-<<<<<<< HEAD
 **2026-07-29 â€” Messaging Channels uses the Zephyr courier/navigator pair for WhatsApp connection methods**
 
 - **Decision**: `ConnectChannelsPanel.tsx` uses two transparent 3D mascots: the green Zephyr courier with an envelope for Embedded Onboarding and the violet Zephyr navigator with a compass/network for Manual API Connection. They are local PNG assets in `frontend/public/illustrations/` rather than SVG illustrations.
@@ -727,7 +726,6 @@
 - **Invariant**: A scheduled broadcast opens a fresh `broadcast_lead_scores` record at the Cold floor but must not change the lead's global score/segment. A reply continues global scoring from that lead's prior state; sending a template alone is not a scoring signal.
 - **Known gap**: The immediate bulk-send route still upserts existing lead rows with the Cold-floor score, unlike the scheduled executor. Track and fix this before treating both send modes as behaviorally identical; see active backlog.
 - **Verification**: Frontend typecheck, Python syntax checks, range mapping, and mocked Cold-floor initialization checks passed. The local backend venv executable denied access, so the focused pytest command could not run in this environment.
-=======
 **2026-07-29 — Score History permanently empty (dead `decay` key crash) + lead arc-scoring and conversation compaction moved Groq → Gemini**
 - **Context**: user spotted, from the operator console, that three leads sending the byte-identical Tanglish opening message ("En life la next enna nadakkum nu detailed ah therinjukanum.") landed at three different scores (6/7/8), and that every lead's "Score History" panel showed "No score events yet" despite the score clearly having changed. Traced live via Supabase queries, not assumed.
 - **Root cause 1 (Score History always empty, since 2026-07-26)**: `record_stage_event()`'s metadata dict in `ai_reply.py` (both the main scored-reply path and the AI-disabled takeover path) still read `score_result["decay"]` / `_sr["decay"]` — a key `compute_score()` stopped returning when the decay term was deleted (see 2026-07-26 entry above). This raised a `KeyError` on **every single scoring event**, silently caught by the surrounding broad `except Exception`. `leads.score`/`segment` updated fine (that write happens earlier, inside `compute_score()`), but `record_stage_event()` — and everything after it in the same `try` block, including `maybe_assign_lead()` score-triggered auto-assignment — never ran. Confirmed via direct SQL: all three test leads had exactly one `lead_stage_events` row each, `event_type='created'`, zero `score_updated`/`segment_changed` rows, despite scores having moved from the seed value of 5.
@@ -769,4 +767,11 @@
 **2026-07-29 — Dashboard fix: lead-source count/percent wrapping onto two lines (commit `22902af`)**
 - `components/dashboard/LeadSourceSection.tsx`'s ("Where are leads coming from?" card, client dashboard home) `w-16` fixed-width column holding `"{count} · {pct}%"` force-wrapped mid-string once a channel hit a 3-digit count at 100% (e.g. "198 · 100%" → "198 ·" / "100%" on two lines). Fixed with `shrink-0 whitespace-nowrap`.
 - No tenant login credentials were available to view the live client dashboard directly — verified by reproducing the exact Tailwind classes + trigger data ("198 · 100%") in an isolated static HTML repro, screenshotted before/after, before shipping.
->>>>>>> 2d44fee0f3a8b5cda002de53b23431093518c2fd
+
+---
+
+**2026-07-30 — Inbound Ad Performance is account-scoped and Click-to-WhatsApp-only (migrations 153 + 154)**
+- **Decision**: Inbound Leads → Ad Performance reports only single-destination Click-to-WhatsApp ads from the tenant's currently configured Meta Ads account. Historical rows from previously connected ad accounts and Website/App/Messenger/Instagram-DM campaigns are excluded. This restriction applies only to the Ad Performance tab; the Leads tab continues to include WhatsApp, Instagram, Facebook, and Telegram inbound leads.
+- **Data isolation**: `meta_ad_account_id` and `is_click_to_whatsapp` were added/backfilled across the Meta Ads reporting records. Sync fetches ad-set metadata, persists only WhatsApp-destination insight rows, scopes campaigns/creatives/insights to the configured account, and records last-sync metadata. Ad-set budget fields were added in migration 154 so reporting can show the actual budget owner.
+- **UI**: Meta Ads credentials moved out of the Facebook/WhatsApp card into a separate Meta Ads settings card. The default performance table is WhatsApp-focused and customizable; Budget, Hot, and Cost/Hot remain available. KPI cards are WhatsApp Clicks, Aira-confirmed Messages, No Message, and Message Rate; Meta-reported conversations remain optional for comparison. The CTWA scope notice auto-hides after ten seconds. KPI descriptions were added without changing the established card dimensions.
+- **Known semantic limit**: Aira-confirmed Messages currently counts unique `leads` grouped by the lead-level `attributed_ad_creative_id`, and date filtering uses `leads.created_at`. A returning person who later clicks another ad is not credited as a new interaction for the later creative because creative attribution is intentionally not overwritten. `No Message = inline_link_clicks - attributed unique leads`, so it can include genuine non-senders, missing referral attribution, and webhook failures. This is documented as an open redesign rather than treated as exact send-event accounting.
