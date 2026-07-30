@@ -2,10 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Check,
   ChevronDown,
   Columns3,
+  Copy,
   Download,
   Filter,
+  KeyRound,
+  Loader2,
   type LucideIcon,
   Megaphone,
   MessageCircle,
@@ -19,7 +23,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, AdPerformanceRow } from "@/lib/api";
+import { api, AdPerformanceRow, AdTrackingCodeResponse } from "@/lib/api";
 import { useAdFilters, useAdPerformance } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 
@@ -55,12 +59,12 @@ const METRICS: { key: MetricKey; label: string; defaultVisible: boolean; help: s
   { key: "frequency", label: "Frequency", defaultVisible: false, help: "Impressions divided by summed daily reach" },
   { key: "inline_link_clicks", label: "WhatsApp clicks", defaultVisible: true, help: "Link clicks on Click-to-WhatsApp ads" },
   { key: "clicks_all", label: "Clicks (all)", defaultVisible: false, help: "All interactions Meta classifies as clicks" },
-  { key: "messages", label: "Messages sent (Aira confirmed)", defaultVisible: true, help: "People whose attributed WhatsApp message was actually received by Aira" },
+  { key: "messages", label: "Messages sent (Aira confirmed)", defaultVisible: true, help: "Unique people confirmed for this ad; repeat messages from the same person and ad count once" },
   { key: "meta_conversations", label: "Meta-reported conversations", defaultVisible: false, help: "Meta's advertising-system count; optional and intended only for tracking comparison" },
   { key: "conversation_rate", label: "Message rate", defaultVisible: true, help: "Aira-confirmed messages divided by WhatsApp clicks" },
   { key: "meta_conversation_rate", label: "Meta-reported message rate", defaultVisible: false, help: "Meta-reported conversations divided by WhatsApp clicks" },
   { key: "attribution_gap", label: "Tracking difference", defaultVisible: false, help: "Aira-confirmed messages minus Meta-reported conversations" },
-  { key: "clicked_no_message", label: "No message", defaultVisible: true, help: "WhatsApp clicks where Aira did not receive the pre-filled message" },
+  { key: "clicked_no_message", label: "No message", defaultVisible: true, help: "WhatsApp clicks not matched to a unique Aira lead for this ad" },
   { key: "no_message_rate", label: "No-message rate", defaultVisible: false, help: "No-message clicks divided by WhatsApp clicks" },
   { key: "spend", label: "Spend", defaultVisible: true, help: "Amount spent in the selected period" },
   { key: "cpc", label: "CPC", defaultVisible: true, help: "Spend divided by WhatsApp clicks" },
@@ -273,6 +277,12 @@ export function AdPerformanceTab() {
   const [syncing, setSyncing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
+  const [showTrackingModal, setShowTrackingModal] = useState(false);
+  const [trackingCreativeId, setTrackingCreativeId] = useState("");
+  const [trackingMessage, setTrackingMessage] = useState("Hi, I'm interested in this service.");
+  const [trackingResult, setTrackingResult] = useState<AdTrackingCodeResponse | null>(null);
+  const [generatingTrackingCode, setGeneratingTrackingCode] = useState(false);
+  const [copiedTrackingMessage, setCopiedTrackingMessage] = useState(false);
   const [showReportingNotice, setShowReportingNotice] = useState(true);
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(() => new Set(DEFAULT_METRICS));
 
@@ -308,6 +318,14 @@ export function AdPerformanceTab() {
     [filters, campaignId, adsetId],
   );
   const activeDimensionFilters = Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId));
+  const campaignNames = useMemo(
+    () => new Map((filters?.campaigns ?? []).map((campaign) => [campaign.id, campaign.name])),
+    [filters],
+  );
+  const adsetNames = useMemo(
+    () => new Map((filters?.adsets ?? []).map((adset) => [adset.id, adset.name])),
+    [filters],
+  );
 
   function toggleMetric(key: MetricKey) {
     setVisibleMetrics((current) => {
@@ -358,6 +376,46 @@ export function AdPerformanceTab() {
       toast.error(error instanceof Error ? error.message : "Export failed");
     } finally {
       setExporting(false);
+    }
+  }
+
+  function openTrackingModal() {
+    setTrackingCreativeId(creativeId || creativeOptions[0]?.id || filters?.creatives?.[0]?.id || "");
+    setTrackingResult(null);
+    setCopiedTrackingMessage(false);
+    setShowTrackingModal(true);
+  }
+
+  async function handleGenerateTrackingCode() {
+    if (!trackingCreativeId) {
+      toast.error("Select a creative first");
+      return;
+    }
+    setGeneratingTrackingCode(true);
+    try {
+      const result = await api.inboundLeads.generateAdTrackingCode({
+        ad_creative_id: trackingCreativeId,
+        message: trackingMessage,
+      });
+      setTrackingResult(result);
+      await mutateFilters();
+      toast.success("Tracking ID is ready");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not generate tracking ID");
+    } finally {
+      setGeneratingTrackingCode(false);
+    }
+  }
+
+  async function handleCopyTrackingMessage() {
+    if (!trackingResult) return;
+    try {
+      await navigator.clipboard.writeText(trackingResult.prefilled_message);
+      setCopiedTrackingMessage(true);
+      toast.success("Pre-filled message copied");
+      window.setTimeout(() => setCopiedTrackingMessage(false), 2_000);
+    } catch {
+      toast.error("Could not copy the message");
     }
   }
 
@@ -461,8 +519,14 @@ export function AdPerformanceTab() {
             )}
           </div>
 
+          <button type="button" onClick={openTrackingModal} disabled={(filters?.creatives?.length ?? 0) === 0}
+            title="Generate a fallback ID for a Meta ad's pre-filled WhatsApp message"
+            className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 font-label text-xs font-bold text-violet-700 shadow-sm transition-all hover:bg-violet-100 disabled:opacity-40">
+            <KeyRound size={12} /> Generate ID
+          </button>
+
           <button type="button" onClick={handleExport} disabled={exporting || rows.length === 0}
-            className="col-span-2 flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
             <Download size={12} /> {exporting ? "Downloading…" : "Download CSV"}
           </button>
         </div>
@@ -618,6 +682,122 @@ export function AdPerformanceTab() {
           </div>
         )}
       </div>
+
+      {showTrackingModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tracking-id-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-[2px]"
+          onClick={() => setShowTrackingModal(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-white/60 bg-white p-5 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+                  <KeyRound size={18} />
+                </span>
+                <div>
+                  <h2 id="tracking-id-title" className="font-display text-lg font-bold text-on-surface">Generate tracking ID</h2>
+                  <p className="mt-0.5 font-body text-xs leading-5 text-on-surface-muted">
+                    Meta Ad ID is used first. This code is the fallback when Meta does not send it.
+                  </p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setShowTrackingModal(false)}
+                className="rounded-xl p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
+                aria-label="Close tracking ID dialog">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="tracking-creative" className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                  Meta ad creative
+                </label>
+                <div className="relative">
+                  <select
+                    id="tracking-creative"
+                    className={selectClass}
+                    value={trackingCreativeId}
+                    onChange={(event) => {
+                      setTrackingCreativeId(event.target.value);
+                      setTrackingResult(null);
+                      setCopiedTrackingMessage(false);
+                    }}
+                  >
+                    <option value="">Select a creative</option>
+                    {(filters?.creatives ?? []).map((creative) => {
+                      const campaign = creative.campaign_id ? campaignNames.get(creative.campaign_id) : null;
+                      const adset = creative.adset_id ? adsetNames.get(creative.adset_id) : null;
+                      const context = [campaign, adset].filter(Boolean).join(" · ");
+                      return (
+                        <option key={creative.id} value={creative.id}>
+                          {creative.name}{context ? ` — ${context}` : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="tracking-message" className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                  WhatsApp pre-filled message
+                </label>
+                <textarea
+                  id="tracking-message"
+                  rows={3}
+                  maxLength={500}
+                  value={trackingMessage}
+                  onChange={(event) => {
+                    setTrackingMessage(event.target.value);
+                    setTrackingResult(null);
+                  }}
+                  className="w-full resize-none rounded-2xl border border-surface-mid bg-white px-3 py-2.5 font-body text-sm text-on-surface outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerateTrackingCode}
+                disabled={!trackingCreativeId || !trackingMessage.trim() || generatingTrackingCode}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 font-label text-sm font-bold text-white transition hover:bg-primary/90 disabled:opacity-40"
+              >
+                {generatingTrackingCode ? <Loader2 size={14} className="animate-spin" /> : <KeyRound size={14} />}
+                {generatingTrackingCode ? "Generating…" : "Generate ID"}
+              </button>
+
+              {trackingResult && (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-label text-[10px] font-bold uppercase tracking-wider text-emerald-700">Tracking ID</p>
+                      <p className="mt-0.5 font-mono text-base font-bold text-emerald-950">[AIRA:{trackingResult.code}]</p>
+                    </div>
+                    <button type="button" onClick={handleCopyTrackingMessage}
+                      className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 py-2 font-label text-xs font-bold text-emerald-700 hover:bg-emerald-50">
+                      {copiedTrackingMessage ? <Check size={13} /> : <Copy size={13} />}
+                      {copiedTrackingMessage ? "Copied" : "Copy message"}
+                    </button>
+                  </div>
+                  <pre className="whitespace-pre-wrap rounded-xl bg-white px-3 py-2.5 font-body text-xs leading-5 text-stone-700">
+                    {trackingResult.prefilled_message}
+                  </pre>
+                  <p className="mt-2 font-body text-[10px] leading-4 text-emerald-800">
+                    Paste this exact text into this ad’s WhatsApp pre-filled message in Meta Ads Manager.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

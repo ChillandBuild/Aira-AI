@@ -1,5 +1,8 @@
-"""Per-creative ad performance: join ad_creatives x ad_insights_daily x leads,
-compute funnel counts and cost metrics. Pure aggregation; no external calls.
+"""Per-creative ad performance.
+
+Meta provides delivery/click/spend. Aira counts each lead once per Meta ad from
+lead_meta_ad_attributions, so repeat messages from the same lead and ad do not
+duplicate the conversion, while the same lead may count once for another ad.
 """
 import logging
 
@@ -48,7 +51,7 @@ def build_creative_performance(
       campaign_id     -> ad_creatives.campaign_id (Aira ad_campaigns FK)
       adset_id        -> ad_creatives.meta_adset_id
       ad_creative_id  -> ad_creatives.id
-      date_from/to    -> bound both ad_insights_daily.insight_date and leads.created_at
+      date_from/to    -> bound insights and first lead/ad attribution date
     """
     from app.services.meta_ads_insights_sync import (
         get_current_ads_account_id,
@@ -140,24 +143,45 @@ def build_creative_performance(
             {"onsite_conversion.total_messaging_connection"},
         )
 
-    # Leads attributed to these creatives (funnel counts).
-    lead_q = db.table("leads").select(
-        "id,segment,attributed_ad_creative_id,created_at"
-    ).eq("tenant_id", tenant_id).in_(
-        "attributed_ad_creative_id", creative_ids
-    ).is_("deleted_at", "null")
-    if date_from:
-        lead_q = lead_q.gte("created_at", date_from)
-    if date_to:
-        lead_q = lead_q.lte("created_at", date_to + "T23:59:59")
-    leads = (lead_q.execute().data) or []
+    # Unique lead/ad relationships. The table primary key prevents the same
+    # lead from being counted twice for the same Meta ad.
+    meta_ad_ids = [c["meta_ad_id"] for c in creatives if c.get("meta_ad_id")]
+    attributions: list[dict] = []
+    if meta_ad_ids:
+        attribution_q = (
+            db.table("lead_meta_ad_attributions")
+            .select("lead_id,meta_ad_id,first_seen_at")
+            .eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .in_("meta_ad_id", meta_ad_ids)
+        )
+        if date_from:
+            attribution_q = attribution_q.gte("first_seen_at", date_from)
+        if date_to:
+            attribution_q = attribution_q.lte("first_seen_at", date_to + "T23:59:59")
+        attributions = (attribution_q.execute().data) or []
+
+    lead_ids = sorted({row["lead_id"] for row in attributions if row.get("lead_id")})
+    leads_by_id: dict[str, dict] = {}
+    if lead_ids:
+        leads = (
+            db.table("leads")
+            .select("id,segment")
+            .eq("tenant_id", tenant_id)
+            .in_("id", lead_ids)
+            .is_("deleted_at", "null")
+            .execute()
+            .data
+        ) or []
+        leads_by_id = {lead["id"]: lead for lead in leads}
 
     funnel: dict[str, dict] = {}
-    for lead in leads:
-        cid = lead.get("attributed_ad_creative_id")
-        if not cid:
+    for attribution in attributions:
+        lead = leads_by_id.get(attribution.get("lead_id"))
+        ad_id = attribution.get("meta_ad_id")
+        if not lead or not ad_id:
             continue
-        f = funnel.setdefault(cid, {"messages": 0, "hot": 0})
+        f = funnel.setdefault(ad_id, {"messages": 0, "hot": 0})
         f["messages"] += 1
         if lead.get("segment") == "A":
             f["hot"] += 1
@@ -172,7 +196,7 @@ def build_creative_performance(
             "reach": 0,
             "meta_conversations": 0,
         })
-        fn = funnel.get(c["id"], {"messages": 0, "hot": 0})
+        fn = funnel.get(c["meta_ad_id"], {"messages": 0, "hot": 0})
         campaign = campaigns.get(c.get("campaign_id"), {})
         adset = adsets.get(c.get("meta_adset_id"), {})
         uses_adset_budget = (
@@ -253,7 +277,8 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
 
     creatives = (
         db.table("ad_creatives").select(
-            "id,creative_label,meta_adset_id,meta_adset_name,campaign_id"
+            "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,"
+            "campaign_id,prefilled_message_code"
         ).eq("tenant_id", tenant_id)
         .eq("meta_ad_account_id", account)
         .eq("is_click_to_whatsapp", True)
@@ -282,6 +307,8 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
         ],
         "creatives": [
             {"id": c["id"], "name": c["creative_label"],
+             "meta_ad_id": c.get("meta_ad_id"),
+             "tracking_code": c.get("prefilled_message_code"),
              "adset_id": c.get("meta_adset_id"), "campaign_id": c.get("campaign_id")}
             for c in creatives
         ],

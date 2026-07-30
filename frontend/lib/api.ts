@@ -1753,6 +1753,11 @@ export const api = {
       window.URL.revokeObjectURL(url);
     },
     adFilters: async () => apiFetch<AdFilterTree>(`/api/v1/inbound-leads/ad-filters`),
+    generateAdTrackingCode: async (payload: { ad_creative_id: string; message: string }) =>
+      apiFetch<AdTrackingCodeResponse>(
+        `/api/v1/inbound-leads/ad-tracking-code`,
+        { method: "POST", body: JSON.stringify(payload) },
+      ),
     adSyncNow: async () =>
       apiFetch<{
         ok: boolean;
@@ -1942,8 +1947,23 @@ export interface AdPerformanceRow {
 export interface AdFilterTree {
   campaigns: { id: string; name: string }[];
   adsets: { id: string; name: string; campaign_id: string | null }[];
-  creatives: { id: string; name: string; adset_id: string | null; campaign_id: string | null }[];
+  creatives: {
+    id: string;
+    name: string;
+    meta_ad_id: string | null;
+    tracking_code: string | null;
+    adset_id: string | null;
+    campaign_id: string | null;
+  }[];
   account_id: string | null;
+}
+
+export interface AdTrackingCodeResponse {
+  code: string;
+  prefilled_message: string;
+  ad_creative_id: string;
+  creative_name: string;
+  meta_ad_id: string;
 }
 
 export interface AdPerformanceParams {
