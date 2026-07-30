@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   Columns3,
@@ -119,25 +119,22 @@ function signedCount(value: number) {
 function PerformanceKpiCard({
   label,
   value,
-  helper,
   icon: Icon,
   gradient,
 }: {
   label: string;
   value: string;
-  helper: string;
   icon: LucideIcon;
   gradient: string;
 }) {
   return (
-    <div className="flex min-h-[150px] items-center gap-4 rounded-2xl border border-surface-mid bg-white px-5 py-5 shadow-sm">
-      <span className={cn("flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm", gradient)}>
-        <Icon size={23} />
+    <div className="group flex items-center gap-4 rounded-2xl border border-[#e8e3db]/80 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md">
+      <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white transition-transform group-hover:scale-110", gradient)}>
+        <Icon size={19} />
       </span>
-      <span className="min-w-0">
-        <span className="block font-display text-2xl font-bold tabular-nums text-on-surface">{value}</span>
-        <span className="block font-label text-xs font-semibold text-on-surface-muted">{label}</span>
-        <span className="mt-1 block font-body text-[10px] leading-4 text-stone-400">{helper}</span>
+      <span>
+        <span className="block font-display text-2xl font-bold leading-none tabular-nums text-[#1c1917]">{value}</span>
+        <span className="mt-0.5 block font-label text-xs font-medium text-[#a8a29e]">{label}</span>
       </span>
     </div>
   );
@@ -271,7 +268,13 @@ export function AdPerformanceTab() {
   const [syncing, setSyncing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showColumns, setShowColumns] = useState(false);
+  const [showReportingNotice, setShowReportingNotice] = useState(true);
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(() => new Set(DEFAULT_METRICS));
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setShowReportingNotice(false), 10_000);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   const { data: filters, mutate: mutateFilters } = useAdFilters();
   const params = {
@@ -363,34 +366,30 @@ export function AdPerformanceTab() {
           <PerformanceKpiCard
             label="WhatsApp Clicks"
             value={count(totals.inline_link_clicks)}
-            helper="Clicks intended to open WhatsApp"
             icon={MousePointerClick}
             gradient="bg-gradient-to-br from-violet-500 to-primary"
           />
           <PerformanceKpiCard
             label="Messages Sent"
             value={count(totals.messages)}
-            helper="WhatsApp messages actually received by Aira"
             icon={MessageCircle}
             gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
           />
           <PerformanceKpiCard
             label="No Message"
             value={count(totals.clicked_no_message)}
-            helper="Clicked WhatsApp, but Aira received no message"
             icon={MessageSquareOff}
             gradient="bg-gradient-to-br from-amber-500 to-orange-500"
           />
           <PerformanceKpiCard
             label="Message Rate"
             value={percent(totals.conversation_rate)}
-            helper="Messages sent ÷ WhatsApp clicks"
             icon={Percent}
             gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2 p-1">
+        <div className="grid h-fit grid-cols-2 gap-2 self-start p-1">
           <button type="button" onClick={() => mutate()} disabled={isValidating}
             className="flex items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-violet-300 hover:text-violet-700 disabled:opacity-40">
             <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
@@ -519,25 +518,27 @@ export function AdPerformanceTab() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-            <Megaphone size={15} />
-          </span>
-          <div>
-            <p className="font-label text-xs font-bold text-indigo-950">Click-to-WhatsApp reporting</p>
-            <p className="font-body text-[11px] text-indigo-700">
-              Current account {filters?.account_id ?? "not connected"} · Website, app, form, Messenger, and Instagram DM ads are excluded.
-            </p>
-            <p className="font-body text-[10px] text-indigo-600">
-              This applies only to Ad Performance; the Leads tab still includes WhatsApp, Instagram, Facebook, and Telegram leads.
-            </p>
+      {showReportingNotice && (
+        <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+              <Megaphone size={15} />
+            </span>
+            <div>
+              <p className="font-label text-xs font-bold text-indigo-950">Click-to-WhatsApp reporting</p>
+              <p className="font-body text-[11px] text-indigo-700">
+                Current account {filters?.account_id ?? "not connected"} · Website, app, form, Messenger, and Instagram DM ads are excluded.
+              </p>
+              <p className="font-body text-[10px] text-indigo-600">
+                This applies only to Ad Performance; the Leads tab still includes WhatsApp, Instagram, Facebook, and Telegram leads.
+              </p>
+            </div>
           </div>
+          <span className="rounded-full border border-indigo-200 bg-white px-3 py-1 font-label text-[10px] font-bold text-indigo-700">
+            {dateFrom} — {dateTo}
+          </span>
         </div>
-        <span className="rounded-full border border-indigo-200 bg-white px-3 py-1 font-label text-[10px] font-bold text-indigo-700">
-          {dateFrom} — {dateTo}
-        </span>
-      </div>
+      )}
 
       <div className="card overflow-hidden rounded-2xl">
         {rows.length === 0 ? (
