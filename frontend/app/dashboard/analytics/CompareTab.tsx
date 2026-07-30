@@ -157,7 +157,14 @@ export function CompareTab() {
     range.preset === "custom" && (!range.start || !range.end);
 
   useEffect(() => {
-    if (isIncompleteCustom) return;
+    // Clear before bailing out, otherwise switching to Custom leaves the
+    // previous range's report on screen under a "pick a date" prompt --
+    // stale numbers presented as if they were the current selection.
+    if (isIncompleteCustom) {
+      setData(null);
+      setErr(null);
+      return;
+    }
     let isCurrent = true;
     setData(null);
     setErr(null);
