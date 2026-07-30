@@ -28,9 +28,10 @@ import {
   FunnelAnalyticsExtended,
   TemplatePerformanceRow,
 } from "@/lib/api";
+import { CompareTab } from "./CompareTab";
 
 type DateRange = "today" | "7d" | "30d";
-type Tab = "overview" | "channels" | "templates" | "inbound";
+type Tab = "overview" | "channels" | "templates" | "inbound" | "compare";
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
 
@@ -628,6 +629,7 @@ function InboundTab({ range }: { range: DateRange }) {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
+  { id: "compare", label: "Compare" },
   { id: "channels", label: "Channels" },
   { id: "inbound", label: "Inbound" },
   { id: "templates", label: "Templates" },
@@ -666,26 +668,29 @@ export default function AnalyticsPage() {
         </nav>
         </div>
 
-        {/* Date range pills */}
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15 sm:flex sm:w-fit">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
-                range === r.id
-                  ? "bg-surface text-primary shadow-card"
-                  : "text-on-surface-muted hover:text-on-surface"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        {/* Date range pills — the Compare tab owns its own range control */}
+        {activeTab !== "compare" && (
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15 sm:flex sm:w-fit">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r.id)}
+                className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
+                  range === r.id
+                    ? "bg-surface text-primary shadow-card"
+                    : "text-on-surface-muted hover:text-on-surface"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tab content */}
       {activeTab === "overview" && <OverviewTab range={range} />}
+      {activeTab === "compare" && <CompareTab />}
       {activeTab === "channels" && <ChannelsTab range={range} />}
       {activeTab === "inbound" && <InboundTab range={range} />}
       {activeTab === "templates" && <TemplatesTab />}
