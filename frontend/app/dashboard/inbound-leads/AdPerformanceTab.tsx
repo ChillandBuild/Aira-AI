@@ -119,11 +119,13 @@ function signedCount(value: number) {
 function PerformanceKpiCard({
   label,
   value,
+  description,
   icon: Icon,
   gradient,
 }: {
   label: string;
   value: string;
+  description: string;
   icon: LucideIcon;
   gradient: string;
 }) {
@@ -132,9 +134,12 @@ function PerformanceKpiCard({
       <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white transition-transform group-hover:scale-110", gradient)}>
         <Icon size={19} />
       </span>
-      <span>
+      <span className="min-w-0">
         <span className="block font-display text-2xl font-bold leading-none tabular-nums text-[#1c1917]">{value}</span>
         <span className="mt-0.5 block font-label text-xs font-medium text-[#a8a29e]">{label}</span>
+        <span className="mt-1 block truncate font-body text-[9px] leading-none text-stone-400" title={description}>
+          {description}
+        </span>
       </span>
     </div>
   );
@@ -363,30 +368,34 @@ export function AdPerformanceTab() {
     <div>
       <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-          <PerformanceKpiCard
-            label="WhatsApp Clicks"
-            value={count(totals.inline_link_clicks)}
-            icon={MousePointerClick}
-            gradient="bg-gradient-to-br from-violet-500 to-primary"
-          />
-          <PerformanceKpiCard
-            label="Messages Sent"
-            value={count(totals.messages)}
-            icon={MessageCircle}
-            gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
-          />
-          <PerformanceKpiCard
-            label="No Message"
-            value={count(totals.clicked_no_message)}
-            icon={MessageSquareOff}
-            gradient="bg-gradient-to-br from-amber-500 to-orange-500"
-          />
-          <PerformanceKpiCard
-            label="Message Rate"
-            value={percent(totals.conversation_rate)}
-            icon={Percent}
-            gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
-          />
+              <PerformanceKpiCard
+                label="WhatsApp Clicks"
+                value={count(totals.inline_link_clicks)}
+                description="Clicked the ad and opened WhatsApp"
+                icon={MousePointerClick}
+                gradient="bg-gradient-to-br from-violet-500 to-primary"
+              />
+              <PerformanceKpiCard
+                label="Messages Sent"
+                value={count(totals.messages)}
+                description="Clicked and sent the WhatsApp message"
+                icon={MessageCircle}
+                gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
+              />
+              <PerformanceKpiCard
+                label="No Message"
+                value={count(totals.clicked_no_message)}
+                description="Clicked but did not send the message"
+                icon={MessageSquareOff}
+                gradient="bg-gradient-to-br from-amber-500 to-orange-500"
+              />
+              <PerformanceKpiCard
+                label="Message Rate"
+                value={percent(totals.conversation_rate)}
+                description="Messages sent out of WhatsApp clicks"
+                icon={Percent}
+                gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+              />
         </div>
 
         <div className="grid h-fit grid-cols-2 gap-2 self-start p-1">
