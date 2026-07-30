@@ -35,6 +35,16 @@ const TABLE_ROWS: { key: string; label: string }[] = [
   { key: "converted", label: "Conversions" },
 ];
 
+// Past a few hundred percent a percentage stops communicating: "+13700%" is
+// correct and unreadable. Show a multiple instead, matching the summary text.
+const BIG_CHANGE_PCT = 300;
+
+function formatDelta(pct: number): string {
+  if (Math.abs(pct) < BIG_CHANGE_PCT) return `${pct >= 0 ? "+" : ""}${pct}%`;
+  // pct = (cur - prev) / prev * 100, so the multiple is pct/100 + 1.
+  return `${Math.round(Math.abs(pct) / 100 + 1)}×`;
+}
+
 function DeltaBadge({ pct }: { pct: number | null }) {
   if (pct === null) {
     return <span className="font-label text-xs text-on-surface-muted">—</span>;
@@ -42,7 +52,7 @@ function DeltaBadge({ pct }: { pct: number | null }) {
   const up = pct >= 0;
   return (
     <span className={`font-label text-xs font-bold ${up ? "text-emerald-600" : "text-red-600"}`}>
-      {up ? "▲" : "▼"} {up ? "+" : ""}{pct}%
+      {up ? "▲" : "▼"} {formatDelta(pct)}
     </span>
   );
 }

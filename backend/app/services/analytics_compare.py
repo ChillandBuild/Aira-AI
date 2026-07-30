@@ -23,6 +23,10 @@ PRESETS = (
 # than "the same number of days, immediately before".
 _MONTH_PRESETS = ("this_month", "last_month")
 
+# Above this, render change as a multiple ("97x more") instead of a
+# percentage. Four-digit percentages are technically correct and unreadable.
+BIG_CHANGE_PCT = 300
+
 
 def _first_of_month(d: date) -> date:
     return d.replace(day=1)
@@ -239,12 +243,18 @@ def build_summary(current: dict, previous: dict, start: date, end: date) -> str:
 
     parts = [f"Between {_fmt_range(start, end)} you got {leads:,} new leads"]
 
-    delta = pct_delta(leads, previous.get("new_leads") or 0)
+    prev_leads = previous.get("new_leads") or 0
+    delta = pct_delta(leads, prev_leads)
     if delta is None:
         parts.append(".")
     else:
         direction = "more" if delta >= 0 else "fewer"
-        parts.append(f", {abs(delta)}% {direction} than the previous period.")
+        # Past a few hundred percent, a percentage stops communicating:
+        # "9567% more" is correct and meaningless. Multiples read better.
+        if abs(delta) >= BIG_CHANGE_PCT and prev_leads:
+            parts.append(f", {round(leads / prev_leads)}x {direction} than the previous period.")
+        else:
+            parts.append(f", {abs(delta)}% {direction} than the previous period.")
 
     if hot:
         parts.append(f" {hot:,} of them were hot leads.")

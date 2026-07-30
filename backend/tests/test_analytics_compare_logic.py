@@ -193,6 +193,20 @@ class BuildSummaryTests(unittest.TestCase):
         text = build_summary({}, {}, date(2026, 7, 1), date(2026, 7, 30))
         self.assertIn("0 new leads", text)
 
+    def test_huge_growth_reads_as_a_multiple_not_a_four_digit_percentage(self):
+        # 290 vs 3 is +9567%, which is arithmetically right and useless to a
+        # human. A client should read "97x more", not a four-digit percentage.
+        text = build_summary({"new_leads": 290}, {"new_leads": 3},
+                             date(2026, 7, 18), date(2026, 7, 31))
+        self.assertIn("97x more", text)
+        self.assertNotIn("9567", text)
+
+    def test_ordinary_growth_still_reads_as_a_percentage(self):
+        text = build_summary({"new_leads": 287}, {"new_leads": 190},
+                             date(2026, 7, 1), date(2026, 7, 30))
+        self.assertIn("51% more", text)
+        self.assertNotIn("x more", text)
+
 
 class CompareCsvRowsTests(unittest.TestCase):
     SERIES = {
