@@ -38,6 +38,7 @@ import {
   ComparisonSelection,
 } from "@/components/analytics/periodSelection";
 import {
+  attentionLeadHref,
   attentionScopeLabel,
   buildOverviewPresentation,
   FunnelStep,
@@ -89,6 +90,7 @@ function presetDates(preset: RangeValue["preset"]): { start: string; end: string
 
 function reportingQuery(range: RangeValue): string {
   const params = new URLSearchParams();
+  params.set("timezone", "Asia/Kolkata");
   if (range.preset === "custom") {
     params.set("start", range.start);
     params.set("end", range.end);
@@ -329,7 +331,7 @@ function OverviewTab({
             </p>
           </div>
           <a
-            href="/dashboard/leads?segment=A"
+            href={attentionLeadHref(staleLeads?.[0]?.id)}
             className="rounded-xl bg-primary px-4 py-2 font-label text-xs font-semibold text-white transition-opacity hover:opacity-90"
           >
             Open reply queue
@@ -349,7 +351,7 @@ function OverviewTab({
             {staleLeads.map((lead) => (
               <a
                 key={lead.id}
-                href="/dashboard/leads?segment=A"
+                href={attentionLeadHref(lead.id)}
                 className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-surface-low/60"
               >
                 <span className="font-body text-sm text-on-surface">

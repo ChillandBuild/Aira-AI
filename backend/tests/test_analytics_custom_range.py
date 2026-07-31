@@ -2,6 +2,7 @@
 /overview is deliberately excluded -- see the plan's Global Constraints."""
 import sys
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -33,6 +34,31 @@ class ResolveWindowTests(unittest.TestCase):
         start_dt, end_dt, days = _resolve_window("today", None, None)
         self.assertEqual(len(days), 1)
         self.assertIsNotNone(end_dt)
+
+    def test_ist_custom_dates_build_the_same_bounds_as_compare(self):
+        start_dt, end_dt, days = _resolve_window(
+            "7d", "2026-07-10", "2026-07-12", "Asia/Kolkata"
+        )
+
+        self.assertEqual(start_dt.isoformat(), "2026-07-09T18:30:00+00:00")
+        self.assertEqual(end_dt.isoformat(), "2026-07-12T18:30:00+00:00")
+        self.assertEqual(days, ["2026-07-10", "2026-07-11", "2026-07-12"])
+
+    @patch("app.routes.analytics.datetime")
+    def test_ist_7d_preset_is_seven_calendar_days_ending_today(self, mock_datetime):
+        mock_datetime.now.return_value = datetime(2026, 7, 31, tzinfo=timezone.utc)
+        mock_datetime.combine.side_effect = datetime.combine
+        mock_datetime.min = datetime.min
+
+        start_dt, end_dt, days = _resolve_window(
+            "7d", None, None, "Asia/Kolkata"
+        )
+
+        self.assertEqual(start_dt.isoformat(), "2026-07-24T18:30:00+00:00")
+        self.assertEqual(end_dt.isoformat(), "2026-07-31T18:30:00+00:00")
+        self.assertEqual(days[0], "2026-07-25")
+        self.assertEqual(days[-1], "2026-07-31")
+        self.assertEqual(len(days), 7)
 
 
 class MessagingCustomRangeTests(unittest.TestCase):
@@ -66,6 +92,50 @@ class MessagingCustomRangeTests(unittest.TestCase):
         res = self.client.get("/api/v1/analytics/messaging?start=2026-07-20&end=2026-07-10")
         self.assertEqual(res.status_code, 400)
 
+    @patch("app.routes.analytics.get_supabase")
+    def test_ist_range_uses_ist_bounds_and_daily_rpc_buckets(self, mock_get_db):
+        db = MagicMock()
+
+        def rpc(name, params):
+            result = MagicMock()
+            result.execute.return_value = MagicMock(
+                data=[
+                    {
+                        "day": "2026-07-10",
+                        "inbound": 2,
+                        "outbound": 1,
+                        "ai": 1,
+                        "human": 0,
+                    }
+                ]
+                if name == "analytics_daily_messages"
+                else []
+            )
+            return result
+
+        db.rpc.side_effect = rpc
+        today_query = db.table.return_value.select.return_value.eq.return_value.gte
+        today_query.return_value.execute.return_value = MagicMock(data=[])
+        mock_get_db.return_value = db
+
+        res = self.client.get(
+            "/api/v1/analytics/messaging?start=2026-07-10&end=2026-07-10"
+            "&timezone=Asia%2FKolkata"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        daily_params = next(
+            call.args[1] for call in db.rpc.call_args_list
+            if call.args[0] == "analytics_daily_messages"
+        )
+        self.assertEqual(daily_params["p_start"], "2026-07-09T18:30:00+00:00")
+        self.assertEqual(daily_params["p_end"], "2026-07-10T18:30:00+00:00")
+        self.assertEqual(daily_params["p_timezone"], "Asia/Kolkata")
+        self.assertEqual(
+            res.json()["daily_messages"],
+            [{"day": "2026-07-10", "inbound": 2, "outbound": 1}],
+        )
+
 
 class InboundCustomRangeTests(unittest.TestCase):
     def setUp(self):
@@ -96,6 +166,40 @@ class InboundCustomRangeTests(unittest.TestCase):
         mock_get_db.return_value = MagicMock()
         res = self.client.get("/api/v1/analytics/inbound?start=2026-07-20&end=2026-07-10")
         self.assertEqual(res.status_code, 400)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_ist_range_uses_ist_bounds_and_buckets_leads_by_ist_day(self, mock_get_db):
+        db = MagicMock()
+        gte_mock = (
+            db.table.return_value.select.return_value.eq.return_value.in_.return_value.is_.return_value.gte
+        )
+        gte_mock.return_value.lt.return_value.range.return_value.execute.return_value = MagicMock(
+            data=[
+                {
+                    "id": "lead-1",
+                    "source": "whatsapp",
+                    "ad_campaign_id": None,
+                    "segment": "A",
+                    "created_at": "2026-07-09T20:00:00+00:00",
+                }
+            ]
+        )
+        mock_get_db.return_value = db
+
+        res = self.client.get(
+            "/api/v1/analytics/inbound?start=2026-07-10&end=2026-07-10"
+            "&timezone=Asia%2FKolkata"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        gte_mock.assert_called_with("created_at", "2026-07-09T18:30:00+00:00")
+        gte_mock.return_value.lt.assert_called_with(
+            "created_at", "2026-07-10T18:30:00+00:00"
+        )
+        self.assertEqual(
+            res.json()["daily"],
+            [{"day": "2026-07-10", "organic": 1, "ad": 0}],
+        )
 
 
 if __name__ == "__main__":

@@ -84,15 +84,16 @@ def _range_params(range_str: str) -> tuple[datetime, list[str]]:
 
 
 def _resolve_window(
-    range_str: str, start: str | None, end: str | None
+    range_str: str,
+    start: str | None,
+    end: str | None,
+    calendar_timezone: Literal["UTC", "Asia/Kolkata"] = "UTC",
 ) -> tuple[datetime, datetime, list[str]]:
     """Return (window_start_utc, window_end_utc, day_iso_list).
 
-    With both `start` and `end` (YYYY-MM-DD, UTC calendar dates): an
-    explicit half-open window, end inclusive of that whole day. Without
-    them: falls back to `_range_params`, ending at "now" exactly as before
-    -- this is a strict superset, not a replacement, so every existing
-    caller's behaviour is unchanged when it doesn't pass start/end.
+    `calendar_timezone` is opt-in so existing callers retain UTC bounds and
+    rolling preset windows. Asia/Kolkata requests use the same inclusive
+    calendar dates and half-open UTC bounds as `/compare`.
     """
     if start and end:
         try:
@@ -102,8 +103,14 @@ def _resolve_window(
             raise ValueError("start and end must be YYYY-MM-DD") from exc
         if end_date < start_date:
             raise ValueError("end must not be earlier than start")
-        window_start_dt = datetime.combine(start_date, datetime.min.time(), timezone.utc)
-        window_end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), timezone.utc)
+        utc_offset = IST_OFFSET if calendar_timezone == "Asia/Kolkata" else timedelta(0)
+        window_start_dt = (
+            datetime.combine(start_date, datetime.min.time(), timezone.utc) - utc_offset
+        )
+        window_end_dt = (
+            datetime.combine(end_date + timedelta(days=1), datetime.min.time(), timezone.utc)
+            - utc_offset
+        )
         days_iso = []
         cursor = start_date
         while cursor <= end_date:
@@ -111,8 +118,46 @@ def _resolve_window(
             cursor += timedelta(days=1)
         return window_start_dt, window_end_dt, days_iso
 
+    if calendar_timezone == "Asia/Kolkata":
+        today_ist = (datetime.now(timezone.utc) + IST_OFFSET).date()
+        day_count = 1 if range_str == "today" else 30 if range_str == "30d" else 7
+        start_date = today_ist - timedelta(days=day_count - 1)
+        window_start_dt = (
+            datetime.combine(start_date, datetime.min.time(), timezone.utc) - IST_OFFSET
+        )
+        window_end_dt = (
+            datetime.combine(today_ist + timedelta(days=1), datetime.min.time(), timezone.utc)
+            - IST_OFFSET
+        )
+        days_iso = [
+            (start_date + timedelta(days=i)).isoformat() for i in range(day_count)
+        ]
+        return window_start_dt, window_end_dt, days_iso
+
     window_start_dt, days_iso = _range_params(range_str)
     return window_start_dt, datetime.now(timezone.utc), days_iso
+
+
+def _bucket_inbound_leads(
+    leads: list[dict], calendar_timezone: Literal["UTC", "Asia/Kolkata"]
+) -> list[dict]:
+    """Give the UTC-based aggregator local date keys for opted-in IST callers."""
+    if calendar_timezone == "UTC":
+        return leads
+
+    ist = timezone(IST_OFFSET)
+    bucketed = []
+    for lead in leads:
+        created_at = lead.get("created_at") or ""
+        try:
+            created_dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            if created_dt.tzinfo is None:
+                created_dt = created_dt.replace(tzinfo=timezone.utc)
+            day = created_dt.astimezone(ist).date().isoformat()
+        except ValueError:
+            day = created_at
+        bucketed.append({**lead, "created_at": day})
+    return bucketed
 
 
 def _ist_hour(utc_iso: str) -> int:
@@ -1416,6 +1461,9 @@ async def messaging_analytics(
     range: str = Query("7d"),
     start: str | None = Query(None),
     end: str | None = Query(None),
+    calendar_timezone: Literal["UTC", "Asia/Kolkata"] = Query(
+        "UTC", alias="timezone"
+    ),
 ):
     """Messaging analytics with optional channel filter and date range.
 
@@ -1425,10 +1473,16 @@ async def messaging_analytics(
     """
     db = get_supabase()
     now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = (
+        _ist_today_start_utc()
+        if calendar_timezone == "Asia/Kolkata"
+        else now.replace(hour=0, minute=0, second=0, microsecond=0)
+    )
 
     try:
-        window_start_dt, window_end_dt, days_iso = _resolve_window(range, start, end)
+        window_start_dt, window_end_dt, days_iso = _resolve_window(
+            range, start, end, calendar_timezone
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
@@ -1442,7 +1496,10 @@ async def messaging_analytics(
     }
     daily_res, reply_source_res = await asyncio.gather(
         asyncio.to_thread(
-            db.rpc("analytics_daily_messages", {**rpc_params, "p_timezone": "UTC"}).execute
+            db.rpc(
+                "analytics_daily_messages",
+                {**rpc_params, "p_timezone": calendar_timezone},
+            ).execute
         ),
         asyncio.to_thread(db.rpc("analytics_reply_sources", rpc_params).execute),
     )
@@ -1524,16 +1581,25 @@ async def inbound_analytics(
     range: str = Query("7d"),
     start: str | None = Query(None),
     end: str | None = Query(None),
+    calendar_timezone: Literal["UTC", "Asia/Kolkata"] = Query(
+        "UTC", alias="timezone"
+    ),
     tenant_id: str = Depends(get_analytics_tenant_id),
 ):
     """New inbound leads acquired, split organic vs ad. Range: today|7d|30d,
     or pass start/end (YYYY-MM-DD) for an arbitrary window."""
     db = get_supabase()
     try:
-        start_dt, end_dt, days_iso = _resolve_window(range, start, end)
+        start_dt, end_dt, days_iso = _resolve_window(
+            range, start, end, calendar_timezone
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    today_iso = datetime.now(timezone.utc).date().isoformat()
+    today_iso = (
+        (datetime.now(timezone.utc) + IST_OFFSET).date().isoformat()
+        if calendar_timezone == "Asia/Kolkata"
+        else datetime.now(timezone.utc).date().isoformat()
+    )
 
     try:
         leads = await fetch_all_rows(
@@ -1548,7 +1614,10 @@ async def inbound_analytics(
     except Exception as e:
         logger.error(f"inbound analytics error: {e}")
         leads = []
-    return aggregate_inbound(leads, days_iso, today_iso)
+    return aggregate_inbound(
+        _bucket_inbound_leads(leads, calendar_timezone), days_iso, today_iso
+    )
+
 
 @router.get("/hot-leads-stale")
 async def hot_leads_stale(
