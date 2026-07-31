@@ -689,14 +689,6 @@ export interface FunnelAnalyticsExtended {
   hot_lead_aging: { bucket: string; count: number }[];
 }
 
-export interface StaleHotLead {
-  id: string;
-  name: string | null;
-  phone: string;
-  score: number | null;
-  created_at: string;
-  last_outbound_at: string | null;
-}
 
 /** One point on the comparison overlay. Two periods of different lengths are
  *  aligned by position ("Day N"), not calendar date, so they can be compared. */
@@ -1539,13 +1531,6 @@ export const api = {
     },
     funnelExtended: () =>
       apiFetch<FunnelAnalyticsExtended>(`/api/v1/analytics/funnel`),
-    staleHotLeads: (params?: { min_hours?: number; limit?: number }) => {
-      const qs = new URLSearchParams();
-      if (params?.min_hours) qs.set("min_hours", String(params.min_hours));
-      if (params?.limit) qs.set("limit", String(params.limit));
-      const s = qs.toString();
-      return apiFetch<{ leads: StaleHotLead[] }>(`/api/v1/analytics/hot-leads-stale${s ? `?${s}` : ""}`);
-    },
     templatePerformance: async () => {
       const res = await apiFetch<{ data: TemplatePerformanceRow[] }>(`/api/v1/analytics/template-performance`);
       return res.data || [];

@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  attentionLeadHref,
-  attentionScopeLabel,
   buildOverviewPresentation,
   buildPerformanceCard,
 } from "./overviewPresentation";
@@ -13,14 +11,6 @@ describe("overview presentation", () => {
       delta: null,
       scope: "Selected period",
     });
-  });
-
-  it("labels a rolling queue independently from the reporting period", () => {
-    expect(attentionScopeLabel()).toBe("Last 24 hours");
-  });
-
-  it("opens the selected stale lead in its conversation", () => {
-    expect(attentionLeadHref("lead 42")).toBe("/dashboard/conversations?lead=lead%2042");
   });
 
   it("derives selected-period cards without treating missing money or reply data as zero", () => {

@@ -27,7 +27,6 @@ import {
   ComparePayload,
   MessagingAnalytics,
   TemplatePerformanceRow,
-  StaleHotLead,
   getAuthHeaders,
 } from "@/lib/api";
 import { CompareTab } from "./CompareTab";
@@ -38,8 +37,6 @@ import {
   ComparisonSelection,
 } from "@/components/analytics/periodSelection";
 import {
-  attentionLeadHref,
-  attentionScopeLabel,
   buildOverviewPresentation,
   FunnelStep,
   PerformanceCard,
@@ -258,9 +255,6 @@ function OverviewTab({
   const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const [staleLeads, setStaleLeads] = useState<StaleHotLead[] | null>(null);
-  const [staleErr, setStaleErr] = useState<string | null>(null);
-  const [staleRetryKey, setStaleRetryKey] = useState(0);
   const canLoad = canLoadComparison(range, comparison);
 
   const params = useMemo<CompareParams>(() => {
@@ -292,18 +286,6 @@ function OverviewTab({
     return () => { isCurrent = false; };
   }, [canLoad, params, retryKey]);
 
-  useEffect(() => {
-    let isCurrent = true;
-    setStaleLeads(null);
-    setStaleErr(null);
-    api.analytics.staleHotLeads({ min_hours: 24, limit: 10 })
-      .then((d) => { if (isCurrent) setStaleLeads(d.leads); })
-      .catch((e: unknown) => {
-        if (isCurrent) setStaleErr(e instanceof Error ? e.message : "Failed to load the reply queue");
-      });
-    return () => { isCurrent = false; };
-  }, [staleRetryKey]);
-
   const presentation = data
     ? buildOverviewPresentation({ current: data.current, previous: data.previous })
     : null;
@@ -319,52 +301,6 @@ function OverviewTab({
         </div>
         <ComparisonPicker value={comparison} onChange={setComparison} />
       </div>
-
-      <SectionCard title="Needs attention">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-label text-xs font-semibold uppercase tracking-wider text-red-600">
-              {attentionScopeLabel()}
-            </p>
-            <p className="mt-1 font-body text-sm text-on-surface-muted">
-              Hot leads still waiting on a reply.
-            </p>
-          </div>
-          <a
-            href={attentionLeadHref(staleLeads?.[0]?.id)}
-            className="rounded-xl bg-primary px-4 py-2 font-label text-xs font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            Open reply queue
-          </a>
-        </div>
-        {staleErr && (
-          <ErrorBox message={staleErr} onRetry={() => setStaleRetryKey((key) => key + 1)} />
-        )}
-        {!staleErr && staleLeads === null && (
-          <p className="font-label text-sm text-on-surface-muted">Checking the queue…</p>
-        )}
-        {staleLeads?.length === 0 && (
-          <p className="font-label text-sm text-emerald-700">No hot leads are waiting.</p>
-        )}
-        {staleLeads && staleLeads.length > 0 && (
-          <div className="space-y-1">
-            {staleLeads.map((lead) => (
-              <a
-                key={lead.id}
-                href={attentionLeadHref(lead.id)}
-                className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-surface-low/60"
-              >
-                <span className="font-body text-sm text-on-surface">
-                  {lead.name || lead.phone}
-                </span>
-                <span className="font-label text-xs text-on-surface-muted">
-                  {lead.last_outbound_at ? "no reply since last message" : "never contacted"}
-                </span>
-              </a>
-            ))}
-          </div>
-        )}
-      </SectionCard>
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">

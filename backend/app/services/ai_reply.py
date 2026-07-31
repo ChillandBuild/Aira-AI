@@ -377,13 +377,33 @@ def _regen_target_instruction(customer_message: str) -> str:
     )
 
 
-_LANGUAGE_MODES = {"mirror", "tanglish", "english", "tamil"}
+_LANGUAGE_MODES = {"mirror", "tanglish", "english", "tamil", "tanglish_escalate_tamil"}
+
+
+def _resolve_tamil_lock(db, lead_id: str, lead_data: dict, message: str) -> str:
+    """For the 'tanglish_escalate_tamil' mode: returns 'tamil' once this lead has ever
+    sent a pure-Tamil-script message (persisted via leads.tamil_locked, since the
+    _recent_thread() history window used for the LLM prompt is only 8 messages and
+    can't be trusted to remember a script switch from many turns ago). Returns
+    'tanglish' otherwise. Uses _dominant_script(), not _detect_lang() -- a Tanglish
+    message (Latin script with Tamil keywords) must never trigger this, only actual
+    Tamil Unicode script."""
+    if lead_data.get("tamil_locked"):
+        return "tamil"
+    if _dominant_script(message) == "ta":
+        try:
+            db.table("leads").update({"tamil_locked": True}).eq("id", str(lead_id)).execute()
+        except Exception:
+            logger.exception("Failed to persist tamil_locked for lead %s", lead_id)
+        return "tamil"
+    return "tanglish"
 
 
 def _resolve_reply_language_mode(tenant_id: str | None) -> str:
     """Per-tenant override of the default mirror-the-lead's-language behavior, set via
     the operator console (config.tsx). Falls back to 'mirror' for any tenant that hasn't
-    configured it, or for an unrecognized stored value."""
+    configured it, or for an unrecognized stored value. The console offers five modes:
+    mirror, tanglish, english, tamil, and tanglish_escalate_tamil."""
     mode = get_setting("reply_language_mode", fallback="mirror", tenant_id=tenant_id) or "mirror"
     return mode if mode in _LANGUAGE_MODES else "mirror"
 
@@ -1093,7 +1113,7 @@ async def generate_reply(
     # Step 0: fetch lead + load module configs
     lead_row = (
         db.table("leads")
-        .select("ai_enabled,score,segment,phone,converted_at,tenant_id,assigned_to,name,blocked_at,needs_human_attention")
+        .select("ai_enabled,score,segment,phone,converted_at,tenant_id,assigned_to,name,blocked_at,needs_human_attention,tamil_locked")
         .eq("id", str(lead_id))
         .limit(1)
         .execute()
@@ -1250,6 +1270,8 @@ async def generate_reply(
         system_prompt += "\n\nLEAD CONTEXT:\n" + "\n".join(lead_facts)
 
         reply_language_mode = _resolve_reply_language_mode(tenant_id)
+        if reply_language_mode == "tanglish_escalate_tamil":
+            reply_language_mode = _resolve_tamil_lock(db, lead_id, lead_data, message)
         system_prompt += _language_rule_block(reply_language_mode, message)
 
         # Escalated leads keep talking to the AI, but it must answer as a
