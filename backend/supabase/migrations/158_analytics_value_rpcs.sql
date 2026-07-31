@@ -1,5 +1,5 @@
--- 154: the three "why am I paying for this" analytics blocks, aggregated in
--- SQL for the same reason as 153 (PostgREST silently caps result sets at
+-- 158: the three "why am I paying for this" analytics blocks, aggregated in
+-- SQL for the same reason as 157 (PostgREST silently caps result sets at
 -- 1000 rows). All three are period-scoped so they ride the existing
 -- /compare period-over-period machinery for free.
 

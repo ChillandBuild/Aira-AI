@@ -1,4 +1,4 @@
--- 153: IST-bucketed daily aggregates for the analytics comparison feature.
+-- 157: IST-bucketed daily aggregates for the analytics comparison feature.
 -- Aggregating in SQL (one row per day) instead of selecting raw rows into
 -- Python is mandatory here: PostgREST caps result sets at 1000 rows and
 -- returns no error, which was silently truncating the messages chart
