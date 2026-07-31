@@ -1617,23 +1617,3 @@ async def inbound_analytics(
     return aggregate_inbound(
         _bucket_inbound_leads(leads, calendar_timezone), days_iso, today_iso
     )
-
-
-@router.get("/hot-leads-stale")
-async def hot_leads_stale(
-    tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
-    min_hours: int = Query(24, ge=1, le=720),
-    limit: int = Query(10, ge=1, le=50),
-):
-    """The stalest hot (segment A) leads -- no reply, or no reply in
-    min_hours. An actionable list, not just the aging histogram /funnel
-    already returns."""
-    db = get_supabase()
-    rows = (
-        await asyncio.to_thread(
-            db.rpc("analytics_stale_hot_leads", {
-                "p_tenant_id": tenant_id, "p_min_hours": min_hours, "p_limit": limit,
-            }).execute
-        )
-    ).data or []
-    return {"leads": rows}

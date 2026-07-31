@@ -81,16 +81,6 @@ export function buildPerformanceCard({
   };
 }
 
-export function attentionScopeLabel(): "Last 24 hours" {
-  return "Last 24 hours";
-}
-
-export function attentionLeadHref(leadId?: string): string {
-  return leadId
-    ? `/dashboard/conversations?lead=${encodeURIComponent(leadId)}`
-    : "/dashboard/conversations";
-}
-
 export function buildOverviewPresentation({
   current,
   previous,
