@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   LineChart,
@@ -23,8 +21,6 @@ import {
 } from "lucide-react";
 import {
   api,
-  CompareParams,
-  ComparePayload,
   MessagingAnalytics,
   TemplatePerformanceRow,
   getAuthHeaders,
@@ -36,13 +32,8 @@ import {
   canLoadComparison,
   ComparisonSelection,
 } from "@/components/analytics/periodSelection";
-import {
-  buildOverviewPresentation,
-  FunnelStep,
-  PerformanceCard,
-} from "./overviewPresentation";
 
-type Tab = "overview" | "channels" | "templates" | "inbound" | "compare";
+type Tab = "overview" | "channels" | "templates" | "inbound";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://aira-ai-5tfr.onrender.com";
 
@@ -113,8 +104,6 @@ async function fetchAnalytics<T>(path: string): Promise<T> {
   return response.json();
 }
 
-// ─── Formatters ──────────────────────────────────────────────────────────────
-
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
 function KpiCard({
@@ -172,182 +161,6 @@ function SectionCard({ title, children }: { title: string; children: React.React
     <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
       <h2 className="mb-4 font-display text-base font-bold text-primary sm:mb-5">{title}</h2>
       {children}
-    </div>
-  );
-}
-
-// ─── Overview Tab ─────────────────────────────────────────────────────────────
-
-function FunnelSteps({ steps }: { steps: FunnelStep[] }) {
-  const firstCount = steps[0]?.count ?? 0;
-  return (
-    <div className="space-y-3">
-      {steps.map((step, i) => {
-        const prevCount = i === 0 ? step.count : steps[i - 1].count;
-        const retentionPct =
-          i === 0 || prevCount === 0
-            ? null
-            : Math.round((step.count / prevCount) * 100);
-        const dropPct = retentionPct !== null ? 100 - retentionPct : null;
-        const widthPct = firstCount === 0
-          ? 0
-          : Math.min(Math.round((step.count / firstCount) * 100), 100);
-
-        return (
-          <div key={step.label} className="flex items-center gap-3">
-            <span className="font-label text-xs text-on-surface-muted w-20 text-right shrink-0">
-              {step.label}
-            </span>
-            <div className="flex-1 bg-surface-mid rounded-full h-6 overflow-hidden">
-              <div
-                className="h-6 rounded-full bg-primary transition-all"
-                style={{ width: `${widthPct}%` }}
-              />
-            </div>
-            <span className="font-display text-sm font-bold text-on-surface w-10 shrink-0">
-              {step.count}
-            </span>
-            {dropPct !== null && (
-              <span className="font-label text-xs text-on-surface-muted w-14 shrink-0">
-                {dropPct}% drop
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PerformanceKpi({ card }: { card: PerformanceCard }) {
-  const improved = card.delta != null
-    ? card.lowerIsBetter ? card.delta < 0 : card.delta > 0
-    : null;
-  const deltaLabel = card.delta == null
-    ? null
-    : `${card.delta >= 0 ? "+" : ""}${card.delta}% vs comparison`;
-  return (
-    <div className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5">
-      <p className="font-label text-xs uppercase tracking-wider text-on-surface-muted">{card.label}</p>
-      <p className="mt-1 font-display text-2xl font-bold text-on-surface sm:text-3xl">{card.value}</p>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-label text-xs">
-        <span className="text-on-surface-muted">{card.scope}</span>
-        {deltaLabel && (
-          <span className={improved ? "text-emerald-600" : card.delta === 0 ? "text-on-surface-muted" : "text-red-600"}>
-            {deltaLabel}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function OverviewTab({
-  range,
-  onRangeChange,
-}: {
-  range: RangeValue;
-  onRangeChange: (range: RangeValue) => void;
-}) {
-  const [comparison, setComparison] = useState<ComparisonSelection>({
-    mode: "off", start: "", end: "",
-  });
-  const [data, setData] = useState<ComparePayload | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
-  const canLoad = canLoadComparison(range, comparison);
-
-  const params = useMemo<CompareParams>(() => {
-    const reporting = { preset: range.preset, start: range.start, end: range.end };
-    if (comparison.mode === "custom") {
-      return {
-        ...reporting,
-        comparison: "custom",
-        comparison_start: comparison.start,
-        comparison_end: comparison.end,
-      };
-    }
-    return { ...reporting, comparison: comparison.mode };
-  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
-
-  useEffect(() => {
-    if (!canLoad) {
-      setData(null);
-      setErr(null);
-      return;
-    }
-    let isCurrent = true;
-    setData(null);
-    setErr(null);
-    api.analytics
-      .compare(params)
-      .then((d) => { if (isCurrent) setData(d); })
-      .catch((e: unknown) => { if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load"); });
-    return () => { isCurrent = false; };
-  }, [canLoad, params, retryKey]);
-
-  const presentation = data
-    ? buildOverviewPresentation({ current: data.current, previous: data.previous })
-    : null;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-5 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
-        <div>
-          <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
-            Reporting period
-          </p>
-          <RangePicker value={range} onChange={onRangeChange} idPrefix="overview-range" />
-        </div>
-        <ComparisonPicker value={comparison} onChange={setComparison} />
-      </div>
-
-      {!canLoad && (
-        <p className="font-label text-sm text-on-surface-muted">
-          Pick a valid start and end date for each custom period.
-        </p>
-      )}
-      {err && <ErrorBox message={err} onRetry={() => setRetryKey((key) => key + 1)} />}
-      {!data && !err && canLoad && <SkeletonGrid cols={5} />}
-
-      {data && presentation && (
-        <>
-          <div>
-            <h2 className="font-display text-lg font-bold text-primary">Selected-period performance</h2>
-            <p className="mt-1 font-label text-xs text-on-surface-muted">
-              {data.current.start} → {data.current.end}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 xl:gap-4">
-            {presentation.cards.map((card) => <PerformanceKpi key={card.label} card={card} />)}
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
-            <SectionCard title="Selected-period pipeline">
-              <FunnelSteps steps={presentation.funnel} />
-            </SectionCard>
-            <SectionCard title="New leads by day">
-              <div role="img" aria-label="New leads in the selected period chart">
-                <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={presentation.trend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                    <defs>
-                      <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#5b21b6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#5b21b6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
-                    <Area type="monotone" dataKey="count" stroke="#5b21b6" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </SectionCard>
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -501,7 +314,7 @@ function ChannelsTab({ range }: { range: RangeValue }) {
   );
 }
 
-// ─── Page shell ───────────────────────────────────────────────────────────────
+// ─── Templates Tab ────────────────────────────────────────────────────────────
 
 function pct(part: number, whole: number): string {
   if (!whole) return "—";
@@ -614,8 +427,6 @@ function InboundTab({ range }: { range: RangeValue }) {
   if (!canLoad) return <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>;
   if (!data) return <div className="p-8 text-center text-on-surface-muted">Loading…</div>;
 
-  const segMax = Math.max(data.by_segment.A, data.by_segment.B, data.by_segment.C, data.by_segment.D, 1);
-
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
@@ -637,39 +448,24 @@ function InboundTab({ range }: { range: RangeValue }) {
         </ResponsiveContainer>
       </SectionCard>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
-        <SectionCard title="By Segment (inbound only)">
-          <div className="space-y-3">
-            {([["A", "Hot"], ["B", "Warm"], ["C", "Cold"], ["D", "Disqualified"]] as const).map(([k, label]) => (
-              <div key={k} className="flex items-center gap-3">
-                <span className="font-label text-xs text-on-surface-muted w-24 shrink-0">{label}</span>
-                <div className="flex-1 bg-surface-mid rounded-full h-4 overflow-hidden">
-                  <div className="h-4 rounded-full bg-primary" style={{ width: `${Math.round((data.by_segment[k] / segMax) * 100)}%` }} />
-                </div>
-                <span className="font-label text-xs w-8 text-right shrink-0">{data.by_segment[k]}</span>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard title="By Channel">
-          <div className="space-y-2">
-            {([["whatsapp", "WhatsApp"], ["instagram", "Instagram"], ["facebook", "Facebook"], ["telegram", "Telegram"]] as const).map(([k, label]) => (
-              <div key={k} className="flex justify-between text-sm">
-                <span className="text-on-surface-muted">{label}</span>
-                <span className="font-medium">{data.by_channel[k]}</span>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      </div>
+      <SectionCard title="By Channel">
+        <div className="space-y-2">
+          {([["whatsapp", "WhatsApp"], ["instagram", "Instagram"], ["facebook", "Facebook"], ["telegram", "Telegram"]] as const).map(([k, label]) => (
+            <div key={k} className="flex justify-between text-sm">
+              <span className="text-on-surface-muted">{label}</span>
+              <span className="font-medium">{data.by_channel[k]}</span>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
     </div>
   );
 }
 
+// ─── Page shell ───────────────────────────────────────────────────────────────
+
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "compare", label: "Compare" },
   { id: "channels", label: "Channels" },
   { id: "inbound", label: "Inbound" },
   { id: "templates", label: "Templates" },
@@ -679,6 +475,9 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [range, setRange] = useState<RangeValue>({
     preset: "last_7d", start: "", end: "",
+  });
+  const [comparison, setComparison] = useState<ComparisonSelection>({
+    mode: "off", start: "", end: "",
   });
 
   return (
@@ -704,17 +503,21 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {(activeTab === "channels" || activeTab === "inbound") && (
+      {activeTab !== "templates" && (
         <div className="rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
           <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
             Reporting period
           </p>
-          <RangePicker value={range} onChange={setRange} idPrefix={`${activeTab}-range`} />
+          <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+          {activeTab === "overview" && (
+            <div className="mt-5">
+              <ComparisonPicker value={comparison} onChange={setComparison} />
+            </div>
+          )}
         </div>
       )}
 
-      {activeTab === "overview" && <OverviewTab range={range} onRangeChange={setRange} />}
-      {activeTab === "compare" && <CompareTab />}
+      {activeTab === "overview" && <CompareTab range={range} comparison={comparison} />}
       {activeTab === "channels" && <ChannelsTab range={range} />}
       {activeTab === "inbound" && <InboundTab range={range} />}
       {activeTab === "templates" && <TemplatesTab />}

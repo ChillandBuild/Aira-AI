@@ -9,9 +9,9 @@ import { Download } from "lucide-react";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
-import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
-import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
+import { RangeValue } from "@/components/analytics/RangePicker";
 import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
+import { buildFunnel, FunnelStep } from "./overviewPresentation";
 
 const CURRENT_COLOR = "#5b21b6";
 const PREVIOUS_COLOR = "#a8a29e";
@@ -50,16 +50,8 @@ function formatDelta(pct: number): string {
   return `${Math.round(Math.abs(pct) / 100 + 1)}×`;
 }
 
-/** How a change should be coloured.
- *  `higher` — more is good (leads, replies answered).
- *  `lower`  — less is good (cost per lead, reply time).
- *  `neutral`— neither direction is good or bad. Ad spend is the case that
- *             matters: spending less is not a win and spending more is not a
- *             failure, so painting it green or red editorialises a decision
- *             the owner made deliberately. */
 type DeltaSense = "higher" | "lower" | "neutral";
 
-/** The arrow always follows the number; only the colour follows the sense. */
 function DeltaBadge({
   pct,
   sense = "higher",
@@ -117,6 +109,56 @@ function StatCard({
         {delta !== undefined && <DeltaBadge pct={delta ?? null} sense={sense} />}
         {sub && <span className="font-label text-xs text-on-surface-muted">{sub}</span>}
       </div>
+    </div>
+  );
+}
+
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+      <h2 className="mb-4 font-display text-base font-bold text-primary sm:mb-5">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function FunnelSteps({ steps }: { steps: FunnelStep[] }) {
+  const firstCount = steps[0]?.count ?? 0;
+  return (
+    <div className="space-y-3">
+      {steps.map((step, i) => {
+        const prevCount = i === 0 ? step.count : steps[i - 1].count;
+        const retentionPct =
+          i === 0 || prevCount === 0
+            ? null
+            : Math.round((step.count / prevCount) * 100);
+        const dropPct = retentionPct !== null ? 100 - retentionPct : null;
+        const widthPct = firstCount === 0
+          ? 0
+          : Math.min(Math.round((step.count / firstCount) * 100), 100);
+
+        return (
+          <div key={step.label} className="flex items-center gap-3">
+            <span className="font-label text-xs text-on-surface-muted w-20 text-right shrink-0">
+              {step.label}
+            </span>
+            <div className="flex-1 bg-surface-mid rounded-full h-6 overflow-hidden">
+              <div
+                className="h-6 rounded-full bg-primary transition-all"
+                style={{ width: `${widthPct}%` }}
+              />
+            </div>
+            <span className="font-display text-sm font-bold text-on-surface w-10 shrink-0">
+              {step.count}
+            </span>
+            {dropPct !== null && (
+              <span className="font-label text-xs text-on-surface-muted w-14 shrink-0">
+                {dropPct}% drop
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -349,13 +391,13 @@ function ComparisonTable({
   );
 }
 
-export function CompareTab() {
-  const [range, setRange] = useState<RangeValue>({
-    preset: "last_14d", start: "", end: "",
-  });
-  const [comparison, setComparison] = useState<ComparisonSelection>({
-    mode: "off", start: "", end: "",
-  });
+export function CompareTab({
+  range,
+  comparison,
+}: {
+  range: RangeValue;
+  comparison: ComparisonSelection;
+}) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -376,9 +418,6 @@ export function CompareTab() {
   }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   useEffect(() => {
-    // Clear before bailing out, otherwise switching to Custom leaves the
-    // previous range's report on screen under a "pick a date" prompt --
-    // stale numbers presented as if they were the current selection.
     if (!canLoad) {
       setData(null);
       setErr(null);
@@ -398,16 +437,7 @@ export function CompareTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex flex-col gap-5">
-          <div>
-            <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
-              Reporting period
-            </p>
-            <RangePicker value={range} onChange={setRange} idPrefix="reporting-range" />
-          </div>
-          <ComparisonPicker value={comparison} onChange={setComparison} />
-        </div>
+      <div className="flex justify-end">
         <button
           onClick={() => api.analytics.exportCompareCsv(params)}
           disabled={!data || !canLoad || comparison.mode === "off"}
@@ -437,6 +467,10 @@ export function CompareTab() {
       {data && (
         <>
           <ComparisonHeader data={data} />
+
+          <SectionCard title="Selected-period pipeline">
+            <FunnelSteps steps={buildFunnel(data.current.summary)} />
+          </SectionCard>
 
           {(() => {
             const previous = data.previous;

@@ -57,13 +57,13 @@ test("analytics exposes client-controlled reporting and comparison ranges", asyn
   await expect(page.getByRole("button", { name: "Previous period", exact: true })).toBeVisible();
 
   // No date pair exists yet: reporting starts on a preset and comparison is off.
-  await expect(page.locator("#overview-range-from")).toHaveCount(0);
+  await expect(page.locator("#analytics-range-from")).toHaveCount(0);
   await expect(page.locator("#comparison-range-from")).toHaveCount(0);
 
   // Enabling a custom reporting range exposes the first date pair.
   await page.getByRole("button", { name: "Custom", exact: true }).first().click();
-  await expect(page.locator("#overview-range-from")).toBeVisible();
-  await expect(page.locator("#overview-range-to")).toBeVisible();
+  await expect(page.locator("#analytics-range-from")).toBeVisible();
+  await expect(page.locator("#analytics-range-to")).toBeVisible();
 
   // Enabling a custom comparison exposes a second, uniquely-prefixed date pair.
   await page.getByRole("button", { name: "Custom", exact: true }).nth(1).click();
