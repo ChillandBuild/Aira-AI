@@ -8,6 +8,7 @@ import io
 import logging
 import statistics
 from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -1281,9 +1282,12 @@ async def compare_analytics(
     preset: str = Query("last_7d"),
     start: str | None = Query(None),
     end: str | None = Query(None),
+    comparison: Literal["off", "previous", "custom"] = Query("off"),
+    comparison_start: str | None = Query(None),
+    comparison_end: str | None = Query(None),
     tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
 ):
-    """Compare a period against its natural predecessor.
+    """Return a period, optionally alongside an explicitly selected comparison.
 
     Day bucketing and period boundaries are IST -- this is an India-based
     product and a UTC "day" starts at 05:30 local, which shifts 6% of rows
@@ -1292,21 +1296,30 @@ async def compare_analytics(
     today_ist = (datetime.now(timezone.utc) + IST_OFFSET).date()
     try:
         cur_start, cur_end = resolve_period(preset, start, end, today_ist)
-        prev_start, prev_end = previous_period(cur_start, cur_end, preset)
+        if comparison == "custom":
+            prev_start, prev_end = resolve_period(
+                "custom", comparison_start, comparison_end, today_ist
+            )
+        elif comparison == "previous":
+            prev_start, prev_end = previous_period(cur_start, cur_end, preset)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
     db = get_supabase()
-    current, previous = await asyncio.gather(
-        _period_payload(db, tenant_id, cur_start, cur_end),
-        _period_payload(db, tenant_id, prev_start, prev_end),
-    )
+    if comparison == "off":
+        current = await _period_payload(db, tenant_id, cur_start, cur_end)
+        previous = None
+    else:
+        current, previous = await asyncio.gather(
+            _period_payload(db, tenant_id, cur_start, cur_end),
+            _period_payload(db, tenant_id, prev_start, prev_end),
+        )
 
     cur_sum = current["summary"]
-    prev_sum = previous["summary"]
+    prev_sum = previous["summary"] if previous else {}
 
     def series_for(source: str, key: str) -> list[dict]:
-        return align_series(current[source], previous[source], key)
+        return align_series(current[source], previous[source], key) if previous else []
 
     return {
         "preset": preset,
@@ -1331,22 +1344,27 @@ async def compare_analytics(
             "money": previous["money"],
             "response": previous["response"],
             "movement": previous["movement"],
-        },
-        "summary_text": build_summary(cur_sum, prev_sum, cur_start, cur_end),
-        "metrics": build_deltas(cur_sum, prev_sum, SUMMARY_METRICS),
-        "money_metrics": build_deltas(current["money"], previous["money"], MONEY_METRICS),
-        "response_metrics": build_deltas(
-            current["response"], previous["response"], RESPONSE_METRICS
+        } if previous else None,
+        "summary_text": build_summary(cur_sum, prev_sum, cur_start, cur_end) if previous else None,
+        "metrics": build_deltas(cur_sum, prev_sum, SUMMARY_METRICS) if previous else {},
+        "money_metrics": (
+            build_deltas(current["money"], previous["money"], MONEY_METRICS)
+            if previous else {}
         ),
-        "movement_metrics": build_deltas(
-            current["movement"], previous["movement"], MOVEMENT_METRICS
+        "response_metrics": (
+            build_deltas(current["response"], previous["response"], RESPONSE_METRICS)
+            if previous else {}
+        ),
+        "movement_metrics": (
+            build_deltas(current["movement"], previous["movement"], MOVEMENT_METRICS)
+            if previous else {}
         ),
         "series": {
             "leads_inbound": series_for("daily_leads", "inbound"),
             "leads_outbound": series_for("daily_leads", "outbound"),
             "messages_in": series_for("daily_messages", "inbound"),
             "messages_out": series_for("daily_messages", "outbound"),
-        },
+        } if previous else {},
     }
 
 
@@ -1355,10 +1373,26 @@ async def export_compare(
     preset: str = Query("last_7d"),
     start: str | None = Query(None),
     end: str | None = Query(None),
+    comparison: Literal["off", "previous", "custom"] = Query("off"),
+    comparison_start: str | None = Query(None),
+    comparison_end: str | None = Query(None),
     tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
 ):
     """Same data as /compare, as a CSV the client can open in Excel."""
-    payload = await compare_analytics(preset=preset, start=start, end=end, tenant_id=tenant_id)
+    if comparison == "off":
+        raise HTTPException(
+            status_code=400,
+            detail="comparison export requires comparison=previous or comparison=custom",
+        )
+    payload = await compare_analytics(
+        preset=preset,
+        start=start,
+        end=end,
+        comparison=comparison,
+        comparison_start=comparison_start,
+        comparison_end=comparison_end,
+        tenant_id=tenant_id,
+    )
     rows = compare_csv_rows(payload["series"])
 
     output = io.StringIO()

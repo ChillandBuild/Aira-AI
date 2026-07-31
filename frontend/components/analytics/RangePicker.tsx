@@ -20,9 +20,11 @@ const PRESET_OPTIONS: { id: Preset; label: string }[] = [
 export function RangePicker({
   value,
   onChange,
+  idPrefix = "range",
 }: {
   value: RangeValue;
   onChange: (v: RangeValue) => void;
+  idPrefix?: string;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -48,13 +50,13 @@ export function RangePicker({
         <div className="flex flex-wrap items-end gap-2.5">
           <div className="w-[150px]">
             <label
-              htmlFor="range-from"
+              htmlFor={`${idPrefix}-from`}
               className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted"
             >
               From
             </label>
             <input
-              id="range-from"
+              id={`${idPrefix}-from`}
               type="date"
               value={value.start}
               max={value.end || undefined}
@@ -64,13 +66,13 @@ export function RangePicker({
           </div>
           <div className="w-[150px]">
             <label
-              htmlFor="range-to"
+              htmlFor={`${idPrefix}-to`}
               className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted"
             >
               To
             </label>
             <input
-              id="range-to"
+              id={`${idPrefix}-to`}
               type="date"
               value={value.end}
               min={value.start || undefined}

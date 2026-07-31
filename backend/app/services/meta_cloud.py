@@ -78,6 +78,7 @@ class TemplateContentExistsError(HTTPException):
 
 
 _GRAPH_BASE = "https://graph.facebook.com/v21.0"
+_BUSINESS_LOGIN_GRAPH_BASE = "https://graph.facebook.com/v25.0"
 
 _TIER_MAP = {
     "TIER_1000": 1000,
@@ -161,6 +162,81 @@ async def exchange_embedded_signup_code(code: str) -> dict:
     if not access_token:
         raise HTTPException(status_code=400, detail="Meta did not return an access token for this signup code")
     return {"access_token": access_token}
+
+
+async def _get_business_login_edge(
+    client: httpx.AsyncClient,
+    path: str,
+    access_token: str,
+    fields: str,
+    *,
+    optional: bool = False,
+) -> list[dict]:
+    """Read every granted asset from a Meta Graph edge without exposing its token."""
+    url = f"{_BUSINESS_LOGIN_GRAPH_BASE}/{path}"
+    params: dict | None = {"fields": fields, "access_token": access_token, "limit": 100}
+    assets: list[dict] = []
+
+    while url:
+        try:
+            response = await client.get(url, params=params, timeout=10.0)
+            data = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            if optional:
+                logger.info("Optional Meta business-login asset lookup failed for %s: %s", path, exc)
+                return []
+            raise HTTPException(status_code=502, detail="Could not list the Facebook Pages granted during signup.") from exc
+
+        if getattr(response, "status_code", 200) >= 400 and not data.get("error"):
+            if optional:
+                logger.info("Optional Meta business-login asset lookup returned HTTP %s for %s", response.status_code, path)
+                return []
+            raise HTTPException(status_code=502, detail="Could not list the Facebook Pages granted during signup.")
+        if data.get("error"):
+            if optional:
+                logger.info("Optional Meta business-login asset lookup was not granted for %s", path)
+                return []
+            raise HTTPException(
+                status_code=400,
+                detail=data["error"].get("message", "Could not list the Facebook Pages granted during signup."),
+            )
+
+        assets.extend(item for item in data.get("data", []) if isinstance(item, dict))
+        url = data.get("paging", {}).get("next")
+        # Meta's paging URL already contains the cursor and access token.
+        params = None
+
+    return assets
+
+
+async def discover_business_login_assets(access_token: str) -> dict[str, list[dict]]:
+    """Discover assets granted by a General Facebook Login for Business configuration.
+
+    Page access tokens remain in this server-side result. Route handlers must strip
+    them before returning assets to the browser.
+    """
+    async with httpx.AsyncClient() as client:
+        pages = await _get_business_login_edge(
+            client,
+            "me/accounts",
+            access_token,
+            "id,name,access_token,instagram_business_account{id,username}",
+        )
+        ad_accounts = await _get_business_login_edge(
+            client,
+            "me/adaccounts",
+            access_token,
+            "id,name,account_id,account_status,currency,timezone_name",
+            optional=True,
+        )
+        catalogs = await _get_business_login_edge(
+            client,
+            "me/product_catalogs",
+            access_token,
+            "id,name",
+            optional=True,
+        )
+    return {"pages": pages, "ad_accounts": ad_accounts, "catalogs": catalogs}
 
 
 async def register_phone_number(phone_number_id: str, access_token: str, pin: str) -> dict:

@@ -759,14 +759,35 @@ export interface ComparePeriod {
 export interface ComparePayload {
   preset: string;
   current: ComparePeriod;
-  previous: ComparePeriod;
-  summary_text: string;
+  previous: ComparePeriod | null;
+  summary_text: string | null;
   metrics: Record<string, CompareMetric>;
   money_metrics: Record<string, CompareMetric>;
   response_metrics: Record<string, CompareMetric>;
   movement_metrics: Record<string, CompareMetric>;
   series: Record<string, ComparePoint[]>;
 }
+
+export type ComparisonMode = "off" | "previous" | "custom";
+
+interface CompareRangeParams {
+  preset: string;
+  start?: string;
+  end?: string;
+}
+
+export type CompareParams = CompareRangeParams & (
+  | {
+    comparison: Exclude<ComparisonMode, "custom">;
+    comparison_start?: never;
+    comparison_end?: never;
+  }
+  | {
+    comparison: "custom";
+    comparison_start: string;
+    comparison_end: string;
+  }
+);
 
 // Transient statuses worth a retry: server waking / restarting / behind a proxy.
 const RETRYABLE_STATUS = new Set([502, 503, 504]);
@@ -1542,17 +1563,27 @@ export const api = {
       apiFetch<{ data: TimelineEvent[] }>(`/api/v1/analytics/caller-timeline?caller_id=${encodeURIComponent(callerId)}&date=${encodeURIComponent(date)}`),
     qaQueue: (limit: number) =>
       apiFetch<{ data: CallLog[] }>(`/api/v1/analytics/qa-queue?limit=${limit}`),
-    compare: (params: { preset: string; start?: string; end?: string }) => {
+    compare: (params: CompareParams) => {
       const qs = new URLSearchParams({ preset: params.preset });
       if (params.start) qs.set("start", params.start);
       if (params.end) qs.set("end", params.end);
+      qs.set("comparison", params.comparison);
+      if (params.comparison === "custom") {
+        qs.set("comparison_start", params.comparison_start);
+        qs.set("comparison_end", params.comparison_end);
+      }
       return apiFetch<ComparePayload>(`/api/v1/analytics/compare?${qs.toString()}`);
     },
-    exportCompareCsv: async (params: { preset: string; start?: string; end?: string }) => {
+    exportCompareCsv: async (params: CompareParams) => {
       const headers = await getAuthHeaders();
       const qs = new URLSearchParams({ preset: params.preset });
       if (params.start) qs.set("start", params.start);
       if (params.end) qs.set("end", params.end);
+      qs.set("comparison", params.comparison);
+      if (params.comparison === "custom") {
+        qs.set("comparison_start", params.comparison_start);
+        qs.set("comparison_end", params.comparison_end);
+      }
       const res = await fetch(`${API_URL}/api/v1/analytics/compare/export?${qs.toString()}`, { headers });
       if (!res.ok) throw new Error(`Export failed: ${res.status} ${res.statusText}`);
       const blob = await res.blob();

@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 // Not secrets — safe to expose client-side. Env var lets prod/staging override.
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
 const META_CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1063294086656120";
+const META_GENERAL_CONFIG_ID = process.env.NEXT_PUBLIC_META_GENERAL_CONFIG_ID || "2226622718102220";
 
 declare global {
   interface Window {
@@ -48,6 +49,13 @@ function loadFacebookSdk(): Promise<void> {
 
 type EmbeddedSignupSession = { waba_id?: string; phone_number_id?: string; business_id?: string };
 type EmbeddedSignupState = "idle" | "connecting" | "finishing" | "error";
+type MetaBusinessLoginState = "idle" | "connecting" | "selecting" | "finishing" | "success" | "error";
+type MetaBusinessAssets = {
+  session_id: string;
+  pages: Array<{ id: string; name: string; instagram_business_account?: { id: string; username?: string } | null }>;
+  ad_accounts: Array<{ id: string; name: string; account_id?: string; currency?: string }>;
+  catalogs: Array<{ id: string; name: string }>;
+};
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -525,6 +533,12 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const [esError, setEsError] = useState<string | null>(null);
   const esSessionRef = useRef<EmbeddedSignupSession>({});
   const esCodeRef = useRef<string | null>(null);
+  const [metaBusinessState, setMetaBusinessState] = useState<MetaBusinessLoginState>("idle");
+  const [metaBusinessError, setMetaBusinessError] = useState<string | null>(null);
+  const [metaBusinessAssets, setMetaBusinessAssets] = useState<MetaBusinessAssets | null>(null);
+  const [selectedMetaPageId, setSelectedMetaPageId] = useState("");
+  const [selectedMetaAdAccountId, setSelectedMetaAdAccountId] = useState("");
+  const [selectedMetaCatalogId, setSelectedMetaCatalogId] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -773,6 +787,79 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     );
   }
 
+  async function handleStartMetaBusinessLogin() {
+    if (!canManage) return;
+    setMetaBusinessState("connecting");
+    setMetaBusinessError(null);
+    try {
+      await loadFacebookSdk();
+      window.FB?.login(
+        async (response) => {
+          const code = response?.authResponse?.code;
+          if (!code) {
+            setMetaBusinessState("idle");
+            return;
+          }
+          try {
+            const auth = await getAuthHeaders();
+            const res = await fetch(`${API_URL}/api/v1/settings/facebook/business-login/start`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...auth },
+              body: JSON.stringify({ code }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || "Meta could not list the assets you granted");
+            const assets = data as MetaBusinessAssets;
+            setMetaBusinessAssets(assets);
+            setSelectedMetaPageId(assets.pages.length === 1 ? assets.pages[0].id : "");
+            setSelectedMetaAdAccountId("");
+            setSelectedMetaCatalogId("");
+            setMetaBusinessState("selecting");
+          } catch (error) {
+            setMetaBusinessState("error");
+            setMetaBusinessError(error instanceof Error ? error.message : "Connecting Meta assets failed");
+          }
+        },
+        {
+          config_id: META_GENERAL_CONFIG_ID,
+          response_type: "code",
+          override_default_response_type: true,
+        }
+      );
+    } catch (error) {
+      setMetaBusinessState("error");
+      setMetaBusinessError(error instanceof Error ? error.message : "Could not open Meta signup");
+    }
+  }
+
+  async function handleCompleteMetaBusinessLogin() {
+    if (!canManage || !metaBusinessAssets || !selectedMetaPageId) return;
+    setMetaBusinessState("finishing");
+    setMetaBusinessError(null);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/settings/facebook/business-login/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({
+          session_id: metaBusinessAssets.session_id,
+          page_id: selectedMetaPageId,
+          ad_account_id: selectedMetaAdAccountId || null,
+          catalog_id: selectedMetaCatalogId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Connecting the selected Meta assets failed");
+      setMetaBusinessAssets(null);
+      setMetaBusinessState("success");
+      await load();
+      loadHealth();
+    } catch (error) {
+      setMetaBusinessState("error");
+      setMetaBusinessError(error instanceof Error ? error.message : "Connecting the selected Meta assets failed");
+    }
+  }
+
   const openChannelModal = (channel: ChannelConfig) => {
     setSelectedChannel(channel);
     setSaveState("idle");
@@ -896,6 +983,34 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             </div>
           </section>
 
+          <section className="overflow-hidden rounded-[28px] border border-blue-200 bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
+            <div className="flex flex-col gap-4 bg-gradient-to-r from-blue-50 via-white to-indigo-50 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-100 text-blue-600">
+                  <FacebookIcon size={19} />
+                </div>
+                <div>
+                  <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">General Meta connection</p>
+                  <h2 className="mt-1 font-display text-lg font-bold text-ink">Facebook, Instagram &amp; Ads</h2>
+                  <p className="mt-0.5 max-w-2xl font-body text-xs text-ink-muted">Choose the Page, linked Instagram account, optional ad account, and optional Meta catalog this workspace can use.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleStartMetaBusinessLogin}
+                disabled={!canManage || metaBusinessState === "connecting" || metaBusinessState === "finishing"}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(37,99,235,0.20)] transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {metaBusinessState === "connecting" || metaBusinessState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <><FacebookIcon size={16} />Connect Meta assets</>}
+              </button>
+            </div>
+            {(metaBusinessError || metaBusinessState === "success") && (
+              <div className="border-t border-blue-100 px-5 py-3 sm:px-7">
+                {metaBusinessError ? <p className="font-body text-xs text-red-700">{metaBusinessError}</p> : <p className="font-body text-xs text-emerald-700">Facebook and the selected Meta assets are connected. You can validate the ad account from its Settings card.</p>}
+              </div>
+            )}
+          </section>
+
           <section>
             <div className="mb-4 px-1">
               <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-[#78716c]">Additional channels</p>
@@ -980,6 +1095,62 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             </div>
           </section>
         </div>
+      )}
+
+      {metaBusinessAssets && (
+        <Portal>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[3px]">
+            <div className="w-full max-w-xl overflow-hidden rounded-card bg-surface shadow-card ring-1 ring-[#c4c7c7]/20">
+              <div className="flex items-start justify-between border-b border-border-subtle p-6">
+                <div>
+                  <h2 className="font-display text-lg font-bold text-ink">Choose Meta assets</h2>
+                  <p className="mt-1 font-body text-xs text-ink-muted">Only these new selections are changed. Existing separately connected assets stay as they are.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setMetaBusinessAssets(null); setMetaBusinessState("idle"); setMetaBusinessError(null); }}
+                  className="rounded-lg p-1.5 text-on-surface-muted transition-colors hover:bg-surface-low hover:text-on-surface"
+                  aria-label="Close Meta asset selection"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6">
+                {metaBusinessError && <p className="rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{metaBusinessError}</p>}
+                <label className="block">
+                  <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Facebook Page <span className="text-red-600">*</span></span>
+                  <select value={selectedMetaPageId} onChange={event => setSelectedMetaPageId(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 font-body text-sm text-ink" disabled={metaBusinessState === "finishing"}>
+                    <option value="">Choose a Page</option>
+                    {metaBusinessAssets.pages.map(page => <option key={page.id} value={page.id}>{page.name}{page.instagram_business_account ? " · Instagram linked" : ""}</option>)}
+                  </select>
+                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">Messenger is connected to this Page. A linked Instagram business account is connected automatically.</p>
+                </label>
+                <label className="block">
+                  <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Ad account <span className="font-normal normal-case text-ink-muted">(optional)</span></span>
+                  <select value={selectedMetaAdAccountId} onChange={event => setSelectedMetaAdAccountId(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 font-body text-sm text-ink" disabled={metaBusinessState === "finishing"}>
+                    <option value="">Do not connect an ad account</option>
+                    {metaBusinessAssets.ad_accounts.map(account => <option key={account.id} value={account.id}>{account.name}{account.account_id ? ` · ${account.account_id}` : ""}{account.currency ? ` · ${account.currency}` : ""}</option>)}
+                  </select>
+                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">Aira will save the selected account and validate it before importing or managing ads.</p>
+                </label>
+                <label className="block">
+                  <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Meta catalog <span className="font-normal normal-case text-ink-muted">(optional)</span></span>
+                  <select value={selectedMetaCatalogId} onChange={event => setSelectedMetaCatalogId(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 font-body text-sm text-ink" disabled={metaBusinessState === "finishing"}>
+                    <option value="">Do not connect a catalog</option>
+                    {metaBusinessAssets.catalogs.map(catalog => <option key={catalog.id} value={catalog.id}>{catalog.name}</option>)}
+                  </select>
+                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">This is Meta&apos;s Commerce catalog. It is separate from Aira&apos;s own product catalog.</p>
+                </label>
+              </div>
+              <div className="flex items-center justify-between gap-3 border-t border-border-subtle bg-surface-low p-5">
+                <button type="button" onClick={() => { setMetaBusinessAssets(null); setMetaBusinessState("idle"); }} className="rounded-xl px-3 py-2 font-label text-sm font-semibold text-ink-muted hover:bg-white">Cancel</button>
+                <button type="button" onClick={handleCompleteMetaBusinessLogin} disabled={!canManage || !selectedMetaPageId || metaBusinessState === "finishing"} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-label text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {metaBusinessState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect selected assets <ArrowRight size={16} /></>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Portal>
       )}
 
       {/* Integration Configuration Modal */}
