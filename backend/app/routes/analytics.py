@@ -1314,6 +1314,13 @@ async def compare_analytics(
             "money": current["money"],
             "response": current["response"],
             "movement": current["movement"],
+            "daily_segment_mix": [
+                {
+                    "day": d["day"], "hot": d["hot"], "warm": d["warm"],
+                    "cold": d["cold"], "disqualified": d["disqualified"],
+                }
+                for d in current["daily_leads"]
+            ],
         },
         "previous": {
             "start": previous["start"], "end": previous["end"],

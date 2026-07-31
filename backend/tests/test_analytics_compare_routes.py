@@ -222,6 +222,25 @@ class AnalyticsCompareTests(unittest.TestCase):
         self.assertEqual(body["metrics"]["engagement_rate"]["previous"], 50)
         self.assertEqual(body["metrics"]["engagement_rate"]["delta_pct"], 30)
 
+    @patch("app.routes.analytics.get_supabase")
+    def test_daily_segment_mix_is_returned_for_the_current_period(self, mock_get_db):
+        self._mock_db(
+            mock_get_db,
+            summaries=[[{}], [{}]],
+            daily_leads=[
+                [{"day": "2026-07-16", "inbound": 3, "outbound": 0,
+                  "hot": 1, "warm": 1, "cold": 1, "disqualified": 0}],
+                [],
+            ],
+            daily_messages=[[], []],
+        )
+        body = self.client.get(
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-15&end=2026-07-16"
+        ).json()
+        mix = body["current"]["daily_segment_mix"]
+        self.assertEqual(len(mix), 2)
+        self.assertEqual(mix[1], {"day": "2026-07-16", "hot": 1, "warm": 1, "cold": 1, "disqualified": 0})
+        self.assertEqual(mix[0], {"day": "2026-07-15", "hot": 0, "warm": 0, "cold": 0, "disqualified": 0})
 
 if __name__ == "__main__":
     unittest.main()

@@ -741,6 +741,8 @@ export interface ComparePeriod {
   money: CompareMoney;
   response: CompareResponseTimes;
   movement: CompareMovement;
+  /** Only populated on `current` -- per-day segment counts for the mix chart. */
+  daily_segment_mix?: { day: string; hot: number; warm: number; cold: number; disqualified: number }[];
 }
 
 export interface ComparePayload {

@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, Legend,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { Download } from "lucide-react";
 import {
-  api, ComparePayload, ComparePoint, CompareMetric, CompareMovement,
+  api, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
 import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
 
@@ -155,6 +155,41 @@ function MovementFlows({ flows }: { flows: CompareMovement["flows"] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+const SEGMENT_MIX_COLORS = {
+  hot: "#10b981", warm: "#3b82f6", cold: "#f59e0b", disqualified: "#f87171",
+} as const;
+
+function SegmentMixChart({
+  points,
+}: {
+  points: ComparePeriod["daily_segment_mix"];
+}) {
+  if (!points || points.length === 0) {
+    return (
+      <p className="font-label text-sm text-on-surface-muted">
+        No lead activity in this period.
+      </p>
+    );
+  }
+  return (
+    <div role="img" aria-label="Lead quality mix per day">
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+          <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
+          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <Bar dataKey="hot" stackId="mix" fill={SEGMENT_MIX_COLORS.hot} name="Hot" />
+          <Bar dataKey="warm" stackId="mix" fill={SEGMENT_MIX_COLORS.warm} name="Warm" />
+          <Bar dataKey="cold" stackId="mix" fill={SEGMENT_MIX_COLORS.cold} name="Cold" />
+          <Bar dataKey="disqualified" stackId="mix" fill={SEGMENT_MIX_COLORS.disqualified} name="Disqualified" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -397,6 +432,16 @@ export function CompareTab() {
               <MovementFlows flows={data.current.movement.flows} />
             </div>
           )}
+
+          <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+            <h2 className="font-display text-base font-bold text-primary">
+              Lead quality mix, day by day
+            </h2>
+            <p className="mb-4 mt-1 font-label text-xs text-on-surface-muted">
+              How many leads landed in each segment on the day they arrived.
+            </p>
+            <SegmentMixChart points={data.current.daily_segment_mix} />
+          </div>
 
           <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
             <div className="mb-4 flex flex-wrap gap-2">
