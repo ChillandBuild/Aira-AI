@@ -82,6 +82,38 @@ def _range_params(range_str: str) -> tuple[datetime, list[str]]:
     return start_dt, days_iso
 
 
+def _resolve_window(
+    range_str: str, start: str | None, end: str | None
+) -> tuple[datetime, datetime, list[str]]:
+    """Return (window_start_utc, window_end_utc, day_iso_list).
+
+    With both `start` and `end` (YYYY-MM-DD, UTC calendar dates): an
+    explicit half-open window, end inclusive of that whole day. Without
+    them: falls back to `_range_params`, ending at "now" exactly as before
+    -- this is a strict superset, not a replacement, so every existing
+    caller's behaviour is unchanged when it doesn't pass start/end.
+    """
+    if start and end:
+        try:
+            start_date = date.fromisoformat(start)
+            end_date = date.fromisoformat(end)
+        except ValueError as exc:
+            raise ValueError("start and end must be YYYY-MM-DD") from exc
+        if end_date < start_date:
+            raise ValueError("end must not be earlier than start")
+        window_start_dt = datetime.combine(start_date, datetime.min.time(), timezone.utc)
+        window_end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time(), timezone.utc)
+        days_iso = []
+        cursor = start_date
+        while cursor <= end_date:
+            days_iso.append(cursor.isoformat())
+            cursor += timedelta(days=1)
+        return window_start_dt, window_end_dt, days_iso
+
+    window_start_dt, days_iso = _range_params(range_str)
+    return window_start_dt, datetime.now(timezone.utc), days_iso
+
+
 def _ist_hour(utc_iso: str) -> int:
     """Convert a UTC ISO string to IST hour (int)."""
     try:
@@ -1337,20 +1369,30 @@ async def messaging_analytics(
     tenant_id: str = Depends(get_analytics_tenant_id),
     channel: str = Query("all"),
     range: str = Query("7d"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
 ):
-    """Messaging analytics with optional channel filter and date range."""
+    """Messaging analytics with optional channel filter and date range.
+
+    `start`/`end` (YYYY-MM-DD) override `range` when both are given.
+    sent_today/received_today always reflect the real current day regardless
+    of range or custom dates -- that is existing, documented behaviour.
+    """
     db = get_supabase()
     now = datetime.now(timezone.utc)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    window_start_dt, days_iso = _range_params(range)
+    try:
+        window_start_dt, window_end_dt, days_iso = _resolve_window(range, start, end)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     # Aggregate in SQL -- a raw window fetch hits PostgREST's silent 1000-row
     # cap (1250 rows in 7 days, 2143 in 30).
     rpc_params = {
         "p_tenant_id": tenant_id,
         "p_start": window_start_dt.isoformat(),
-        "p_end": now.isoformat(),
+        "p_end": window_end_dt.isoformat(),
         "p_channel": None if channel == "all" else channel,
     }
     daily_res, reply_source_res = await asyncio.gather(
@@ -1435,11 +1477,17 @@ async def ad_performance_summary(tenant_id: str = Depends(get_analytics_tenant_i
 @router.get("/inbound")
 async def inbound_analytics(
     range: str = Query("7d"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
     tenant_id: str = Depends(get_analytics_tenant_id),
 ):
-    """New inbound leads acquired, split organic vs ad. Range: today|7d|30d."""
+    """New inbound leads acquired, split organic vs ad. Range: today|7d|30d,
+    or pass start/end (YYYY-MM-DD) for an arbitrary window."""
     db = get_supabase()
-    start_dt, days_iso = _range_params(range)
+    try:
+        start_dt, end_dt, days_iso = _resolve_window(range, start, end)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     today_iso = datetime.now(timezone.utc).date().isoformat()
 
     try:
@@ -1450,6 +1498,7 @@ async def inbound_analytics(
             .in_("source", list(INBOUND_SOURCES))
             .is_("deleted_at", "null")
             .gte("created_at", start_dt.isoformat())
+            .lt("created_at", end_dt.isoformat())
         )
     except Exception as e:
         logger.error(f"inbound analytics error: {e}")
