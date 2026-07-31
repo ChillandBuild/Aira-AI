@@ -635,14 +635,11 @@ export function AdPerformanceTab() {
               <thead>
                 <tr className="border-b border-surface-mid bg-surface-low/60">
                   {["Campaign", "Ad set", "Creative"].map((heading) => (
-                    <th key={heading} className="whitespace-nowrap px-4 py-3 text-left font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">{heading}</th>
+                    <th key={heading} className="whitespace-nowrap px-4 py-3 text-center font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">{heading}</th>
                   ))}
                   {selectedMetrics.map((metric) => (
                     <th key={metric.key} title={metric.help}
-                      className={cn(
-                        "whitespace-nowrap px-4 py-3 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted",
-                        metric.key === "campaign_status" ? "text-left" : "text-right",
-                      )}>
+                      className="whitespace-nowrap px-4 py-3 text-center font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
                       {metric.label}
                     </th>
                   ))}
@@ -651,13 +648,12 @@ export function AdPerformanceTab() {
               <tbody className="divide-y divide-surface-mid/50">
                 {rows.map((row) => (
                   <tr key={row.ad_creative_id} className="transition-colors hover:bg-surface-low/60">
-                    <td className="px-4 py-3 font-label text-xs font-semibold text-on-surface">{row.campaign_name}</td>
-                    <td className="px-4 py-3 text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
-                    <td className="px-4 py-3 font-label text-xs font-semibold text-on-surface">{row.creative_label}</td>
+                    <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">{row.campaign_name}</td>
+                    <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
+                    <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">{row.creative_label}</td>
                     {selectedMetrics.map((metric) => (
                       <td key={metric.key} className={cn(
-                        "whitespace-nowrap px-4 py-3 text-xs tabular-nums",
-                        metric.key === "campaign_status" ? "text-left" : "text-right",
+                        "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
                         metric.key === "messages" && "font-bold text-on-surface",
                         metric.key === "inline_link_clicks" && "font-semibold text-violet-700",
                         metric.key === "hot" && "font-semibold text-rose-600",
@@ -670,14 +666,11 @@ export function AdPerformanceTab() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-surface-mid bg-surface-low/50 font-bold">
-                  <td className="px-4 py-3 text-sm">Total</td>
-                  <td />
-                  <td />
+                  <td className="px-4 py-3 text-center text-sm">Total</td>
+                  <td className="text-center" />
+                  <td className="text-center" />
                   {selectedMetrics.map((metric) => (
-                    <td key={metric.key} className={cn(
-                      "whitespace-nowrap px-4 py-3 text-xs tabular-nums",
-                      metric.key === "campaign_status" ? "text-left" : "text-right",
-                    )}>
+                    <td key={metric.key} className="whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums">
                       {metric.key === "campaign_status" ? "—" : metricValue(metric.key, totals)}
                     </td>
                   ))}
