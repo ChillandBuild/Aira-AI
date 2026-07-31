@@ -2,7 +2,7 @@ import csv
 import io
 import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -70,6 +70,8 @@ async def list_leads(
     source_filter: str | None = Query(None),
     broadcast_id: str | None = Query(None),
     ad_campaign_id: str | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     ctx: dict = Depends(require_leads_view),
@@ -82,6 +84,18 @@ async def list_leads(
              .is_("deleted_at", "null")
              .neq("opted_out", True)
              .neq("whatsapp_undeliverable", True))
+    if date_from:
+        try:
+            date.fromisoformat(date_from)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_from must be YYYY-MM-DD")
+        query = query.gte("created_at", date_from)
+    if date_to:
+        try:
+            date_to_parsed = date.fromisoformat(date_to)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_to must be YYYY-MM-DD")
+        query = query.lt("created_at", (date_to_parsed + timedelta(days=1)).isoformat())
     if segment:
         query = query.eq("segment", segment)
     if ctx.get("role") == "caller" and ctx.get("caller_id"):
