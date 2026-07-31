@@ -1,4 +1,5 @@
 import inspect
+from unittest.mock import MagicMock
 
 from app.services import ai_reply
 from app.services.ai_reply import (
@@ -9,9 +10,11 @@ from app.services.ai_reply import (
     _is_explicit_language_switch_request,
     _language_rule_block,
     _latest_message_script_note,
+    _LANGUAGE_MODES,
     _regen_target_instruction,
     _reply_script_mismatch,
     _resolve_reply_language_mode,
+    _resolve_tamil_lock,
 )
 
 
@@ -228,3 +231,36 @@ def test_ai_escalation_re_does_not_false_positive_on_ordinary_tanglish_reply():
         "avanga ungaluku clear-ana vilakkathaiyum, parigarangalaiyum solluvanga."
     )
     assert not _AI_ESCALATION_RE.search("enga astrologer kitta pesi unga doubts-a clear pannalam.")
+
+
+# ── _resolve_tamil_lock tests ──────────────────────────────────────────────────
+
+
+def test_resolve_tamil_lock_returns_tanglish_for_tanglish_message_when_not_locked():
+    db = MagicMock()
+    result = _resolve_tamil_lock(db, "lead-1", {}, "eppo varuvinga")
+    assert result == "tanglish"
+    db.table.assert_not_called()
+
+
+def test_resolve_tamil_lock_returns_tamil_and_updates_for_tamil_script_message():
+    db = MagicMock()
+    result = _resolve_tamil_lock(db, "lead-1", {}, "என் ஜாதகம் பார்க்கணும்")
+    assert result == "tamil"
+    db.table("leads").update.assert_called_once_with({"tamil_locked": True})
+
+
+def test_resolve_tamil_lock_returns_tamil_without_touching_db_when_already_locked():
+    db = MagicMock()
+    result = _resolve_tamil_lock(db, "lead-1", {"tamil_locked": True}, "hello")
+    assert result == "tamil"
+    db.table.assert_not_called()
+
+
+def test_tanglish_escalate_tamil_is_in_language_modes():
+    assert "tanglish_escalate_tamil" in _LANGUAGE_MODES
+
+
+def test_resolve_reply_language_mode_recognizes_tanglish_escalate_tamil(monkeypatch):
+    monkeypatch.setattr(ai_reply, "get_setting", lambda *a, **k: "tanglish_escalate_tamil")
+    assert _resolve_reply_language_mode("tenant-1") == "tanglish_escalate_tamil"
