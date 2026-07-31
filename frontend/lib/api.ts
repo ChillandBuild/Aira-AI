@@ -596,6 +596,10 @@ export interface FunnelAnalytics {
 }
 
 export interface AnalyticsOverviewExtended {
+  /** Optional: older cached responses and the operator console's narrower
+   *  fetches may not carry these, so callers must tolerate absence. */
+  money?: CompareMoney;
+  response_times?: CompareResponseTimes;
   daily_leads: { day: string; count: number }[];
   daily_messages: { day: string; inbound: number; outbound: number; ai: number; human: number }[];
   funnel: { inquiries: number; engaged: number; hot: number; converted: number };
@@ -703,12 +707,51 @@ export interface CompareMetric {
   delta_pct: number | null;
 }
 
+/** Ad spend joined to attributed leads. Empty object when a tenant has no
+ *  ad data — callers must tolerate missing keys. */
+export interface CompareMoney {
+  spend?: number;
+  impressions?: number;
+  clicks?: number;
+  ad_leads?: number;
+  ad_hot_leads?: number;
+  cost_per_lead?: number | null;
+  cost_per_hot_lead?: number | null;
+}
+
+export interface CompareResponseTimes {
+  inbound_total?: number;
+  answered?: number;
+  p50_seconds?: number | null;
+  p90_seconds?: number | null;
+}
+
+/** Segment transitions written by the scoring engine — "what the AI did". */
+export interface CompareMovement {
+  promoted: number;
+  demoted: number;
+  promoted_to_hot: number;
+  flows: { from: string; to: string; total: number }[];
+}
+
+export interface ComparePeriod {
+  start: string;
+  end: string;
+  summary: Record<string, number>;
+  money: CompareMoney;
+  response: CompareResponseTimes;
+  movement: CompareMovement;
+}
+
 export interface ComparePayload {
   preset: string;
-  current: { start: string; end: string; summary: Record<string, number> };
-  previous: { start: string; end: string; summary: Record<string, number> };
+  current: ComparePeriod;
+  previous: ComparePeriod;
   summary_text: string;
   metrics: Record<string, CompareMetric>;
+  money_metrics: Record<string, CompareMetric>;
+  response_metrics: Record<string, CompareMetric>;
+  movement_metrics: Record<string, CompareMetric>;
   series: Record<string, ComparePoint[]>;
 }
 

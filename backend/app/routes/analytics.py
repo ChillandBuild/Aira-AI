@@ -1136,7 +1136,31 @@ async def overview_analytics(
         if last_outbound.get(lid, "") < ts
     )
 
+    # Cost-per-lead and first-response speed for the selected range. Additive
+    # fields only -- the dashboard home and operator console read this same
+    # response and must keep working untouched.
+    money_res, response_res = await asyncio.gather(
+        asyncio.to_thread(
+            db.rpc("analytics_period_money", {
+                "p_tenant_id": tenant_id,
+                "p_start": window_start_dt.isoformat(),
+                "p_end": now.isoformat(),
+            }).execute
+        ),
+        asyncio.to_thread(
+            db.rpc("analytics_response_times", {
+                "p_tenant_id": tenant_id,
+                "p_start": window_start_dt.isoformat(),
+                "p_end": now.isoformat(),
+            }).execute
+        ),
+    )
+    money_rows = money_res.data or []
+    response_rows = response_res.data or []
+
     return {
+        "money": money_rows[0] if money_rows else {},
+        "response_times": response_rows[0] if response_rows else {},
         "daily_leads": [{"day": d, "count": daily_leads_map[d]} for d in days_iso],
         "daily_leads_trend_pct": daily_leads_trend_pct,
         "daily_messages": [

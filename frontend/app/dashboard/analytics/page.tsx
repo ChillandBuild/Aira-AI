@@ -221,10 +221,20 @@ function OverviewTab({ range }: { range: DateRange }) {
   const cb = data.channel_breakdown;
   const channelSub = `WA: ${cb.whatsapp} · IG: ${cb.instagram} · FB: ${cb.facebook} · TG: ${cb.telegram}`;
 
+  // Cost per lead and reply speed are range-scoped, unlike the all-time
+  // counts beside them. Rendered as "—" rather than 0 when a tenant has no
+  // ad spend or no inbound messages in the range: absent is not zero.
+  const costPerLead = data.money?.cost_per_lead;
+  const costPerLeadValue =
+    costPerLead == null ? "—" : "₹" + Math.round(costPerLead).toLocaleString("en-IN");
+  const p50 = data.response_times?.p50_seconds;
+  const replyTimeValue =
+    p50 == null ? "—" : p50 < 60 ? `${Math.round(p50)}s` : `${Math.round(p50 / 60)}m`;
+
   return (
     <div className="space-y-6">
       {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6 xl:gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 xl:gap-4">
         <KpiCard label="Total Leads" value={total.toLocaleString()} sub={channelSub} />
         <KpiCard
           label="Hot Leads"
@@ -243,6 +253,20 @@ function OverviewTab({ range }: { range: DateRange }) {
         />
         <KpiCard label="AI Automation" value={`${aiPct}%`} sub={`${data.ai_vs_human.ai} AI · ${data.ai_vs_human.human} human`} />
         <KpiCard label="Avg Score" value={funnel?.avg_score != null ? funnel.avg_score.toFixed(1) : "—"} sub="lead quality" />
+        <KpiCard
+          label="Cost per Lead"
+          value={costPerLeadValue}
+          sub={data.money?.spend ? `₹${Math.round(data.money.spend).toLocaleString("en-IN")} spent in range` : "no ad spend in range"}
+        />
+        <KpiCard
+          label="Reply Time"
+          value={replyTimeValue}
+          sub={
+            data.response_times?.inbound_total
+              ? `median · ${data.response_times.answered ?? 0} of ${data.response_times.inbound_total} answered`
+              : "no messages in range"
+          }
+        />
       </div>
 
       {/* Charts row 1 */}

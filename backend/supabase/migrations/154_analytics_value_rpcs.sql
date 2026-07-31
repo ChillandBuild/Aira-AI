@@ -7,6 +7,14 @@
 --    per HOT lead -- the number a business owner actually asks about.
 --    ad_insights_daily carries tenant_id directly, so no join is needed to
 --    scope spend; leads.ad_campaign_id marks attribution on the lead side.
+--
+--    WARNING: as of 2026-07-31, ad_insights_daily.impressions is only
+--    populated from 2026-07-25 onward and is 0 on every earlier row -- the
+--    Meta sync started capturing it late. spend and clicks are complete.
+--    The field is returned here because it is factually what is recorded,
+--    but do NOT trend impressions or build a CPM/CTR on it until the
+--    history is backfilled: any period spanning the gap will look like a
+--    collapse that never happened. Nothing in the UI charts it today.
 CREATE OR REPLACE FUNCTION public.analytics_period_money(
   p_tenant_id uuid,
   p_start timestamptz,
@@ -75,6 +83,7 @@ AS $$
   WHERE tenant_id = p_tenant_id
     AND event_type = 'segment_changed'
     AND from_segment IS NOT NULL
+    AND to_segment IS NOT NULL
     AND from_segment IS DISTINCT FROM to_segment
     AND created_at >= p_start
     AND created_at <  p_end
@@ -128,9 +137,8 @@ AS $$
 $$;
 
 -- Serves the LATERAL above: "next outbound message for this lead after T".
--- Without it the planner scans messages once per inbound row -- measured at
--- 243ms on a 2k-row table, dropping to 18ms with the index, and the gap
--- widens quadratically as message volume grows.
+-- Without it the planner re-scans messages once per inbound row, so the cost
+-- grows with inbound x outbound rather than linearly.
 CREATE INDEX IF NOT EXISTS idx_messages_lead_outbound_created
   ON public.messages (lead_id, created_at)
   WHERE direction = 'outbound';
