@@ -28,9 +28,10 @@ import {
   FunnelAnalyticsExtended,
   TemplatePerformanceRow,
 } from "@/lib/api";
+import { CompareTab } from "./CompareTab";
 
 type DateRange = "today" | "7d" | "30d";
-type Tab = "overview" | "channels" | "templates" | "inbound";
+type Tab = "overview" | "channels" | "templates" | "inbound" | "compare";
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
 
@@ -220,10 +221,20 @@ function OverviewTab({ range }: { range: DateRange }) {
   const cb = data.channel_breakdown;
   const channelSub = `WA: ${cb.whatsapp} · IG: ${cb.instagram} · FB: ${cb.facebook} · TG: ${cb.telegram}`;
 
+  // Cost per lead and reply speed are range-scoped, unlike the all-time
+  // counts beside them. Rendered as "—" rather than 0 when a tenant has no
+  // ad spend or no inbound messages in the range: absent is not zero.
+  const costPerLead = data.money?.cost_per_lead;
+  const costPerLeadValue =
+    costPerLead == null ? "—" : "₹" + Math.round(costPerLead).toLocaleString("en-IN");
+  const p50 = data.response_times?.p50_seconds;
+  const replyTimeValue =
+    p50 == null ? "—" : p50 < 60 ? `${Math.round(p50)}s` : `${Math.round(p50 / 60)}m`;
+
   return (
     <div className="space-y-6">
       {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6 xl:gap-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 xl:gap-4">
         <KpiCard label="Total Leads" value={total.toLocaleString()} sub={channelSub} />
         <KpiCard
           label="Hot Leads"
@@ -242,6 +253,20 @@ function OverviewTab({ range }: { range: DateRange }) {
         />
         <KpiCard label="AI Automation" value={`${aiPct}%`} sub={`${data.ai_vs_human.ai} AI · ${data.ai_vs_human.human} human`} />
         <KpiCard label="Avg Score" value={funnel?.avg_score != null ? funnel.avg_score.toFixed(1) : "—"} sub="lead quality" />
+        <KpiCard
+          label="Cost per Lead"
+          value={costPerLeadValue}
+          sub={data.money?.spend ? `₹${Math.round(data.money.spend).toLocaleString("en-IN")} spent in range` : "no ad spend in range"}
+        />
+        <KpiCard
+          label="Reply Time"
+          value={replyTimeValue}
+          sub={
+            data.response_times?.inbound_total
+              ? `median · ${data.response_times.answered ?? 0} of ${data.response_times.inbound_total} answered`
+              : "no messages in range"
+          }
+        />
       </div>
 
       {/* Charts row 1 */}
@@ -318,12 +343,14 @@ const CHANNEL_OPTIONS: { id: ChannelFilter; label: string; Icon: React.ElementTy
 ];
 
 function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_source_breakdown"] }) {
-  const total = breakdown.ai + breakdown.knowledge + breakdown.manual;
+  const total =
+    breakdown.ai + breakdown.knowledge + breakdown.reengagement + breakdown.manual;
   if (total === 0) return <p className="font-label text-xs text-on-surface-muted">No data</p>;
 
   const segments = [
     { label: "AI", value: breakdown.ai, color: "bg-primary" },
     { label: "Knowledge Base", value: breakdown.knowledge, color: "bg-blue-400" },
+    { label: "Re-engagement", value: breakdown.reengagement, color: "bg-amber-400" },
     { label: "Manual", value: breakdown.manual, color: "bg-[#a8a29e]" },
   ];
 
@@ -628,6 +655,7 @@ function InboundTab({ range }: { range: DateRange }) {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
+  { id: "compare", label: "Compare" },
   { id: "channels", label: "Channels" },
   { id: "inbound", label: "Inbound" },
   { id: "templates", label: "Templates" },
@@ -666,26 +694,29 @@ export default function AnalyticsPage() {
         </nav>
         </div>
 
-        {/* Date range pills */}
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15 sm:flex sm:w-fit">
-          {RANGES.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
-                range === r.id
-                  ? "bg-surface text-primary shadow-card"
-                  : "text-on-surface-muted hover:text-on-surface"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        {/* Date range pills — the Compare tab owns its own range control */}
+        {activeTab !== "compare" && (
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15 sm:flex sm:w-fit">
+            {RANGES.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r.id)}
+                className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
+                  range === r.id
+                    ? "bg-surface text-primary shadow-card"
+                    : "text-on-surface-muted hover:text-on-surface"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tab content */}
       {activeTab === "overview" && <OverviewTab range={range} />}
+      {activeTab === "compare" && <CompareTab />}
       {activeTab === "channels" && <ChannelsTab range={range} />}
       {activeTab === "inbound" && <InboundTab range={range} />}
       {activeTab === "templates" && <TemplatesTab />}

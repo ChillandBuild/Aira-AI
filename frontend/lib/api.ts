@@ -596,6 +596,10 @@ export interface FunnelAnalytics {
 }
 
 export interface AnalyticsOverviewExtended {
+  /** Optional: older cached responses and the operator console's narrower
+   *  fetches may not carry these, so callers must tolerate absence. */
+  money?: CompareMoney;
+  response_times?: CompareResponseTimes;
   daily_leads: { day: string; count: number }[];
   daily_messages: { day: string; inbound: number; outbound: number; ai: number; human: number }[];
   funnel: { inquiries: number; engaged: number; hot: number; converted: number };
@@ -613,7 +617,7 @@ export interface MessagingAnalytics {
   sent_today: number;
   received_today: number;
   ai_reply_rate: number | null;
-  reply_source_breakdown: { ai: number; knowledge: number; manual: number; unknown: number };
+  reply_source_breakdown: { ai: number; knowledge: number; reengagement: number; manual: number; unknown: number };
   daily_messages: { day: string; inbound: number; outbound: number }[];
 }
 
@@ -682,6 +686,73 @@ export interface FunnelAnalyticsExtended {
   avg_score: number | null;
   score_histogram: { range: string; count: number }[];
   hot_lead_aging: { bucket: string; count: number }[];
+}
+
+/** One point on the comparison overlay. Two periods of different lengths are
+ *  aligned by position ("Day N"), not calendar date, so they can be compared. */
+export interface ComparePoint {
+  index: number;
+  label: string;
+  current_day: string | null;
+  current: number | null;
+  previous_day: string | null;
+  previous: number | null;
+}
+
+export interface CompareMetric {
+  current: number;
+  previous: number;
+  /** null when the previous period had no activity — that is new activity,
+   *  not a percentage increase. */
+  delta_pct: number | null;
+}
+
+/** Ad spend joined to attributed leads. Empty object when a tenant has no
+ *  ad data — callers must tolerate missing keys. */
+export interface CompareMoney {
+  spend?: number;
+  impressions?: number;
+  clicks?: number;
+  ad_leads?: number;
+  ad_hot_leads?: number;
+  cost_per_lead?: number | null;
+  cost_per_hot_lead?: number | null;
+}
+
+export interface CompareResponseTimes {
+  inbound_total?: number;
+  answered?: number;
+  p50_seconds?: number | null;
+  p90_seconds?: number | null;
+}
+
+/** Segment transitions written by the scoring engine — "what the AI did". */
+export interface CompareMovement {
+  promoted: number;
+  demoted: number;
+  promoted_to_hot: number;
+  flows: { from: string; to: string; total: number }[];
+}
+
+export interface ComparePeriod {
+  start: string;
+  end: string;
+  summary: Record<string, number>;
+  money: CompareMoney;
+  response: CompareResponseTimes;
+  movement: CompareMovement;
+}
+
+export interface ComparePayload {
+  preset: string;
+  current: ComparePeriod;
+  previous: ComparePeriod;
+  summary_text: string;
+  metrics: Record<string, CompareMetric>;
+  money_metrics: Record<string, CompareMetric>;
+  response_metrics: Record<string, CompareMetric>;
+  movement_metrics: Record<string, CompareMetric>;
+  series: Record<string, ComparePoint[]>;
 }
 
 // Transient statuses worth a retry: server waking / restarting / behind a proxy.
@@ -1451,6 +1522,29 @@ export const api = {
       apiFetch<{ data: TimelineEvent[] }>(`/api/v1/analytics/caller-timeline?caller_id=${encodeURIComponent(callerId)}&date=${encodeURIComponent(date)}`),
     qaQueue: (limit: number) =>
       apiFetch<{ data: CallLog[] }>(`/api/v1/analytics/qa-queue?limit=${limit}`),
+    compare: (params: { preset: string; start?: string; end?: string }) => {
+      const qs = new URLSearchParams({ preset: params.preset });
+      if (params.start) qs.set("start", params.start);
+      if (params.end) qs.set("end", params.end);
+      return apiFetch<ComparePayload>(`/api/v1/analytics/compare?${qs.toString()}`);
+    },
+    exportCompareCsv: async (params: { preset: string; start?: string; end?: string }) => {
+      const headers = await getAuthHeaders();
+      const qs = new URLSearchParams({ preset: params.preset });
+      if (params.start) qs.set("start", params.start);
+      if (params.end) qs.set("end", params.end);
+      const res = await fetch(`${API_URL}/api/v1/analytics/compare/export?${qs.toString()}`, { headers });
+      if (!res.ok) throw new Error(`Export failed: ${res.status} ${res.statusText}`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "period_comparison.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    },
     exportTelecallingCsv: async (since?: string, until?: string) => {
       const headers = await getAuthHeaders();
       const qs = new URLSearchParams({ format: "csv" });

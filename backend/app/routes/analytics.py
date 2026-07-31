@@ -17,6 +17,17 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
 from app.services.inbound_leads_logic import INBOUND_SOURCES, aggregate_inbound
 from app.services.assignment import get_telecalling_config
+from app.services.analytics_compare import (
+    CSV_FIELDNAMES,
+    align_series,
+    build_deltas,
+    build_summary,
+    compare_csv_rows,
+    fill_days,
+    previous_period,
+    resolve_period,
+    summarise_movement,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1053,47 +1064,63 @@ async def overview_analytics(
     new_hot_leads_7d = sum(new_hot_leads_daily_map.values())
     new_hot_leads_7d_trend_pct = _pct_trend(new_hot_leads_7d, len(prior_stage_events_rows))
 
-    msgs_window = (
+    # Aggregate in SQL, never by pulling raw rows: PostgREST caps result sets
+    # at 1000 and returns no error, which was silently dropping 250 of the
+    # 1250 messages in a 7-day window (and over half of a 30-day window),
+    # under-reporting AI replies as 579 when the true figure was 730.
+    # p_timezone='UTC' preserves this endpoint's existing day keys -- the
+    # dashboard home and operator console consume this shape.
+    daily_msg_rows = (
         await asyncio.to_thread(
-            db.table("messages")
-            .select("id,direction,is_ai_generated,created_at,lead_id")
-            .eq("tenant_id", tenant_id)
-            .gte("created_at", window_start_dt.isoformat())
-            .execute
+            db.rpc("analytics_daily_messages", {
+                "p_tenant_id": tenant_id,
+                "p_start": window_start_dt.isoformat(),
+                "p_end": now.isoformat(),
+                "p_channel": None,
+                "p_timezone": "UTC",
+            }).execute
         )
     ).data or []
 
     daily_msgs_map = {d: {"inbound": 0, "outbound": 0, "ai": 0, "human": 0} for d in days_iso}
     ai_count = 0
     human_count = 0
+    today_iso_day = today_start.date().isoformat()
     ai_handled_today = 0
-    for m in msgs_window:
-        day = (m.get("created_at") or "")[:10]
-        direction = m.get("direction")
+    for row in daily_msg_rows:
+        day = str(row.get("day") or "")
+        ai = int(row.get("ai") or 0)
+        human = int(row.get("human") or 0)
         if day in daily_msgs_map:
-            if direction == "inbound":
-                daily_msgs_map[day]["inbound"] += 1
-            elif direction == "outbound":
-                daily_msgs_map[day]["outbound"] += 1
-                if m.get("is_ai_generated"):
-                    daily_msgs_map[day]["ai"] += 1
-                else:
-                    daily_msgs_map[day]["human"] += 1
-        if direction == "outbound":
-            if m.get("is_ai_generated"):
-                ai_count += 1
-                if (m.get("created_at") or "") >= today_start.isoformat():
-                    ai_handled_today += 1
-            else:
-                human_count += 1
+            daily_msgs_map[day] = {
+                "inbound": int(row.get("inbound") or 0),
+                "outbound": int(row.get("outbound") or 0),
+                "ai": ai,
+                "human": human,
+            }
+        ai_count += ai
+        human_count += human
+        if day == today_iso_day:
+            ai_handled_today = ai
+
+    # unreplied_24h needs per-lead rows, but only over 24h -- a bounded set,
+    # explicitly limited so it can never silently truncate the way the
+    # window-wide fetch above did.
+    recent_msgs = (
+        await asyncio.to_thread(
+            db.table("messages")
+            .select("direction,created_at,lead_id")
+            .eq("tenant_id", tenant_id)
+            .gte("created_at", (now - timedelta(hours=24)).isoformat())
+            .limit(1000)
+            .execute
+        )
+    ).data or []
 
     last_inbound: dict[str, str] = {}
     last_outbound: dict[str, str] = {}
-    day_ago_iso = (now - timedelta(hours=24)).isoformat()
-    for m in msgs_window:
+    for m in recent_msgs:
         ts = m.get("created_at") or ""
-        if ts < day_ago_iso:
-            continue
         lid = m.get("lead_id")
         if not lid:
             continue
@@ -1109,7 +1136,31 @@ async def overview_analytics(
         if last_outbound.get(lid, "") < ts
     )
 
+    # Cost-per-lead and first-response speed for the selected range. Additive
+    # fields only -- the dashboard home and operator console read this same
+    # response and must keep working untouched.
+    money_res, response_res = await asyncio.gather(
+        asyncio.to_thread(
+            db.rpc("analytics_period_money", {
+                "p_tenant_id": tenant_id,
+                "p_start": window_start_dt.isoformat(),
+                "p_end": now.isoformat(),
+            }).execute
+        ),
+        asyncio.to_thread(
+            db.rpc("analytics_response_times", {
+                "p_tenant_id": tenant_id,
+                "p_start": window_start_dt.isoformat(),
+                "p_end": now.isoformat(),
+            }).execute
+        ),
+    )
+    money_rows = money_res.data or []
+    response_rows = response_res.data or []
+
     return {
+        "money": money_rows[0] if money_rows else {},
+        "response_times": response_rows[0] if response_rows else {},
         "daily_leads": [{"day": d, "count": daily_leads_map[d]} for d in days_iso],
         "daily_leads_trend_pct": daily_leads_trend_pct,
         "daily_messages": [
@@ -1144,6 +1195,151 @@ async def overview_analytics(
     }
 
 
+SUMMARY_METRICS = (
+    "new_leads", "inbound_leads", "outbound_leads",
+    "hot", "warm", "cold", "disqualified", "avg_score",
+    "messages_in", "messages_out", "ai_replies", "human_replies", "converted",
+)
+
+MONEY_METRICS = (
+    "spend", "impressions", "clicks", "ad_leads", "ad_hot_leads",
+    "cost_per_lead", "cost_per_hot_lead",
+)
+RESPONSE_METRICS = ("inbound_total", "answered", "p50_seconds", "p90_seconds")
+MOVEMENT_METRICS = ("promoted", "demoted", "promoted_to_hot")
+
+LEAD_SERIES_KEYS = ("inbound", "outbound", "hot", "warm", "cold", "disqualified")
+MESSAGE_SERIES_KEYS = ("inbound", "outbound", "ai", "human")
+
+
+def _ist_bounds(start: date, end: date) -> tuple[str, str]:
+    """Inclusive IST dates -> half-open UTC timestamptz bounds for the RPCs."""
+    start_utc = datetime.combine(start, datetime.min.time(), timezone.utc) - IST_OFFSET
+    end_utc = datetime.combine(end + timedelta(days=1), datetime.min.time(), timezone.utc) - IST_OFFSET
+    return start_utc.isoformat(), end_utc.isoformat()
+
+
+async def _period_payload(db, tenant_id: str, start: date, end: date) -> dict:
+    """Fetch summary + both daily series for one period. Three RPCs, concurrent."""
+    start_iso, end_iso = _ist_bounds(start, end)
+    params = {"p_tenant_id": tenant_id, "p_start": start_iso, "p_end": end_iso}
+
+    summary_res, leads_res, msgs_res, money_res, movement_res, response_res = await asyncio.gather(
+        asyncio.to_thread(db.rpc("analytics_period_summary", params).execute),
+        asyncio.to_thread(db.rpc("analytics_daily_leads", params).execute),
+        asyncio.to_thread(db.rpc("analytics_daily_messages", params).execute),
+        asyncio.to_thread(db.rpc("analytics_period_money", params).execute),
+        asyncio.to_thread(db.rpc("analytics_segment_movement", params).execute),
+        asyncio.to_thread(db.rpc("analytics_response_times", params).execute),
+    )
+
+    def first_row(res) -> dict:
+        rows = res.data or []
+        return rows[0] if rows else {}
+
+    return {
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "summary": first_row(summary_res),
+        "money": first_row(money_res),
+        "response": first_row(response_res),
+        "movement": summarise_movement(movement_res.data or []),
+        "daily_leads": fill_days(leads_res.data or [], start, end, LEAD_SERIES_KEYS),
+        "daily_messages": fill_days(msgs_res.data or [], start, end, MESSAGE_SERIES_KEYS),
+    }
+
+
+@router.get("/compare")
+async def compare_analytics(
+    preset: str = Query("last_7d"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
+):
+    """Compare a period against its natural predecessor.
+
+    Day bucketing and period boundaries are IST -- this is an India-based
+    product and a UTC "day" starts at 05:30 local, which shifts 6% of rows
+    into the wrong bucket.
+    """
+    today_ist = (datetime.now(timezone.utc) + IST_OFFSET).date()
+    try:
+        cur_start, cur_end = resolve_period(preset, start, end, today_ist)
+        prev_start, prev_end = previous_period(cur_start, cur_end, preset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    db = get_supabase()
+    current, previous = await asyncio.gather(
+        _period_payload(db, tenant_id, cur_start, cur_end),
+        _period_payload(db, tenant_id, prev_start, prev_end),
+    )
+
+    cur_sum = current["summary"]
+    prev_sum = previous["summary"]
+
+    def series_for(source: str, key: str) -> list[dict]:
+        return align_series(current[source], previous[source], key)
+
+    return {
+        "preset": preset,
+        "current": {
+            "start": current["start"], "end": current["end"],
+            "summary": cur_sum,
+            "money": current["money"],
+            "response": current["response"],
+            "movement": current["movement"],
+        },
+        "previous": {
+            "start": previous["start"], "end": previous["end"],
+            "summary": prev_sum,
+            "money": previous["money"],
+            "response": previous["response"],
+            "movement": previous["movement"],
+        },
+        "summary_text": build_summary(cur_sum, prev_sum, cur_start, cur_end),
+        "metrics": build_deltas(cur_sum, prev_sum, SUMMARY_METRICS),
+        "money_metrics": build_deltas(current["money"], previous["money"], MONEY_METRICS),
+        "response_metrics": build_deltas(
+            current["response"], previous["response"], RESPONSE_METRICS
+        ),
+        "movement_metrics": build_deltas(
+            current["movement"], previous["movement"], MOVEMENT_METRICS
+        ),
+        "series": {
+            "leads_inbound": series_for("daily_leads", "inbound"),
+            "leads_outbound": series_for("daily_leads", "outbound"),
+            "messages_in": series_for("daily_messages", "inbound"),
+            "messages_out": series_for("daily_messages", "outbound"),
+        },
+    }
+
+
+@router.get("/compare/export")
+async def export_compare(
+    preset: str = Query("last_7d"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    tenant_id: str = Depends(get_dashboard_analytics_tenant_id),
+):
+    """Same data as /compare, as a CSV the client can open in Excel."""
+    payload = await compare_analytics(preset=preset, start=start, end=end, tenant_id=tenant_id)
+    rows = compare_csv_rows(payload["series"])
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=CSV_FIELDNAMES)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+
+    filename = f"comparison_{payload['current']['start']}_vs_{payload['previous']['start']}.csv"
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode()),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @router.get("/messaging")
 async def messaging_analytics(
     tenant_id: str = Depends(get_analytics_tenant_id),
@@ -1157,16 +1353,22 @@ async def messaging_analytics(
 
     window_start_dt, days_iso = _range_params(range)
 
-    # Fetch messages within window
-    q = (
-        db.table("messages")
-        .select("id,direction,is_ai_generated,reply_source,created_at,channel")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", window_start_dt.isoformat())
+    # Aggregate in SQL -- a raw window fetch hits PostgREST's silent 1000-row
+    # cap (1250 rows in 7 days, 2143 in 30).
+    rpc_params = {
+        "p_tenant_id": tenant_id,
+        "p_start": window_start_dt.isoformat(),
+        "p_end": now.isoformat(),
+        "p_channel": None if channel == "all" else channel,
+    }
+    daily_res, reply_source_res = await asyncio.gather(
+        asyncio.to_thread(
+            db.rpc("analytics_daily_messages", {**rpc_params, "p_timezone": "UTC"}).execute
+        ),
+        asyncio.to_thread(db.rpc("analytics_reply_sources", rpc_params).execute),
     )
-    if channel != "all":
-        q = q.eq("channel", channel)
-    msgs = (await asyncio.to_thread(q.execute)).data or []
+    daily_rows = daily_res.data or []
+    reply_source_rows = reply_source_res.data or []
 
     # sent_today / received_today — always from today regardless of range
     today_q = (
@@ -1186,35 +1388,36 @@ async def messaging_analytics(
     daily_msgs_map = {d: {"inbound": 0, "outbound": 0} for d in days_iso}
     outbound_total = 0
     outbound_ai = 0
-    reply_source_counts: dict[str, int] = {"ai": 0, "knowledge": 0, "manual": 0, "unknown": 0}
-
-    for m in msgs:
-        day = (m.get("created_at") or "")[:10]
+    for row in daily_rows:
+        day = str(row.get("day") or "")
         if day in daily_msgs_map:
-            direction = m.get("direction")
-            if direction == "inbound":
-                daily_msgs_map[day]["inbound"] += 1
-            elif direction == "outbound":
-                daily_msgs_map[day]["outbound"] += 1
+            daily_msgs_map[day] = {
+                "inbound": int(row.get("inbound") or 0),
+                "outbound": int(row.get("outbound") or 0),
+            }
+        outbound_total += int(row.get("outbound") or 0)
+        outbound_ai += int(row.get("ai") or 0)
 
-        if m.get("direction") == "outbound":
-            outbound_total += 1
-            if m.get("is_ai_generated"):
-                outbound_ai += 1
-
-            # reply_source breakdown — outbound only (inbound has null reply_source)
-            rs = m.get("reply_source")
-            if rs in ("ai", "knowledge", "automation"):
-                # treat "automation" as a sub-type; map to "ai" bucket if not already named
-                key = rs if rs in reply_source_counts else "ai"
-                reply_source_counts[key] += 1
-            elif rs == "manual":
-                reply_source_counts["manual"] += 1
-            elif rs is None:
-                if not m.get("is_ai_generated"):
-                    reply_source_counts["manual"] += 1
-                else:
-                    reply_source_counts["unknown"] += 1
+    # reply_source breakdown — outbound only (inbound has null reply_source).
+    # 'reengagement' is a real, high-volume source (365 messages, 29% of
+    # outbound) that previously matched no branch and was silently dropped,
+    # so the bar's percentages were computed against an understated total.
+    reply_source_counts: dict[str, int] = {
+        "ai": 0, "knowledge": 0, "reengagement": 0, "manual": 0, "unknown": 0,
+    }
+    for row in reply_source_rows:
+        source = row.get("reply_source")
+        count = int(row.get("total") or 0)
+        if source in reply_source_counts:
+            reply_source_counts[source] += count
+        elif source == "automation":
+            reply_source_counts["ai"] += count
+        elif source is None:
+            key = "unknown" if row.get("is_ai_generated") else "manual"
+            reply_source_counts[key] += count
+        else:
+            # Any future reply_source lands here rather than vanishing.
+            reply_source_counts["unknown"] += count
 
     ai_reply_rate: float | None = round(outbound_ai / outbound_total, 4) if outbound_total > 0 else None
 
