@@ -204,6 +204,24 @@ class AnalyticsCompareTests(unittest.TestCase):
         res = self.client.get("/api/v1/analytics/compare?preset=forever")
         self.assertEqual(res.status_code, 400)
 
+    @patch("app.routes.analytics.get_supabase")
+    def test_engagement_rate_flows_through_to_the_metrics_block(self, mock_get_db):
+        self._mock_db(
+            mock_get_db,
+            summaries=[
+                [{"new_leads": 20, "engagement_rate": 65}],
+                [{"new_leads": 10, "engagement_rate": 50}],
+            ],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+        )
+        body = self.client.get(
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-15&end=2026-07-16"
+        ).json()
+        self.assertEqual(body["metrics"]["engagement_rate"]["current"], 65)
+        self.assertEqual(body["metrics"]["engagement_rate"]["previous"], 50)
+        self.assertEqual(body["metrics"]["engagement_rate"]["delta_pct"], 30)
+
 
 if __name__ == "__main__":
     unittest.main()

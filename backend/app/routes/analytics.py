@@ -1223,6 +1223,7 @@ SUMMARY_METRICS = (
     "new_leads", "inbound_leads", "outbound_leads",
     "hot", "warm", "cold", "disqualified", "avg_score",
     "messages_in", "messages_out", "ai_replies", "human_replies", "converted",
+    "engagement_rate",
 )
 
 MONEY_METRICS = (

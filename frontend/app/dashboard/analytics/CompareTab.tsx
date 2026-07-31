@@ -35,6 +35,7 @@ const TABLE_ROWS: { key: string; label: string }[] = [
   { key: "ai_replies", label: "— sent by AI" },
   { key: "human_replies", label: "— sent by a human" },
   { key: "converted", label: "Conversions" },
+  { key: "engagement_rate", label: "Engagement rate (% of leads replied to)" },
 ];
 
 // Past a few hundred percent a percentage stops communicating: "+13700%" is
