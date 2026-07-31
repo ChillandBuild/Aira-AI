@@ -27,6 +27,7 @@ import {
   MessagingAnalytics,
   FunnelAnalyticsExtended,
   TemplatePerformanceRow,
+  StaleHotLead,
 } from "@/lib/api";
 import { CompareTab } from "./CompareTab";
 
@@ -210,6 +211,16 @@ function OverviewTab({ range }: { range: DateRange }) {
     return () => { isCurrent = false; };
   }, [retryKey]);
 
+  const [staleLeads, setStaleLeads] = useState<StaleHotLead[] | null>(null);
+
+  useEffect(() => {
+    let isCurrent = true;
+    api.analytics.staleHotLeads({ min_hours: 24, limit: 10 })
+      .then((d) => { if (isCurrent) setStaleLeads(d.leads); })
+      .catch(() => {});
+    return () => { isCurrent = false; };
+  }, [retryKey]);
+
   if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
   if (!data) return <SkeletonGrid cols={6} />;
 
@@ -324,6 +335,27 @@ function OverviewTab({ range }: { range: DateRange }) {
       {funnel && funnel.hot_lead_aging.length > 0 && (
         <SectionCard title="Hot Leads (Segment A) — time without conversion">
           <HotLeadAging aging={funnel.hot_lead_aging} />
+        </SectionCard>
+      )}
+
+      {staleLeads && staleLeads.length > 0 && (
+        <SectionCard title="Hot leads waiting on a reply">
+          <div className="space-y-1">
+            {staleLeads.map((lead) => (
+              <a
+                key={lead.id}
+                href="/dashboard/leads?segment=A"
+                className="flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-surface-low/60"
+              >
+                <span className="font-body text-sm text-on-surface">
+                  {lead.name || lead.phone}
+                </span>
+                <span className="font-label text-xs text-on-surface-muted">
+                  {lead.last_outbound_at ? "no reply since last message" : "never contacted"}
+                </span>
+              </a>
+            ))}
+          </div>
         </SectionCard>
       )}
     </div>
