@@ -18,8 +18,8 @@ from app.dependencies.tenant import get_tenant_and_role
 def _stub_table(name):
     """A table mock that answers every chain shape /overview uses."""
     tbl = MagicMock()
-    tbl.select.return_value.eq.return_value.is_.return_value.execute.return_value = MagicMock(data=[])
-    tbl.select.return_value.eq.return_value.is_.return_value.gte.return_value.lt.return_value.execute.return_value = MagicMock(data=[])
+    tbl.select.return_value.eq.return_value.is_.return_value.range.return_value.execute.return_value = MagicMock(data=[])
+    tbl.select.return_value.eq.return_value.is_.return_value.gte.return_value.lt.return_value.range.return_value.execute.return_value = MagicMock(data=[])
     chain = tbl.select.return_value.eq.return_value.eq.return_value.gte.return_value
     chain.execute.return_value = MagicMock(data=[])
     chain.lt.return_value.execute.return_value = MagicMock(data=[])

@@ -32,9 +32,9 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
 
         leads_tbl = MagicMock()
         leads_chain = leads_tbl.select.return_value.eq.return_value.is_.return_value
-        leads_chain.execute.return_value = MagicMock(data=leads_rows)
+        leads_chain.range.return_value.execute.return_value = MagicMock(data=leads_rows)
         # prior-window leads fetch adds .gte().lt()
-        leads_chain.gte.return_value.lt.return_value.execute.return_value = MagicMock(data=prior_leads_rows)
+        leads_chain.gte.return_value.lt.return_value.range.return_value.execute.return_value = MagicMock(data=prior_leads_rows)
 
         msgs_tbl = MagicMock()
         msgs_tbl.select.return_value.eq.return_value.gte.return_value.execute.return_value = MagicMock(data=msgs_rows)

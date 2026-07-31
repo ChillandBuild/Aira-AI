@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
+from app.services.pagination import fetch_all_rows
 from app.services.inbound_leads_logic import INBOUND_SOURCES, aggregate_inbound
 from app.services.assignment import get_telecalling_config
 from app.services.analytics_compare import (
@@ -838,14 +839,11 @@ async def funnel_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
     db = get_supabase()
     week = _week_start()
 
-    leads_all = (
-        await asyncio.to_thread(
-            db.table("leads")
-            .select("id,segment,source,score,created_at")
-            .eq("tenant_id", tenant_id)
-            .execute
-        )
-    ).data or []
+    leads_all = await fetch_all_rows(
+        lambda: db.table("leads")
+        .select("id,segment,source,score,created_at")
+        .eq("tenant_id", tenant_id)
+    )
 
     total_leads = len(leads_all)
 
@@ -952,27 +950,21 @@ async def overview_analytics(
     window_span = now - window_start_dt
     prior_window_start_dt = window_start_dt - window_span
 
-    leads_rows = (
-        await asyncio.to_thread(
-            db.table("leads")
-            .select("id,phone,segment,score,source,created_at,converted_at,ai_enabled,deleted_at,ad_campaign_id")
-            .eq("tenant_id", tenant_id)
-            .is_("deleted_at", "null")
-            .execute
-        )
-    ).data or []
+    leads_rows = await fetch_all_rows(
+        lambda: db.table("leads")
+        .select("id,phone,segment,score,source,created_at,converted_at,ai_enabled,deleted_at,ad_campaign_id")
+        .eq("tenant_id", tenant_id)
+        .is_("deleted_at", "null")
+    )
 
-    prior_leads_rows = (
-        await asyncio.to_thread(
-            db.table("leads")
-            .select("id,created_at,converted_at")
-            .eq("tenant_id", tenant_id)
-            .is_("deleted_at", "null")
-            .gte("created_at", prior_window_start_dt.isoformat())
-            .lt("created_at", window_start_dt.isoformat())
-            .execute
-        )
-    ).data or []
+    prior_leads_rows = await fetch_all_rows(
+        lambda: db.table("leads")
+        .select("id,created_at,converted_at")
+        .eq("tenant_id", tenant_id)
+        .is_("deleted_at", "null")
+        .gte("created_at", prior_window_start_dt.isoformat())
+        .lt("created_at", window_start_dt.isoformat())
+    )
 
     stage_events_rows = (
         await asyncio.to_thread(
@@ -1451,16 +1443,14 @@ async def inbound_analytics(
     today_iso = datetime.now(timezone.utc).date().isoformat()
 
     try:
-        rows = await asyncio.to_thread(
-            db.table("leads")
+        leads = await fetch_all_rows(
+            lambda: db.table("leads")
             .select("id,source,ad_campaign_id,segment,created_at")
             .eq("tenant_id", tenant_id)
             .in_("source", list(INBOUND_SOURCES))
             .is_("deleted_at", "null")
             .gte("created_at", start_dt.isoformat())
-            .execute
         )
-        leads = rows.data or []
     except Exception as e:
         logger.error(f"inbound analytics error: {e}")
         leads = []
