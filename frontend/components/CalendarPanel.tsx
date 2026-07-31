@@ -235,7 +235,7 @@ export function CalendarPanel({ isOpen, onClose }: CalendarPanelProps) {
                 value={newTodo}
                 onChange={(e) => setNewTodo(e.target.value)}
                 disabled={loading}
-                className="w-full pl-4 pr-12 py-3.5 bg-surface-subtle border-none rounded-2xl text-sm font-body text-ink placeholder:text-ink-muted/50 focus:ring-2 focus:ring-primary/20 transition-all"
+                className="w-full pl-4 pr-12 py-3.5 bg-surface-subtle border-none rounded-2xl text-sm font-body text-ink placeholder:text-ink-muted/50 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               />
               <button 
                 type="submit"

@@ -61,7 +61,10 @@ async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...authHeaders },
     ...opts,
   });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(typeof body?.detail === "string" ? body.detail : `API error ${res.status}`);
+  }
   return res.json();
 }
 
@@ -248,7 +251,7 @@ function IncidentRow({ incident }: { incident: Incident }) {
 
 const numbersApi = {
   list: () =>
-    apiFetch<{ data: PhoneNumber[] }>("/api/v1/numbers").then((r) => r.data ?? []),
+    apiFetch<{ data: PhoneNumber[]; numbers_pool?: { limit: number; used: number } }>("/api/v1/numbers"),
   create: (payload: {
     provider: string;
     number: string;
@@ -281,6 +284,7 @@ function NumbersPageContent() {
   const activeTab = (rawTab === "activity" ? "activity" : "pool") as "pool" | "activity";
 
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
+  const [numbersPool, setNumbersPool] = useState<{ limit: number; used: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -312,17 +316,21 @@ function NumbersPageContent() {
   };
 
   async function reload() {
-    const rows = await numbersApi.list();
-    setNumbers(rows);
+    const res = await numbersApi.list();
+    setNumbers(res.data ?? []);
+    setNumbersPool(res.numbers_pool ?? null);
   }
 
   useEffect(() => {
     setLoading(true);
-    numbersApi.list().then((rows) => {
-      setNumbers(rows);
+    numbersApi.list().then((res) => {
+      setNumbers(res.data ?? []);
+      setNumbersPool(res.numbers_pool ?? null);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  const atNumberLimit = !!numbersPool && numbersPool.used >= numbersPool.limit;
 
   const fetchIncidents = useCallback(async (currentOffset: number, append: boolean) => {
     try {
@@ -553,7 +561,14 @@ function NumbersPageContent() {
 
           <div className="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 md:rounded-card md:p-8">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="font-display text-lg font-bold text-primary">Number Pool</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-lg font-bold text-primary">Number Pool</h2>
+                {numbersPool && (
+                  <span className="font-label text-[10px] font-bold text-on-surface-muted bg-surface-mid px-2 py-0.5 rounded-full">
+                    {numbersPool.used}/{numbersPool.limit} used
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 {canManageNumbers && (
                   <button
@@ -568,8 +583,10 @@ function NumbersPageContent() {
                 )}
                 {canManageNumbers && (
                   <button
-                    onClick={() => setShowAddModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg font-label text-xs font-semibold hover:bg-primary/90 transition-colors"
+                    onClick={() => !atNumberLimit && setShowAddModal(true)}
+                    disabled={atNumberLimit}
+                    title={atNumberLimit ? `Phone number limit reached (${numbersPool!.used}/${numbersPool!.limit}). Delete a number or request more from Subscriptions.` : undefined}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg font-label text-xs font-semibold hover:bg-primary/90 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary"
                   >
                     <Plus size={13} />
                     Add Number

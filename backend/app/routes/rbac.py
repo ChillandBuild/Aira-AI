@@ -9,6 +9,7 @@ from pydantic import BaseModel, EmailStr
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role, require_permission
 from app.services.assignment import get_telecalling_config
+from app.services.entitlements import get_purchased_quantity
 from app.services.rbac import (
     DEFAULT_TELECALLER_PERMISSIONS,
     PERMISSION_CATALOG,
@@ -96,7 +97,30 @@ def _role_map(db, tenant_id: str) -> dict[str, dict]:
 
 
 def _serialize_role(role: dict) -> dict:
-    return {**role, "permissions": normalize_permissions(role.get("permissions"))}
+    serialized = {**role, "permissions": normalize_permissions(role.get("permissions"))}
+    serialized["is_telecaller"] = is_telecaller_role(serialized)
+    return serialized
+
+
+def _active_telecaller_count(db, tenant_id: str) -> int:
+    result = (
+        db.table("callers")
+        .select("id", count="exact")
+        .eq("tenant_id", tenant_id)
+        .eq("active", True)
+        .execute()
+    )
+    return result.count or 0
+
+
+def _check_telecaller_seat_available(db, tenant_id: str) -> None:
+    seat_limit = get_purchased_quantity(db, tenant_id, "telecaller_seats")
+    current = _active_telecaller_count(db, tenant_id)
+    if current >= seat_limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Telecaller seat limit reached ({current}/{seat_limit}). Request more seats from Subscriptions.",
+        )
 
 
 def _caller_for_user(db, tenant_id: str, user_id: str) -> dict | None:
@@ -269,7 +293,12 @@ def list_users(ctx: dict = Depends(require_roles_read)):
             .order("created_at")
             .execute()
         )
-    return {"data": [_serialize_user(db, ctx["tenant_id"], m, roles) for m in (members.data or [])]}
+    seat_limit = get_purchased_quantity(db, ctx["tenant_id"], "telecaller_seats")
+    seat_used = _active_telecaller_count(db, ctx["tenant_id"])
+    return {
+        "data": [_serialize_user(db, ctx["tenant_id"], m, roles) for m in (members.data or [])],
+        "telecaller_seats": {"limit": seat_limit, "used": seat_used},
+    }
 
 
 @router.post("/users")
@@ -284,6 +313,8 @@ def create_user(payload: UserPayload, ctx: dict = Depends(require_roles_manage))
     calling_provider = get_telecalling_config(ctx["tenant_id"]).get("calling_provider", "telecmi")
     if is_telecaller_role(role) and calling_provider == "sim_basic" and not (payload.phone or "").strip():
         raise HTTPException(status_code=400, detail="Phone number is required for SIM Basic telecallers")
+    if is_telecaller_role(role):
+        _check_telecaller_seat_available(db, ctx["tenant_id"])
 
     try:
         result = db.auth.admin.create_user({
@@ -333,6 +364,11 @@ def update_user(user_id: str, payload: UserUpdatePayload, ctx: dict = Depends(re
     role = get_user_role(db, ctx["tenant_id"], role_id)
     if not role:
         raise HTTPException(status_code=400, detail="Choose a valid role")
+
+    existing_caller = _caller_for_user(db, ctx["tenant_id"], user_id)
+    becoming_telecaller = is_telecaller_role(role) and not (existing_caller and existing_caller.get("active"))
+    if becoming_telecaller:
+        _check_telecaller_seat_available(db, ctx["tenant_id"])
 
     updates = {}
     if payload.full_name is not None:

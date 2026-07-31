@@ -111,6 +111,16 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
             const body = await res.json().catch(() => null);
             const detail = typeof body?.detail === "string" ? body.detail : `team/me ${res.status}`;
             lastError = detail;
+            // This account's tenant membership was removed (e.g. an admin deleted
+            // this telecaller) while the browser session was still open. There is
+            // nothing to retry -- surfacing a dead-end "Retry" loop just confuses
+            // the user, so sign them out and send them back to login instead.
+            if (res.status === 403 && detail.startsWith("No tenant associated")) {
+              clearRoleCache();
+              await supabase.auth.signOut();
+              window.location.href = "/login?reason=removed";
+              return;
+            }
             if (![502, 503, 504].includes(res.status)) {
               setBootstrapError(detail);
               return;

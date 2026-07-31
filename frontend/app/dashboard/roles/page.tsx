@@ -102,6 +102,7 @@ export default function RolesPage() {
   const [users, setUsers] = useState<RbacUser[]>([]);
   const [permissions, setPermissions] = useState<PermissionDef[]>([]);
   const [callingProvider, setCallingProvider] = useState<CallingProvider>("telecmi");
+  const [telecallerSeats, setTelecallerSeats] = useState<{ limit: number; used: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,8 +139,14 @@ export default function RolesPage() {
 
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles]);
   const selectedRole = roleById.get(userDraft.role_id);
-  const selectedRoleIsTelecaller = selectedRole?.slug === "telecaller" || selectedRole?.permissions.includes("telecalling.dialer");
+  const selectedRoleIsTelecaller = selectedRole?.is_telecaller ?? (selectedRole?.slug === "telecaller" || selectedRole?.permissions.includes("telecalling.dialer"));
   const editingRole = editingRoleId ? roleById.get(editingRoleId) : null;
+  const editingUser = editingUserId ? users.find((u) => u.user_id === editingUserId) : null;
+  const alreadyActiveTelecaller = !!editingUser?.caller_profile?.active;
+  // Only a NEW telecaller enrollment consumes a seat -- editing a user who's
+  // already an active telecaller (e.g. changing their name) must not be blocked.
+  const wouldConsumeSeat = selectedRoleIsTelecaller && !alreadyActiveTelecaller;
+  const atSeatLimit = wouldConsumeSeat && !!telecallerSeats && telecallerSeats.used >= telecallerSeats.limit;
 
   const filteredRoles = useMemo(() => {
     const query = roleSearch.trim().toLowerCase();
@@ -159,6 +166,7 @@ export default function RolesPage() {
       setRoles(roleRes.data);
       setPermissions(roleRes.permissions);
       setUsers(userRes.data);
+      setTelecallerSeats(userRes.telecaller_seats ?? null);
       setCallingProvider(assignmentRes?.calling_provider ?? "telecmi");
       if (roleRes.setup_required) {
         setError(roleRes.detail ?? "RBAC setup is not complete yet.");
@@ -269,6 +277,7 @@ export default function RolesPage() {
 
   async function saveUser(e: React.FormEvent) {
     e.preventDefault();
+    if (atSeatLimit) return;
     setSaving(true);
     setError(null);
     try {
@@ -570,17 +579,37 @@ export default function RolesPage() {
               )}
               {selectedRoleIsTelecaller && (
                 <div className="grid gap-3 rounded-2xl border border-primary/15 bg-primary-light/50 p-3">
-                  <div className="flex items-center gap-2 font-label text-[10px] font-black uppercase tracking-wider text-primary">
-                    <Users size={13} /> Telecaller setup - {providerLabel(callingProvider)}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 font-label text-[10px] font-black uppercase tracking-wider text-primary">
+                      <Users size={13} /> Telecaller setup - {providerLabel(callingProvider)}
+                    </div>
+                    {telecallerSeats && (
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 font-label text-[10px] font-bold",
+                        atSeatLimit ? "bg-red-100 text-red-700" : "bg-white text-ink-muted",
+                      )}>
+                        {telecallerSeats.used}/{telecallerSeats.limit} seats
+                      </span>
+                    )}
                   </div>
                   <input className="input bg-white" placeholder="Phone number" value={userDraft.phone} onChange={(e) => setUserDraft((d) => ({ ...d, phone: e.target.value }))} />
                   {callingProvider === "telecmi" && (
                     <input className="input bg-white" placeholder="TeleCMI agent ID" value={userDraft.telecmi_agent_id} onChange={(e) => setUserDraft((d) => ({ ...d, telecmi_agent_id: e.target.value }))} />
                   )}
+                  {atSeatLimit && (
+                    <p className="font-body text-xs text-red-700">
+                      Telecaller seat limit reached ({telecallerSeats!.used}/{telecallerSeats!.limit}). Delete a telecaller or request more seats from Subscriptions to add another.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
-            <button type="submit" disabled={saving} className="btn-primary w-full justify-center">
+            <button
+              type="submit"
+              disabled={saving || atSeatLimit}
+              title={atSeatLimit ? `Telecaller seat limit reached (${telecallerSeats!.used}/${telecallerSeats!.limit})` : undefined}
+              className="btn-primary w-full justify-center"
+            >
               {saving ? <Loader2 size={14} className="animate-spin" /> : editingUserId ? <CheckCircle2 size={14} /> : <UserPlus size={14} />}
               {editingUserId ? "Save User" : "Create User"}
             </button>

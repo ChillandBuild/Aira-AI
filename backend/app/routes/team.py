@@ -2,7 +2,7 @@ import logging
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role, require_permission
@@ -14,15 +14,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 require_team_view = require_permission("team.view")
 require_team_manage = require_permission("team.manage")
-
-
-class InvitePayload(BaseModel):
-    email: EmailStr
-    password: str
-    name: str | None = None
-    phone: str | None = None
-    telecmi_agent_id: str | None = None
-    telecmi_agent_password: str | None = None
 
 
 class AttendancePayload(BaseModel):
@@ -165,82 +156,6 @@ def list_team(ctx: dict = Depends(require_team_view)):
             "caller_profile": callers.get(m["user_id"]),
         })
     return {"data": result, "calling_provider": calling_provider}
-
-
-@router.post("/invite")
-async def invite_member(payload: InvitePayload, ctx: dict = Depends(get_tenant_and_role)):
-    if ctx["role"] != "owner" and "team.manage" not in (ctx.get("permissions") or []):
-        raise HTTPException(status_code=403, detail="Permission required: team.manage")
-
-    db = get_supabase()
-
-    calling_provider = get_telecalling_config(ctx["tenant_id"]).get("calling_provider", "telecmi")
-    phone = (payload.phone or "").strip() or None
-    telecmi_agent_id = (payload.telecmi_agent_id or "").strip() or None
-    telecmi_agent_password = (payload.telecmi_agent_password or "").strip() or None
-
-    if calling_provider == "sim_basic" and not phone:
-        raise HTTPException(status_code=400, detail="Phone number is required for SIM Basic telecallers")
-    if calling_provider == "telecmi" and (not telecmi_agent_id or not telecmi_agent_password):
-        raise HTTPException(status_code=400, detail="TeleCMI agent id and password are required for TeleCMI telecallers")
-
-    try:
-        result = db.auth.admin.create_user({
-            "email": payload.email,
-            "password": payload.password,
-            "email_confirm": True,
-        })
-        user = result.user
-        invited_user_id = user.id if hasattr(user, "id") else user["id"]
-    except Exception as e:
-        msg = str(e)
-        if "already" in msg.lower() or "duplicate" in msg.lower() or "registered" in msg.lower():
-            raise HTTPException(status_code=400, detail="A user with this email already exists")
-        logger.error(f"create_user failed: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to create user: {msg}")
-
-    try:
-        existing = (
-            db.table("tenant_users")
-            .select("id")
-            .eq("user_id", invited_user_id)
-            .eq("tenant_id", ctx["tenant_id"])
-            .limit(1)
-            .execute()
-        )
-        if not existing.data:
-            db.table("tenant_users").insert({
-                "tenant_id": ctx["tenant_id"],
-                "user_id": invited_user_id,
-                "role": "caller",
-            }).execute()
-
-        caller_existing = (
-            db.table("callers")
-            .select("id")
-            .eq("user_id", invited_user_id)
-            .eq("tenant_id", ctx["tenant_id"])
-            .limit(1)
-            .execute()
-        )
-        if not caller_existing.data:
-            caller_row = {
-                "tenant_id": ctx["tenant_id"],
-                "user_id": invited_user_id,
-                "name": payload.name or payload.email.split("@")[0],
-                "phone": phone,
-                "active": True,
-            }
-            if calling_provider == "telecmi":
-                caller_row["telecmi_agent_id"] = telecmi_agent_id
-                caller_row["telecmi_agent_password"] = telecmi_agent_password
-            db.table("callers").insert(caller_row).execute()
-    except Exception as e:
-        logger.error(f"tenant_users/callers insert failed: {e}")
-        raise HTTPException(status_code=500, detail=f"User created but assignment failed: {e}")
-
-    logger.info(f"Created telecaller {payload.email} for tenant {ctx['tenant_id']}")
-    return {"invited": True, "email": payload.email, "user_id": invited_user_id}
 
 
 @router.patch("/shift-config")

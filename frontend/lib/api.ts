@@ -524,6 +524,7 @@ export interface ClientRole {
   description: string | null;
   permissions: string[];
   is_system_template: boolean;
+  is_telecaller: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -1687,11 +1688,6 @@ export const api = {
   team: {
     me: () => apiFetch<MyProfile>("/api/v1/team/me"),
     list: () => apiFetch<{ data: TeamMember[]; calling_provider?: "telecmi" | "sim_basic" }>("/api/v1/team/"),
-    invite: (email: string, password: string, name?: string, phone?: string, telecmiAgentId?: string, telecmiAgentPassword?: string) =>
-      apiFetch<{ invited: boolean; email: string; user_id: string }>("/api/v1/team/invite", {
-        method: "POST",
-        body: JSON.stringify({ email, password, name, phone, telecmi_agent_id: telecmiAgentId, telecmi_agent_password: telecmiAgentPassword }),
-      }),
     remove: (userId: string) =>
       apiFetch<{ removed: boolean }>(`/api/v1/team/${userId}`, { method: "DELETE" }),
     attendanceGrid: (params?: { month?: string; from?: string; to?: string }) => {
@@ -1745,7 +1741,7 @@ export const api = {
         method: "DELETE",
       }),
     users: () =>
-      apiFetch<{ data: RbacUser[] }>("/api/v1/rbac/users"),
+      apiFetch<{ data: RbacUser[]; telecaller_seats?: { limit: number; used: number } }>("/api/v1/rbac/users"),
     createUser: (data: {
       full_name: string;
       email: string;

@@ -586,8 +586,8 @@ export function CartBuilder({
                   <div>
                     <p className="text-sm font-semibold text-ink">Telecaller Seats</p>
                     <p className="text-xs text-ink-muted">
-                      Unlimited for now - {formatPricingText(seats, selected[seats.feature_key] ?? 1, true)}
-                      {existingQtyFor(seats.feature_key) > 0 && ` - currently ${existingQtyFor(seats.feature_key)}`}
+                      {formatPricingText(seats, selected[seats.feature_key] ?? 1, true)}
+                      {existingQtyFor(seats.feature_key) > 0 && ` - currently ${existingQtyFor(seats.feature_key)} approved`}
                     </p>
                   </div>
                 </div>
@@ -623,8 +623,8 @@ export function CartBuilder({
               <div>
                 <p className="text-sm font-semibold text-ink">Phone Numbers</p>
                 <p className="text-xs text-ink-muted">
-                  Unlimited for now - {formatPricingText(numbers, selected[numbers.feature_key] ?? 1, true)}
-                  {existingQtyFor(numbers.feature_key) > 0 && ` - currently ${existingQtyFor(numbers.feature_key)}`}
+                  {formatPricingText(numbers, selected[numbers.feature_key] ?? 1, true)}
+                  {existingQtyFor(numbers.feature_key) > 0 && ` - currently ${existingQtyFor(numbers.feature_key)} approved`}
                 </p>
               </div>
             </div>

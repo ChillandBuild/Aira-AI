@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
+from app.services.entitlements import get_purchased_quantity
 from app.services.meta_cloud import get_number_quality
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,11 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
         .order("quality_rating")
         .execute()
     )
-    return {"data": result.data or []}
+    numbers_limit = get_purchased_quantity(db, tenant_id, "numbers_pool")
+    return {
+        "data": result.data or [],
+        "numbers_pool": {"limit": numbers_limit, "used": len(result.data or [])},
+    }
 
 
 @router.post("/")
@@ -52,6 +57,14 @@ async def create_phone_number(
     if payload.provider != "meta_cloud":
         raise HTTPException(status_code=400, detail="Only meta_cloud provider is supported")
     db = get_supabase()
+
+    number_limit = get_purchased_quantity(db, tenant_id, "numbers_pool")
+    current = db.table("phone_numbers").select("id", count="exact").eq("tenant_id", tenant_id).execute().count or 0
+    if current >= number_limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Phone number limit reached ({current}/{number_limit}). Request more numbers from Subscriptions.",
+        )
 
     insert_data = {
         "provider": payload.provider,
