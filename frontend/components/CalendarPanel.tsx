@@ -228,7 +228,7 @@ export function CalendarPanel({ isOpen, onClose }: CalendarPanelProps) {
             </div>
 
             {/* Add Todo Input */}
-            <form onSubmit={handleAddTodo} className="relative group">
+            <form onSubmit={handleAddTodo} className="relative flex group">
               <input
                 type="text"
                 placeholder="What needs to be done?"
