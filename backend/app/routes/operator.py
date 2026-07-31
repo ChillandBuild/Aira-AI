@@ -14,6 +14,7 @@ from app.services.audit_log import record_audit_event
 from app.services.entitlements import compute_period_key, get_billing_period
 from app.services.token_pricing import estimate_cost, get_rates, upsert_rate
 from app.services.subscription_requests import approve_request, reject_request
+from app.services.rbac import ensure_default_roles, is_telecaller_role, normalize_permissions
 from app.utils.db_retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
@@ -1570,6 +1571,56 @@ def client_team(tenant_id: str, _admin: dict = Depends(get_system_admin)):
         })
 
     return {"owner": owner_info, "callers": callers}
+
+
+@router.get("/clients/{tenant_id}/roles")
+def client_roles(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    """Read-only operator view of a client's roles + role-assigned users.
+    Actual role/permission editing stays exclusively on the client's own
+    Roles page (`rbac.py`) -- this is visibility only, no impersonation."""
+    db = get_supabase()
+
+    tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
+    if not tenant.data:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    ensure_default_roles(db, tenant_id)
+    roles_res = db.table("tenant_roles").select("*").eq("tenant_id", tenant_id).order("name").execute()
+    role_rows = roles_res.data or []
+    role_by_id = {r["id"]: r for r in role_rows}
+
+    members_res = (
+        db.table("tenant_users")
+        .select("user_id, role, role_id, full_name, created_at")
+        .eq("tenant_id", tenant_id)
+        .order("created_at")
+        .execute()
+    )
+
+    roles = []
+    for r in role_rows:
+        permissions = normalize_permissions(r.get("permissions"))
+        roles.append({
+            "id": r["id"],
+            "name": r["name"],
+            "slug": r.get("slug"),
+            "is_system_template": r.get("is_system_template", False),
+            "is_telecaller": is_telecaller_role({**r, "permissions": permissions}),
+            "permission_count": len(permissions),
+        })
+
+    users = []
+    for m in (members_res.data or []):
+        role_row = role_by_id.get(m.get("role_id"))
+        users.append({
+            "user_id": m["user_id"],
+            "full_name": m.get("full_name"),
+            "role": m.get("role"),
+            "role_name": (role_row or {}).get("name") or ("Owner" if m.get("role") == "owner" else "Telecaller"),
+            "created_at": m.get("created_at"),
+        })
+
+    return {"roles": roles, "users": users}
 
 
 @router.delete("/clients/{tenant_id}/team/{caller_id}")

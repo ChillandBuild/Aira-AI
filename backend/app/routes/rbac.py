@@ -9,7 +9,7 @@ from pydantic import BaseModel, EmailStr
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role, require_permission
 from app.services.assignment import get_telecalling_config
-from app.services.entitlements import get_purchased_quantity
+from app.services.entitlements import get_purchased_quantity, resolve_entitlements
 from app.services.rbac import (
     DEFAULT_TELECALLER_PERMISSIONS,
     PERMISSION_CATALOG,
@@ -129,8 +129,23 @@ def _active_telecaller_count(db, tenant_id: str) -> int:
     return result.count or 0
 
 
+def _telecaller_seat_limit(db, tenant_id: str) -> int:
+    """
+    Purchasing SIM Basic or TeleCMI calling includes 1 free telecaller seat
+    -- that's the calling module's whole point, not an add-on. Anything
+    beyond that free seat is an explicit paid top-up via
+    `tenant_subscription_items` (feature_key='telecaller_seats'), same as
+    numbers/AI tokens. A tenant with no calling module purchased at all
+    gets 0, matching the pre-purchase "nothing works yet" gate.
+    """
+    ent = resolve_entitlements(db, tenant_id)
+    features = set(ent.get("features") or [])
+    baseline = 1 if ("telecalling_sim" in features or "telecalling_telecmi" in features) else 0
+    return baseline + get_purchased_quantity(db, tenant_id, "telecaller_seats")
+
+
 def _check_telecaller_seat_available(db, tenant_id: str) -> None:
-    seat_limit = get_purchased_quantity(db, tenant_id, "telecaller_seats")
+    seat_limit = _telecaller_seat_limit(db, tenant_id)
     current = _active_telecaller_count(db, tenant_id)
     if current >= seat_limit:
         raise HTTPException(
@@ -309,7 +324,7 @@ def list_users(ctx: dict = Depends(require_roles_read)):
             .order("created_at")
             .execute()
         )
-    seat_limit = get_purchased_quantity(db, ctx["tenant_id"], "telecaller_seats")
+    seat_limit = _telecaller_seat_limit(db, ctx["tenant_id"])
     seat_used = _active_telecaller_count(db, ctx["tenant_id"])
     return {
         "data": [_serialize_user(db, ctx["tenant_id"], m, roles) for m in (members.data or [])],

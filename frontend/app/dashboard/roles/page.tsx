@@ -1,20 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
   Copy,
+  Crown,
   Eye,
   EyeOff,
+  Folder,
+  Inbox,
   KeyRound,
   Loader2,
+  Mail,
   Pencil,
+  Phone,
   Plus,
   RotateCcw,
   Search,
   ShieldCheck,
   Trash2,
+  User,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -90,6 +96,40 @@ function providerLabel(provider: CallingProvider) {
   return provider === "sim_basic" ? "SIM Basic" : "TeleCMI";
 }
 
+function groupModules(modules: AccessModule[]) {
+  const groups: { name: string; modules: AccessModule[] }[] = [];
+  const byName = new Map<string, AccessModule[]>();
+  for (const mod of modules) {
+    if (!byName.has(mod.group)) {
+      byName.set(mod.group, []);
+      groups.push({ name: mod.group, modules: byName.get(mod.group)! });
+    }
+    byName.get(mod.group)!.push(mod);
+  }
+  return groups;
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+const AVATAR_PALETTE = [
+  "bg-violet-100 text-violet-700",
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-amber-100 text-amber-700",
+  "bg-rose-100 text-rose-700",
+  "bg-cyan-100 text-cyan-700",
+];
+
+function avatarColor(seed: string) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+}
+
 export default function RolesPage() {
   const { role, permissions: myPermissions, loading: roleLoading } = useAuthRole();
   const canWrite = role === "owner" || myPermissions.includes("roles.manage");
@@ -136,6 +176,7 @@ export default function RolesPage() {
       [...module.readKeys, ...module.writeKeys].some((key) => catalogKeys.has(key)),
     );
   }, [catalogKeys]);
+  const moduleGroups = useMemo(() => groupModules(availableModules), [availableModules]);
 
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles]);
   const selectedRole = roleById.get(userDraft.role_id);
@@ -388,6 +429,45 @@ export default function RolesPage() {
         </div>
       )}
 
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="card flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-violet-600">
+            <ShieldCheck size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="font-body text-xs font-bold uppercase tracking-wider text-ink-muted">Roles Defined</p>
+            <p className="mt-0.5 font-display text-lg font-black text-ink">{roles.length}</p>
+          </div>
+        </div>
+        <div className="card flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-blue-600">
+            <Users size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="font-body text-xs font-bold uppercase tracking-wider text-ink-muted">Total Users</p>
+            <p className="mt-0.5 font-display text-lg font-black text-ink">{users.length}</p>
+          </div>
+        </div>
+        <div className={cn(
+          "card flex items-center gap-3 rounded-2xl border p-4 shadow-sm",
+          telecallerSeats && telecallerSeats.used >= telecallerSeats.limit
+            ? "border-red-100 bg-red-50/50" : "border-emerald-100 bg-emerald-50/50",
+        )}>
+          <div className={cn(
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white",
+            telecallerSeats && telecallerSeats.used >= telecallerSeats.limit ? "text-red-600" : "text-emerald-600",
+          )}>
+            <Phone size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="font-body text-xs font-bold uppercase tracking-wider text-ink-muted">Telecaller Seats</p>
+            <p className="mt-0.5 font-display text-lg font-black text-ink">
+              {telecallerSeats ? `${telecallerSeats.used}/${telecallerSeats.limit}` : "—"}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {tab === "roles" ? (
         <div className="grid gap-5 xl:h-[calc(100vh-9rem)] xl:grid-cols-[380px_minmax(0,1fr)]">
           <aside className="card rounded-3xl p-4">
@@ -402,36 +482,47 @@ export default function RolesPage() {
               />
             </div>
             <div className="mt-4 space-y-2">
-              {filteredRoles.map((item) => {
-                const active = editingRoleId === item.id;
-                const activeModules = moduleActiveCount(item.permissions);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => startRole(item)}
-                    className={cn(
-                      "w-full rounded-2xl border p-4 text-left transition-all",
-                      active ? "border-primary/30 bg-primary-light shadow-sm" : "border-border-subtle bg-white hover:border-primary/20 hover:bg-surface-subtle",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-2xl", active ? "bg-white text-primary" : "bg-surface-subtle text-ink-muted")}>
-                          <ShieldCheck size={16} />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate font-body text-sm font-bold text-ink">{item.name}</p>
-                          <p className="font-body text-xs text-ink-muted">{activeModules} modules active</p>
+              {filteredRoles.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+                  <Inbox size={28} className="text-ink-muted/40" />
+                  <p className="font-body text-xs text-ink-muted">No roles match &quot;{roleSearch}&quot;.</p>
+                </div>
+              ) : (
+                filteredRoles.map((item) => {
+                  const active = editingRoleId === item.id;
+                  const activeModules = moduleActiveCount(item.permissions);
+                  const RoleIcon = item.is_telecaller ? Phone : ShieldCheck;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => startRole(item)}
+                      className={cn(
+                        "w-full rounded-2xl border p-4 text-left transition-all",
+                        active ? "border-primary/30 bg-primary-light shadow-sm" : "border-border-subtle bg-white hover:border-primary/20 hover:bg-surface-subtle hover:shadow-sm",
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className={cn(
+                            "grid h-10 w-10 shrink-0 place-items-center rounded-2xl",
+                            active ? "bg-white text-primary shadow-sm" : avatarColor(item.id),
+                          )}>
+                            <RoleIcon size={16} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-body text-sm font-bold text-ink">{item.name}</p>
+                            <p className="font-body text-xs text-ink-muted">{activeModules} modules active</p>
+                          </div>
                         </div>
+                        <span className="shrink-0 rounded-full bg-white px-2 py-1 font-label text-[10px] font-bold text-ink-muted">
+                          {item.is_system_template ? "System" : "Custom"}
+                        </span>
                       </div>
-                      <span className="rounded-full bg-white px-2 py-1 font-label text-[10px] font-bold text-ink-muted">
-                        {item.is_system_template ? "System" : "Custom"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </aside>
 
@@ -474,51 +565,62 @@ export default function RolesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {availableModules.map((module) => {
-                    const effectiveReadKeys = module.readKeys.filter((key) => catalogKeys.size === 0 || catalogKeys.has(key));
-                    const effectiveWriteKeys = module.writeKeys.filter((key) => catalogKeys.size === 0 || catalogKeys.has(key));
-                    const readChecked = hasAnyPermission(roleDraft.permissions, [...effectiveReadKeys, ...effectiveWriteKeys]);
-                    const writeChecked = hasAnyPermission(roleDraft.permissions, effectiveWriteKeys);
-                    const writeAvailable = effectiveWriteKeys.length > 0;
-                    return (
-                      <tr key={module.id} className="border-t border-border-subtle">
-                        <td className="border-t border-border-subtle px-4 py-3">
-                          <p className="font-body text-sm font-bold text-ink">{module.title}</p>
-                          <p className="mt-1 font-body text-xs text-ink-muted">{module.description}</p>
-                        </td>
-                        <td className="border-t border-border-subtle px-4 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={readChecked}
-                            disabled={!canWrite}
-                            onChange={(e) => setModuleAccess(module, "read", e.target.checked)}
-                            className="h-4 w-4 rounded border-border-subtle accent-primary"
-                            aria-label={`${module.title} read access`}
-                          />
-                        </td>
-                        <td className="border-t border-border-subtle px-4 py-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={writeChecked}
-                            disabled={!canWrite || !writeAvailable}
-                            onChange={(e) => setModuleAccess(module, "write", e.target.checked)}
-                            className="h-4 w-4 rounded border-border-subtle accent-primary disabled:opacity-30"
-                            aria-label={`${module.title} write access`}
-                          />
-                        </td>
-                        <td className="border-t border-border-subtle px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => clearModule(module)}
-                            disabled={!canWrite}
-                            className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 font-label text-xs font-bold text-ink-muted hover:bg-surface-subtle hover:text-ink"
-                          >
-                            <RotateCcw size={12} /> Clear
-                          </button>
+                  {moduleGroups.map((group) => (
+                    <Fragment key={group.name}>
+                      <tr>
+                        <td colSpan={4} className="border-t border-border-subtle bg-surface-subtle/70 px-4 py-2">
+                          <div className="flex items-center gap-1.5 font-label text-[10px] font-black uppercase tracking-widest text-primary/80">
+                            <Folder size={11} /> {group.name}
+                          </div>
                         </td>
                       </tr>
-                    );
-                  })}
+                      {group.modules.map((module) => {
+                        const effectiveReadKeys = module.readKeys.filter((key) => catalogKeys.size === 0 || catalogKeys.has(key));
+                        const effectiveWriteKeys = module.writeKeys.filter((key) => catalogKeys.size === 0 || catalogKeys.has(key));
+                        const readChecked = hasAnyPermission(roleDraft.permissions, [...effectiveReadKeys, ...effectiveWriteKeys]);
+                        const writeChecked = hasAnyPermission(roleDraft.permissions, effectiveWriteKeys);
+                        const writeAvailable = effectiveWriteKeys.length > 0;
+                        return (
+                          <tr key={module.id} className="border-t border-border-subtle hover:bg-surface-subtle/40">
+                            <td className="border-t border-border-subtle px-4 py-3">
+                              <p className="font-body text-sm font-bold text-ink">{module.title}</p>
+                              <p className="mt-1 font-body text-xs text-ink-muted">{module.description}</p>
+                            </td>
+                            <td className="border-t border-border-subtle px-4 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={readChecked}
+                                disabled={!canWrite}
+                                onChange={(e) => setModuleAccess(module, "read", e.target.checked)}
+                                className="h-4 w-4 rounded border-border-subtle accent-primary"
+                                aria-label={`${module.title} read access`}
+                              />
+                            </td>
+                            <td className="border-t border-border-subtle px-4 py-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={writeChecked}
+                                disabled={!canWrite || !writeAvailable}
+                                onChange={(e) => setModuleAccess(module, "write", e.target.checked)}
+                                className="h-4 w-4 rounded border-border-subtle accent-primary disabled:opacity-30"
+                                aria-label={`${module.title} write access`}
+                              />
+                            </td>
+                            <td className="border-t border-border-subtle px-4 py-3 text-right">
+                              <button
+                                type="button"
+                                onClick={() => clearModule(module)}
+                                disabled={!canWrite}
+                                className="inline-flex items-center gap-1 rounded-xl px-3 py-1.5 font-label text-xs font-bold text-ink-muted hover:bg-surface-subtle hover:text-ink"
+                              >
+                                <RotateCcw size={12} /> Clear
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -561,11 +663,20 @@ export default function RolesPage() {
               {editingUserId && <button type="button" onClick={resetUser} className="btn-secondary text-xs">New</button>}
             </div>
             <div className="grid gap-3">
-              <input className="input" placeholder="Full name" value={userDraft.full_name} onChange={(e) => setUserDraft((d) => ({ ...d, full_name: e.target.value }))} required />
-              <input className="input" placeholder="Email" type="email" value={userDraft.email} onChange={(e) => setUserDraft((d) => ({ ...d, email: e.target.value }))} disabled={!!editingUserId} required />
-              <select className="input" value={userDraft.role_id} onChange={(e) => setUserDraft((d) => ({ ...d, role_id: e.target.value }))} required>
-                {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
-              </select>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" size={15} />
+                <input className="input" style={{ paddingLeft: "2.25rem" }} placeholder="Full name" value={userDraft.full_name} onChange={(e) => setUserDraft((d) => ({ ...d, full_name: e.target.value }))} required />
+              </div>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" size={15} />
+                <input className="input" style={{ paddingLeft: "2.25rem" }} placeholder="Email" type="email" value={userDraft.email} onChange={(e) => setUserDraft((d) => ({ ...d, email: e.target.value }))} disabled={!!editingUserId} required />
+              </div>
+              <div className="relative">
+                <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" size={15} />
+                <select className="input" style={{ paddingLeft: "2.25rem" }} value={userDraft.role_id} onChange={(e) => setUserDraft((d) => ({ ...d, role_id: e.target.value }))} required>
+                  {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
+                </select>
+              </div>
               {!editingUserId && (
                 <div className="flex gap-2">
                   <input className="input flex-1 font-mono" placeholder="Temporary password" type={showDraftPassword ? "text" : "password"} value={userDraft.temporary_password} onChange={(e) => setUserDraft((d) => ({ ...d, temporary_password: e.target.value }))} required />
@@ -617,38 +728,56 @@ export default function RolesPage() {
           )}
 
           <div className="card rounded-3xl overflow-hidden">
-            <h2 className="mb-4 font-display text-base font-bold text-ink">Users</h2>
-            <div className="divide-y divide-border-subtle">
-              {users.map((user) => (
-                <div key={user.user_id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="truncate font-body text-sm font-bold text-ink">{user.full_name || user.email}</p>
-                    <p className="truncate font-body text-xs text-ink-muted">{user.email}</p>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      <span className="rounded-full bg-primary-light px-2 py-0.5 font-label text-[10px] font-bold text-primary">{user.role === "owner" ? "Master" : user.role_name}</span>
-                      {user.force_password_reset && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-label text-[10px] font-bold text-amber-700">Reset required</span>}
-                      {user.role === "owner" && <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-label text-[10px] font-bold text-ink-muted">Boss account</span>}
-                      {user.role !== "owner" && user.caller_profile && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-label text-[10px] font-bold text-emerald-700">Team visible</span>}
-                    </div>
-                  </div>
-                  {canWrite && user.role !== "owner" && (
-                    <div className="flex gap-2">
-                      <button type="button" className="btn-secondary px-3" onClick={() => startUser(user)}><Pencil size={14} /></button>
-                      <button type="button" className="btn-secondary px-3" onClick={() => resetPassword(user)}><KeyRound size={14} /></button>
-                      <button
-                        type="button"
-                        className="inline-flex h-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        onClick={() => deleteUser(user)}
-                        disabled={deleting === `user:${user.user_id}` || saving}
-                        title="Delete user"
-                      >
-                        {deleting === `user:${user.user_id}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-base font-bold text-ink">Users</h2>
+              <span className="rounded-full bg-surface-subtle px-2.5 py-1 font-label text-[10px] font-bold text-ink-muted">{users.length} total</span>
             </div>
+            {users.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                <Inbox size={32} className="text-ink-muted/40" />
+                <p className="font-body text-sm text-ink-muted">No users yet.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border-subtle">
+                {users.map((user) => (
+                  <div key={user.user_id} className="flex flex-col gap-3 py-3.5 transition-colors hover:bg-surface-subtle/40 sm:flex-row sm:items-center sm:justify-between sm:rounded-xl sm:px-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className={cn(
+                        "grid h-10 w-10 shrink-0 place-items-center rounded-full font-label text-xs font-black",
+                        user.role === "owner" ? "bg-primary-light text-primary" : avatarColor(user.user_id),
+                      )}>
+                        {user.role === "owner" ? <Crown size={16} /> : initials(user.full_name || user.email)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate font-body text-sm font-bold text-ink">{user.full_name || user.email}</p>
+                        <p className="truncate font-body text-xs text-ink-muted">{user.email}</p>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-primary-light px-2 py-0.5 font-label text-[10px] font-bold text-primary">{user.role === "owner" ? "Master" : user.role_name}</span>
+                          {user.force_password_reset && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-label text-[10px] font-bold text-amber-700">Reset required</span>}
+                          {user.role === "owner" && <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-label text-[10px] font-bold text-ink-muted">Boss account</span>}
+                          {user.role !== "owner" && user.caller_profile && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-label text-[10px] font-bold text-emerald-700">Team visible</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {canWrite && user.role !== "owner" && (
+                      <div className="flex shrink-0 gap-2">
+                        <button type="button" className="btn-secondary px-3" onClick={() => startUser(user)}><Pencil size={14} /></button>
+                        <button type="button" className="btn-secondary px-3" onClick={() => resetPassword(user)}><KeyRound size={14} /></button>
+                        <button
+                          type="button"
+                          className="inline-flex h-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => deleteUser(user)}
+                          disabled={deleting === `user:${user.user_id}` || saving}
+                          title="Delete user"
+                        >
+                          {deleting === `user:${user.user_id}` ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

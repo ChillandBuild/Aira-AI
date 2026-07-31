@@ -9,6 +9,7 @@ import { LeadsView } from "./views/leads";
 import { ContentView } from "./views/content";
 import { AnalyticsView } from "./views/analytics";
 import { TeamView } from "./views/team";
+import { RolesView } from "./views/roles";
 import { TelecallingView } from "./views/telecalling";
 import { ConfigView } from "./views/config";
 import { HealthView } from "./views/health";
@@ -23,7 +24,7 @@ import type { OverviewData } from "./types";
 
 const VALID_SECTIONS: SectionType[] = [
   "overview", "conversations", "segments", "inbound", "outbound",
-  "templates", "numbers", "knowledge", "analytics", "team",
+  "templates", "numbers", "knowledge", "analytics", "team", "roles",
   "tc-upload", "tc-dialer", "tc-scheduled", "tc-notes",
   "config", "entitlements", "token-usage", "health", "management", "data-ops", "audit-logs", "delete-client",
 ];
@@ -228,6 +229,8 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
       return <AnalyticsView tenantId={tenantId} />;
     case "team":
       return <TeamView tenantId={tenantId} />;
+    case "roles":
+      return <RolesView tenantId={tenantId} />;
     case "tc-upload":
       return <TelecallingView tenantId={tenantId} subSection="upload" />;
     case "tc-dialer":

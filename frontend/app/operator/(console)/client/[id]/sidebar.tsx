@@ -5,14 +5,14 @@ import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
   Wrench, Activity, Settings, Settings2, Database, ChevronDown, ChevronRight,
-  ArrowLeft, FileText, Trash2, Cpu,
+  ArrowLeft, FileText, Trash2, Cpu, ShieldCheck,
 } from "lucide-react";
 import { OperatorToggle } from "../../components/operator-toggle";
 
 export type SectionType =
   | "overview" | "conversations" | "segments"
   | "inbound" | "outbound" | "templates" | "numbers"
-  | "knowledge" | "analytics" | "team"
+  | "knowledge" | "analytics" | "team" | "roles"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
   | "config" | "entitlements" | "token-usage" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
 
@@ -21,7 +21,7 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   label: string;
   toggleKey?: string;
-  dependsOn?: "outbound" | "messaging";
+  dependsOn?: "outbound" | "messaging" | "any";
 };
 
 const PRODUCT_NAV: NavItem[] = [
@@ -34,7 +34,12 @@ const PRODUCT_NAV: NavItem[] = [
   { key: "numbers", icon: Layers, label: "Numbers Pool", dependsOn: "messaging" },
   { key: "knowledge", icon: BookOpen, label: "Knowledge Base", dependsOn: "messaging" },
   { key: "analytics", icon: BarChart2, label: "Analytics", dependsOn: "messaging" },
-  { key: "team", icon: Users, label: "Team" },
+  // Managing staff is meaningless with nothing active to staff -- Team/Roles
+  // auto-follow whether ANY product feature (messaging or telecalling) is on,
+  // same as everything else here, rather than getting their own independent
+  // toggle that wouldn't map to any purchasable feature_catalog row.
+  { key: "team", icon: Users, label: "Team", dependsOn: "any" },
+  { key: "roles", icon: ShieldCheck, label: "Roles", dependsOn: "any" },
 ];
 
 const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; featureKey: string }[] = [
@@ -74,11 +79,13 @@ export function ClientDetailSidebar({
   const outboundOn = isEnabled("outbound_leads");
   const inboundOn = isEnabled("inbound_leads");
   const messagingOn = outboundOn || inboundOn;
+  const telecallingOn = isEnabled("telecalling");
 
   function isItemEnabled(item: NavItem): boolean {
     if (item.toggleKey) return isEnabled(item.toggleKey);
     if (item.dependsOn === "outbound") return outboundOn;
     if (item.dependsOn === "messaging") return messagingOn;
+    if (item.dependsOn === "any") return messagingOn || telecallingOn;
     return true;
   }
 

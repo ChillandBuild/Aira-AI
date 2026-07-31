@@ -1,5 +1,6 @@
 """Telecaller user creation via the Roles page (POST /api/v1/rbac/users) is
-capped at the tenant's purchased `telecaller_seats` quantity."""
+capped at 1 free seat per purchased calling module (SIM Basic/TeleCMI) plus
+any additionally purchased `telecaller_seats` quantity."""
 import sys
 import unittest
 from pathlib import Path
@@ -21,7 +22,7 @@ TELECALLER_ROLE = {
 }
 
 
-def _mock_db(purchased_quantity, active_count, role=TELECALLER_ROLE, owner_user_id=None):
+def _mock_db(purchased_quantity, active_count, role=TELECALLER_ROLE, owner_user_id=None, has_calling_module=False):
     db = MagicMock()
 
     roles_tbl = MagicMock()
@@ -29,10 +30,25 @@ def _mock_db(purchased_quantity, active_count, role=TELECALLER_ROLE, owner_user_
         data=[role] if role else []
     )
 
+    # `_telecaller_seat_limit` reads `tenant_subscription_items` two different
+    # ways: `resolve_entitlements` (select(...).eq(tenant_id).execute(), no
+    # feature_key filter -- used to detect the free calling-module baseline)
+    # and `get_purchased_quantity` (select(...).eq(tenant_id).eq(feature_key)
+    # .execute() -- the additionally-purchased top-up quantity). Both hit the
+    # same table mock at different points in the chain, so no conflict.
     items_tbl = MagicMock()
+    entitlement_items = []
+    if has_calling_module:
+        entitlement_items.append({"feature_key": "telecalling_sim", "quantity": 1})
+    if purchased_quantity:
+        entitlement_items.append({"feature_key": "telecaller_seats", "quantity": purchased_quantity})
+    items_tbl.select.return_value.eq.return_value.execute.return_value = MagicMock(data=entitlement_items)
     items_tbl.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
         data=[{"quantity": purchased_quantity}] if purchased_quantity else []
     )
+
+    catalog_tbl = MagicMock()
+    catalog_tbl.select.return_value.execute.return_value = MagicMock(data=[])
 
     # `_active_telecaller_count` first looks up the owner's user_id (to
     # exclude their free seeded caller row from the seat count), then
@@ -55,6 +71,7 @@ def _mock_db(purchased_quantity, active_count, role=TELECALLER_ROLE, owner_user_
         return {
             "tenant_roles": roles_tbl,
             "tenant_subscription_items": items_tbl,
+            "feature_catalog": catalog_tbl,
             "callers": callers_tbl,
             "tenant_users": tenant_users_tbl,
         }[name]
@@ -124,6 +141,45 @@ class RbacSeatEnforcementTests(unittest.TestCase):
         })
         self.assertEqual(res.status_code, 400)
         self.assertIn("seat limit reached", res.json()["detail"].lower())
+
+    @patch("app.routes.rbac.get_telecalling_config", return_value={"calling_provider": "telecmi"})
+    @patch("app.routes.rbac.get_supabase")
+    def test_calling_module_grants_one_free_seat_with_no_topup(self, mock_get_db, mock_cfg):
+        # Buying SIM Basic/TeleCMI includes 1 free telecaller seat -- no
+        # telecaller_seats top-up purchased at all, still 1 seat allowed.
+        mock_get_db.return_value = _mock_db(purchased_quantity=0, active_count=0, has_calling_module=True)
+
+        res = self.client.post("/api/v1/rbac/users", json={
+            "full_name": "New Caller", "email": "new@example.com",
+            "role_id": "role-telecaller", "temporary_password": "Password123!",
+        })
+        self.assertEqual(res.status_code, 200)
+
+    @patch("app.routes.rbac.get_telecalling_config", return_value={"calling_provider": "telecmi"})
+    @patch("app.routes.rbac.get_supabase")
+    def test_calling_module_free_seat_blocked_after_first_use(self, mock_get_db, mock_cfg):
+        # The 1 free seat from the calling module is already used (1 active
+        # telecaller, 0 additionally purchased) -- a 2nd must be blocked.
+        mock_get_db.return_value = _mock_db(purchased_quantity=0, active_count=1, has_calling_module=True)
+
+        res = self.client.post("/api/v1/rbac/users", json={
+            "full_name": "New Caller", "email": "new@example.com",
+            "role_id": "role-telecaller", "temporary_password": "Password123!",
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("(1/1)", res.json()["detail"])
+
+    @patch("app.routes.rbac.get_telecalling_config", return_value={"calling_provider": "telecmi"})
+    @patch("app.routes.rbac.get_supabase")
+    def test_calling_module_free_seat_plus_topup(self, mock_get_db, mock_cfg):
+        # Calling module's free seat + 1 additionally purchased = 2 total.
+        mock_get_db.return_value = _mock_db(purchased_quantity=1, active_count=1, has_calling_module=True)
+
+        res = self.client.post("/api/v1/rbac/users", json={
+            "full_name": "New Caller", "email": "new@example.com",
+            "role_id": "role-telecaller", "temporary_password": "Password123!",
+        })
+        self.assertEqual(res.status_code, 200)
 
 
 if __name__ == "__main__":

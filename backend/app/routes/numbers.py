@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
-from app.services.entitlements import get_purchased_quantity
+from app.services.entitlements import get_purchased_quantity, resolve_entitlements
 from app.services.meta_cloud import get_number_quality
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,20 @@ class UpdatePhoneNumber(BaseModel):
     warm_up_day: int | None = None
 
 
+def _numbers_pool_limit(db, tenant_id: str) -> int:
+    """
+    Purchasing Inbound or Outbound (WhatsApp) messaging includes 1 free
+    phone number -- that's the messaging module's whole point, not an
+    add-on. Anything beyond that free number is an explicit paid top-up via
+    `tenant_subscription_items` (feature_key='numbers_pool'). A tenant with
+    no messaging module purchased at all gets 0.
+    """
+    ent = resolve_entitlements(db, tenant_id)
+    features = set(ent.get("features") or [])
+    baseline = 1 if ("inbound_messaging" in features or "outbound_messaging" in features) else 0
+    return baseline + get_purchased_quantity(db, tenant_id, "numbers_pool")
+
+
 @router.get("/")
 async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
@@ -41,7 +55,7 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
         .order("quality_rating")
         .execute()
     )
-    numbers_limit = get_purchased_quantity(db, tenant_id, "numbers_pool")
+    numbers_limit = _numbers_pool_limit(db, tenant_id)
     return {
         "data": result.data or [],
         "numbers_pool": {"limit": numbers_limit, "used": len(result.data or [])},
@@ -58,7 +72,7 @@ async def create_phone_number(
         raise HTTPException(status_code=400, detail="Only meta_cloud provider is supported")
     db = get_supabase()
 
-    number_limit = get_purchased_quantity(db, tenant_id, "numbers_pool")
+    number_limit = _numbers_pool_limit(db, tenant_id)
     current = db.table("phone_numbers").select("id", count="exact").eq("tenant_id", tenant_id).execute().count or 0
     if current >= number_limit:
         raise HTTPException(
