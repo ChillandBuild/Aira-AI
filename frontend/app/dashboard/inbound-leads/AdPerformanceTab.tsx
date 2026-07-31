@@ -420,7 +420,7 @@ export function AdPerformanceTab() {
   }
 
   const selectClass =
-    "h-10 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid/80 bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-40";
+    "h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid/80 bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <div>
@@ -458,19 +458,19 @@ export function AdPerformanceTab() {
 
         <div className="grid h-fit grid-cols-2 gap-2 self-start p-1">
           <button type="button" onClick={() => mutate()} disabled={isValidating}
-            className="flex items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-violet-300 hover:text-violet-700 disabled:opacity-40">
+            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-violet-300 hover:text-violet-700 disabled:opacity-40">
             <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
           </button>
           <button type="button" onClick={handleSyncNow} disabled={syncing}
             title="Pull the latest Click-to-WhatsApp performance from Meta"
-            className="flex items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-label text-xs font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-40">
+            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-label text-xs font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-40">
             <Zap size={12} className={syncing ? "animate-pulse" : ""} /> {syncing ? "Syncing…" : "Sync now"}
           </button>
 
           <button type="button" onClick={() => setShowFilters((visible) => !visible)}
             aria-expanded={showFilters} aria-controls="ad-performance-filters"
             className={cn(
-              "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
+              "flex h-9 items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
               showFilters || activeDimensionFilters > 0
                 ? "border-violet-200 bg-violet-50 text-violet-700"
                 : "border-surface-mid bg-white text-on-surface hover:border-violet-300 hover:text-violet-700",
@@ -486,7 +486,7 @@ export function AdPerformanceTab() {
           <div className="relative">
             <button type="button" onClick={() => setShowColumns((visible) => !visible)}
               aria-expanded={showColumns} aria-haspopup="dialog"
-              className="flex h-full w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 font-label text-xs font-bold text-indigo-700 shadow-sm transition-all hover:bg-indigo-50">
+              className="flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 font-label text-xs font-bold text-indigo-700 shadow-sm transition-all hover:bg-indigo-50">
               <Columns3 size={13} /> Columns
               <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length}</span>
             </button>
@@ -521,49 +521,49 @@ export function AdPerformanceTab() {
 
           <button type="button" onClick={openTrackingModal} disabled={(filters?.creatives?.length ?? 0) === 0}
             title="Generate a fallback ID for a Meta ad's pre-filled WhatsApp message"
-            className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 font-label text-xs font-bold text-violet-700 shadow-sm transition-all hover:bg-violet-100 disabled:opacity-40">
+            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 font-label text-xs font-bold text-violet-700 shadow-sm transition-all hover:bg-violet-100 disabled:opacity-40">
             <KeyRound size={12} /> Generate ID
           </button>
 
           <button type="button" onClick={handleExport} disabled={exporting || rows.length === 0}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
+            className="flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
             <Download size={12} /> {exporting ? "Downloading…" : "Download CSV"}
           </button>
         </div>
       </div>
 
       {showFilters && (
-        <div id="ad-performance-filters" className="mb-5 overflow-hidden rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50/70 via-white to-indigo-50/50 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-violet-100/80 px-4 py-3.5 sm:px-5">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm shadow-violet-200">
-                <Filter size={15} />
+        <div id="ad-performance-filters" className="mb-5 overflow-hidden rounded-2xl border border-violet-100/80 bg-gradient-to-br from-violet-50/70 via-white to-indigo-50/50 p-3 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm shadow-violet-200">
+                <Filter size={13} />
               </span>
               <div>
-                <p className="font-label text-xs font-bold text-on-surface">Filter ad performance</p>
+                <p className="font-label text-[13px] font-bold text-on-surface">Filter ad performance</p>
                 <p className="font-body text-[10px] text-on-surface-muted">Set a date range, then narrow by campaign, ad set, or creative.</p>
               </div>
             </div>
             <button type="button" onClick={clearFilters}
-              className="flex items-center gap-1.5 rounded-lg border border-violet-200 bg-white/90 px-2.5 py-1.5 font-label text-[10px] font-bold text-violet-700 shadow-sm transition-colors hover:border-violet-300 hover:bg-violet-50 hover:text-violet-900">
+              className="flex h-7 items-center gap-1 rounded-full border border-violet-200 bg-white/90 px-2.5 font-label text-[11px] font-semibold text-violet-700 shadow-sm transition-colors hover:border-violet-300 hover:bg-violet-50 hover:text-violet-900">
               <X size={11} /> Clear filters
             </button>
           </div>
-          <div className="grid gap-3 p-4 sm:p-5 xl:grid-cols-[1.25fr_1fr_1fr_1fr]">
-            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-violet-100 bg-white/80 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+          <div className="grid gap-2.5 items-end xl:grid-cols-[1.25fr_1fr_1fr_1fr]">
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-violet-100 bg-white/80 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
               <div>
-                <label htmlFor="ad-performance-from" className="mb-1.5 block font-label text-[9px] font-bold uppercase tracking-wider text-violet-700">From</label>
+                <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-violet-700">From</label>
                 <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
-                  className="h-10 w-full rounded-xl border border-surface-mid/80 bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+                  className="h-9 w-full rounded-lg border border-surface-mid/80 bg-white px-2.5 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
               </div>
               <div>
-                <label htmlFor="ad-performance-to" className="mb-1.5 block font-label text-[9px] font-bold uppercase tracking-wider text-violet-700">To</label>
+                <label htmlFor="ad-performance-to" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-violet-700">To</label>
                 <input id="ad-performance-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}
-                  className="h-10 w-full rounded-xl border border-surface-mid/80 bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+                  className="h-9 w-full rounded-lg border border-surface-mid/80 bg-white px-2.5 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
               </div>
             </div>
             <div>
-              <label htmlFor="ad-performance-campaign" className="mb-1.5 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Campaign</label>
+              <label htmlFor="ad-performance-campaign" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Campaign</label>
               <div className="relative">
                 <select id="ad-performance-campaign" className={selectClass} value={campaignId}
                   onChange={(event) => { setCampaignId(event.target.value); setAdsetId(""); setCreativeId(""); }}>
@@ -574,7 +574,7 @@ export function AdPerformanceTab() {
               </div>
             </div>
             <div>
-              <label htmlFor="ad-performance-adset" className="mb-1.5 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Ad set</label>
+              <label htmlFor="ad-performance-adset" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Ad set</label>
               <div className="relative">
                 <select id="ad-performance-adset" className={selectClass} value={adsetId}
                   onChange={(event) => { setAdsetId(event.target.value); setCreativeId(""); }}>
@@ -585,7 +585,7 @@ export function AdPerformanceTab() {
               </div>
             </div>
             <div>
-              <label htmlFor="ad-performance-creative" className="mb-1.5 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Creative</label>
+              <label htmlFor="ad-performance-creative" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Creative</label>
               <div className="relative">
                 <select id="ad-performance-creative" className={selectClass} value={creativeId} onChange={(event) => setCreativeId(event.target.value)}>
                   <option value="">All creatives</option>
