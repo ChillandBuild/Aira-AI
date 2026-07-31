@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AreaChart,
   Area,
@@ -23,16 +23,96 @@ import {
 } from "lucide-react";
 import {
   api,
-  AnalyticsOverviewExtended,
+  CompareParams,
+  ComparePayload,
   MessagingAnalytics,
-  FunnelAnalyticsExtended,
   TemplatePerformanceRow,
   StaleHotLead,
+  getAuthHeaders,
 } from "@/lib/api";
 import { CompareTab } from "./CompareTab";
+import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
+import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
+import {
+  canLoadComparison,
+  ComparisonSelection,
+} from "@/components/analytics/periodSelection";
+import {
+  attentionScopeLabel,
+  buildOverviewPresentation,
+  FunnelStep,
+  PerformanceCard,
+} from "./overviewPresentation";
 
-type DateRange = "today" | "7d" | "30d";
 type Tab = "overview" | "channels" | "templates" | "inbound" | "compare";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://aira-ai-5tfr.onrender.com";
+
+type InboundAnalytics = Awaited<ReturnType<typeof api.analytics.inbound>>;
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function istToday(): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
+}
+
+function presetDates(preset: RangeValue["preset"]): { start: string; end: string } | null {
+  if (preset === "custom" || preset === "last_7d" || preset === "last_30d") return null;
+  const end = istToday();
+  const start = new Date(end);
+
+  if (preset === "this_month") start.setUTCDate(1);
+  if (preset === "last_month") {
+    start.setUTCMonth(start.getUTCMonth() - 1, 1);
+    end.setUTCDate(0);
+  }
+  if (preset === "this_week") start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
+  if (preset === "last_week") {
+    const daysSinceMonday = (start.getUTCDay() + 6) % 7;
+    start.setUTCDate(start.getUTCDate() - daysSinceMonday - 7);
+    end.setTime(start.getTime());
+    end.setUTCDate(end.getUTCDate() + 6);
+  }
+  if (preset === "last_14d") start.setUTCDate(start.getUTCDate() - 13);
+
+  return { start: isoDate(start), end: isoDate(end) };
+}
+
+function reportingQuery(range: RangeValue): string {
+  const params = new URLSearchParams();
+  if (range.preset === "custom") {
+    params.set("start", range.start);
+    params.set("end", range.end);
+  } else if (range.preset === "last_7d" || range.preset === "last_30d") {
+    params.set("range", range.preset === "last_7d" ? "7d" : "30d");
+  } else {
+    const dates = presetDates(range.preset);
+    if (dates) {
+      params.set("start", dates.start);
+      params.set("end", dates.end);
+    }
+  }
+  return params.toString();
+}
+
+async function fetchAnalytics<T>(path: string): Promise<T> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}${path}`, { headers });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({ detail: "Failed to load" }));
+    throw new Error(body.detail || "Failed to load");
+  }
+  return response.json();
+}
 
 // ─── Formatters ──────────────────────────────────────────────────────────────
 
@@ -99,18 +179,8 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
-function FunnelSteps({
-  funnel,
-}: {
-  funnel: AnalyticsOverviewExtended["funnel"];
-}) {
-  const steps = [
-    { label: "Inquiries", count: funnel.inquiries },
-    { label: "Engaged", count: funnel.engaged },
-    { label: "Hot", count: funnel.hot },
-    { label: "Converted", count: funnel.converted },
-  ];
-
+function FunnelSteps({ steps }: { steps: FunnelStep[] }) {
+  const firstCount = steps[0]?.count ?? 0;
   return (
     <div className="space-y-3">
       {steps.map((step, i) => {
@@ -120,8 +190,9 @@ function FunnelSteps({
             ? null
             : Math.round((step.count / prevCount) * 100);
         const dropPct = retentionPct !== null ? 100 - retentionPct : null;
-        const widthPct =
-          funnel.inquiries === 0 ? 0 : Math.round((step.count / funnel.inquiries) * 100);
+        const widthPct = firstCount === 0
+          ? 0
+          : Math.min(Math.round((step.count / firstCount) * 100), 100);
 
         return (
           <div key={step.label} className="flex items-center gap-3">
@@ -149,197 +220,131 @@ function FunnelSteps({
   );
 }
 
-function SegmentBars({
-  bySegment,
-  total,
-}: {
-  bySegment: Record<"A" | "B" | "C" | "D", number>;
-  total: number;
-}) {
-  const segs: { key: "A" | "B" | "C" | "D"; label: string; color: string }[] = [
-    { key: "A", label: "Hot (A)", color: "bg-emerald-500" },
-    { key: "B", label: "Warm (B)", color: "bg-blue-500" },
-    { key: "C", label: "Cold (C)", color: "bg-amber-500" },
-    { key: "D", label: "Disqualified (D)", color: "bg-red-400" },
-  ];
-
+function PerformanceKpi({ card }: { card: PerformanceCard }) {
+  const improved = card.delta != null
+    ? card.lowerIsBetter ? card.delta < 0 : card.delta > 0
+    : null;
+  const deltaLabel = card.delta == null
+    ? null
+    : `${card.delta >= 0 ? "+" : ""}${card.delta}% vs comparison`;
   return (
-    <div className="space-y-3">
-      {segs.map(({ key, label, color }) => {
-        const count = bySegment[key] ?? 0;
-        const pct = total === 0 ? 0 : Math.round((count / total) * 100);
-        return (
-          <div key={key} className="flex items-center gap-3">
-            <span className="font-label text-xs text-on-surface-muted w-28 shrink-0">{label}</span>
-            <div className="flex-1 bg-surface-mid rounded-full h-4 overflow-hidden">
-              <div
-                className={`h-4 rounded-full ${color} transition-all`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <span className="font-label text-xs text-on-surface w-8 text-right shrink-0">{count}</span>
-            <span className="font-label text-xs text-on-surface-muted w-8 shrink-0">{pct}%</span>
-          </div>
-        );
-      })}
+    <div className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5">
+      <p className="font-label text-xs uppercase tracking-wider text-on-surface-muted">{card.label}</p>
+      <p className="mt-1 font-display text-2xl font-bold text-on-surface sm:text-3xl">{card.value}</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-label text-xs">
+        <span className="text-on-surface-muted">{card.scope}</span>
+        {deltaLabel && (
+          <span className={improved ? "text-emerald-600" : card.delta === 0 ? "text-on-surface-muted" : "text-red-600"}>
+            {deltaLabel}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
-function OverviewTab({ range }: { range: DateRange }) {
-  const [data, setData] = useState<AnalyticsOverviewExtended | null>(null);
-  const [funnel, setFunnel] = useState<FunnelAnalyticsExtended | null>(null);
+function OverviewTab({
+  range,
+  onRangeChange,
+}: {
+  range: RangeValue;
+  onRangeChange: (range: RangeValue) => void;
+}) {
+  const [comparison, setComparison] = useState<ComparisonSelection>({
+    mode: "off", start: "", end: "",
+  });
+  const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [staleLeads, setStaleLeads] = useState<StaleHotLead[] | null>(null);
+  const [staleErr, setStaleErr] = useState<string | null>(null);
+  const [staleRetryKey, setStaleRetryKey] = useState(0);
+  const canLoad = canLoadComparison(range, comparison);
+
+  const params = useMemo<CompareParams>(() => {
+    const reporting = { preset: range.preset, start: range.start, end: range.end };
+    if (comparison.mode === "custom") {
+      return {
+        ...reporting,
+        comparison: "custom",
+        comparison_start: comparison.start,
+        comparison_end: comparison.end,
+      };
+    }
+    return { ...reporting, comparison: comparison.mode };
+  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   useEffect(() => {
+    if (!canLoad) {
+      setData(null);
+      setErr(null);
+      return;
+    }
     let isCurrent = true;
     setData(null);
     setErr(null);
     api.analytics
-      .overviewExtended(range)
+      .compare(params)
       .then((d) => { if (isCurrent) setData(d); })
       .catch((e: unknown) => { if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load"); });
     return () => { isCurrent = false; };
-  }, [range, retryKey]);
+  }, [canLoad, params, retryKey]);
 
   useEffect(() => {
     let isCurrent = true;
-    api.analytics.funnelExtended()
-      .then((d) => { if (isCurrent) setFunnel(d); })
-      .catch(() => {});
-    return () => { isCurrent = false; };
-  }, [retryKey]);
-
-  const [staleLeads, setStaleLeads] = useState<StaleHotLead[] | null>(null);
-
-  useEffect(() => {
-    let isCurrent = true;
+    setStaleLeads(null);
+    setStaleErr(null);
     api.analytics.staleHotLeads({ min_hours: 24, limit: 10 })
       .then((d) => { if (isCurrent) setStaleLeads(d.leads); })
-      .catch(() => {});
+      .catch((e: unknown) => {
+        if (isCurrent) setStaleErr(e instanceof Error ? e.message : "Failed to load the reply queue");
+      });
     return () => { isCurrent = false; };
-  }, [retryKey]);
+  }, [staleRetryKey]);
 
-  if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
-  if (!data) return <SkeletonGrid cols={6} />;
-
-  const total = data.total_leads;
-  const hotCount = data.by_segment.A ?? 0;
-  const hotPct = total === 0 ? 0 : Math.round((hotCount / total) * 100);
-  const aiTotal = data.ai_vs_human.ai + data.ai_vs_human.human;
-  const aiPct = aiTotal === 0 ? 0 : Math.round((data.ai_vs_human.ai / aiTotal) * 100);
-  const cb = data.channel_breakdown;
-  const channelSub = `WA: ${cb.whatsapp} · IG: ${cb.instagram} · FB: ${cb.facebook} · TG: ${cb.telegram}`;
-
-  // Cost per lead and reply speed are range-scoped, unlike the all-time
-  // counts beside them. Rendered as "—" rather than 0 when a tenant has no
-  // ad spend or no inbound messages in the range: absent is not zero.
-  const costPerLead = data.money?.cost_per_lead;
-  const costPerLeadValue =
-    costPerLead == null ? "—" : "₹" + Math.round(costPerLead).toLocaleString("en-IN");
-  const p50 = data.response_times?.p50_seconds;
-  const replyTimeValue =
-    p50 == null ? "—" : p50 < 60 ? `${Math.round(p50)}s` : `${Math.round(p50 / 60)}m`;
+  const presentation = data
+    ? buildOverviewPresentation({ current: data.current, previous: data.previous })
+    : null;
 
   return (
     <div className="space-y-6">
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 xl:gap-4">
-        <KpiCard label="Total Leads" value={total.toLocaleString()} sub={channelSub} />
-        <KpiCard
-          label="Hot Leads"
-          value={hotCount.toLocaleString()}
-          sub={`${hotPct}% of total`}
-        />
-        <KpiCard
-          label="Conversions"
-          value={data.funnel.converted.toLocaleString()}
-          sub={`${data.converted_today} today`}
-        />
-        <KpiCard
-          label="Unreplied 24h"
-          value={data.unreplied_24h.toLocaleString()}
-          valueClass={data.unreplied_24h > 0 ? "text-red-600" : "text-emerald-600"}
-        />
-        <KpiCard label="AI Automation" value={`${aiPct}%`} sub={`${data.ai_vs_human.ai} AI · ${data.ai_vs_human.human} human`} />
-        <KpiCard label="Avg Score" value={funnel?.avg_score != null ? funnel.avg_score.toFixed(1) : "—"} sub="lead quality" />
-        <KpiCard
-          label="Cost per Lead"
-          value={costPerLeadValue}
-          sub={data.money?.spend ? `₹${Math.round(data.money.spend).toLocaleString("en-IN")} spent in range` : "no ad spend in range"}
-        />
-        <KpiCard
-          label="Reply Time"
-          value={replyTimeValue}
-          sub={
-            data.response_times?.inbound_total
-              ? `median · ${data.response_times.answered ?? 0} of ${data.response_times.inbound_total} answered`
-              : "no messages in range"
-          }
-        />
+      <div className="flex flex-col gap-5 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+        <div>
+          <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+            Reporting period
+          </p>
+          <RangePicker value={range} onChange={onRangeChange} idPrefix="overview-range" />
+        </div>
+        <ComparisonPicker value={comparison} onChange={setComparison} />
       </div>
 
-      {/* Charts row 1 */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
-        <SectionCard title="New Leads per Day">
-          <div role="img" aria-label="New leads per day chart">
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={data.daily_leads} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <defs>
-                  <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#5b21b6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#5b21b6" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                <Tooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
-                />
-                <Area type="monotone" dataKey="count" stroke="#5b21b6" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
+      <SectionCard title="Needs attention">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-label text-xs font-semibold uppercase tracking-wider text-red-600">
+              {attentionScopeLabel()}
+            </p>
+            <p className="mt-1 font-body text-sm text-on-surface-muted">
+              Hot leads still waiting on a reply.
+            </p>
           </div>
-        </SectionCard>
-
-        <SectionCard title="Messages per Day">
-          <div role="img" aria-label="Messages per day chart">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={data.daily_messages} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
-                <Bar dataKey="inbound" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} name="Inbound" />
-                <Bar dataKey="outbound" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} name="Outbound" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </SectionCard>
-      </div>
-
-      {/* Charts row 2 */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
-        <SectionCard title="Conversion Funnel">
-          <FunnelSteps funnel={data.funnel} />
-        </SectionCard>
-
-        <SectionCard title="Segment Distribution">
-          <SegmentBars bySegment={data.by_segment} total={total} />
-        </SectionCard>
-      </div>
-
-      {/* Hot-lead aging — the one actionable signal kept from the old Pipeline tab */}
-      {funnel && funnel.hot_lead_aging.length > 0 && (
-        <SectionCard title="Hot Leads (Segment A) — time without conversion">
-          <HotLeadAging aging={funnel.hot_lead_aging} />
-        </SectionCard>
-      )}
-
-      {staleLeads && staleLeads.length > 0 && (
-        <SectionCard title="Hot leads waiting on a reply">
+          <a
+            href="/dashboard/leads?segment=A"
+            className="rounded-xl bg-primary px-4 py-2 font-label text-xs font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Open reply queue
+          </a>
+        </div>
+        {staleErr && (
+          <ErrorBox message={staleErr} onRetry={() => setStaleRetryKey((key) => key + 1)} />
+        )}
+        {!staleErr && staleLeads === null && (
+          <p className="font-label text-sm text-on-surface-muted">Checking the queue…</p>
+        )}
+        {staleLeads?.length === 0 && (
+          <p className="font-label text-sm text-emerald-700">No hot leads are waiting.</p>
+        )}
+        {staleLeads && staleLeads.length > 0 && (
           <div className="space-y-1">
             {staleLeads.map((lead) => (
               <a
@@ -356,7 +361,54 @@ function OverviewTab({ range }: { range: DateRange }) {
               </a>
             ))}
           </div>
-        </SectionCard>
+        )}
+      </SectionCard>
+
+      {!canLoad && (
+        <p className="font-label text-sm text-on-surface-muted">
+          Pick a valid start and end date for each custom period.
+        </p>
+      )}
+      {err && <ErrorBox message={err} onRetry={() => setRetryKey((key) => key + 1)} />}
+      {!data && !err && canLoad && <SkeletonGrid cols={5} />}
+
+      {data && presentation && (
+        <>
+          <div>
+            <h2 className="font-display text-lg font-bold text-primary">Selected-period performance</h2>
+            <p className="mt-1 font-label text-xs text-on-surface-muted">
+              {data.current.start} → {data.current.end}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5 xl:gap-4">
+            {presentation.cards.map((card) => <PerformanceKpi key={card.label} card={card} />)}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+            <SectionCard title="Selected-period pipeline">
+              <FunnelSteps steps={presentation.funnel} />
+            </SectionCard>
+            <SectionCard title="New leads by day">
+              <div role="img" aria-label="New leads in the selected period chart">
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={presentation.trend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                    <defs>
+                      <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#5b21b6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#5b21b6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+                    <Area type="monotone" dataKey="count" stroke="#5b21b6" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </SectionCard>
+          </div>
+        </>
       )}
     </div>
   );
@@ -416,22 +468,30 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
   );
 }
 
-function ChannelsTab({ range }: { range: DateRange }) {
+function ChannelsTab({ range }: { range: RangeValue }) {
   const [channel, setChannel] = useState<ChannelFilter>("all");
   const [data, setData] = useState<MessagingAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const rangeQuery = useMemo(() => reportingQuery(range), [range]);
+  const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
 
   useEffect(() => {
+    if (!canLoad) {
+      setData(null);
+      setErr(null);
+      return;
+    }
     let isCurrent = true;
     setData(null);
     setErr(null);
-    api.analytics
-      .messaging(channel, range)
+    fetchAnalytics<MessagingAnalytics>(
+      `/api/v1/analytics/messaging?channel=${encodeURIComponent(channel)}&${rangeQuery}`,
+    )
       .then((d) => { if (isCurrent) setData(d); })
       .catch((e: unknown) => { if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load"); });
     return () => { isCurrent = false; };
-  }, [channel, range, retryKey]);
+  }, [canLoad, channel, rangeQuery, retryKey]);
 
   return (
     <div className="space-y-6">
@@ -453,8 +513,11 @@ function ChannelsTab({ range }: { range: DateRange }) {
         ))}
       </div>
 
+      {!canLoad && (
+        <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
+      )}
       {err && <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />}
-      {!data && !err && <SkeletonGrid cols={4} />}
+      {!data && !err && canLoad && <SkeletonGrid cols={4} />}
 
       {data && (
         <>
@@ -496,33 +559,6 @@ function ChannelsTab({ range }: { range: DateRange }) {
           </div>
         </>
       )}
-    </div>
-  );
-}
-
-// ─── Hot-lead aging (used by the Overview tab) ────────────────────────────────
-
-const HOT_AGING_COLORS = ["bg-emerald-500", "bg-amber-400", "bg-orange-500", "bg-red-600"];
-
-function HotLeadAging({ aging }: { aging: FunnelAnalyticsExtended["hot_lead_aging"] }) {
-  const max = Math.max(...aging.map((a) => a.count), 1);
-  return (
-    <div className="space-y-3">
-      {aging.map(({ bucket, count }, i) => {
-        const pct = Math.round((count / max) * 100);
-        return (
-          <div key={bucket} className="flex items-center gap-3">
-            <span className="font-label text-xs text-on-surface-muted w-14 shrink-0">{bucket}</span>
-            <div className="flex-1 bg-surface-mid rounded-full h-4 overflow-hidden">
-              <div
-                className={`h-4 rounded-full ${HOT_AGING_COLORS[i] ?? "bg-[#a8a29e]"} transition-all`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <span className="font-label text-xs text-on-surface w-8 text-right shrink-0">{count}</span>
-          </div>
-        );
-      })}
     </div>
   );
 }
@@ -616,20 +652,28 @@ function TemplatesTab() {
 
 // ─── Inbound Tab ─────────────────────────────────────────────────────────────
 
-function InboundTab({ range }: { range: DateRange }) {
-  const [data, setData] = useState<Awaited<ReturnType<typeof api.analytics.inbound>> | null>(null);
+function InboundTab({ range }: { range: RangeValue }) {
+  const [data, setData] = useState<InboundAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const rangeQuery = useMemo(() => reportingQuery(range), [range]);
+  const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
 
   useEffect(() => {
+    if (!canLoad) {
+      setData(null);
+      setErr(null);
+      return;
+    }
     setData(null);
     setErr(null);
-    api.analytics.inbound(range)
+    fetchAnalytics<InboundAnalytics>(`/api/v1/analytics/inbound?${rangeQuery}`)
       .then(setData)
       .catch((e) => setErr(e instanceof Error ? e.message : "Failed to load"));
-  }, [range, retryKey]);
+  }, [canLoad, rangeQuery, retryKey]);
 
   if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
+  if (!canLoad) return <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>;
   if (!data) return <div className="p-8 text-center text-on-surface-muted">Loading…</div>;
 
   const segMax = Math.max(data.by_segment.A, data.by_segment.B, data.by_segment.C, data.by_segment.D, 1);
@@ -693,27 +737,22 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "templates", label: "Templates" },
 ];
 
-const RANGES: { id: DateRange; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "7d", label: "7 Days" },
-  { id: "30d", label: "30 Days" },
-];
-
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [range, setRange] = useState<DateRange>("7d");
+  const [range, setRange] = useState<RangeValue>({
+    preset: "last_7d", start: "", end: "",
+  });
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
-      {/* Page header: tabs & date pills inline */}
-      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 lg:flex-row lg:items-center lg:justify-between">
-        {/* Tab row */}
+      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
         <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
               className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
                 activeTab === tab.id
                   ? "bg-surface text-primary shadow-card"
@@ -725,29 +764,18 @@ export default function AnalyticsPage() {
           ))}
         </nav>
         </div>
-
-        {/* Date range pills — the Compare tab owns its own range control */}
-        {activeTab !== "compare" && (
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15 sm:flex sm:w-fit">
-            {RANGES.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => setRange(r.id)}
-                className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
-                  range === r.id
-                    ? "bg-surface text-primary shadow-card"
-                    : "text-on-surface-muted hover:text-on-surface"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Tab content */}
-      {activeTab === "overview" && <OverviewTab range={range} />}
+      {(activeTab === "channels" || activeTab === "inbound") && (
+        <div className="rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+          <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+            Reporting period
+          </p>
+          <RangePicker value={range} onChange={setRange} idPrefix={`${activeTab}-range`} />
+        </div>
+      )}
+
+      {activeTab === "overview" && <OverviewTab range={range} onRangeChange={setRange} />}
       {activeTab === "compare" && <CompareTab />}
       {activeTab === "channels" && <ChannelsTab range={range} />}
       {activeTab === "inbound" && <InboundTab range={range} />}

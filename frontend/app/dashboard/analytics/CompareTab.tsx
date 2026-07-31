@@ -7,9 +7,11 @@ import {
 } from "recharts";
 import { Download } from "lucide-react";
 import {
-  api, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
+  api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
 import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
+import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
+import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
 
 const CURRENT_COLOR = "#5b21b6";
 const PREVIOUS_COLOR = "#a8a29e";
@@ -243,19 +245,23 @@ function LeadHeatmap({ points }: { points: ComparePeriod["heatmap"] }) {
   );
 }
 
-function ComparisonHeader({ data }: { data: ComparePayload }) {
+export function ComparisonHeader({ data }: { data: ComparePayload }) {
+  const hasComparison = data.previous !== null;
   return (
     <div className="rounded-card bg-surface p-5 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
       <p className="font-display text-lg font-bold leading-snug text-on-surface sm:text-xl">
-        {data.summary_text}
+        {hasComparison ? data.summary_text ?? "Period comparison" : "Selected period"}
       </p>
       <p className="mt-2 font-label text-xs text-on-surface-muted">
         {data.current.start} → {data.current.end}
-        {"  vs  "}
-        {data.previous.start} → {data.previous.end}
+        {data.previous !== null && `  vs  ${data.previous.start} → ${data.previous.end}`}
       </p>
     </div>
   );
+}
+
+export function shouldRenderComparisonChart(previous: ComparePeriod | null): boolean {
+  return previous !== null;
 }
 
 function ComparisonChart({
@@ -265,7 +271,7 @@ function ComparisonChart({
 }: {
   points: ComparePoint[];
   currentLabel: string;
-  previousLabel: string;
+  previousLabel?: string;
 }) {
   return (
     <div role="img" aria-label="Period comparison chart">
@@ -280,23 +286,31 @@ function ComparisonChart({
             type="monotone" dataKey="current" name={currentLabel}
             stroke={CURRENT_COLOR} strokeWidth={2.5} dot={false} connectNulls
           />
-          <Line
-            type="monotone" dataKey="previous" name={previousLabel}
-            stroke={PREVIOUS_COLOR} strokeWidth={2} strokeDasharray="5 4" dot={false} connectNulls
-          />
+          {previousLabel && (
+            <Line
+              type="monotone" dataKey="previous" name={previousLabel}
+              stroke={PREVIOUS_COLOR} strokeWidth={2} strokeDasharray="5 4" dot={false} connectNulls
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-function ComparisonTable({ metrics }: { metrics: Record<string, CompareMetric> }) {
+function ComparisonTable({
+  metrics,
+  hasComparison,
+}: {
+  metrics: Record<string, CompareMetric>;
+  hasComparison: boolean;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left">
         <thead>
           <tr className="border-b border-surface-mid">
-            {["Metric", "This period", "Previous", "Change"].map((h) => (
+            {["Metric", "This period", ...(hasComparison ? ["Previous", "Change"] : [])].map((h) => (
               <th
                 key={h}
                 className="pb-3 pr-4 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted"
@@ -316,12 +330,16 @@ function ComparisonTable({ metrics }: { metrics: Record<string, CompareMetric> }
                 <td className="py-3 pr-4 font-display text-sm font-bold text-on-surface">
                   {metric.current.toLocaleString()}
                 </td>
-                <td className="py-3 pr-4 font-label text-sm text-on-surface-muted">
-                  {metric.previous.toLocaleString()}
-                </td>
-                <td className="py-3 pr-4">
-                  <DeltaBadge pct={metric.delta_pct} />
-                </td>
+                {hasComparison && (
+                  <>
+                    <td className="py-3 pr-4 font-label text-sm text-on-surface-muted">
+                      {metric.previous.toLocaleString()}
+                    </td>
+                    <td className="py-3 pr-4">
+                      <DeltaBadge pct={metric.delta_pct} />
+                    </td>
+                  </>
+                )}
               </tr>
             );
           })}
@@ -335,18 +353,33 @@ export function CompareTab() {
   const [range, setRange] = useState<RangeValue>({
     preset: "last_14d", start: "", end: "",
   });
+  const [comparison, setComparison] = useState<ComparisonSelection>({
+    mode: "off", start: "", end: "",
+  });
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const isIncompleteCustom =
-    range.preset === "custom" && (!range.start || !range.end);
+  const canLoad = canLoadComparison(range, comparison);
+
+  const params = useMemo<CompareParams>(() => {
+    const reporting = { preset: range.preset, start: range.start, end: range.end };
+    if (comparison.mode === "custom") {
+      return {
+        ...reporting,
+        comparison: "custom",
+        comparison_start: comparison.start,
+        comparison_end: comparison.end,
+      };
+    }
+    return { ...reporting, comparison: comparison.mode };
+  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   useEffect(() => {
     // Clear before bailing out, otherwise switching to Custom leaves the
     // previous range's report on screen under a "pick a date" prompt --
     // stale numbers presented as if they were the current selection.
-    if (isIncompleteCustom) {
+    if (!canLoad) {
       setData(null);
       setErr(null);
       return;
@@ -355,25 +388,29 @@ export function CompareTab() {
     setData(null);
     setErr(null);
     api.analytics
-      .compare({ preset: range.preset, start: range.start, end: range.end })
+      .compare(params)
       .then((d) => { if (isCurrent) setData(d); })
       .catch((e: unknown) => {
         if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load");
       });
     return () => { isCurrent = false; };
-  }, [range.preset, range.start, range.end, isIncompleteCustom]);
+  }, [canLoad, params]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <RangePicker value={range} onChange={setRange} />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-5">
+          <div>
+            <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+              Reporting period
+            </p>
+            <RangePicker value={range} onChange={setRange} idPrefix="reporting-range" />
+          </div>
+          <ComparisonPicker value={comparison} onChange={setComparison} />
+        </div>
         <button
-          onClick={() =>
-            api.analytics.exportCompareCsv({
-              preset: range.preset, start: range.start, end: range.end,
-            })
-          }
-          disabled={!data}
+          onClick={() => api.analytics.exportCompareCsv(params)}
+          disabled={!data || !canLoad || comparison.mode === "off"}
           className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 font-label text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           <Download size={14} />
@@ -381,9 +418,9 @@ export function CompareTab() {
         </button>
       </div>
 
-      {isIncompleteCustom && (
+      {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">
-          Pick a start and end date to compare.
+          Pick a valid start and end date for each custom period.
         </p>
       )}
 
@@ -393,13 +430,19 @@ export function CompareTab() {
         </div>
       )}
 
-      {!data && !err && !isIncompleteCustom && (
+      {!data && !err && canLoad && (
         <div className="h-36 animate-pulse rounded-card bg-surface-mid" />
       )}
 
       {data && (
         <>
           <ComparisonHeader data={data} />
+
+          {(() => {
+            const previous = data.previous;
+            const hasComparison = shouldRenderComparisonChart(previous);
+            return (
+              <>
 
           {/* Money — the question an owner actually asks. Cost metrics use
               sense="lower" so a rise never renders as good news; ad spend is
@@ -409,28 +452,28 @@ export function CompareTab() {
               <StatCard
                 label="Ad spend"
                 value={money(data.current.money.spend)}
-                delta={data.money_metrics.spend?.delta_pct}
+                delta={hasComparison ? data.money_metrics.spend?.delta_pct : undefined}
                 sense="neutral"
-                sub={`was ${money(data.previous.money.spend)}`}
+                sub={previous ? `was ${money(previous.money.spend)}` : undefined}
               />
               <StatCard
                 label="Cost per lead"
                 value={money(data.current.money.cost_per_lead)}
-                delta={data.money_metrics.cost_per_lead?.delta_pct}
+                delta={hasComparison ? data.money_metrics.cost_per_lead?.delta_pct : undefined}
                 sense="lower"
-                sub={`was ${money(data.previous.money.cost_per_lead)}`}
+                sub={previous ? `was ${money(previous.money.cost_per_lead)}` : undefined}
               />
               <StatCard
                 label="Cost per hot lead"
                 value={money(data.current.money.cost_per_hot_lead)}
-                delta={data.money_metrics.cost_per_hot_lead?.delta_pct}
+                delta={hasComparison ? data.money_metrics.cost_per_hot_lead?.delta_pct : undefined}
                 sense="lower"
-                sub={`was ${money(data.previous.money.cost_per_hot_lead)}`}
+                sub={previous ? `was ${money(previous.money.cost_per_hot_lead)}` : undefined}
               />
               <StatCard
                 label="Ad-attributed leads"
                 value={(data.current.money.ad_leads ?? 0).toLocaleString()}
-                delta={data.money_metrics.ad_leads?.delta_pct}
+                delta={hasComparison ? data.money_metrics.ad_leads?.delta_pct : undefined}
                 sub={`${data.current.money.ad_hot_leads ?? 0} hot`}
               />
             </div>
@@ -442,14 +485,14 @@ export function CompareTab() {
               <StatCard
                 label="Typical reply time"
                 value={seconds(data.current.response.p50_seconds)}
-                delta={data.response_metrics.p50_seconds?.delta_pct}
+                delta={hasComparison ? data.response_metrics.p50_seconds?.delta_pct : undefined}
                 sense="lower"
                 sub="median"
               />
               <StatCard
                 label="Slowest 10%"
                 value={seconds(data.current.response.p90_seconds)}
-                delta={data.response_metrics.p90_seconds?.delta_pct}
+                delta={hasComparison ? data.response_metrics.p90_seconds?.delta_pct : undefined}
                 sense="lower"
                 sub="90th percentile"
               />
@@ -461,7 +504,7 @@ export function CompareTab() {
               <StatCard
                 label="Leads warmed up"
                 value={data.current.movement.promoted.toLocaleString()}
-                delta={data.movement_metrics.promoted?.delta_pct}
+                delta={hasComparison ? data.movement_metrics.promoted?.delta_pct : undefined}
                 sub={`${data.current.movement.promoted_to_hot} became hot`}
               />
             </div>
@@ -502,35 +545,41 @@ export function CompareTab() {
             <LeadHeatmap points={data.current.heatmap} />
           </div>
 
-          <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
-            <div className="mb-4 flex flex-wrap gap-2">
-              {SERIES_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  onClick={() => setSeriesId(option.id)}
-                  className={`rounded-lg px-3 py-1.5 font-label text-xs font-semibold ring-1 transition-colors ${
-                    seriesId === option.id
-                      ? "bg-primary-light text-primary ring-primary-muted"
-                      : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              ))}
+          {hasComparison && previous && (
+            <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+              <div className="mb-4 flex flex-wrap gap-2">
+                {SERIES_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    onClick={() => setSeriesId(option.id)}
+                    className={`rounded-lg px-3 py-1.5 font-label text-xs font-semibold ring-1 transition-colors ${
+                      seriesId === option.id
+                        ? "bg-primary-light text-primary ring-primary-muted"
+                        : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <ComparisonChart
+                points={data.series[seriesId] ?? []}
+                currentLabel={`${data.current.start} → ${data.current.end}`}
+                previousLabel={`${previous.start} → ${previous.end}`}
+              />
             </div>
-            <ComparisonChart
-              points={data.series[seriesId] ?? []}
-              currentLabel={`${data.current.start} → ${data.current.end}`}
-              previousLabel={`${data.previous.start} → ${data.previous.end}`}
-            />
-          </div>
+          )}
 
           <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
             <h2 className="mb-4 font-display text-base font-bold text-primary">
-              Every number, side by side
+              {hasComparison ? "Every number, side by side" : "Selected-period metrics"}
             </h2>
-            <ComparisonTable metrics={data.metrics} />
+            <ComparisonTable metrics={data.metrics} hasComparison={hasComparison} />
           </div>
+              </>
+            );
+          })()}
+
         </>
       )}
     </div>

@@ -71,7 +71,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             daily_messages=[[], []],
         )
         res = self.client.get("/api/v1/analytics/compare?preset=custom"
-                              "&start=2026-07-15&end=2026-07-16")
+                              "&start=2026-07-15&end=2026-07-16&comparison=previous")
         self.assertEqual(res.status_code, 200)
         body = res.json()
         self.assertEqual(body["current"]["start"], "2026-07-15")
@@ -79,6 +79,84 @@ class AnalyticsCompareTests(unittest.TestCase):
         self.assertEqual(body["metrics"]["new_leads"]["current"], 20)
         self.assertEqual(body["metrics"]["new_leads"]["previous"], 10)
         self.assertEqual(body["metrics"]["new_leads"]["delta_pct"], 100)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_comparison_off_returns_only_current_period_data(self, mock_get_db):
+        db = self._mock_db(
+            mock_get_db,
+            summaries=[[{"new_leads": 20}]],
+            daily_leads=[[]],
+            daily_messages=[[]],
+        )
+
+        res = self.client.get(
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-10&end=2026-07-12"
+            "&comparison=off"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        body = res.json()
+        self.assertIsNone(body["previous"])
+        self.assertEqual(body["metrics"], {})
+        self.assertEqual(body["money_metrics"], {})
+        self.assertEqual(body["response_metrics"], {})
+        self.assertEqual(body["movement_metrics"], {})
+        self.assertEqual(body["series"], {})
+        self.assertEqual(db.rpc.call_count, 7)
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_custom_comparison_uses_only_supplied_comparison_dates(self, mock_get_db):
+        db = self._mock_db(
+            mock_get_db,
+            summaries=[[{"new_leads": 20}], [{"new_leads": 10}]],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+        )
+
+        res = self.client.get(
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-10&end=2026-07-12"
+            "&comparison=custom&comparison_start=2026-06-01&comparison_end=2026-06-05"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["previous"]["start"], "2026-06-01")
+        self.assertEqual(res.json()["previous"]["end"], "2026-06-05")
+        summary_params = [
+            call.args[1]
+            for call in db.rpc.call_args_list
+            if call.args[0] == "analytics_period_summary"
+        ]
+        self.assertCountEqual(
+            summary_params,
+            [
+                {
+                    "p_tenant_id": "tenant-1",
+                    "p_start": "2026-07-09T18:30:00+00:00",
+                    "p_end": "2026-07-12T18:30:00+00:00",
+                },
+                {
+                    "p_tenant_id": "tenant-1",
+                    "p_start": "2026-05-31T18:30:00+00:00",
+                    "p_end": "2026-06-05T18:30:00+00:00",
+                },
+            ],
+        )
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_custom_comparison_requires_a_complete_valid_range(self, mock_get_db):
+        mock_get_db.return_value = MagicMock()
+
+        incomplete = self.client.get(
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-10&end=2026-07-12"
+            "&comparison=custom&comparison_start=2026-06-01"
+        )
+        reversed_range = self.client.get(
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-10&end=2026-07-12"
+            "&comparison=custom&comparison_start=2026-06-05&comparison_end=2026-06-01"
+        )
+
+        self.assertEqual(incomplete.status_code, 400)
+        self.assertEqual(reversed_range.status_code, 400)
 
     @patch("app.routes.analytics.get_supabase")
     def test_series_is_zero_filled_for_every_day_in_range(self, mock_get_db):
@@ -93,7 +171,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             daily_messages=[[], []],
         )
         res = self.client.get("/api/v1/analytics/compare?preset=custom"
-                              "&start=2026-07-15&end=2026-07-16")
+                              "&start=2026-07-15&end=2026-07-16&comparison=previous")
         series = res.json()["series"]["leads_inbound"]
         self.assertEqual(len(series), 2)
         self.assertEqual(series[0]["current"], 0)
@@ -116,7 +194,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             ],
         )
         body = self.client.get("/api/v1/analytics/compare?preset=custom"
-                               "&start=2026-07-15&end=2026-07-16").json()
+                               "&start=2026-07-15&end=2026-07-16&comparison=previous").json()
         self.assertEqual(body["current"]["money"]["cost_per_lead"], 50)
         # Cost halved: that is a -50% change, and cheaper is better.
         self.assertEqual(body["money_metrics"]["cost_per_lead"]["delta_pct"], -50)
@@ -135,7 +213,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             ],
         )
         body = self.client.get("/api/v1/analytics/compare?preset=custom"
-                               "&start=2026-07-15&end=2026-07-16").json()
+                               "&start=2026-07-15&end=2026-07-16&comparison=previous").json()
         movement = body["current"]["movement"]
         self.assertEqual(movement["promoted"], 10)
         self.assertEqual(movement["promoted_to_hot"], 10)
@@ -156,7 +234,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             ],
         )
         body = self.client.get("/api/v1/analytics/compare?preset=custom"
-                               "&start=2026-07-15&end=2026-07-16").json()
+                               "&start=2026-07-15&end=2026-07-16&comparison=previous").json()
         self.assertEqual(body["current"]["response"]["p50_seconds"], 10.4)
         self.assertEqual(body["response_metrics"]["p50_seconds"]["delta_pct"], -48)
 
@@ -170,7 +248,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             daily_messages=[[], []],
         )
         res = self.client.get("/api/v1/analytics/compare?preset=custom"
-                              "&start=2026-07-15&end=2026-07-16")
+                              "&start=2026-07-15&end=2026-07-16&comparison=previous")
         self.assertEqual(res.status_code, 200)
         body = res.json()
         self.assertEqual(body["current"]["money"], {})
@@ -186,12 +264,23 @@ class AnalyticsCompareTests(unittest.TestCase):
             daily_messages=[[], []],
         )
         res = self.client.get("/api/v1/analytics/compare/export?preset=custom"
-                              "&start=2026-07-15&end=2026-07-16")
+                              "&start=2026-07-15&end=2026-07-16&comparison=previous")
         self.assertEqual(res.status_code, 200)
         self.assertIn("text/csv", res.headers["content-type"])
         body = res.content.decode()
         self.assertIn("day_index,current_date,current_leads_inbound", body)
         self.assertEqual(len(body.strip().splitlines()), 3)  # header + 2 days
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_export_rejects_comparison_off(self, mock_get_db):
+        mock_get_db.return_value = MagicMock()
+
+        res = self.client.get(
+            "/api/v1/analytics/compare/export?preset=custom&start=2026-07-15&end=2026-07-16"
+            "&comparison=off"
+        )
+
+        self.assertEqual(res.status_code, 400)
 
     @patch("app.routes.analytics.get_supabase")
     def test_invalid_custom_range_returns_400(self, mock_get_db):
@@ -218,7 +307,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             daily_messages=[[], []],
         )
         body = self.client.get(
-            "/api/v1/analytics/compare?preset=custom&start=2026-07-15&end=2026-07-16"
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-15&end=2026-07-16&comparison=previous"
         ).json()
         self.assertEqual(body["metrics"]["engagement_rate"]["current"], 65)
         self.assertEqual(body["metrics"]["engagement_rate"]["previous"], 50)
@@ -237,7 +326,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             daily_messages=[[], []],
         )
         body = self.client.get(
-            "/api/v1/analytics/compare?preset=custom&start=2026-07-15&end=2026-07-16"
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-15&end=2026-07-16&comparison=previous"
         ).json()
         mix = body["current"]["daily_segment_mix"]
         self.assertEqual(len(mix), 2)

@@ -2,6 +2,8 @@ import logging
 import re
 from typing import Literal
 import secrets
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -38,6 +40,17 @@ class EmbeddedSignupRequest(BaseModel):
 
 class FacebookEmbeddedSignupRequest(BaseModel):
     code: str
+
+
+class MetaBusinessLoginStartRequest(BaseModel):
+    code: str
+
+
+class MetaBusinessLoginCompleteRequest(BaseModel):
+    session_id: str
+    page_id: str
+    ad_account_id: str | None = None
+    catalog_id: str | None = None
 
 
 class InboxConfigUpdate(BaseModel):
@@ -724,6 +737,211 @@ async def whatsapp_embedded_signup(
         "success": True,
         "phone_number": display_phone,
         "business_name": info_data.get("verified_name"),
+        "subscribed": subscribed,
+    }
+
+
+_META_BUSINESS_ONBOARDING_KEYS = (
+    "meta_business_onboarding_token",
+    "meta_business_onboarding_session_id",
+    "meta_business_onboarding_expires_at",
+)
+
+
+def _save_tenant_setting(db, tenant_id: str, key: str, value: str, *, is_secret: bool = False) -> None:
+    db.table("app_settings").upsert({
+        "tenant_id": tenant_id,
+        "key": key,
+        "value": value,
+        "is_secret": is_secret,
+        "updated_at": "now()",
+    }, on_conflict="tenant_id,key").execute()
+
+
+def _public_business_login_assets(assets: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Return only browser-safe metadata; Graph access tokens must never leave Aira."""
+    return {
+        "pages": [
+            {
+                "id": page.get("id"),
+                "name": page.get("name") or "Unnamed Page",
+                "instagram_business_account": page.get("instagram_business_account"),
+            }
+            for page in assets.get("pages", [])
+            if page.get("id")
+        ],
+        "ad_accounts": [
+            {
+                key: account[key]
+                for key in ("id", "name", "account_id", "account_status", "currency", "timezone_name")
+                if account.get(key) is not None
+            }
+            for account in assets.get("ad_accounts", [])
+            if account.get("id")
+        ],
+        "catalogs": [
+            {"id": catalog.get("id"), "name": catalog.get("name") or "Unnamed catalog"}
+            for catalog in assets.get("catalogs", [])
+            if catalog.get("id")
+        ],
+    }
+
+
+def _claim_business_assets(db, tenant_id: str, claims: list[dict[str, str]]) -> None:
+    """Atomically claim Meta assets so an inbound webhook has one tenant owner."""
+    try:
+        db.rpc("claim_meta_assets", {"p_tenant_id": tenant_id, "p_assets": claims}).execute()
+    except Exception as exc:
+        logger.warning("General Meta signup asset claim failed tenant=%s: %s", tenant_id, exc)
+        if "23505" in str(getattr(exc, "code", "")) or "23505" in str(exc):
+            raise HTTPException(status_code=409, detail="One of those Meta assets is already connected to another Aira workspace.") from exc
+        raise HTTPException(status_code=503, detail="Meta asset ownership could not be confirmed. Please try again.") from exc
+
+
+@router.post("/facebook/business-login/start")
+async def start_meta_business_login(
+    payload: MetaBusinessLoginStartRequest,
+    ctx: dict = Depends(require_settings_manage),
+):
+    """Exchange a General Facebook Login for Business code and safely list assets.
+
+    The Meta code is single-use. Its token stays server-side while the browser chooses
+    which of the granted Page, ad account, and catalog it wants to connect.
+    """
+    from app.services.meta_cloud import exchange_embedded_signup_code, discover_business_login_assets
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    exchange = await exchange_embedded_signup_code(payload.code)
+    access_token = exchange["access_token"]
+    assets = await discover_business_login_assets(access_token)
+    public_assets = _public_business_login_assets(assets)
+    if not public_assets["pages"]:
+        raise HTTPException(status_code=400, detail="No Facebook Page was granted — select at least one Page during Meta signup.")
+
+    session_id = str(uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_token", access_token, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_session_id", session_id, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_expires_at", expires_at)
+
+    return {"session_id": session_id, **public_assets}
+
+
+@router.post("/facebook/business-login/complete")
+async def complete_meta_business_login(
+    payload: MetaBusinessLoginCompleteRequest,
+    ctx: dict = Depends(require_settings_manage),
+    user: dict = Depends(get_current_user),
+):
+    """Validate explicit General Login selections and persist the connected assets."""
+    from app.services.meta_cloud import discover_business_login_assets
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    access_token = _get_setting_value(db, tenant_id, "meta_business_onboarding_token")
+    session_id = _get_setting_value(db, tenant_id, "meta_business_onboarding_session_id")
+    expires_at = _get_setting_value(db, tenant_id, "meta_business_onboarding_expires_at")
+    if not access_token or not session_id or not expires_at or payload.session_id != session_id:
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.")
+    try:
+        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.") from exc
+    if expiry <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.")
+
+    assets = await discover_business_login_assets(access_token)
+    pages_by_id = {page.get("id"): page for page in assets.get("pages", []) if page.get("id")}
+    ads_by_id = {account.get("id"): account for account in assets.get("ad_accounts", []) if account.get("id")}
+    catalogs_by_id = {catalog.get("id"): catalog for catalog in assets.get("catalogs", []) if catalog.get("id")}
+    page = pages_by_id.get(payload.page_id)
+    if not page or not page.get("access_token"):
+        raise HTTPException(status_code=400, detail="Select a Facebook Page that was granted during this Meta signup.")
+    ad_account = ads_by_id.get(payload.ad_account_id) if payload.ad_account_id else None
+    if payload.ad_account_id and not ad_account:
+        raise HTTPException(status_code=400, detail="Select an ad account that was granted during this Meta signup.")
+    catalog = catalogs_by_id.get(payload.catalog_id) if payload.catalog_id else None
+    if payload.catalog_id and not catalog:
+        raise HTTPException(status_code=400, detail="Select a catalog that was granted during this Meta signup.")
+
+    ig_account = page.get("instagram_business_account") or {}
+    ig_account_id = ig_account.get("id")
+    claims = [{"asset_type": "facebook_page", "asset_id": payload.page_id}]
+    if ig_account_id:
+        claims.append({"asset_type": "instagram_account", "asset_id": ig_account_id})
+    if ad_account:
+        claims.append({"asset_type": "ad_account", "asset_id": ad_account["id"]})
+    if catalog:
+        claims.append({"asset_type": "catalog", "asset_id": catalog["id"]})
+    _claim_business_assets(db, tenant_id, claims)
+
+    page_token = page["access_token"]
+    subscribed = False
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"https://graph.facebook.com/v25.0/{payload.page_id}/subscribed_apps",
+                params={
+                    "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads",
+                    "access_token": page_token,
+                },
+                timeout=10.0,
+            )
+        subscribed = bool(response.json().get("success", False))
+    except httpx.HTTPError as exc:
+        logger.warning("General Meta signup webhook subscription failed tenant=%s: %s", tenant_id, exc)
+
+    _save_tenant_setting(db, tenant_id, "facebook_access_token", page_token, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "facebook_page_id", payload.page_id)
+    _save_tenant_setting(db, tenant_id, "meta_business_access_token", access_token, is_secret=True)
+    if env_settings.meta_app_secret:
+        _save_tenant_setting(db, tenant_id, "meta_app_secret", env_settings.meta_app_secret, is_secret=True)
+
+    connected_instagram = bool(ig_account_id)
+    if connected_instagram:
+        _save_tenant_setting(db, tenant_id, "instagram_access_token", page_token, is_secret=True)
+        _save_tenant_setting(db, tenant_id, "instagram_page_id", ig_account_id)
+
+    if ad_account:
+        _save_tenant_setting(db, tenant_id, "meta_ads_access_token", access_token, is_secret=True)
+        _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
+        _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
+        _save_tenant_setting(db, tenant_id, "meta_ads_status", "configured")
+    if catalog:
+        _save_tenant_setting(db, tenant_id, "meta_catalog_id", catalog["id"])
+        _save_tenant_setting(db, tenant_id, "meta_catalog_name", catalog.get("name") or catalog["id"])
+
+    _save_tenant_setting(db, tenant_id, "facebook_status", "live" if subscribed else "configured")
+    if connected_instagram:
+        _save_tenant_setting(db, tenant_id, "instagram_status", "live" if subscribed else "configured")
+    db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", list(_META_BUSINESS_ONBOARDING_KEYS)).execute()
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=user.get("user_id"),
+        actor_role="tenant_user",
+        action="settings.meta_business_login_connected",
+        target_type="channel",
+        target_id="facebook",
+        metadata={
+            "page_id": payload.page_id,
+            "instagram_connected": connected_instagram,
+            "ad_account_id": ad_account.get("id") if ad_account else None,
+            "catalog_id": catalog.get("id") if catalog else None,
+            "subscribed": subscribed,
+        },
+    )
+    return {
+        "success": True,
+        "page_name": page.get("name"),
+        "page_id": payload.page_id,
+        "instagram_connected": connected_instagram,
+        "ad_account_id": ad_account.get("id") if ad_account else None,
+        "catalog_id": catalog.get("id") if catalog else None,
         "subscribed": subscribed,
     }
 
