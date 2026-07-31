@@ -549,18 +549,16 @@ export function AdPerformanceTab() {
               <X size={11} /> Clear filters
             </button>
           </div>
-          <div className="grid gap-2.5 items-end xl:grid-cols-[1.25fr_1fr_1fr_1fr]">
-            <div className="grid grid-cols-2 gap-2 rounded-xl border border-violet-100 bg-white/80 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-              <div>
-                <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-violet-700">From</label>
-                <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-surface-mid/80 bg-white px-2.5 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
-              </div>
-              <div>
-                <label htmlFor="ad-performance-to" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-violet-700">To</label>
-                <input id="ad-performance-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}
-                  className="h-9 w-full rounded-lg border border-surface-mid/80 bg-white px-2.5 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
-              </div>
+          <div className="grid gap-2.5 items-end grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
+            <div>
+              <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
+              <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+            </div>
+            <div>
+              <label htmlFor="ad-performance-to" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To Date</label>
+              <input id="ad-performance-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
             </div>
             <div>
               <label htmlFor="ad-performance-campaign" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Campaign</label>
