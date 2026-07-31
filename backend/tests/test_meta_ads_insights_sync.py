@@ -1,4 +1,5 @@
 from app.services.meta_ads_insights_sync import (
+    is_click_to_whatsapp_adset,
     normalize_account_id,
     upsert_creative_from_insight,
     sync_tenant_ad_insights_verbose,
@@ -15,6 +16,14 @@ def test_normalize_account_id_keeps_prefix():
 
 def test_normalize_account_id_strips_whitespace():
     assert normalize_account_id("  act_123 ") == "act_123"
+
+
+def test_only_exact_whatsapp_destination_is_included():
+    assert is_click_to_whatsapp_adset({"destination_type": "WHATSAPP"}) is True
+    assert is_click_to_whatsapp_adset({"destination_type": "MESSENGER"}) is False
+    assert is_click_to_whatsapp_adset({
+        "destination_type": "MESSAGING_MESSENGER_WHATSAPP",
+    }) is False
 
 
 class FakeTable:
@@ -155,6 +164,14 @@ def test_verbose_sync_writes_and_reports_success(monkeypatch):
         "clicks": "5", "inline_link_clicks": "4", "spend": "10.0", "date_start": "2026-07-20",
     }]
     monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: fake_rows)
+    monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [{
+        "id": "as1",
+        "name": "Set",
+        "destination_type": "WHATSAPP",
+        "optimization_goal": "CONVERSATIONS",
+        "effective_status": "ACTIVE",
+        "daily_budget": "80000",
+    }])
     # Campaign metadata enrichment is a separate Meta call — mock it so the
     # unit test stays hermetic (no live Graph API request).
     monkeypatch.setattr(mod, "_fetch_campaigns", lambda *a, **k: [])
@@ -162,5 +179,40 @@ def test_verbose_sync_writes_and_reports_success(monkeypatch):
     assert result["ok"] is True
     assert result["error"] is None
     assert result["rows_fetched"] == 1
+    assert result["whatsapp_rows"] == 1
+    assert result["skipped_non_whatsapp"] == 0
     assert result["written"] == 1
     assert len(db.store["ad_insights_daily"]) == 1
+    assert db.store["ad_insights_daily"][0]["meta_ad_account_id"] == "act_1"
+    assert db.store["ad_creatives"][0]["is_click_to_whatsapp"] is True
+    assert db.store["ad_sets"][0]["meta_ad_account_id"] == "act_1"
+    assert db.store["ad_sets"][0]["daily_budget"] == 800.0
+
+
+def test_verbose_sync_skips_non_whatsapp_ads(monkeypatch):
+    import app.services.meta_ads_insights_sync as mod
+    db = FakeDB()
+    db.store["app_settings"] = [
+        {"tenant_id": "t1", "key": "meta_ads_access_token", "value": "tok"},
+        {"tenant_id": "t1", "key": "meta_ads_account_id", "value": "act_1"},
+    ]
+    monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: [{
+        "ad_id": "A1",
+        "adset_id": "as1",
+        "campaign_id": "c1",
+        "date_start": "2026-07-20",
+    }])
+    monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [{
+        "id": "as1",
+        "destination_type": "WEBSITE",
+    }])
+    monkeypatch.setattr(mod, "_fetch_campaigns", lambda *a, **k: [])
+
+    result = sync_tenant_ad_insights_verbose(db, "t1")
+
+    assert result["ok"] is True
+    assert result["rows_fetched"] == 1
+    assert result["whatsapp_rows"] == 0
+    assert result["skipped_non_whatsapp"] == 1
+    assert result["written"] == 0
+    assert db.store.get("ad_creatives", []) == []

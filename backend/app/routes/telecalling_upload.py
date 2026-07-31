@@ -12,6 +12,7 @@ from fastapi.responses import Response
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role, require_owner
 from app.services.assignment import get_telecalling_config, record_assignment_event
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_owner)])
@@ -214,6 +215,7 @@ async def upload_telecalling_contacts(
         raise HTTPException(status_code=400, detail="CSV must contain a 'phone' column")
 
     db = get_supabase()
+    initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
     fieldmap = {f.strip().lower(): f for f in reader.fieldnames}
 
     rows_by_phone: dict[str, dict] = {}
@@ -226,8 +228,8 @@ async def upload_telecalling_contacts(
             "phone": phone,
             "name": (row.get(name_key) or "").strip() or None if name_key else None,
             "source": "upload",
-            "score": 5,
-            "segment": segment_override or "C",
+            "score": initial_score,
+            "segment": segment_override or initial_segment,
             "tenant_id": tenant_id,
         }
 

@@ -19,6 +19,7 @@ from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id
 from app.services.inbound_leads_logic import INBOUND_SOURCES
@@ -40,6 +41,15 @@ SEGMENT_LABELS = {
     "C": "Cold",
     "D": "Disqualified",
 }
+
+
+class MetaAdTrackingCodeRequest(BaseModel):
+    ad_creative_id: str
+    message: str = Field(
+        default="Hi, I'm interested in this service.",
+        min_length=1,
+        max_length=500,
+    )
 
 
 def _fmt_ist(iso: str) -> str:
@@ -361,6 +371,50 @@ async def ad_filters(tenant_id: str = Depends(get_tenant_id)):
     return build_ad_filter_tree(db, tenant_id)
 
 
+@router.post("/ad-tracking-code")
+async def generate_meta_ad_tracking_code(
+    payload: MetaAdTrackingCodeRequest,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Return a stable per-ad fallback code and ready-to-copy pre-filled text."""
+    from app.services.meta_ads_insights_sync import get_current_ads_account_id
+    from app.services.meta_ctwa_attribution import (
+        build_prefilled_message,
+        ensure_creative_tracking_code,
+    )
+
+    db = get_supabase()
+    account_id = get_current_ads_account_id(db, tenant_id)
+    if not account_id:
+        raise HTTPException(status_code=400, detail="Connect a Meta Ads account first")
+
+    creative = ensure_creative_tracking_code(
+        db,
+        tenant_id=tenant_id,
+        meta_ad_account_id=account_id,
+        ad_creative_id=payload.ad_creative_id,
+    )
+    if not creative:
+        raise HTTPException(
+            status_code=404,
+            detail="Click-to-WhatsApp creative not found in the current ad account",
+        )
+    if not creative.get("meta_ad_id"):
+        raise HTTPException(
+            status_code=409,
+            detail="This creative does not have a Meta Ad ID yet; sync Meta Ads and try again",
+        )
+
+    code = creative["prefilled_message_code"]
+    return {
+        "code": code,
+        "prefilled_message": build_prefilled_message(payload.message, code),
+        "ad_creative_id": creative["id"],
+        "creative_name": creative.get("creative_label") or creative.get("meta_ad_id"),
+        "meta_ad_id": creative.get("meta_ad_id"),
+    }
+
+
 @router.get("/ad-performance")
 async def ad_performance(
     campaign_id: str | None = Query(None),
@@ -399,10 +453,13 @@ async def ad_performance_export(
         date_from=date_from, date_to=date_to,
     )
     fieldnames = [
-        "creative_label", "adset_name", "inline_link_clicks", "messages",
-        "clicked_no_message", "qualified", "hot", "sales", "spend",
-        "cpc", "cost_per_message", "cost_per_qualified", "cost_per_hot",
-        "revenue", "roas",
+        "campaign_name", "campaign_status", "adset_name", "creative_label",
+        "daily_budget", "lifetime_budget", "budget_level",
+        "impressions", "reach", "frequency", "inline_link_clicks", "clicks_all",
+        "messages", "meta_conversations", "conversation_rate",
+        "meta_conversation_rate", "attribution_gap",
+        "clicked_no_message", "no_message_rate", "hot", "hot_rate", "spend", "cpc",
+        "cost_per_message", "ctr", "cpm", "cost_per_hot",
     ]
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")

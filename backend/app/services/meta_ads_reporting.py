@@ -51,12 +51,22 @@ def roll_up_rows(level: str, rows: list[dict]) -> list[dict]:
 def build_account_performance(db, tenant_id: str, *, level: str = "campaign",
                               date_from: str | None = None, date_to: str | None = None) -> list[dict]:
     """One row per campaign/adset/ad with Meta metrics + Aira funnel counts."""
-    from app.services.meta_ads_insights_sync import extract_result_metric
+    from app.services.meta_ads_insights_sync import (
+        extract_result_metric,
+        get_current_ads_account_id,
+    )
+
+    account = get_current_ads_account_id(db, tenant_id)
+    if not account:
+        return []
 
     creatives = (
         db.table("ad_creatives").select(
             "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,meta_campaign_id,campaign_id"
-        ).eq("tenant_id", tenant_id).execute().data
+        ).eq("tenant_id", tenant_id)
+        .eq("meta_ad_account_id", account)
+        .eq("is_click_to_whatsapp", True)
+        .execute().data
     ) or []
     if not creatives:
         return []
@@ -67,14 +77,18 @@ def build_account_performance(db, tenant_id: str, *, level: str = "campaign",
     camps = {}
     if camp_ids:
         for c in (db.table("ad_campaigns").select(
-                "id,campaign_name,objective,effective_status,daily_budget,lifetime_budget"
-            ).eq("tenant_id", tenant_id).in_("id", camp_ids).execute().data or []):
+            "id,campaign_name,objective,effective_status,daily_budget,lifetime_budget"
+            ).eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .in_("id", camp_ids).execute().data or []):
             camps[c["id"]] = c
 
     # Insights summed per creative
     ins_q = db.table("ad_insights_daily").select(
         "ad_creative_id,inline_link_clicks,spend,impressions,reach,actions"
-    ).eq("tenant_id", tenant_id).in_("ad_creative_id", creative_ids)
+    ).eq("tenant_id", tenant_id).eq(
+        "meta_ad_account_id", account
+    ).in_("ad_creative_id", creative_ids)
     if date_from:
         ins_q = ins_q.gte("insight_date", date_from)
     if date_to:

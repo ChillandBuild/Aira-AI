@@ -13,6 +13,7 @@ from app.db.supabase import get_supabase
 from app.services.entitlements import meter
 from app.services.meta_cloud import send_template_message
 from app.services.outbound_router import get_best_number, increment_send_count
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 
@@ -257,8 +258,9 @@ async def execute_broadcast(row: dict) -> dict:
                 except Exception as br_err:
                     logger.error(f"broadcast_recipients insert failed: {br_err}")
 
-        # Freeze previous un-finalized broadcast_lead_scores rows (per-lead freeze)
-        # and seed new rows at current leads.score so the snapshot is accurate.
+        # Freeze previous un-finalized broadcast_lead_scores rows (per-lead freeze).
+        # Each broadcast starts its own scoring slate at the tenant's Cold floor;
+        # this intentionally does not modify the lead's global score or segment.
         sent_at = datetime.now(timezone.utc).isoformat()
         sent_lead_ids_for_bls = [
             r["lead_id"] for r in recipient_rows
@@ -276,15 +278,16 @@ async def execute_broadcast(row: dict) -> dict:
             except Exception as frz_err:
                 logger.warning(f"broadcast_lead_scores freeze failed: {frz_err}")
 
+        initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
         bls_rows = [
             {
                 "tenant_id": tenant_id,
                 "broadcast_id": broadcast_id,
                 "lead_id": r["lead_id"],
                 "tag_id": tag_id,
-                "score": 5,
-                "segment": "C",
-                "arc_score": 5,
+                "score": initial_score,
+                "segment": initial_segment,
+                "arc_score": initial_score,
                 "arc_message_count": 0,
                 "broadcast_sent_at": sent_at,
             }

@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
-  CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck
+  CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck,
+  Megaphone
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -170,21 +171,6 @@ const CHANNELS: ChannelConfig[] = [
       { key: "meta_access_token", label: "Permanent Access Token", secret: true, required: true },
       { key: "meta_webhook_verify_token", label: "Webhook Verify Token", secret: true, required: true, hint: "Pick any string. Paste the same value into Meta Developer App → Webhook → Verify Token (shared by WhatsApp, Instagram, Facebook)." },
       { key: "meta_app_secret", label: "Meta App Secret", secret: true, required: true, hint: "Meta Developer App → Settings → Basic → App Secret. Used to verify inbound Facebook + Instagram webhooks." },
-      { key: "meta_ads_account_id", label: "Ads Account ID (optional)", secret: false, required: false, hint: "For the Ad Performance report. Business Settings → Accounts → Ad accounts. Digits or act_<digits>." },
-      { key: "meta_ads_access_token", label: "Ads System-User Token (optional)", secret: true, required: false, hint: "For the Ad Performance report. A System User token with the ads_read permission. Powers per-creative click & spend analytics." },
-    ],
-    hasActivation: true,
-  },
-  {
-    id: "telegram",
-    name: "Telegram Bot",
-    description: "Connect your Telegram bot to handle direct messages, support queries, and group notifications.",
-    icon: Send,
-    iconBg: "bg-sky-100",
-    iconColor: "text-sky-600",
-    themeColor: "sky",
-    fields: [
-      { key: "telegram_bot_token", label: "Telegram Bot Token", secret: true, required: true, hint: "Obtain this token from @BotFather on Telegram" },
     ],
     hasActivation: true,
   },
@@ -214,6 +200,33 @@ const CHANNELS: ChannelConfig[] = [
     fields: [
       { key: "facebook_page_id", label: "Facebook Page ID", secret: false, required: true, hint: "Your Facebook Page's numeric ID from Page settings" },
       { key: "facebook_access_token", label: "Facebook Page Access Token", secret: true, required: true, hint: "Permanent page access token with pages_messaging scope" },
+    ],
+    hasActivation: true,
+  },
+  {
+    id: "meta_ads",
+    name: "Meta Ads",
+    description: "Connect an ad account for Click-to-WhatsApp performance, spend, delivery, and attribution.",
+    icon: Megaphone,
+    iconBg: "bg-indigo-100",
+    iconColor: "text-indigo-600",
+    themeColor: "indigo",
+    fields: [
+      { key: "meta_ads_account_id", label: "Ads Account ID", secret: false, required: true, hint: "Business Settings → Accounts → Ad accounts. Enter digits or act_<digits>." },
+      { key: "meta_ads_access_token", label: "Ads System User Token", secret: true, required: true, hint: "Use a System User token with ads_read. Aira imports only single-destination Click-to-WhatsApp ads." },
+    ],
+    hasActivation: true,
+  },
+  {
+    id: "telegram",
+    name: "Telegram Bot",
+    description: "Connect your Telegram bot to handle direct messages, support queries, and group notifications.",
+    icon: Send,
+    iconBg: "bg-sky-100",
+    iconColor: "text-sky-600",
+    themeColor: "sky",
+    fields: [
+      { key: "telegram_bot_token", label: "Telegram Bot Token", secret: true, required: true, hint: "Obtain this token from @BotFather on Telegram" },
     ],
     hasActivation: true,
   },
@@ -477,6 +490,18 @@ function WebhookConfigGuide({ channelId, tenantId }: { channelId: string; tenant
     );
   }
 
+  if (channelId === "meta_ads") {
+    return (
+      <div className="space-y-2.5 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5 font-body text-xs text-ink-secondary">
+        <p className="text-sm font-semibold text-ink">Meta Ads reporting connection</p>
+        <p>1. Create or select a Meta System User with access to the required ad account.</p>
+        <p>2. Generate a token with <strong>ads_read</strong> and save it with the Ads Account ID.</p>
+        <p>3. Click <strong>Validate &amp; Activate</strong> to confirm the account identity.</p>
+        <p>4. The performance report imports only ad sets whose destination is exactly <strong>WhatsApp</strong>.</p>
+      </div>
+    );
+  }
+
   return null;
 }
 
@@ -637,6 +662,13 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             data.business_name,
             data.phone_number,
             data.subscribed ? "Webhook subscribed ✓" : "Add WABA ID to enable webhook subscription",
+          ].filter(Boolean).join(" · ");
+        } else if (selectedChannel.id === "meta_ads") {
+          detail = [
+            data.account_name,
+            data.account_id,
+            data.currency,
+            data.account_status === 1 ? "Account active" : `Account status: ${data.account_status ?? "unknown"}`,
           ].filter(Boolean).join(" · ");
         } else {
           detail = [
@@ -876,6 +908,8 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             const alert = webhookHealth?.token_alerts?.find(a => a.channel === channel.id);
             const statusSetting = settings.find(s => s.key === `${channel.id}_status`);
             const isLive = !channel.hasActivation || statusSetting?.display_value === "live" || !!health?.last_event;
+            const adsAccountName = settings.find(s => s.key === "meta_ads_account_name")?.display_value;
+            const adsLastSync = settings.find(s => s.key === "meta_ads_last_sync_at")?.display_value;
 
             return (
               <article
@@ -905,7 +939,12 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                 {configured && (
                   <div className="mt-6 pt-4 border-t border-border-subtle/50 flex items-center justify-between text-[11px] text-ink-muted font-body w-full">
                     <span>
-                      {health?.last_event ? (
+                      {channel.id === "meta_ads" ? (
+                        <>
+                          {adsAccountName && adsAccountName !== "Not set" ? adsAccountName : "Ads account connected"}
+                          {adsLastSync && adsLastSync !== "Not set" ? <> · Synced {timeAgo(adsLastSync)}</> : null}
+                        </>
+                      ) : health?.last_event ? (
                         <>Active event: <strong className="text-emerald-600">{timeAgo(health.last_event)}</strong></>
                       ) : (
                         "No events received yet"
@@ -922,7 +961,11 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                   </div>
                 )}
                 <div className="mt-3 flex items-center justify-between gap-2">
-                  <HealthRefreshButton loading={healthLoading} onClick={loadHealth} />
+                  {channel.id === "meta_ads" ? (
+                    <span className="font-body text-[10px] font-medium text-indigo-600">Click-to-WhatsApp only</span>
+                  ) : (
+                    <HealthRefreshButton loading={healthLoading} onClick={loadHealth} />
+                  )}
                   <button
                     type="button"
                     onClick={() => openChannelModal(channel)}
@@ -953,7 +996,11 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                 </div>
                 <div>
                   <h2 className="font-display text-lg font-bold text-ink">{selectedChannel.name} Settings</h2>
-                  <p className="font-body text-xs text-ink-muted">Set up credentials and subscription webhooks.</p>
+                  <p className="font-body text-xs text-ink-muted">
+                    {selectedChannel.id === "meta_ads"
+                      ? "Connect and validate the ad account used for WhatsApp reporting."
+                      : "Set up credentials and subscription webhooks."}
+                  </p>
                 </div>
               </div>
               <button
@@ -1065,7 +1112,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                       type="button"
                       onClick={handleActivate}
                       disabled={!canManage || activating || !isChannelConfigured(selectedChannel)}
-                      title={!canManage ? "Read-only role" : !isChannelConfigured(selectedChannel) ? "Save required fields first" : "Validate token and register webhook"}
+                      title={!canManage ? "Read-only role" : !isChannelConfigured(selectedChannel) ? "Save required fields first" : selectedChannel.id === "meta_ads" ? "Validate token and ad account" : "Validate token and register webhook"}
                       className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all border",
                         canManage && isChannelConfigured(selectedChannel)
                           ? "border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100"
@@ -1075,7 +1122,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                       {activating ? (
                         <><Loader2 size={14} className="animate-spin" />Validating…</>
                       ) : (
-                        <><Zap size={14} />Validate &amp; Activate</>
+                        <><Zap size={14} />{selectedChannel.id === "meta_ads" ? "Validate account" : "Validate & Activate"}</>
                       )}
                     </button>
                   )}

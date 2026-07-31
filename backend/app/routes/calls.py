@@ -21,6 +21,7 @@ from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call
 from app.services.assignment import get_telecalling_config, record_assignment_event
+from app.services.segmentation import new_lead_score_and_segment
 
 
 logger = logging.getLogger(__name__)
@@ -253,11 +254,12 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         else:
             # auto-create a minimal lead so notes can always be saved
             try:
+                initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
                 new_lead = db.table("leads").insert({
                     "phone": lead_phone,
                     "source": "manual",
-                    "score": 5,
-                    "segment": "C",
+                    "score": initial_score,
+                    "segment": initial_segment,
                     "tenant_id": tenant_id,
                     "call_status": "in_progress",
                 }).execute()
@@ -453,9 +455,10 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
                 resolved_lead_id = match.data["id"]
             else:
                 try:
+                    initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
                     new_lead = db.table("leads").insert({
-                        "phone": dialed, "source": "manual", "score": 5,
-                        "segment": "C", "tenant_id": tenant_id,
+                        "phone": dialed, "source": "manual", "score": initial_score,
+                        "segment": initial_segment, "tenant_id": tenant_id,
                         "call_status": "in_progress",
                     }).execute()
                     resolved_lead_id = new_lead.data[0]["id"] if new_lead.data else None
@@ -723,9 +726,10 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
             lead_id = match.data["id"]
             lead_name = match.data.get("name")
         else:
+            initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
             new_lead = db.table("leads").insert({
-                "phone": dialed, "source": "manual", "score": 5,
-                "segment": "C", "tenant_id": tenant_id,
+                "phone": dialed, "source": "manual", "score": initial_score,
+                "segment": initial_segment, "tenant_id": tenant_id,
                 "call_status": "in_progress",
             }).execute()
             if new_lead.data:

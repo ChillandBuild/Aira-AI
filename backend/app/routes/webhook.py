@@ -9,6 +9,7 @@ from app.services.google_ads_attribution import parse_google_ref
 from app.services.failover import update_number_quality, handle_quality_red, handle_quality_yellow
 from app.services.meta_webhook_verify import verify_meta_signature
 from app.services.entitlements import meter
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -423,69 +424,122 @@ async def whatsapp_webhook(
                             except Exception as e:
                                 logger.warning(f"Failed to clear whatsapp_undeliverable for lead {lead_id}: {e}")
                     else:
+                        initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
                         new_lead = db.table("leads").insert({
                             "phone": phone,
                             "source": "whatsapp",
-                            "score": 5,
-                            "segment": "C",
+                            "score": initial_score,
+                            "segment": initial_segment,
                             "tenant_id": tenant_id,
                             "opt_in_source": "whatsapp",
                         }).execute()
                         lead_id = new_lead.data[0]["id"]
-                        record_stage_event(lead_id, to_segment="C", event_type="created", metadata={"source": "whatsapp"}, tenant_id=tenant_id, db=db)
+                        record_stage_event(lead_id, to_segment=initial_segment, event_type="created", metadata={"source": "whatsapp"}, tenant_id=tenant_id, db=db)
                         try:
                             from app.services.assignment import maybe_assign_lead
-                            maybe_assign_lead(lead_id, tenant_id, "C", "whatsapp", reason="created")
+                            maybe_assign_lead(lead_id, tenant_id, initial_segment, "whatsapp", reason="created")
                         except Exception as e:
                             logger.warning(f"Auto-assign failed for lead {lead_id}: {e}")
 
-                    # CTWA: capture Click-to-WhatsApp ad referral on first contact
+                    # Meta CTWA: count one lead once per ad. Meta's referral ad
+                    # id is primary; the pre-filled [AIRA:...] code is fallback.
                     ad_attributed = False
                     referral = msg.get("referral")
-                    if referral and referral.get("source_type") == "ad":
-                        try:
-                            from app.services.growth import get_or_create_campaign
-                            ad_id = referral.get("source_id", "")
-                            ads_ctx = referral.get("ads_context_data", {})
-                            ad_title = ads_ctx.get("ad_title") or referral.get("headline", "") or ad_id
-                            if ad_id:
+                    referral_ad_id = (
+                        (referral or {}).get("source_id", "")
+                        if (referral or {}).get("source_type") == "ad"
+                        else ""
+                    )
+                    try:
+                        from app.services.meta_ads_insights_sync import get_current_ads_account_id
+                        from app.services.meta_ctwa_attribution import (
+                            find_creative_for_message,
+                            record_lead_ad_attribution,
+                        )
+
+                        account_id = get_current_ads_account_id(db, tenant_id)
+                        creative_row = None
+                        attribution_method = None
+                        if account_id:
+                            creative_row, attribution_method = find_creative_for_message(
+                                db,
+                                tenant_id=tenant_id,
+                                meta_ad_account_id=account_id,
+                                referral_ad_id=referral_ad_id or None,
+                                body=body,
+                            )
+
+                        resolved_ad_id = (
+                            referral_ad_id
+                            if attribution_method == "meta_ad_id"
+                            else (creative_row or {}).get("meta_ad_id")
+                        )
+                        if account_id and attribution_method and resolved_ad_id:
+                            creative_id = (creative_row or {}).get("id")
+                            is_new_ad_lead = record_lead_ad_attribution(
+                                db,
+                                tenant_id=tenant_id,
+                                lead_id=lead_id,
+                                meta_ad_account_id=account_id,
+                                meta_ad_id=resolved_ad_id,
+                                ad_creative_id=creative_id,
+                                attribution_method=attribution_method,
+                            )
+                            ad_attributed = True
+
+                            lead_updates: dict = {}
+                            if creative_row and creative_row.get("campaign_id"):
+                                lead_updates["ad_campaign_id"] = creative_row["campaign_id"]
+                            elif referral_ad_id:
+                                # Keep the existing campaign-level fallback for
+                                # a brand-new ad that has not synced yet.
+                                from app.services.growth import get_or_create_campaign
+
+                                ads_ctx = (referral or {}).get("ads_context_data", {})
+                                ad_title = (
+                                    ads_ctx.get("ad_title")
+                                    or (referral or {}).get("headline", "")
+                                    or referral_ad_id
+                                )
                                 campaign = get_or_create_campaign(
                                     db=db,
                                     tenant_id=tenant_id,
                                     platform="whatsapp",
                                     campaign_name=ad_title,
-                                    external_campaign_id=ad_id,
+                                    external_campaign_id=referral_ad_id,
                                 )
                                 if campaign:
-                                    db.table("leads").update({"ad_campaign_id": campaign["id"]}).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
-                                    ad_attributed = True
-                                    logger.info(f"CTWA referral: lead {lead_id} linked to ad campaign {campaign['id']} (ad_id={ad_id})")
+                                    lead_updates["ad_campaign_id"] = campaign["id"]
 
-                                    # Per-creative attribution: match the referral ad_id to an
-                                    # auto-imported ad_creatives row. Only set when currently
-                                    # NULL so a repeat contact never re-attributes the lead.
-                                    try:
-                                        creative = (
-                                            db.table("ad_creatives").select("id")
-                                            .eq("tenant_id", tenant_id).eq("meta_ad_id", ad_id)
-                                            .limit(1).execute()
-                                        )
-                                        creative_row = (creative.data or [None])[0]
-                                        if creative_row:
-                                            current = (
-                                                db.table("leads").select("attributed_ad_creative_id")
-                                                .eq("id", lead_id).eq("tenant_id", tenant_id)
-                                                .limit(1).execute()
-                                            )
-                                            if current.data and not current.data[0].get("attributed_ad_creative_id"):
-                                                db.table("leads").update(
-                                                    {"attributed_ad_creative_id": creative_row["id"]}
-                                                ).eq("id", lead_id).eq("tenant_id", tenant_id).execute()
-                                                logger.info(f"CTWA creative: lead {lead_id} -> creative {creative_row['id']} (ad_id={ad_id})")
-                                    except Exception as cr_err:
-                                        logger.warning(f"Creative attribution failed for lead {lead_id}: {cr_err}")
-                        except Exception as ctwa_err:
-                            logger.warning(f"CTWA referral tracking failed for lead {lead_id}: {ctwa_err}")
+                            if creative_id:
+                                current = (
+                                    db.table("leads")
+                                    .select("attributed_ad_creative_id")
+                                    .eq("id", lead_id)
+                                    .eq("tenant_id", tenant_id)
+                                    .limit(1)
+                                    .execute()
+                                )
+                                if current.data and not current.data[0].get("attributed_ad_creative_id"):
+                                    lead_updates["attributed_ad_creative_id"] = creative_id
+
+                            if lead_updates:
+                                (
+                                    db.table("leads")
+                                    .update(lead_updates)
+                                    .eq("id", lead_id)
+                                    .eq("tenant_id", tenant_id)
+                                    .execute()
+                                )
+                            logger.info(
+                                "CTWA attribution: lead %s -> ad %s via %s (%s)",
+                                lead_id,
+                                resolved_ad_id,
+                                attribution_method,
+                                "new" if is_new_ad_lead else "repeat",
+                            )
+                    except Exception as ctwa_err:
+                        logger.warning(f"CTWA attribution failed for lead {lead_id}: {ctwa_err}")
 
                     # Google Ads: attribute via a [GADS:...] tag in the pre-filled
                     # click-to-chat message. Google can't inject Meta's referral
@@ -566,7 +620,7 @@ async def whatsapp_webhook(
                             "is_ai_generated": False,
                             "meta_message_id": msg_id,
                             "tenant_id": tenant_id,
-                            "via_ad_referral": bool(referral and referral.get("source_type") == "ad"),
+                            "via_ad_referral": ad_attributed,
                         }
                         db.table("messages").insert(insert_row).execute()
 

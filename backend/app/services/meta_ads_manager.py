@@ -73,11 +73,18 @@ def create_full_campaign(db, tenant_id: str, *, spec: dict) -> dict:
 
     meta_ids = {"campaign_id": camp["id"], "adset_id": adset["id"],
                 "ad_id": ad["id"], "creative_id": creative["id"]}
-    row = persist_created_campaign(db, tenant_id, meta_ids, spec)
+    row = persist_created_campaign(db, tenant_id, meta_ids, spec, account=account)
     return {"ok": True, "error": None, "campaign_id": row["id"], "meta_campaign_id": camp["id"]}
 
 
-def persist_created_campaign(db, tenant_id: str, meta_ids: dict, spec: dict) -> dict:
+def persist_created_campaign(
+    db,
+    tenant_id: str,
+    meta_ids: dict,
+    spec: dict,
+    *,
+    account: str | None = None,
+) -> dict:
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
     camp_row = db.table("ad_campaigns").insert({
@@ -88,6 +95,7 @@ def persist_created_campaign(db, tenant_id: str, meta_ids: dict, spec: dict) -> 
         "daily_budget": spec.get("daily_budget_inr"),
         "lifetime_budget": spec.get("lifetime_budget_inr"),
         "effective_status": "IN_PROCESS",
+        "meta_ad_account_id": account,
     }).execute().data[0]
 
     db.table("ad_sets").insert({
@@ -105,6 +113,8 @@ def persist_created_campaign(db, tenant_id: str, meta_ids: dict, spec: dict) -> 
         "meta_campaign_id": meta_ids["campaign_id"], "creative_label": spec["creative_label"],
         "created_by_aira": True, "prefilled_greeting": spec.get("greeting"),
         "media_asset_ref": meta_ids.get("creative_id"), "cta_type": "WHATSAPP_MESSAGE",
+        "meta_ad_account_id": account, "is_click_to_whatsapp": True,
+        "optimization_goal": "CONVERSATIONS", "effective_status": "IN_PROCESS",
         "created_at": now, "updated_at": now,
     }).execute()
     return camp_row

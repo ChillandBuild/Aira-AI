@@ -327,6 +327,21 @@ export default function SettingsPage() {
     }
   }
 
+  function updateScoringThreshold(segment: "A" | "B" | "C", rawValue: string) {
+    const value = Number.parseInt(rawValue, 10);
+    if (Number.isNaN(value)) return;
+
+    const bounds = {
+      A: { min: scoringThresholds.B + 1, max: 10 },
+      B: { min: scoringThresholds.C + 1, max: scoringThresholds.A - 1 },
+      C: { min: 1, max: scoringThresholds.B - 1 },
+    }[segment];
+    const nextValue = Math.max(bounds.min, Math.min(bounds.max, value));
+
+    setScoringThresholds(prev => ({ ...prev, [segment]: nextValue }));
+    setScoringState("dirty");
+  }
+
   function settingFor(key: string) {
     return settings.find(s => s.key === key);
   }
@@ -772,6 +787,11 @@ export default function SettingsPage() {
               {/* Lead Scoring thresholds */}
               {(() => {
                 const isOrderValid = scoringThresholds.A > scoringThresholds.B && scoringThresholds.B > scoringThresholds.C;
+                const rangeEnd: Record<"A" | "B" | "C", number> = {
+                  A: 10,
+                  B: scoringThresholds.A - 1,
+                  C: scoringThresholds.B - 1,
+                };
                 const thresholdColors: Record<string, string> = {
                   A: "text-red-700 bg-red-50 border-red-200",
                   B: "text-amber-700 bg-amber-50 border-amber-200",
@@ -806,27 +826,25 @@ export default function SettingsPage() {
                       <>
                         <div className="mt-6 space-y-3">
                           <p className="font-body text-xs text-ink-muted">
-                            Leads are grouped when score is ≥ threshold. Default: A≥9, B≥7, C≥5, D&lt;5.
+                            Each score belongs to exactly one segment. Change a range&apos;s starting score; its ending score adjusts automatically to prevent gaps or overlaps.
                           </p>
-                          <div className="grid grid-cols-1 gap-2">
+                          <div className="grid grid-cols-1 gap-1.5">
                             {(["A", "B", "C"] as const).map((seg) => (
-                              <div key={seg} className={`rounded-xl border p-3 flex items-center justify-between ${thresholdColors[seg]}`}>
+                              <div key={seg} className={`rounded-xl border px-3 py-2 flex items-center justify-between gap-3 flex-wrap ${thresholdColors[seg]}`}>
                                 <label className="font-label text-xs font-bold uppercase">{thresholdLabels[seg]}</label>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-label text-xs">Score ≥</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-label text-[10px] font-semibold uppercase opacity-70">From</span>
                                   <input
                                     type="number"
-                                    min={1}
-                                    max={10}
+                                    min={seg === "A" ? scoringThresholds.B + 1 : seg === "B" ? scoringThresholds.C + 1 : 1}
+                                    max={seg === "A" ? 10 : seg === "B" ? scoringThresholds.A - 1 : scoringThresholds.B - 1}
                                     value={scoringThresholds[seg]}
                                     disabled={!canManageSettings}
-                                    onChange={(e) => {
-                                      const v = Math.max(1, Math.min(10, parseInt(e.target.value) || 1));
-                                      setScoringThresholds(prev => ({ ...prev, [seg]: v }));
-                                      setScoringState("dirty");
-                                    }}
-                                    className="w-12 px-1.5 py-0.5 rounded border bg-white font-mono text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-current text-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
+                                    onChange={(e) => updateScoringThreshold(seg, e.target.value)}
+                                    className="w-12 px-1.5 py-1 rounded border bg-white font-mono text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-current text-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
                                   />
+                                  <span className="font-label text-[10px] font-semibold uppercase opacity-70">to</span>
+                                  <span className="w-12 px-1.5 py-1 rounded border border-current/15 bg-white/60 font-mono text-sm font-bold text-center">{rangeEnd[seg]}</span>
                                 </div>
                               </div>
                             ))}
@@ -837,9 +855,10 @@ export default function SettingsPage() {
                               <span>Thresholds must be in order: A &gt; B &gt; C.</span>
                             </div>
                           )}
-                          <p className="font-label text-[10px] text-ink-muted">
-                            D (Disqualified) = score below C threshold ({scoringThresholds.C - 1} or less).
-                          </p>
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between gap-3 flex-wrap text-slate-600">
+                            <span className="font-label text-xs font-bold uppercase">D - Disqualified</span>
+                            <span className="font-mono text-sm font-bold">{scoringThresholds.C > 1 ? `Score 1 to ${scoringThresholds.C - 1}` : "No scores"}</span>
+                          </div>
                         </div>
 
                         <div className="mt-6 flex items-center justify-between border-t border-border-subtle pt-5 gap-3 flex-wrap">
@@ -853,7 +872,7 @@ export default function SettingsPage() {
                               <span className="text-[11px] text-amber-600 font-body font-medium">Unsaved changes</span>
                             )}
                             {(scoringState === "idle" || scoringState === "saving") && (
-                              <span className="text-[11px] text-ink-muted font-body">Default: A≥9, B≥7, C≥5</span>
+                              <span className="text-[11px] text-ink-muted font-body">Default: Hot 9-10, Warm 7-8, Cold 5-6, Disqualified 1-4</span>
                             )}
                           </div>
                           <button

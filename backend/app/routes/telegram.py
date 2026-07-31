@@ -5,6 +5,7 @@ from app.db.supabase import get_supabase
 from app.config_dynamic import get_setting
 from app.services.growth import record_stage_event
 from app.services.ai_reply import generate_reply
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -85,13 +86,14 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
                 logger.error(f"Failed to restore soft-deleted lead {lead_id}: {restore_err}")
     else:
         try:
+            initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
             new_lead = db.table("leads").insert({
                 "name": name,
                 "tg_user_id": tg_user_id,
                 "tg_username": username,
                 "source": "telegram",
-                "score": 5,
-                "segment": "C",
+                "score": initial_score,
+                "segment": initial_segment,
                 "tenant_id": tenant_id,
                 "opt_in_source": "telegram",
             }).execute()
@@ -103,7 +105,7 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
             lead_id = new_lead.data[0]["id"]
             record_stage_event(
                 lead_id,
-                to_segment="C",
+                to_segment=initial_segment,
                 event_type="created",
                 metadata={"source": "telegram"},
                 tenant_id=tenant_id,
@@ -113,7 +115,7 @@ async def telegram_webhook(tenant_id: str, request: Request, background_tasks: B
             # Auto-assign lead to caller
             try:
                 from app.services.assignment import maybe_assign_lead
-                maybe_assign_lead(lead_id, tenant_id, "C", "telegram", reason="created")
+                maybe_assign_lead(lead_id, tenant_id, initial_segment, "telegram", reason="created")
             except Exception as assign_err:
                 logger.warning(f"Auto-assign failed for lead {lead_id}: {assign_err}")
                 

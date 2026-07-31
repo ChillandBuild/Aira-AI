@@ -16,6 +16,7 @@ from app.services.delivery_status import nearest_record, nearest_status, parse_t
 from app.services.growth import get_or_create_campaign, record_stage_event, sync_follow_up_jobs
 from app.services.meta_cloud import send_template_message
 from app.services.outbound_router import get_best_number, increment_send_count
+from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 require_outbound_read = require_permission("outbound_leads.view")
@@ -177,6 +178,7 @@ async def upload_leads(
         raise HTTPException(status_code=400, detail="CSV must contain a 'phone' column")
 
     db = get_supabase()
+    initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
     fieldmap = {f.strip().lower(): f for f in reader.fieldnames}
     rows_by_phone: dict[str, dict] = {}
     campaign_cache: dict[tuple[str | None, str | None, str | None, float | None], dict | None] = {}
@@ -202,8 +204,8 @@ async def upload_leads(
             "phone": phone,
             "name": (row.get(name_key) or "").strip() or None if name_key else None,
             "source": "upload",
-            "score": 5,
-            "segment": segment_override or "C",
+            "score": initial_score,
+            "segment": segment_override or initial_segment,
             "tenant_id": tenant_id,
         }
         campaign_key = (row_platform, row_campaign_name, row_external_campaign_id, row_spend)
@@ -761,6 +763,7 @@ async def bulk_send(
         except Exception as csv_err:
             logger.error(f"Failed to add broadcast_id to CSV: {csv_err}")
 
+    initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
     upsert_rows = []
     for lead in eligible:
         phone = _normalize_phone(lead.phone or "")
@@ -771,8 +774,8 @@ async def bulk_send(
             "phone": phone,
             "name": _clean_text(lead.name),
             "source": "upload",
-            "score": 5,
-            "segment": "C",
+            "score": initial_score,
+            "segment": initial_segment,
             "tenant_id": tenant_id,
         })
 
@@ -786,8 +789,8 @@ async def bulk_send(
                 "phone": phone,
                 "name": _clean_text(lead.name),
                 "source": "upload",
-                "score": 5,
-                "segment": "C",
+                "score": initial_score,
+                "segment": initial_segment,
                 "tenant_id": tenant_id,
             })
 
@@ -1094,15 +1097,16 @@ async def bulk_send(
             except Exception as sb_err:
                 logger.error(f"scheduled_broadcasts shell insert failed: {sb_err}")
 
+            initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
             bls_rows = [
                 {
                     "tenant_id": tenant_id,
                     "broadcast_id": broadcast_id,
                     "lead_id": r["lead_id"],
                     "tag_id": body.tag_id,
-                    "score": 5,
-                    "segment": "C",
-                    "arc_score": 5,
+                    "score": initial_score,
+                    "segment": initial_segment,
+                    "arc_score": initial_score,
                     "arc_message_count": 0,
                     "broadcast_sent_at": broadcast_timestamp.isoformat(),
                 }

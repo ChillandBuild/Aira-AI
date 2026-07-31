@@ -1847,8 +1847,21 @@ export const api = {
       window.URL.revokeObjectURL(url);
     },
     adFilters: async () => apiFetch<AdFilterTree>(`/api/v1/inbound-leads/ad-filters`),
+    generateAdTrackingCode: async (payload: { ad_creative_id: string; message: string }) =>
+      apiFetch<AdTrackingCodeResponse>(
+        `/api/v1/inbound-leads/ad-tracking-code`,
+        { method: "POST", body: JSON.stringify(payload) },
+      ),
     adSyncNow: async () =>
-      apiFetch<{ ok: boolean; error: string | null; rows_fetched: number; written: number }>(
+      apiFetch<{
+        ok: boolean;
+        error: string | null;
+        rows_fetched: number;
+        whatsapp_rows: number;
+        skipped_non_whatsapp: number;
+        account_id: string | null;
+        written: number;
+      }>(
         `/api/v1/inbound-leads/ad-sync-now`,
         { method: "POST" },
       ),
@@ -1994,28 +2007,57 @@ export interface AdPerformanceRow {
   ad_creative_id: string;
   creative_label: string;
   meta_ad_id: string;
+  meta_ad_account_id: string;
   adset_id: string | null;
   adset_name: string | null;
   campaign_id: string | null;
+  campaign_name: string;
+  campaign_status: string | null;
+  daily_budget: number | null;
+  lifetime_budget: number | null;
+  budget_level: "campaign" | "ad_set" | null;
+  impressions: number;
+  reach: number;
+  frequency: number | null;
   inline_link_clicks: number;
+  clicks_all: number;
   messages: number;
+  meta_conversations: number;
+  conversation_rate: number | null;
+  meta_conversation_rate: number | null;
+  attribution_gap: number;
   clicked_no_message: number;
-  qualified: number;
+  no_message_rate: number | null;
   hot: number;
-  sales: number;
+  hot_rate: number | null;
   spend: number;
-  revenue: number;
   cpc: number | null;
   cost_per_message: number | null;
-  cost_per_qualified: number | null;
+  ctr: number | null;
+  cpm: number | null;
   cost_per_hot: number | null;
-  roas: number | null;
 }
 
 export interface AdFilterTree {
   campaigns: { id: string; name: string }[];
   adsets: { id: string; name: string; campaign_id: string | null }[];
-  creatives: { id: string; name: string; adset_id: string | null; campaign_id: string | null }[];
+  creatives: {
+    id: string;
+    name: string;
+    meta_ad_id: string | null;
+    tracking_code: string | null;
+    adset_id: string | null;
+    campaign_id: string | null;
+  }[];
+  account_id: string | null;
+}
+
+export interface AdTrackingCodeResponse {
+  code: string;
+  prefilled_message: string;
+  ad_creative_id: string;
+  creative_name: string;
+  meta_ad_id: string;
 }
 
 export interface AdPerformanceParams {
