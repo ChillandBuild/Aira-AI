@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
@@ -190,6 +190,55 @@ function SegmentMixChart({
           <Bar dataKey="disqualified" stackId="mix" fill={SEGMENT_MIX_COLORS.disqualified} name="Disqualified" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+const DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function LeadHeatmap({ points }: { points: ComparePeriod["heatmap"] }) {
+  const lookup = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const p of points ?? []) m[`${p.dow}-${p.hour}`] = p.total;
+    return m;
+  }, [points]);
+  const max = Math.max(1, ...(points ?? []).map((p) => p.total));
+
+  if (!points || points.length === 0) {
+    return (
+      <p className="font-label text-sm text-on-surface-muted">
+        No inbound leads in this period.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: "40px repeat(24, 20px)" }}>
+        <div />
+        {Array.from({ length: 24 }, (_, h) => (
+          <div key={h} className="text-center font-label text-[9px] text-on-surface-muted">
+            {h % 3 === 0 ? h : ""}
+          </div>
+        ))}
+        {DOW_LABELS.map((label, dow) => (
+          <div key={label} className="contents">
+            <div className="flex items-center font-label text-[9px] text-on-surface-muted">{label}</div>
+            {Array.from({ length: 24 }, (_, hour) => {
+              const count = lookup[`${dow}-${hour}`] ?? 0;
+              const intensity = count === 0 ? 0 : 0.15 + 0.85 * (count / max);
+              return (
+                <div
+                  key={hour}
+                  title={`${label} ${hour}:00 — ${count} lead${count === 1 ? "" : "s"}`}
+                  className="h-5 w-5 rounded-sm"
+                  style={{ backgroundColor: `rgba(91, 33, 182, ${intensity})` }}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -441,6 +490,16 @@ export function CompareTab() {
               How many leads landed in each segment on the day they arrived.
             </p>
             <SegmentMixChart points={data.current.daily_segment_mix} />
+          </div>
+
+          <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+            <h2 className="font-display text-base font-bold text-primary">
+              When leads reach out (IST)
+            </h2>
+            <p className="mb-4 mt-1 font-label text-xs text-on-surface-muted">
+              Inbound leads by day of week and hour.
+            </p>
+            <LeadHeatmap points={data.current.heatmap} />
           </div>
 
           <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">

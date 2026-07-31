@@ -1249,13 +1249,14 @@ async def _period_payload(db, tenant_id: str, start: date, end: date) -> dict:
     start_iso, end_iso = _ist_bounds(start, end)
     params = {"p_tenant_id": tenant_id, "p_start": start_iso, "p_end": end_iso}
 
-    summary_res, leads_res, msgs_res, money_res, movement_res, response_res = await asyncio.gather(
+    summary_res, leads_res, msgs_res, money_res, movement_res, response_res, heatmap_res = await asyncio.gather(
         asyncio.to_thread(db.rpc("analytics_period_summary", params).execute),
         asyncio.to_thread(db.rpc("analytics_daily_leads", params).execute),
         asyncio.to_thread(db.rpc("analytics_daily_messages", params).execute),
         asyncio.to_thread(db.rpc("analytics_period_money", params).execute),
         asyncio.to_thread(db.rpc("analytics_segment_movement", params).execute),
         asyncio.to_thread(db.rpc("analytics_response_times", params).execute),
+        asyncio.to_thread(db.rpc("analytics_lead_arrival_heatmap", params).execute),
     )
 
     def first_row(res) -> dict:
@@ -1271,6 +1272,7 @@ async def _period_payload(db, tenant_id: str, start: date, end: date) -> dict:
         "movement": summarise_movement(movement_res.data or []),
         "daily_leads": fill_days(leads_res.data or [], start, end, LEAD_SERIES_KEYS),
         "daily_messages": fill_days(msgs_res.data or [], start, end, MESSAGE_SERIES_KEYS),
+        "heatmap": heatmap_res.data or [],
     }
 
 
@@ -1321,6 +1323,7 @@ async def compare_analytics(
                 }
                 for d in current["daily_leads"]
             ],
+            "heatmap": current["heatmap"],
         },
         "previous": {
             "start": previous["start"], "end": previous["end"],

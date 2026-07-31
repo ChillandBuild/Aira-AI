@@ -743,6 +743,8 @@ export interface ComparePeriod {
   movement: CompareMovement;
   /** Only populated on `current` -- per-day segment counts for the mix chart. */
   daily_segment_mix?: { day: string; hot: number; warm: number; cold: number; disqualified: number }[];
+  /** Only populated on `current`. */
+  heatmap?: { dow: number; hour: number; total: number }[];
 }
 
 export interface ComparePayload {

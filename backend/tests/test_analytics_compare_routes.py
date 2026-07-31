@@ -24,11 +24,12 @@ class AnalyticsCompareTests(unittest.TestCase):
         app.dependency_overrides.clear()
 
     def _mock_db(self, mock_get_db, summaries, daily_leads, daily_messages,
-                 money=None, movement=None, response=None):
+                 money=None, movement=None, response=None, heatmap=None):
         """Each list is per-period: index 0 = current, 1 = previous."""
         money = money if money is not None else [[], []]
         movement = movement if movement is not None else [[], []]
         response = response if response is not None else [[], []]
+        heatmap = heatmap if heatmap is not None else [[], []]
         db = MagicMock()
 
         queues = {
@@ -38,6 +39,7 @@ class AnalyticsCompareTests(unittest.TestCase):
             "analytics_period_money": money,
             "analytics_segment_movement": movement,
             "analytics_response_times": response,
+            "analytics_lead_arrival_heatmap": heatmap,
         }
 
         def rpc(name, params):
@@ -241,6 +243,23 @@ class AnalyticsCompareTests(unittest.TestCase):
         self.assertEqual(len(mix), 2)
         self.assertEqual(mix[1], {"day": "2026-07-16", "hot": 1, "warm": 1, "cold": 1, "disqualified": 0})
         self.assertEqual(mix[0], {"day": "2026-07-15", "hot": 0, "warm": 0, "cold": 0, "disqualified": 0})
+
+    @patch("app.routes.analytics.get_supabase")
+    def test_heatmap_is_returned_for_the_current_period(self, mock_get_db):
+        self._mock_db(
+            mock_get_db,
+            summaries=[[{}], [{}]],
+            daily_leads=[[], []],
+            daily_messages=[[], []],
+            heatmap=[
+                [{"dow": 1, "hour": 10, "total": 4}],
+                [],
+            ],
+        )
+        body = self.client.get(
+            "/api/v1/analytics/compare?preset=custom&start=2026-07-15&end=2026-07-16"
+        ).json()
+        self.assertEqual(body["current"]["heatmap"], [{"dow": 1, "hour": 10, "total": 4}])
 
 if __name__ == "__main__":
     unittest.main()
