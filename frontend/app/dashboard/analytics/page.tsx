@@ -737,27 +737,22 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "templates", label: "Templates" },
 ];
 
-const RANGES: { id: DateRange; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "7d", label: "7 Days" },
-  { id: "30d", label: "30 Days" },
-];
-
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
-  const [range, setRange] = useState<DateRange>("7d");
+  const [range, setRange] = useState<RangeValue>({
+    preset: "last_7d", start: "", end: "",
+  });
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
-      {/* Page header: tabs & date pills inline */}
-      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 lg:flex-row lg:items-center lg:justify-between">
-        {/* Tab row */}
+      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
         <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              aria-pressed={activeTab === tab.id}
               className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
                 activeTab === tab.id
                   ? "bg-surface text-primary shadow-card"
@@ -769,29 +764,18 @@ export default function AnalyticsPage() {
           ))}
         </nav>
         </div>
-
-        {/* Date range pills — the Compare tab owns its own range control */}
-        {activeTab !== "compare" && (
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15 sm:flex sm:w-fit">
-            {RANGES.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => setRange(r.id)}
-                className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${
-                  range === r.id
-                    ? "bg-surface text-primary shadow-card"
-                    : "text-on-surface-muted hover:text-on-surface"
-                }`}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Tab content */}
-      {activeTab === "overview" && <OverviewTab range={range} />}
+      {(activeTab === "channels" || activeTab === "inbound") && (
+        <div className="rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+          <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+            Reporting period
+          </p>
+          <RangePicker value={range} onChange={setRange} idPrefix={`${activeTab}-range`} />
+        </div>
+      )}
+
+      {activeTab === "overview" && <OverviewTab range={range} onRangeChange={setRange} />}
       {activeTab === "compare" && <CompareTab />}
       {activeTab === "channels" && <ChannelsTab range={range} />}
       {activeTab === "inbound" && <InboundTab range={range} />}
