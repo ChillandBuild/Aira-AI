@@ -39,3 +39,36 @@ for (const vp of VIEWPORTS) {
     });
   });
 }
+
+test("analytics exposes client-controlled reporting and comparison ranges", async ({ page }) => {
+  await page.goto("/dashboard/analytics");
+  await page.waitForLoadState("networkidle");
+
+  // Reporting period picker offers a custom date range.
+  await expect(page.getByText("Reporting period")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Custom", exact: true }).first()).toBeVisible();
+
+  // Comparison control is labelled and starts off.
+  await expect(page.getByText("Compare with")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Off", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "Previous period", exact: true })).toBeVisible();
+
+  // No date pair exists yet: reporting starts on a preset and comparison is off.
+  await expect(page.locator("#overview-range-from")).toHaveCount(0);
+  await expect(page.locator("#comparison-range-from")).toHaveCount(0);
+
+  // Enabling a custom reporting range exposes the first date pair.
+  await page.getByRole("button", { name: "Custom", exact: true }).first().click();
+  await expect(page.locator("#overview-range-from")).toBeVisible();
+  await expect(page.locator("#overview-range-to")).toBeVisible();
+
+  // Enabling a custom comparison exposes a second, uniquely-prefixed date pair.
+  await page.getByRole("button", { name: "Custom", exact: true }).nth(1).click();
+  await expect(page.locator("#comparison-range-from")).toBeVisible();
+  await expect(page.locator("#comparison-range-to")).toBeVisible();
+  await expect(page.getByLabel("From")).toHaveCount(2);
+  await expect(page.getByLabel("To")).toHaveCount(2);
+});
