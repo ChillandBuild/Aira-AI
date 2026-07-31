@@ -21,7 +21,7 @@ TELECALLER_ROLE = {
 }
 
 
-def _mock_db(purchased_quantity, active_count, role=TELECALLER_ROLE):
+def _mock_db(purchased_quantity, active_count, role=TELECALLER_ROLE, owner_user_id=None):
     db = MagicMock()
 
     roles_tbl = MagicMock()
@@ -34,12 +34,22 @@ def _mock_db(purchased_quantity, active_count, role=TELECALLER_ROLE):
         data=[{"quantity": purchased_quantity}] if purchased_quantity else []
     )
 
+    # `_active_telecaller_count` first looks up the owner's user_id (to
+    # exclude their free seeded caller row from the seat count), then
+    # queries `callers` -- with a `.neq(owner_user_id)` in the chain only
+    # when an owner was found.
     callers_tbl = MagicMock()
-    eq_chain = callers_tbl.select.return_value.eq.return_value.eq.return_value
-    eq_chain.execute.return_value = MagicMock(count=active_count)
-    eq_chain.limit.return_value.execute.return_value = MagicMock(data=[])
+    base_chain = callers_tbl.select.return_value.eq.return_value.eq.return_value
+    if owner_user_id:
+        base_chain.neq.return_value.execute.return_value = MagicMock(count=active_count)
+    else:
+        base_chain.execute.return_value = MagicMock(count=active_count)
+    base_chain.limit.return_value.execute.return_value = MagicMock(data=[])
 
     tenant_users_tbl = MagicMock()
+    tenant_users_tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+        data=[{"user_id": owner_user_id}] if owner_user_id else []
+    )
 
     def table(name):
         return {
@@ -87,6 +97,21 @@ class RbacSeatEnforcementTests(unittest.TestCase):
         })
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.json()["created"])
+
+    @patch("app.routes.rbac.get_telecalling_config", return_value={"calling_provider": "telecmi"})
+    @patch("app.routes.rbac.get_supabase")
+    def test_owner_seeded_caller_row_does_not_count_against_seats(self, mock_get_db, mock_cfg):
+        # create_client seeds a free `callers` row for the tenant owner (so
+        # owners can also take calls). With 1 purchased seat and only the
+        # owner's own row active (0 real telecallers), creation must be
+        # allowed -- the owner's row must not eat the one purchased seat.
+        mock_get_db.return_value = _mock_db(purchased_quantity=1, active_count=0, owner_user_id="owner-1")
+
+        res = self.client.post("/api/v1/rbac/users", json={
+            "full_name": "New Caller", "email": "new@example.com",
+            "role_id": "role-telecaller", "temporary_password": "Password123!",
+        })
+        self.assertEqual(res.status_code, 200)
 
     @patch("app.routes.rbac.get_telecalling_config", return_value={"calling_provider": "telecmi"})
     @patch("app.routes.rbac.get_supabase")

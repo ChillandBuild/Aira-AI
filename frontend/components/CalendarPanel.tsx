@@ -228,19 +228,19 @@ export function CalendarPanel({ isOpen, onClose }: CalendarPanelProps) {
             </div>
 
             {/* Add Todo Input */}
-            <form onSubmit={handleAddTodo} className="relative flex group">
+            <form onSubmit={handleAddTodo} className="flex items-center group">
               <input
                 type="text"
                 placeholder="What needs to be done?"
                 value={newTodo}
                 onChange={(e) => setNewTodo(e.target.value)}
                 disabled={loading}
-                className="w-full pl-4 pr-12 py-3.5 bg-surface-subtle border-none rounded-2xl text-sm font-body text-ink placeholder:text-ink-muted/50 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                className="w-full flex-1 min-w-0 pl-4 pr-12 py-3.5 bg-surface-subtle border-none rounded-2xl text-sm font-body text-ink placeholder:text-ink-muted/50 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               />
-              <button 
+              <button
                 type="submit"
                 disabled={loading || !newTodo.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-primary text-white rounded-xl flex items-center justify-center hover:shadow-lg hover:shadow-primary/20 disabled:opacity-50 transition-all"
+                className="-ml-10 shrink-0 w-8 h-8 bg-primary text-white rounded-xl flex items-center justify-center hover:shadow-lg hover:shadow-primary/20 disabled:opacity-50 transition-all"
               >
                 <Plus size={18} />
               </button>

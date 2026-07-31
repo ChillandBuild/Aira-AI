@@ -103,13 +103,29 @@ def _serialize_role(role: dict) -> dict:
 
 
 def _active_telecaller_count(db, tenant_id: str) -> int:
-    result = (
+    # `create_client` seeds a free `callers` row for the tenant OWNER (so
+    # owners can also take calls) -- that row is not a purchased telecaller
+    # seat and must not count against the quota, or the owner's own free
+    # profile silently eats one slot that should belong to a real telecaller.
+    owner_row = (
+        db.table("tenant_users")
+        .select("user_id")
+        .eq("tenant_id", tenant_id)
+        .eq("role", "owner")
+        .limit(1)
+        .execute()
+    )
+    owner_user_id = owner_row.data[0]["user_id"] if owner_row.data else None
+
+    query = (
         db.table("callers")
         .select("id", count="exact")
         .eq("tenant_id", tenant_id)
         .eq("active", True)
-        .execute()
     )
+    if owner_user_id:
+        query = query.neq("user_id", owner_user_id)
+    result = query.execute()
     return result.count or 0
 
 
