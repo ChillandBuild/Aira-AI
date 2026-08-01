@@ -49,27 +49,26 @@ test("analytics exposes client-controlled reporting and comparison ranges", asyn
   await expect(page.getByText("Reporting period", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Compare with", { exact: true })).toHaveCount(0);
 
-  // Opening the reporting-period dropdown reveals the preset panel and a custom date range.
+  // Opening the reporting-period dropdown reveals the preset select and a custom date range.
   await page.getByRole("button", { name: "Reporting period", exact: true }).click();
   await expect(page.getByText("Reporting period", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Custom", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("combobox")).toHaveValue("today");
   await expect(page.locator("#analytics-range-from")).toHaveCount(0);
-  await page.getByRole("button", { name: "Custom", exact: true }).first().click();
+
+  // Selecting Custom exposes the reporting date pair.
+  await page.getByRole("combobox").selectOption("custom");
   await expect(page.locator("#analytics-range-from")).toBeVisible();
   await expect(page.locator("#analytics-range-to")).toBeVisible();
 
-  // Opening the comparison dropdown reveals its own panel, labelled and starting off.
+  // Opening the comparison dropdown reveals its own control, labelled and starting off.
   await page.getByRole("button", { name: "Compare with", exact: true }).click();
   await expect(page.getByText("Compare with", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Off", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await expect(page.getByRole("button", { name: "Previous period", exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox").last()).toHaveValue("off");
+  await expect(page.getByRole("combobox").last()).toContainText("Previous period");
 
   // Enabling a custom comparison exposes a second, uniquely-prefixed date pair.
   await expect(page.locator("#comparison-range-from")).toHaveCount(0);
-  await page.getByRole("button", { name: "Custom", exact: true }).nth(1).click();
+  await page.getByRole("combobox").last().selectOption("custom");
   await expect(page.locator("#comparison-range-from")).toBeVisible();
   await expect(page.locator("#comparison-range-to")).toBeVisible();
   await expect(page.getByLabel("From")).toHaveCount(2);

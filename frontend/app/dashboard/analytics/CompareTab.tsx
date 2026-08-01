@@ -5,7 +5,6 @@ import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
-import { Download } from "lucide-react";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
@@ -281,7 +280,7 @@ function LeadHeatmap({ points }: { points: ComparePeriod["heatmap"] }) {
 
   return (
     <div className="overflow-x-auto">
-      <div className="inline-grid gap-0.5" style={{ gridTemplateColumns: "40px repeat(24, 20px)" }}>
+      <div className="grid gap-0.5" style={{ gridTemplateColumns: "40px repeat(24, minmax(0, 1fr))" }}>
         <div />
         {Array.from({ length: 24 }, (_, h) => (
           <div key={h} className="text-center font-label text-[9px] text-on-surface-muted">
@@ -298,7 +297,7 @@ function LeadHeatmap({ points }: { points: ComparePeriod["heatmap"] }) {
                 <div
                   key={hour}
                   title={`${label} ${hour}:00 — ${count} lead${count === 1 ? "" : "s"}`}
-                  className="h-5 w-5 rounded-sm"
+                  className="h-6 rounded-sm"
                   style={{ backgroundColor: `rgba(91, 33, 182, ${intensity})` }}
                 />
               );
@@ -417,15 +416,21 @@ function ComparisonTable({
 export function CompareTab({
   range,
   comparison,
+  onDataChange,
 }: {
   range: RangeValue;
   comparison: ComparisonSelection;
+  onDataChange?: (ready: boolean) => void;
 }) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const canLoad = canLoadComparison(range, comparison);
+
+  useEffect(() => {
+    onDataChange?.(data !== null);
+  }, [data, onDataChange]);
 
   const params = useMemo<CompareParams>(() => {
     const reporting = { preset: range.preset, start: range.start, end: range.end };
@@ -460,17 +465,6 @@ export function CompareTab({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <button
-          onClick={() => api.analytics.exportCompareCsv(params)}
-          disabled={!data || !canLoad || comparison.mode === "off"}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 font-label text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          <Download size={14} />
-          Export CSV
-        </button>
-      </div>
-
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">
           Pick a valid start and end date for each custom period.

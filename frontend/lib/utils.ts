@@ -36,6 +36,34 @@ export function formatIST(dateStr: string): string {
   });
 }
 
+/** WhatsApp-style timestamp for conversation lists.
+ *  Today → "14:32", Yesterday → "Yesterday", older → "31 Jul", different year → "31 Jul 2025" */
+export function formatConvoTime(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+
+  // Compare in IST
+  const nowIST = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+  const dateIST = new Date(date.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+
+  const isToday = nowIST.toDateString() === dateIST.toDateString();
+
+  const yesterday = new Date(nowIST);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = yesterday.toDateString() === dateIST.toDateString();
+
+  if (isToday) {
+    return formatIST(dateStr);
+  }
+  if (isYesterday) {
+    return "Yesterday";
+  }
+  if (nowIST.getFullYear() === dateIST.getFullYear()) {
+    return dateIST.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+  return dateIST.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }

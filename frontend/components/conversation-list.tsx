@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { api, Lead } from "@/lib/api";
 import { SegmentBadge } from "./segment-badge";
-import { formatIST, formatPhone, cn } from "@/lib/utils";
+import { formatConvoTime, formatPhone, cn } from "@/lib/utils";
 import { MessageCircle, Trash2, MoreVertical, MoreHorizontal, Search, X, SearchX, ChevronLeft, Pin, Filter, RefreshCw, Archive, Ban, Check, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -497,7 +497,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                       <span className="w-[18px] h-[18px] rounded-full bg-primary flex items-center justify-center font-label text-[10px] font-bold text-white">!</span>
                     )}
                     <span className="font-label text-[10px] text-on-surface-muted whitespace-nowrap">
-                      {formatIST((lead as ConversationLead).last_reply_at || lead.created_at)}
+                      {formatConvoTime((lead as ConversationLead).last_reply_at || lead.created_at)}
                     </span>
                   </div>
                 </div>

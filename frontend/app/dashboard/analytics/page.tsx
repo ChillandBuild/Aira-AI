@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import {
   ChevronDown,
+  Download,
   MessageCircle,
   AtSign,
   Tv2,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import {
   api,
+  CompareParams,
   MessagingAnalytics,
   TemplatePerformanceRow,
   getAuthHeaders,
@@ -60,17 +62,9 @@ function presetDates(preset: RangeValue["preset"]): { start: string; end: string
   const end = istToday();
   const start = new Date(end);
 
-  if (preset === "this_month") start.setUTCDate(1);
-  if (preset === "last_month") {
-    start.setUTCMonth(start.getUTCMonth() - 1, 1);
-    end.setUTCDate(0);
-  }
-  if (preset === "this_week") start.setUTCDate(start.getUTCDate() - ((start.getUTCDay() + 6) % 7));
-  if (preset === "last_week") {
-    const daysSinceMonday = (start.getUTCDay() + 6) % 7;
-    start.setUTCDate(start.getUTCDate() - daysSinceMonday - 7);
-    end.setTime(start.getTime());
-    end.setUTCDate(end.getUTCDate() + 6);
+  if (preset === "yesterday") {
+    start.setUTCDate(start.getUTCDate() - 1);
+    end.setUTCDate(end.getUTCDate() - 1);
   }
   if (preset === "last_14d") start.setUTCDate(start.getUTCDate() - 13);
 
@@ -526,6 +520,21 @@ export default function AnalyticsPage() {
   const [comparison, setComparison] = useState<ComparisonSelection>({
     mode: "off", start: "", end: "",
   });
+  const [dataReady, setDataReady] = useState(false);
+
+  const canLoad = canLoadComparison(range, comparison);
+  const compareParams = useMemo<CompareParams>(() => {
+    const reporting = { preset: range.preset, start: range.start, end: range.end };
+    if (comparison.mode === "custom") {
+      return {
+        ...reporting,
+        comparison: "custom",
+        comparison_start: comparison.start,
+        comparison_end: comparison.end,
+      };
+    }
+    return { ...reporting, comparison: comparison.mode };
+  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
@@ -549,24 +558,40 @@ export default function AnalyticsPage() {
         </nav>
         </div>
 
-        {activeTab !== "templates" && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {activeTab === "overview" && (
+            <button
+              onClick={() => api.analytics.exportCompareCsv(compareParams)}
+              disabled={!dataReady || !canLoad || comparison.mode === "off"}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 font-label text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              <Download size={14} />
+              Export CSV
+            </button>
+          )}
+          {activeTab !== "templates" && (
             <HeaderPicker name="Reporting period" summary={rangeLabel(range)}>
               <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
                 Reporting period
               </p>
               <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
             </HeaderPicker>
-            {activeTab === "overview" && (
-              <HeaderPicker name="Compare with" summary={comparisonLabel(comparison)}>
-                <ComparisonPicker value={comparison} onChange={setComparison} />
-              </HeaderPicker>
-            )}
-          </div>
-        )}
+          )}
+          {activeTab === "overview" && (
+            <HeaderPicker name="Compare with" summary={comparisonLabel(comparison)}>
+              <ComparisonPicker value={comparison} onChange={setComparison} />
+            </HeaderPicker>
+          )}
+        </div>
       </div>
 
-      {activeTab === "overview" && <CompareTab range={range} comparison={comparison} />}
+      {activeTab === "overview" && (
+        <CompareTab
+          range={range}
+          comparison={comparison}
+          onDataChange={setDataReady}
+        />
+      )}
       {activeTab === "channels" && <ChannelsTab range={range} />}
       {activeTab === "inbound" && <InboundTab range={range} />}
       {activeTab === "templates" && <TemplatesTab />}

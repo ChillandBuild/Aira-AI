@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import { ComparisonSelection } from "./periodSelection";
 import { RangePicker } from "./RangePicker";
 
@@ -26,26 +27,23 @@ export function ComparisonPicker({
       <p className="font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
         Compare with
       </p>
-      <div className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
-        {([
-          ["off", "Off"],
-          ["previous", "Previous period"],
-          ["custom", "Custom"],
-        ] as const).map(([mode, label]) => (
-          <button
-            key={mode}
-            type="button"
-            aria-pressed={value.mode === mode}
-            onClick={() => selectMode(mode)}
-            className={`rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-4 ${
-              value.mode === mode
-                ? "bg-surface text-primary shadow-card"
-                : "text-on-surface-muted hover:text-on-surface"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="relative">
+        <select
+          value={value.mode}
+          onChange={(e) => selectMode(e.target.value as ComparisonSelection["mode"])}
+          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+        >
+          {([
+            ["off", "Off"],
+            ["previous", "Previous period"],
+            ["custom", "Custom"],
+          ] as const).map(([mode, label]) => (
+            <option key={mode} value={mode}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted" />
       </div>
 
       {value.mode === "custom" && (
