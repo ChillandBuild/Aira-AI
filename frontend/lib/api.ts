@@ -968,6 +968,8 @@ export const api = {
       source_filter?: string;
       broadcast_id?: string;
       ad_campaign_id?: string;
+      date_from?: string;
+      date_to?: string;
     }) => {
       const qs = new URLSearchParams();
       if (params?.segment) qs.set("segment", params.segment);
@@ -975,6 +977,8 @@ export const api = {
       if (params?.source_filter) qs.set("source_filter", params.source_filter);
       if (params?.broadcast_id) qs.set("broadcast_id", params.broadcast_id);
       if (params?.ad_campaign_id) qs.set("ad_campaign_id", params.ad_campaign_id);
+      if (params?.date_from) qs.set("date_from", params.date_from);
+      if (params?.date_to) qs.set("date_to", params.date_to);
       if (typeof params?.limit === "number" && Number.isFinite(params.limit)) {
         const normalizedLimit = Math.min(Math.max(Math.trunc(params.limit), 1), MAX_LEADS_LIST_LIMIT);
         qs.set("limit", String(normalizedLimit));

@@ -76,6 +76,8 @@ export function useLeads(
     source_filter?: string;
     broadcast_id?: string;
     ad_campaign_id?: string;
+    date_from?: string;
+    date_to?: string;
   },
   enabled = true,
   fallbackData?: Lead[],

@@ -216,6 +216,8 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const pageView = (rawTab === "reengagement" ? "reengagement" : "leads") as "leads" | "reengagement";
+  const dateFrom = searchParams.get("date_from") ?? undefined;
+  const dateTo = searchParams.get("date_to") ?? undefined;
 
   const setPageView = (val: "leads" | "reengagement") => {
     const params = new URLSearchParams(searchParams.toString());
@@ -232,6 +234,8 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
       source_filter: sourceFilter !== "ALL" ? sourceFilter.toLowerCase() : undefined,
       ad_campaign_id: (sourceFilter === "META_ADS" && selectedCampaignId) ? selectedCampaignId : undefined,
       broadcast_id: (sourceFilter === "BROADCAST" && selectedBroadcastId) ? selectedBroadcastId : undefined,
+      date_from: dateFrom,
+      date_to: dateTo,
     },
     true,
     (tab === initialTab && sourceFilter === "ALL") ? (fallbackLeads ?? undefined) : undefined
@@ -510,6 +514,27 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
               <option value="BROADCAST">Broadcast Specific</option>
             </select>
           </div>
+
+          {/* Date filter, arrived via a link from a today-scoped card (e.g. dashboard Pipeline Activity) */}
+          {dateFrom && (
+            <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-primary-muted bg-primary-light p-2.5 shadow-sm sm:w-auto">
+              <span className="min-w-0 flex-1 truncate font-body text-xs font-semibold text-primary">
+                {dateFrom === dateTo ? `${dateFrom} only` : `${dateFrom} → ${dateTo}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.delete("date_from");
+                  params.delete("date_to");
+                  router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+                }}
+                className="shrink-0 font-label text-xs font-bold uppercase tracking-wider text-primary hover:opacity-70"
+              >
+                Clear
+              </button>
+            </div>
+          )}
 
           {/* Conditional Campaign Dropdown */}
           {sourceFilter === "META_ADS" && campaigns.length > 0 && (

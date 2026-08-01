@@ -31,6 +31,9 @@ function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D",
     count: by_segment?.[s] ?? 0,
   }));
   const total = counts.reduce((acc, c) => acc + c.count, 0);
+  // Matches the backend's UTC calendar day used to build by_segment_today,
+  // so the leads list this links to shows exactly what the card counted.
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="card rounded-[32px] p-8">
@@ -73,7 +76,7 @@ function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D",
               return (
                 <Link
                   key={seg}
-                  href={`/dashboard/leads?segment=${seg}`}
+                  href={`/dashboard/leads?segment=${seg}&date_from=${today}&date_to=${today}`}
                   className={`p-4 rounded-2xl ${cfg.bg} border border-transparent hover:border-border transition-all`}
                 >
                   <div className="font-mono font-bold text-ink text-[22px]">
