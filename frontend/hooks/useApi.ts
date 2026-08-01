@@ -12,8 +12,6 @@ import {
   AdFilterTree,
   AdPerformanceRow,
   AdPerformanceParams,
-  MetaAdsPerfRow,
-  MetaAdsAnalytics,
 } from "@/lib/api";
 
 import { fetchNotes } from "@/app/dashboard/telecalling/lib/notes-api";
@@ -203,38 +201,6 @@ export function useAdPerformance(
     key,
     () => api.inboundLeads.adPerformance(params),
     { ...defaultConfig, fallbackData },
-  );
-}
-
-export function useMetaAdsPerformance(
-  params: { level?: string; date_from?: string; date_to?: string },
-  enabled = true,
-) {
-  const key = enabled ? `meta-ads/performance:${JSON.stringify(params)}` : null;
-  return useSWR<{ data: MetaAdsPerfRow[] }>(
-    key,
-    () => api.metaAds.performance(params),
-    defaultConfig,
-  );
-}
-
-export function useMetaAdsAnalytics(
-  params: { date_from?: string; date_to?: string },
-  enabled = true,
-) {
-  const key = enabled ? `meta-ads/analytics:${JSON.stringify(params)}` : null;
-  return useSWR<{ data: MetaAdsAnalytics }>(
-    key,
-    () => api.metaAds.analytics(params),
-    defaultConfig,
-  );
-}
-
-export function useMetaAdsPages(enabled = true) {
-  return useSWR<{ data: { id: string; name: string }[] }>(
-    enabled ? "meta-ads/pages" : null,
-    () => api.metaAds.pages(),
-    defaultConfig,
   );
 }
 

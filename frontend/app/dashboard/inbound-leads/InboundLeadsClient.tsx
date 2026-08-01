@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { api, InboundLead } from "@/lib/api";
 import { useInboundLeads, useInboundCampaigns } from "@/hooks/useApi";
 import {
@@ -12,7 +11,6 @@ import { cn, formatPhone } from "@/lib/utils";
 import { SegmentBadge } from "@/components/segment-badge";
 import { toast } from "sonner";
 import { MobileRecordCard, MobileRecordField, MobileRecordGrid, MobileRecordHeader } from "@/components/MobileRecord";
-import { AdPerformanceTab } from "./AdPerformanceTab";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -273,11 +271,6 @@ export function InboundLeadsClient({
 }: InboundLeadsClientProps) {
   const [exporting, setExporting] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
-  // Tab is driven by the shared AppHeader via the ?tab= query param
-  // (same pattern as Meta Ads / Outbound Leads): no ?tab → Leads, ?tab=performance → Ad Performance.
-  const searchParams = useSearchParams();
-  const tab = searchParams.get("tab") === "performance" ? "performance" : "leads";
-
   // Filters
   const [selectedCampaign, setSelectedCampaign] = useState("");
   const [selectedSource, setSelectedSource] = useState("");
@@ -365,9 +358,6 @@ export function InboundLeadsClient({
 
   return (
     <div>
-      {tab === "performance" ? (
-        <AdPerformanceTab />
-      ) : (
       <>
 
       {/* ── Filter Panel ───────────────────────────────────────── */}
@@ -712,7 +702,6 @@ export function InboundLeadsClient({
         )}
       </div>
       </>
-      )}
     </div>
   );
 }
