@@ -1073,6 +1073,10 @@ async def overview_analytics(
         "whatsapp": 0, "instagram": 0, "facebook": 0,
         "telegram": 0, "upload": 0, "manual": 0,
     }
+    channel_breakdown_today = {
+        "whatsapp": 0, "instagram": 0, "facebook": 0,
+        "telegram": 0, "upload": 0, "manual": 0,
+    }
     converted_7d = 0
     converted_today = 0
     funnel_inquiries = 0
@@ -1081,9 +1085,12 @@ async def overview_analytics(
     funnel_converted = 0
     week_start_for_funnel = now - timedelta(days=7)
     ad_attributed_leads = 0
+    ad_attributed_leads_today = 0
+    today_iso_date = today_start.date().isoformat()
 
     for lead in leads_rows:
         created = (lead.get("created_at") or "")[:10]
+        is_today = created == today_iso_date
         if created in daily_leads_map:
             daily_leads_map[created] += 1
         converted_at = lead.get("converted_at")
@@ -1099,8 +1106,12 @@ async def overview_analytics(
         src = lead.get("source")
         if src in channel_breakdown:
             channel_breakdown[src] += 1
+            if is_today:
+                channel_breakdown_today[src] += 1
         if lead.get("ad_campaign_id"):
             ad_attributed_leads += 1
+            if is_today:
+                ad_attributed_leads_today += 1
         funnel_inquiries += 1
         if seg in ("A", "B"):
             funnel_engaged += 1
@@ -1257,8 +1268,10 @@ async def overview_analytics(
         "ai_handled_today": ai_handled_today,
         "by_segment": by_segment,
         "channel_breakdown": channel_breakdown,
+        "channel_breakdown_today": channel_breakdown_today,
         "total_leads": total_leads,
         "ad_attributed_leads": ad_attributed_leads,
+        "ad_attributed_leads_today": ad_attributed_leads_today,
         "new_hot_leads_7d": new_hot_leads_7d,
         "new_hot_leads_7d_daily": [{"day": d, "count": new_hot_leads_daily_map[d]} for d in days_iso],
         "new_hot_leads_7d_trend_pct": new_hot_leads_7d_trend_pct,

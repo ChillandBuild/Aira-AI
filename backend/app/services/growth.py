@@ -286,14 +286,18 @@ def build_follow_up_summary(db=None) -> dict[str, Any]:
 
 def build_ad_performance(*, tenant_id: str, db=None) -> dict[str, Any]:
     db = db or get_supabase()
+    now = datetime.now(timezone.utc)
+    today_iso = now.date().isoformat()
+    window_start_7d = now - timedelta(days=7)
     campaigns = db.table("ad_campaigns").select("*").eq("tenant_id", tenant_id).order("created_at", desc=True).execute().data or []
     if not campaigns:
         return {
             "totals": {
                 "campaigns": 0,
                 "tracked_leads": 0,
-                "progressive_rate": 0,
-                "conversion_rate": 0,
+                "tracked_leads_today": 0,
+                "progressive_rate_7d": 0,
+                "conversion_rate_7d": 0,
                 "recommend_increase": 0,
                 "recommend_decrease": 0,
             },
@@ -325,8 +329,10 @@ def build_ad_performance(*, tenant_id: str, db=None) -> dict[str, Any]:
     campaign_rows = []
     increase = 0
     decrease = 0
-    progressive_total = 0
-    converted_total = 0
+    # A lead's created_at/conversion recency, not the (possibly long-running)
+    # campaign's -- so "how are things going lately" reflects lead activity,
+    # not when the campaign itself launched.
+    progressive_lead_ids: set[str] = set()
 
     for campaign in campaigns:
         rows = [lead for lead in tracked_leads if lead.get("ad_campaign_id") == campaign["id"]]
@@ -359,6 +365,7 @@ def build_ad_performance(*, tenant_id: str, db=None) -> dict[str, Any]:
             )
             if deepest_segment > stage_depth(initial_segment) or lead.get("converted_at"):
                 progressive += 1
+                progressive_lead_ids.add(lead["id"])
 
             if lead.get("ad_set_name"):
                 ad_sets.append(lead["ad_set_name"])
@@ -422,16 +429,28 @@ def build_ad_performance(*, tenant_id: str, db=None) -> dict[str, Any]:
                 "creative_examples": list(dict.fromkeys(creatives))[:3],
             }
         )
-        progressive_total += progressive
-        converted_total += converted
 
     tracked_count = len(tracked_leads)
+    tracked_leads_today = sum(
+        1 for lead in tracked_leads if (lead.get("created_at") or "")[:10] == today_iso
+    )
+    # Rates need a same-day denominator, not campaign lifetime, otherwise a
+    # single day's tiny lead count makes the rate swing wildly (see
+    # decisions/log.md 2026-08-01) -- windowed to the last 7 days instead.
+    recent_tracked = [
+        lead for lead in tracked_leads
+        if (lead.get("created_at") or "") >= window_start_7d.isoformat()
+    ]
+    recent_count = len(recent_tracked)
+    recent_converted = sum(1 for lead in recent_tracked if lead.get("converted_at"))
+    recent_progressive = sum(1 for lead in recent_tracked if lead["id"] in progressive_lead_ids)
     return {
         "totals": {
             "campaigns": len(campaign_rows),
             "tracked_leads": tracked_count,
-            "progressive_rate": round(progressive_total / tracked_count, 4) if tracked_count else 0,
-            "conversion_rate": round(converted_total / tracked_count, 4) if tracked_count else 0,
+            "tracked_leads_today": tracked_leads_today,
+            "progressive_rate_7d": round(recent_progressive / recent_count, 4) if recent_count else 0,
+            "conversion_rate_7d": round(recent_converted / recent_count, 4) if recent_count else 0,
             "recommend_increase": increase,
             "recommend_decrease": decrease,
         },

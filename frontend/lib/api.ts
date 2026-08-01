@@ -347,11 +347,14 @@ export interface AnalyticsOverview {
   unreplied_24h: number;
   converted_7d: number;
   converted_7d_trend_pct: number | null;
+  converted_today: number;
   ai_handled_today: number;
   by_segment: Record<"A" | "B" | "C" | "D", number>;
   channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
+  channel_breakdown_today: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
   total_leads: number;
   ad_attributed_leads: number;
+  ad_attributed_leads_today: number;
   new_hot_leads_7d: number;
   new_hot_leads_7d_daily: { day: string; count: number }[];
   new_hot_leads_7d_trend_pct: number | null;
@@ -443,8 +446,9 @@ export interface AdPerformanceSummary {
   totals: {
     campaigns: number;
     tracked_leads: number;
-    progressive_rate: number;
-    conversion_rate: number;
+    tracked_leads_today: number;
+    progressive_rate_7d: number;
+    conversion_rate_7d: number;
     recommend_increase: number;
     recommend_decrease: number;
   };
@@ -553,6 +557,8 @@ export interface TelecallingAnalytics {
   calls_this_week: number;
   avg_duration_seconds: number | null;
   outcome_breakdown: { converted: number; interested: number; callback: number; not_interested: number; no_answer: number };
+  conversions_today?: number;
+  followups_scheduled?: number;
   manual_status_breakdown?: Record<ManualCallStatus, number>;
   per_caller: {
     caller_id: string;

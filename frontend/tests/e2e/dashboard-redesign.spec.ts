@@ -26,12 +26,13 @@ for (const vp of VIEWPORTS) {
     await page.waitForLoadState("networkidle");
 
     // Sections present on every tenant, regardless of enabled_features.
-    await expect(page.getByText("Total Leads")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("New Hot Leads (7d)")).toBeVisible();
-    await expect(page.getByText("Conversions (7d)")).toBeVisible();
+    await expect(page.getByText("New Leads Today", { exact: true })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("New Hot Leads Today", { exact: true })).toBeVisible();
+    await expect(page.getByText("Conversions Today", { exact: true })).toBeVisible();
+    await expect(page.getByText(/total leads all-time/)).toBeVisible();
     await expect(page.getByText("Is my AI carrying its weight?")).toBeVisible();
     await expect(page.getByText("Pipeline Activity")).toBeVisible();
-    await expect(page.getByText("Where are leads coming from?")).toBeVisible();
+    await expect(page.getByText("Where did today's leads come from?")).toBeVisible();
 
     await page.screenshot({
       path: `test-results/dashboard-redesign-${vp.label}.png`,
