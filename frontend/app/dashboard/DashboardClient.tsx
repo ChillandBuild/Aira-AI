@@ -40,14 +40,14 @@ function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D",
             Pipeline Activity
           </h2>
           <p className="font-body text-xs text-ink-muted mt-1">
-            {total === 0 ? "No leads yet" : `${total} active leads categorized`}
+            {total === 0 ? "No leads yet today" : `${total} leads categorized today`}
           </p>
         </div>
       </div>
 
       {total === 0 ? (
         <div className="py-8 text-center font-body text-sm text-ink-muted">
-          Upload leads or wait for inbound WhatsApp messages.
+          No new leads today yet.
         </div>
       ) : (
         <>
@@ -82,7 +82,7 @@ function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D",
                   <div className="font-label text-[10px] font-semibold mt-1 uppercase tracking-wider text-ink-secondary">
                     {cfg.label}
                   </div>
-                  <div className="font-body text-[11px] text-ink-muted mt-0.5">{pct}% of pipeline</div>
+                  <div className="font-body text-[11px] text-ink-muted mt-0.5">{pct}% of today&apos;s leads</div>
                 </Link>
               );
             })}
@@ -211,7 +211,7 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
 
       <AiWorkloadSection overview={overview} />
 
-      <PipelineBar by_segment={overview.by_segment ?? { A: 0, B: 0, C: 0, D: 0 }} />
+      <PipelineBar by_segment={overview.by_segment_today ?? { A: 0, B: 0, C: 0, D: 0 }} />
 
       <LeadSourceSection overview={overview} />
 

@@ -1069,6 +1069,7 @@ async def overview_analytics(
 
     daily_leads_map = {d: 0 for d in days_iso}
     by_segment = {"A": 0, "B": 0, "C": 0, "D": 0}
+    by_segment_today = {"A": 0, "B": 0, "C": 0, "D": 0}
     channel_breakdown = {
         "whatsapp": 0, "instagram": 0, "facebook": 0,
         "telegram": 0, "upload": 0, "manual": 0,
@@ -1103,6 +1104,8 @@ async def overview_analytics(
         seg = lead.get("segment")
         if seg in by_segment:
             by_segment[seg] += 1
+            if is_today:
+                by_segment_today[seg] += 1
         src = lead.get("source")
         if src in channel_breakdown:
             channel_breakdown[src] += 1
@@ -1267,6 +1270,7 @@ async def overview_analytics(
         "converted_today": converted_today,
         "ai_handled_today": ai_handled_today,
         "by_segment": by_segment,
+        "by_segment_today": by_segment_today,
         "channel_breakdown": channel_breakdown,
         "channel_breakdown_today": channel_breakdown_today,
         "total_leads": total_leads,

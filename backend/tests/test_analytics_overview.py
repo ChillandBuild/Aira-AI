@@ -170,11 +170,14 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
         # All 3 leads count toward the all-time fields.
         self.assertEqual(body["channel_breakdown"]["whatsapp"], 2)
         self.assertEqual(body["ad_attributed_leads"], 2)
+        self.assertEqual(body["by_segment"]["A"], 1)
+        self.assertEqual(body["by_segment"]["C"], 1)
         # Only l1/l2 (today) count toward the today-scoped fields; yesterday's
-        # l3 (whatsapp, ad-attributed) must not leak in.
+        # l3 (whatsapp, ad-attributed, segment C) must not leak in.
         self.assertEqual(body["channel_breakdown_today"]["whatsapp"], 1)
         self.assertEqual(body["channel_breakdown_today"]["instagram"], 1)
         self.assertEqual(body["ad_attributed_leads_today"], 1)
+        self.assertEqual(body["by_segment_today"], {"A": 1, "B": 1, "C": 0, "D": 0})
 
 
 if __name__ == "__main__":

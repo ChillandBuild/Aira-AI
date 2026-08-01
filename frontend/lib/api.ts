@@ -350,6 +350,7 @@ export interface AnalyticsOverview {
   converted_today: number;
   ai_handled_today: number;
   by_segment: Record<"A" | "B" | "C" | "D", number>;
+  by_segment_today: Record<"A" | "B" | "C" | "D", number>;
   channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
   channel_breakdown_today: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
   total_leads: number;
