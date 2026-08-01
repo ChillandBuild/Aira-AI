@@ -13,6 +13,8 @@ PRESETS = (
     "last_month",
     "this_week",
     "last_week",
+    "today",
+    "yesterday",
     "last_7d",
     "last_14d",
     "last_30d",
@@ -78,6 +80,11 @@ def resolve_period(
         this_monday = today - timedelta(days=today.weekday())
         last_monday = this_monday - timedelta(days=7)
         return last_monday, last_monday + timedelta(days=6)
+    if preset == "today":
+        return today, today
+    if preset == "yesterday":
+        yesterday = today - timedelta(days=1)
+        return yesterday, yesterday
 
     days = {"last_7d": 7, "last_14d": 14, "last_30d": 30}[preset]
     return today - timedelta(days=days - 1), today

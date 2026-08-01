@@ -43,6 +43,18 @@ class ResolvePeriodTests(unittest.TestCase):
         start, end = resolve_period("last_14d", None, None, self.TODAY)
         self.assertEqual((start, end), (date(2026, 7, 17), date(2026, 7, 30)))
 
+    def test_today_is_a_single_day(self):
+        self.assertEqual(
+            resolve_period("today", None, None, self.TODAY),
+            (date(2026, 7, 30), date(2026, 7, 30)),
+        )
+
+    def test_yesterday_is_a_single_day_before_today(self):
+        self.assertEqual(
+            resolve_period("yesterday", None, None, self.TODAY),
+            (date(2026, 7, 29), date(2026, 7, 29)),
+        )
+
     def test_custom_uses_the_supplied_dates(self):
         self.assertEqual(
             resolve_period("custom", "2026-03-05", "2026-03-19", self.TODAY),
