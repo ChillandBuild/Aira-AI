@@ -169,7 +169,7 @@ export const SEGMENT_COLORS: Record<string, string> = {
   D: "bg-[#f0ece4] text-[#78716c]",
 };
 export const SEGMENT_LABELS: Record<string, string> = {
-  A: "Hot", B: "Warm", C: "Cold", D: "Disqualified",
+  A: "Hot", B: "Warm", C: "Cold", D: "Not Interested",
 };
 
 // ─── Tag chip + selector ────────────────────────────────────────────────────────

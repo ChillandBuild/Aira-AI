@@ -8,7 +8,7 @@ from app.services.notification_config import get_notification_config
 
 logger = logging.getLogger(__name__)
 
-_SEGMENT_LABELS = {"A": "Hot", "B": "Warm", "C": "Cold", "D": "Disqualified"}
+_SEGMENT_LABELS = {"A": "Hot", "B": "Warm", "C": "Cold", "D": "Not Interested"}
 _COOLDOWN_HOURS = 6
 ALERT_DELAY_SECONDS = 300
 

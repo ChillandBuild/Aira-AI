@@ -78,7 +78,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   A: "Hot",
   B: "Warm",
   C: "Cold",
-  D: "Disqualified",
+  D: "Not Interested",
 };
 
 function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void; onSent: () => void; canManageLeads: boolean }) {

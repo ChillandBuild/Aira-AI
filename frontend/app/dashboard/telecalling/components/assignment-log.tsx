@@ -5,7 +5,7 @@ import { Download, RefreshCw, ArrowRight, ClipboardList } from "lucide-react";
 import { api, Caller, AssignmentLogEntry, AssignmentLogSummary } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 
-const SEGMENT_LABEL: Record<string, string> = { A: "Hot", B: "Warm", C: "Cold", D: "Disqualified" };
+const SEGMENT_LABEL: Record<string, string> = { A: "Hot", B: "Warm", C: "Cold", D: "Not Interested" };
 const SEGMENT_STYLE: Record<string, string> = {
   A: "bg-red-50 text-red-600 border-red-200",
   B: "bg-amber-50 text-amber-600 border-amber-200",

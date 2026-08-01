@@ -45,7 +45,7 @@ def get_caller_id_for_user(user_id: str, tenant_id: str) -> str | None:
 def _open_lead_count(db, tenant_id: str, caller_id: str) -> int:
     """Active workload for a caller = assigned leads that are still open.
 
-    Excludes Disqualified (D), Converted, DNC, and Unreachable leads.
+    Excludes Not Interested (D), Converted, DNC, and Unreachable leads.
     """
     res = (
         db.table("leads")

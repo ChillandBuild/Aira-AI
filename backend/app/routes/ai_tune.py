@@ -45,7 +45,7 @@ Write a rubric in this exact format (5 lines, one per score band):
 - 7-8: [Warm signals specific to this business]
 - 5-6: [Neutral signals]
 - 3-4: [Low engagement signals]
-- 1-2: [Disqualified / not interested signals]
+- 1-2: [Not interested signals]
 
 Reply with ONLY the 5 rubric lines. No explanation, no preamble."""
 

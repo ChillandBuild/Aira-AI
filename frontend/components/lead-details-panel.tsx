@@ -93,7 +93,7 @@ const SEG_LABEL: Record<string, string> = {
   A: "Hot",
   B: "Warm",
   C: "Cold",
-  D: "Disqualified",
+  D: "Not Interested",
 };
 
 function scoreBarColor(score: number): string {
