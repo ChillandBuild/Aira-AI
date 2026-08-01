@@ -54,6 +54,8 @@ def build_creative_performance(
       date_from/to    -> bound insights and first lead/ad attribution date
     """
     from app.services.meta_ads_insights_sync import (
+        _get_ads_credentials,
+        fetch_unique_reach_by_ad,
         get_current_ads_account_id,
         sum_actions,
     )
@@ -119,6 +121,18 @@ def build_creative_performance(
     if date_to:
         ins_q = ins_q.lte("insight_date", date_to)
     insights = (ins_q.execute().data) or []
+
+    unique_reach_by_ad: dict[str, int] = {}
+    credentials = _get_ads_credentials(db, tenant_id)
+    if credentials:
+        try:
+            unique_reach_by_ad = fetch_unique_reach_by_ad(
+                *credentials,
+                date_from=date_from,
+                date_to=date_to,
+            )
+        except Exception as error:
+            logger.warning("Meta unique reach fetch failed for tenant %s: %s", tenant_id, error)
 
     ins_by_creative: dict[str, dict] = {}
     for r in insights:
@@ -208,7 +222,7 @@ def build_creative_performance(
         no_message = max(clicks - messages, 0)
         spend = round(ins["spend"], 2)
         impressions = ins["impressions"]
-        reach = ins["reach"]
+        reach = unique_reach_by_ad.get(c["meta_ad_id"], ins["reach"])
         row = {
             "ad_creative_id": c["id"],
             "creative_label": c["creative_label"],

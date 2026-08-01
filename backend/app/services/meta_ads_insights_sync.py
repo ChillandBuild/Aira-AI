@@ -4,6 +4,7 @@ store daily clicks/spend. Credentials come from app_settings
 Meta (ads_read). Service-role DB writes bypass RLS.
 """
 import logging
+import json
 from datetime import datetime, timezone
 
 import httpx
@@ -238,6 +239,46 @@ def _fetch_campaigns(token: str, account: str) -> list[dict]:
                 break
             next_url, next_params = nxt, None
     return out
+
+
+def fetch_unique_reach_by_ad(
+    token: str,
+    account: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict[str, int]:
+    """Return Meta's de-duplicated reach for each ad in the reporting window."""
+    url = f"{_GRAPH_BASE}/{account}/insights"
+    params = {
+        "level": "ad",
+        "fields": "ad_id,reach",
+        "limit": "200",
+        "access_token": token,
+    }
+    if date_from and date_to:
+        params["time_range"] = json.dumps({"since": date_from, "until": date_to})
+    else:
+        params["date_preset"] = "last_30d"
+
+    rows: list[dict] = []
+    with httpx.Client(timeout=30) as client:
+        next_url, next_params = url, params
+        for _ in range(20):
+            response = client.get(next_url, params=next_params)
+            response.raise_for_status()
+            body = response.json()
+            rows.extend(body.get("data", []))
+            next_url = (body.get("paging") or {}).get("next")
+            if not next_url:
+                break
+            next_params = None
+
+    return {
+        str(row["ad_id"]): int(float(row.get("reach", 0) or 0))
+        for row in rows
+        if row.get("ad_id")
+    }
 
 
 def _fetch_adsets(token: str, account: str) -> list[dict]:

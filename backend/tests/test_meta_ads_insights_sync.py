@@ -26,6 +26,33 @@ def test_only_exact_whatsapp_destination_is_included():
     }) is False
 
 
+def test_unique_reach_uses_one_meta_window_per_ad(monkeypatch):
+    import app.services.meta_ads_insights_sync as mod
+
+    requests = []
+
+    class FakeResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"data": [{"ad_id": "A1", "reach": "17309"}]}
+
+    class FakeClient:
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def get(self, url, params):
+            requests.append((url, params))
+            return FakeResponse()
+
+    monkeypatch.setattr(mod.httpx, "Client", FakeClient)
+
+    result = mod.fetch_unique_reach_by_ad(
+        "token", "act_1", date_from="2026-07-03", date_to="2026-08-01",
+    )
+
+    assert result == {"A1": 17309}
+    assert requests[0][1]["time_range"] == '{"since": "2026-07-03", "until": "2026-08-01"}'
+
+
 class FakeTable:
     def __init__(self, store, name):
         self.store, self.name, self._filters, self._payload = store, name, {}, None

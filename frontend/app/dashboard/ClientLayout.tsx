@@ -59,6 +59,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isInboxSidebarOpen, setIsInboxSidebarOpen] = useState(false);
   const [subStatus, setSubStatus] = useState<"loading" | "none" | "pending_approval" | "active">("loading");
   const pathname = usePathname();
+  const isMetaAds = pathname === "/dashboard/meta-ads";
   // The conversations route renders its own thin inbox rail (Bulkwise-style) and
   // fills the viewport, so we suppress the labeled sidebar + app header there.
   const isInbox = pathname?.startsWith("/dashboard/conversations") ?? false;
@@ -168,7 +169,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                   <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
                 </Suspense>
                 <ClaimBanner />
-                <div className="w-full min-w-0 max-w-[1400px] overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:p-7">
+                <div className={isMetaAds
+                  ? "w-full min-w-0 max-w-none overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:px-5 md:py-5"
+                  : "w-full min-w-0 max-w-[1400px] overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:p-7"}>
                   {children}
                 </div>
               </main>
