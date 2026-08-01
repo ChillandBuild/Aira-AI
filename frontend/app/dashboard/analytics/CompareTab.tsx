@@ -2,16 +2,16 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
+  AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { Download } from "lucide-react";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
-import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
-import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
+import { RangeValue } from "@/components/analytics/RangePicker";
 import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
+import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
 const CURRENT_COLOR = "#5b21b6";
 const PREVIOUS_COLOR = "#a8a29e";
@@ -50,16 +50,8 @@ function formatDelta(pct: number): string {
   return `${Math.round(Math.abs(pct) / 100 + 1)}×`;
 }
 
-/** How a change should be coloured.
- *  `higher` — more is good (leads, replies answered).
- *  `lower`  — less is good (cost per lead, reply time).
- *  `neutral`— neither direction is good or bad. Ad spend is the case that
- *             matters: spending less is not a win and spending more is not a
- *             failure, so painting it green or red editorialises a decision
- *             the owner made deliberately. */
 type DeltaSense = "higher" | "lower" | "neutral";
 
-/** The arrow always follows the number; only the colour follows the sense. */
 function DeltaBadge({
   pct,
   sense = "higher",
@@ -116,6 +108,79 @@ function StatCard({
       <div className="flex items-center gap-2">
         {delta !== undefined && <DeltaBadge pct={delta ?? null} sense={sense} />}
         {sub && <span className="font-label text-xs text-on-surface-muted">{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+      <h2 className="mb-4 font-display text-base font-bold text-primary sm:mb-5">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+function FunnelSteps({ steps }: { steps: FunnelStep[] }) {
+  const firstCount = steps[0]?.count ?? 0;
+  return (
+    <div className="space-y-3">
+      {steps.map((step, i) => {
+        const prevCount = i === 0 ? step.count : steps[i - 1].count;
+        const retentionPct =
+          i === 0 || prevCount === 0
+            ? null
+            : Math.round((step.count / prevCount) * 100);
+        const dropPct = retentionPct !== null ? 100 - retentionPct : null;
+        const widthPct = firstCount === 0
+          ? 0
+          : Math.min(Math.round((step.count / firstCount) * 100), 100);
+
+        return (
+          <div key={step.label} className="flex items-center gap-3">
+            <span className="font-label text-xs text-on-surface-muted w-20 text-right shrink-0">
+              {step.label}
+            </span>
+            <div className="flex-1 bg-surface-mid rounded-full h-6 overflow-hidden">
+              <div
+                className="h-6 rounded-full bg-primary transition-all"
+                style={{ width: `${widthPct}%` }}
+              />
+            </div>
+            <span className="font-display text-sm font-bold text-on-surface w-10 shrink-0">
+              {step.count}
+            </span>
+            {dropPct !== null && (
+              <span className="font-label text-xs text-on-surface-muted w-14 shrink-0">
+                {dropPct}% drop
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PerformanceKpi({ card }: { card: PerformanceCard }) {
+  const improved = card.delta != null
+    ? card.lowerIsBetter ? card.delta < 0 : card.delta > 0
+    : null;
+  const deltaLabel = card.delta == null
+    ? null
+    : `${card.delta >= 0 ? "+" : ""}${card.delta}% vs comparison`;
+  return (
+    <div className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5">
+      <p className="font-label text-xs uppercase tracking-wider text-on-surface-muted">{card.label}</p>
+      <p className="mt-1 font-display text-2xl font-bold text-on-surface sm:text-3xl">{card.value}</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-label text-xs">
+        <span className="text-on-surface-muted">{card.scope}</span>
+        {deltaLabel && (
+          <span className={improved ? "text-emerald-600" : card.delta === 0 ? "text-on-surface-muted" : "text-red-600"}>
+            {deltaLabel}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -349,13 +414,13 @@ function ComparisonTable({
   );
 }
 
-export function CompareTab() {
-  const [range, setRange] = useState<RangeValue>({
-    preset: "last_14d", start: "", end: "",
-  });
-  const [comparison, setComparison] = useState<ComparisonSelection>({
-    mode: "off", start: "", end: "",
-  });
+export function CompareTab({
+  range,
+  comparison,
+}: {
+  range: RangeValue;
+  comparison: ComparisonSelection;
+}) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -376,9 +441,6 @@ export function CompareTab() {
   }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   useEffect(() => {
-    // Clear before bailing out, otherwise switching to Custom leaves the
-    // previous range's report on screen under a "pick a date" prompt --
-    // stale numbers presented as if they were the current selection.
     if (!canLoad) {
       setData(null);
       setErr(null);
@@ -398,16 +460,7 @@ export function CompareTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex flex-col gap-5">
-          <div>
-            <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
-              Reporting period
-            </p>
-            <RangePicker value={range} onChange={setRange} idPrefix="reporting-range" />
-          </div>
-          <ComparisonPicker value={comparison} onChange={setComparison} />
-        </div>
+      <div className="flex justify-end">
         <button
           onClick={() => api.analytics.exportCompareCsv(params)}
           disabled={!data || !canLoad || comparison.mode === "off"}
@@ -437,6 +490,37 @@ export function CompareTab() {
       {data && (
         <>
           <ComparisonHeader data={data} />
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            {buildOverviewCards({ current: data.current, previous: data.previous }).map((card) => (
+              <PerformanceKpi key={card.label} card={card} />
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+            <SectionCard title="Selected-period pipeline">
+              <FunnelSteps steps={buildFunnel(data.current.summary)} />
+            </SectionCard>
+            <SectionCard title="New leads by day">
+              <div role="img" aria-label="New leads in the selected period chart">
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={buildTrend(data.current)} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                    <defs>
+                      <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#5b21b6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#5b21b6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+                    <Area type="monotone" dataKey="count" stroke="#5b21b6" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </SectionCard>
+          </div>
 
           {(() => {
             const previous = data.previous;

@@ -148,6 +148,34 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
         self.assertIsInstance(body["new_hot_leads_7d_daily"], list)
         self.assertIsNone(body["new_hot_leads_7d_trend_pct"])  # empty prior window
 
+    @patch("app.routes.analytics.get_supabase")
+    def test_channel_breakdown_today_and_ad_attributed_today_only_count_todays_leads(self, mock_get_db):
+        from datetime import datetime, timezone, timedelta
+        today = datetime.now(timezone.utc).date().isoformat()
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
+
+        leads_rows = [
+            {"id": "l1", "created_at": f"{today}T09:00:00+00:00", "segment": "A",
+             "source": "whatsapp", "converted_at": None, "ad_campaign_id": "camp-1"},
+            {"id": "l2", "created_at": f"{today}T10:00:00+00:00", "segment": "B",
+             "source": "instagram", "converted_at": None, "ad_campaign_id": None},
+            {"id": "l3", "created_at": f"{yesterday}T10:00:00+00:00", "segment": "C",
+             "source": "whatsapp", "converted_at": None, "ad_campaign_id": "camp-2"},
+        ]
+        self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=[], prior_stage_events_rows=[])
+
+        res = self.client.get("/api/v1/analytics/overview?range=7d")
+        body = res.json()
+        # All 3 leads count toward the all-time fields.
+        self.assertEqual(body["channel_breakdown"]["whatsapp"], 2)
+        self.assertEqual(body["ad_attributed_leads"], 2)
+        # Only l1/l2 (today) count toward the today-scoped fields; yesterday's
+        # l3 (whatsapp, ad-attributed) must not leak in.
+        self.assertEqual(body["channel_breakdown_today"]["whatsapp"], 1)
+        self.assertEqual(body["channel_breakdown_today"]["instagram"], 1)
+        self.assertEqual(body["ad_attributed_leads_today"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

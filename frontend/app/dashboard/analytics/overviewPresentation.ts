@@ -17,14 +17,6 @@ type OverviewPeriod = {
 
 type PreviousOverviewPeriod = Pick<OverviewPeriod, "summary" | "money" | "response">;
 
-export type PerformanceCard = {
-  label: string;
-  value: string;
-  delta: number | null;
-  scope: "Selected period";
-  lowerIsBetter?: boolean;
-};
-
 export type FunnelStep = {
   label: string;
   count: number;
@@ -35,25 +27,21 @@ export type LeadTrendPoint = {
   count: number;
 };
 
-function percentage(part: number, whole: number): number | null {
-  if (whole <= 0) return null;
-  return Math.round((part / whole) * 100);
-}
-
-function percentageDelta(current: number | null, previous: number | null): number | null {
-  if (current == null || previous == null || previous === 0) return null;
-  return Math.round(((current - previous) / previous) * 100);
-}
+export type PerformanceCard = {
+  label: string;
+  value: string;
+  delta: number | null;
+  scope: "Selected period";
+  lowerIsBetter?: boolean;
+};
 
 function count(summary: Summary, key: string): number {
   return Number(summary[key] ?? 0);
 }
 
-function qualifiedRate(summary: Summary): number | null {
-  return percentage(
-    count(summary, "hot") + count(summary, "warm"),
-    count(summary, "new_leads"),
-  );
+function percentageDelta(current: number | null, previous: number | null): number | null {
+  if (current == null || previous == null || previous === 0) return null;
+  return Math.round(((current - previous) / previous) * 100);
 }
 
 function formatMoney(value: number | null): string {
@@ -81,30 +69,30 @@ export function buildPerformanceCard({
   };
 }
 
-export function buildOverviewPresentation({
+export function buildFunnel(summary: Summary): FunnelStep[] {
+  const newLeads = count(summary, "new_leads");
+  return [
+    { label: "New leads", count: newLeads },
+    { label: "Hot", count: count(summary, "hot") },
+    { label: "Converted", count: count(summary, "converted") },
+  ];
+}
+
+export function buildOverviewCards({
   current,
   previous,
 }: {
   current: OverviewPeriod;
   previous: PreviousOverviewPeriod | null;
-}): {
-  cards: PerformanceCard[];
-  funnel: FunnelStep[];
-  trend: LeadTrendPoint[];
-} {
+}): PerformanceCard[] {
   const currentSummary = current.summary;
   const previousSummary = previous?.summary ?? null;
-  const currentQualifiedRate = qualifiedRate(currentSummary);
-  const previousQualifiedRate = previousSummary ? qualifiedRate(previousSummary) : null;
-
   const newLeads = count(currentSummary, "new_leads");
-  const qualified = count(currentSummary, "hot") + count(currentSummary, "warm");
-  const hot = count(currentSummary, "hot");
   const converted = count(currentSummary, "converted");
   const costPerLead = current.money.cost_per_lead ?? null;
   const replyTime = current.response.p50_seconds ?? null;
 
-  const cards: PerformanceCard[] = [
+  return [
     {
       label: "New leads",
       value: newLeads.toLocaleString(),
@@ -112,11 +100,6 @@ export function buildOverviewPresentation({
         current: newLeads,
         previous: previousSummary ? count(previousSummary, "new_leads") : null,
       }),
-    },
-    {
-      label: "Qualified rate",
-      value: currentQualifiedRate == null ? "—" : `${currentQualifiedRate}%`,
-      ...buildPerformanceCard({ current: currentQualifiedRate, previous: previousQualifiedRate }),
     },
     {
       label: "Conversions",
@@ -145,20 +128,11 @@ export function buildOverviewPresentation({
       }),
     },
   ];
+}
 
-  const trend = (current.daily_segment_mix ?? []).map((point) => ({
+export function buildTrend(current: OverviewPeriod): LeadTrendPoint[] {
+  return (current.daily_segment_mix ?? []).map((point) => ({
     day: point.day,
     count: point.hot + point.warm + point.cold + point.disqualified,
   }));
-
-  return {
-    cards,
-    funnel: [
-      { label: "New leads", count: newLeads },
-      { label: "Qualified", count: qualified },
-      { label: "Hot", count: hot },
-      { label: "Converted", count: converted },
-    ],
-    trend,
-  };
 }

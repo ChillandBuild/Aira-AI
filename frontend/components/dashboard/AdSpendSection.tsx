@@ -22,16 +22,17 @@ export function AdSpendSection() {
           <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.totals.campaigns}</div>
         </div>
         <div className="pl-6">
-          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Tracked Leads</div>
-          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.totals.tracked_leads}</div>
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Tracked Leads Today</div>
+          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.totals.tracked_leads_today}</div>
+          <div className="text-xs text-ink-muted mt-1 font-medium">{data.totals.tracked_leads} all-time</div>
         </div>
         <div className="pl-6">
-          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Conversion Rate</div>
-          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{Math.round(data.totals.conversion_rate * 100)}%</div>
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Conversion Rate (7d)</div>
+          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{Math.round(data.totals.conversion_rate_7d * 100)}%</div>
         </div>
         <div className="pl-6">
-          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Progressive Rate</div>
-          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{Math.round(data.totals.progressive_rate * 100)}%</div>
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Progressive Rate (7d)</div>
+          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{Math.round(data.totals.progressive_rate_7d * 100)}%</div>
         </div>
       </div>
     </div>

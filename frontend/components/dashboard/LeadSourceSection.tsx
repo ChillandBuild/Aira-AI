@@ -10,28 +10,28 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 export function LeadSourceSection({ overview }: { overview: AnalyticsOverview }) {
-  const breakdown = overview.channel_breakdown;
+  const breakdown = overview.channel_breakdown_today;
   const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
   const entries = (Object.entries(breakdown) as [string, number][])
     .filter(([, count]) => count > 0)
     .sort((a, b) => b[1] - a[1]);
 
-  const adAttributedPct = overview.total_leads > 0
-    ? Math.round((overview.ad_attributed_leads / overview.total_leads) * 100)
+  const adAttributedPct = total > 0
+    ? Math.round((overview.ad_attributed_leads_today / total) * 100)
     : 0;
 
   if (total === 0) {
     return (
       <div className="card rounded-[32px] p-8">
-        <h2 className="font-display font-bold text-ink mb-2 text-[18px]">Where are leads coming from?</h2>
-        <p className="text-sm text-ink-muted">No leads yet.</p>
+        <h2 className="font-display font-bold text-ink mb-2 text-[18px]">Where did today&apos;s leads come from?</h2>
+        <p className="text-sm text-ink-muted">No leads yet today.</p>
       </div>
     );
   }
 
   return (
     <div className="card rounded-[32px] p-8">
-      <h2 className="font-display font-bold text-ink mb-6 text-[18px]">Where are leads coming from?</h2>
+      <h2 className="font-display font-bold text-ink mb-6 text-[18px]">Where did today&apos;s leads come from?</h2>
       <div className="space-y-3">
         {entries.map(([channel, count]) => {
           const pct = total ? Math.round((count / total) * 100) : 0;
@@ -49,7 +49,7 @@ export function LeadSourceSection({ overview }: { overview: AnalyticsOverview })
       <div className="mt-5 pt-5 border-t border-[#f0ece4] flex items-center justify-between">
         <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Ad-attributed</span>
         <span className="text-sm font-mono font-semibold text-ink">
-          {overview.ad_attributed_leads} of {overview.total_leads} ({adAttributedPct}%)
+          {overview.ad_attributed_leads_today} of {total} ({adAttributedPct}%)
         </span>
       </div>
     </div>

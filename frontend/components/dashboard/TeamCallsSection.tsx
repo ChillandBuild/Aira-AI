@@ -26,12 +26,12 @@ export function TeamCallsSection() {
           <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.calls_this_week}</div>
         </div>
         <div className="pl-6">
-          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Converted</div>
-          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.outcome_breakdown.converted}</div>
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Converted Today</div>
+          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.conversions_today ?? 0}</div>
         </div>
         <div className="pl-6">
-          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Callback</div>
-          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.outcome_breakdown.callback}</div>
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Callback Today</div>
+          <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.followups_scheduled ?? 0}</div>
         </div>
       </div>
     </div>

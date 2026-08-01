@@ -13,9 +13,9 @@ export function AiWorkloadSection({ overview }: { overview: AnalyticsOverview })
     return () => { active = false; };
   }, []);
 
-  const totalReplies = overview.ai_vs_human.ai + overview.ai_vs_human.human;
-  const aiPct = totalReplies > 0 ? Math.round((overview.ai_vs_human.ai / totalReplies) * 100) : 0;
   const today = overview.daily_messages[overview.daily_messages.length - 1];
+  const totalRepliesToday = (today?.ai ?? 0) + (today?.human ?? 0);
+  const aiPct = totalRepliesToday > 0 ? Math.round(((today?.ai ?? 0) / totalRepliesToday) * 100) : 0;
 
   return (
     <div className="card rounded-[32px] p-8">
@@ -24,10 +24,10 @@ export function AiWorkloadSection({ overview }: { overview: AnalyticsOverview })
       </h2>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6 gap-y-8">
         <div>
-          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">AI Auto-Reply Share</div>
+          <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">AI Auto-Reply Share Today</div>
           <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{aiPct}%</div>
           <div className="text-xs text-ink-muted mt-1 font-medium">
-            {overview.ai_vs_human.ai} AI · {overview.ai_vs_human.human} human
+            {today?.ai ?? 0} AI · {today?.human ?? 0} human
           </div>
         </div>
         <div>
