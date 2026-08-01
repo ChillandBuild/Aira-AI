@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -14,7 +14,6 @@ import {
   CartesianGrid,
 } from "recharts";
 import {
-  ChevronDown,
   Download,
   MessageCircle,
   AtSign,
@@ -29,8 +28,8 @@ import {
   getAuthHeaders,
 } from "@/lib/api";
 import { CompareTab } from "./CompareTab";
-import { RangePicker, RangeValue, rangeLabel } from "@/components/analytics/RangePicker";
-import { ComparisonPicker, comparisonLabel } from "@/components/analytics/ComparisonPicker";
+import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
+import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
 import {
   canLoadComparison,
   ComparisonSelection,
@@ -156,52 +155,6 @@ function SectionCard({ title, children }: { title: string; children: React.React
     <div className="min-w-0 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
       <h2 className="mb-4 font-display text-base font-bold text-primary sm:mb-5">{title}</h2>
       {children}
-    </div>
-  );
-}
-
-// ─── Compact header pickers ────────────────────────────────────────────────────
-
-function HeaderPicker({
-  name,
-  summary,
-  children,
-}: {
-  name: string;
-  summary: string;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-label={name}
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-lg bg-surface-low px-3 py-2 font-label text-xs font-semibold text-on-surface ring-1 ring-[#c4c7c7]/15 transition-colors hover:text-primary sm:px-4 sm:text-sm"
-      >
-        <span className="text-on-surface-muted">{name}:</span>
-        {summary}
-        <ChevronDown size={14} className={`transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-[min(92vw,420px)] rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5">
-          {children}
-        </div>
-      )}
     </div>
   );
 }
@@ -570,17 +523,19 @@ export default function AnalyticsPage() {
             </button>
           )}
           {activeTab !== "templates" && (
-            <HeaderPicker name="Reporting period" summary={rangeLabel(range)}>
-              <p className="mb-3 font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
+            <div className="flex items-center gap-2">
+              <span className="font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted whitespace-nowrap">
                 Reporting period
-              </p>
-              <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-            </HeaderPicker>
+              </span>
+              <div className="w-[150px]">
+                <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+              </div>
+            </div>
           )}
           {activeTab === "overview" && (
-            <HeaderPicker name="Compare with" summary={comparisonLabel(comparison)}>
+            <div className="w-[170px]">
               <ComparisonPicker value={comparison} onChange={setComparison} />
-            </HeaderPicker>
+            </div>
           )}
         </div>
       </div>

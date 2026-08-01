@@ -45,24 +45,18 @@ test("analytics exposes client-controlled reporting and comparison ranges", asyn
   await page.goto("/dashboard/analytics");
   await page.waitForLoadState("networkidle");
 
-  // Both pickers are collapsed into compact header buttons by default.
-  await expect(page.getByText("Reporting period", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Compare with", { exact: true })).toHaveCount(0);
-
-  // Opening the reporting-period dropdown reveals the preset select and a custom date range.
-  await page.getByRole("button", { name: "Reporting period", exact: true }).click();
+  // Both pickers render inline in the header, no intermediate panel to open first.
   await expect(page.getByText("Reporting period", { exact: true })).toBeVisible();
-  await expect(page.getByRole("combobox")).toHaveValue("today");
+  await expect(page.getByText("Compare with", { exact: true })).toBeVisible();
+  await expect(page.getByRole("combobox").first()).toHaveValue("today");
   await expect(page.locator("#analytics-range-from")).toHaveCount(0);
 
   // Selecting Custom exposes the reporting date pair.
-  await page.getByRole("combobox").selectOption("custom");
+  await page.getByRole("combobox").first().selectOption("custom");
   await expect(page.locator("#analytics-range-from")).toBeVisible();
   await expect(page.locator("#analytics-range-to")).toBeVisible();
 
-  // Opening the comparison dropdown reveals its own control, labelled and starting off.
-  await page.getByRole("button", { name: "Compare with", exact: true }).click();
-  await expect(page.getByText("Compare with", { exact: true })).toBeVisible();
+  // The comparison control starts off, labelled inline.
   await expect(page.getByRole("combobox").last()).toHaveValue("off");
   await expect(page.getByRole("combobox").last()).toContainText("Previous period");
 
