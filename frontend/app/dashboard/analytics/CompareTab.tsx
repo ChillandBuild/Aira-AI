@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
+  AreaChart, Area, LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, Legend,
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import { Download } from "lucide-react";
@@ -11,7 +11,7 @@ import {
 } from "@/lib/api";
 import { RangeValue } from "@/components/analytics/RangePicker";
 import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
-import { buildFunnel, FunnelStep } from "./overviewPresentation";
+import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
 const CURRENT_COLOR = "#5b21b6";
 const PREVIOUS_COLOR = "#a8a29e";
@@ -159,6 +159,29 @@ function FunnelSteps({ steps }: { steps: FunnelStep[] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function PerformanceKpi({ card }: { card: PerformanceCard }) {
+  const improved = card.delta != null
+    ? card.lowerIsBetter ? card.delta < 0 : card.delta > 0
+    : null;
+  const deltaLabel = card.delta == null
+    ? null
+    : `${card.delta >= 0 ? "+" : ""}${card.delta}% vs comparison`;
+  return (
+    <div className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5">
+      <p className="font-label text-xs uppercase tracking-wider text-on-surface-muted">{card.label}</p>
+      <p className="mt-1 font-display text-2xl font-bold text-on-surface sm:text-3xl">{card.value}</p>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-label text-xs">
+        <span className="text-on-surface-muted">{card.scope}</span>
+        {deltaLabel && (
+          <span className={improved ? "text-emerald-600" : card.delta === 0 ? "text-on-surface-muted" : "text-red-600"}>
+            {deltaLabel}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -468,9 +491,36 @@ export function CompareTab({
         <>
           <ComparisonHeader data={data} />
 
-          <SectionCard title="Selected-period pipeline">
-            <FunnelSteps steps={buildFunnel(data.current.summary)} />
-          </SectionCard>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            {buildOverviewCards({ current: data.current, previous: data.previous }).map((card) => (
+              <PerformanceKpi key={card.label} card={card} />
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+            <SectionCard title="Selected-period pipeline">
+              <FunnelSteps steps={buildFunnel(data.current.summary)} />
+            </SectionCard>
+            <SectionCard title="New leads by day">
+              <div role="img" aria-label="New leads in the selected period chart">
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={buildTrend(data.current)} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                    <defs>
+                      <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#5b21b6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#5b21b6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+                    <Area type="monotone" dataKey="count" stroke="#5b21b6" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </SectionCard>
+          </div>
 
           {(() => {
             const previous = data.previous;
