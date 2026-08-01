@@ -17,6 +17,13 @@ const PRESET_OPTIONS: { id: Preset; label: string }[] = [
   { id: "custom", label: "Custom" },
 ];
 
+export function rangeLabel(value: RangeValue): string {
+  if (value.preset === "custom") {
+    return value.start && value.end ? `${value.start} → ${value.end}` : "Custom";
+  }
+  return PRESET_OPTIONS.find((option) => option.id === value.preset)?.label ?? "Custom";
+}
+
 export function RangePicker({
   value,
   onChange,
