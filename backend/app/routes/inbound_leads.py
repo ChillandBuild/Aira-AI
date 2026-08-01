@@ -39,7 +39,7 @@ SEGMENT_LABELS = {
     "A": "Hot",
     "B": "Warm",
     "C": "Cold",
-    "D": "Disqualified",
+    "D": "Not Interested",
 }
 
 

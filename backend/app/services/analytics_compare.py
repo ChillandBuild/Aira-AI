@@ -183,7 +183,7 @@ def build_deltas(
 
 
 # Segment warmth order. A=Hot is the destination everything is measured
-# toward; D=Disqualified is the floor. Used to classify a move as a promotion
+# toward; D=Not Interested is the floor. Used to classify a move as a promotion
 # or a demotion. Labels are immutable (Hard Invariant 2).
 _SEGMENT_RANK = {"D": 0, "C": 1, "B": 2, "A": 3}
 

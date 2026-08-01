@@ -22,7 +22,7 @@ const SEGMENT_CONFIG: Record<"A" | "B" | "C" | "D", { label: string; tone: strin
   A: { label: "Hot", tone: "text-emerald-700", bar: "bg-emerald-500", bg: "bg-emerald-50" },
   B: { label: "Warm", tone: "text-amber-700", bar: "bg-amber-500", bg: "bg-amber-50" },
   C: { label: "Cold", tone: "text-ink-muted", bar: "bg-stone-400", bg: "bg-[#faf8f5]" },
-  D: { label: "Disqualified", tone: "text-rose-600", bar: "bg-rose-400", bg: "bg-rose-50" },
+  D: { label: "Not Interested", tone: "text-rose-600", bar: "bg-rose-400", bg: "bg-rose-50" },
 };
 
 function PipelineBar({ by_segment }: { by_segment: Record<"A" | "B" | "C" | "D", number> }) {

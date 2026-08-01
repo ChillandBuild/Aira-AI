@@ -62,7 +62,7 @@ const SEGMENT_FILTER_OPTIONS = [
   { value: "A", label: "Hot" },
   { value: "B", label: "Warm" },
   { value: "C", label: "Cold" },
-  { value: "D", label: "Disqualified" },
+  { value: "D", label: "Not Interested" },
 ];
 
 // ─── Sub-components ──────────────────────────────────────────────────────────

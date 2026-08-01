@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Phone, Sparkles, Eye, EyeOff, Save, AlertCircle, Loader2, CheckCircle2, ChevronDown, BarChart2, Crown
+  Phone, Sparkles, Eye, EyeOff, Save, AlertCircle, Loader2, CheckCircle2, ChevronDown, Crown
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
@@ -196,11 +196,6 @@ export default function SettingsPage() {
   // Tenant ID (for tenant-scoped webhook URLs)
   const [tenantId, setTenantId] = useState<string | null>(null);
 
-  // Lead Scoring thresholds
-  const [scoringThresholds, setScoringThresholds] = useState({ A: 9, B: 7, C: 5 });
-  const [scoringState, setScoringState] = useState<SaveState>("idle");
-  const [scoringCollapsed, setScoringCollapsed] = useState(false);
-
   // Purchased subscription items (for gating the Notifications tab on purchase, not quota)
   const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic" | null>(null);
@@ -298,49 +293,8 @@ export default function SettingsPage() {
     loadUser();
   }, [load]);
 
-  useEffect(() => {
-    const row = settings.find(s => s.key === "scoring_segment_thresholds");
-    if (row && row.display_value && row.display_value !== "Not set") {
-      try {
-        const t = JSON.parse(row.display_value);
-        setScoringThresholds({ A: t.A ?? 9, B: t.B ?? 7, C: t.C ?? 5 });
-      } catch { /* ignore parse error */ }
-    }
-  }, [settings]);
-
   const initials = fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "AD";
   const memberSince = createdAt ? new Date(createdAt).toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : null;
-
-  async function handleScoringThresholdsSave() {
-    if (!canManageSettings) return;
-    const isOrderValid = scoringThresholds.A > scoringThresholds.B && scoringThresholds.B > scoringThresholds.C;
-    if (!isOrderValid) return;
-    setScoringState("saving");
-    try {
-      await saveSettings({ scoring_segment_thresholds: JSON.stringify(scoringThresholds) });
-      await load();
-      setScoringState("saved");
-      setTimeout(() => setScoringState("idle"), 2500);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
-      setScoringState("idle");
-    }
-  }
-
-  function updateScoringThreshold(segment: "A" | "B" | "C", rawValue: string) {
-    const value = Number.parseInt(rawValue, 10);
-    if (Number.isNaN(value)) return;
-
-    const bounds = {
-      A: { min: scoringThresholds.B + 1, max: 10 },
-      B: { min: scoringThresholds.C + 1, max: scoringThresholds.A - 1 },
-      C: { min: 1, max: scoringThresholds.B - 1 },
-    }[segment];
-    const nextValue = Math.max(bounds.min, Math.min(bounds.max, value));
-
-    setScoringThresholds(prev => ({ ...prev, [segment]: nextValue }));
-    setScoringState("dirty");
-  }
 
   function settingFor(key: string) {
     return settings.find(s => s.key === key);
@@ -783,123 +737,6 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </div>
-
-              {/* Lead Scoring thresholds */}
-              {(() => {
-                const isOrderValid = scoringThresholds.A > scoringThresholds.B && scoringThresholds.B > scoringThresholds.C;
-                const rangeEnd: Record<"A" | "B" | "C", number> = {
-                  A: 10,
-                  B: scoringThresholds.A - 1,
-                  C: scoringThresholds.B - 1,
-                };
-                const thresholdColors: Record<string, string> = {
-                  A: "text-red-700 bg-red-50 border-red-200",
-                  B: "text-amber-700 bg-amber-50 border-amber-200",
-                  C: "text-blue-700 bg-blue-50 border-blue-200",
-                };
-                const thresholdLabels: Record<string, string> = { A: "A — HOT", B: "B — WARM", C: "C — COLD" };
-                return (
-                  <div className="card rounded-3xl animate-slide-up">
-                    <button
-                      type="button"
-                      onClick={() => setScoringCollapsed(c => !c)}
-                      className="w-full flex items-center gap-3 text-left"
-                    >
-                      <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "#ede9fe" }}>
-                        <BarChart2 size={18} style={{ color: "#7c3aed" }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h2 className="font-display font-bold text-ink" style={{ fontSize: "1rem", letterSpacing: "-0.02em" }}>
-                            Lead Scoring
-                          </h2>
-                          <span className="badge badge-green inline-flex items-center gap-1">
-                            <CheckCircle2 size={10} /> Configured
-                          </span>
-                        </div>
-                        <p className="font-body text-sm text-ink-muted mt-0.5">Segment thresholds for A/B/C lead classification. Scoring rubric is in AI Tune.</p>
-                      </div>
-                      <ChevronDown size={18} className={`text-ink-muted transition-transform flex-shrink-0 ${scoringCollapsed ? "" : "rotate-180"}`} />
-                    </button>
-
-                    {!scoringCollapsed && (
-                      <>
-                        <div className="mt-6 space-y-3">
-                          <p className="font-body text-xs text-ink-muted">
-                            Each score belongs to exactly one segment. Change a range&apos;s starting score; its ending score adjusts automatically to prevent gaps or overlaps.
-                          </p>
-                          <div className="grid grid-cols-1 gap-1.5">
-                            {(["A", "B", "C"] as const).map((seg) => (
-                              <div key={seg} className={`rounded-xl border px-3 py-2 flex items-center justify-between gap-3 flex-wrap ${thresholdColors[seg]}`}>
-                                <label className="font-label text-xs font-bold uppercase">{thresholdLabels[seg]}</label>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-label text-[10px] font-semibold uppercase opacity-70">From</span>
-                                  <input
-                                    type="number"
-                                    min={seg === "A" ? scoringThresholds.B + 1 : seg === "B" ? scoringThresholds.C + 1 : 1}
-                                    max={seg === "A" ? 10 : seg === "B" ? scoringThresholds.A - 1 : scoringThresholds.B - 1}
-                                    value={scoringThresholds[seg]}
-                                    disabled={!canManageSettings}
-                                    onChange={(e) => updateScoringThreshold(seg, e.target.value)}
-                                    className="w-12 px-1.5 py-1 rounded border bg-white font-mono text-sm font-bold text-center focus:outline-none focus:ring-1 focus:ring-current text-ink disabled:cursor-not-allowed disabled:bg-surface-subtle disabled:text-ink-muted"
-                                  />
-                                  <span className="font-label text-[10px] font-semibold uppercase opacity-70">to</span>
-                                  <span className="w-12 px-1.5 py-1 rounded border border-current/15 bg-white/60 font-mono text-sm font-bold text-center">{rangeEnd[seg]}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          {!isOrderValid && (
-                            <div className="flex items-start gap-1.5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 font-label text-xs font-semibold">
-                              <AlertCircle size={13} className="mt-0.5 shrink-0" />
-                              <span>Thresholds must be in order: A &gt; B &gt; C.</span>
-                            </div>
-                          )}
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 flex items-center justify-between gap-3 flex-wrap text-slate-600">
-                            <span className="font-label text-xs font-bold uppercase">D - Disqualified</span>
-                            <span className="font-mono text-sm font-bold">{scoringThresholds.C > 1 ? `Score 1 to ${scoringThresholds.C - 1}` : "No scores"}</span>
-                          </div>
-                        </div>
-
-                        <div className="mt-6 flex items-center justify-between border-t border-border-subtle pt-5 gap-3 flex-wrap">
-                          <div className="min-h-[20px]">
-                            {scoringState === "saved" && (
-                              <span className="inline-flex items-center gap-1.5 text-emerald-600 font-body text-sm font-medium">
-                                <CheckCircle2 size={15} /> Saved successfully
-                              </span>
-                            )}
-                            {scoringState === "dirty" && (
-                              <span className="text-[11px] text-amber-600 font-body font-medium">Unsaved changes</span>
-                            )}
-                            {(scoringState === "idle" || scoringState === "saving") && (
-                              <span className="text-[11px] text-ink-muted font-body">Default: Hot 9-10, Warm 7-8, Cold 5-6, Disqualified 1-4</span>
-                            )}
-                          </div>
-                          <button
-                            onClick={handleScoringThresholdsSave}
-                            disabled={!canManageSettings || scoringState === "saving" || scoringState === "saved" || !isOrderValid || scoringState === "idle"}
-                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
-                              scoringState === "saved"
-                                ? "bg-emerald-100 text-emerald-700 cursor-default"
-                                : canManageSettings && scoringState === "dirty" && isOrderValid
-                                ? "bg-primary text-white hover:bg-primary/90"
-                                : "bg-surface-subtle text-ink-muted cursor-default"
-                            }`}
-                          >
-                            {scoringState === "saving" ? (
-                              <><Loader2 size={14} className="animate-spin" />Saving…</>
-                            ) : scoringState === "saved" ? (
-                              <><CheckCircle2 size={14} />Saved</>
-                            ) : (
-                              <><Save size={14} />Save Changes</>
-                            )}
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })()}
 
               <InboxConfigPanel canManage={canManageSettings} />
 

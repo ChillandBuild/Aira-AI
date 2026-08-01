@@ -22,7 +22,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from app.config import settings
-from app.services.segmentation import score_to_segment, parse_thresholds
+from app.services.segmentation import score_to_segment
 
 logger = logging.getLogger(__name__)
 
@@ -358,7 +358,7 @@ async def compute_score(
     # ── 5. REJECTION: bypass everything, force D for both global + broadcast ───
     if is_rejection:
         rejection_payload = {
-            "score": 1, "score_arc": 1, "score_intent_delta": -3,
+            "score": 0, "score_arc": 1, "score_intent_delta": -3,
             "score_engagement": 0,
             "segment": "D",
             "segment_drop_count": 0, "arc_message_count": 0,
@@ -369,7 +369,7 @@ async def compute_score(
 
         logger.info(f"Lead {lead_id} rejection detected — immediate D")
         return {
-            "score": 1, "segment": "D", "arc_score": 1,
+            "score": 0, "segment": "D", "arc_score": 1,
             "intent_delta": -3, "engagement": 0,
             "intent_reason": "rejection", "arc_updated": True,
             "segment_drop_count": 0,
@@ -437,16 +437,10 @@ async def compute_score(
         arc_msg_count = 1
 
     # ── 8. Composite final score ───────────────────────────────────────────────
-    final_score = max(1, min(10, current_arc + intent_delta + engagement))
+    final_score = max(0, min(10, current_arc + intent_delta + engagement))
 
     # ── 9. Segment with lock ───────────────────────────────────────────────────
-    try:
-        from app.config_dynamic import get_setting as _gs
-        thresholds = parse_thresholds(_gs("scoring_segment_thresholds", tenant_id=tenant_id))
-    except Exception:
-        thresholds = None
-
-    proposed_segment = score_to_segment(final_score, thresholds=thresholds)
+    proposed_segment = score_to_segment(final_score)
     final_segment, new_drop_count = _apply_segment_lock(
         proposed_segment, current_seg, current_drop, big_drop=False
     )

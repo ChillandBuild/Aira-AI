@@ -19,14 +19,12 @@ with patch.dict("sys.modules", {"groq": MagicMock(), "app.config": MagicMock(set
     import types
 
     seg_mod = types.ModuleType("app.services.segmentation")
-    def _score_to_segment(score, thresholds=None):
-        t = thresholds or {"A": 9, "B": 7, "C": 5}
-        if score >= t.get("A", 9): return "A"
-        if score >= t.get("B", 7): return "B"
-        if score >= t.get("C", 5): return "C"
+    def _score_to_segment(score):
+        if score >= 8: return "A"
+        if score >= 4: return "B"
+        if score >= 1: return "C"
         return "D"
     seg_mod.score_to_segment = _score_to_segment
-    seg_mod.parse_thresholds = lambda raw: None
     sys.modules["app.services.segmentation"] = seg_mod
     sys.modules["app.config"] = MagicMock(settings=mock_settings)
     sys.modules["groq"] = MagicMock()
@@ -299,7 +297,7 @@ class TestCompositeScoreLogic(unittest.TestCase):
     """
 
     def _composite(self, arc, intent, engagement):
-        return max(1, min(10, arc + intent + engagement))
+        return max(0, min(10, arc + intent + engagement))
 
     def test_hot_lead_ok_message_stays_high(self):
         # arc=8, intent 0, engagement 0
@@ -319,8 +317,8 @@ class TestCompositeScoreLogic(unittest.TestCase):
     def test_score_clamped_at_10(self):
         self.assertEqual(self._composite(9, 2, 2), 10)
 
-    def test_score_clamped_at_1(self):
-        self.assertEqual(self._composite(1, -3, 0), 1)
+    def test_score_clamped_at_0(self):
+        self.assertEqual(self._composite(1, -3, 0), 0)
 
     def test_rejection_overrides_everything(self):
         delta, reason = _compute_intent_delta("not interested at all", "idle")

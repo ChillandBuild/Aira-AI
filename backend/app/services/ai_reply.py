@@ -5,7 +5,6 @@ import time
 import httpx
 from app.db.supabase import get_supabase
 from app.services.growth import record_stage_event, sync_follow_up_jobs
-from app.services.segmentation import score_to_segment, parse_thresholds
 from app.services.knowledge_service import get_knowledge_context
 from app.services.catalog_retrieval import (
     contention_set,
