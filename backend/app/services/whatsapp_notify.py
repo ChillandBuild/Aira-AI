@@ -74,10 +74,46 @@ def _build_components(template: dict, lead: dict, to_segment: str) -> list[dict]
     return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in values]}]
 
 
-def _build_escalation_components(template: dict, lead: dict, reason: str) -> list[dict] | None:
+def _lead_ad_source(db, tenant_id: str, lead_id: str) -> str:
+    """Human-readable acquisition source for a lead's escalation alert.
+
+    Returns the MOST RECENT Meta ad's creative label ("Ad: <label>"), or
+    "Direct (not from an ad)" when the lead has no ad attribution. Broadcast
+    attribution is not covered yet — no broadcast has ever run, so
+    broadcast_recipients is empty; add it here once that data exists.
+
+    Never raises — a source lookup must not block the alert.
+    """
+    try:
+        res = (
+            db.table("lead_meta_ad_attributions")
+            .select("created_at, ad_creatives(creative_label)")
+            .eq("lead_id", lead_id)
+            .eq("tenant_id", tenant_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        row = (res.data or [None])[0]
+        if row:
+            creative = row.get("ad_creatives") or {}
+            label = creative.get("creative_label") if isinstance(creative, dict) else None
+            if label:
+                return f"Ad: {label}"
+    except Exception:
+        logger.exception("Ad-source lookup failed for lead %s", lead_id)
+    return "Direct (not from an ad)"
+
+
+def _build_escalation_components(
+    template: dict, lead: dict, reason: str, source: str = "Direct (not from an ad)"
+) -> list[dict] | None:
     """Map ordinal {{n}} placeholders in the template body to escalation values.
 
-    Returns None when the template has no variables — nothing safe to send.
+    Variables are filled positionally: {{1}} name, {{2}} phone, {{3}} reason,
+    {{4}} conversation link, {{5}} acquisition source. A template with fewer
+    variables simply uses the leading subset. Returns None when the template
+    has no variables — nothing safe to send.
     """
     body_text = template.get("body_text") or ""
     indices = sorted(set(int(m) for m in re.findall(r"\{\{(\d+)\}\}", body_text)))
@@ -89,6 +125,7 @@ def _build_escalation_components(template: dict, lead: dict, reason: str) -> lis
         lead.get("phone") or "",
         (reason or "")[:120],
         f"https://aira.ai/dashboard/conversations?lead_id={lead['id']}",
+        source,
     ]
     values = candidate_values[: len(indices)]
     return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in values]}]
@@ -245,8 +282,9 @@ async def _process_escalation_alert(db, alert: dict) -> None:
         })
         return
 
+    source = _lead_ad_source(db, tenant_id, lead_id)
     components = _build_escalation_components(
-        template, lead, alert.get("escalation_reason") or ""
+        template, lead, alert.get("escalation_reason") or "", source
     )
     if components is None:
         db.table("pending_whatsapp_alerts").update(

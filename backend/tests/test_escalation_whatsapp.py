@@ -143,6 +143,57 @@ def test_build_escalation_components_returns_none_without_variables():
     assert whatsapp_notify._build_escalation_components(template, lead, "reason") is None
 
 
+def test_build_escalation_components_maps_source_as_fifth_variable():
+    template = {"body_text": "Lead {{1}} ({{2}}) from {{5}}: {{3}} - {{4}}"}
+    lead = {"id": "lead-1", "name": "Asha", "phone": "+919999999999"}
+    comps = whatsapp_notify._build_escalation_components(
+        template, lead, "user asked for human", "Ad: Astro Whatsapp 02"
+    )
+    # Parameters are positional: index 4 -> {{5}} regardless of text order.
+    assert [p["text"] for p in comps[0]["parameters"]] == [
+        "Asha",
+        "+919999999999",
+        "user asked for human",
+        "https://aira.ai/dashboard/conversations?lead_id=lead-1",
+        "Ad: Astro Whatsapp 02",
+    ]
+
+
+def test_build_escalation_components_source_defaults_to_direct():
+    template = {"body_text": "Lead {{1}} from {{5}}: {{2}} {{3}} {{4}}"}
+    lead = {"id": "lead-1", "name": "Asha", "phone": "+91999"}
+    comps = whatsapp_notify._build_escalation_components(template, lead, "reason")
+    assert comps[0]["parameters"][4]["text"] == "Direct (not from an ad)"
+
+
+def test_lead_ad_source_returns_most_recent_creative_label():
+    from unittest.mock import MagicMock
+
+    db = MagicMock()
+    (db.table.return_value.select.return_value.eq.return_value.eq.return_value
+     .order.return_value.limit.return_value.execute.return_value.data) = [
+        {"created_at": "2026-08-01", "ad_creatives": {"creative_label": "Astro Whatsapp 02"}}
+    ]
+    assert whatsapp_notify._lead_ad_source(db, "tenant-1", "lead-1") == "Ad: Astro Whatsapp 02"
+
+
+def test_lead_ad_source_falls_back_to_direct_when_no_attribution():
+    from unittest.mock import MagicMock
+
+    db = MagicMock()
+    (db.table.return_value.select.return_value.eq.return_value.eq.return_value
+     .order.return_value.limit.return_value.execute.return_value.data) = []
+    assert whatsapp_notify._lead_ad_source(db, "tenant-1", "lead-1") == "Direct (not from an ad)"
+
+
+def test_lead_ad_source_never_raises():
+    from unittest.mock import MagicMock
+
+    db = MagicMock()
+    db.table.side_effect = RuntimeError("db down")
+    assert whatsapp_notify._lead_ad_source(db, "tenant-1", "lead-1") == "Direct (not from an ad)"
+
+
 # --- sending / cancel-if-claimed -------------------------------------------
 
 def _alert_row(**overrides):
