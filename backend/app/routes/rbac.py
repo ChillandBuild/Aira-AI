@@ -132,16 +132,22 @@ def _active_telecaller_count(db, tenant_id: str) -> int:
 def _telecaller_seat_limit(db, tenant_id: str) -> int:
     """
     Purchasing SIM Basic or TeleCMI calling includes 1 free telecaller seat
-    -- that's the calling module's whole point, not an add-on. Anything
-    beyond that free seat is an explicit paid top-up via
-    `tenant_subscription_items` (feature_key='telecaller_seats'), same as
-    numbers/AI tokens. A tenant with no calling module purchased at all
-    gets 0, matching the pre-purchase "nothing works yet" gate.
+    -- that's the calling module's whole point, not an add-on. A tenant
+    with no calling module purchased at all gets 0, matching the
+    pre-purchase "nothing works yet" gate.
+
+    The `telecaller_seats` quantity in `tenant_subscription_items` is the
+    tenant's TOTAL desired seat count, not a top-up on top of the free
+    seat -- the cart's stepper starts at 1 (the free seat) and billing
+    (`_monthly_price_for_item`, via `included_qty=1` on the catalog row)
+    already nets the first unit out as free. So the limit is whichever is
+    larger: the free baseline, or the purchased total (it must never be
+    summed with the baseline, that double-counts the included free seat).
     """
     ent = resolve_entitlements(db, tenant_id)
     features = set(ent.get("features") or [])
     baseline = 1 if ("telecalling_sim" in features or "telecalling_telecmi" in features) else 0
-    return baseline + get_purchased_quantity(db, tenant_id, "telecaller_seats")
+    return max(baseline, get_purchased_quantity(db, tenant_id, "telecaller_seats"))
 
 
 def _check_telecaller_seat_available(db, tenant_id: str) -> None:

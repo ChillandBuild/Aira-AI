@@ -1,6 +1,8 @@
 """Telecaller user creation via the Roles page (POST /api/v1/rbac/users) is
-capped at 1 free seat per purchased calling module (SIM Basic/TeleCMI) plus
-any additionally purchased `telecaller_seats` quantity."""
+capped at 1 free seat per purchased calling module (SIM Basic/TeleCMI), or
+the `telecaller_seats` purchased quantity when it's higher -- that quantity
+is the tenant's TOTAL desired seats (the cart stepper starts at 1, the free
+seat), not an add-on stacked on top of the baseline."""
 import sys
 import unittest
 from pathlib import Path
@@ -172,14 +174,29 @@ class RbacSeatEnforcementTests(unittest.TestCase):
     @patch("app.routes.rbac.get_telecalling_config", return_value={"calling_provider": "telecmi"})
     @patch("app.routes.rbac.get_supabase")
     def test_calling_module_free_seat_plus_topup(self, mock_get_db, mock_cfg):
-        # Calling module's free seat + 1 additionally purchased = 2 total.
-        mock_get_db.return_value = _mock_db(purchased_quantity=1, active_count=1, has_calling_module=True)
+        # Cart stepper set to 2 (total desired seats, the free one included)
+        # -- 2 total, not the free seat plus 2 more on top.
+        mock_get_db.return_value = _mock_db(purchased_quantity=2, active_count=1, has_calling_module=True)
 
         res = self.client.post("/api/v1/rbac/users", json={
             "full_name": "New Caller", "email": "new@example.com",
             "role_id": "role-telecaller", "temporary_password": "Password123!",
         })
         self.assertEqual(res.status_code, 200)
+
+    @patch("app.routes.rbac.get_telecalling_config", return_value={"calling_provider": "telecmi"})
+    @patch("app.routes.rbac.get_supabase")
+    def test_purchased_total_never_stacks_on_free_baseline(self, mock_get_db, mock_cfg):
+        # Cart stepper set to 2 with the calling module's free seat also
+        # active must cap at 2 total, not 1 (free) + 2 (purchased) = 3.
+        mock_get_db.return_value = _mock_db(purchased_quantity=2, active_count=2, has_calling_module=True)
+
+        res = self.client.post("/api/v1/rbac/users", json={
+            "full_name": "New Caller", "email": "new@example.com",
+            "role_id": "role-telecaller", "temporary_password": "Password123!",
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("(2/2)", res.json()["detail"])
 
 
 if __name__ == "__main__":
