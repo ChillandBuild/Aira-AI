@@ -526,17 +526,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {activeTab === "overview" && (
-            <button
-              onClick={() => api.analytics.exportCompareCsv(compareParams)}
-              disabled={!dataReady || !canLoad || comparison.mode === "off"}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 font-label text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-            >
-              <Download size={14} />
-              Export CSV
-            </button>
-          )}
-          {activeTab !== "templates" && (
+          {activeTab !== "overview" && activeTab !== "templates" && (
             <div className="flex items-center gap-2">
               <span className="font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted whitespace-nowrap">
                 Reporting period
@@ -546,18 +536,15 @@ export default function AnalyticsPage() {
               </div>
             </div>
           )}
-          {activeTab === "overview" && (
-            <div className="w-[170px]">
-              <ComparisonPicker value={comparison} onChange={setComparison} />
-            </div>
-          )}
         </div>
       </div>
 
       {activeTab === "overview" && (
         <CompareTab
           range={range}
+          setRange={setRange}
           comparison={comparison}
+          setComparison={setComparison}
           onDataChange={setDataReady}
         />
       )}

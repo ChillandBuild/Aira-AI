@@ -6,9 +6,14 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
+  Filter, RefreshCw, Download
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
+import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
+import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
-import { RangeValue } from "@/components/analytics/RangePicker";
 import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
 import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
@@ -415,16 +420,22 @@ function ComparisonTable({
 
 export function CompareTab({
   range,
+  setRange,
   comparison,
+  setComparison,
   onDataChange,
 }: {
   range: RangeValue;
+  setRange: (r: RangeValue) => void;
   comparison: ComparisonSelection;
+  setComparison: (c: ComparisonSelection) => void;
   onDataChange?: (ready: boolean) => void;
 }) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const canLoad = canLoadComparison(range, comparison);
 
@@ -461,10 +472,47 @@ export function CompareTab({
         if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load");
       });
     return () => { isCurrent = false; };
-  }, [canLoad, params]);
+  }, [canLoad, params, refreshKey]);
+
+  const handleExport = () => {
+    api.analytics.exportCompareCsv(params);
+  };
 
   return (
     <div className="space-y-6">
+      {/* ── Filter Panel ───────────────────────────────────────── */}
+      <div className={cn(
+        "overflow-hidden transition-all duration-300 ease-in-out",
+        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
+      )}>
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <Filter size={13} />
+            </span>
+            <span className="font-label text-[13px] font-bold text-on-surface">Filter & Compare</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Reporting Period
+              </span>
+              <div className="w-[150px]">
+                <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Compare With
+              </span>
+              <div className="w-[170px]">
+                <ComparisonPicker value={comparison} onChange={setComparison} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">
           Pick a valid start and end date for each custom period.
@@ -477,20 +525,58 @@ export function CompareTab({
         </div>
       )}
 
-      {!data && !err && canLoad && (
-        <div className="h-36 animate-pulse rounded-card bg-surface-mid" />
+      {canLoad && !err && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
+          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {!data ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
+                  <div className="h-3 w-1/2 bg-surface-mid/60 rounded" />
+                  <div className="h-6 w-3/4 bg-surface-mid/60 rounded mt-2" />
+                </div>
+              ))
+            ) : (
+              buildOverviewCards({ current: data.current, previous: data.previous }).map((card) => (
+                <PerformanceKpi key={card.label} card={card} />
+              ))
+            )}
+          </div>
+          <div className="flex flex-col justify-between gap-2 p-1">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowFilters((p) => !p)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                  showFilters
+                    ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                    : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
+                )}
+              >
+                <Filter size={12} />
+                <span>Filters</span>
+              </button>
+              <button
+                onClick={() => setRefreshKey((k) => k + 1)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+              >
+                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+                <span>Refresh</span>
+              </button>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={!data}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+            >
+              <Download size={12} />
+              <span>Download CSV</span>
+            </button>
+          </div>
+        </div>
       )}
 
       {data && (
         <>
-          <ComparisonHeader data={data} />
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-            {buildOverviewCards({ current: data.current, previous: data.previous }).map((card) => (
-              <PerformanceKpi key={card.label} card={card} />
-            ))}
-          </div>
-
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
             <SectionCard title="Selected-period pipeline">
               <FunnelSteps steps={buildFunnel(data.current.summary)} />

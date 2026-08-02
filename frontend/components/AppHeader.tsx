@@ -351,9 +351,11 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         </nav>
       )}
 
-      {pathname === "/dashboard/analytics" && (
-        <nav aria-label="Analytics sections" className="hidden min-w-0 flex-1 justify-center md:flex">
-          <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-2xl bg-[#e8e3db]/60 p-1">
+
+      {/* Right side actions */}
+      <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
+        {pathname === "/dashboard/analytics" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {[
               { key: "channels", label: "Channels" },
               { key: "overview", label: "Overview" },
@@ -382,12 +384,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
               );
             })}
           </div>
-        </nav>
-      )}
+        )}
 
-
-      {/* Right side actions */}
-      <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
         {pathname === "/dashboard/outbound-leads" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["upload", "history", "tags"] as const).map((t) => (
