@@ -245,27 +245,20 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
         "overflow-hidden transition-all duration-300 ease-in-out",
         showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
       )}>
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4">
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
           </div>
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex flex-col gap-1.5">
-              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
-                Reporting Period
-              </span>
-              <div className="w-full sm:w-[390px]">
-                <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
-                Channel
-              </span>
-              <div className="flex gap-1.5 flex-wrap">
+          <div className="overflow-x-auto pb-1">
+            <div className="flex min-w-max items-center gap-4">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
+              <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
+              <span className="h-6 w-px bg-[#e8e3db]" aria-hidden="true" />
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</span>
+              <div className="flex items-center gap-1.5">
                 {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
@@ -428,7 +421,7 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
     <div className="space-y-6">
       {showFilters ? (
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="flex items-center gap-3 overflow-x-auto pb-1">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
@@ -586,20 +579,14 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
         showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
       )}>
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="mb-2.5 flex items-center gap-2">
+          <div className="flex items-center gap-3 overflow-x-auto pb-1">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Inbound Filters</span>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
-              Reporting Period
-            </span>
-            <div className="w-full sm:w-[390px]">
-              <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
-            </div>
-          </div>
+          <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
+          <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
         </div>
       </div>
 
