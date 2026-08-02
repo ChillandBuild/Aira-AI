@@ -257,7 +257,7 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
               <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
                 Reporting Period
               </span>
-              <div className="w-[150px]">
+              <div className="w-full sm:w-[390px]">
                 <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
               </div>
             </div>
@@ -318,7 +318,7 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
               </>
             )}
           </div>
-          <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex flex-col justify-start gap-2 p-1">
             <div className="flex gap-2">
               <button
                 onClick={() => setShowFilters((p) => !p)}
@@ -385,19 +385,21 @@ function pct(part: number, whole: number): string {
   return `${Math.round((part / whole) * 100)}%`;
 }
 
-function TemplatesTab() {
+function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: RangeValue) => void }) {
   const [rows, setRows] = useState<TemplatePerformanceRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
+  const rangeQuery = useMemo(() => reportingQuery(range), [range]);
 
   useEffect(() => {
     setErr(null);
     setRows(null);
     api.analytics
-      .templatePerformance()
+      .templatePerformance(rangeQuery)
       .then(setRows)
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : "Failed to load"));
-  }, [retryKey]);
+  }, [retryKey, rangeQuery]);
 
   const totals = (rows ?? []).reduce(
     (acc, r) => ({
@@ -424,6 +426,20 @@ function TemplatesTab() {
 
   return (
     <div className="space-y-6">
+      {showFilters ? (
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <Filter size={13} />
+            </span>
+            <div>
+              <span className="block font-label text-[13px] font-bold text-on-surface">Reporting period</span>
+              <span className="block font-body text-[10px] text-on-surface-muted">Choose the template performance period.</span>
+            </div>
+          </div>
+          <RangePicker value={range} onChange={setRange} idPrefix="templates-range" />
+        </div>
+      ) : null}
       {/* KPI Cards & Actions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
         <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -443,14 +459,28 @@ function TemplatesTab() {
             </>
           )}
         </div>
-        <div className="flex flex-col justify-between gap-2 p-1">
-          <button
-            onClick={() => setRetryKey((k) => k + 1)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
-          >
-            <RefreshCw size={12} className={!rows ? "animate-spin" : ""} />
-            <span>Refresh</span>
-          </button>
+        <div className="flex flex-col justify-start gap-2 p-1">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowFilters((p) => !p)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                showFilters
+                  ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                  : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
+              )}
+            >
+              <Filter size={12} />
+              <span>Filters</span>
+            </button>
+            <button
+              onClick={() => setRetryKey((k) => k + 1)}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+            >
+              <RefreshCw size={12} className={!rows ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </button>
+          </div>
           <button
             onClick={handleDownloadCsv}
             disabled={!rows}
@@ -566,7 +596,7 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
             <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
               Reporting Period
             </span>
-            <div className="w-[150px]">
+            <div className="w-full sm:w-[390px]">
               <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
             </div>
           </div>
@@ -597,7 +627,7 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
               </>
             )}
           </div>
-          <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex flex-col justify-start gap-2 p-1">
             <div className="flex gap-2">
               <button
                 onClick={() => setShowFilters((p) => !p)}
@@ -718,7 +748,7 @@ export default function AnalyticsPage() {
       )}
       {activeTab === "channels" && <ChannelsTab range={range} setRange={setRange} />}
       {activeTab === "inbound" && <InboundTab range={range} setRange={setRange} />}
-      {activeTab === "templates" && <TemplatesTab />}
+      {activeTab === "templates" && <TemplatesTab range={range} setRange={setRange} />}
     </div>
   );
 }

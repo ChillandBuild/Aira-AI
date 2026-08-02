@@ -9,7 +9,7 @@ import {
   Filter, RefreshCw, Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { RangeValue } from "@/components/analytics/RangePicker";
+import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
@@ -475,34 +475,11 @@ export function CompareTab({
               <Filter size={13} />
             </span>
             <div>
-              <span className="block font-label text-[13px] font-bold text-on-surface">Custom date range</span>
+              <span className="block font-label text-[13px] font-bold text-on-surface">Reporting period</span>
               <span className="block font-body text-[10px] text-on-surface-muted">Choose the period to analyse.</span>
             </div>
           </div>
-          <div className="flex flex-wrap items-end gap-2.5">
-            <div className="w-full sm:w-[170px]">
-              <label htmlFor="analytics-range-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From date</label>
-              <input
-                id="analytics-range-from"
-                type="date"
-                value={range.preset === "custom" ? range.start : ""}
-                max={range.preset === "custom" ? range.end || undefined : undefined}
-                onChange={(e) => setRange({ preset: "custom", start: e.target.value, end: range.preset === "custom" ? range.end : "" })}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              />
-            </div>
-            <div className="w-full sm:w-[170px]">
-              <label htmlFor="analytics-range-to" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To date</label>
-              <input
-                id="analytics-range-to"
-                type="date"
-                value={range.preset === "custom" ? range.end : ""}
-                min={range.preset === "custom" ? range.start || undefined : undefined}
-                onChange={(e) => setRange({ preset: "custom", start: range.preset === "custom" ? range.start : "", end: e.target.value })}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-              />
-            </div>
-          </div>
+          <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
         </div>
       ) : null}
 
@@ -534,7 +511,7 @@ export function CompareTab({
               ))
             )}
           </div>
-          <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex flex-col justify-start gap-2 p-1">
             <div className="flex gap-2">
               <button
                 onClick={() => setShowFilters((p) => !p)}

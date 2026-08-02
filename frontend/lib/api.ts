@@ -1542,8 +1542,8 @@ export const api = {
     },
     funnelExtended: () =>
       apiFetch<FunnelAnalyticsExtended>(`/api/v1/analytics/funnel`),
-    templatePerformance: async () => {
-      const res = await apiFetch<{ data: TemplatePerformanceRow[] }>(`/api/v1/analytics/template-performance`);
+    templatePerformance: async (range: string) => {
+      const res = await apiFetch<{ data: TemplatePerformanceRow[] }>(`/api/v1/analytics/template-performance?${range}`);
       return res.data || [];
     },
     inbound: (range: string) =>

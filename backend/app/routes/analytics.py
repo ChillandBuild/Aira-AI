@@ -316,14 +316,32 @@ async def whatsapp_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
 
 
 @router.get("/template-performance")
-async def template_performance(tenant_id: str = Depends(get_analytics_tenant_id)):
+async def template_performance(
+    range: str = Query("7d"),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    calendar_timezone: Literal["UTC", "Asia/Kolkata"] = Query("Asia/Kolkata", alias="timezone"),
+    tenant_id: str = Depends(get_analytics_tenant_id),
+):
     """Per-template broadcast performance: Sent / Read / Replied / Hot leads."""
     db = get_supabase()
     try:
+        window_start, window_end, _ = _resolve_window(
+            range, start, end, calendar_timezone,
+        )
         res = await asyncio.to_thread(
-            db.rpc("template_performance", {"p_tenant_id": tenant_id}).execute
+            db.rpc(
+                "template_performance_range",
+                {
+                    "p_tenant_id": tenant_id,
+                    "p_start": window_start.isoformat(),
+                    "p_end": window_end.isoformat(),
+                },
+            ).execute,
         )
         return {"data": res.data or []}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as e:
         logger.error(f"template_performance failed for tenant {tenant_id}: {e}")
         return {"data": []}
