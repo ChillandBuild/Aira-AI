@@ -300,7 +300,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:h-16 md:gap-4 md:px-6">
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:h-20 md:gap-4 md:px-7">
       {/* Left side: menu trigger + title and description */}
       <div className="flex min-w-0 items-center gap-3">
         <MoreMenu />
@@ -355,7 +355,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
       {/* Right side actions */}
       <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
         {pathname === "/dashboard/analytics" && (
-          <div className="mr-2 hidden gap-0.5 rounded-xl bg-[#e8e3db]/50 p-0.5 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {[
               { key: "channels", label: "Channels" },
               { key: "overview", label: "Overview" },
@@ -375,8 +375,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                     router.replace(`/dashboard/analytics${query ? `?${query}` : ""}`, { scroll: false });
                   }}
                   className={cn(
-                    "shrink-0 rounded-lg px-3 py-1 font-label text-xs font-semibold transition-all",
-                    isActive ? "bg-white text-primary shadow-xs" : "text-[#78716c] hover:text-[#292524]",
+                    "shrink-0 rounded-xl px-3 py-2 font-label text-[11px] font-bold transition-all xl:px-4 xl:text-xs",
+                    isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
                   )}
                 >
                   {label}

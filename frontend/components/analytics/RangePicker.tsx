@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
 
 export type Preset =
   | "today" | "yesterday"
@@ -28,35 +28,28 @@ export function RangePicker({
   idPrefix?: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      {/* Preset pills rendered directly outside */}
-      <div className="flex flex-wrap items-center gap-1 rounded-xl bg-surface-mid/40 p-1">
-        {PRESET_OPTIONS.map((option) => {
-          const isSelected = value.preset === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => onChange({ ...value, preset: option.id })}
-              className={cn(
-                "rounded-lg px-2.5 py-1.5 font-label text-xs font-semibold transition-all",
-                isSelected
-                  ? "bg-white text-primary shadow-xs"
-                  : "text-on-surface-muted hover:text-on-surface hover:bg-white/50"
-              )}
-            >
+    <div className="flex flex-col gap-3">
+      <div className="relative">
+        <select
+          value={value.preset}
+          onChange={(e) => onChange({ ...value, preset: e.target.value as Preset })}
+          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+        >
+          {PRESET_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
               {option.label}
-            </button>
-          );
-        })}
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted" />
       </div>
 
       {value.preset === "custom" && (
-        <div className="flex flex-wrap items-center gap-2 animate-in fade-in duration-200">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-end gap-2.5">
+          <div className="w-[150px]">
             <label
               htmlFor={`${idPrefix}-from`}
-              className="font-label text-[11px] font-semibold text-on-surface-muted"
+              className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted"
             >
               From
             </label>
@@ -66,13 +59,13 @@ export function RangePicker({
               value={value.start}
               max={value.end || undefined}
               onChange={(e) => onChange({ ...value, start: e.target.value })}
-              className="h-8.5 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
             />
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="w-[150px]">
             <label
               htmlFor={`${idPrefix}-to`}
-              className="font-label text-[11px] font-semibold text-on-surface-muted"
+              className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted"
             >
               To
             </label>
@@ -82,7 +75,7 @@ export function RangePicker({
               value={value.end}
               min={value.start || undefined}
               onChange={(e) => onChange({ ...value, end: e.target.value })}
-              className="h-8.5 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
             />
           </div>
         </div>
