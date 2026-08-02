@@ -3,8 +3,8 @@ store daily clicks/spend. Credentials come from app_settings
 (meta_ads_access_token / meta_ads_account_id, plaintext). Read-only against
 Meta (ads_read). Service-role DB writes bypass RLS.
 """
-import logging
 import json
+import logging
 from datetime import datetime, timezone
 
 import httpx
@@ -108,6 +108,58 @@ def _major_currency_units(value) -> float | None:
         return None
 
 
+def fetch_prefilled_greeting(token: str, ad_id: str) -> str | None:
+    """Fetch the exact autofill text Meta shows in a lead's message box when they
+    tap this Click-to-WhatsApp ad -- object_story_spec.link_data.page_welcome_message,
+    which is itself a JSON-encoded string, with the real text nested at
+    text_format.message.autofill_message.content. Live-verified 2026-08-02 against
+    a real connected ad account and creative.
+
+    Best-effort: returns None on any failure, or if this ad uses the newer
+    Advantage+/dynamic-creative format (a separate welcome_message_sequence tied
+    to the phone number, not the creative) -- not handled here, see
+    active-backlog.md. A None return means "unknown", not "no pre-fill" --
+    callers must not treat it as evidence either way.
+    """
+    try:
+        with httpx.Client(timeout=15) as client:
+            ad_resp = client.get(
+                f"{_GRAPH_BASE}/{ad_id}",
+                params={"fields": "creative{id}", "access_token": token},
+            )
+            ad_resp.raise_for_status()
+            creative_id = (ad_resp.json().get("creative") or {}).get("id")
+            if not creative_id:
+                return None
+
+            cre_resp = client.get(
+                f"{_GRAPH_BASE}/{creative_id}",
+                params={
+                    "fields": "object_story_spec{link_data{page_welcome_message}}",
+                    "access_token": token,
+                },
+            )
+            cre_resp.raise_for_status()
+            raw = (
+                (cre_resp.json().get("object_story_spec") or {})
+                .get("link_data", {})
+                .get("page_welcome_message")
+            )
+            if not raw:
+                return None
+            parsed = json.loads(raw)
+            content = (
+                parsed.get("text_format", {})
+                .get("message", {})
+                .get("autofill_message", {})
+                .get("content")
+            )
+            return content.strip() if content else None
+    except Exception as e:
+        logger.warning(f"Failed to fetch prefilled greeting for ad {ad_id}: {e}")
+        return None
+
+
 def upsert_creative_from_insight(
     db,
     tenant_id: str,
@@ -115,10 +167,16 @@ def upsert_creative_from_insight(
     *,
     account: str | None = None,
     adset_meta: dict | None = None,
+    token: str | None = None,
 ) -> str | None:
     """Insert-or-reuse an ad_creatives row keyed by (tenant_id, meta_ad_id).
     Links to an ad_campaigns row via get_or_create_campaign. Never overwrites a
     tenant-edited creative_label (label_edited=True). Returns ad_creatives.id.
+
+    When token is provided and this is a CTWA creative missing prefilled_greeting_text,
+    fetches it once from Meta and stores it -- this is the ground truth scoring_engine.py
+    compares an incoming ad-referred message against to tell "sent Meta's pre-fill
+    untouched" apart from "edited it before sending."
     """
     ad_id = (row.get("ad_id") or "").strip()
     if not ad_id:
@@ -151,12 +209,13 @@ def upsert_creative_from_insight(
         }, on_conflict="tenant_id,meta_adset_id").execute()
 
     existing = (
-        db.table("ad_creatives").select("id,label_edited")
+        db.table("ad_creatives").select("id,label_edited,prefilled_greeting_text")
         .eq("tenant_id", tenant_id).eq("meta_ad_id", ad_id)
         .limit(1).execute()
     )
     found = (existing.data or [None])[0]
     now_iso = datetime.now(timezone.utc).isoformat()
+    is_ctwa = is_click_to_whatsapp_adset(adset_meta)
 
     if found:
         updates = {
@@ -165,19 +224,24 @@ def upsert_creative_from_insight(
             "meta_campaign_id": row.get("campaign_id"),
             "campaign_id": campaign_id,
             "meta_ad_account_id": account,
-            "is_click_to_whatsapp": is_click_to_whatsapp_adset(adset_meta),
+            "is_click_to_whatsapp": is_ctwa,
             "optimization_goal": (adset_meta or {}).get("optimization_goal") or row.get("optimization_goal"),
             "effective_status": (adset_meta or {}).get("effective_status"),
-            "cta_type": "WHATSAPP_MESSAGE" if is_click_to_whatsapp_adset(adset_meta) else None,
+            "cta_type": "WHATSAPP_MESSAGE" if is_ctwa else None,
             "updated_at": now_iso,
         }
         if not found.get("label_edited"):
             updates["creative_label"] = (row.get("ad_name") or ad_id)
+        if is_ctwa and token and not found.get("prefilled_greeting_text"):
+            greeting = fetch_prefilled_greeting(token, ad_id)
+            if greeting:
+                updates["prefilled_greeting_text"] = greeting
         db.table("ad_creatives").update(updates).eq("id", found["id"]).eq(
             "tenant_id", tenant_id
         ).execute()
         return found["id"]
 
+    greeting = fetch_prefilled_greeting(token, ad_id) if (is_ctwa and token) else None
     inserted = db.table("ad_creatives").insert({
         "tenant_id": tenant_id,
         "campaign_id": campaign_id,
@@ -187,10 +251,11 @@ def upsert_creative_from_insight(
         "meta_campaign_id": row.get("campaign_id"),
         "meta_ad_account_id": account,
         "creative_label": (row.get("ad_name") or ad_id),
-        "is_click_to_whatsapp": is_click_to_whatsapp_adset(adset_meta),
+        "is_click_to_whatsapp": is_ctwa,
         "optimization_goal": (adset_meta or {}).get("optimization_goal") or row.get("optimization_goal"),
         "effective_status": (adset_meta or {}).get("effective_status"),
-        "cta_type": "WHATSAPP_MESSAGE" if is_click_to_whatsapp_adset(adset_meta) else None,
+        "cta_type": "WHATSAPP_MESSAGE" if is_ctwa else None,
+        "prefilled_greeting_text": greeting,
         "created_at": now_iso,
         "updated_at": now_iso,
     }).execute()
@@ -413,6 +478,7 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
             row,
             account=account,
             adset_meta=adset_by_id.get(str(row.get("adset_id"))),
+            token=token,
         )
         if not creative_id:
             continue
@@ -479,6 +545,7 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
                 row,
                 account=account,
                 adset_meta=adset_by_id.get(str(row.get("adset_id"))),
+                token=token,
             )
             if not creative_id:
                 row_errors.append(f"ad_id={row.get('ad_id')}: no ad_id in Meta response")

@@ -5,7 +5,7 @@ No DB, no Groq — only deterministic logic.
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 # Make app importable without a running server
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -33,7 +33,6 @@ with patch.dict("sys.modules", {"groq": MagicMock(), "app.config": MagicMock(set
     from app.services.scoring_engine import (
         _compute_intent_delta,
         _apply_segment_lock,
-        _should_score_arc,
         _REJECTION_SENTINEL,
     )
 
@@ -210,6 +209,33 @@ class TestIntentDelta(unittest.TestCase):
         delta, _ = _compute_intent_delta("hi", "idle")
         self.assertGreaterEqual(delta, -3)
 
+    # ── via_ad_referral: Meta's own auto-fill text, not the lead's words ──
+    def test_ad_referral_long_message_is_neutral(self):
+        # Without the flag this would score +1 (detailed_message, >60 chars) —
+        # this is Meta's own CTWA prefill text, not something the lead composed.
+        msg = "Hi, I am interested in your services and would like to know more details urgently"
+        delta, reason = _compute_intent_delta(msg, "idle", via_ad_referral=True)
+        self.assertEqual(delta, 0)
+        self.assertEqual(reason, "ad_prefilled")
+
+    def test_ad_referral_high_intent_keyword_is_neutral(self):
+        # Without the flag "book" would score +1 (high_intent).
+        delta, reason = _compute_intent_delta("Hi, I'd like to book a consultation", "idle", via_ad_referral=True)
+        self.assertEqual(delta, 0)
+        self.assertEqual(reason, "ad_prefilled")
+
+    def test_ad_referral_rejection_still_detected(self):
+        # Rejection detection must not be short-circuited by the ad-referral flag.
+        delta, reason = _compute_intent_delta("not interested", "idle", via_ad_referral=True)
+        self.assertEqual(delta, _REJECTION_SENTINEL)
+        self.assertEqual(reason, "rejection")
+
+    def test_non_ad_referral_unaffected(self):
+        # Default (via_ad_referral=False) behavior is unchanged.
+        delta, reason = _compute_intent_delta("Hi, I'd like to book a consultation", "idle")
+        self.assertGreater(delta, 0)
+        self.assertIn("high_intent", reason)
+
 
 class TestSegmentLock(unittest.TestCase):
 
@@ -264,28 +290,248 @@ class TestSegmentLock(unittest.TestCase):
         self.assertEqual(count, 0)
 
 
-class TestShouldScoreArc(unittest.TestCase):
+class TestArcScoresEveryMessage(unittest.IsolatedAsyncioTestCase):
+    """Regression test for the cadence bug found 2026-08-02: arc scoring used to
+    be gated by _should_score_arc (fire on message 1, then every 3rd), but a
+    reset-to-1-instead-of-0 bug in the persisted counter actually made it fire
+    every 2 messages in production. Live comparison (see decisions/log.md
+    2026-08-02) showed the gated version misses real signal — both a genuine
+    interest uptick and a hesitation dip — that firing on every message catches.
+    Since nothing downstream of compute_score is latency- or cost-sensitive to
+    the arc call (it runs in a background task, after the reply is already
+    sent), the gate was removed entirely. This test locks in "every message"
+    so a future reintroduction of any gate has to fail a test, not just drift
+    unnoticed the way the original bug did."""
 
-    def test_first_message_always_scores(self):
-        self.assertTrue(_should_score_arc(1, "neutral"))
+    def _make_db(self, lead_state):
+        leads_table = MagicMock()
+        leads_table.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [lead_state]
 
-    def test_third_message_scores(self):
-        self.assertTrue(_should_score_arc(3, "neutral"))
+        messages_table = MagicMock()
+        # _compute_engagement's query: select -> eq(lead_id) -> eq(direction) -> order -> limit -> execute
+        messages_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = []
+        # compute_score's own arc-context message fetch: select -> eq(lead_id) -> order -> limit -> execute
+        messages_table.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = []
 
-    def test_sixth_message_scores(self):
-        self.assertTrue(_should_score_arc(6, "neutral"))
+        handovers_table = MagicMock()
+        handovers_table.select.return_value.eq.return_value.execute.return_value.data = []
 
-    def test_second_message_does_not_score(self):
-        self.assertFalse(_should_score_arc(2, "neutral"))
+        tables = {"leads": leads_table, "messages": messages_table, "chat_handovers": handovers_table}
+        db = MagicMock()
+        db.table.side_effect = lambda name: tables[name]
+        return db
 
-    def test_fourth_message_does_not_score(self):
-        self.assertFalse(_should_score_arc(4, "neutral"))
+    async def test_arc_fires_on_every_one_of_five_consecutive_messages(self):
+        from app.services import scoring_engine
 
-    def test_high_intent_on_second_message_scores(self):
-        self.assertTrue(_should_score_arc(2, "high_intent"))
+        lead_state = {
+            "score": 5, "score_arc": 5, "score_intent_delta": 0,
+            "score_engagement": 0, "segment": "C", "segment_drop_count": 0,
+        }
+        db = self._make_db(lead_state)
 
-    def test_neutral_on_non_multiple_does_not_score(self):
-        self.assertFalse(_should_score_arc(5, "neutral"))
+        with patch.object(scoring_engine, "_score_arc", new=AsyncMock(return_value=7)) as mock_arc:
+            for i in range(5):
+                result = await scoring_engine.compute_score(
+                    message=f"message number {i}", lead_id="lead-1", db=db, tenant_id=None,
+                )
+                self.assertTrue(result["arc_updated"])
+
+        self.assertEqual(mock_arc.call_count, 5)
+
+
+class TestComputeScoreAdReferral(unittest.IsolatedAsyncioTestCase):
+    """Integration test for the via_ad_referral fix found 2026-08-02: intent_delta
+    used to be blind to ad-prefilled messages (only the arc/LLM layer knew about
+    them), so a long or keyword-matching CTWA auto-fill message could still add
+    +1/+2 on top of arc with zero discount. compute_score now looks up the
+    current message's via_ad_referral flag (it's already persisted by the time
+    compute_score runs) and threads it into _compute_intent_delta."""
+
+    def _make_db(self, lead_state, latest_inbound_row):
+        leads_table = MagicMock()
+        leads_table.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [lead_state]
+
+        messages_table = MagicMock()
+        # Shared by the new via_ad_referral lookup AND _compute_engagement --
+        # both use the select->eq(lead_id)->eq(direction)->order->limit->execute shape.
+        messages_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [latest_inbound_row]
+        # compute_score's own arc-context message fetch: select -> eq(lead_id) -> order -> limit -> execute
+        messages_table.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [latest_inbound_row]
+
+        handovers_table = MagicMock()
+        handovers_table.select.return_value.eq.return_value.execute.return_value.data = []
+
+        tables = {"leads": leads_table, "messages": messages_table, "chat_handovers": handovers_table}
+        db = MagicMock()
+        db.table.side_effect = lambda name: tables[name]
+        return db
+
+    async def test_ad_referral_message_gets_no_intent_bonus(self):
+        from app.services import scoring_engine
+
+        lead_state = {
+            "score": 5, "score_arc": 5, "score_intent_delta": 0,
+            "score_engagement": 0, "segment": "C", "segment_drop_count": 0,
+        }
+        message = "Hi, I'd like to book a consultation"  # would score +1 (high_intent) if not ad-referred
+        db = self._make_db(
+            lead_state,
+            {"direction": "inbound", "content": message, "media_url": None,
+             "created_at": "2026-08-02T10:00:00Z", "via_ad_referral": True},
+        )
+
+        with patch.object(scoring_engine, "_score_arc", new=AsyncMock(return_value=6)):
+            result = await scoring_engine.compute_score(
+                message=message, lead_id="lead-1", db=db, tenant_id=None,
+            )
+
+        self.assertEqual(result["intent_delta"], 0)
+        self.assertEqual(result["intent_reason"], "ad_prefilled")
+
+    async def test_non_ad_referral_message_keeps_intent_bonus(self):
+        from app.services import scoring_engine
+
+        lead_state = {
+            "score": 5, "score_arc": 5, "score_intent_delta": 0,
+            "score_engagement": 0, "segment": "C", "segment_drop_count": 0,
+        }
+        message = "Hi, I'd like to book a consultation"
+        db = self._make_db(
+            lead_state,
+            {"direction": "inbound", "content": message, "media_url": None,
+             "created_at": "2026-08-02T10:00:00Z", "via_ad_referral": False},
+        )
+
+        with patch.object(scoring_engine, "_score_arc", new=AsyncMock(return_value=6)):
+            result = await scoring_engine.compute_score(
+                message=message, lead_id="lead-1", db=db, tenant_id=None,
+            )
+
+        self.assertGreater(result["intent_delta"], 0)
+        self.assertIn("high_intent", result["intent_reason"])
+
+
+class TestAdPrefillExactMatch(unittest.IsolatedAsyncioTestCase):
+    """Integration test for the exact-match freeze found necessary 2026-08-02:
+    via_ad_referral alone can't distinguish "lead sent Meta's pre-fill untouched"
+    from "lead deleted it and typed their own message" -- Meta lets leads freely
+    edit the pre-fill before sending. ad_creatives.prefilled_greeting_text (synced
+    from Meta's page_welcome_message, live-verified against a real connected ad
+    account) is the ground truth compute_score compares against. Three outcomes:
+    confirmed-unedited -> full freeze; known-edited -> score fully normally;
+    unknown (no stored greeting to compare) -> today's softer ad_prefilled discount."""
+
+    def _make_db(self, lead_state, message_row, creative_row):
+        leads_table = MagicMock()
+        leads_table.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [lead_state]
+
+        messages_table = MagicMock()
+        # Shared by the current-message via_ad_referral/creative lookup AND
+        # _compute_engagement: select -> eq(lead_id) -> eq(direction) -> order -> limit -> execute
+        messages_table.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [message_row]
+        # Arc-context history fetch: select -> eq(lead_id) -> order -> limit -> execute
+        messages_table.select.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value.data = [message_row]
+
+        ad_creatives_table = MagicMock()
+        # Current-message greeting lookup: select -> eq(id) -> limit -> execute
+        ad_creatives_table.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = (
+            [creative_row] if creative_row else []
+        )
+        # Arc-context batch lookup: select -> in_(ids) -> execute
+        ad_creatives_table.select.return_value.in_.return_value.execute.return_value.data = (
+            [creative_row] if creative_row else []
+        )
+
+        handovers_table = MagicMock()
+        handovers_table.select.return_value.eq.return_value.execute.return_value.data = []
+
+        tables = {
+            "leads": leads_table, "messages": messages_table,
+            "ad_creatives": ad_creatives_table, "chat_handovers": handovers_table,
+        }
+        db = MagicMock()
+        db.table.side_effect = lambda name: tables[name]
+        return db
+
+    async def test_confirmed_unedited_prefill_freezes_everything(self):
+        from app.services import scoring_engine
+
+        original_text = "En life la next enna nadakkum nu detailed ah therinjukanum."
+        lead_state = {
+            "score": 1, "score_arc": 1, "score_intent_delta": 0,
+            "score_engagement": 0, "segment": "C", "segment_drop_count": 0,
+        }
+        message_row = {
+            "direction": "inbound", "content": original_text, "media_url": None,
+            "created_at": "2026-08-02T10:00:00Z",
+            "via_ad_referral": True, "attributed_ad_creative_id": "creative-1",
+        }
+        creative_row = {"id": "creative-1", "prefilled_greeting_text": original_text}
+        db = self._make_db(lead_state, message_row, creative_row)
+
+        with patch.object(scoring_engine, "_score_arc", new=AsyncMock(return_value=9)) as mock_arc:
+            result = await scoring_engine.compute_score(
+                message=original_text, lead_id="lead-1", db=db, tenant_id=None,
+            )
+
+        mock_arc.assert_not_called()
+        self.assertEqual(result["score"], 1)
+        self.assertEqual(result["segment"], "C")
+        self.assertEqual(result["intent_reason"], "ad_prefilled_frozen")
+        self.assertFalse(result["arc_updated"])
+
+    async def test_known_edited_prefill_scores_fully_normally(self):
+        from app.services import scoring_engine
+
+        original_greeting = "Hi, I'm interested in this service."
+        edited_message = "Hi, I'd like to book a consultation about my birth chart, please share pricing"
+        lead_state = {
+            "score": 1, "score_arc": 1, "score_intent_delta": 0,
+            "score_engagement": 0, "segment": "C", "segment_drop_count": 0,
+        }
+        message_row = {
+            "direction": "inbound", "content": edited_message, "media_url": None,
+            "created_at": "2026-08-02T10:00:00Z",
+            "via_ad_referral": True, "attributed_ad_creative_id": "creative-1",
+        }
+        creative_row = {"id": "creative-1", "prefilled_greeting_text": original_greeting}
+        db = self._make_db(lead_state, message_row, creative_row)
+
+        with patch.object(scoring_engine, "_score_arc", new=AsyncMock(return_value=6)) as mock_arc:
+            result = await scoring_engine.compute_score(
+                message=edited_message, lead_id="lead-1", db=db, tenant_id=None,
+            )
+
+        mock_arc.assert_called_once()
+        self.assertGreater(result["intent_delta"], 0)
+        self.assertIn("high_intent", result["intent_reason"])
+
+    async def test_unknown_ad_referral_falls_back_to_soft_discount(self):
+        from app.services import scoring_engine
+
+        message = "Hi, I'd like to book a consultation about my birth chart, please share pricing"
+        lead_state = {
+            "score": 1, "score_arc": 1, "score_intent_delta": 0,
+            "score_engagement": 0, "segment": "C", "segment_drop_count": 0,
+        }
+        # via_ad_referral true, but no attributed creative yet (e.g. not synced) --
+        # nothing to compare against.
+        message_row = {
+            "direction": "inbound", "content": message, "media_url": None,
+            "created_at": "2026-08-02T10:00:00Z",
+            "via_ad_referral": True, "attributed_ad_creative_id": None,
+        }
+        db = self._make_db(lead_state, message_row, creative_row=None)
+
+        with patch.object(scoring_engine, "_score_arc", new=AsyncMock(return_value=6)) as mock_arc:
+            result = await scoring_engine.compute_score(
+                message=message, lead_id="lead-1", db=db, tenant_id=None,
+            )
+
+        mock_arc.assert_called_once()
+        self.assertEqual(result["intent_delta"], 0)
+        self.assertEqual(result["intent_reason"], "ad_prefilled")
 
 
 class TestCompositeScoreLogic(unittest.TestCase):

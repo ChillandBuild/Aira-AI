@@ -3,8 +3,8 @@ AIRA Score Engine v2
 
 Composite score = clamp(arc + intent_delta + engagement, 1, 10)
 
-  arc_score        — LLM scores the conversation thread, fires every 3 inbound
-                     messages or on a significant trigger (high-intent keyword, first message).
+  arc_score        — LLM scores the conversation thread, fires on every inbound
+                     message (no periodic gate — see decisions/log.md 2026-08-02).
   intent_delta     — Rule-based instant signal on the current message. -3..+2.
                      Rejection phrases bypass everything → immediate score 1, segment D.
   engagement      — Rule-based engagement signal on message history. 0..+2.
@@ -145,15 +145,26 @@ _INFO_PROVIDED_PATTERNS = [
 _REJECTION_SENTINEL = -99
 
 
-def _compute_intent_delta(message: str, flow_state: str) -> tuple[int, str]:
+def _compute_intent_delta(message: str, flow_state: str, via_ad_referral: bool = False) -> tuple[int, str]:
     """
     Returns (delta, reason).
     delta is -2..+2 or _REJECTION_SENTINEL for immediate D override.
     Max +2 so arc must carry the weight to reach Hot (A≥9).
+
+    via_ad_referral: True when this message is Meta's own click-to-WhatsApp
+    auto-fill text (the lead tapped an ad and hit Send, didn't compose it).
+    Mirrors _score_arc's prompt rule -- never credit the lead for Meta's own
+    copy, even if it's long or contains a high-intent keyword like "book".
+    Rejection detection still runs first: an auto-filled message won't
+    realistically match those patterns, but skipping that check to save a
+    lookup isn't worth the risk of missing a real rejection.
     """
     for pat in _REJECTION_PATTERNS:
         if re.search(pat, message, re.IGNORECASE):
             return _REJECTION_SENTINEL, "rejection"
+
+    if via_ad_referral:
+        return 0, "ad_prefilled"
 
     delta = 0
     reasons: list[str] = []
@@ -262,16 +273,6 @@ async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5
         return fallback
 
 
-def _should_score_arc(arc_message_count: int, intent_reason: str) -> bool:
-    if arc_message_count <= 1:
-        return True
-    if arc_message_count % 3 == 0:
-        return True
-    if "high_intent" in intent_reason:
-        return True
-    return False
-
-
 def _apply_segment_lock(
     proposed: str,
     current: str,
@@ -333,7 +334,7 @@ async def compute_score(
         db.table("leads")
         .select(
             "score,score_arc,score_intent_delta,"
-            "score_engagement,arc_message_count,segment,segment_drop_count"
+            "score_engagement,segment,segment_drop_count"
         )
         .eq("id", str(lead_id))
         .limit(1)
@@ -341,18 +342,84 @@ async def compute_score(
     )
     data = lead_row.data[0] if lead_row.data else {}
 
-    global_arc       = data.get("score_arc") or 5
-    global_segment   = data.get("segment") or "C"
-    global_drop      = data.get("segment_drop_count") or 0
-    global_arc_count = (data.get("arc_message_count") or 0) + 1
+    global_arc     = data.get("score_arc") or 5
+    global_segment = data.get("segment") or "C"
+    global_drop    = data.get("segment_drop_count") or 0
 
-    current_arc   = global_arc
-    current_seg   = global_segment
-    current_drop  = global_drop
-    arc_msg_count = global_arc_count
+    current_arc  = global_arc
+    current_seg  = global_segment
+    current_drop = global_drop
+
+    # ── 2. Was the current message Meta's own ad auto-fill text, and was it sent
+    #      untouched or did the lead edit/replace it before hitting send? ──────
+    # via_ad_referral alone only means "this message arrived via a CTWA ad click"
+    # -- Meta lets the lead freely edit or delete the pre-fill before sending, so
+    # the flag alone can't be trusted either way. The current inbound message is
+    # already persisted by the time compute_score runs, so the latest inbound row
+    # for this lead IS the message being scored; attributed_ad_creative_id ties it
+    # to the specific ad it came from, whose known original text (synced from
+    # Meta, or Aira's own tracking-code flow -- see ad_creatives.prefilled_greeting_text)
+    # is the ground truth to compare against.
+    via_ad_referral = False
+    ad_prefill_confirmed_unedited = False
+    ad_prefill_known_edited = False
+    try:
+        latest_inbound = (
+            db.table("messages")
+            .select("via_ad_referral,attributed_ad_creative_id")
+            .eq("lead_id", str(lead_id))
+            .eq("direction", "inbound")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        latest = latest_inbound[0] if latest_inbound else {}
+        via_ad_referral = bool(latest.get("via_ad_referral"))
+        creative_id = latest.get("attributed_ad_creative_id")
+        if via_ad_referral and creative_id:
+            creative_rows = (
+                db.table("ad_creatives")
+                .select("prefilled_greeting_text")
+                .eq("id", creative_id)
+                .limit(1)
+                .execute()
+            ).data or []
+            original = creative_rows[0].get("prefilled_greeting_text") if creative_rows else None
+            if original:
+                if message.strip() == original.strip():
+                    ad_prefill_confirmed_unedited = True
+                else:
+                    ad_prefill_known_edited = True
+    except Exception:
+        via_ad_referral = False
+        ad_prefill_confirmed_unedited = False
+        ad_prefill_known_edited = False
+
+    # Confirmed untouched pre-fill: zero real signal from this message -- freeze
+    # score/segment/arc/intent/engagement exactly where they were. Still update
+    # last_inbound_at since that's activity recency, not a scoring input.
+    if ad_prefill_confirmed_unedited:
+        db.table("leads").update({"last_inbound_at": now_iso}).eq("id", str(lead_id)).execute()
+        logger.info(f"Lead {lead_id} sent confirmed-unedited ad pre-fill — score frozen")
+        return {
+            "score": data.get("score") if data.get("score") is not None else 1,
+            "segment": global_segment,
+            "arc_score": global_arc,
+            "intent_delta": data.get("score_intent_delta") or 0,
+            "engagement": data.get("score_engagement") or 0,
+            "intent_reason": "ad_prefilled_frozen",
+            "arc_updated": False,
+            "segment_drop_count": global_drop,
+        }
+
+    # Known to have been edited: it's the lead's own words now, regardless of
+    # how the conversation started -- score fully normally, no ad-related
+    # discount at all. Unknown (flag set but no original text to compare, e.g.
+    # not synced yet): keep today's softer treatment as a safe fallback.
+    effective_via_ad_referral = via_ad_referral and not ad_prefill_known_edited
 
     # ── 3. Intent delta (instant, rule-based) ─────────────────────────────────
-    intent_delta, intent_reason = _compute_intent_delta(message, "idle")
+    intent_delta, intent_reason = _compute_intent_delta(message, "idle", via_ad_referral=effective_via_ad_referral)
     is_rejection = intent_delta == _REJECTION_SENTINEL
 
     # ── 5. REJECTION: bypass everything, force D for both global + broadcast ───
@@ -361,7 +428,7 @@ async def compute_score(
             "score": 0, "score_arc": 1, "score_intent_delta": -3,
             "score_engagement": 0,
             "segment": "D",
-            "segment_drop_count": 0, "arc_message_count": 0,
+            "segment_drop_count": 0,
             "last_inbound_at": now_iso,
             "broadcast_negative_reply_at": now_iso,
         }
@@ -378,63 +445,88 @@ async def compute_score(
     # ── 6. Engagement (rule-based, from message history) ─────────────────────
     engagement = _compute_engagement(lead_id, db)
 
-    # ── 7. Arc score (LLM, conditional) ───────────────────────────────────────
-    arc_updated = False
-    if _should_score_arc(arc_msg_count, intent_reason):
-        try:
-            msg_query = (
-                db.table("messages")
-                .select("direction,content,created_at,via_ad_referral")
-                .eq("lead_id", str(lead_id))
-                .order("created_at", desc=True)
-                .limit(10)
-            )
-            msgs = (msg_query.execute().data or [])
+    # ── 7. Arc score (LLM, every inbound message) ─────────────────────────────
+    try:
+        msg_query = (
+            db.table("messages")
+            .select("direction,content,created_at,via_ad_referral,attributed_ad_creative_id")
+            .eq("lead_id", str(lead_id))
+            .order("created_at", desc=True)
+            .limit(10)
+        )
+        msgs = (msg_query.execute().data or [])
 
-            escalation_windows = []
+        # Batch-resolve creatives for any ad-referred message in this window, so
+        # each gets checked against its OWN known pre-fill text -- a message
+        # flagged via_ad_referral that turns out to have been edited must NOT
+        # get the ad-prefill marker here either; it's the lead's real words.
+        greetings_by_creative: dict = {}
+        creative_ids = {
+            m.get("attributed_ad_creative_id") for m in msgs
+            if m.get("via_ad_referral") and m.get("attributed_ad_creative_id")
+        }
+        if creative_ids:
             try:
-                handovers = (
-                    db.table("chat_handovers")
-                    .select("opened_at,resolved_at")
-                    .eq("lead_id", str(lead_id))
+                creative_rows = (
+                    db.table("ad_creatives")
+                    .select("id,prefilled_greeting_text")
+                    .in_("id", list(creative_ids))
                     .execute()
                 ).data or []
-                for h in handovers:
-                    opened = _parse_dt(h.get("opened_at"))
-                    if opened:
-                        # opened_at is stamped a few seconds after the message that
-                        # triggers the handover, and back-to-back re-escalations can
-                        # leave a short gap between one resolved_at and the next
-                        # opened_at — pad the start so both cases stay in-window.
-                        start = opened - timedelta(minutes=5)
-                        closed = _parse_dt(h.get("resolved_at")) or datetime.now(timezone.utc)
-                        escalation_windows.append((start, closed))
+                greetings_by_creative = {r["id"]: r.get("prefilled_greeting_text") for r in creative_rows}
             except Exception:
-                escalation_windows = []
+                greetings_by_creative = {}
 
-            lines = []
-            for m in reversed(msgs):
-                role = "Bot" if m.get("direction") == "outbound" else "User"
-                content = (m.get("content") or "").strip()[:200]
-                if content and not content.startswith("[Template"):
-                    created = _parse_dt(m.get("created_at"))
-                    is_escalation_followup = role == "User" and created and any(
-                        start <= created <= end for start, end in escalation_windows
-                    )
-                    if m.get("via_ad_referral"):
-                        prefix = f"{_AD_PREFILL_MARKER} "
-                    elif is_escalation_followup:
-                        prefix = f"{_ESCALATION_MARKER} "
-                    else:
-                        prefix = ""
-                    lines.append(f"{role}: {prefix}{content}")
-            conversation = "\n".join(lines) if lines else f"User: {message}"
+        escalation_windows = []
+        try:
+            handovers = (
+                db.table("chat_handovers")
+                .select("opened_at,resolved_at")
+                .eq("lead_id", str(lead_id))
+                .execute()
+            ).data or []
+            for h in handovers:
+                opened = _parse_dt(h.get("opened_at"))
+                if opened:
+                    # opened_at is stamped a few seconds after the message that
+                    # triggers the handover, and back-to-back re-escalations can
+                    # leave a short gap between one resolved_at and the next
+                    # opened_at — pad the start so both cases stay in-window.
+                    start = opened - timedelta(minutes=5)
+                    closed = _parse_dt(h.get("resolved_at")) or datetime.now(timezone.utc)
+                    escalation_windows.append((start, closed))
         except Exception:
-            conversation = f"User: {message}"
+            escalation_windows = []
 
-        current_arc = await _score_arc(conversation, tenant_id, fallback=current_arc)
-        arc_updated = True
-        arc_msg_count = 1
+        lines = []
+        for m in reversed(msgs):
+            role = "Bot" if m.get("direction") == "outbound" else "User"
+            content = (m.get("content") or "").strip()[:200]
+            if content and not content.startswith("[Template"):
+                created = _parse_dt(m.get("created_at"))
+                is_escalation_followup = role == "User" and created and any(
+                    start <= created <= end for start, end in escalation_windows
+                )
+                original_greeting = greetings_by_creative.get(m.get("attributed_ad_creative_id"))
+                is_confirmed_unedited = (
+                    bool(m.get("via_ad_referral"))
+                    and bool(original_greeting)
+                    and (m.get("content") or "").strip() == (original_greeting or "").strip()
+                )
+                is_unknown_ad_referral = bool(m.get("via_ad_referral")) and not original_greeting
+                if is_confirmed_unedited or is_unknown_ad_referral:
+                    prefix = f"{_AD_PREFILL_MARKER} "
+                elif is_escalation_followup:
+                    prefix = f"{_ESCALATION_MARKER} "
+                else:
+                    prefix = ""
+                lines.append(f"{role}: {prefix}{content}")
+        conversation = "\n".join(lines) if lines else f"User: {message}"
+    except Exception:
+        conversation = f"User: {message}"
+
+    current_arc = await _score_arc(conversation, tenant_id, fallback=current_arc)
+    arc_updated = True
 
     # ── 8. Composite final score ───────────────────────────────────────────────
     final_score = max(0, min(10, current_arc + intent_delta + engagement))
@@ -451,7 +543,6 @@ async def compute_score(
         "score_arc": current_arc,
         "score_intent_delta": intent_delta,
         "score_engagement": engagement,
-        "arc_message_count": global_arc_count if not arc_updated else 1,
         "segment": final_segment,
         "segment_drop_count": new_drop_count,
         "last_inbound_at": now_iso,

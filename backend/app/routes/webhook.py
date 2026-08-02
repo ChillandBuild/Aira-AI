@@ -444,6 +444,12 @@ async def whatsapp_webhook(
                     # Meta CTWA: count one lead once per ad. Meta's referral ad
                     # id is primary; the pre-filled [AIRA:...] code is fallback.
                     ad_attributed = False
+                    # Which creative produced THIS message -- distinct from
+                    # leads.attributed_ad_creative_id, which is intentionally not
+                    # overwritten on repeat contacts and could point to a stale,
+                    # different ad. scoring_engine.py needs the creative tied to
+                    # this exact message to compare against its real pre-fill text.
+                    attributed_creative_id_for_message = None
                     referral = msg.get("referral")
                     referral_ad_id = (
                         (referral or {}).get("source_id", "")
@@ -476,6 +482,7 @@ async def whatsapp_webhook(
                         )
                         if account_id and attribution_method and resolved_ad_id:
                             creative_id = (creative_row or {}).get("id")
+                            attributed_creative_id_for_message = creative_id
                             is_new_ad_lead = record_lead_ad_attribution(
                                 db,
                                 tenant_id=tenant_id,
@@ -621,6 +628,7 @@ async def whatsapp_webhook(
                             "meta_message_id": msg_id,
                             "tenant_id": tenant_id,
                             "via_ad_referral": ad_attributed,
+                            "attributed_ad_creative_id": attributed_creative_id_for_message,
                         }
                         db.table("messages").insert(insert_row).execute()
 

@@ -380,6 +380,7 @@ async def generate_meta_ad_tracking_code(
     from app.services.meta_ads_insights_sync import get_current_ads_account_id
     from app.services.meta_ctwa_attribution import (
         build_prefilled_message,
+        clean_greeting,
         ensure_creative_tracking_code,
     )
 
@@ -406,6 +407,10 @@ async def generate_meta_ad_tracking_code(
         )
 
     code = creative["prefilled_message_code"]
+    greeting = clean_greeting(payload.message)
+    db.table("ad_creatives").update({"prefilled_greeting_text": greeting}).eq(
+        "id", creative["id"]
+    ).eq("tenant_id", tenant_id).execute()
     return {
         "code": code,
         "prefilled_message": build_prefilled_message(payload.message, code),

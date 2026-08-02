@@ -34,11 +34,17 @@ def generate_tracking_code(length: int = 6) -> str:
     return "".join(secrets.choice(_CODE_ALPHABET) for _ in range(length))
 
 
+def clean_greeting(greeting: str | None) -> str:
+    """Strip any tracking tag and return the greeting text alone, falling back
+    to the default. This is the exact text scoring_engine.py should expect a
+    lead to have sent verbatim -- store it, don't just discard it."""
+    clean = _TRACKING_RE.sub("", (greeting or "")).strip()
+    return clean or _DEFAULT_GREETING
+
+
 def build_prefilled_message(greeting: str | None, code: str) -> str:
     """Append one canonical tracking tag, replacing any older Aira tag."""
-    clean = _TRACKING_RE.sub("", (greeting or "")).strip()
-    clean = clean or _DEFAULT_GREETING
-    return f"{clean}\nRef: [AIRA:{code.upper()}]"
+    return f"{clean_greeting(greeting)}\nRef: [AIRA:{code.upper()}]"
 
 
 def _first(result) -> dict | None:
