@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { InboundLeadsClient } from "../inbound-leads/InboundLeadsClient";
 import {
-  BarChart,
-  Bar,
   LineChart,
   Line,
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
@@ -38,8 +37,6 @@ import {
 type Tab = "overview" | "channels" | "templates" | "inbound";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://aira-ai-5tfr.onrender.com";
-
-type InboundAnalytics = Awaited<ReturnType<typeof api.analytics.inbound>>;
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -395,66 +392,7 @@ function TemplatesTab() {
   );
 }
 
-// ─── Inbound Tab ─────────────────────────────────────────────────────────────
 
-function InboundTab({ range }: { range: RangeValue }) {
-  const [data, setData] = useState<InboundAnalytics | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [retryKey, setRetryKey] = useState(0);
-  const rangeQuery = useMemo(() => reportingQuery(range), [range]);
-  const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
-
-  useEffect(() => {
-    if (!canLoad) {
-      setData(null);
-      setErr(null);
-      return;
-    }
-    setData(null);
-    setErr(null);
-    fetchAnalytics<InboundAnalytics>(`/api/v1/analytics/inbound?${rangeQuery}`)
-      .then(setData)
-      .catch((e) => setErr(e instanceof Error ? e.message : "Failed to load"));
-  }, [canLoad, rangeQuery, retryKey]);
-
-  if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
-  if (!canLoad) return <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>;
-  if (!data) return <div className="p-8 text-center text-on-surface-muted">Loading…</div>;
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-        <KpiCard label="New Leads Today" value={data.kpis.today.total.toLocaleString()} sub={`Organic ${data.kpis.today.organic} · Ad ${data.kpis.today.ad}`} />
-        <KpiCard label="New Leads (range)" value={data.kpis.range.total.toLocaleString()} sub={`Organic ${data.kpis.range.organic} · Ad ${data.kpis.range.ad}`} />
-        <KpiCard label="Ad Share" value={`${data.kpis.range.total ? Math.round((data.kpis.range.ad / data.kpis.range.total) * 100) : 0}%`} sub="of inbound in range" />
-      </div>
-
-      <SectionCard title="Daily Inbound — Organic vs Ad">
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={data.daily}>
-            <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="organic" stackId="a" fill="#10b981" name="Organic" />
-            <Bar dataKey="ad" stackId="a" fill="#5b21b6" name="Ad" />
-          </BarChart>
-        </ResponsiveContainer>
-      </SectionCard>
-
-      <SectionCard title="By Channel">
-        <div className="space-y-2">
-          {([["whatsapp", "WhatsApp"], ["instagram", "Instagram"], ["facebook", "Facebook"], ["telegram", "Telegram"]] as const).map(([k, label]) => (
-            <div key={k} className="flex justify-between text-sm">
-              <span className="text-on-surface-muted">{label}</span>
-              <span className="font-medium">{data.by_channel[k]}</span>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
 
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
@@ -465,8 +403,12 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "templates", label: "Templates" },
 ];
 
-export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+function AnalyticsPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const rawTab = searchParams.get("tab");
+  const activeTab = (rawTab === "channels" || rawTab === "templates" || rawTab === "inbound" ? rawTab : "overview") as Tab;
+
   const [range, setRange] = useState<RangeValue>({
     preset: "last_7d", start: "", end: "",
   });
@@ -489,6 +431,14 @@ export default function AnalyticsPage() {
     return { ...reporting, comparison: comparison.mode };
   }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
+  const handleTabClick = (tabId: Tab) => {
+    if (tabId === "inbound") {
+      router.push("/dashboard/inbound-leads");
+    } else {
+      router.push(`/dashboard/analytics?tab=${tabId}`);
+    }
+  };
+
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
       <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -497,7 +447,7 @@ export default function AnalyticsPage() {
           {TABS.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               aria-pressed={activeTab === tab.id}
               className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
                 activeTab === tab.id
@@ -522,7 +472,7 @@ export default function AnalyticsPage() {
               Export CSV
             </button>
           )}
-          {activeTab !== "templates" && (
+          {activeTab !== "templates" && activeTab !== "inbound" && (
             <div className="flex items-center gap-2">
               <span className="font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted whitespace-nowrap">
                 Reporting period
@@ -548,8 +498,18 @@ export default function AnalyticsPage() {
         />
       )}
       {activeTab === "channels" && <ChannelsTab range={range} />}
-      {activeTab === "inbound" && <InboundTab range={range} />}
+      {activeTab === "inbound" && (
+        <InboundLeadsClient fallbackInboundLeads={null} fallbackCampaigns={null} />
+      )}
       {activeTab === "templates" && <TemplatesTab />}
     </div>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-on-surface-muted">Loading…</div>}>
+      <AnalyticsPageContent />
+    </Suspense>
   );
 }
