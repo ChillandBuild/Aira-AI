@@ -479,39 +479,44 @@ export function CompareTab({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── Filter Panel ───────────────────────────────────────── */}
-      <div className={cn(
-        "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
-      )}>
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="mb-2.5 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <Filter size={13} />
-            </span>
-            <span className="font-label text-[13px] font-bold text-on-surface">Filter & Compare</span>
+      {showFilters && (
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b border-surface-mid/50 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                <Filter size={13} />
+              </span>
+              <span className="font-label text-xs font-bold text-on-surface">Filter & Compare Overview</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRange({ preset: "last_7d", start: "", end: "" });
+                setComparison({ mode: "off", start: "", end: "" });
+              }}
+              className="font-label text-[11px] font-bold text-violet-700 hover:text-violet-900 transition-colors"
+            >
+              Reset to default
+            </button>
           </div>
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
                 Reporting Period
               </span>
-              <div className="w-[150px]">
-                <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-              </div>
+              <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
                 Compare With
               </span>
-              <div className="w-[170px]">
-                <ComparisonPicker value={comparison} onChange={setComparison} />
-              </div>
+              <ComparisonPicker value={comparison} onChange={setComparison} />
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">
@@ -526,8 +531,8 @@ export function CompareTab({
       )}
 
       {canLoad && !err && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
-          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 sm:gap-4">
+          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {!data ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
@@ -541,34 +546,37 @@ export function CompareTab({
               ))
             )}
           </div>
-          <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex flex-col justify-center gap-2">
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowFilters((p) => !p)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                  "flex-1 flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl font-label text-xs font-bold border transition-all shadow-xs",
                   showFilters
                     ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
                     : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
                 )}
               >
-                <Filter size={12} />
+                <Filter size={13} />
                 <span>Filters</span>
               </button>
               <button
+                type="button"
                 onClick={() => setRefreshKey((k) => k + 1)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+                className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl bg-white border border-surface-mid hover:bg-surface-low text-on-surface font-label text-xs font-bold transition-all shadow-xs"
               >
-                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+                <RefreshCw size={13} className={!data ? "animate-spin" : ""} />
                 <span>Refresh</span>
               </button>
             </div>
             <button
+              type="button"
               onClick={handleExport}
               disabled={!data}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+              className="w-full flex items-center justify-center gap-1.5 h-10 px-3 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-xs active:scale-[0.99]"
             >
-              <Download size={12} />
+              <Download size={13} />
               <span>Download CSV</span>
             </button>
           </div>

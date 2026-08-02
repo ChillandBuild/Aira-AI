@@ -240,52 +240,64 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── Filter Panel ───────────────────────────────────────── */}
-      <div className={cn(
-        "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
-      )}>
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <Filter size={13} />
-            </span>
-            <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
+      {showFilters && (
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b border-surface-mid/50 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                <Filter size={13} />
+              </span>
+              <span className="font-label text-xs font-bold text-on-surface">Filter Channels Data</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setChannel("all");
+                setRange({ preset: "last_7d", start: "", end: "" });
+              }}
+              className="font-label text-[11px] font-bold text-violet-700 hover:text-violet-900 transition-colors"
+            >
+              Reset to default
+            </button>
           </div>
-          <div className="flex flex-wrap items-center gap-6">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
                 Reporting Period
               </span>
-              <div className="w-[150px]">
-                <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
-              </div>
+              <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
                 Channel
               </span>
-              <div className="flex gap-1.5 flex-wrap">
-                {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setChannel(id)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
-                      channel === id
-                        ? "bg-primary-light text-primary ring-primary-muted"
-                        : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
-                    }`}
-                  >
-                    <Icon size={12} />
-                    {label}
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-1 rounded-xl bg-surface-mid/40 p-1">
+                {CHANNEL_OPTIONS.map(({ id, label, Icon }) => {
+                  const isSelected = channel === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setChannel(id)}
+                      className={cn(
+                        "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-label text-xs font-semibold transition-all",
+                        isSelected
+                          ? "bg-white text-primary shadow-xs"
+                          : "text-on-surface-muted hover:text-on-surface hover:bg-white/50"
+                      )}
+                    >
+                      <Icon size={12} />
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
@@ -294,8 +306,8 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
       {err && <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />}
 
       {canLoad && !err && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
-          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 sm:gap-4">
+          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {!data ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
@@ -319,34 +331,37 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
               </>
             )}
           </div>
-          <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex flex-col justify-center gap-2">
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowFilters((p) => !p)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                  "flex-1 flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl font-label text-xs font-bold border transition-all shadow-xs",
                   showFilters
                     ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
                     : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
                 )}
               >
-                <Filter size={12} />
+                <Filter size={13} />
                 <span>Filters</span>
               </button>
               <button
+                type="button"
                 onClick={() => setRetryKey((k) => k + 1)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+                className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl bg-white border border-surface-mid hover:bg-surface-low text-on-surface font-label text-xs font-bold transition-all shadow-xs"
               >
-                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+                <RefreshCw size={13} className={!data ? "animate-spin" : ""} />
                 <span>Refresh</span>
               </button>
             </div>
             <button
+              type="button"
               onClick={handleDownloadCsv}
               disabled={!data}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+              className="w-full flex items-center justify-center gap-1.5 h-10 px-3 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-xs active:scale-[0.99]"
             >
-              <Download size={12} />
+              <Download size={13} />
               <span>Download CSV</span>
             </button>
           </div>
@@ -363,13 +378,13 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
                   <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
                   <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Line type="monotone" dataKey="inbound" stroke="#3b82f6" strokeWidth={2} dot={false} name="Inbound" />
                   <Line type="monotone" dataKey="outbound" stroke="#10b981" strokeWidth={2} dot={false} name="Outbound" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </SectionCard>
-
           <SectionCard title="Reply Source Split">
             <ReplySourceBar breakdown={data.reply_source_breakdown} />
           </SectionCard>
@@ -392,11 +407,10 @@ function TemplatesTab() {
   const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
+    let isCurrent = true;
     setErr(null);
-    setRows(null);
-    api.analytics
-      .templatePerformance()
-      .then(setRows)
+    fetchAnalytics<TemplatePerformanceRow[]>("/api/v1/analytics/templates")
+      .then((data) => { if (isCurrent) setRows(data); })
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : "Failed to load"));
   }, [retryKey]);
 
@@ -424,10 +438,9 @@ function TemplatesTab() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* KPI Cards & Actions Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
-        <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 sm:gap-4">
+        <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {!rows ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
@@ -444,20 +457,22 @@ function TemplatesTab() {
             </>
           )}
         </div>
-        <div className="flex flex-col justify-between gap-2 p-1">
+        <div className="flex flex-col justify-center gap-2">
           <button
+            type="button"
             onClick={() => setRetryKey((k) => k + 1)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+            className="w-full flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl bg-white border border-surface-mid hover:bg-surface-low text-on-surface font-label text-xs font-bold transition-all shadow-xs"
           >
-            <RefreshCw size={12} className={!rows ? "animate-spin" : ""} />
+            <RefreshCw size={13} className={!rows ? "animate-spin" : ""} />
             <span>Refresh</span>
           </button>
           <button
+            type="button"
             onClick={handleDownloadCsv}
             disabled={!rows}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+            className="w-full flex items-center justify-center gap-1.5 h-10 px-3 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-xs active:scale-[0.99]"
           >
-            <Download size={12} />
+            <Download size={13} />
             <span>Download CSV</span>
           </button>
         </div>
@@ -550,29 +565,33 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* ── Filter Panel ───────────────────────────────────────── */}
-      <div className={cn(
-        "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
-      )}>
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="mb-2.5 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <Filter size={13} />
-            </span>
-            <span className="font-label text-[13px] font-bold text-on-surface">Inbound Filters</span>
+      {showFilters && (
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between border-b border-surface-mid/50 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                <Filter size={13} />
+              </span>
+              <span className="font-label text-xs font-bold text-on-surface">Filter Inbound Data</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRange({ preset: "last_7d", start: "", end: "" })}
+              className="font-label text-[11px] font-bold text-violet-700 hover:text-violet-900 transition-colors"
+            >
+              Reset to default
+            </button>
           </div>
           <div className="flex flex-col gap-1.5">
             <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
               Reporting Period
             </span>
-            <div className="w-[150px]">
-              <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
-            </div>
+            <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
           </div>
         </div>
-      </div>
+      )}
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
@@ -581,8 +600,8 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
       {err && <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />}
 
       {canLoad && !err && (
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
-          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 sm:gap-4">
+          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {!data ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
@@ -598,34 +617,37 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
               </>
             )}
           </div>
-          <div className="flex flex-col justify-between gap-2 p-1">
+          <div className="flex flex-col justify-center gap-2">
             <div className="flex gap-2">
               <button
+                type="button"
                 onClick={() => setShowFilters((p) => !p)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                  "flex-1 flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl font-label text-xs font-bold border transition-all shadow-xs",
                   showFilters
                     ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
                     : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
                 )}
               >
-                <Filter size={12} />
+                <Filter size={13} />
                 <span>Filters</span>
               </button>
               <button
+                type="button"
                 onClick={() => setRetryKey((k) => k + 1)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+                className="flex-1 flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl bg-white border border-surface-mid hover:bg-surface-low text-on-surface font-label text-xs font-bold transition-all shadow-xs"
               >
-                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+                <RefreshCw size={13} className={!data ? "animate-spin" : ""} />
                 <span>Refresh</span>
               </button>
             </div>
             <button
+              type="button"
               onClick={handleDownloadCsv}
               disabled={!data}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+              className="w-full flex items-center justify-center gap-1.5 h-10 px-3 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-xs active:scale-[0.99]"
             >
-              <Download size={12} />
+              <Download size={13} />
               <span>Download CSV</span>
             </button>
           </div>
@@ -634,9 +656,10 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
 
       {data && (
         <>
-          <SectionCard title="Daily Inbound — Organic vs Ad">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={data.daily}>
+          <SectionCard title="Inbound by Day">
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
                 <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
@@ -695,7 +718,7 @@ export default function AnalyticsPage() {
   });
 
   return (
-    <div className="min-w-0 space-y-5 sm:space-y-6">
+    <div className="min-w-0 space-y-4 sm:space-y-5">
       <div className="-mx-1 overflow-x-auto px-1 pb-1 md:hidden">
         <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (

@@ -1,8 +1,7 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { ComparisonSelection } from "./periodSelection";
-import { RangePicker } from "./RangePicker";
 
 export function comparisonLabel(selection: ComparisonSelection): string {
   if (selection.mode === "off") return "No comparison";
@@ -10,6 +9,12 @@ export function comparisonLabel(selection: ComparisonSelection): string {
   if (selection.start && selection.end) return `${selection.start} → ${selection.end}`;
   return "Custom comparison";
 }
+
+const COMPARISON_OPTIONS: { id: ComparisonSelection["mode"]; label: string }[] = [
+  { id: "off", label: "No Comparison" },
+  { id: "previous", label: "Previous Period" },
+  { id: "custom", label: "Custom Range" },
+];
 
 export function ComparisonPicker({
   value,
@@ -23,35 +28,64 @@ export function ComparisonPicker({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
-        Compare with
-      </p>
-      <div className="relative">
-        <select
-          value={value.mode}
-          onChange={(e) => selectMode(e.target.value as ComparisonSelection["mode"])}
-          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
-        >
-          {([
-            ["off", "Off"],
-            ["previous", "Previous period"],
-            ["custom", "Custom"],
-          ] as const).map(([mode, label]) => (
-            <option key={mode} value={mode}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted" />
+    <div className="flex flex-wrap items-center gap-3">
+      {/* Pills rendered outside */}
+      <div className="flex flex-wrap items-center gap-1 rounded-xl bg-surface-mid/40 p-1">
+        {COMPARISON_OPTIONS.map((option) => {
+          const isSelected = value.mode === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => selectMode(option.id)}
+              className={cn(
+                "rounded-lg px-2.5 py-1.5 font-label text-xs font-semibold transition-all",
+                isSelected
+                  ? "bg-white text-primary shadow-xs"
+                  : "text-on-surface-muted hover:text-on-surface hover:bg-white/50"
+              )}
+            >
+              {option.label}
+            </button>
+          );
+        })}
       </div>
 
       {value.mode === "custom" && (
-        <RangePicker
-          value={{ preset: "custom", start: value.start, end: value.end }}
-          onChange={({ start, end }) => onChange({ mode: "custom", start, end })}
-          idPrefix="comparison-range"
-        />
+        <div className="flex flex-wrap items-center gap-2 animate-in fade-in duration-200">
+          <div className="flex items-center gap-1.5">
+            <label
+              htmlFor="comparison-range-from"
+              className="font-label text-[11px] font-semibold text-on-surface-muted"
+            >
+              From
+            </label>
+            <input
+              id="comparison-range-from"
+              type="date"
+              value={value.start}
+              max={value.end || undefined}
+              onChange={(e) => onChange({ ...value, mode: "custom", start: e.target.value })}
+              className="h-8.5 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+            />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <label
+              htmlFor="comparison-range-to"
+              className="font-label text-[11px] font-semibold text-on-surface-muted"
+            >
+              To
+            </label>
+            <input
+              id="comparison-range-to"
+              type="date"
+              value={value.end}
+              min={value.start || undefined}
+              onChange={(e) => onChange({ ...value, mode: "custom", end: e.target.value })}
+              className="h-8.5 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+            />
+          </div>
+        </div>
       )}
     </div>
   );
