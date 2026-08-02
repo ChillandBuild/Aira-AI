@@ -5,7 +5,6 @@ Meta (ads_read). Service-role DB writes bypass RLS.
 """
 import json
 import logging
-import json
 from datetime import datetime, timezone
 
 import httpx
