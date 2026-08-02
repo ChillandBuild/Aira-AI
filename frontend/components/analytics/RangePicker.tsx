@@ -43,10 +43,12 @@ export function RangePicker({
   value,
   onChange,
   idPrefix = "range",
+  compact = false,
 }: {
   value: RangeValue;
   onChange: (v: RangeValue) => void;
   idPrefix?: string;
+  compact?: boolean;
 }) {
   const range = displayedRange(value);
 
@@ -70,7 +72,7 @@ export function RangePicker({
         ))}
       </div>
       <span className="mx-1 h-6 w-px bg-[#e8e3db]" aria-hidden="true" />
-      <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Date range</span>
+      {!compact && <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Date range</span>}
       <input
         id={`${idPrefix}-from`}
         type="date"
@@ -78,7 +80,7 @@ export function RangePicker({
         value={range.start}
         max={range.end || undefined}
         onChange={(e) => onChange({ preset: "custom", start: e.target.value, end: range.end })}
-        className="h-9 w-[142px] rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+        className={`h-9 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 ${compact ? "w-[116px]" : "w-[142px]"}`}
       />
       <span className="font-label text-xs text-on-surface-muted">to</span>
       <input
@@ -88,7 +90,7 @@ export function RangePicker({
         value={range.end}
         min={range.start || undefined}
         onChange={(e) => onChange({ preset: "custom", start: range.start, end: e.target.value })}
-        className="h-9 w-[142px] rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+        className={`h-9 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 ${compact ? "w-[116px]" : "w-[142px]"}`}
       />
     </div>
   );

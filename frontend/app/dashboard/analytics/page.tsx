@@ -241,10 +241,7 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
   return (
     <div className="space-y-6">
       {/* ── Filter Panel ───────────────────────────────────────── */}
-      <div className={cn(
-        "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
-      )}>
+      {showFilters ? (
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
@@ -252,32 +249,33 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
           </div>
-          <div className="overflow-x-auto pb-1">
-            <div className="flex min-w-max items-center gap-4">
-              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
-              <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
-              <span className="h-6 w-px bg-[#e8e3db]" aria-hidden="true" />
+          <div className="mt-3 flex w-full items-center gap-3 overflow-hidden">
               <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</span>
               <div className="flex items-center gap-1.5">
                 {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => setChannel(id)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
+                    aria-label={label}
+                    title={label}
+                    className={`flex h-9 items-center justify-center gap-1 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
+                      id === "all" ? "min-w-14 px-3" : "w-9"} ${
                       channel === id
                         ? "bg-primary-light text-primary ring-primary-muted"
                         : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
                     }`}
                   >
-                    <Icon size={12} />
-                    {label}
+                    <Icon size={13} />
+                    {id === "all" && <span>All</span>}
                   </button>
                 ))}
               </div>
-            </div>
+              <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
+              <span className="shrink-0 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
+              <RangePicker value={range} onChange={setRange} idPrefix="channels-range" compact />
           </div>
         </div>
-      </div>
+      ) : null}
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
