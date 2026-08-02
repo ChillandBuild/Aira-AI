@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { api, InboundLead } from "@/lib/api";
 import { useInboundLeads, useInboundCampaigns } from "@/hooks/useApi";
 import {
@@ -270,7 +269,6 @@ export function InboundLeadsClient({
   fallbackInboundLeads,
   fallbackCampaigns,
 }: InboundLeadsClientProps) {
-  const router = useRouter();
   const [exporting, setExporting] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   // Filters
@@ -359,39 +357,7 @@ export function InboundLeadsClient({
   }
 
   return (
-    <div className="min-w-0 space-y-5 sm:space-y-6">
-      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
-            {[
-              { id: "overview", label: "Overview" },
-              { id: "channels", label: "Channels" },
-              { id: "inbound", label: "Inbound" },
-              { id: "templates", label: "Templates" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  if (tab.id === "inbound") {
-                    router.push("/dashboard/inbound-leads");
-                  } else {
-                    router.push(`/dashboard/analytics?tab=${tab.id}`);
-                  }
-                }}
-                aria-pressed={tab.id === "inbound"}
-                className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
-                  tab.id === "inbound"
-                    ? "bg-surface text-primary shadow-card"
-                    : "text-on-surface-muted hover:text-on-surface"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </div>
-
+    <div>
       <>
 
       {/* ── Filter Panel ───────────────────────────────────────── */}

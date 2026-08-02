@@ -483,6 +483,8 @@ export function CompareTab({
 
       {data && (
         <>
+          <ComparisonHeader data={data} />
+
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             {buildOverviewCards({ current: data.current, previous: data.previous }).map((card) => (
               <PerformanceKpi key={card.label} card={card} />
