@@ -351,6 +351,41 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         </nav>
       )}
 
+      {pathname === "/dashboard/analytics" && (
+        <nav aria-label="Analytics sections" className="hidden min-w-0 flex-1 justify-center md:flex">
+          <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-2xl bg-[#e8e3db]/60 p-1">
+            {[
+              { key: "channels", label: "Channels" },
+              { key: "overview", label: "Overview" },
+              { key: "inbound", label: "Inbound" },
+              { key: "templates", label: "Templates" },
+            ].map(({ key, label }) => {
+              const isActive = tab === key || (key === "channels" && !tab);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams.toString());
+                    if (key === "channels") params.delete("tab");
+                    else params.set("tab", key);
+                    const query = params.toString();
+                    router.replace(`/dashboard/analytics${query ? `?${query}` : ""}`, { scroll: false });
+                  }}
+                  className={cn(
+                    "shrink-0 rounded-xl px-3 py-2 font-label text-[11px] font-bold transition-all xl:px-4 xl:text-xs",
+                    isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
+
       {/* Right side actions */}
       <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
         {pathname === "/dashboard/outbound-leads" && (

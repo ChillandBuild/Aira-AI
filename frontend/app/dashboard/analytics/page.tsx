@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart,
   Bar,
@@ -459,14 +460,27 @@ function InboundTab({ range }: { range: RangeValue }) {
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" },
   { id: "channels", label: "Channels" },
+  { id: "overview", label: "Overview" },
   { id: "inbound", label: "Inbound" },
   { id: "templates", label: "Templates" },
 ];
 
 export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const rawTab = searchParams.get("tab");
+  const activeTab: Tab = (rawTab === "overview" || rawTab === "channels" || rawTab === "inbound" || rawTab === "templates")
+    ? rawTab
+    : "channels";
+
+  const setActiveTab = (newTab: Tab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newTab === "channels") params.delete("tab");
+    else params.set("tab", newTab);
+    router.replace(`/dashboard/analytics?${params.toString()}`, { scroll: false });
+  };
+
   const [range, setRange] = useState<RangeValue>({
     preset: "last_7d", start: "", end: "",
   });
@@ -491,8 +505,8 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
-      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 sm:flex-row sm:items-center sm:justify-between md:justify-end">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1 md:hidden">
         <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (
             <button
