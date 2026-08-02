@@ -411,7 +411,8 @@ function TemplatesTab() {
     setErr(null);
     fetchAnalytics<TemplatePerformanceRow[]>("/api/v1/analytics/templates")
       .then((data) => { if (isCurrent) setRows(data); })
-      .catch((e: unknown) => setErr(e instanceof Error ? e.message : "Failed to load"));
+      .catch((e: unknown) => { if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load"); });
+    return () => { isCurrent = false; };
   }, [retryKey]);
 
   const totals = (rows ?? []).reduce(
