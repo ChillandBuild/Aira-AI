@@ -15,7 +15,6 @@ import {
   CartesianGrid,
 } from "recharts";
 import {
-  Download,
   MessageCircle,
   AtSign,
   Tv2,
@@ -23,14 +22,12 @@ import {
 } from "lucide-react";
 import {
   api,
-  CompareParams,
   MessagingAnalytics,
   TemplatePerformanceRow,
   getAuthHeaders,
 } from "@/lib/api";
 import { CompareTab } from "./CompareTab";
 import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
-import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
 import {
   canLoadComparison,
   ComparisonSelection,
@@ -487,21 +484,6 @@ export default function AnalyticsPage() {
   const [comparison, setComparison] = useState<ComparisonSelection>({
     mode: "off", start: "", end: "",
   });
-  const [dataReady, setDataReady] = useState(false);
-
-  const canLoad = canLoadComparison(range, comparison);
-  const compareParams = useMemo<CompareParams>(() => {
-    const reporting = { preset: range.preset, start: range.start, end: range.end };
-    if (comparison.mode === "custom") {
-      return {
-        ...reporting,
-        comparison: "custom",
-        comparison_start: comparison.start,
-        comparison_end: comparison.end,
-      };
-    }
-    return { ...reporting, comparison: comparison.mode };
-  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
@@ -545,7 +527,6 @@ export default function AnalyticsPage() {
           setRange={setRange}
           comparison={comparison}
           setComparison={setComparison}
-          onDataChange={setDataReady}
         />
       )}
       {activeTab === "channels" && <ChannelsTab range={range} />}
