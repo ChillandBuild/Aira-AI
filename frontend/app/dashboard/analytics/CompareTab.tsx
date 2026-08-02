@@ -9,12 +9,11 @@ import {
   Filter, RefreshCw, Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
-import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
+import { RangeValue } from "@/components/analytics/RangePicker";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
-import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
+import { canLoadComparison } from "@/components/analytics/periodSelection";
 import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
 const CURRENT_COLOR = "#5b21b6";
@@ -421,14 +420,10 @@ function ComparisonTable({
 export function CompareTab({
   range,
   setRange,
-  comparison,
-  setComparison,
   onDataChange,
 }: {
   range: RangeValue;
   setRange: (r: RangeValue) => void;
-  comparison: ComparisonSelection;
-  setComparison: (c: ComparisonSelection) => void;
   onDataChange?: (ready: boolean) => void;
 }) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
@@ -437,7 +432,7 @@ export function CompareTab({
   const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const canLoad = canLoadComparison(range, comparison);
+  const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
 
   useEffect(() => {
     onDataChange?.(data !== null);
@@ -445,16 +440,8 @@ export function CompareTab({
 
   const params = useMemo<CompareParams>(() => {
     const reporting = { preset: range.preset, start: range.start, end: range.end };
-    if (comparison.mode === "custom") {
-      return {
-        ...reporting,
-        comparison: "custom",
-        comparison_start: comparison.start,
-        comparison_end: comparison.end,
-      };
-    }
-    return { ...reporting, comparison: comparison.mode };
-  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
+    return { ...reporting, comparison: "off" };
+  }, [range.preset, range.start, range.end]);
 
   useEffect(() => {
     if (!canLoad) {
@@ -481,37 +468,43 @@ export function CompareTab({
   return (
     <div className="space-y-6">
       {/* ── Filter Panel ───────────────────────────────────────── */}
-      <div className={cn(
-        "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
-      )}>
+      {showFilters ? (
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="mb-2.5 flex items-center gap-2">
+          <div className="mb-4 flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
-            <span className="font-label text-[13px] font-bold text-on-surface">Filter & Compare</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-6">
-            <div className="flex flex-col gap-1.5">
-              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
-                Reporting Period
-              </span>
-              <div className="w-[150px]">
-                <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-              </div>
+            <div>
+              <span className="block font-label text-[13px] font-bold text-on-surface">Custom date range</span>
+              <span className="block font-body text-[10px] text-on-surface-muted">Choose the period to analyse.</span>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
-                Compare With
-              </span>
-              <div className="w-[170px]">
-                <ComparisonPicker value={comparison} onChange={setComparison} />
-              </div>
+          </div>
+          <div className="flex flex-wrap items-end gap-2.5">
+            <div className="w-full sm:w-[170px]">
+              <label htmlFor="analytics-range-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From date</label>
+              <input
+                id="analytics-range-from"
+                type="date"
+                value={range.preset === "custom" ? range.start : ""}
+                max={range.preset === "custom" ? range.end || undefined : undefined}
+                onChange={(e) => setRange({ preset: "custom", start: e.target.value, end: range.preset === "custom" ? range.end : "" })}
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              />
+            </div>
+            <div className="w-full sm:w-[170px]">
+              <label htmlFor="analytics-range-to" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To date</label>
+              <input
+                id="analytics-range-to"
+                type="date"
+                value={range.preset === "custom" ? range.end : ""}
+                min={range.preset === "custom" ? range.start || undefined : undefined}
+                onChange={(e) => setRange({ preset: "custom", start: range.preset === "custom" ? range.start : "", end: e.target.value })}
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              />
             </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">

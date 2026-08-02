@@ -34,7 +34,6 @@ import { CompareTab } from "./CompareTab";
 import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
 import {
   canLoadComparison,
-  ComparisonSelection,
 } from "@/components/analytics/periodSelection";
 
 type Tab = "overview" | "channels" | "templates" | "inbound";
@@ -690,13 +689,9 @@ export default function AnalyticsPage() {
   const [range, setRange] = useState<RangeValue>({
     preset: "last_7d", start: "", end: "",
   });
-  const [comparison, setComparison] = useState<ComparisonSelection>({
-    mode: "off", start: "", end: "",
-  });
-
   return (
-    <div className="min-w-0 space-y-5 sm:space-y-6">
-      <div className="-mx-1 overflow-x-auto px-1 pb-1 md:hidden">
+    <div className="min-w-0">
+      <div className="-mx-1 mb-5 overflow-x-auto px-1 pb-1 md:hidden">
         <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (
             <button
@@ -719,8 +714,6 @@ export default function AnalyticsPage() {
         <CompareTab
           range={range}
           setRange={setRange}
-          comparison={comparison}
-          setComparison={setComparison}
         />
       )}
       {activeTab === "channels" && <ChannelsTab range={range} setRange={setRange} />}

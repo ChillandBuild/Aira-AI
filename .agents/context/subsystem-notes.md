@@ -304,6 +304,11 @@
 - **Reporting rolls up from per-creative rows, no separate per-level insight tables.** `build_account_performance(level=campaign|adset|ad)` fetches at ad level and groups via `roll_up_rows`; campaign status/budget come from `ad_campaigns` (populated by `sync_campaign_meta`), ad-set names from the denormalized `ad_creatives.meta_adset_name`. The `ad_sets` table (migration 149) exists to persist Aira-*created* ad sets, not to drive reporting.
 - **Live Supabase project ref is `ayftynkgmfkaqmmnlmoc`** — the backend `.env`'s `SUPABASE_URL` shows a different, DNS-unreachable ref; the MCP-connected project is the real one. Confirmed by the presence of the migration-147 ad tables there.
 
+## Meta Ads reporting surface (2026-08-02)
+- `/dashboard/meta-ads` is the sole Click-to-WhatsApp Ad Performance surface; `/dashboard/inbound-leads` is leads-only. The old Meta Ads manager route, API client, and Create/Performance/Analytics components were removed; the report API remains under `inbound_leads.py` because it is the attribution backend.
+- Daily insights are additive for spend, impressions, and clicks, but not reach. `build_creative_performance()` uses Meta's aggregate ad-level reach for the selected `time_range`; on a Meta failure it logs and temporarily falls back to stored daily reach rather than hiding the report.
+- Meta Ads intentionally bypasses the dashboard's 1400px reading-width cap and page-level padding. Keep this full-canvas exception page-scoped.
+
 ## Inbound Ad Performance account scope and attribution semantics (2026-07-30/31, migrations 153+154)
 - The Inbound Leads **Ad Performance** tab is scoped to the tenant's currently configured `meta_ads_account_id` and to ad sets whose Meta `destination_type` is exactly `WHATSAPP`. The scope is local to this report: the neighboring Leads tab still includes WhatsApp, Instagram, Facebook, and Telegram.
 - `ad_creatives`, `ad_campaigns`, and `ad_insights_daily` carry `meta_ad_account_id`; creatives also carry `is_click_to_whatsapp`. The sync fetches ad-set metadata before writing insights and records `meta_ads_last_sync_at`, `meta_ads_last_sync_count`, and `meta_ads_last_synced_account_id`. Migration 154 adds ad-set daily/lifetime budgets; report budget falls back to campaign only when the ad set owns no budget.
