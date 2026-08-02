@@ -19,7 +19,11 @@ import {
   AtSign,
   Tv2,
   Send,
+  Filter,
+  RefreshCw,
+  Download,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   api,
   MessagingAnalytics,
@@ -118,22 +122,7 @@ function KpiCard({
   );
 }
 
-const COL_CLASS: Record<number, string> = {
-  1: "grid-cols-1", 2: "grid-cols-2", 3: "grid-cols-3",
-  4: "grid-cols-4", 5: "grid-cols-5", 6: "grid-cols-6",
-};
 
-function SkeletonGrid({ cols = 4, rows = 1 }: { cols?: number; rows?: number }) {
-  return (
-    <div className="space-y-6">
-      <div className={`grid ${COL_CLASS[cols] ?? "grid-cols-4"} gap-4 sm:gap-6`}>
-        {Array.from({ length: cols * rows }).map((_, i) => (
-          <div key={i} className="h-36 rounded-card bg-surface-mid animate-pulse" />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function ErrorBox({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
@@ -211,11 +200,12 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
   );
 }
 
-function ChannelsTab({ range }: { range: RangeValue }) {
+function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: RangeValue) => void }) {
   const [channel, setChannel] = useState<ChannelFilter>("all");
   const [data, setData] = useState<MessagingAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
   const rangeQuery = useMemo(() => reportingQuery(range), [range]);
   const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
 
@@ -236,71 +226,154 @@ function ChannelsTab({ range }: { range: RangeValue }) {
     return () => { isCurrent = false; };
   }, [canLoad, channel, rangeQuery, retryKey]);
 
+  const handleDownloadCsv = () => {
+    if (!data) return;
+    const csvContent = "data:text/csv;charset=utf-8," +
+      ["Day,Inbound,Outbound", ...data.daily_messages.map(d => `${d.day},${d.inbound},${d.outbound}`)].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `channels_analytics_${channel}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Channel switcher */}
-      <div className="flex gap-2 flex-wrap">
-        {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            onClick={() => setChannel(id)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg font-label text-sm font-semibold transition-colors ring-1 ${
-              channel === id
-                ? "bg-primary-light text-primary ring-primary-muted"
-                : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
-            }`}
-          >
-            <Icon size={14} />
-            {label}
-          </button>
-        ))}
+      {/* ── Filter Panel ───────────────────────────────────────── */}
+      <div className={cn(
+        "overflow-hidden transition-all duration-300 ease-in-out",
+        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
+      )}>
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <Filter size={13} />
+            </span>
+            <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Reporting Period
+              </span>
+              <div className="w-[150px]">
+                <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Channel
+              </span>
+              <div className="flex gap-1.5 flex-wrap">
+                {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setChannel(id)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
+                      channel === id
+                        ? "bg-primary-light text-primary ring-primary-muted"
+                        : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
+                    }`}
+                  >
+                    <Icon size={12} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
       )}
+
       {err && <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />}
-      {!data && !err && canLoad && <SkeletonGrid cols={4} />}
+
+      {canLoad && !err && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
+          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {!data ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
+                  <div className="h-3 w-1/2 bg-surface-mid/60 rounded" />
+                  <div className="h-6 w-3/4 bg-surface-mid/60 rounded mt-2" />
+                </div>
+              ))
+            ) : (
+              <>
+                <KpiCard label="Sent Today" value={data.sent_today.toLocaleString()} />
+                <KpiCard label="Received Today" value={data.received_today.toLocaleString()} />
+                <KpiCard
+                  label="AI Reply Rate"
+                  value={data.ai_reply_rate !== null ? `${Math.round(data.ai_reply_rate * 100)}%` : "—"}
+                />
+                <KpiCard
+                  label="AI + KB vs Manual"
+                  value={`${data.reply_source_breakdown.ai + data.reply_source_breakdown.knowledge}`}
+                  sub={`Manual: ${data.reply_source_breakdown.manual}`}
+                />
+              </>
+            )}
+          </div>
+          <div className="flex flex-col justify-between gap-2 p-1">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowFilters((p) => !p)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                  showFilters
+                    ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                    : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
+                )}
+              >
+                <Filter size={12} />
+                <span>Filters</span>
+              </button>
+              <button
+                onClick={() => setRetryKey((k) => k + 1)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+              >
+                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+                <span>Refresh</span>
+              </button>
+            </div>
+            <button
+              onClick={handleDownloadCsv}
+              disabled={!data}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+            >
+              <Download size={12} />
+              <span>Download CSV</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {data && (
-        <>
-          {/* KPI row */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-            <KpiCard label="Sent Today" value={data.sent_today.toLocaleString()} />
-            <KpiCard label="Received Today" value={data.received_today.toLocaleString()} />
-            <KpiCard
-              label="AI Reply Rate"
-              value={data.ai_reply_rate !== null ? `${Math.round(data.ai_reply_rate * 100)}%` : "—"}
-            />
-            <KpiCard
-              label="AI + KB vs Manual"
-              value={`${data.reply_source_breakdown.ai + data.reply_source_breakdown.knowledge}`}
-              sub={`Manual: ${data.reply_source_breakdown.manual}`}
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
+          <SectionCard title="Message Volume">
+            <div role="img" aria-label="Message volume chart">
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={data.daily_messages} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                  <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+                  <Line type="monotone" dataKey="inbound" stroke="#3b82f6" strokeWidth={2} dot={false} name="Inbound" />
+                  <Line type="monotone" dataKey="outbound" stroke="#10b981" strokeWidth={2} dot={false} name="Outbound" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </SectionCard>
 
-          {/* Charts */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
-            <SectionCard title="Message Volume">
-              <div role="img" aria-label="Message volume chart">
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={data.daily_messages} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                    <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
-                    <Line type="monotone" dataKey="inbound" stroke="#3b82f6" strokeWidth={2} dot={false} name="Inbound" />
-                    <Line type="monotone" dataKey="outbound" stroke="#10b981" strokeWidth={2} dot={false} name="Outbound" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="Reply Source Split">
-              <ReplySourceBar breakdown={data.reply_source_breakdown} />
-            </SectionCard>
-          </div>
-        </>
+          <SectionCard title="Reply Source Split">
+            <ReplySourceBar breakdown={data.reply_source_breakdown} />
+          </SectionCard>
+        </div>
       )}
     </div>
   );
@@ -327,10 +400,7 @@ function TemplatesTab() {
       .catch((e: unknown) => setErr(e instanceof Error ? e.message : "Failed to load"));
   }, [retryKey]);
 
-  if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
-  if (!rows) return <SkeletonGrid cols={4} />;
-
-  const totals = rows.reduce(
+  const totals = (rows ?? []).reduce(
     (acc, r) => ({
       sent: acc.sent + r.sent,
       read: acc.read + r.read,
@@ -340,65 +410,114 @@ function TemplatesTab() {
     { sent: 0, read: 0, replied: 0, hot: 0 },
   );
 
+  const handleDownloadCsv = () => {
+    if (!rows) return;
+    const csvContent = "data:text/csv;charset=utf-8," +
+      ["Template,Broadcasts,Sent,Read,Replied,Hot Leads,Last Sent", ...rows.map(r => `"${r.template_name}",${r.broadcasts},${r.sent},${r.read},${r.replied},${r.hot_leads},"${r.last_sent ?? ''}"`)].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `template_performance.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <KpiCard label="Total Sent" value={totals.sent.toLocaleString()} />
-        <KpiCard label="Read Rate" value={pct(totals.read, totals.sent)} sub={`${totals.read.toLocaleString()} read`} />
-        <KpiCard label="Reply Rate" value={pct(totals.replied, totals.sent)} sub={`${totals.replied.toLocaleString()} replied`} />
-        <KpiCard label="Hot Leads" value={totals.hot.toLocaleString()} />
+      {/* KPI Cards & Actions Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
+        <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {!rows ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
+                <div className="h-3 w-1/2 bg-surface-mid/60 rounded" />
+                <div className="h-6 w-3/4 bg-surface-mid/60 rounded mt-2" />
+              </div>
+            ))
+          ) : (
+            <>
+              <KpiCard label="Total Sent" value={totals.sent.toLocaleString()} />
+              <KpiCard label="Read Rate" value={pct(totals.read, totals.sent)} sub={`${totals.read.toLocaleString()} read`} />
+              <KpiCard label="Reply Rate" value={pct(totals.replied, totals.sent)} sub={`${totals.replied.toLocaleString()} replied`} />
+              <KpiCard label="Hot Leads" value={totals.hot.toLocaleString()} />
+            </>
+          )}
+        </div>
+        <div className="flex flex-col justify-between gap-2 p-1">
+          <button
+            onClick={() => setRetryKey((k) => k + 1)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+          >
+            <RefreshCw size={12} className={!rows ? "animate-spin" : ""} />
+            <span>Refresh</span>
+          </button>
+          <button
+            onClick={handleDownloadCsv}
+            disabled={!rows}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+          >
+            <Download size={12} />
+            <span>Download CSV</span>
+          </button>
+        </div>
       </div>
 
-      <SectionCard title="Template Performance">
-        {rows.length === 0 ? (
-          <p className="font-label text-sm text-on-surface-muted">
-            No broadcasts sent yet. Performance appears here once templates go out.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-surface-mid">
-                  {["Template", "Broadcasts", "Sent", "Read", "Replied", "Hot Leads", "Last Sent"].map((h) => (
-                    <th key={h} className="pb-3 pr-4 font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.template_name} className="border-b border-surface-mid/50 hover:bg-surface-low transition-colors">
-                    <td className="py-3 pr-4 font-body text-sm font-semibold text-on-surface">{r.template_name}</td>
-                    <td className="py-3 pr-4 font-label text-sm text-on-surface">{r.broadcasts}</td>
-                    <td className="py-3 pr-4 font-label text-sm text-on-surface">{r.sent.toLocaleString()}</td>
-                    <td className="py-3 pr-4 font-label text-sm text-on-surface">
-                      {r.read.toLocaleString()} <span className="text-on-surface-muted">({pct(r.read, r.sent)})</span>
-                    </td>
-                    <td className="py-3 pr-4 font-label text-sm text-on-surface">
-                      {r.replied.toLocaleString()} <span className="text-on-surface-muted">({pct(r.replied, r.sent)})</span>
-                    </td>
-                    <td className="py-3 pr-4 font-label text-sm font-bold text-emerald-600">{r.hot_leads.toLocaleString()}</td>
-                    <td className="py-3 font-label text-sm text-on-surface-muted">
-                      {r.last_sent ? new Date(r.last_sent).toLocaleDateString() : "—"}
-                    </td>
+      {err && <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />}
+
+      {rows && (
+        <SectionCard title="Template Performance">
+          {rows.length === 0 ? (
+            <p className="font-label text-sm text-on-surface-muted">
+              No broadcasts sent yet. Performance appears here once templates go out.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-surface-mid">
+                    {["Template", "Broadcasts", "Sent", "Read", "Replied", "Hot Leads", "Last Sent"].map((h) => (
+                      <th key={h} className="pb-3 pr-4 font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.template_name} className="border-b border-surface-mid/50 hover:bg-surface-low transition-colors">
+                      <td className="py-3 pr-4 font-body text-sm font-semibold text-on-surface">{r.template_name}</td>
+                      <td className="py-3 pr-4 font-label text-sm text-on-surface">{r.broadcasts}</td>
+                      <td className="py-3 pr-4 font-label text-sm text-on-surface">{r.sent.toLocaleString()}</td>
+                      <td className="py-3 pr-4 font-label text-sm text-on-surface">
+                        {r.read.toLocaleString()} <span className="text-on-surface-muted">({pct(r.read, r.sent)})</span>
+                      </td>
+                      <td className="py-3 pr-4 font-label text-sm text-on-surface">
+                        {r.replied.toLocaleString()} <span className="text-on-surface-muted">({pct(r.replied, r.sent)})</span>
+                      </td>
+                      <td className="py-3 pr-4 font-label text-sm font-bold text-emerald-600">{r.hot_leads.toLocaleString()}</td>
+                      <td className="py-3 font-label text-sm text-on-surface-muted">
+                        {r.last_sent ? new Date(r.last_sent).toLocaleDateString() : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+      )}
     </div>
   );
 }
 
 // ─── Inbound Tab ─────────────────────────────────────────────────────────────
 
-function InboundTab({ range }: { range: RangeValue }) {
+function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: RangeValue) => void }) {
   const [data, setData] = useState<InboundAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
   const rangeQuery = useMemo(() => reportingQuery(range), [range]);
   const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
 
@@ -408,48 +527,138 @@ function InboundTab({ range }: { range: RangeValue }) {
       setErr(null);
       return;
     }
+    let isCurrent = true;
     setData(null);
     setErr(null);
     fetchAnalytics<InboundAnalytics>(`/api/v1/analytics/inbound?${rangeQuery}`)
-      .then(setData)
-      .catch((e) => setErr(e instanceof Error ? e.message : "Failed to load"));
+      .then((d) => { if (isCurrent) setData(d); })
+      .catch((e) => { if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load"); });
+    return () => { isCurrent = false; };
   }, [canLoad, rangeQuery, retryKey]);
 
-  if (err) return <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />;
-  if (!canLoad) return <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>;
-  if (!data) return <div className="p-8 text-center text-on-surface-muted">Loading…</div>;
+  const handleDownloadCsv = () => {
+    if (!data) return;
+    const csvContent = "data:text/csv;charset=utf-8," +
+      ["Day,Organic,Ad", ...data.daily.map(d => `${d.day},${d.organic},${d.ad}`)].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `inbound_analytics.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
-        <KpiCard label="New Leads Today" value={data.kpis.today.total.toLocaleString()} sub={`Organic ${data.kpis.today.organic} · Ad ${data.kpis.today.ad}`} />
-        <KpiCard label="New Leads (range)" value={data.kpis.range.total.toLocaleString()} sub={`Organic ${data.kpis.range.organic} · Ad ${data.kpis.range.ad}`} />
-        <KpiCard label="Ad Share" value={`${data.kpis.range.total ? Math.round((data.kpis.range.ad / data.kpis.range.total) * 100) : 0}%`} sub="of inbound in range" />
+      {/* ── Filter Panel ───────────────────────────────────────── */}
+      <div className={cn(
+        "overflow-hidden transition-all duration-300 ease-in-out",
+        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
+      )}>
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
+          <div className="mb-2.5 flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <Filter size={13} />
+            </span>
+            <span className="font-label text-[13px] font-bold text-on-surface">Inbound Filters</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+              Reporting Period
+            </span>
+            <div className="w-[150px]">
+              <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
+            </div>
+          </div>
+        </div>
       </div>
 
-      <SectionCard title="Daily Inbound — Organic vs Ad">
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={data.daily}>
-            <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="organic" stackId="a" fill="#10b981" name="Organic" />
-            <Bar dataKey="ad" stackId="a" fill="#5b21b6" name="Ad" />
-          </BarChart>
-        </ResponsiveContainer>
-      </SectionCard>
+      {!canLoad && (
+        <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
+      )}
 
-      <SectionCard title="By Channel">
-        <div className="space-y-2">
-          {([["whatsapp", "WhatsApp"], ["instagram", "Instagram"], ["facebook", "Facebook"], ["telegram", "Telegram"]] as const).map(([k, label]) => (
-            <div key={k} className="flex justify-between text-sm">
-              <span className="text-on-surface-muted">{label}</span>
-              <span className="font-medium">{data.by_channel[k]}</span>
+      {err && <ErrorBox message={err} onRetry={() => setRetryKey((k) => k + 1)} />}
+
+      {canLoad && !err && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
+          <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {!data ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-5 h-24 animate-pulse">
+                  <div className="h-3 w-1/2 bg-surface-mid/60 rounded" />
+                  <div className="h-6 w-3/4 bg-surface-mid/60 rounded mt-2" />
+                </div>
+              ))
+            ) : (
+              <>
+                <KpiCard label="New Leads Today" value={data.kpis.today.total.toLocaleString()} sub={`Organic ${data.kpis.today.organic} · Ad ${data.kpis.today.ad}`} />
+                <KpiCard label="New Leads (range)" value={data.kpis.range.total.toLocaleString()} sub={`Organic ${data.kpis.range.organic} · Ad ${data.kpis.range.ad}`} />
+                <KpiCard label="Ad Share" value={`${data.kpis.range.total ? Math.round((data.kpis.range.ad / data.kpis.range.total) * 100) : 0}%`} sub="of inbound in range" />
+              </>
+            )}
+          </div>
+          <div className="flex flex-col justify-between gap-2 p-1">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowFilters((p) => !p)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
+                  showFilters
+                    ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
+                    : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
+                )}
+              >
+                <Filter size={12} />
+                <span>Filters</span>
+              </button>
+              <button
+                onClick={() => setRetryKey((k) => k + 1)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+              >
+                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+                <span>Refresh</span>
+              </button>
             </div>
-          ))}
+            <button
+              onClick={handleDownloadCsv}
+              disabled={!data}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary text-white rounded-xl font-label text-xs font-bold hover:bg-primary/90 transition-all disabled:opacity-40 shadow-sm"
+            >
+              <Download size={12} />
+              <span>Download CSV</span>
+            </button>
+          </div>
         </div>
-      </SectionCard>
+      )}
+
+      {data && (
+        <>
+          <SectionCard title="Daily Inbound — Organic vs Ad">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={data.daily}>
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="organic" stackId="a" fill="#10b981" name="Organic" />
+                <Bar dataKey="ad" stackId="a" fill="#5b21b6" name="Ad" />
+              </BarChart>
+            </ResponsiveContainer>
+          </SectionCard>
+
+          <SectionCard title="By Channel">
+            <div className="space-y-2">
+              {([["whatsapp", "WhatsApp"], ["instagram", "Instagram"], ["facebook", "Facebook"], ["telegram", "Telegram"]] as const).map(([k, label]) => (
+                <div key={k} className="flex justify-between text-sm">
+                  <span className="text-on-surface-muted">{label}</span>
+                  <span className="font-medium">{data.by_channel[k]}</span>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </>
+      )}
     </div>
   );
 }
@@ -487,8 +696,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
-      <div className="flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-4 sm:flex-row sm:items-center sm:justify-between md:justify-end">
-        <div className="-mx-1 overflow-x-auto px-1 pb-1 md:hidden">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1 md:hidden">
         <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (
             <button
@@ -505,20 +713,6 @@ export default function AnalyticsPage() {
             </button>
           ))}
         </nav>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {activeTab !== "overview" && activeTab !== "templates" && (
-            <div className="flex items-center gap-2">
-              <span className="font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted whitespace-nowrap">
-                Reporting period
-              </span>
-              <div className="w-[150px]">
-                <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
       {activeTab === "overview" && (
@@ -529,8 +723,8 @@ export default function AnalyticsPage() {
           setComparison={setComparison}
         />
       )}
-      {activeTab === "channels" && <ChannelsTab range={range} />}
-      {activeTab === "inbound" && <InboundTab range={range} />}
+      {activeTab === "channels" && <ChannelsTab range={range} setRange={setRange} />}
+      {activeTab === "inbound" && <InboundTab range={range} setRange={setRange} />}
       {activeTab === "templates" && <TemplatesTab />}
     </div>
   );
