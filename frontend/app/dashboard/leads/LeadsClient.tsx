@@ -81,6 +81,25 @@ const SEGMENT_LABELS: Record<string, string> = {
   D: "Not Interested",
 };
 
+const SOURCE_FILTERS = [
+  { value: "ALL", label: "All" },
+  { value: "INBOUND", label: "Inbound" },
+  { value: "ORGANIC", label: "Organic" },
+  { value: "META_ADS", label: "Meta Ads" },
+  { value: "BROADCAST", label: "Broadcast" },
+] as const;
+
+function segmentFilterClass(segment: string, active: boolean) {
+  if (!active) return "border-transparent bg-transparent text-[#78716c] hover:bg-white hover:text-[#292524]";
+
+  return {
+    A: "border-orange-200 bg-orange-50 text-orange-700 shadow-sm",
+    B: "border-amber-200 bg-amber-50 text-amber-700 shadow-sm",
+    C: "border-sky-200 bg-sky-50 text-sky-700 shadow-sm",
+    D: "border-rose-200 bg-rose-50 text-rose-700 shadow-sm",
+  }[segment] ?? "border-primary/20 bg-white text-primary shadow-sm";
+}
+
 function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void; onSent: () => void; canManageLeads: boolean }) {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
@@ -383,50 +402,6 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
         />
       )}
 
-      {/* Tabs and Actions merged in a single row */}
-      <div className="mb-5 flex min-w-0 flex-col gap-3 border-b border-[#e8e3db] pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:flex sm:w-fit">
-          <button
-            onClick={() => setPageView("leads")}
-            className={pillClass(pageView === "leads")}
-          >
-            Leads
-          </button>
-          <button
-            onClick={() => setPageView("reengagement")}
-            className={pillClass(pageView === "reengagement")}
-          >
-            Re-engagement
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-          <button
-            onClick={() => setComposing(true)}
-            disabled={!canManageLeads}
-            title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] disabled:cursor-not-allowed disabled:opacity-40 sm:px-4"
-          >
-            <Plus size={14} />
-            New Message
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                await api.leads.exportLeads(tab);
-                toast.success("Export downloaded");
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : "Export failed");
-              }
-            }}
-            className="flex items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4] sm:px-4"
-          >
-            <Download size={14} />
-            Export {SEGMENT_LABELS[tab]}
-          </button>
-        </div>
-      </div>
-
       {pageView === "reengagement" && (
         <div className="space-y-6">
           <div className="flex gap-2">
@@ -474,45 +449,52 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
 
       {pageView === "leads" && (
       <div>
-        <div className="mb-5 flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-          {/* Segment tabs */}
-          <div className="-mx-1 overflow-x-auto px-1 pb-1 sm:mx-0 sm:overflow-visible sm:p-0">
-          <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 sm:w-fit">
+        <div className="mb-5 space-y-3">
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:hidden">
+            <button onClick={() => setPageView("leads")} className={pillClass(true)}>Leads</button>
+            <button onClick={() => setPageView("reengagement")} className={pillClass(false)}>Re-engagement</button>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0">
+              <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
             {SEGMENTS.map((seg) => (
               <button
                 key={seg}
                 onClick={() => setTab(seg)}
                 className={cn(
-                  "shrink-0 rounded-xl px-4 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
-                  tab === seg
-                    ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                  "shrink-0 rounded-xl border px-4 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
+                  segmentFilterClass(seg, tab === seg),
                 )}
               >
                 {SEGMENT_LABELS[seg]}
               </button>
             ))}
-          </div>
-          </div>
+              </div>
+            </div>
 
-          {/* Source Filter Dropdown */}
-          <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm sm:w-auto">
-            <span className="shrink-0 font-label text-xs font-bold uppercase tracking-wider text-on-surface-muted">Source:</span>
-            <select
-              value={sourceFilter}
-              onChange={(e) => {
-                setSourceFilter(e.target.value);
-                setSelectedCampaignId("");
-                setSelectedBroadcastId("");
-              }}
-              className="min-w-0 flex-1 cursor-pointer bg-transparent font-body text-xs font-semibold text-primary focus:outline-none sm:flex-none"
-            >
-              <option value="ALL">All Leads</option>
-              <option value="INBOUND">Inbound Leads</option>
-              <option value="ORGANIC">Organic Inbound</option>
-              <option value="META_ADS">Meta Ads</option>
-              <option value="BROADCAST">Broadcast Specific</option>
-            </select>
+            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0">
+              <div className="flex w-max items-center gap-1 rounded-2xl border border-[#e8e3db] bg-white p-1 shadow-sm">
+                <span className="px-2 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Source</span>
+                {SOURCE_FILTERS.map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setSourceFilter(value);
+                      setSelectedCampaignId("");
+                      setSelectedBroadcastId("");
+                    }}
+                    className={cn(
+                      "rounded-xl px-3 py-2 font-label text-xs font-bold transition-all",
+                      sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#78716c] hover:bg-[#f5f1eb] hover:text-[#292524]",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Date filter, arrived via a link from a today-scoped card (e.g. dashboard Pipeline Activity) */}
@@ -600,12 +582,36 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             <h2 className="font-display text-sm font-bold text-primary">
               {sourceFilter !== "ALL" ? `Action Box — Filtered Leads` : `Action Box — ${SEGMENT_LABELS[tab]} Leads`}
             </h2>
-            {lastResult && (
-              <p className="font-label text-xs text-on-surface-muted">
-                Sent {lastResult.sent} · Failed {lastResult.failed} · Outside 24h window{" "}
-                {lastResult.skipped_window}
-              </p>
-            )}
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              {lastResult && (
+                <p className="font-label text-xs text-on-surface-muted">
+                  Sent {lastResult.sent} · Failed {lastResult.failed} · Outside 24h window {lastResult.skipped_window}
+                </p>
+              )}
+              <button
+                onClick={() => setComposing(true)}
+                disabled={!canManageLeads}
+                title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
+                className="flex items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Plus size={14} />
+                New Message
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    await api.leads.exportLeads(tab);
+                    toast.success("Export downloaded");
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Export failed");
+                  }
+                }}
+                className="flex items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4]"
+              >
+                <Download size={14} />
+                Export {SEGMENT_LABELS[tab]}
+              </button>
+            </div>
           </div>
           <textarea
             value={draft}

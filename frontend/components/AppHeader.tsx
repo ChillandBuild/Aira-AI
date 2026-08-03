@@ -414,6 +414,36 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           </div>
         )}
 
+        {pathname === "/dashboard/leads" && (
+          <nav aria-label="Lead sections" className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {([
+              { key: "leads", label: "Leads" },
+              { key: "reengagement", label: "Re-engagement" },
+            ] as const).map(({ key, label }) => {
+              const isActive = key === "reengagement" ? tab === key : tab !== "reengagement";
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams.toString());
+                    if (key === "leads") params.delete("tab");
+                    else params.set("tab", key);
+                    const query = params.toString();
+                    router.replace(`/dashboard/leads${query ? `?${query}` : ""}`, { scroll: false });
+                  }}
+                  className={cn(
+                    "rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all xl:px-4",
+                    isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                  )}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+        )}
+
         {pathname === "/dashboard/roles" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["roles", "users"] as const).map((item) => (
