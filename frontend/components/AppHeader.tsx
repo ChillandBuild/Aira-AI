@@ -198,6 +198,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   }
 
   const tab = searchParams.get("tab") || "";
+  const leadSegment = searchParams.get("segment") || "A";
   const rolesTab = searchParams.get("tab") === "users" ? "users" : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
   const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState(true);
@@ -378,7 +379,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/leads" && (
-          <nav aria-label="Lead sections" className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden items-center gap-2 xl:flex">
+          <nav aria-label="Lead sections" className="flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
             {([
               { key: "leads", label: "Leads" },
               { key: "reengagement", label: "Re-engagement" },
@@ -396,7 +398,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                     router.replace(`/dashboard/leads${query ? `?${query}` : ""}`, { scroll: false });
                   }}
                   className={cn(
-                    "rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all xl:px-4",
+                    "rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all",
                     isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
                   )}
                 >
@@ -405,6 +407,32 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
               );
             })}
           </nav>
+          <nav aria-label="Lead segments" className="flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
+            {([
+              { key: "A", label: "Hot" },
+              { key: "B", label: "Warm" },
+              { key: "C", label: "Cold" },
+              { key: "D", label: "Not Interested" },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.delete("tab");
+                  params.set("segment", key);
+                  router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+                }}
+                className={cn(
+                  "rounded-xl px-2.5 py-1.5 font-label text-[11px] font-bold transition-all",
+                  leadSegment === key ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+          </div>
         )}
 
         {pathname === "/dashboard/roles" && (

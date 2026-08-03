@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { api, Lead, Caller, SegmentTemplate, BroadcastResult, BroadcastHistoryItem, WabaTemplate, getAuthHeaders, API_URL } from "@/lib/api";
-import { Download, Send, Save, Pencil, Plus, X, Loader2, Clock } from "lucide-react";
+import { Download, Send, Save, Pencil, Plus, X, Loader2, Clock, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatPhone } from "@/lib/utils";
 import { useAuthRole } from "../contexts/AuthRoleContext";
@@ -226,6 +226,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   const [sourceFilter, setSourceFilter] = useState("ALL");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedBroadcastId, setSelectedBroadcastId] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [campaigns, setCampaigns] = useState<{ id: string; campaign_name: string; platform: string }[]>([]);
   const [broadcastHistory, setBroadcastHistory] = useState<BroadcastHistoryItem[]>([]);
 
@@ -237,10 +238,32 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   const pageView = (rawTab === "reengagement" ? "reengagement" : "leads") as "leads" | "reengagement";
   const dateFrom = searchParams.get("date_from") ?? undefined;
   const dateTo = searchParams.get("date_to") ?? undefined;
+  const requestedSegment = searchParams.get("segment");
+
+  useEffect(() => {
+    if ((SEGMENTS as readonly string[]).includes(requestedSegment ?? "")) {
+      setTab(requestedSegment as typeof SEGMENTS[number]);
+    }
+  }, [requestedSegment]);
 
   const setPageView = (val: "leads" | "reengagement") => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", val);
+    router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+  };
+
+  const setDate = (key: "date_from" | "date_to", value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value) params.set(key, value);
+    else params.delete(key);
+    router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+  };
+
+  const setSegment = (segment: typeof SEGMENTS[number]) => {
+    setTab(segment);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    params.set("segment", segment);
     router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
   };
   const [reengageTrigger, setReengageTrigger] = useState<"broadcast" | "inbound">("inbound");
@@ -450,18 +473,33 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
       {pageView === "leads" && (
       <div>
         <div className="mb-5 space-y-3">
-          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:hidden">
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 xl:hidden">
             <button onClick={() => setPageView("leads")} className={pillClass(true)}>Leads</button>
             <button onClick={() => setPageView("reengagement")} className={pillClass(false)}>Re-engagement</button>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0">
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-expanded={filtersOpen}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
+                filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e8e3db] bg-white text-[#292524] hover:bg-[#f5f1eb]",
+              )}
+            >
+              <Filter size={14} />
+              Filters
+            </button>
+          </div>
+
+          <div className={cn("flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between", !filtersOpen && "hidden")}>
+            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0 xl:hidden">
               <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
             {SEGMENTS.map((seg) => (
               <button
                 key={seg}
-                onClick={() => setTab(seg)}
+                onClick={() => setSegment(seg)}
                 className={cn(
                   "shrink-0 rounded-xl border px-4 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
                   segmentFilterClass(seg, tab === seg),
@@ -497,6 +535,19 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             </div>
           </div>
 
+          {filtersOpen && (
+            <div className="grid gap-3 rounded-2xl border border-[#e8e3db] bg-white p-4 shadow-sm sm:grid-cols-2">
+              <label>
+                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From date</span>
+                <input type="date" value={dateFrom ?? ""} onChange={(e) => setDate("date_from", e.target.value)} className="h-9 w-full rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </label>
+              <label>
+                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">To date</span>
+                <input type="date" value={dateTo ?? ""} onChange={(e) => setDate("date_to", e.target.value)} className="h-9 w-full rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </label>
+            </div>
+          )}
+
           {/* Date filter, arrived via a link from a today-scoped card (e.g. dashboard Pipeline Activity) */}
           {dateFrom && (
             <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-primary-muted bg-primary-light p-2.5 shadow-sm sm:w-auto">
@@ -519,7 +570,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
           )}
 
           {/* Conditional Campaign Dropdown */}
-          {sourceFilter === "META_ADS" && campaigns.length > 0 && (
+          {filtersOpen && sourceFilter === "META_ADS" && campaigns.length > 0 && (
             <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm animate-slide-up sm:w-auto">
               <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Campaign:</span>
               <select
@@ -538,7 +589,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
           )}
 
           {/* Conditional Broadcast Dropdown */}
-          {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
+          {filtersOpen && sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
             <div className="flex w-full min-w-0 flex-wrap items-center gap-3 animate-slide-up sm:w-auto">
               <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm sm:w-auto">
                 <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Broadcast:</span>
