@@ -12,7 +12,7 @@ import { RangeValue } from "@/components/analytics/RangePicker";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
-import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
+import { canLoadComparison, ComparisonSelection, isCompleteSelection } from "@/components/analytics/periodSelection";
 import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
 const CURRENT_COLOR = "#5b21b6";
@@ -430,7 +430,8 @@ export function CompareTab({
   const [err, setErr] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const canLoad = canLoadComparison(range, comparison);
+  const rangeIsComplete = isCompleteSelection(range);
+  const canLoadComparison_ = canLoadComparison(range, comparison);
 
   useEffect(() => {
     onDataChange?.(data !== null);
@@ -450,22 +451,25 @@ export function CompareTab({
   }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   useEffect(() => {
-    if (!canLoad) {
+    if (!rangeIsComplete) {
       setData(null);
       setErr(null);
       return;
     }
     let isCurrent = true;
-    setData(null);
     setErr(null);
+    const fetchParams: CompareParams = canLoadComparison_
+      ? params
+      : { preset: range.preset, start: range.start, end: range.end, comparison: "off" };
+    setData(null);
     api.analytics
-      .compare(params)
+      .compare(fetchParams)
       .then((d) => { if (isCurrent) setData(d); })
       .catch((e: unknown) => {
         if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load");
       });
     return () => { isCurrent = false; };
-  }, [canLoad, params, refreshKey]);
+  }, [rangeIsComplete, canLoadComparison_, params, refreshKey]);
 
   const handleExport = () => {
     api.analytics.exportCompareCsv(params);
@@ -473,7 +477,7 @@ export function CompareTab({
 
   return (
     <div className="space-y-6">
-      {!canLoad && (
+      {!rangeIsComplete && (
         <p className="font-label text-sm text-on-surface-muted">
           Pick a valid start and end date for each custom period.
         </p>
@@ -485,7 +489,7 @@ export function CompareTab({
         </div>
       )}
 
-      {canLoad && !err && (
+      {rangeIsComplete && !err && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
           <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
             {!data ? (
