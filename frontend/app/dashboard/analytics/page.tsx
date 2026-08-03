@@ -241,41 +241,50 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
   return (
     <div className="space-y-6">
       {/* ── Filter Panel ───────────────────────────────────────── */}
-      {showFilters ? (
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
+      <div className={cn(
+        "overflow-hidden transition-all duration-300 ease-in-out",
+        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
+      )}>
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
           </div>
-          <div className="mt-3 flex w-full items-center gap-2.5 overflow-hidden">
-              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</span>
-              <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Reporting Period
+              </span>
+              <div className="w-full sm:w-[390px]">
+                <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Channel
+              </span>
+              <div className="flex gap-1.5 flex-wrap">
                 {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => setChannel(id)}
-                    aria-label={label}
-                    title={label}
-                    className={`flex h-9 items-center justify-center gap-1.5 rounded-lg border font-label text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-200 ${
-                      id === "all" ? "min-w-[62px] px-2.5" : "w-9 min-[1380px]:w-auto min-[1380px]:px-2"} ${
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
                       channel === id
-                        ? "border-violet-600 bg-violet-600 text-white shadow-[0_4px_10px_rgba(109,40,217,0.2)]"
-                        : "border-[#e8e3db] bg-[#fcfbf9] text-[#78716c] hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-700"
+                        ? "bg-primary-light text-primary ring-primary-muted"
+                        : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
                     }`}
                   >
-                    <Icon size={13} />
-                    <span className={id === "all" ? "" : "hidden min-[1380px]:inline"}>{label}</span>
+                    <Icon size={12} />
+                    {label}
                   </button>
                 ))}
               </div>
-              <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
-              <span className="shrink-0 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
-              <RangePicker value={range} onChange={setRange} idPrefix="channels-range" compact />
+            </div>
           </div>
         </div>
-      ) : null}
+      </div>
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
@@ -419,7 +428,7 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
     <div className="space-y-6">
       {showFilters ? (
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="flex items-center gap-3 overflow-x-auto pb-1">
+          <div className="mb-4 flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
@@ -577,14 +586,20 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
         showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
       )}>
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="flex items-center gap-3 overflow-x-auto pb-1">
+          <div className="mb-2.5 flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Inbound Filters</span>
           </div>
-          <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
-          <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
+          <div className="flex flex-col gap-1.5">
+            <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+              Reporting Period
+            </span>
+            <div className="w-full sm:w-[390px]">
+              <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
+            </div>
+          </div>
         </div>
       </div>
 

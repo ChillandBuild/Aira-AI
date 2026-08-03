@@ -470,7 +470,7 @@ export function CompareTab({
       {/* ── Filter Panel ───────────────────────────────────────── */}
       {showFilters ? (
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="flex items-center gap-3 overflow-x-auto pb-1">
+          <div className="mb-4 flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
