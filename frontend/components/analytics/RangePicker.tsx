@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
+
 export type Preset =
   | "today" | "yesterday"
   | "last_7d" | "last_14d" | "last_30d"
@@ -27,22 +29,19 @@ export function RangePicker({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Reporting period">
-        {PRESET_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onChange({ ...value, preset: option.id })}
-            aria-pressed={value.preset === option.id}
-            className={`rounded-full border px-3 py-1.5 font-label text-xs font-semibold transition-colors ${
-              value.preset === option.id
-                ? "border-violet-200 bg-violet-50 text-violet-700 shadow-sm"
-                : "border-[#e8e3db] bg-white text-on-surface-muted hover:border-violet-200 hover:text-violet-700"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
+      <div className="relative">
+        <select
+          value={value.preset}
+          onChange={(e) => onChange({ ...value, preset: e.target.value as Preset })}
+          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+        >
+          {PRESET_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted" />
       </div>
 
       {value.preset === "custom" && (

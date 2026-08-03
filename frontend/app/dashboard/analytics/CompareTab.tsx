@@ -10,10 +10,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
+import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
-import { canLoadComparison } from "@/components/analytics/periodSelection";
+import { canLoadComparison, ComparisonSelection } from "@/components/analytics/periodSelection";
 import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
 const CURRENT_COLOR = "#5b21b6";
@@ -431,8 +432,11 @@ export function CompareTab({
   const [err, setErr] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [comparison, setComparison] = useState<ComparisonSelection>({
+    mode: "off", start: "", end: "",
+  });
 
-  const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
+  const canLoad = canLoadComparison(range, comparison);
 
   useEffect(() => {
     onDataChange?.(data !== null);
@@ -440,8 +444,16 @@ export function CompareTab({
 
   const params = useMemo<CompareParams>(() => {
     const reporting = { preset: range.preset, start: range.start, end: range.end };
-    return { ...reporting, comparison: "off" };
-  }, [range.preset, range.start, range.end]);
+    if (comparison.mode === "custom") {
+      return {
+        ...reporting,
+        comparison: "custom",
+        comparison_start: comparison.start,
+        comparison_end: comparison.end,
+      };
+    }
+    return { ...reporting, comparison: comparison.mode };
+  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   useEffect(() => {
     if (!canLoad) {
@@ -474,12 +486,21 @@ export function CompareTab({
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
-            <div>
-              <span className="block font-label text-[13px] font-bold text-on-surface">Reporting period</span>
-              <span className="block font-body text-[10px] text-on-surface-muted">Choose the period to analyse.</span>
+            <span className="font-label text-[13px] font-bold text-on-surface">Compare Filters</span>
+          </div>
+          <div className="flex flex-wrap items-start gap-6">
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Reporting period
+              </span>
+              <div className="w-full sm:w-[180px]">
+                <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+              </div>
+            </div>
+            <div className="w-full sm:w-[200px]">
+              <ComparisonPicker value={comparison} onChange={setComparison} />
             </div>
           </div>
-          <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
         </div>
       ) : null}
 

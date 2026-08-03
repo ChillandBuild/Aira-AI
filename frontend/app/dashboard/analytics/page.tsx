@@ -721,7 +721,7 @@ export default function AnalyticsPage() {
   });
   return (
     <div className="min-w-0">
-      <div className="-mx-1 mb-5 overflow-x-auto px-1 pb-1 md:hidden">
+      <div className="-mx-1 mb-5 overflow-x-auto px-1 pb-1">
         <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
           {TABS.map((tab) => (
             <button
