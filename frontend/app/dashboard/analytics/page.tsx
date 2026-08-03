@@ -249,17 +249,17 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
           </div>
-          <div className="mt-3 flex w-full items-center gap-3 overflow-hidden">
+          <div className="mt-3 flex w-full items-center gap-2.5 overflow-hidden">
               <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
                   <button
                     key={id}
                     onClick={() => setChannel(id)}
                     aria-label={label}
                     title={label}
-                    className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border font-label text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-200 ${
-                      id === "all" ? "min-w-[68px] px-3" : "w-10 min-[1380px]:w-auto min-[1380px]:px-2.5"} ${
+                    className={`flex h-9 items-center justify-center gap-1.5 rounded-lg border font-label text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                      id === "all" ? "min-w-[62px] px-2.5" : "w-9 min-[1380px]:w-auto min-[1380px]:px-2"} ${
                       channel === id
                         ? "border-violet-600 bg-violet-600 text-white shadow-[0_4px_10px_rgba(109,40,217,0.2)]"
                         : "border-[#e8e3db] bg-[#fcfbf9] text-[#78716c] hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-700"
