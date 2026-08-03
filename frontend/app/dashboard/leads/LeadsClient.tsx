@@ -1,8 +1,8 @@
 "use client";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, Lead, Caller, SegmentTemplate, BroadcastResult, BroadcastHistoryItem, WabaTemplate, getAuthHeaders, API_URL } from "@/lib/api";
-import { Download, Send, Save, Pencil, Plus, X, Loader2, Clock, Filter } from "lucide-react";
+import { Download, Send, Save, Pencil, Plus, X, Loader2, Clock, Filter, RefreshCw, ArrowDown, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatPhone } from "@/lib/utils";
 import { useAuthRole } from "../contexts/AuthRoleContext";
@@ -220,6 +220,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   const [broadcasting, setBroadcasting] = useState(false);
   const [lastResult, setLastResult] = useState<BroadcastResult | null>(null);
   const [composing, setComposing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [callers, setCallers] = useState<Caller[]>([]);
 
   // Filtering states
@@ -227,6 +228,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedBroadcastId, setSelectedBroadcastId] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [addedSort, setAddedSort] = useState<"newest" | "oldest">("newest");
   const [campaigns, setCampaigns] = useState<{ id: string; campaign_name: string; platform: string }[]>([]);
   const [broadcastHistory, setBroadcastHistory] = useState<BroadcastHistoryItem[]>([]);
 
@@ -285,6 +287,22 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
 
   const leads = leadsData ?? [];
   const loading = !leadsData;
+  const sortedLeads = useMemo(
+    () => [...leads].sort((a, b) => {
+      const difference = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return addedSort === "newest" ? -difference : difference;
+    }),
+    [leads, addedSort],
+  );
+
+  async function refreshLeads() {
+    setRefreshing(true);
+    try {
+      await mutate();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
     api.callers.list().then((res) => setCallers((res.data || []).filter((c) => c.active))).catch(() => {});
@@ -471,7 +489,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
       )}
 
       {pageView === "leads" && (
-      <div>
+      <div className="-mt-4">
         <div className="mb-2 space-y-3">
           <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 xl:hidden">
             <button onClick={() => setPageView("leads")} className={pillClass(true)}>Leads</button>
@@ -552,6 +570,18 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                 <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">To date</span>
                 <input type="date" value={dateTo ?? ""} onChange={(e) => setDate("date_to", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
               </label>
+              <div>
+                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Added</span>
+                <button
+                  type="button"
+                  onClick={() => setAddedSort((sort) => sort === "newest" ? "oldest" : "newest")}
+                  title={addedSort === "newest" ? "Newest first" : "Oldest first"}
+                  aria-label={addedSort === "newest" ? "Sort oldest first" : "Sort newest first"}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e8e3db] bg-white text-primary transition-colors hover:bg-primary-light"
+                >
+                  {addedSort === "newest" ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+                </button>
+              </div>
             </div>
           )}
 
@@ -691,6 +721,15 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             Filters
           </button>
           <button
+            type="button"
+            onClick={refreshLeads}
+            disabled={refreshing}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4] disabled:opacity-40"
+          >
+            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
+            Refresh
+          </button>
+          <button
             onClick={() => setComposing(true)}
             disabled={!canManageLeads}
             title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
@@ -724,7 +763,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
           ) : (
             <>
             <div className="space-y-3 p-3 md:hidden">
-              {leads.map((lead) => (
+              {sortedLeads.map((lead) => (
                 <MobileRecordCard
                   key={lead.id}
                   onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
@@ -801,7 +840,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                 </tr>
               </thead>
               <tbody>
-                {leads.map((lead, i) => (
+                {sortedLeads.map((lead, i) => (
                   <tr
                     key={lead.id}
                     onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
