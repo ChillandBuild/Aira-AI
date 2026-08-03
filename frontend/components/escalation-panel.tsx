@@ -169,8 +169,7 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
   async function handleClaim(handover: Handover) {
     if (!canReplyToConversations) return;
     if (!currentCallerId) {
-      // No caller profile to assign to — fall back to opening the chat directly.
-      onReply(handover.lead_id);
+      toast.error("A telecaller profile is required to pick up an escalation");
       return;
     }
     const prev = handovers;
@@ -286,22 +285,47 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
                         <p className="font-body text-xs text-ink-muted">
                           {new Date(h.opened_at).toLocaleString("en-IN")}
                         </p>
+                        <span className={cn(
+                          "font-label text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1.5 border shadow-xs",
+                          h.assigned_to
+                            ? "bg-green-50 text-green-700 border-green-200/50"
+                            : "bg-amber-50 text-amber-600 border-amber-200/50"
+                        )}>
+                          {h.assigned_to ? `Assigned to ${h.caller_name ?? "caller"}` : "Unassigned"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-row md:flex-col gap-2.5 flex-shrink-0 self-end md:self-start w-full md:w-auto md:min-w-[140px] mt-3 md:mt-0 border-t md:border-t-0 border-border-subtle pt-3 md:pt-0">
+                    {role === "owner" ? (
+                      <>
+                        <button
+                          onClick={() => handleResolve(h.id)}
+                          disabled={!canReplyToConversations}
+                          title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
+                          className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-2 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] bg-white font-bold shadow-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:scale-100"
+                        >
+                          <CheckCircle size={14} /> Resolve
+                        </button>
+                        <button
+                          onClick={() => handleReply(h)}
+                          disabled={!canReplyToConversations}
+                          title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
+                          className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary disabled:hover:scale-100"
+                        >
+                          <MessageSquare size={14} /> Reply
+                        </button>
                         <div className="relative" ref={reassigningId === h.id ? dropdownRef : null}>
                           <button
-                            onClick={() => role === "owner" ? setReassigningId(reassigningId === h.id ? null : h.id) : undefined}
-                            className={cn(
-                              "font-label text-xs px-3 py-1 rounded-full font-bold flex items-center gap-1.5 border transition-all shadow-xs",
-                              h.assigned_to
-                                ? "bg-green-50 text-green-700 border-green-200/50 hover:bg-green-100"
-                                : "bg-amber-50 text-amber-600 border-amber-200/50 hover:bg-amber-100",
-                              role !== "owner" && "cursor-default"
-                            )}
+                            onClick={() => setReassigningId(reassigningId === h.id ? null : h.id)}
+                            disabled={!canReplyToConversations}
+                            title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
+                            className="w-full text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 border border-border text-ink hover:bg-surface-mid/40 rounded-xl transition-all duration-150 font-bold shadow-xs disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            <span>{h.assigned_to ? `Assigned to ${h.caller_name ?? "caller"}` : "Unassigned"}</span>
-                            {role === "owner" && <UserCog size={11} className="opacity-80" />}
+                            <UserCog size={14} /> Assign
                           </button>
                           {reassigningId === h.id && (
-                            <div className="absolute left-0 top-full mt-2 z-20 bg-white border border-border rounded-xl shadow-lg py-1 min-w-[180px] animate-in fade-in slide-in-from-top-1 duration-150">
+                            <div className="absolute right-0 top-full mt-2 z-20 bg-white border border-border rounded-xl shadow-lg py-1 min-w-[180px] animate-in fade-in slide-in-from-top-1 duration-150">
                               <p className="px-3 py-1 text-[10px] text-ink-muted font-label font-bold uppercase tracking-wider">Assign to</p>
                               <div className="my-0.5 border-t border-border-subtle" />
                               {callers.length === 0 ? (
@@ -318,27 +342,35 @@ export function EscalationPanel({ onReply, onCountChange, currentCallerId, curre
                             </div>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-row md:flex-col gap-2.5 flex-shrink-0 self-end md:self-start w-full md:w-auto md:min-w-[140px] mt-3 md:mt-0 border-t md:border-t-0 border-border-subtle pt-3 md:pt-0">
-                    <button
-                      onClick={() => (h.assigned_to ? handleReply(h) : handleClaim(h))}
-                      disabled={!canReplyToConversations}
-                      title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
-                      className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary disabled:hover:scale-100"
-                    >
-                      <MessageSquare size={14} /> {h.assigned_to ? "Reply" : "Pick up"}
-                    </button>
-                    {(isMine || role === "owner" || !canReplyToConversations) && (
+                      </>
+                    ) : !h.assigned_to ? (
                       <button
-                        onClick={() => handleResolve(h.id)}
-                        disabled={!canReplyToConversations}
-                        title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
-                        className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-2 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] bg-white font-bold shadow-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:scale-100"
+                        onClick={() => handleClaim(h)}
+                        disabled={!canReplyToConversations || !currentCallerId}
+                        title={!canReplyToConversations ? "You have read-only access to conversations" : !currentCallerId ? "A telecaller profile is required to pick up an escalation" : undefined}
+                        className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary disabled:hover:scale-100"
                       >
-                        <CheckCircle size={14} /> Resolve
+                        <MessageSquare size={14} /> Pick up
                       </button>
+                    ) : isMine && (
+                      <>
+                        <button
+                          onClick={() => handleReply(h)}
+                          disabled={!canReplyToConversations}
+                          title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
+                          className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-xl transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-bold shadow-sm disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary disabled:hover:scale-100"
+                        >
+                          <MessageSquare size={14} /> Reply
+                        </button>
+                        <button
+                          onClick={() => handleResolve(h.id)}
+                          disabled={!canReplyToConversations}
+                          title={canReplyToConversations ? undefined : "You have read-only access to conversations"}
+                          className="flex-1 md:flex-initial text-xs md:text-sm px-4 py-2 rounded-xl border border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-2 transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] bg-white font-bold shadow-xs disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:scale-100"
+                        >
+                          <CheckCircle size={14} /> Resolve
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>

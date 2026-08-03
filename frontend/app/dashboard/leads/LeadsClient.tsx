@@ -496,7 +496,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
               </div>
             </div>
 
-            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0">
+            <div className="hidden -mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0">
               <div className="flex w-max items-center gap-1 rounded-2xl border border-[#e8e3db] bg-white p-1 shadow-sm">
                 <span className="px-2 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Source</span>
                 {SOURCE_FILTERS.map(({ value, label }) => (
@@ -521,14 +521,36 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
           </div>
 
           {filtersOpen && (
-            <div className="grid gap-3 rounded-2xl border border-[#e8e3db] bg-white p-4 shadow-sm sm:grid-cols-2">
+            <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-[#e8e3db] bg-white p-4 shadow-sm">
+              <div className="min-w-[300px] flex-1">
+                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Source</span>
+                <div className="flex w-max items-center gap-1 rounded-xl border border-[#e8e3db] bg-white p-1 shadow-sm">
+                  {SOURCE_FILTERS.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setSourceFilter(value);
+                        setSelectedCampaignId("");
+                        setSelectedBroadcastId("");
+                      }}
+                      className={cn(
+                        "rounded-lg px-2.5 py-1.5 font-label text-xs font-bold transition-all",
+                        sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#78716c] hover:bg-[#f5f1eb] hover:text-[#292524]",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <label>
                 <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From date</span>
-                <input type="date" value={dateFrom ?? ""} onChange={(e) => setDate("date_from", e.target.value)} className="h-9 w-full rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                <input type="date" value={dateFrom ?? ""} onChange={(e) => setDate("date_from", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
               </label>
               <label>
                 <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">To date</span>
-                <input type="date" value={dateTo ?? ""} onChange={(e) => setDate("date_to", e.target.value)} className="h-9 w-full rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                <input type="date" value={dateTo ?? ""} onChange={(e) => setDate("date_to", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
               </label>
             </div>
           )}
@@ -613,53 +635,17 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
           )}
         </div>
 
-        <div className="mb-5 max-w-6xl rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:mb-6 sm:p-6">
+        <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
           <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-display text-sm font-bold text-primary">
               {sourceFilter !== "ALL" ? `Action Box — Filtered Leads` : `Action Box — ${SEGMENT_LABELS[tab]} Leads`}
             </h2>
-            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-              {lastResult && (
-                <p className="font-label text-xs text-on-surface-muted">
-                  Sent {lastResult.sent} · Failed {lastResult.failed} · Outside 24h window {lastResult.skipped_window}
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => setFiltersOpen((open) => !open)}
-                aria-expanded={filtersOpen}
-                className={cn(
-                  "inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
-                  filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e8e3db] bg-white text-[#292524] hover:bg-[#f5f1eb]",
-                )}
-              >
-                <Filter size={14} />
-                Filters
-              </button>
-              <button
-                onClick={() => setComposing(true)}
-                disabled={!canManageLeads}
-                title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
-                className="flex items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Plus size={14} />
-                New Message
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    await api.leads.exportLeads(tab);
-                    toast.success("Export downloaded");
-                  } catch (err) {
-                    toast.error(err instanceof Error ? err.message : "Export failed");
-                  }
-                }}
-                className="flex items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4]"
-              >
-                <Download size={14} />
-                Export {SEGMENT_LABELS[tab]}
-              </button>
-            </div>
+            {lastResult && (
+              <p className="font-label text-xs text-on-surface-muted">
+                Sent {lastResult.sent} · Failed {lastResult.failed} · Outside 24h window {lastResult.skipped_window}
+              </p>
+            )}
           </div>
           <textarea
             value={draft}
@@ -688,6 +674,44 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
               {broadcasting ? "Sending…" : sourceFilter !== "ALL" ? "Send to Filtered Leads" : `Send to ${SEGMENT_LABELS[tab]}`}
             </button>
           </div>
+        </div>
+        <aside className="flex flex-col justify-between gap-2 p-1 xl:py-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            className={cn(
+              "flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
+              filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e8e3db] bg-white text-[#292524] hover:bg-[#f5f1eb]",
+            )}
+          >
+            <Filter size={14} />
+            Filters
+          </button>
+          <button
+            onClick={() => setComposing(true)}
+            disabled={!canManageLeads}
+            title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Plus size={14} />
+            New Message
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await api.leads.exportLeads(tab);
+                toast.success("Export downloaded");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Export failed");
+              }
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4]"
+          >
+            <Download size={14} />
+            Export {SEGMENT_LABELS[tab]}
+          </button>
+        </aside>
         </div>
 
         <div className="bg-surface rounded-card shadow-card ring-1 ring-[#c4c7c7]/15">
