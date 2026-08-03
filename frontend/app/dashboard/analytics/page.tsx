@@ -706,13 +706,13 @@ export default function AnalyticsPage() {
             </span>
             <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
             {activeTab === "overview" && (
-              <>
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
                 <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
                   Compare
                 </span>
                 <ComparisonPicker value={comparison} onChange={setComparison} />
-              </>
+              </div>
             )}
           </div>
         )}
