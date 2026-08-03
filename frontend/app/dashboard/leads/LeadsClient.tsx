@@ -472,7 +472,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
 
       {pageView === "leads" && (
       <div>
-        <div className="mb-5 space-y-3">
+        <div className="mb-2 space-y-3">
           <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 xl:hidden">
             <button onClick={() => setPageView("leads")} className={pillClass(true)}>Leads</button>
             <button onClick={() => setPageView("reengagement")} className={pillClass(false)}>Re-engagement</button>
@@ -654,6 +654,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             placeholder={sourceFilter !== "ALL" ? "Message to broadcast to filtered leads…" : `Message to broadcast to ${SEGMENT_LABELS[tab]} leads…`}
             className="w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-primary resize-none"
           />
+          {draft.trim() && (
           <div className="mt-3 flex flex-wrap gap-2">
             {sourceFilter === "ALL" && (
               <button
@@ -674,8 +675,9 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
               {broadcasting ? "Sending…" : sourceFilter !== "ALL" ? "Send to Filtered Leads" : `Send to ${SEGMENT_LABELS[tab]}`}
             </button>
           </div>
+          )}
         </div>
-        <aside className="flex flex-col justify-between gap-2 p-1 xl:py-2">
+        <aside className="flex flex-col justify-start gap-2 p-1 xl:py-2">
           <button
             type="button"
             onClick={() => setFiltersOpen((open) => !open)}
@@ -692,7 +694,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             onClick={() => setComposing(true)}
             disabled={!canManageLeads}
             title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1c1917] px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-[#292524] disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2e1065] to-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:from-primary hover:to-[#2e1065] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Plus size={14} />
             New Message
