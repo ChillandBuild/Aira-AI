@@ -28,8 +28,8 @@ export function RangePicker({
   idPrefix?: string;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="relative">
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative w-[132px] shrink-0">
         <select
           value={value.preset}
           onChange={(e) => onChange({ ...value, preset: e.target.value as Preset })}
@@ -45,40 +45,27 @@ export function RangePicker({
       </div>
 
       {value.preset === "custom" && (
-        <div className="flex flex-wrap items-end gap-2.5">
-          <div className="w-[150px]">
-            <label
-              htmlFor={`${idPrefix}-from`}
-              className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted"
-            >
-              From
-            </label>
-            <input
-              id={`${idPrefix}-from`}
-              type="date"
-              value={value.start}
-              max={value.end || undefined}
-              onChange={(e) => onChange({ ...value, start: e.target.value })}
-              className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
-            />
-          </div>
-          <div className="w-[150px]">
-            <label
-              htmlFor={`${idPrefix}-to`}
-              className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted"
-            >
-              To
-            </label>
-            <input
-              id={`${idPrefix}-to`}
-              type="date"
-              value={value.end}
-              min={value.start || undefined}
-              onChange={(e) => onChange({ ...value, end: e.target.value })}
-              className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
-            />
-          </div>
-        </div>
+        <>
+          <input
+            id={`${idPrefix}-from`}
+            type="date"
+            aria-label="From"
+            value={value.start}
+            max={value.end || undefined}
+            onChange={(e) => onChange({ ...value, start: e.target.value })}
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+          />
+          <span className="font-label text-xs text-on-surface-muted">→</span>
+          <input
+            id={`${idPrefix}-to`}
+            type="date"
+            aria-label="To"
+            value={value.end}
+            min={value.start || undefined}
+            onChange={(e) => onChange({ ...value, end: e.target.value })}
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+          />
+        </>
       )}
     </div>
   );

@@ -2,7 +2,6 @@
 
 import { ChevronDown } from "lucide-react";
 import { ComparisonSelection } from "./periodSelection";
-import { RangePicker } from "./RangePicker";
 
 export function comparisonLabel(selection: ComparisonSelection): string {
   if (selection.mode === "off") return "No comparison";
@@ -23,11 +22,8 @@ export function ComparisonPicker({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <p className="font-label text-xs font-semibold uppercase tracking-wider text-on-surface-muted">
-        Compare with
-      </p>
-      <div className="relative">
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="relative w-[132px] shrink-0">
         <select
           value={value.mode}
           onChange={(e) => selectMode(e.target.value as ComparisonSelection["mode"])}
@@ -47,11 +43,27 @@ export function ComparisonPicker({
       </div>
 
       {value.mode === "custom" && (
-        <RangePicker
-          value={{ preset: "custom", start: value.start, end: value.end }}
-          onChange={({ start, end }) => onChange({ mode: "custom", start, end })}
-          idPrefix="comparison-range"
-        />
+        <>
+          <input
+            id="comparison-range-from"
+            type="date"
+            aria-label="From"
+            value={value.start}
+            max={value.end || undefined}
+            onChange={(e) => onChange({ mode: "custom", start: e.target.value, end: value.end })}
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+          />
+          <span className="font-label text-xs text-on-surface-muted">→</span>
+          <input
+            id="comparison-range-to"
+            type="date"
+            aria-label="To"
+            value={value.end}
+            min={value.start || undefined}
+            onChange={(e) => onChange({ mode: "custom", start: value.start, end: e.target.value })}
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+          />
+        </>
       )}
     </div>
   );

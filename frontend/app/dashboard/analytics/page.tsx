@@ -701,13 +701,18 @@ export default function AnalyticsPage() {
 
         {activeTab !== "templates" && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-[150px]">
-              <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-            </div>
+            <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+              Period
+            </span>
+            <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
             {activeTab === "overview" && (
-              <div className="w-[170px]">
+              <>
+                <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
+                <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+                  Compare
+                </span>
                 <ComparisonPicker value={comparison} onChange={setComparison} />
-              </div>
+              </>
             )}
           </div>
         )}
