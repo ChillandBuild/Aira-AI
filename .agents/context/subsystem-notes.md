@@ -306,7 +306,7 @@
 
 ## Meta Ads reporting surface (2026-08-02)
 - `/dashboard/meta-ads` is the sole Click-to-WhatsApp Ad Performance surface; `/dashboard/inbound-leads` is leads-only. The old Meta Ads manager route, API client, and Create/Performance/Analytics components were removed; the report API remains under `inbound_leads.py` because it is the attribution backend.
-- Daily insights are additive for spend, impressions, and clicks, but not reach. `build_creative_performance()` uses Meta's aggregate ad-level reach for the selected `time_range`; on a Meta failure it logs and temporarily falls back to stored daily reach rather than hiding the report.
+- Daily insights are additive for spend, impressions, and clicks, but not reach. The sync merges Meta's `last_30d` completed-day response with its `today` response so live same-day delivery is visible after Sync now. `build_creative_performance()` uses Meta's aggregate ad-level reach for the selected `time_range`; on a Meta failure it logs and temporarily falls back to stored daily reach rather than hiding the report.
 - Meta Ads intentionally bypasses the dashboard's 1400px reading-width cap and page-level padding. Keep this full-canvas exception page-scoped.
 
 ## Inbound Ad Performance account scope and attribution semantics (2026-07-30/31, migrations 153+154)

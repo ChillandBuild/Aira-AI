@@ -216,6 +216,44 @@ def test_verbose_sync_writes_and_reports_success(monkeypatch):
     assert db.store["ad_sets"][0]["daily_budget"] == 800.0
 
 
+def test_verbose_sync_includes_today_live_delivery(monkeypatch):
+    import app.services.meta_ads_insights_sync as mod
+
+    monkeypatch.setattr(mod, "get_or_create_campaign", lambda **k: {"id": "camp-1"})
+    db = FakeDB()
+    db.store["app_settings"] = [
+        {"tenant_id": "t1", "key": "meta_ads_access_token", "value": "tok"},
+        {"tenant_id": "t1", "key": "meta_ads_account_id", "value": "act_1"},
+    ]
+    presets = []
+
+    def fetch_insights(_token, _account, preset):
+        presets.append(preset)
+        return [{
+            "ad_id": "A1", "ad_name": "Clarity", "adset_id": "as1", "adset_name": "Set",
+            "campaign_id": "c1", "campaign_name": "Camp", "date_start": "2026-08-02",
+        }] if preset == "last_30d" else [{
+            "ad_id": "A1", "ad_name": "Clarity", "adset_id": "as1", "adset_name": "Set",
+            "campaign_id": "c1", "campaign_name": "Camp", "date_start": "2026-08-03",
+        }]
+
+    monkeypatch.setattr(mod, "_fetch_insights", fetch_insights)
+    monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [{
+        "id": "as1", "destination_type": "WHATSAPP",
+    }])
+    monkeypatch.setattr(mod, "_fetch_campaigns", lambda *a, **k: [])
+
+    result = sync_tenant_ad_insights_verbose(db, "t1")
+
+    assert result["ok"] is True
+    assert presets == ["last_30d", "today"]
+    assert result["rows_fetched"] == 2
+    assert result["written"] == 2
+    assert {row["insight_date"] for row in db.store["ad_insights_daily"]} == {
+        "2026-08-02", "2026-08-03",
+    }
+
+
 def test_verbose_sync_skips_non_whatsapp_ads(monkeypatch):
     import app.services.meta_ads_insights_sync as mod
     db = FakeDB()

@@ -288,6 +288,18 @@ def _fetch_insights(token: str, account: str, date_preset: str) -> list[dict]:
     return out
 
 
+def _fetch_sync_insights(token: str, account: str, date_preset: str) -> list[dict]:
+    """Fetch the completed reporting window plus today's live delivery once."""
+    rows = _fetch_insights(token, account, date_preset)
+    if date_preset == "last_30d":
+        rows.extend(_fetch_insights(token, account, "today"))
+    by_ad_day = {
+        (str(row.get("ad_id") or ""), str(row.get("date_start") or "")): row
+        for row in rows
+    }
+    return list(by_ad_day.values())
+
+
 def _fetch_campaigns(token: str, account: str) -> list[dict]:
     url = f"{_GRAPH_BASE}/{account}/campaigns"
     params = {"fields": _CAMPAIGN_FIELDS, "limit": "200", "access_token": token}
@@ -454,7 +466,7 @@ def _record_sync_metadata(db, tenant_id: str, account: str, written: int) -> Non
 
 
 def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d") -> int:
-    """Pull level=ad daily insights, upsert creatives, write ad_insights_daily.
+    """Pull level=ad daily insights, including today's live delivery, and upsert rows.
     Returns number of daily rows written. Best-effort per row — used by the
     background scheduler, which must never crash on one tenant's bad data.
     """
@@ -463,7 +475,9 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
         return 0
     token, account = creds
     try:
-        rows = _fetch_insights(token, account, date_preset)
+        # Meta's last_30d preset contains completed days only. Include today's
+        # partial delivery so the dashboard agrees with Ads Manager.
+        rows = _fetch_sync_insights(token, account, date_preset)
         adsets = _fetch_adsets(token, account)
     except Exception as e:
         logger.warning(f"Ads insights fetch failed for tenant {tenant_id}: {e}")
@@ -503,7 +517,8 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
 
 
 def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "last_30d") -> dict:
-    """Manual-trigger variant for the 'Sync now' button: same pipeline as
+    """Manual-trigger variant for the 'Sync now' button: same pipeline, including
+    today's live delivery, as
     sync_tenant_ad_insights, but returns a diagnostic result (credential
     status, fetch errors, per-row write errors) instead of swallowing
     everything into a background-job log line.
@@ -521,7 +536,7 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
         }
     token, account = creds
     try:
-        rows = _fetch_insights(token, account, date_preset)
+        rows = _fetch_sync_insights(token, account, date_preset)
         adsets = _fetch_adsets(token, account)
     except Exception as e:
         return {
