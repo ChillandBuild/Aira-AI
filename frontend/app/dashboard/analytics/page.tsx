@@ -32,8 +32,10 @@ import {
 } from "@/lib/api";
 import { CompareTab } from "./CompareTab";
 import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
+import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
 import {
   canLoadComparison,
+  ComparisonSelection,
 } from "@/components/analytics/periodSelection";
 
 type Tab = "overview" | "channels" | "templates" | "inbound";
@@ -199,7 +201,7 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
   );
 }
 
-function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: RangeValue) => void }) {
+function ChannelsTab({ range }: { range: RangeValue }) {
   const [channel, setChannel] = useState<ChannelFilter>("all");
   const [data, setData] = useState<MessagingAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -241,41 +243,40 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
   return (
     <div className="space-y-6">
       {/* ── Filter Panel ───────────────────────────────────────── */}
-      {showFilters ? (
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
+      <div className={cn(
+        "overflow-hidden transition-all duration-300 ease-in-out",
+        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
+      )}>
+        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
           </div>
-          <div className="mt-3 flex w-full items-center gap-2.5 overflow-hidden">
-              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Channel</span>
-              <div className="flex items-center gap-1">
-                {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
-                  <button
-                    key={id}
-                    onClick={() => setChannel(id)}
-                    aria-label={label}
-                    title={label}
-                    className={`flex h-9 items-center justify-center gap-1.5 rounded-lg border font-label text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-200 ${
-                      id === "all" ? "min-w-[62px] px-2.5" : "w-9 min-[1380px]:w-auto min-[1380px]:px-2"} ${
-                      channel === id
-                        ? "border-violet-600 bg-violet-600 text-white shadow-[0_4px_10px_rgba(109,40,217,0.2)]"
-                        : "border-[#e8e3db] bg-[#fcfbf9] text-[#78716c] hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-700"
-                    }`}
-                  >
-                    <Icon size={13} />
-                    <span className={id === "all" ? "" : "hidden min-[1380px]:inline"}>{label}</span>
-                  </button>
-                ))}
-              </div>
-              <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
-              <span className="shrink-0 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
-              <RangePicker value={range} onChange={setRange} idPrefix="channels-range" compact />
+          <div className="flex flex-col gap-1.5">
+            <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+              Channel
+            </span>
+            <div className="flex gap-1.5 flex-wrap">
+              {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setChannel(id)}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
+                    channel === id
+                      ? "bg-primary-light text-primary ring-primary-muted"
+                      : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
+                  }`}
+                >
+                  <Icon size={12} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
-      ) : null}
+      </div>
 
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
@@ -419,7 +420,7 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
     <div className="space-y-6">
       {showFilters ? (
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="flex items-center gap-3 overflow-x-auto pb-1">
+          <div className="mb-4 flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
@@ -533,11 +534,10 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
 
 // ─── Inbound Tab ─────────────────────────────────────────────────────────────
 
-function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: RangeValue) => void }) {
+function InboundTab({ range }: { range: RangeValue }) {
   const [data, setData] = useState<InboundAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
   const rangeQuery = useMemo(() => reportingQuery(range), [range]);
   const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
 
@@ -571,23 +571,6 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
 
   return (
     <div className="space-y-6">
-      {/* ── Filter Panel ───────────────────────────────────────── */}
-      <div className={cn(
-        "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
-      )}>
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="flex items-center gap-3 overflow-x-auto pb-1">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <Filter size={13} />
-            </span>
-            <span className="font-label text-[13px] font-bold text-on-surface">Inbound Filters</span>
-          </div>
-          <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Reporting period</span>
-          <RangePicker value={range} onChange={setRange} idPrefix="inbound-range" />
-        </div>
-      </div>
-
       {!canLoad && (
         <p className="font-label text-sm text-on-surface-muted">Pick a valid custom reporting period.</p>
       )}
@@ -613,27 +596,13 @@ function InboundTab({ range, setRange }: { range: RangeValue; setRange: (r: Rang
             )}
           </div>
           <div className="flex flex-col justify-start gap-2 p-1">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowFilters((p) => !p)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
-                  showFilters
-                    ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                    : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
-                )}
-              >
-                <Filter size={12} />
-                <span>Filters</span>
-              </button>
-              <button
-                onClick={() => setRetryKey((k) => k + 1)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
-              >
-                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
-                <span>Refresh</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setRetryKey((k) => k + 1)}
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+            >
+              <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </button>
             <button
               onClick={handleDownloadCsv}
               disabled={!data}
@@ -692,11 +661,11 @@ export default function AnalyticsPage() {
   const rawTab = searchParams.get("tab");
   const activeTab: Tab = (rawTab === "overview" || rawTab === "channels" || rawTab === "inbound" || rawTab === "templates")
     ? rawTab
-    : "channels";
+    : "overview";
 
   const setActiveTab = (newTab: Tab) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (newTab === "channels") params.delete("tab");
+    if (newTab === "overview") params.delete("tab");
     else params.set("tab", newTab);
     router.replace(`/dashboard/analytics?${params.toString()}`, { scroll: false });
   };
@@ -704,35 +673,59 @@ export default function AnalyticsPage() {
   const [range, setRange] = useState<RangeValue>({
     preset: "last_7d", start: "", end: "",
   });
+  const [comparison, setComparison] = useState<ComparisonSelection>({
+    mode: "off", start: "", end: "",
+  });
+
   return (
     <div className="min-w-0">
-      <div className="-mx-1 mb-5 overflow-x-auto px-1 pb-1 md:hidden">
-        <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              aria-pressed={activeTab === tab.id}
-              className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
-                activeTab === tab.id
-                  ? "bg-surface text-primary shadow-card"
-                  : "text-on-surface-muted hover:text-on-surface"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+          <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                aria-pressed={activeTab === tab.id}
+                className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
+                  activeTab === tab.id
+                    ? "bg-surface text-primary shadow-card"
+                    : "text-on-surface-muted hover:text-on-surface"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {activeTab !== "templates" && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+              Period
+            </span>
+            <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+            {activeTab === "overview" && (
+              <>
+                <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
+                <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+                  Compare
+                </span>
+                <ComparisonPicker value={comparison} onChange={setComparison} />
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {activeTab === "overview" && (
         <CompareTab
           range={range}
-          setRange={setRange}
+          comparison={comparison}
         />
       )}
-      {activeTab === "channels" && <ChannelsTab range={range} setRange={setRange} />}
-      {activeTab === "inbound" && <InboundTab range={range} setRange={setRange} />}
+      {activeTab === "channels" && <ChannelsTab range={range} />}
+      {activeTab === "inbound" && <InboundTab range={range} />}
       {activeTab === "templates" && <TemplatesTab range={range} setRange={setRange} />}
     </div>
   );

@@ -300,12 +300,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:gap-4 md:px-7",
-        pathname === "/dashboard/analytics" ? "md:h-[4.5rem]" : "md:h-20",
-      )}
-    >
+    <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:h-20 md:gap-4 md:px-7">
       {/* Left side: menu trigger + title and description */}
       <div className="flex min-w-0 items-center gap-3">
         <MoreMenu />
@@ -359,38 +354,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
       {/* Right side actions */}
       <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
-        {pathname === "/dashboard/analytics" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-0.5 md:flex">
-            {[
-              { key: "channels", label: "Channels" },
-              { key: "overview", label: "Overview" },
-              { key: "inbound", label: "Inbound" },
-              { key: "templates", label: "Templates" },
-            ].map(({ key, label }) => {
-              const isActive = tab === key || (key === "channels" && !tab);
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    const params = new URLSearchParams(searchParams.toString());
-                    if (key === "channels") params.delete("tab");
-                    else params.set("tab", key);
-                    const query = params.toString();
-                    router.replace(`/dashboard/analytics${query ? `?${query}` : ""}`, { scroll: false });
-                  }}
-                  className={cn(
-                    "shrink-0 rounded-xl px-3 py-1.5 font-label text-[11px] font-bold transition-all xl:px-4 xl:text-xs",
-                    isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
         {pathname === "/dashboard/outbound-leads" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["upload", "history", "tags"] as const).map((t) => (

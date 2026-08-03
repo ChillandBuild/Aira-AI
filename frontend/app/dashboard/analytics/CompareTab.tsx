@@ -6,14 +6,13 @@ import {
   ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import {
-  Filter, RefreshCw, Download
+  RefreshCw, Download
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
+import { RangeValue } from "@/components/analytics/RangePicker";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
-import { canLoadComparison } from "@/components/analytics/periodSelection";
+import { canLoadComparison, ComparisonSelection, isCompleteSelection } from "@/components/analytics/periodSelection";
 import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
 const CURRENT_COLOR = "#5b21b6";
@@ -419,20 +418,20 @@ function ComparisonTable({
 
 export function CompareTab({
   range,
-  setRange,
+  comparison,
   onDataChange,
 }: {
   range: RangeValue;
-  setRange: (r: RangeValue) => void;
+  comparison: ComparisonSelection;
   onDataChange?: (ready: boolean) => void;
 }) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
+  const rangeIsComplete = isCompleteSelection(range);
+  const canLoadComparison_ = canLoadComparison(range, comparison);
 
   useEffect(() => {
     onDataChange?.(data !== null);
@@ -440,26 +439,37 @@ export function CompareTab({
 
   const params = useMemo<CompareParams>(() => {
     const reporting = { preset: range.preset, start: range.start, end: range.end };
-    return { ...reporting, comparison: "off" };
-  }, [range.preset, range.start, range.end]);
+    if (comparison.mode === "custom") {
+      return {
+        ...reporting,
+        comparison: "custom",
+        comparison_start: comparison.start,
+        comparison_end: comparison.end,
+      };
+    }
+    return { ...reporting, comparison: comparison.mode };
+  }, [range.preset, range.start, range.end, comparison.mode, comparison.start, comparison.end]);
 
   useEffect(() => {
-    if (!canLoad) {
+    if (!rangeIsComplete) {
       setData(null);
       setErr(null);
       return;
     }
     let isCurrent = true;
-    setData(null);
     setErr(null);
+    const fetchParams: CompareParams = canLoadComparison_
+      ? params
+      : { preset: range.preset, start: range.start, end: range.end, comparison: "off" };
+    setData(null);
     api.analytics
-      .compare(params)
+      .compare(fetchParams)
       .then((d) => { if (isCurrent) setData(d); })
       .catch((e: unknown) => {
         if (isCurrent) setErr(e instanceof Error ? e.message : "Failed to load");
       });
     return () => { isCurrent = false; };
-  }, [canLoad, params, refreshKey]);
+  }, [rangeIsComplete, canLoadComparison_, params, refreshKey]);
 
   const handleExport = () => {
     api.analytics.exportCompareCsv(params);
@@ -467,23 +477,7 @@ export function CompareTab({
 
   return (
     <div className="space-y-6">
-      {/* ── Filter Panel ───────────────────────────────────────── */}
-      {showFilters ? (
-        <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
-          <div className="flex items-center gap-3 overflow-x-auto pb-1">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
-              <Filter size={13} />
-            </span>
-            <div>
-              <span className="block font-label text-[13px] font-bold text-on-surface">Reporting period</span>
-              <span className="block font-body text-[10px] text-on-surface-muted">Choose the period to analyse.</span>
-            </div>
-          </div>
-          <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-        </div>
-      ) : null}
-
-      {!canLoad && (
+      {!rangeIsComplete && (
         <p className="font-label text-sm text-on-surface-muted">
           Pick a valid start and end date for each custom period.
         </p>
@@ -495,7 +489,7 @@ export function CompareTab({
         </div>
       )}
 
-      {canLoad && !err && (
+      {rangeIsComplete && !err && (
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
           <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
             {!data ? (
@@ -512,27 +506,13 @@ export function CompareTab({
             )}
           </div>
           <div className="flex flex-col justify-start gap-2 p-1">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowFilters((p) => !p)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
-                  showFilters
-                    ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                    : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
-                )}
-              >
-                <Filter size={12} />
-                <span>Filters</span>
-              </button>
-              <button
-                onClick={() => setRefreshKey((k) => k + 1)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
-              >
-                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
-                <span>Refresh</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setRefreshKey((k) => k + 1)}
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+            >
+              <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </button>
             <button
               onClick={handleExport}
               disabled={!data}
