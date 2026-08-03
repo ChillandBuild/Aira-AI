@@ -258,15 +258,15 @@ function ChannelsTab({ range, setRange }: { range: RangeValue; setRange: (r: Ran
                     onClick={() => setChannel(id)}
                     aria-label={label}
                     title={label}
-                    className={`flex h-9 items-center justify-center gap-1 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
-                      id === "all" ? "min-w-14 px-3" : "w-9"} ${
+                    className={`flex h-10 items-center justify-center gap-1.5 rounded-xl border font-label text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-200 ${
+                      id === "all" ? "min-w-[68px] px-3" : "w-10 min-[1380px]:w-auto min-[1380px]:px-2.5"} ${
                       channel === id
-                        ? "bg-primary-light text-primary ring-primary-muted"
-                        : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
+                        ? "border-violet-600 bg-violet-600 text-white shadow-[0_4px_10px_rgba(109,40,217,0.2)]"
+                        : "border-[#e8e3db] bg-[#fcfbf9] text-[#78716c] hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-700"
                     }`}
                   >
                     <Icon size={13} />
-                    {id === "all" && <span>All</span>}
+                    <span className={id === "all" ? "" : "hidden min-[1380px]:inline"}>{label}</span>
                   </button>
                 ))}
               </div>

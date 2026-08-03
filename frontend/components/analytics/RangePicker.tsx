@@ -61,10 +61,10 @@ export function RangePicker({
             type="button"
             onClick={() => onChange({ ...value, preset: option.id })}
             aria-pressed={value.preset === option.id}
-            className={`h-9 rounded-lg border px-3 font-label text-xs font-semibold transition-colors ${
+            className={`h-10 rounded-xl border px-3 font-label text-xs font-semibold transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-violet-200 ${
               value.preset === option.id
-                ? "border-violet-200 bg-violet-50 text-violet-700 shadow-sm"
-                : "border-[#e8e3db] bg-white text-on-surface-muted hover:border-violet-200 hover:text-violet-700"
+                ? "border-violet-600 bg-violet-600 text-white shadow-[0_4px_10px_rgba(109,40,217,0.2)]"
+                : "border-[#e8e3db] bg-[#fcfbf9] text-[#78716c] hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-700"
             }`}
           >
             {option.label}
@@ -80,7 +80,7 @@ export function RangePicker({
         value={range.start}
         max={range.end || undefined}
         onChange={(e) => onChange({ preset: "custom", start: e.target.value, end: range.end })}
-        className={`h-9 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 ${compact ? "w-[116px]" : "w-[142px]"}`}
+        className={`h-10 rounded-xl border border-surface-mid bg-[#fcfbf9] px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 ${compact ? "w-[116px]" : "w-[142px]"}`}
       />
       <span className="font-label text-xs text-on-surface-muted">to</span>
       <input
@@ -90,7 +90,7 @@ export function RangePicker({
         value={range.end}
         min={range.start || undefined}
         onChange={(e) => onChange({ preset: "custom", start: range.start, end: e.target.value })}
-        className={`h-9 rounded-lg border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 ${compact ? "w-[116px]" : "w-[142px]"}`}
+        className={`h-10 rounded-xl border border-surface-mid bg-[#fcfbf9] px-2.5 font-body text-xs font-semibold text-on-surface transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 ${compact ? "w-[116px]" : "w-[142px]"}`}
       />
     </div>
   );
