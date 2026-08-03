@@ -478,21 +478,6 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             <button onClick={() => setPageView("reengagement")} className={pillClass(false)}>Re-engagement</button>
           </div>
 
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((open) => !open)}
-              aria-expanded={filtersOpen}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
-                filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e8e3db] bg-white text-[#292524] hover:bg-[#f5f1eb]",
-              )}
-            >
-              <Filter size={14} />
-              Filters
-            </button>
-          </div>
-
           <div className={cn("flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between", !filtersOpen && "hidden")}>
             <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0 xl:hidden">
               <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
@@ -628,7 +613,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
           )}
         </div>
 
-        <div className="mb-5 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:mb-6 sm:p-6">
+        <div className="mb-5 max-w-6xl rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:mb-6 sm:p-6">
           <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="font-display text-sm font-bold text-primary">
               {sourceFilter !== "ALL" ? `Action Box — Filtered Leads` : `Action Box — ${SEGMENT_LABELS[tab]} Leads`}
@@ -639,6 +624,18 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                   Sent {lastResult.sent} · Failed {lastResult.failed} · Outside 24h window {lastResult.skipped_window}
                 </p>
               )}
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
+                  filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e8e3db] bg-white text-[#292524] hover:bg-[#f5f1eb]",
+                )}
+              >
+                <Filter size={14} />
+                Filters
+              </button>
               <button
                 onClick={() => setComposing(true)}
                 disabled={!canManageLeads}

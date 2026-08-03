@@ -380,7 +380,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/leads" && (
           <div className="mr-2 hidden items-center gap-2 xl:flex">
-          <nav aria-label="Lead sections" className="flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
+          <nav aria-label="Lead sections" className="order-2 flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
             {([
               { key: "leads", label: "Leads" },
               { key: "reengagement", label: "Re-engagement" },
@@ -407,7 +407,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
               );
             })}
           </nav>
-          <nav aria-label="Lead segments" className="flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
+          {tab !== "reengagement" && (
+          <nav aria-label="Lead segments" className="order-1 flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
             {([
               { key: "A", label: "Hot" },
               { key: "B", label: "Warm" },
@@ -432,6 +433,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
               </button>
             ))}
           </nav>
+          )}
           </div>
         )}
 
