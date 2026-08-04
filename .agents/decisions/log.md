@@ -850,3 +850,10 @@
 - **Channel layout**: Channel selection appears before the reporting period and uses a compact responsive control set. The closed filter panel is conditionally absent, so it does not leave vertical whitespace before the KPI row.
 - **Templates correctness**: Templates previously had no date-filtering contract (`template_performance(p_tenant_id)` was all-time only). Added `template_performance_range(p_tenant_id, p_start, p_end)` through `20260802173000_template_performance_date_range.sql`, applied it to live Supabase, and updated `/api/v1/analytics/template-performance` plus the client export/KPIs/table to use the same IST-aware selected window. The live function signature was verified after migration.
 - **UI follow-up**: Filter controls use compact rectangular buttons with purple active states, date fields stay inline, and Inbound Leads' independent filter grid was rebalanced to fill the available width.
+
+---
+
+**2026-08-04 — Dashboard app header fixed above scrolling page content**
+- **Decision**: `AppHeader` is fixed at the viewport top for the shared dashboard shell, matching the fixed sidebar, rather than relying on `position: sticky`. The desktop header begins after the 220px sidebar; the mobile header spans the viewport.
+- **Layout invariant**: preserve the existing 64px mobile / 80px desktop header dimensions. `ClientLayout` reserves that exact space with `pt-16 md:pt-20`; its Suspense fallback is fixed too, preventing a double-height gap or initial layout shift while the header loads.
+- **Files**: `frontend/components/AppHeader.tsx`, `frontend/app/dashboard/ClientLayout.tsx`. Frontend typecheck passed.

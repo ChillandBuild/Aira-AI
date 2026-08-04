@@ -1,6 +1,7 @@
 # Aira AI — Projects & Active Backlog
 
 ## Known Technical Debt
+- **Session-close tooling is incomplete on this Windows workspace (found 2026-08-04)**: `lefthook.yml` is present but no `lefthook` executable is on PATH, so hooks are no-ops. `gitleaks` is also unavailable, so the session-close credential scan falls back to four narrow patterns rather than a full scan. Install/expose both tools before treating local pre-commit hooks or closeout secret scans as coverage.
 - **Orphaned Database Tables**: Bot Flow Builder tables (`automations`, `automation_flow_runs`, `bot_flows`) still exist in the Supabase schema, although the backend and frontend engine code has been deleted.
 - **Stale Wiki References**: ✅ Cleared 2026-06-24. The graph carried 183 ghost nodes for deleted bot-flow modules because `graphify update` refuses to shrink the graph without `--force`. Ran `graphify update . --force` (4285 nodes, ghosts pruned) + `make wiki` (182 articles). `make wiki-refresh` now uses `--force` permanently, so deletions self-prune going forward.
 - **`pytest`/`pytest-asyncio` not in `backend/requirements.txt`** (found 2026-07-04 setting up a fresh worktree) — they're installed in the existing `backend/venv` but were added ad hoc at some point, not tracked. A brand-new checkout's `pip install -r requirements.txt` will NOT have them; had to `pip install pytest==9.1.1 pytest-asyncio==1.4.0` manually to match. Add both to requirements.txt.
