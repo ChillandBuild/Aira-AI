@@ -164,8 +164,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                 <Sidebar />
               </div>
 
-              <main className="flex min-h-screen min-w-0 flex-1 flex-col md:ml-[220px]">
-                <Suspense fallback={<div className="h-20 bg-[#faf8f5] border-b border-[#e8e3db]" />}>
+              <main className="flex min-h-screen min-w-0 flex-1 flex-col pt-16 md:ml-[220px] md:pt-20">
+                <Suspense fallback={<div className="fixed inset-x-0 top-0 z-40 h-16 border-b border-[#e8e3db] bg-[#faf8f5] md:left-[220px] md:h-20" />}>
                   <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
                 </Suspense>
                 <ClaimBanner />
