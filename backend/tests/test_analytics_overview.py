@@ -27,7 +27,7 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
         app.dependency_overrides.clear()
 
     def _mock_db(self, mock_get_db, leads_rows, prior_leads_rows, msgs_rows,
-                 handover_count=0):
+                 stage_events_rows, prior_stage_events_rows, handover_count=0):
         db = MagicMock()
 
         leads_tbl = MagicMock()
@@ -39,8 +39,16 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
         msgs_tbl = MagicMock()
         msgs_tbl.select.return_value.eq.return_value.gte.return_value.execute.return_value = MagicMock(data=msgs_rows)
 
+        events_tbl = MagicMock()
+        events_chain = events_tbl.select.return_value.eq.return_value.eq.return_value.gte.return_value
+        events_chain.execute.return_value = MagicMock(data=stage_events_rows)
+        # Prior-window fetch is select->eq->eq->gte->lt->execute (a single .gte()
+        # call, not two) -- .lt() is chained directly off events_chain, not off
+        # events_chain.gte again.
+        events_chain.lt.return_value.execute.return_value = MagicMock(data=prior_stage_events_rows)
+
         def table(name):
-            return {"leads": leads_tbl, "messages": msgs_tbl}[name]
+            return {"leads": leads_tbl, "messages": msgs_tbl, "lead_stage_events": events_tbl}[name]
 
         db.table.side_effect = table
         mock_get_db.return_value = db
@@ -48,7 +56,8 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
 
     @patch("app.routes.analytics.get_supabase")
     def test_daily_leads_trend_pct_none_when_no_prior_baseline(self, mock_get_db):
-        self._mock_db(mock_get_db, leads_rows=[], prior_leads_rows=[], msgs_rows=[])
+        self._mock_db(mock_get_db, leads_rows=[], prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=[], prior_stage_events_rows=[])
 
         res = self.client.get("/api/v1/analytics/overview?range=7d")
         self.assertEqual(res.status_code, 200)
@@ -66,7 +75,7 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
              "source": "whatsapp", "converted_at": None, "ad_campaign_id": None},
         ]
         self._mock_db(mock_get_db, leads_rows=current_leads, prior_leads_rows=[],
-                       msgs_rows=[])
+                       msgs_rows=[], stage_events_rows=[], prior_stage_events_rows=[])
 
         res = self.client.get("/api/v1/analytics/overview?range=7d")
         body = res.json()
@@ -84,7 +93,7 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
                          "source": "whatsapp", "converted_at": None} for i in range(2)]
 
         self._mock_db(mock_get_db, leads_rows=current_leads, prior_leads_rows=prior_leads,
-                       msgs_rows=[])
+                       msgs_rows=[], stage_events_rows=[], prior_stage_events_rows=[])
 
         res = self.client.get("/api/v1/analytics/overview?range=7d")
         body = res.json()
@@ -113,7 +122,8 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
             {"id": "l2", "created_at": (now - timedelta(days=30)).isoformat(),
              "converted_at": current_window_conversion.isoformat(), "segment": "A", "source": "whatsapp"},
         ]
-        self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[])
+        self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=[], prior_stage_events_rows=[])
 
         res = self.client.get("/api/v1/analytics/overview?range=7d")
         body = res.json()
@@ -122,28 +132,20 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
         self.assertEqual(body["converted_7d_trend_pct"], 0)
 
     @patch("app.routes.analytics.get_supabase")
-    def test_new_hot_leads_7d_counts_new_leads_currently_hot_not_rescoring_events(self, mock_get_db):
-        """new_hot_leads_7d = leads created in-window whose CURRENT segment is
-        A -- not a count of lead_stage_events rows. A lead already Hot that
-        gets rescored 5x today (event_type='score_updated' each time, per
-        ai_reply.py) must not inflate this past the number of distinct leads."""
+    def test_new_hot_leads_7d_counted_from_lead_stage_events(self, mock_get_db):
         from datetime import datetime, timezone
         today = datetime.now(timezone.utc).date().isoformat()
-        leads_rows = [
-            {"id": "l1", "created_at": f"{today}T09:00:00+00:00", "segment": "A",
-             "source": "whatsapp", "converted_at": None},
-            {"id": "l2", "created_at": f"{today}T11:00:00+00:00", "segment": "A",
-             "source": "whatsapp", "converted_at": None},
-            # Segment B lead created today must not count as hot.
-            {"id": "l3", "created_at": f"{today}T12:00:00+00:00", "segment": "B",
-             "source": "whatsapp", "converted_at": None},
+        stage_events = [
+            {"lead_id": "l1", "to_segment": "A", "created_at": f"{today}T09:00:00+00:00"},
+            {"lead_id": "l2", "to_segment": "A", "created_at": f"{today}T11:00:00+00:00"},
         ]
-        self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[])
+        self._mock_db(mock_get_db, leads_rows=[], prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=stage_events, prior_stage_events_rows=[])
 
         res = self.client.get("/api/v1/analytics/overview?range=7d")
         body = res.json()
         self.assertEqual(body["new_hot_leads_7d"], 2)
-        self.assertIsInstance(body["new_hot_leads_daily"], list)
+        self.assertIsInstance(body["new_hot_leads_7d_daily"], list)
         self.assertIsNone(body["new_hot_leads_7d_trend_pct"])  # empty prior window
 
     @patch("app.routes.analytics.get_supabase")
@@ -160,7 +162,8 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
             {"id": "l3", "created_at": f"{yesterday}T10:00:00+00:00", "segment": "C",
              "source": "whatsapp", "converted_at": None, "ad_campaign_id": "camp-2"},
         ]
-        self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[])
+        self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[],
+                       stage_events_rows=[], prior_stage_events_rows=[])
 
         res = self.client.get("/api/v1/analytics/overview?range=7d")
         body = res.json()

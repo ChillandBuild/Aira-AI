@@ -37,7 +37,6 @@ import {
   canLoadComparison,
   ComparisonSelection,
 } from "@/components/analytics/periodSelection";
-import { rangeFromSearchParams, rangeToSearchParams } from "@/components/analytics/rangeUrlState";
 
 type Tab = "overview" | "channels" | "templates" | "inbound";
 
@@ -671,12 +670,9 @@ export default function AnalyticsPage() {
     router.replace(`/dashboard/analytics?${params.toString()}`, { scroll: false });
   };
 
-  const range = useMemo(() => rangeFromSearchParams(searchParams), [searchParams]);
-  const setRange = (next: RangeValue) => {
-    const params = rangeToSearchParams(searchParams, next);
-    router.replace(`/dashboard/analytics?${params.toString()}`, { scroll: false });
-  };
-
+  const [range, setRange] = useState<RangeValue>({
+    preset: "last_7d", start: "", end: "",
+  });
   const [comparison, setComparison] = useState<ComparisonSelection>({
     mode: "off", start: "", end: "",
   });
@@ -703,12 +699,21 @@ export default function AnalyticsPage() {
           </nav>
         </div>
 
-        {activeTab === "overview" && (
+        {activeTab !== "templates" && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
-              Compare
+              Period
             </span>
-            <ComparisonPicker value={comparison} onChange={setComparison} />
+            <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+            {activeTab === "overview" && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
+                <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+                  Compare
+                </span>
+                <ComparisonPicker value={comparison} onChange={setComparison} />
+              </div>
+            )}
           </div>
         )}
       </div>

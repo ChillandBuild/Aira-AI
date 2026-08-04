@@ -7,8 +7,6 @@ import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders, api } from "@/lib/api";
-import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
-import { rangeFromSearchParams, rangeToSearchParams } from "@/components/analytics/rangeUrlState";
 
 import { cn } from "@/lib/utils";
 
@@ -201,11 +199,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
   const tab = searchParams.get("tab") || "";
   const leadSegment = searchParams.get("segment") || "A";
-  const analyticsRange = rangeFromSearchParams(searchParams);
-  const setAnalyticsRange = (next: RangeValue) => {
-    const params = rangeToSearchParams(searchParams, next);
-    router.replace(`/dashboard/analytics?${params.toString()}`, { scroll: false });
-  };
   const rolesTab = searchParams.get("tab") === "users" ? "users" : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
   const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState(true);
@@ -586,15 +579,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
 
-
-        {pathname === "/dashboard/analytics" && tab !== "templates" && (
-          <div className="hidden items-center gap-2 md:flex">
-            <span className="font-label text-xs font-bold text-[#78716c] whitespace-nowrap">
-              Period
-            </span>
-            <RangePicker value={analyticsRange} onChange={setAnalyticsRange} idPrefix="header-analytics-range" />
-          </div>
-        )}
 
         <button
           onClick={onOpenCalendar}
