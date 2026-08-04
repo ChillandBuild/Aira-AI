@@ -52,7 +52,7 @@ function pctVsYesterday(series: { day: string; count: number }[]): number | null
 
 export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
   const newLeadsToday = overview.daily_leads[overview.daily_leads.length - 1]?.count ?? 0;
-  const newHotLeadsToday = overview.new_hot_leads_7d_daily[overview.new_hot_leads_7d_daily.length - 1]?.count ?? 0;
+  const newHotLeadsToday = overview.new_hot_leads_daily[overview.new_hot_leads_daily.length - 1]?.count ?? 0;
 
   return (
     <div className="space-y-3">
@@ -75,10 +75,10 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
           glowColor="bg-amber-500/5 group-hover:bg-amber-500/10"
           label="New Hot Leads Today"
           value={newHotLeadsToday}
-          sparklineData={overview.new_hot_leads_7d_daily}
+          sparklineData={overview.new_hot_leads_daily}
           sparklineColor="#f59e0b"
           gradientId="hotLeadsGrad"
-          trendPct={pctVsYesterday(overview.new_hot_leads_7d_daily)}
+          trendPct={pctVsYesterday(overview.new_hot_leads_daily)}
           trendLabel="vs yesterday"
         />
         <HeroCard
