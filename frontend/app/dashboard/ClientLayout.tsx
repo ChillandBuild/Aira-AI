@@ -159,12 +159,12 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
         <NotificationProvider>
           <SessionTracker />
           <DashboardAuthGuard>
-            <div className="flex min-h-screen overflow-x-hidden bg-background">
+            <div className="flex h-screen overflow-hidden bg-background">
               <div className="hidden md:block">
                 <Sidebar />
               </div>
 
-              <main className="flex min-h-screen min-w-0 flex-1 flex-col md:ml-[220px]">
+              <main className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto md:ml-[220px]">
                 <Suspense fallback={<div className="h-20 bg-[#faf8f5] border-b border-[#e8e3db]" />}>
                   <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
                 </Suspense>
