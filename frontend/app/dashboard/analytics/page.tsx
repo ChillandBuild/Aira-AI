@@ -650,8 +650,8 @@ function InboundTab({ range }: { range: RangeValue }) {
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "channels", label: "Channels" },
-  { id: "overview", label: "Overview" },
-  { id: "inbound", label: "Inbound" },
+  { id: "inbound", label: "Inbound Leads" },
+  { id: "overview", label: "Outbound Leads" },
   { id: "templates", label: "Templates" },
 ];
 
@@ -680,7 +680,7 @@ export default function AnalyticsPage() {
   return (
     <div className="min-w-0">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <div className="-mx-1 overflow-x-auto px-1 pb-1 xl:hidden">
           <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
             {TABS.map((tab) => (
               <button
