@@ -661,25 +661,57 @@ export default function AnalyticsPage() {
   const [comparison, setComparison] = useState<ComparisonSelection>({
     mode: "off", start: "", end: "",
   });
+  const [showFilters, setShowFilters] = useState(false);
+  const hasActiveFilters = range.preset !== "last_7d" || comparison.mode !== "off";
 
   return (
     <div className="min-w-0">
       {activeTab !== "templates" && (
-        <div className="mb-5 flex flex-wrap items-center justify-end gap-2">
-          <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
-            Period
-          </span>
-          <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-          {activeTab === "overview" && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
-              <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
-                Compare
-              </span>
-              <ComparisonPicker value={comparison} onChange={setComparison} />
+        <>
+          <div className="mb-3 flex justify-end">
+            <button
+              onClick={() => setShowFilters((p) => !p)}
+              className={cn(
+                "flex items-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
+                showFilters || hasActiveFilters
+                  ? "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
+                  : "border-surface-mid bg-white text-on-surface hover:border-violet-300 hover:text-violet-700"
+              )}
+            >
+              <Filter size={12} />
+              <span>Filters</span>
+            </button>
+          </div>
+
+          <div className={cn(
+            "overflow-hidden transition-all duration-300 ease-in-out",
+            showFilters ? "mb-5 max-h-40 opacity-100" : "mb-0 max-h-0 opacity-0"
+          )}>
+            <div className="space-y-3 rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+                  <Filter size={13} />
+                </span>
+                <span className="font-label text-[13px] font-bold text-on-surface">Period Filters</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+                  Period
+                </span>
+                <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+                {activeTab === "overview" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
+                    <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+                      Compare
+                    </span>
+                    <ComparisonPicker value={comparison} onChange={setComparison} />
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
 
       {activeTab === "overview" && (
