@@ -420,10 +420,12 @@ export function CompareTab({
   range,
   comparison,
   onDataChange,
+  filtersButton,
 }: {
   range: RangeValue;
   comparison: ComparisonSelection;
   onDataChange?: (ready: boolean) => void;
+  filtersButton?: React.ReactNode;
 }) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
@@ -521,6 +523,7 @@ export function CompareTab({
               <Download size={12} />
               <span>Download CSV</span>
             </button>
+            {filtersButton}
           </div>
         </div>
       )}
