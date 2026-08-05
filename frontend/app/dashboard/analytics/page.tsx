@@ -204,11 +204,13 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
 
 function ChannelsTab({
   range,
+  setRange,
   filtersOpen,
   onToggleFilters,
   hasActiveFilters,
 }: {
   range: RangeValue;
+  setRange: (r: RangeValue) => void;
   filtersOpen: boolean;
   onToggleFilters: () => void;
   hasActiveFilters: boolean;
@@ -251,7 +253,7 @@ function ChannelsTab({
   };
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* ── Filter Panel ───────────────────────────────────────── */}
       <div className={cn(
         "overflow-hidden transition-all duration-300 ease-in-out",
@@ -262,27 +264,35 @@ function ChannelsTab({
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
               <Filter size={13} />
             </span>
-            <span className="font-label text-[13px] font-bold text-on-surface">Channel Filters</span>
+            <span className="font-label text-[13px] font-bold text-on-surface">Filters</span>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
-              Channel
-            </span>
-            <div className="flex gap-1.5 flex-wrap">
-              {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => setChannel(id)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
-                    channel === id
-                      ? "bg-primary-light text-primary ring-primary-muted"
-                      : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
-                  }`}
-                >
-                  <Icon size={12} />
-                  {label}
-                </button>
-              ))}
+          <div className="flex flex-wrap items-end gap-6">
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Channel
+              </span>
+              <div className="flex gap-1.5 flex-wrap">
+                {CHANNEL_OPTIONS.map(({ id, label, Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setChannel(id)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-label text-xs font-semibold transition-colors ring-1 ${
+                      channel === id
+                        ? "bg-primary-light text-primary ring-primary-muted"
+                        : "bg-surface text-on-surface-muted ring-[#c4c7c7]/15 hover:text-on-surface"
+                    }`}
+                  >
+                    <Icon size={12} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">
+                Period
+              </span>
+              <RangePicker value={range} onChange={setRange} idPrefix="channels-range" />
             </div>
           </div>
         </div>
@@ -673,7 +683,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-w-0">
-      {activeTab !== "templates" && (
+      {activeTab !== "templates" && activeTab !== "channels" && (
         <div className={cn(
           "overflow-hidden transition-all duration-300 ease-in-out",
           showFilters ? "mb-5 max-h-40 opacity-100" : "mb-0 max-h-0 opacity-0"
@@ -716,6 +726,7 @@ export default function AnalyticsPage() {
       {activeTab === "channels" && (
         <ChannelsTab
           range={range}
+          setRange={setRange}
           filtersOpen={showFilters}
           onToggleFilters={toggleFilters}
           hasActiveFilters={hasActiveFilters}
