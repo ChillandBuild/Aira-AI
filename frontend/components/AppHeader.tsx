@@ -378,6 +378,31 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           </div>
         )}
 
+        {pathname === "/dashboard/analytics" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {(["overview", "channels", "inbound", "templates"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (t === "overview") params.delete("tab");
+                  else params.set("tab", t);
+                  const query = params.toString();
+                  router.replace(`/dashboard/analytics${query ? `?${query}` : ""}`, { scroll: false });
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                  (tab === t || (t === "overview" && !tab))
+                    ? "bg-white text-primary shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
+              >
+                {t === "overview" ? "Overview" : t === "channels" ? "Channels" : t === "inbound" ? "Inbound" : "Templates"}
+              </button>
+            ))}
+          </div>
+        )}
+
         {pathname === "/dashboard/leads" && (
           <div className="mr-2 hidden items-center gap-2 xl:flex">
           <nav aria-label="Lead sections" className="order-2 flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">

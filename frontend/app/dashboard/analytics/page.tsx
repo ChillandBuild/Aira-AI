@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   BarChart,
   Bar,
@@ -648,27 +648,12 @@ function InboundTab({ range }: { range: RangeValue }) {
 
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "channels", label: "Channels" },
-  { id: "overview", label: "Overview" },
-  { id: "inbound", label: "Inbound" },
-  { id: "templates", label: "Templates" },
-];
-
 export default function AnalyticsPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   const activeTab: Tab = (rawTab === "overview" || rawTab === "channels" || rawTab === "inbound" || rawTab === "templates")
     ? rawTab
     : "overview";
-
-  const setActiveTab = (newTab: Tab) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (newTab === "overview") params.delete("tab");
-    else params.set("tab", newTab);
-    router.replace(`/dashboard/analytics?${params.toString()}`, { scroll: false });
-  };
 
   const [range, setRange] = useState<RangeValue>({
     preset: "last_7d", start: "", end: "",
@@ -679,44 +664,23 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-w-0">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <nav className="flex w-max gap-1 rounded-xl bg-surface-low p-1 ring-1 ring-[#c4c7c7]/15">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                aria-pressed={activeTab === tab.id}
-                className={`shrink-0 rounded-lg px-3 py-2 font-label text-xs font-semibold transition-colors sm:px-5 sm:text-sm ${
-                  activeTab === tab.id
-                    ? "bg-surface text-primary shadow-card"
-                    : "text-on-surface-muted hover:text-on-surface"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+      {activeTab !== "templates" && (
+        <div className="mb-5 flex flex-wrap items-center justify-end gap-2">
+          <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+            Period
+          </span>
+          <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
+          {activeTab === "overview" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
+              <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
+                Compare
+              </span>
+              <ComparisonPicker value={comparison} onChange={setComparison} />
+            </div>
+          )}
         </div>
-
-        {activeTab !== "templates" && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
-              Period
-            </span>
-            <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
-            {activeTab === "overview" && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
-                <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
-                  Compare
-                </span>
-                <ComparisonPicker value={comparison} onChange={setComparison} />
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       {activeTab === "overview" && (
         <CompareTab
