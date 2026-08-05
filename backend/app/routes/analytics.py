@@ -1083,37 +1083,19 @@ async def overview_analytics(
 
     prior_leads_rows = await fetch_all_rows(
         lambda: db.table("leads")
-        .select("id,created_at,converted_at")
+        .select("id,created_at,converted_at,segment")
         .eq("tenant_id", tenant_id)
         .is_("deleted_at", "null")
         .gte("created_at", prior_window_start_dt.isoformat())
         .lt("created_at", window_start_dt.isoformat())
     )
 
-    stage_events_rows = (
-        await asyncio.to_thread(
-            db.table("lead_stage_events")
-            .select("lead_id,to_segment,created_at")
-            .eq("tenant_id", tenant_id)
-            .eq("to_segment", "A")
-            .gte("created_at", window_start_dt.isoformat())
-            .execute
-        )
-    ).data or []
-
-    prior_stage_events_rows = (
-        await asyncio.to_thread(
-            db.table("lead_stage_events")
-            .select("lead_id,to_segment,created_at")
-            .eq("tenant_id", tenant_id)
-            .eq("to_segment", "A")
-            .gte("created_at", prior_window_start_dt.isoformat())
-            .lt("created_at", window_start_dt.isoformat())
-            .execute
-        )
-    ).data or []
-
     daily_leads_map = {d: 0 for d in days_iso_ist}
+    # Leads created within the window whose *current* segment is Hot (A) --
+    # not a count of hot-segment scoring events, which double-counts a lead
+    # every time they get rescored while already Hot. Reflects "of today's
+    # new leads, how many are hot right now," updating live as scores change.
+    hot_among_new_daily_map = {d: 0 for d in days_iso_ist}
     by_segment = {"A": 0, "B": 0, "C": 0, "D": 0}
     by_segment_today = {"A": 0, "B": 0, "C": 0, "D": 0}
     channel_breakdown = {
@@ -1151,6 +1133,8 @@ async def overview_analytics(
             by_segment[seg] += 1
             if is_today:
                 by_segment_today[seg] += 1
+        if seg == "A" and created in hot_among_new_daily_map:
+            hot_among_new_daily_map[created] += 1
         src = lead.get("source")
         if src in channel_breakdown:
             channel_breakdown[src] += 1
@@ -1184,14 +1168,9 @@ async def overview_analytics(
     )
     converted_7d_trend_pct = _pct_trend(converted_7d, prior_converted_7d)
 
-    new_hot_leads_daily_map = {d: 0 for d in days_iso_ist}
-    for event in stage_events_rows:
-        day = _to_ist_date(event.get("created_at"))
-        if day in new_hot_leads_daily_map:
-            new_hot_leads_daily_map[day] += 1
-
-    new_hot_leads_7d = sum(new_hot_leads_daily_map.values())
-    new_hot_leads_7d_trend_pct = _pct_trend(new_hot_leads_7d, len(prior_stage_events_rows))
+    new_hot_leads_7d = sum(hot_among_new_daily_map.values())
+    prior_hot_among_new = sum(1 for lead in prior_leads_rows if lead.get("segment") == "A")
+    new_hot_leads_7d_trend_pct = _pct_trend(new_hot_leads_7d, prior_hot_among_new)
 
     # Aggregate in SQL, never by pulling raw rows: PostgREST caps result sets
     # at 1000 and returns no error, which was silently dropping 250 of the
@@ -1322,7 +1301,7 @@ async def overview_analytics(
         "ad_attributed_leads": ad_attributed_leads,
         "ad_attributed_leads_today": ad_attributed_leads_today,
         "new_hot_leads_7d": new_hot_leads_7d,
-        "new_hot_leads_7d_daily": [{"day": d, "count": new_hot_leads_daily_map[d]} for d in days_iso_ist],
+        "new_hot_leads_daily": [{"day": d, "count": hot_among_new_daily_map[d]} for d in days_iso_ist],
         "new_hot_leads_7d_trend_pct": new_hot_leads_7d_trend_pct,
     }
 
