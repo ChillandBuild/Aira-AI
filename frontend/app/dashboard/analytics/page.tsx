@@ -33,6 +33,7 @@ import {
 import { CompareTab } from "./CompareTab";
 import { RangePicker, RangeValue } from "@/components/analytics/RangePicker";
 import { ComparisonPicker } from "@/components/analytics/ComparisonPicker";
+import { FiltersToggleButton } from "@/components/analytics/FiltersToggleButton";
 import {
   canLoadComparison,
   ComparisonSelection,
@@ -201,12 +202,21 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
   );
 }
 
-function ChannelsTab({ range, filtersButton }: { range: RangeValue; filtersButton?: React.ReactNode }) {
+function ChannelsTab({
+  range,
+  filtersOpen,
+  onToggleFilters,
+  hasActiveFilters,
+}: {
+  range: RangeValue;
+  filtersOpen: boolean;
+  onToggleFilters: () => void;
+  hasActiveFilters: boolean;
+}) {
   const [channel, setChannel] = useState<ChannelFilter>("all");
   const [data, setData] = useState<MessagingAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
   const rangeQuery = useMemo(() => reportingQuery(range), [range]);
   const canLoad = canLoadComparison(range, { mode: "off", start: "", end: "" });
 
@@ -245,7 +255,7 @@ function ChannelsTab({ range, filtersButton }: { range: RangeValue; filtersButto
       {/* ── Filter Panel ───────────────────────────────────────── */}
       <div className={cn(
         "overflow-hidden transition-all duration-300 ease-in-out",
-        showFilters ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
+        filtersOpen ? "max-h-64 opacity-100 mb-4" : "max-h-0 opacity-0 mb-0"
       )}>
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
@@ -311,27 +321,18 @@ function ChannelsTab({ range, filtersButton }: { range: RangeValue; filtersButto
             )}
           </div>
           <div className="flex flex-col justify-start gap-2 p-1">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowFilters((p) => !p)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
-                  showFilters
-                    ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                    : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
-                )}
-              >
-                <Filter size={12} />
-                <span>Filters</span>
-              </button>
-              <button
-                onClick={() => setRetryKey((k) => k + 1)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
-              >
-                <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
-                <span>Refresh</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setRetryKey((k) => k + 1)}
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+            >
+              <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </button>
+            <FiltersToggleButton
+              open={filtersOpen}
+              active={hasActiveFilters || channel !== "all"}
+              onClick={onToggleFilters}
+            />
             <button
               onClick={handleDownloadCsv}
               disabled={!data}
@@ -340,7 +341,6 @@ function ChannelsTab({ range, filtersButton }: { range: RangeValue; filtersButto
               <Download size={12} />
               <span>Download CSV</span>
             </button>
-            {filtersButton}
           </div>
         </div>
       )}
@@ -453,27 +453,17 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
           )}
         </div>
         <div className="flex flex-col justify-start gap-2 p-1">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowFilters((p) => !p)}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
-                showFilters
-                  ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                  : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
-              )}
-            >
-              <Filter size={12} />
-              <span>Filters</span>
-            </button>
-            <button
-              onClick={() => setRetryKey((k) => k + 1)}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
-            >
-              <RefreshCw size={12} className={!rows ? "animate-spin" : ""} />
-              <span>Refresh</span>
-            </button>
-          </div>
+          <button
+            onClick={() => setRetryKey((k) => k + 1)}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+          >
+            <RefreshCw size={12} className={!rows ? "animate-spin" : ""} />
+            <span>Refresh</span>
+          </button>
+          <FiltersToggleButton
+            open={showFilters}
+            onClick={() => setShowFilters((p) => !p)}
+          />
           <button
             onClick={handleDownloadCsv}
             disabled={!rows}
@@ -535,7 +525,17 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
 
 // ─── Inbound Tab ─────────────────────────────────────────────────────────────
 
-function InboundTab({ range, filtersButton }: { range: RangeValue; filtersButton?: React.ReactNode }) {
+function InboundTab({
+  range,
+  filtersOpen,
+  onToggleFilters,
+  hasActiveFilters,
+}: {
+  range: RangeValue;
+  filtersOpen: boolean;
+  onToggleFilters: () => void;
+  hasActiveFilters: boolean;
+}) {
   const [data, setData] = useState<InboundAnalytics | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -604,6 +604,11 @@ function InboundTab({ range, filtersButton }: { range: RangeValue; filtersButton
               <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
               <span>Refresh</span>
             </button>
+            <FiltersToggleButton
+              open={filtersOpen}
+              active={hasActiveFilters}
+              onClick={onToggleFilters}
+            />
             <button
               onClick={handleDownloadCsv}
               disabled={!data}
@@ -612,7 +617,6 @@ function InboundTab({ range, filtersButton }: { range: RangeValue; filtersButton
               <Download size={12} />
               <span>Download CSV</span>
             </button>
-            {filtersButton}
           </div>
         </div>
       )}
@@ -665,21 +669,7 @@ export default function AnalyticsPage() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const hasActiveFilters = range.preset !== "last_7d" || comparison.mode !== "off";
-
-  const periodFiltersButton = (
-    <button
-      onClick={() => setShowFilters((p) => !p)}
-      className={cn(
-        "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
-        showFilters || hasActiveFilters
-          ? "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
-          : "border-surface-mid bg-white text-on-surface hover:border-violet-300 hover:text-violet-700"
-      )}
-    >
-      <Filter size={12} />
-      <span>Filters</span>
-    </button>
-  );
+  const toggleFilters = () => setShowFilters((p) => !p);
 
   return (
     <div className="min-w-0">
@@ -718,11 +708,27 @@ export default function AnalyticsPage() {
         <CompareTab
           range={range}
           comparison={comparison}
-          filtersButton={periodFiltersButton}
+          filtersOpen={showFilters}
+          onToggleFilters={toggleFilters}
+          hasActiveFilters={hasActiveFilters}
         />
       )}
-      {activeTab === "channels" && <ChannelsTab range={range} filtersButton={periodFiltersButton} />}
-      {activeTab === "inbound" && <InboundTab range={range} filtersButton={periodFiltersButton} />}
+      {activeTab === "channels" && (
+        <ChannelsTab
+          range={range}
+          filtersOpen={showFilters}
+          onToggleFilters={toggleFilters}
+          hasActiveFilters={hasActiveFilters}
+        />
+      )}
+      {activeTab === "inbound" && (
+        <InboundTab
+          range={range}
+          filtersOpen={showFilters}
+          onToggleFilters={toggleFilters}
+          hasActiveFilters={hasActiveFilters}
+        />
+      )}
       {activeTab === "templates" && <TemplatesTab range={range} setRange={setRange} />}
     </div>
   );

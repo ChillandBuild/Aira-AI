@@ -9,6 +9,7 @@ import {
   RefreshCw, Download
 } from "lucide-react";
 import { RangeValue } from "@/components/analytics/RangePicker";
+import { FiltersToggleButton } from "@/components/analytics/FiltersToggleButton";
 import {
   api, CompareParams, ComparePayload, ComparePeriod, ComparePoint, CompareMetric, CompareMovement,
 } from "@/lib/api";
@@ -420,12 +421,16 @@ export function CompareTab({
   range,
   comparison,
   onDataChange,
-  filtersButton,
+  filtersOpen,
+  onToggleFilters,
+  hasActiveFilters,
 }: {
   range: RangeValue;
   comparison: ComparisonSelection;
   onDataChange?: (ready: boolean) => void;
-  filtersButton?: React.ReactNode;
+  filtersOpen: boolean;
+  onToggleFilters: () => void;
+  hasActiveFilters: boolean;
 }) {
   const [seriesId, setSeriesId] = useState<string>("leads_inbound");
   const [data, setData] = useState<ComparePayload | null>(null);
@@ -515,6 +520,11 @@ export function CompareTab({
               <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
               <span>Refresh</span>
             </button>
+            <FiltersToggleButton
+              open={filtersOpen}
+              active={hasActiveFilters}
+              onClick={onToggleFilters}
+            />
             <button
               onClick={handleExport}
               disabled={!data}
@@ -523,7 +533,6 @@ export function CompareTab({
               <Download size={12} />
               <span>Download CSV</span>
             </button>
-            {filtersButton}
           </div>
         </div>
       )}
