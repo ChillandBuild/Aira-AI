@@ -357,7 +357,7 @@ export interface AnalyticsOverview {
   ad_attributed_leads: number;
   ad_attributed_leads_today: number;
   new_hot_leads_7d: number;
-  new_hot_leads_7d_daily: { day: string; count: number }[];
+  new_hot_leads_daily: { day: string; count: number }[];
   new_hot_leads_7d_trend_pct: number | null;
 }
 
