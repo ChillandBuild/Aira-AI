@@ -1,6 +1,6 @@
 import logging
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role, require_permission
@@ -9,6 +9,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 require_conversations_view = require_permission("conversations.view")
 require_conversations_reply = require_permission("conversations.reply")
+
+IST_OFFSET = timedelta(hours=5, minutes=30)
+
+
+def _ist_today_start_utc() -> datetime:
+    """Midnight IST expressed as a UTC datetime -- tenant is IST, dashboard
+    labels this "Escalations" card as a same-day count."""
+    now_ist = datetime.now(timezone.utc) + IST_OFFSET
+    midnight_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight_ist - IST_OFFSET
 
 
 @router.get("/")
@@ -48,10 +58,18 @@ def list_handovers(ctx: dict = Depends(require_conversations_view)):
 
 
 @router.get("/count")
-def handover_count(ctx: dict = Depends(require_conversations_view)):
-    """Sidebar badge polls this every 60s. Swallow transient Supabase
-    HTTP/2 disconnects (RemoteProtocolError) so a flaky connection doesn't
-    spam 500s into the UI — the next poll will succeed."""
+def handover_count(
+    today_only: bool = Query(False),
+    ctx: dict = Depends(require_conversations_view),
+):
+    """Sidebar badge (and the conversations-page tab badge) poll this every
+    60s for the full pending backlog. Swallow transient Supabase HTTP/2
+    disconnects (RemoteProtocolError) so a flaky connection doesn't spam
+    500s into the UI — the next poll will succeed.
+
+    `today_only` scopes the count to escalations opened since IST midnight,
+    for the dashboard home "Escalations" card, which sits alongside other
+    same-day KPIs and shouldn't include the all-time backlog."""
     db = get_supabase()
     query = (
         db.table("chat_handovers")
@@ -61,6 +79,8 @@ def handover_count(ctx: dict = Depends(require_conversations_view)):
     )
     # Shared escalation pool: all tenant users (admin + every telecaller) see all
     # pending handovers, so whoever is free can pick one up and resolve it.
+    if today_only:
+        query = query.gte("opened_at", _ist_today_start_utc().isoformat())
     try:
         result = query.execute()
     except Exception as e:

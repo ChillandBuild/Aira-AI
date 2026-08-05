@@ -178,6 +178,19 @@ def _ist_today_start_utc() -> datetime:
     return midnight_ist - IST_OFFSET
 
 
+def _to_ist_date(iso_ts: str | None) -> str:
+    """Convert a UTC ISO timestamp to its IST calendar date (YYYY-MM-DD)."""
+    if not iso_ts:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return (dt + IST_OFFSET).date().isoformat()
+    except ValueError:
+        return iso_ts[:10]
+
+
 def _is_connected(log: dict) -> bool:
     """A call is 'connected' if it had talk time or a non-no_answer outcome."""
     manual_status = log.get("manual_status")
@@ -1040,11 +1053,26 @@ async def overview_analytics(
     """Dashboard root — KPIs and N-day series."""
     db = get_supabase()
     now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start_utc = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = _ist_today_start_utc()
+    today_ist_date = (now + IST_OFFSET).date()
+    today_iso_date = today_ist_date.isoformat()
 
     window_start_dt, days_iso = _range_params(range)
     window_span = now - window_start_dt
     prior_window_start_dt = window_start_dt - window_span
+
+    # Lead/hot-lead "today" buckets use IST calendar days (tenant is IST) --
+    # decoupled from `days_iso` above, which the messages block below still
+    # keys in UTC to match its RPC's p_timezone='UTC' day keys.
+    # `range` above is this route's query param, so the `range()` builtin
+    # is shadowed here -- build the day list with an explicit loop instead.
+    _day_count = 1 if range == "today" else 30 if range == "30d" else 7
+    days_iso_ist = []
+    _cursor = today_ist_date - timedelta(days=_day_count - 1)
+    while _cursor <= today_ist_date:
+        days_iso_ist.append(_cursor.isoformat())
+        _cursor += timedelta(days=1)
 
     leads_rows = await fetch_all_rows(
         lambda: db.table("leads")
@@ -1085,7 +1113,7 @@ async def overview_analytics(
         )
     ).data or []
 
-    daily_leads_map = {d: 0 for d in days_iso}
+    daily_leads_map = {d: 0 for d in days_iso_ist}
     by_segment = {"A": 0, "B": 0, "C": 0, "D": 0}
     by_segment_today = {"A": 0, "B": 0, "C": 0, "D": 0}
     channel_breakdown = {
@@ -1105,10 +1133,9 @@ async def overview_analytics(
     week_start_for_funnel = now - timedelta(days=7)
     ad_attributed_leads = 0
     ad_attributed_leads_today = 0
-    today_iso_date = today_start.date().isoformat()
 
     for lead in leads_rows:
-        created = (lead.get("created_at") or "")[:10]
+        created = _to_ist_date(lead.get("created_at"))
         is_today = created == today_iso_date
         if created in daily_leads_map:
             daily_leads_map[created] += 1
@@ -1157,9 +1184,9 @@ async def overview_analytics(
     )
     converted_7d_trend_pct = _pct_trend(converted_7d, prior_converted_7d)
 
-    new_hot_leads_daily_map = {d: 0 for d in days_iso}
+    new_hot_leads_daily_map = {d: 0 for d in days_iso_ist}
     for event in stage_events_rows:
-        day = (event.get("created_at") or "")[:10]
+        day = _to_ist_date(event.get("created_at"))
         if day in new_hot_leads_daily_map:
             new_hot_leads_daily_map[day] += 1
 
@@ -1187,7 +1214,7 @@ async def overview_analytics(
     daily_msgs_map = {d: {"inbound": 0, "outbound": 0, "ai": 0, "human": 0} for d in days_iso}
     ai_count = 0
     human_count = 0
-    today_iso_day = today_start.date().isoformat()
+    today_iso_day = today_start_utc.date().isoformat()
     ai_handled_today = 0
     for row in daily_msg_rows:
         day = str(row.get("day") or "")
@@ -1263,7 +1290,7 @@ async def overview_analytics(
     return {
         "money": money_rows[0] if money_rows else {},
         "response_times": response_rows[0] if response_rows else {},
-        "daily_leads": [{"day": d, "count": daily_leads_map[d]} for d in days_iso],
+        "daily_leads": [{"day": d, "count": daily_leads_map[d]} for d in days_iso_ist],
         "daily_leads_trend_pct": daily_leads_trend_pct,
         "daily_messages": [
             {
@@ -1295,7 +1322,7 @@ async def overview_analytics(
         "ad_attributed_leads": ad_attributed_leads,
         "ad_attributed_leads_today": ad_attributed_leads_today,
         "new_hot_leads_7d": new_hot_leads_7d,
-        "new_hot_leads_7d_daily": [{"day": d, "count": new_hot_leads_daily_map[d]} for d in days_iso],
+        "new_hot_leads_7d_daily": [{"day": d, "count": new_hot_leads_daily_map[d]} for d in days_iso_ist],
         "new_hot_leads_7d_trend_pct": new_hot_leads_7d_trend_pct,
     }
 

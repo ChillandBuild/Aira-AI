@@ -7,7 +7,7 @@ export function AiWorkloadSection({ overview }: { overview: AnalyticsOverview })
 
   useEffect(() => {
     let active = true;
-    api.chatHandovers.count()
+    api.chatHandovers.count(true)
       .then(res => { if (active) setEscalations(res.count); })
       .catch(() => { if (active) setEscalations(null); });
     return () => { active = false; };

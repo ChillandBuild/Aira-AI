@@ -1976,7 +1976,10 @@ export const api = {
       }),
   },
   chatHandovers: {
-    count: () => apiFetch<{ count: number }>(`/api/v1/chat-handovers/count`),
+    count: (todayOnly?: boolean) =>
+      apiFetch<{ count: number }>(
+        `/api/v1/chat-handovers/count${todayOnly ? "?today_only=true" : ""}`
+      ),
     assign: (handoverId: string, callerId: string) =>
       apiFetch<{ assigned: boolean }>(`/api/v1/chat-handovers/${handoverId}/assign`, {
         method: "PATCH",
