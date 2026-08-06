@@ -114,3 +114,149 @@ async def test_extract_fields_returns_unchanged_on_llm_error():
     with patch.object(eh, "gemini_chat_completion_json", new=AsyncMock(side_effect=RuntimeError("timeout"))):
         result = await eh.extract_fields("random unrelated text", fields=_FIELDS, collected_data={"name": "Priya"}, tenant_id="t-1")
     assert result == {"name": "Priya"}
+
+
+def _session_db(existing_session=None, lead=None):
+    """Builds a MagicMock db where .table('expert_handoff_sessions') and
+    .table('leads') and .table('app_settings') and .table('messages') all
+    behave plausibly for route_expert_handoff's queries."""
+    db = MagicMock()
+
+    def make_table(name):
+        t = MagicMock()
+        if name == "expert_handoff_sessions":
+            active_row = MagicMock()
+            active_row.data = [existing_session] if existing_session else []
+            t.select.return_value.eq.return_value.eq.return_value.neq.return_value.order.return_value.limit.return_value.execute.return_value = active_row
+
+            insert_result = MagicMock()
+            created = {**(existing_session or {}), "id": "sess-1", "status": "offer_pending", "collected_data": {}}
+            insert_result.data = [created]
+            t.insert.return_value.execute.return_value = insert_result
+
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "app_settings":
+            row = MagicMock()
+            row.data = {"value": '{"enabled": true, "trigger_description": "personal question", "offer_message": "Talk to our expert?", "fields": [{"key": "name", "label": "Full name", "type": "text"}], "amount_paise": 2900}'}
+            t.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+        elif name == "leads":
+            row = MagicMock()
+            row.data = lead or {"id": "lead-1", "ai_enabled": True}
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "messages":
+            t.insert.return_value.execute.return_value = MagicMock()
+        return t
+
+    cache = {}
+    def selector(name):
+        if name not in cache:
+            cache[name] = make_table(name)
+        return cache[name]
+    db.table.side_effect = selector
+    return db
+
+
+@pytest.mark.asyncio
+async def test_route_expert_handoff_sends_offer_on_new_matching_intent():
+    db = _session_db()
+    with patch.object(eh, "detect_expert_handoff_intent", new=AsyncMock(return_value=True)), \
+         patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_expert_handoff("lead-1", "t-1", "+91999", "Will I get married?", db=db)
+    assert consumed is True
+    send.assert_awaited_once()
+    assert "Talk to our expert" in send.call_args[0][1]
+
+
+@pytest.mark.asyncio
+async def test_route_expert_handoff_ignores_when_feature_disabled():
+    db = MagicMock()
+    row = MagicMock()
+    row.data = {"value": '{"enabled": false}'}
+    db.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+    active_row = MagicMock()
+    active_row.data = []
+    db.table.return_value.select.return_value.eq.return_value.eq.return_value.neq.return_value.order.return_value.limit.return_value.execute.return_value = active_row
+
+    consumed = await eh.route_expert_handoff("lead-1", "t-1", "+91999", "Will I get married?", db=db)
+    assert consumed is False
+
+
+@pytest.mark.asyncio
+async def test_route_expert_handoff_starts_collecting_on_affirmative_reply():
+    session = {"id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "offer_pending", "collected_data": {}}
+    db = _session_db(existing_session=session)
+    with patch.object(eh, "extract_fields", new=AsyncMock(return_value={"name": "Priya"})), \
+         patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_expert_handoff("lead-1", "t-1", "+91999", "yes, I'm Priya", db=db)
+    assert consumed is True
+    send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_route_expert_handoff_cancels_on_negative_reply():
+    session = {"id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "offer_pending", "collected_data": {}}
+    db = _session_db(existing_session=session)
+    consumed = await eh.route_expert_handoff("lead-1", "t-1", "+91999", "no thanks", db=db)
+    assert consumed is False
+
+
+@pytest.mark.asyncio
+async def test_route_expert_handoff_moves_to_confirmation_when_all_fields_filled():
+    session = {"id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "collecting", "collected_data": {}}
+    db = _session_db(existing_session=session)
+    with patch.object(eh, "extract_fields", new=AsyncMock(return_value={"name": "Priya"})), \
+         patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_expert_handoff("lead-1", "t-1", "+91999", "I'm Priya", db=db)
+    assert consumed is True
+    assert "Priya" in send.call_args[0][1]  # summary shown
+
+
+@pytest.mark.asyncio
+async def test_route_expert_handoff_sends_payment_link_on_confirmation_yes():
+    session = {"id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_confirmation", "collected_data": {"name": "Priya"}}
+    db = _session_db(existing_session=session)
+    with patch.object(eh, "create_payment_link", new=AsyncMock(return_value={"payment_link_url": "https://rzp.io/x", "razorpay_payment_link_id": "plink_1"})), \
+         patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_expert_handoff("lead-1", "t-1", "+91999", "yes correct", db=db)
+    assert consumed is True
+    assert "https://rzp.io/x" in send.call_args[0][1]
+
+
+def test_confirm_expert_handoff_payment_mutes_ai_and_marks_paid():
+    session_row = {"id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1", "tenant_id": "t-1", "collected_data": {"name": "Priya"}}
+    lead_row = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
+    db = MagicMock()
+
+    def make_table(name):
+        t = MagicMock()
+        if name == "expert_handoff_sessions":
+            fetch = MagicMock()
+            fetch.data = session_row
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "leads":
+            fetch = MagicMock()
+            fetch.data = lead_row
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        return t
+
+    cache = {}
+    def selector(name):
+        if name not in cache:
+            cache[name] = make_table(name)
+        return cache[name]
+    db.table.side_effect = selector
+
+    result = eh.confirm_expert_handoff_payment("sess-1", "pay_abc123", db=db)
+    assert result == ("+919876543210", "t-1", "lead-1", "Priya")
+    db.table("leads").update.assert_any_call({"ai_enabled": False})
+
+
+def test_confirm_expert_handoff_payment_idempotent_when_already_paid():
+    db = MagicMock()
+    fetch = MagicMock()
+    fetch.data = {"id": "sess-1", "status": "paid", "lead_id": "lead-1", "tenant_id": "t-1", "collected_data": {}}
+    db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
+    assert eh.confirm_expert_handoff_payment("sess-1", "pay_abc123", db=db) is None
