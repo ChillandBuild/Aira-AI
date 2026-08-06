@@ -309,6 +309,13 @@ async def _process_inbound_message_background(
         # Route text-like inbound content, including transcribed audio, into the reply engine.
         if msg_type in ("text", "button", "interactive", "audio") and body:
             try:
+                from app.services.expert_handoff import route_expert_handoff
+                consumed = await route_expert_handoff(lead_id=lead_id, tenant_id=tenant_id, phone=phone, body=body, db=db)
+                if consumed:
+                    return
+            except Exception as e:
+                logger.error(f"Expert handoff routing failed for lead {lead_id}: {e}")
+            try:
                 from app.services.context_builder import build_scorer_context
                 context_block = build_scorer_context(lead_id, db)
                 from app.services.ai_reply import generate_reply
