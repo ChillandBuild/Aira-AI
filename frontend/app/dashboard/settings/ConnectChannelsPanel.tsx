@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import {
   MessageSquare, Send, Eye, EyeOff, Save, AlertCircle, Loader2,
   CheckCircle2, Copy, Check, Zap, XCircle, X, ArrowRight, RefreshCw, Settings2, ShieldCheck,
-  Megaphone
+  Megaphone, IndianRupee
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -237,6 +237,21 @@ const CHANNELS: ChannelConfig[] = [
       { key: "telegram_bot_token", label: "Telegram Bot Token", secret: true, required: true, hint: "Obtain this token from @BotFather on Telegram" },
     ],
     hasActivation: true,
+  },
+  {
+    id: "razorpay",
+    name: "Razorpay Payments",
+    description: "Accept in-chat consultation payments (e.g. Paid Expert Handoff) directly into your own Razorpay account.",
+    icon: IndianRupee,
+    iconBg: "bg-violet-100",
+    iconColor: "text-violet-600",
+    themeColor: "violet",
+    fields: [
+      { key: "razorpay_key_id", label: "Key ID", secret: false, required: true, hint: "Razorpay Dashboard → Settings → API Keys." },
+      { key: "razorpay_key_secret", label: "Key Secret", secret: true, required: true },
+      { key: "razorpay_webhook_secret", label: "Webhook Secret", secret: true, required: true, hint: "Set this exact value as the Secret when creating the webhook in Razorpay Dashboard → Settings → Webhooks, pointed at the URL below." },
+    ],
+    hasActivation: false,
   },
 ];
 
@@ -494,6 +509,26 @@ function WebhookConfigGuide({ channelId, tenantId }: { channelId: string; tenant
         <p>3. Use the same verify token configured in your WhatsApp integration (meta_webhook_verify_token).</p>
         <p>4. Subscribe to <strong>messages</strong> Webhook event fields under your Page.</p>
         <p>5. After saving credentials, click <strong>Validate &amp; Activate</strong> to auto-subscribe the webhook.</p>
+      </div>
+    );
+  }
+
+  if (channelId === "razorpay") {
+    const url = `${API_URL}/api/v1/expert-handoff/razorpay-webhook`;
+    return (
+      <div className="p-5 rounded-2xl bg-surface-subtle border border-border-subtle font-body text-xs text-ink-secondary space-y-2.5">
+        <p className="font-semibold text-ink text-sm">Razorpay Webhook Configuration Guide:</p>
+        <p>1. In Razorpay Dashboard, go to <strong>Settings → Webhooks → Add New Webhook</strong>.</p>
+        <p>2. Set the Webhook URL to:</p>
+        <div className="flex items-center gap-2">
+          <div className="flex-grow p-3 rounded-xl bg-white border border-border font-mono text-xs select-all break-all text-primary font-medium">
+            {url}
+          </div>
+          <CopyButton text={url} />
+        </div>
+        <p>3. Subscribe to the <strong>payment_link.paid</strong> event only.</p>
+        <p>4. Set the webhook Secret to the same value you paste into <strong>Webhook Secret</strong> below.</p>
+        <p>5. No Activate step here — payments start working as soon as all three fields are saved and a lead pays.</p>
       </div>
     );
   }
