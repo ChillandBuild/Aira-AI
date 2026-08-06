@@ -69,3 +69,48 @@ async def test_detect_expert_handoff_intent_fails_closed_on_llm_error():
             tenant_id="t-1",
         )
     assert result is False
+
+
+_FIELDS = [
+    {"key": "name", "label": "Full name", "type": "text"},
+    {"key": "date_of_birth", "label": "Date of birth", "type": "date"},
+    {"key": "birthplace", "label": "Birthplace", "type": "text"},
+]
+
+
+def test_missing_field_labels_returns_unfilled_only():
+    collected = {"name": "Priya"}
+    assert eh.missing_field_labels(_FIELDS, collected) == ["Date of birth", "Birthplace"]
+
+
+def test_missing_field_labels_empty_when_all_filled():
+    collected = {"name": "Priya", "date_of_birth": "5 March 1995", "birthplace": "Chennai"}
+    assert eh.missing_field_labels(_FIELDS, collected) == []
+
+
+@pytest.mark.asyncio
+async def test_extract_fields_merges_new_values_over_existing():
+    llm_response = {"name": "Priya", "date_of_birth": "5 March 1995"}
+    with patch.object(eh, "gemini_chat_completion_json", new=AsyncMock(return_value=llm_response)):
+        result = await eh.extract_fields(
+            "I'm Priya, born 5 March 1995",
+            fields=_FIELDS,
+            collected_data={"birthplace": "Chennai"},  # already had this from an earlier turn
+            tenant_id="t-1",
+        )
+    assert result == {"birthplace": "Chennai", "name": "Priya", "date_of_birth": "5 March 1995"}
+
+
+@pytest.mark.asyncio
+async def test_extract_fields_ignores_unknown_keys_from_llm():
+    with patch.object(eh, "gemini_chat_completion_json", new=AsyncMock(return_value={"name": "Priya", "favorite_color": "blue"})):
+        result = await eh.extract_fields("I'm Priya", fields=_FIELDS, collected_data={}, tenant_id="t-1")
+    assert result == {"name": "Priya"}
+    assert "favorite_color" not in result
+
+
+@pytest.mark.asyncio
+async def test_extract_fields_returns_unchanged_on_llm_error():
+    with patch.object(eh, "gemini_chat_completion_json", new=AsyncMock(side_effect=RuntimeError("timeout"))):
+        result = await eh.extract_fields("random unrelated text", fields=_FIELDS, collected_data={"name": "Priya"}, tenant_id="t-1")
+    assert result == {"name": "Priya"}
