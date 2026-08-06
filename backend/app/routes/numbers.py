@@ -112,7 +112,20 @@ async def update_phone_number(
         updates["warm_up_day"] = payload.warm_up_day
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
-        
+
+    # Setting role="primary" is always allowed -- it's the unlock mechanism
+    # itself (the primary slot is always guaranteed). Any other attempt to
+    # activate a currently-locked number (flip to active, or resume outbound)
+    # is blocked until the client either sets it primary or upgrades.
+    attempting_activation = payload.status == "active" or payload.paused_outbound is False
+    if attempting_activation and payload.role != "primary":
+        unlocked_ids = get_unlocked_number_ids(db, tenant_id)
+        if str(number_id) not in unlocked_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="This number is locked by your numbers pool quota. Set it as primary or upgrade in Subscriptions to activate it.",
+            )
+
     if payload.role == "primary":
         # Ensure exclusive primary logic: demote all other primary numbers to standby
         db.table("phone_numbers").update({"role": "standby"}).eq("tenant_id", tenant_id).eq("role", "primary").execute()

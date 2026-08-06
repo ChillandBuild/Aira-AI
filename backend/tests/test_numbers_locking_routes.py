@@ -57,5 +57,106 @@ class NumbersLockingGetTests(unittest.TestCase):
         self.assertFalse(res.json()["data"][0]["locked"])
 
 
+class NumbersLockingPatchTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_id] = lambda: "tenant-1"
+        app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": "tenant-1", "role": "owner"}
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
+    def test_blocks_activating_locked_number(self, mock_get_db, mock_unlocked):
+        mock_get_db.return_value = MagicMock()
+        mock_unlocked.return_value = set()
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"status": "active"},
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("locked", res.json()["detail"].lower())
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
+    def test_blocks_resuming_locked_number(self, mock_get_db, mock_unlocked):
+        mock_get_db.return_value = MagicMock()
+        mock_unlocked.return_value = set()
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"paused_outbound": False},
+        )
+        self.assertEqual(res.status_code, 400)
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
+    def test_allows_pausing_a_locked_number(self, mock_get_db, mock_unlocked):
+        db = MagicMock()
+        db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"id": "num-1", "paused_outbound": True}]
+        )
+        mock_get_db.return_value = db
+        mock_unlocked.return_value = set()
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"paused_outbound": True},
+        )
+        self.assertEqual(res.status_code, 200)
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
+    def test_allows_setting_locked_number_as_primary(self, mock_get_db, mock_unlocked):
+        db = MagicMock()
+        db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"id": "num-1", "role": "primary"}]
+        )
+        mock_get_db.return_value = db
+        mock_unlocked.return_value = set()  # currently locked -- Set Primary is the unlock action
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"role": "primary"},
+        )
+        self.assertEqual(res.status_code, 200)
+        mock_unlocked.assert_not_called()
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
+    def test_allows_rename_on_locked_number(self, mock_get_db, mock_unlocked):
+        db = MagicMock()
+        db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"id": "num-1", "display_name": "New Name"}]
+        )
+        mock_get_db.return_value = db
+        mock_unlocked.return_value = set()
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"display_name": "New Name"},
+        )
+        self.assertEqual(res.status_code, 200)
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
+    def test_allows_activating_an_unlocked_number(self, mock_get_db, mock_unlocked):
+        db = MagicMock()
+        db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"id": "00000000-0000-0000-0000-000000000001", "status": "active"}]
+        )
+        mock_get_db.return_value = db
+        mock_unlocked.return_value = {"00000000-0000-0000-0000-000000000001"}
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"status": "active"},
+        )
+        self.assertEqual(res.status_code, 200)
+
+
 if __name__ == "__main__":
     unittest.main()
