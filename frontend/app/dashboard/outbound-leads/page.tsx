@@ -2013,7 +2013,7 @@ export default function OutboundLeadsPage() {
                     { label: "Leads Count", value: parsedData.total_rows.toLocaleString() },
                     { label: "Consent Source", value: optInSource.replace(/_/g, " ") },
                     { label: "Active Template", value: templateName },
-                    { label: "Dispatch Plan", value: scheduleType === "now" ? "Send Immediately" : scheduleType === "scheduled" ? `At ${scheduleAt}` : `Drip over ${dripDays} days${dripSendTime ? ` · ${dripSendTime} IST daily` : ""}` },
+                    { label: "Dispatch Plan", value: scheduleType === "now" ? "Send Immediately" : scheduleType === "scheduled" ? `At ${scheduleAt ? new Date(scheduleAt).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "—"}` : `Drip over ${dripDays} days${dripSendTime ? ` · ${dripSendTime} IST daily` : ""}` },
                   ].map(({ label, value }) => (
                     <div key={label} className="p-4 bg-surface-low rounded-xl border border-surface-mid">
                       <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider mb-1 font-bold">{label}</p>
