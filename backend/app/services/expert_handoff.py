@@ -7,6 +7,8 @@ lead once paid.
 import json
 import logging
 
+from app.services.gemini_client import gemini_chat_completion_json
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG = {
@@ -54,3 +56,32 @@ def save_expert_handoff_config(tenant_id: str, config: dict, db=None) -> None:
         },
         on_conflict="tenant_id,key",
     ).execute()
+
+
+_DETECTION_SYSTEM_PROMPT = """You are a classifier. Given a business's description of what
+kind of message should trigger a paid human-expert handoff, and one incoming customer
+message, decide if THIS message matches that description.
+
+Respond with JSON only: {"matches": true} or {"matches": false}. No other text."""
+
+
+async def detect_expert_handoff_intent(message: str, trigger_description: str, tenant_id: str) -> bool:
+    """Fail closed: any error, empty trigger_description, or unparseable response -> False.
+    A missed offer is recoverable (the lead can ask again); a wrongly-triggered paid
+    flow from a classifier hiccup is not."""
+    if not trigger_description:
+        return False
+    user_prompt = f"Trigger description: {trigger_description}\n\nCustomer message: {message}"
+    try:
+        data = await gemini_chat_completion_json(
+            system_prompt=_DETECTION_SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            temperature=0.0,
+            max_tokens=50,
+            tenant_id=tenant_id,
+            purpose="expert_handoff_detection",
+        )
+        return bool(data.get("matches") is True)
+    except Exception as e:
+        logger.warning(f"Expert handoff detection failed, defaulting to no-match: {e}")
+        return False
