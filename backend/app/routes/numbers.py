@@ -3,10 +3,15 @@ from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
-from app.services.meta_cloud import get_number_quality
-from app.services.numbers_pool import get_unlocked_number_ids, numbers_pool_limit
+from app.services.meta_cloud import get_number_quality, list_waba_phone_numbers
+from app.services.numbers_pool import (
+    get_unlocked_number_ids,
+    normalize_phone_number,
+    numbers_pool_limit,
+)
 
 logger = logging.getLogger(__name__)
 require_numbers_read = require_permission("numbers.view")

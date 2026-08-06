@@ -875,6 +875,39 @@ async def list_all_templates(
     return templates
 
 
+async def list_waba_phone_numbers(
+    waba_id: str,
+    access_token: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+) -> list[dict]:
+    """
+    Fetch every phone number registered on a WABA, handling pagination.
+    Returns Meta's raw phone-number dicts (id, display_phone_number,
+    verified_name, quality_rating, messaging_limit_tier).
+    """
+    _, tok = _creds("placeholder", access_token, tenant_id)
+    url = f"{_GRAPH_BASE}/{waba_id}/phone_numbers"
+    params = {
+        "fields": "id,display_phone_number,verified_name,quality_rating,messaging_limit_tier",
+        "limit": 100,
+    }
+    numbers: list[dict] = []
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        while url:
+            resp = await client.get(url, params=params, headers={"Authorization": f"Bearer {tok}"})
+            if not resp.is_success:
+                logger.error("list_waba_phone_numbers failed: %s %s", resp.status_code, resp.text)
+                break
+            body = resp.json()
+            numbers.extend(body.get("data", []))
+            next_url = body.get("paging", {}).get("next")
+            url = next_url  # type: ignore[assignment]
+            params = {}  # params are embedded in next_url cursor
+
+    return numbers
+
+
 async def delete_template_from_meta(
     template_name: str,
     waba_id: str,
