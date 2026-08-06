@@ -1,6 +1,7 @@
 import logging
 
 from app.db.supabase import get_supabase
+from app.services.numbers_pool import get_unlocked_number_ids
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,12 @@ async def get_best_number(tenant_id: str) -> dict | None:
     )
     if not rows:
         logger.warning("No healthy outbound numbers available")
+        return None
+
+    unlocked_ids = get_unlocked_number_ids(db, tenant_id)
+    rows = [r for r in rows if r["id"] in unlocked_ids]
+    if not rows:
+        logger.warning("All outbound numbers are locked by the numbers pool quota")
         return None
 
     def _sort_key(row: dict) -> tuple:
