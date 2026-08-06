@@ -235,6 +235,56 @@ def _process_chain(db, original: dict) -> None:
     logger.info(f"Broadcast retry chain {parent_id}: queued attempt {attempt_no} for {len(eligible)} leads")
 
 
+def queue_manual_retry(db, tenant_id: str, broadcast_id: str) -> dict:
+    """User-triggered retry — same eligibility/insert as the auto chain, fired now
+    instead of waiting for the wall-clock retry_time. Returns {"queued": N}."""
+    original = (
+        db.table("scheduled_broadcasts")
+        .select("id,tenant_id,template_name,variable_mapping,opt_in_source,tag_id,status,retry_of,executed_at,fire_at")
+        .eq("id", broadcast_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    if not original or not original.data:
+        raise ValueError("Broadcast not found")
+    row = original.data
+    if row.get("retry_of"):
+        raise ValueError("This is already a retry attempt — retry the original broadcast instead")
+    if row.get("status") != "done":
+        raise ValueError("Broadcast must have finished sending before it can be retried")
+
+    children = (
+        db.table("scheduled_broadcasts")
+        .select("id")
+        .eq("retry_of", broadcast_id)
+        .execute()
+        .data or []
+    )
+    chain_ids = [broadcast_id] + [c["id"] for c in children]
+    original_sent = _parse_dt(row.get("executed_at")) or _parse_dt(row.get("fire_at")) or datetime.now(timezone.utc)
+    eligible = _eligible_leads(db, tenant_id, chain_ids, original_sent)
+    if not eligible:
+        return {"queued": 0}
+
+    now = datetime.now(timezone.utc).isoformat()
+    db.table("scheduled_broadcasts").insert({
+        "tenant_id": tenant_id,
+        "template_name": row["template_name"],
+        "schedule_type": "scheduled",
+        "fire_at": now,
+        "status": "pending",
+        "leads_json": eligible,
+        "variable_mapping": row.get("variable_mapping") or [],
+        "opt_in_source": row.get("opt_in_source"),
+        "tag_id": row.get("tag_id"),
+        "retry_of": broadcast_id,
+        "retry_attempt": len(children) + 1,
+    }).execute()
+    logger.info(f"Manual retry queued for broadcast {broadcast_id}: {len(eligible)} leads")
+    return {"queued": len(eligible)}
+
+
 def process_due_retries() -> None:
     """APScheduler entry — advance every active retry chain that is due."""
     db = get_supabase()
