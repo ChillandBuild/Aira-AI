@@ -1458,7 +1458,10 @@ export default function OutboundLeadsPage() {
         leads,
         template_name: templateName,
         schedule_type: scheduleType,
-        schedule_at: scheduleType === "scheduled" && scheduleAt ? scheduleAt : undefined,
+        // scheduleAt is a naive local wall-clock string from <input type="datetime-local">
+        // (browser's local time, not UTC) — convert before sending, or the backend
+        // stores it as if it were already UTC and the send fires at the wrong instant.
+        schedule_at: scheduleType === "scheduled" && scheduleAt ? new Date(scheduleAt).toISOString() : undefined,
         drip_days: scheduleType === "drip" && dripDays ? parseInt(dripDays, 10) : undefined,
         drip_send_time: scheduleType === "drip" && dripSendTime ? dripSendTime : undefined,
         csv_file_url: csvFileUrl,
