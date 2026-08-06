@@ -9,6 +9,7 @@ import { useAuthRole } from "../contexts/AuthRoleContext";
 import ChangePasswordCard from "./ChangePasswordCard";
 import ConnectChannelsPanel from "./ConnectChannelsPanel";
 import { TelecallingConfigPanel } from "./TelecallingConfigPanel";
+import { ExpertHandoffConfigPanel } from "./ExpertHandoffConfigPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
 import { NotificationConfigPanel } from "./NotificationConfigPanel";
 import { BusinessHoursPanel } from "./BusinessHoursPanel";
@@ -741,6 +742,8 @@ export default function SettingsPage() {
               <InboxConfigPanel canManage={canManageSettings} />
 
               <TelecallingConfigPanel canManage={canManageSettings} />
+
+              <ExpertHandoffConfigPanel canManage={canManageSettings} />
             </div>
           )}
 
