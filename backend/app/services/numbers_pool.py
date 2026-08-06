@@ -1,5 +1,7 @@
 import re
 
+from app.services.entitlements import get_purchased_quantity, resolve_entitlements
+
 
 def normalize_phone_number(raw: str) -> str:
     """Strip everything except digits and a leading '+', so Meta-formatted
@@ -41,3 +43,34 @@ def compute_unlocked_ids(rows: list[dict], limit: int) -> set[str]:
     for r in others[: max(limit - 1, 0)]:
         unlocked.add(r["id"])
     return unlocked
+
+
+def numbers_pool_limit(db, tenant_id: str) -> int:
+    """
+    Purchasing Inbound or Outbound (WhatsApp) messaging includes 1 free
+    phone number -- that's the messaging module's whole point, not an
+    add-on. Anything beyond that free number is an explicit paid top-up via
+    `tenant_subscription_items` (feature_key='numbers_pool'). A tenant with
+    no messaging module purchased at all gets 0.
+    """
+    ent = resolve_entitlements(db, tenant_id)
+    features = set(ent.get("features") or [])
+    baseline = 1 if ("inbound_messaging" in features or "outbound_messaging" in features) else 0
+    return baseline + get_purchased_quantity(db, tenant_id, "numbers_pool")
+
+
+def get_unlocked_number_ids(db, tenant_id: str) -> set[str]:
+    """DB-backed wrapper around compute_unlocked_ids -- fetches the tenant's
+    non-archived phone_numbers and current numbers_pool limit, and returns the
+    set of ids allowed to be active/primary/unpaused right now."""
+    limit = numbers_pool_limit(db, tenant_id)
+    rows = (
+        db.table("phone_numbers")
+        .select("id,role,created_at")
+        .eq("tenant_id", tenant_id)
+        .neq("status", "archived")
+        .execute()
+        .data
+        or []
+    )
+    return compute_unlocked_ids(rows, limit)

@@ -4,10 +4,16 @@ primary present."""
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.services.numbers_pool import compute_unlocked_ids, normalize_phone_number
+from app.services.numbers_pool import (
+    compute_unlocked_ids,
+    get_unlocked_number_ids,
+    normalize_phone_number,
+    numbers_pool_limit,
+)
 
 
 class ComputeUnlockedIdsTests(unittest.TestCase):
@@ -58,6 +64,67 @@ class NormalizePhoneNumberTests(unittest.TestCase):
 
     def test_handles_empty_string(self):
         self.assertEqual(normalize_phone_number(""), "")
+
+
+class GetUnlockedNumberIdsTests(unittest.TestCase):
+    def _mock_db(self, rows, purchased_quantity=0, has_messaging_module=True):
+        db = MagicMock()
+        items_tbl = MagicMock()
+        entitlement_items = []
+        if has_messaging_module:
+            entitlement_items.append({"feature_key": "outbound_messaging", "quantity": 1})
+        if purchased_quantity:
+            entitlement_items.append({"feature_key": "numbers_pool", "quantity": purchased_quantity})
+        items_tbl.select.return_value.eq.return_value.execute.return_value = MagicMock(data=entitlement_items)
+        items_tbl.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"quantity": purchased_quantity}] if purchased_quantity else []
+        )
+        catalog_tbl = MagicMock()
+        catalog_tbl.select.return_value.execute.return_value = MagicMock(data=[])
+
+        numbers_tbl = MagicMock()
+        numbers_tbl.select.return_value.eq.return_value.neq.return_value.execute.return_value = MagicMock(data=rows)
+
+        def table(name):
+            return {
+                "tenant_subscription_items": items_tbl,
+                "feature_catalog": catalog_tbl,
+                "phone_numbers": numbers_tbl,
+            }[name]
+        db.table.side_effect = table
+        return db
+
+    def test_returns_primary_plus_oldest_non_primary_within_limit(self):
+        rows = [
+            {"id": "primary", "role": "primary", "created_at": "2026-01-10T00:00:00Z"},
+            {"id": "oldest", "role": "standby", "created_at": "2026-01-01T00:00:00Z"},
+            {"id": "newest", "role": "standby", "created_at": "2026-01-02T00:00:00Z"},
+        ]
+        db = self._mock_db(rows, purchased_quantity=1, has_messaging_module=True)
+        self.assertEqual(get_unlocked_number_ids(db, "tenant-1"), {"primary", "oldest"})
+
+    def test_no_messaging_module_no_purchase_locks_everything(self):
+        rows = [{"id": "a", "role": "primary", "created_at": "2026-01-01T00:00:00Z"}]
+        db = self._mock_db(rows, purchased_quantity=0, has_messaging_module=False)
+        self.assertEqual(get_unlocked_number_ids(db, "tenant-1"), set())
+
+
+class NumbersPoolLimitMovedTests(unittest.TestCase):
+    def test_numbers_pool_limit_importable_from_shared_module(self):
+        db = MagicMock()
+        items_tbl = MagicMock()
+        items_tbl.select.return_value.eq.return_value.execute.return_value = MagicMock(
+            data=[{"feature_key": "outbound_messaging", "quantity": 1}]
+        )
+        items_tbl.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        catalog_tbl = MagicMock()
+        catalog_tbl.select.return_value.execute.return_value = MagicMock(data=[])
+
+        def table(name):
+            return {"tenant_subscription_items": items_tbl, "feature_catalog": catalog_tbl}[name]
+        db.table.side_effect = table
+
+        self.assertEqual(numbers_pool_limit(db, "tenant-1"), 1)
 
 
 if __name__ == "__main__":
