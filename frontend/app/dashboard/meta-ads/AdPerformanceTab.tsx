@@ -492,7 +492,7 @@ export function AdPerformanceTab() {
             </button>
             {showColumns && (
               <div role="dialog" aria-label="Customize ad performance columns"
-                className="absolute right-0 top-11 z-30 flex max-h-[calc(100dvh-7rem)] w-[320px] flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white p-3 shadow-xl">
+                className="absolute right-0 top-11 z-30 flex max-h-[22rem] w-[320px] flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white p-3 shadow-xl">
                 <div className="mb-2 flex items-center justify-between border-b border-[#eee9e1] px-1 pb-2">
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal size={13} className="text-indigo-600" />
