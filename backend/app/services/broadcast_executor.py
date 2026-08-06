@@ -176,7 +176,7 @@ async def execute_broadcast(row: dict) -> dict:
                 recipient_rows.append({
                     "tenant_id": tenant_id,
                     "broadcast_id": broadcast_id,
-                    "lead_id": None,
+                    "lead_id": phone_to_lead_id.get(phone) if phone else None,
                     "phone": phone,
                     "name": _clean_text(lead.get("name")),
                     "send_status": "failed",
