@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Plus, X, Pencil, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw, Info, ChevronDown, ChevronUp, ChevronRight } from "lucide-react";
+import { Plus, X, Pencil, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw, Info, ChevronDown, ChevronUp, ChevronRight, Lock } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ type PhoneNumber = {
   paused_outbound: boolean;
   meta_phone_number_id?: string | null;
   created_at: string;
+  locked: boolean;
 };
 
 const QUALITY_COLOR: Record<PhoneNumber["quality_rating"], string> = {
@@ -272,6 +273,11 @@ const numbersApi = {
     apiFetch<{ deleted: boolean }>(`/api/v1/numbers/${id}`, { method: "DELETE" }),
   syncMeta: (id: string) =>
     apiFetch<PhoneNumber>(`/api/v1/numbers/${id}/sync-meta`, { method: "POST" }),
+  syncFromMeta: () =>
+    apiFetch<{ data: PhoneNumber[]; numbers_pool?: { limit: number; used: number }; synced: number; failed: number }>(
+      "/api/v1/numbers/sync-from-meta",
+      { method: "POST" }
+    ),
 };
 
 function NumbersPageContent() {
@@ -479,36 +485,22 @@ function NumbersPageContent() {
 
   async function handleSyncAllMeta() {
     if (!canManageNumbers) return;
-    const configuredNumbers = numbers.filter((n) => n.meta_phone_number_id && n.status !== "archived");
-    if (configuredNumbers.length === 0) {
-      toast.error("No configured numbers to sync");
-      return;
-    }
     setSyncingAll(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    await Promise.all(
-      configuredNumbers.map(async (num) => {
-        try {
-          await numbersApi.syncMeta(num.id);
-          successCount++;
-        } catch (err) {
-          console.error(`Failed to sync number ${num.number}:`, err);
-          failCount++;
-        }
-      })
-    );
-
-    await reload();
-    setSyncingAll(false);
-
-    if (failCount === 0) {
-      toast.success(`Successfully synced ${successCount} numbers from Meta`);
-    } else if (successCount > 0) {
-      toast.success(`Synced ${successCount} numbers, ${failCount} failed`);
-    } else {
-      toast.error("Failed to sync numbers from Meta");
+    try {
+      const res = await numbersApi.syncFromMeta();
+      setNumbers(res.data ?? []);
+      setNumbersPool(res.numbers_pool ?? null);
+      if (res.failed === 0) {
+        toast.success(`Synced ${res.synced} number${res.synced === 1 ? "" : "s"} from Meta`);
+      } else if (res.synced > 0) {
+        toast.success(`Synced ${res.synced} numbers, ${res.failed} failed`);
+      } else {
+        toast.error("Failed to sync numbers from Meta");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncingAll(false);
     }
   }
 
@@ -573,9 +565,9 @@ function NumbersPageContent() {
                 {canManageNumbers && (
                   <button
                     onClick={handleSyncAllMeta}
-                    disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
+                    disabled={syncingAll}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
-                    title="Sync all configured numbers from Meta"
+                    title="Discover and sync every number on your connected Meta WhatsApp account"
                   >
                     <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
                     {syncingAll ? "Syncing all…" : "Sync from Meta"}
@@ -614,10 +606,13 @@ function NumbersPageContent() {
                   return (
                     <div
                       key={num.id}
-                      className="rounded-xl border border-surface-mid bg-surface-low/40 p-4 hover:bg-surface-low transition-colors"
+                      className={cn(
+                        "rounded-xl border bg-surface-low/40 p-4 hover:bg-surface-low transition-colors",
+                        num.locked ? "border-dashed border-surface-mid/70" : "border-surface-mid"
+                      )}
                     >
                       {/* Row 1: name + role + status + quality */}
-                      <div className="mb-3 flex flex-wrap items-center gap-3">
+                      <div className={cn("mb-3 flex flex-wrap items-center gap-3", num.locked && "blur-[1.5px] opacity-60")}>
                         {/* Inline-editable name */}
                         {isEditing ? (
                           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -683,6 +678,21 @@ function NumbersPageContent() {
                         )}
                       </div>
 
+                      {num.locked && (
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+                          <span className="flex items-center gap-1.5 font-body text-[11px] text-amber-700">
+                            <Lock size={11} className="shrink-0" />
+                            Over your numbers pool quota — set this as primary to activate it, or upgrade for more slots.
+                          </span>
+                          <a
+                            href="/dashboard/subscriptions"
+                            className="shrink-0 px-2.5 py-1 bg-primary text-white rounded-md font-label text-[11px] font-semibold hover:bg-primary/90 transition-colors"
+                          >
+                            Upgrade
+                          </a>
+                        </div>
+                      )}
+
                       {/* Row 2: sends bar + warm-up + actions */}
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
                         {/* Daily sends bar */}
@@ -721,17 +731,21 @@ function NumbersPageContent() {
                           </button>
                         )}
 
-                        {/* Pause / Resume */}
+                        {/* Pause / Resume -- resuming a locked number is blocked (matches the backend PATCH guard); pausing one further is still fine */}
                         {canManageNumbers && (
                           <button
                             onClick={() => handleTogglePause(num)}
-                            disabled={isPausing}
+                            disabled={isPausing || (num.locked && num.paused_outbound)}
+                            title={
+                              num.locked && num.paused_outbound
+                                ? "Locked by your numbers pool quota — set as primary or upgrade to resume"
+                                : num.paused_outbound ? "Resume outbound messaging" : "Pause outbound messaging"
+                            }
                             className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border font-label text-[11px] font-semibold transition-colors disabled:opacity-50 ${
                               num.paused_outbound
                                 ? "border-green-200 bg-green-50 hover:bg-green-100 text-green-700"
                                 : "border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700"
                             }`}
-                            title={num.paused_outbound ? "Resume outbound messaging" : "Pause outbound messaging"}
                           >
                             {num.paused_outbound
                               ? <><PlayCircle size={12} /> Resume</>
@@ -867,9 +881,9 @@ function NumbersPageContent() {
                     setIncidentOffset(0);
                     setIncidentsLoading(false);
                   }}
-                  disabled={syncingAll || numbers.filter(n => n.meta_phone_number_id && n.status !== "archived").length === 0}
+                  disabled={syncingAll}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-surface-mid text-on-surface hover:text-primary hover:border-primary/40 rounded-lg font-label text-xs font-semibold transition-colors disabled:opacity-50"
-                  title="Sync quality from Meta and log any changes"
+                  title="Discover and sync every number on your connected Meta WhatsApp account"
                 >
                   <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
                   {syncingAll ? "Syncing…" : "Sync from Meta"}
