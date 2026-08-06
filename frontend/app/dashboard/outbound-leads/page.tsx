@@ -38,6 +38,13 @@ type SendResult = {
   number_used: string;
 };
 
+type ScheduleResult = {
+  status: "scheduled" | "drip_scheduled";
+  total: number;
+  fire_at?: string;
+  batches?: number;
+};
+
 type BroadcastHistoryItem = {
   timestamp: string;
   broadcast_id?: string;
@@ -645,7 +652,7 @@ export default function OutboundLeadsPage() {
 
   const [sendLoading, setSendLoading] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  const [sendResult, setSendResult] = useState<SendResult | null>(null);
+  const [sendResult, setSendResult] = useState<SendResult | ScheduleResult | null>(null);
   const [sendingNames, setSendingNames] = useState<string[]>([]);
   const [sendingIndex, setSendingIndex] = useState(0);
 
@@ -1213,7 +1220,7 @@ export default function OutboundLeadsPage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
-      const result: SendResult = await res.json();
+      const result: SendResult | ScheduleResult = await res.json();
       setSendResult(result);
       setCurrentStep(6);
       setActiveTab("history");
@@ -2244,7 +2251,46 @@ export default function OutboundLeadsPage() {
           )}
 
           {/* ── Step 6: Done ──────────────────────────────────────────────── */}
-          {currentStep === 6 && sendResult && (
+          {currentStep === 6 && sendResult && "status" in sendResult && (
+            <div className="space-y-6 flex-1">
+              <div className="flex items-center gap-3 bg-green-50 border border-green-100 p-4 rounded-2xl">
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0 border border-green-200">
+                  <Clock size={20} className="text-green-700" />
+                </div>
+                <div>
+                  <h2 className="font-display text-xl font-bold text-green-950">
+                    {sendResult.status === "drip_scheduled" ? "Drip campaign scheduled!" : "Campaign scheduled!"}
+                  </h2>
+                  <p className="font-body text-xs text-green-700 mt-0.5">
+                    {sendResult.status === "drip_scheduled"
+                      ? `${sendResult.total.toLocaleString()} leads split across ${sendResult.batches ?? 0} batches.`
+                      : sendResult.fire_at
+                        ? `${sendResult.total.toLocaleString()} leads will be sent at ${new Date(sendResult.fire_at).toLocaleString()}.`
+                        : `${sendResult.total.toLocaleString()} leads queued for scheduled send.`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-4 border-t border-surface-mid/30">
+                <Link
+                  href="/dashboard/outbound-leads?tab=history"
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+                >
+                  <Clock size={16} />
+                  View Scheduled Sends
+                </Link>
+                <button
+                  onClick={resetAll}
+                  className="flex items-center gap-2 px-5 py-3 bg-surface-low text-on-surface rounded-xl font-label text-sm font-semibold hover:bg-surface-mid transition-colors border border-surface-mid/60"
+                >
+                  <RotateCcw size={14} />
+                  Upload Another
+                </button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 6 && sendResult && !("status" in sendResult) && (
             <div className="space-y-6 flex-1">
               <div className="flex items-center gap-3 bg-green-50 border border-green-100 p-4 rounded-2xl">
                 <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0 border border-green-200">

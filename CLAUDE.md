@@ -38,4 +38,17 @@ To prevent context dilution, general invariants and rules have been split into m
 5.  **Subsystem Notes & Load-Bearing Gotchas**:
     *   Location: [.agents/context/subsystem-notes.md](.agents/context/subsystem-notes.md)
     *   Read when: Editing broadcasts/delivery, scoring, call evaluation, knowledge RAG, frontend perf, telecalling, chat escalation, or operator console — holds the *why* and the traps the wiki can't.
+6.  **Security & Vulnerability Guidance**:
+    *   Location: [.agents/context/security-checklist.md](.agents/context/security-checklist.md)
+    *   Read when: Touching auth, webhooks, payments (Razorpay), file uploads, RLS policies, or any route reading `tenant_id`. Escalate to the `security-reviewer` agent for new auth/webhook/payment code or RLS changes.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `ChillandBuild/Aira-AI`, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root (created lazily as needed). See `docs/agents/domain.md`.
 
