@@ -44,10 +44,16 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
         .order("quality_rating")
         .execute()
     )
-    numbers_limit = _numbers_pool_limit(db, tenant_id)
+    rows = result.data or []
+    numbers_limit = numbers_pool_limit(db, tenant_id)
+    unlocked_ids = get_unlocked_number_ids(db, tenant_id)
+    data = [
+        {**row, "locked": row.get("status") != "archived" and row["id"] not in unlocked_ids}
+        for row in rows
+    ]
     return {
-        "data": result.data or [],
-        "numbers_pool": {"limit": numbers_limit, "used": len(result.data or [])},
+        "data": data,
+        "numbers_pool": {"limit": numbers_limit, "used": len(rows)},
     }
 
 
