@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw } from "lucide-react";
+import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw, Info } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -3301,6 +3301,13 @@ export default function OutboundLeadsPage() {
                     </div>
                   </div>
                 </div>
+
+                <p className="mt-2.5 flex items-start gap-1.5 font-body text-[11px] text-gray-400">
+                  <Info size={12} className="mt-0.5 shrink-0" />
+                  <span>
+                    Delivered and Opened are counted <em>within</em> Sent, not extra leads — every Sent lead is either Delivered, Opened, or still waiting on a receipt from WhatsApp (can take a few minutes). Only Failed leads never got the message.
+                  </span>
+                </p>
 
                 {item.broadcast_id && <RetryTimeline broadcastId={item.broadcast_id} />}
                 {item.broadcast_id && item.failed > 0 && canManageOutbound && (
