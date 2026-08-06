@@ -31,6 +31,42 @@ def _lead_matches_sources(lead: dict, target_sources) -> bool:
     return _classify_source(lead) in target_sources
 
 
+_IN_CLAUSE_BATCH_SIZE = 200
+
+
+def _already_processed_lead_ids(db, step_id: str, lead_ids: list[str]) -> set[str]:
+    """Batched replacement for a per-lead reengagement_logs existence check."""
+    processed: set[str] = set()
+    for i in range(0, len(lead_ids), _IN_CLAUSE_BATCH_SIZE):
+        batch = lead_ids[i:i + _IN_CLAUSE_BATCH_SIZE]
+        res = (
+            db.table("reengagement_logs")
+            .select("lead_id")
+            .eq("step_id", step_id)
+            .in_("lead_id", batch)
+            .execute()
+        )
+        processed.update(row["lead_id"] for row in (res.data or []))
+    return processed
+
+
+def _fetch_leads_by_id(db, tenant_id: str, lead_ids: list[str]) -> dict[str, dict]:
+    """Batched replacement for a per-lead `leads` fetch, keyed by lead id."""
+    leads_by_id: dict[str, dict] = {}
+    for i in range(0, len(lead_ids), _IN_CLAUSE_BATCH_SIZE):
+        batch = lead_ids[i:i + _IN_CLAUSE_BATCH_SIZE]
+        res = (
+            db.table("leads")
+            .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
+            .eq("tenant_id", tenant_id)
+            .in_("id", batch)
+            .execute()
+        )
+        for row in (res.data or []):
+            leads_by_id[row["id"]] = row
+    return leads_by_id
+
+
 async def process_due_reengagements() -> int:
     """Query and process all pending re-engagement steps for all tenants."""
     db = get_supabase()
@@ -71,41 +107,28 @@ async def process_due_reengagements() -> int:
             if not recipients:
                 continue
 
+            # Filter by elapsed delay in-memory first — no DB round-trip yet.
+            due_recipients = []
             for rec in recipients:
-                lead_id = rec["lead_id"]
-                sent_at_str = rec["created_at"]
-                
                 try:
-                    sent_at = datetime.fromisoformat(sent_at_str.replace("Z", "+00:00"))
+                    sent_at = datetime.fromisoformat(rec["created_at"].replace("Z", "+00:00"))
                 except Exception:
                     continue
+                if now - sent_at >= timedelta(hours=delay_hours):
+                    due_recipients.append(rec)
+            if not due_recipients:
+                continue
 
-                # Check if delay time has elapsed
-                if now - sent_at < timedelta(hours=delay_hours):
-                    continue
+            due_lead_ids = [rec["lead_id"] for rec in due_recipients]
+            processed_ids = _already_processed_lead_ids(db, step_id, due_lead_ids)
+            pending_lead_ids = [lid for lid in due_lead_ids if lid not in processed_ids]
+            if not pending_lead_ids:
+                continue
 
-                # Check if already processed
-                log_exists = (
-                    db.table("reengagement_logs")
-                    .select("id")
-                    .eq("lead_id", lead_id)
-                    .eq("step_id", step_id)
-                    .limit(1)
-                    .execute()
-                )
-                if log_exists.data:
-                    continue
+            leads_by_id = _fetch_leads_by_id(db, tenant_id, pending_lead_ids)
 
-                # Fetch lead details to check current segment and last_inbound_at
-                lead_res = (
-                    db.table("leads")
-                    .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
-                    .eq("id", lead_id)
-                    .eq("tenant_id", tenant_id)
-                    .maybe_single()
-                    .execute()
-                )
-                lead = lead_res.data if lead_res else None
+            for lead_id in pending_lead_ids:
+                lead = leads_by_id.get(lead_id)
                 if not lead or lead.get("segment") not in target_segments:
                     continue
                 if not _lead_matches_sources(lead, target_sources):
@@ -127,35 +150,28 @@ async def process_due_reengagements() -> int:
                 .execute()
             )
             leads = leads_res.data or []
-            
+
+            # Filter by elapsed delay + segment/source in-memory first — no DB round-trip yet.
+            due_leads = []
             for lead in leads:
-                lead_id = lead["id"]
-                last_inbound_str = lead["last_inbound_at"]
-                
                 try:
-                    last_inbound = datetime.fromisoformat(last_inbound_str.replace("Z", "+00:00"))
+                    last_inbound = datetime.fromisoformat(lead["last_inbound_at"].replace("Z", "+00:00"))
                 except Exception:
                     continue
-
-                # Check if delay time has elapsed
                 if now - last_inbound < timedelta(hours=delay_hours):
                     continue
-
-                # Check if already processed for this step
-                log_exists = (
-                    db.table("reengagement_logs")
-                    .select("id")
-                    .eq("lead_id", lead_id)
-                    .eq("step_id", step_id)
-                    .limit(1)
-                    .execute()
-                )
-                if log_exists.data:
-                    continue
-
                 if lead.get("segment") not in target_segments:
                     continue
                 if not _lead_matches_sources(lead, target_sources):
+                    continue
+                due_leads.append(lead)
+            if not due_leads:
+                continue
+
+            processed_ids = _already_processed_lead_ids(db, step_id, [lead["id"] for lead in due_leads])
+
+            for lead in due_leads:
+                if lead["id"] in processed_ids:
                     continue
 
                 # Process sending
