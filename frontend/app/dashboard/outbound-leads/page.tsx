@@ -45,6 +45,12 @@ type ScheduleResult = {
   batches?: number;
 };
 
+type QueuedResult = {
+  status: "queued";
+  broadcast_id: string;
+  total: number;
+};
+
 type BroadcastHistoryItem = {
   timestamp: string;
   broadcast_id?: string;
@@ -74,6 +80,26 @@ type BroadcastTag = {
   name: string;
   color: string;
   created_at: string;
+};
+
+type OptedOutLead = {
+  lead_id: string;
+  phone: string | null;
+  name: string | null;
+  opted_out_at: string | null;
+  scope: "global" | "tag";
+  tag_id: string | null;
+  tag_name: string | null;
+};
+
+type ScheduledBroadcastItem = {
+  id: string;
+  template_name: string;
+  schedule_type: "scheduled" | "drip";
+  fire_at: string;
+  created_at: string;
+  tag_id?: string | null;
+  tag_name?: string | null;
 };
 
 type TagStats = {
@@ -655,20 +681,64 @@ export default function OutboundLeadsPage() {
   const [sendResult, setSendResult] = useState<SendResult | ScheduleResult | null>(null);
   const [sendingNames, setSendingNames] = useState<string[]>([]);
   const [sendingIndex, setSendingIndex] = useState(0);
+  const [activeBroadcastId, setActiveBroadcastId] = useState<string | null>(null);
+  const [aborting, setAborting] = useState(false);
 
-  // Drive the sending ticker while an immediate broadcast is in flight. Advances
-  // through the real lead names at a count-aware cadence and holds at the last
-  // one until the server confirms — never claims "done" before the response.
+  // Drive the sending ticker off the real backend counts while an immediate
+  // broadcast runs as a background job — never claims progress the server hasn't
+  // confirmed. Stops polling and reveals the final tally once the job finishes.
   useEffect(() => {
-    if (!sendLoading || sendingNames.length === 0) return;
-    if (sendingIndex >= sendingNames.length - 1) return;
-    const perLead = sendingNames.length > 100 ? 320 : sendingNames.length > 20 ? 480 : 650;
-    const t = setTimeout(
-      () => setSendingIndex((i) => Math.min(i + 1, sendingNames.length - 1)),
-      perLead,
-    );
-    return () => clearTimeout(t);
-  }, [sendLoading, sendingIndex, sendingNames.length]);
+    if (!activeBroadcastId) return;
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/upload/broadcast/${activeBroadcastId}/progress`, { headers: auth });
+        if (!res.ok || cancelled) return;
+        const data: { status: string; sent?: number; failed?: number; opted_out_skipped?: number; number_used?: string; total?: number } = await res.json();
+        const sentSoFar = data.sent ?? 0;
+        const failedSoFar = data.failed ?? 0;
+        setSendingIndex((i) => Math.max(i, Math.min(sentSoFar + failedSoFar, sendingNames.length - 1)));
+
+        if (data.status === "done" || data.status === "aborted" || data.status === "failed") {
+          setSendResult({
+            queued: sentSoFar,
+            failed: failedSoFar,
+            opted_out_skipped: data.opted_out_skipped ?? 0,
+            number_used: data.number_used ?? "",
+          });
+          setSendLoading(false);
+          setAborting(false);
+          setActiveBroadcastId(null);
+          setCurrentStep(6);
+          setActiveTab("history");
+          refreshHistory();
+          if (data.status === "aborted") toast("Broadcast stopped — leads already sent stay sent.");
+          if (data.status === "failed") toast.error("Broadcast failed before it could finish.");
+        }
+      } catch {
+        // transient — next poll tick will retry
+      }
+    }
+
+    poll();
+    const interval = setInterval(poll, 1500);
+    return () => { cancelled = true; clearInterval(interval); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBroadcastId]);
+
+  async function handleAbortSend() {
+    if (!activeBroadcastId) return;
+    setAborting(true);
+    try {
+      const auth = await getAuthHeaders();
+      await fetch(`${API_URL}/api/v1/upload/broadcast/${activeBroadcastId}/abort`, { method: "POST", headers: auth });
+    } catch {
+      toast.error("Failed to stop broadcast");
+      setAborting(false);
+    }
+  }
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
@@ -714,10 +784,128 @@ export default function OutboundLeadsPage() {
   const [historyRefreshing, setHistoryRefreshing] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const [historyStatusFilter, setHistoryStatusFilter] = useState<"all" | "failures" | "clean">("all");
-  const rawTab = searchParams.get("tab");
-  const activeTab = (rawTab === "history" || rawTab === "tags" ? rawTab : "upload") as "upload" | "history" | "tags";
 
-  const setActiveTab = (val: "upload" | "history" | "tags") => {
+  const [scheduledList, setScheduledList] = useState<ScheduledBroadcastItem[]>([]);
+  const [scheduledLoading, setScheduledLoading] = useState(false);
+  const [editingScheduledId, setEditingScheduledId] = useState<string | null>(null);
+  const [editTemplateName, setEditTemplateName] = useState("");
+  const [editFireAt, setEditFireAt] = useState("");
+  const [savingScheduledId, setSavingScheduledId] = useState<string | null>(null);
+  const [cancelingScheduledId, setCancelingScheduledId] = useState<string | null>(null);
+
+  const loadScheduled = useCallback(async () => {
+    setScheduledLoading(true);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/scheduled`, { headers: auth });
+      const data: { data: ScheduledBroadcastItem[] } = await res.json();
+      setScheduledList(data.data || []);
+    } catch {
+      // best-effort — history list still works without it
+    } finally {
+      setScheduledLoading(false);
+    }
+  }, []);
+
+  function startEditScheduled(item: ScheduledBroadcastItem) {
+    setEditingScheduledId(item.id);
+    setEditTemplateName(item.template_name);
+    // fire_at is UTC ISO from the API — convert to a local datetime-local value
+    const d = new Date(item.fire_at);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setEditFireAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+  }
+
+  async function saveEditScheduled(id: string) {
+    setSavingScheduledId(id);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/scheduled/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({
+          template_name: editTemplateName || undefined,
+          fire_at: editFireAt ? new Date(editFireAt).toISOString() : undefined,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success("Scheduled broadcast updated");
+      setEditingScheduledId(null);
+      await loadScheduled();
+    } catch {
+      toast.error("Failed to update — it may have already fired");
+    } finally {
+      setSavingScheduledId(null);
+    }
+  }
+
+  async function cancelScheduled(id: string) {
+    if (!confirm("Cancel this scheduled broadcast? It will not be sent.")) return;
+    setCancelingScheduledId(id);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/scheduled/${id}/cancel`, { method: "POST", headers: auth });
+      if (!res.ok) throw new Error(await res.text());
+      setScheduledList((prev) => prev.filter((s) => s.id !== id));
+      toast.success("Scheduled broadcast cancelled");
+    } catch {
+      toast.error("Failed to cancel — it may have already fired");
+    } finally {
+      setCancelingScheduledId(null);
+    }
+  }
+
+  const [optedOutList, setOptedOutList] = useState<OptedOutLead[]>([]);
+  const [optedOutLoading, setOptedOutLoading] = useState(false);
+  const [optedOutLoaded, setOptedOutLoaded] = useState(false);
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null);
+
+  const [testSendPhone, setTestSendPhone] = useState("");
+  const [testSendLoading, setTestSendLoading] = useState(false);
+
+  const loadOptedOut = useCallback(async () => {
+    setOptedOutLoading(true);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/opted-out`, { headers: auth });
+      const data: { data: OptedOutLead[] } = await res.json();
+      setOptedOutList(data.data || []);
+      setOptedOutLoaded(true);
+    } catch {
+      // best-effort
+    } finally {
+      setOptedOutLoading(false);
+    }
+  }, []);
+
+  async function reactivateOptedOut(lead: OptedOutLead) {
+    if (!canManageOutbound) {
+      toast.error("Read-only role: reactivating leads is disabled.");
+      return;
+    }
+    const scopeLabel = lead.scope === "tag" ? `for "${lead.tag_name}"` : "account-wide";
+    if (!confirm(`Re-include ${lead.name || lead.phone} in future broadcasts (${scopeLabel})? Only do this with their actual consent.`)) return;
+    setReactivatingId(`${lead.lead_id}:${lead.tag_id ?? ""}`);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/opted-out/reactivate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ lead_id: lead.lead_id, tag_id: lead.tag_id || undefined }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setOptedOutList((prev) => prev.filter((l) => !(l.lead_id === lead.lead_id && l.tag_id === lead.tag_id)));
+      toast.success("Lead re-included in future broadcasts");
+    } catch {
+      toast.error("Failed to reactivate lead");
+    } finally {
+      setReactivatingId(null);
+    }
+  }
+  const rawTab = searchParams.get("tab");
+  const activeTab = (rawTab === "history" || rawTab === "tags" || rawTab === "opted-out" ? rawTab : "upload") as "upload" | "history" | "tags" | "opted-out";
+
+  const setActiveTab = (val: "upload" | "history" | "tags" | "opted-out") => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", val);
     router.replace(`/dashboard/outbound-leads?${params.toString()}`, { scroll: false });
@@ -759,14 +947,20 @@ export default function OutboundLeadsPage() {
   // Auto-refresh to live numbers whenever the History tab is opened, so the cards
   // are never a stale snapshot. The mount fetch already showed the snapshot instantly.
   useEffect(() => {
-    if (activeTab === "history") refreshHistory();
-  }, [activeTab, refreshHistory]);
+    if (activeTab === "history") {
+      refreshHistory();
+      loadScheduled();
+    }
+  }, [activeTab, refreshHistory, loadScheduled]);
 
   // Supabase client for realtime updates
   // Realtime subscription for message status updates
   useEffect(() => {
     if (activeTab === "tags" && !tagsLoaded && !tagsListLoading) {
       loadTags();
+    }
+    if (activeTab === "opted-out" && !optedOutLoaded && !optedOutLoading) {
+      loadOptedOut();
     }
     if (activeTab !== "history") return;
 
@@ -789,7 +983,7 @@ export default function OutboundLeadsPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeTab, tagsLoaded, tagsListLoading, refreshHistory]);
+  }, [activeTab, tagsLoaded, tagsListLoading, refreshHistory, optedOutLoaded, optedOutLoading, loadOptedOut]);
 
   usePolling(() => {
     if (activeTab === "tags") loadTags();
@@ -891,6 +1085,53 @@ export default function OutboundLeadsPage() {
     }
   }
 
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
+
+  async function handleDeleteHistoryEntry(broadcastId: string) {
+    if (!canManageOutbound) {
+      toast.error("Read-only role: deleting history is disabled.");
+      return;
+    }
+    if (!confirm("Remove this broadcast from history? Sent messages and leads are not affected.")) return;
+    setDeletingHistoryId(broadcastId);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/history/${broadcastId}`, { method: "DELETE", headers: auth });
+      if (!res.ok) throw new Error("Delete failed");
+      setBroadcastHistory((prev) => prev.filter((h) => h.broadcast_id !== broadcastId));
+      toast.success("Removed from history");
+    } catch {
+      toast.error("Failed to delete history entry");
+    } finally {
+      setDeletingHistoryId(null);
+    }
+  }
+
+  const [retryingNowId, setRetryingNowId] = useState<string | null>(null);
+
+  async function handleRetryNow(broadcastId: string) {
+    if (!canManageOutbound) {
+      toast.error("Read-only role: retry is disabled.");
+      return;
+    }
+    setRetryingNowId(broadcastId);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/broadcast/${broadcastId}/retry-now`, { method: "POST", headers: auth });
+      const data: { queued: number; message?: string } = await res.json();
+      if (!res.ok) throw new Error(data.message || "Retry failed");
+      if (data.queued === 0) {
+        toast("No undelivered leads left to retry.");
+      } else {
+        toast.success(`Retrying ${data.queued} undelivered lead${data.queued === 1 ? "" : "s"}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to queue retry");
+    } finally {
+      setRetryingNowId(null);
+    }
+  }
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch broadcast history once on mount
@@ -906,7 +1147,7 @@ export default function OutboundLeadsPage() {
   }, []);
 
   useEffect(() => {
-    if (currentStep === 4) {
+    if (currentStep === 4 || activeTab === "history") {
       if (templates.length === 0 && !templatesLoading) {
         setTemplatesLoading(true);
         setTemplatesError(false);
@@ -949,7 +1190,7 @@ export default function OutboundLeadsPage() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, templates.length, templatesLoading, tags.length, tagsLoading, primaryNumber, primaryNumberLoading]);
+  }, [currentStep, activeTab, templates.length, templatesLoading, tags.length, tagsLoading, primaryNumber, primaryNumberLoading]);
 
   if (roleLoading) {
     return (
@@ -1161,6 +1402,25 @@ export default function OutboundLeadsPage() {
     }
   }
 
+  async function handleTestSend() {
+    if (!testSendPhone.trim() || !templateName) return;
+    setTestSendLoading(true);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/upload/test-send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ phone: testSendPhone.trim(), template_name: templateName }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success(`Test message sent to ${testSendPhone.trim()}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Test send failed");
+    } finally {
+      setTestSendLoading(false);
+    }
+  }
+
   async function handleSend() {
     if (!parsedData || !csvFile) return;
     if (!canManageOutbound) {
@@ -1220,14 +1480,23 @@ export default function OutboundLeadsPage() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
-      const result: SendResult | ScheduleResult = await res.json();
+      const result: QueuedResult | ScheduleResult = await res.json();
+
+      if (result.status === "queued") {
+        // Immediate send now runs as a background job — start polling for real
+        // progress instead of claiming it's done. sendLoading stays true until
+        // the poll effect sees a terminal status.
+        setActiveBroadcastId(result.broadcast_id);
+        return;
+      }
+
       setSendResult(result);
       setCurrentStep(6);
       setActiveTab("history");
       refreshHistory();
+      setSendLoading(false);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Send failed");
-    } finally {
       setSendLoading(false);
     }
   }
@@ -1993,11 +2262,23 @@ export default function OutboundLeadsPage() {
 
           {/* ── Step 5: Confirm & Send ────────────────────────────────────── */}
           {currentStep === 5 && parsedData && sendLoading && scheduleType === "now" && (
-            <SendingProgress
-              names={sendingNames}
-              index={sendingIndex}
-              total={sendingNames.length || parsedData.total_rows}
-            />
+            <div className="space-y-4">
+              <SendingProgress
+                names={sendingNames}
+                index={sendingIndex}
+                total={sendingNames.length || parsedData.total_rows}
+              />
+              {activeBroadcastId && (
+                <button
+                  onClick={handleAbortSend}
+                  disabled={aborting}
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-red-50 text-red-700 rounded-xl font-label text-sm font-semibold hover:bg-red-100 transition-colors border border-red-200 disabled:opacity-50"
+                >
+                  <XCircle size={16} />
+                  {aborting ? "Stopping…" : "Stop sending"}
+                </button>
+              )}
+            </div>
           )}
           {currentStep === 5 && parsedData && !(sendLoading && scheduleType === "now") && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
@@ -2140,6 +2421,26 @@ export default function OutboundLeadsPage() {
                     {sendLoading ? "Sending…" : "Confirm & Dispatch"}
                   </button>
                 </div>
+
+                {canManageOutbound && (
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="tel"
+                      value={testSendPhone}
+                      onChange={(e) => setTestSendPhone(e.target.value)}
+                      placeholder="Your WhatsApp number, e.g. 91987654XXXX"
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-surface-mid font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
+                    />
+                    <button
+                      onClick={handleTestSend}
+                      disabled={testSendLoading || !testSendPhone.trim() || !templateName}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-surface-low hover:bg-surface-mid text-on-surface rounded-lg font-label text-xs font-semibold border border-surface-mid disabled:opacity-50 transition-colors"
+                    >
+                      <Send size={12} />
+                      {testSendLoading ? "Sending…" : "Send test"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Template preview (5 cols) */}
@@ -2529,6 +2830,168 @@ export default function OutboundLeadsPage() {
         </div>
       )}
 
+      {activeTab === "opted-out" && (
+        <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
+          <div className="border-b border-orange-100 bg-gradient-to-r from-orange-50 to-white px-4 py-5 md:px-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-orange-100 shadow-sm">
+                <ShieldCheck size={20} className="text-orange-600" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl font-bold text-gray-900">Opted-Out Leads</h2>
+                <p className="font-body text-sm text-gray-500 mt-0.5">
+                  Excluded from broadcasts by a STOP/unsubscribe reply — globally or for one tag.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {optedOutLoading ? (
+            <div className="py-12 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : optedOutList.length === 0 ? (
+            <div className="py-16 flex flex-col items-center justify-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <ShieldCheck size={24} className="text-gray-400" />
+              </div>
+              <div className="text-center">
+                <p className="font-display text-sm font-semibold text-gray-700">No opted-out leads</p>
+                <p className="font-body text-xs text-gray-500 mt-1">Nobody has opted out of your broadcasts yet</p>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {optedOutList.map((lead) => (
+                <div key={`${lead.lead_id}:${lead.tag_id ?? ""}`} className="flex flex-wrap items-center gap-3 p-4 md:px-8">
+                  <div className="min-w-[160px]">
+                    <p className="font-display text-sm font-semibold text-gray-900">{lead.name || "—"}</p>
+                    <p className="font-body text-xs text-gray-500">{lead.phone}</p>
+                  </div>
+                  <span className={cn(
+                    "px-2.5 py-1 rounded-full font-label text-[11px] font-semibold border",
+                    lead.scope === "global" ? "bg-red-50 text-red-700 border-red-100" : "bg-violet-50 text-violet-700 border-violet-100"
+                  )}>
+                    {lead.scope === "global" ? "All broadcasts" : lead.tag_name || "Tag"}
+                  </span>
+                  {lead.opted_out_at && (
+                    <span className="font-body text-xs text-gray-400">
+                      {new Date(lead.opted_out_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    </span>
+                  )}
+                  {canManageOutbound && (
+                    <button
+                      onClick={() => reactivateOptedOut(lead)}
+                      disabled={reactivatingId === `${lead.lead_id}:${lead.tag_id ?? ""}`}
+                      className="ml-auto px-3 py-1.5 bg-white hover:bg-green-50 text-gray-700 hover:text-green-700 rounded-lg font-label text-xs font-semibold border border-gray-200 hover:border-green-200 transition-colors disabled:opacity-50"
+                    >
+                      {reactivatingId === `${lead.lead_id}:${lead.tag_id ?? ""}` ? "Reactivating…" : "Reactivate"}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "history" && !scheduledLoading && scheduledList.length > 0 && (
+        <div className="mb-6 overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-lg">
+          <div className="border-b border-amber-100 bg-gradient-to-r from-amber-50 to-white px-4 py-4 md:px-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100">
+                <Clock size={18} className="text-amber-600" />
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-bold text-gray-900">Upcoming</h2>
+                <p className="font-body text-xs text-gray-500 mt-0.5">Scheduled &amp; drip broadcasts waiting to fire</p>
+              </div>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {scheduledList.map((item) => (
+              <div key={item.id} className="p-4 md:px-8 md:py-4">
+                {editingScheduledId === item.id ? (
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="min-w-[180px] flex-1">
+                      <label className="block font-label text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1">Template</label>
+                      <select
+                        value={editTemplateName}
+                        onChange={(e) => setEditTemplateName(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 font-body text-sm"
+                      >
+                        {templates.map((t) => (
+                          <option key={t.id} value={t.name}>{t.name}</option>
+                        ))}
+                        {!templates.some((t) => t.name === editTemplateName) && (
+                          <option value={editTemplateName}>{editTemplateName}</option>
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-label text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1">Fire at</label>
+                      <input
+                        type="datetime-local"
+                        value={editFireAt}
+                        onChange={(e) => setEditFireAt(e.target.value)}
+                        className="px-3 py-2 rounded-lg border border-gray-200 font-body text-sm"
+                      />
+                    </div>
+                    <button
+                      onClick={() => saveEditScheduled(item.id)}
+                      disabled={savingScheduledId === item.id}
+                      className="px-4 py-2 bg-primary text-white rounded-lg font-label text-xs font-semibold disabled:opacity-50"
+                    >
+                      {savingScheduledId === item.id ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={() => setEditingScheduledId(null)}
+                      className="px-4 py-2 bg-surface-low text-on-surface rounded-lg font-label text-xs font-semibold border border-surface-mid"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 font-label text-[11px] font-semibold border border-amber-100">
+                      {item.schedule_type === "drip" ? "Drip" : "Scheduled"}
+                    </span>
+                    <span className="font-display text-sm font-semibold text-gray-900">{item.template_name}</span>
+                    {item.tag_name && (
+                      <span className="px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 font-label text-[11px] font-semibold border border-violet-100">
+                        {item.tag_name}
+                      </span>
+                    )}
+                    <span className="font-body text-xs text-gray-500">
+                      {new Date(item.fire_at).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true })}
+                    </span>
+                    <div className="ml-auto flex items-center gap-2">
+                      {canManageOutbound && (
+                        <>
+                          <button
+                            onClick={() => startEditScheduled(item)}
+                            className="px-3 py-1.5 bg-white hover:bg-gray-50 text-gray-700 rounded-lg font-label text-xs font-semibold border border-gray-200"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => cancelScheduled(item.id)}
+                            disabled={cancelingScheduledId === item.id}
+                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg font-label text-xs font-semibold border border-red-200 disabled:opacity-50"
+                          >
+                            {cancelingScheduledId === item.id ? "Cancelling…" : "Cancel"}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {activeTab === "history" && (
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
         <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-4 py-5 md:px-8">
@@ -2704,6 +3167,18 @@ export default function OutboundLeadsPage() {
                       />
                     </div>
                   )}
+
+                  {/* Delete history entry */}
+                  {item.broadcast_id && canManageOutbound && (
+                    <button
+                      onClick={() => handleDeleteHistoryEntry(item.broadcast_id!)}
+                      disabled={deletingHistoryId === item.broadcast_id}
+                      title="Remove from history"
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-white hover:bg-red-50 text-gray-400 hover:text-red-600 rounded-md transition-colors border border-gray-200 hover:border-red-200 shrink-0 disabled:opacity-50"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  )}
                 </div>
                 
                 {/* Reply Sentiment + Interest row */}
@@ -2825,6 +3300,16 @@ export default function OutboundLeadsPage() {
                 </div>
 
                 {item.broadcast_id && <RetryTimeline broadcastId={item.broadcast_id} />}
+                {item.broadcast_id && item.failed > 0 && canManageOutbound && (
+                  <button
+                    onClick={() => handleRetryNow(item.broadcast_id!)}
+                    disabled={retryingNowId === item.broadcast_id}
+                    className="mt-2 flex items-center gap-1.5 font-label text-[11px] font-bold text-amber-700 hover:underline disabled:opacity-50"
+                  >
+                    <RefreshCw size={12} className={retryingNowId === item.broadcast_id ? "animate-spin" : ""} />
+                    Retry now
+                  </button>
+                )}
               </div>
             ))}
           </div>

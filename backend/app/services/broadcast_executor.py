@@ -5,7 +5,7 @@ import json
 import logging
 import random as _random
 import re as _re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -152,8 +152,24 @@ async def execute_broadcast(row: dict) -> dict:
         failed = 0
         broadcast_id = row_id  # reuse scheduled_broadcast id as broadcast_id
         recipient_rows = []
+        aborted = False
 
-        for lead in leads_raw:
+        for idx, lead in enumerate(leads_raw):
+            if idx % 3 == 0:
+                try:
+                    abort_row = (
+                        db.table("scheduled_broadcasts")
+                        .select("abort_requested")
+                        .eq("id", row_id)
+                        .maybe_single()
+                        .execute()
+                    )
+                    if abort_row and abort_row.data and abort_row.data.get("abort_requested"):
+                        aborted = True
+                        break
+                except Exception:
+                    pass
+
             phone = _normalize_phone(lead.get("phone", ""))
             if not phone or phone in opted_out_phones or phone in suppressed_phones or phone in negative_reply_phones:
                 failed += 1
@@ -249,6 +265,19 @@ async def execute_broadcast(row: dict) -> dict:
                     "fail_detail": _meta_error_detail(str(e)),
                 })
 
+        if aborted:
+            for lead in leads_raw[idx:]:
+                phone = _normalize_phone(lead.get("phone", ""))
+                recipient_rows.append({
+                    "tenant_id": tenant_id,
+                    "broadcast_id": broadcast_id,
+                    "lead_id": phone_to_lead_id.get(phone),
+                    "phone": phone,
+                    "name": _clean_text(lead.get("name")),
+                    "send_status": "aborted_skip",
+                    "tag_id": tag_id,
+                })
+
         # Persist broadcast_recipients
         if recipient_rows:
             for i in range(0, len(recipient_rows), 100):
@@ -338,14 +367,110 @@ async def execute_broadcast(row: dict) -> dict:
             await increment_send_count(best_number["id"], delta=sent)
 
         result = {"sent": sent, "failed": failed, "broadcast_id": broadcast_id}
-        _finish(db, row_id, "done", result)
-        logger.info(f"Scheduled broadcast {row_id}: sent={sent} failed={failed}")
+        final_status = "aborted" if aborted else "done"
+        _finish(db, row_id, final_status, result)
+        _write_broadcast_history(
+            db, tenant_id, broadcast_id, template_name, opt_in_source,
+            sent, failed, len(leads_raw), best_number.get("number"),
+            row.get("csv_file_url"), row.get("csv_file_path"), row.get("csv_file_name"), tag_id,
+        )
+        logger.info(f"Scheduled broadcast {row_id}: sent={sent} failed={failed} aborted={aborted}")
         return result
 
     except Exception as exc:
         logger.error(f"Scheduled broadcast {row_id} failed: {exc}")
         _finish(db, row_id, "failed", None, error=str(exc))
+        _write_broadcast_history(
+            db, tenant_id, row_id, template_name, opt_in_source,
+            0, len(row.get("leads_json") or []), len(row.get("leads_json") or []), None,
+            row.get("csv_file_url"), row.get("csv_file_path"), row.get("csv_file_name"), tag_id,
+        )
         return {"sent": 0, "failed": 0, "error": str(exc)}
+
+
+def _write_broadcast_history(
+    db, tenant_id: str, broadcast_id: str, template_name: str, opt_in_source: str,
+    sent: int, failed: int, total_leads: int, number_used: str | None,
+    csv_file_url: str | None, csv_file_path: str | None, csv_file_name: str | None,
+    tag_id: str | None,
+) -> None:
+    """Append a broadcast_history entry so fired scheduled/drip/retry broadcasts show
+    up in the History tab, the same as immediate 'Send Now' broadcasts already do."""
+    try:
+        lead_ids: list[str] = []
+        try:
+            recip = (
+                db.table("broadcast_recipients")
+                .select("lead_id")
+                .eq("tenant_id", tenant_id)
+                .eq("broadcast_id", broadcast_id)
+                .eq("send_status", "sent")
+                .execute()
+            )
+            lead_ids = [r["lead_id"] for r in (recip.data or []) if r.get("lead_id")]
+        except Exception:
+            pass
+
+        delivered_count = 0
+        opened_count = 0
+        if lead_ids:
+            now = datetime.now(timezone.utc)
+            window_start = (now - timedelta(minutes=2)).isoformat()
+            window_end = (now + timedelta(minutes=10)).isoformat()
+            try:
+                delivered_rows = db.table("messages").select("id") \
+                    .in_("lead_id", lead_ids).eq("direction", "outbound") \
+                    .eq("delivery_status", "delivered") \
+                    .gte("created_at", window_start).lte("created_at", window_end).execute()
+                delivered_count = len(delivered_rows.data or [])
+                opened_rows = db.table("messages").select("id") \
+                    .in_("lead_id", lead_ids).eq("direction", "outbound") \
+                    .eq("delivery_status", "read") \
+                    .gte("created_at", window_start).lte("created_at", window_end).execute()
+                opened_count = len(opened_rows.data or [])
+            except Exception:
+                pass
+
+        existing = (
+            db.table("app_settings")
+            .select("value")
+            .eq("tenant_id", tenant_id)
+            .eq("key", "broadcast_history")
+            .maybe_single()
+            .execute()
+        )
+        history: list[dict] = []
+        if existing and existing.data and existing.data.get("value"):
+            try:
+                history = json.loads(existing.data["value"])
+            except Exception:
+                history = []
+
+        history.insert(0, {
+            "broadcast_id": broadcast_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "template_name": template_name,
+            "opt_in_source": opt_in_source or "unknown",
+            "sent": sent,
+            "delivered": delivered_count,
+            "opened": opened_count,
+            "failed": failed,
+            "total_leads": total_leads,
+            "number_used": number_used,
+            "csv_file_url": csv_file_url,
+            "csv_file_path": csv_file_path,
+            "csv_file_name": csv_file_name,
+            "tag_id": tag_id,
+        })
+        history = history[:50]
+
+        db.table("app_settings").upsert({
+            "tenant_id": tenant_id,
+            "key": "broadcast_history",
+            "value": json.dumps(history),
+        }, on_conflict="tenant_id,key").execute()
+    except Exception as hist_err:
+        logger.exception(f"broadcast_history save failed for {broadcast_id}: {hist_err}")
 
 
 def _finish(db, row_id: str, status: str, result: dict | None, error: str | None = None) -> None:

@@ -24,6 +24,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     let desc = "Import a CSV and broadcast a WhatsApp campaign to all eligible leads.";
     if (tab === "history") desc = "Track delivery status, read rates, and failures of sent broadcast campaigns.";
     if (tab === "tags") desc = "Create and manage tags to segment and label leads for outbound campaigns.";
+    if (tab === "opted-out") desc = "Leads who opted out of broadcasts, globally or for one tag.";
     return {
       title: "Outbound Leads",
       description: desc,
@@ -357,7 +358,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
       <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
         {pathname === "/dashboard/outbound-leads" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
-            {(["upload", "history", "tags"] as const).map((t) => (
+            {(["upload", "history", "tags", "opted-out"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => {
@@ -372,7 +373,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                     : "text-[#78716c] hover:text-[#292524]"
                 )}
               >
-                {t === "upload" ? "Broadcast Message" : t === "history" ? "Broadcast History" : "Tags"}
+                {t === "upload" ? "Broadcast Message" : t === "history" ? "Broadcast History" : t === "tags" ? "Tags" : "Opted-Out"}
               </button>
             ))}
           </div>

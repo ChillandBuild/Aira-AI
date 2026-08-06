@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import json
@@ -598,6 +599,378 @@ async def risk_audit(body: RiskAuditRequest, tenant_id: str = Depends(get_tenant
     }
 
 
+async def _execute_immediate_send(
+    *,
+    tenant_id: str,
+    broadcast_id: str,
+    broadcast_timestamp: datetime,
+    body: "BulkSendRequest",
+    eligible: list,
+    rejected: list,
+    invalid_leads: list,
+    all_phones: list,
+    phone_to_lead_id: dict,
+    phone_to_lead_name: dict,
+    all_opted_out_phones: set,
+    tag_opted_out_phones: set,
+    globally_opted_out_phones: set,
+    negative_reply_phones: set,
+    has_vars: bool,
+    tpl_lang: str,
+    best_number: dict,
+    _has_fail_reason: bool,
+) -> None:
+    """Background worker for an immediate 'Send Now' broadcast. bulk_send() has already
+    returned {"status": "queued", ...} to the client by the time this runs — progress is
+    polled via GET /broadcast/{id}/progress, and Stop hits POST /broadcast/{id}/abort."""
+    db = get_supabase()
+    sent = 0
+    failed = 0
+    opted_out_skipped = 0
+    recipient_rows = []
+    aborted = False
+    idx = 0
+
+    try:
+        for idx, lead in enumerate(eligible):
+            if idx % 5 == 0:
+                try:
+                    row_now = (
+                        db.table("scheduled_broadcasts")
+                        .select("abort_requested")
+                        .eq("id", broadcast_id)
+                        .maybe_single()
+                        .execute()
+                    )
+                    if row_now and row_now.data and row_now.data.get("abort_requested"):
+                        aborted = True
+                        break
+                    db.table("scheduled_broadcasts").update({
+                        "result": json.dumps({
+                            "sent": sent, "failed": failed,
+                            "opted_out_skipped": opted_out_skipped, "total": len(eligible),
+                        }),
+                    }).eq("id", broadcast_id).execute()
+                except Exception:
+                    pass
+
+            phone = _normalize_phone(lead.phone or "")
+            if not phone:
+                continue
+
+            lead_id = phone_to_lead_id.get(phone)
+            lead_name = phone_to_lead_name.get(phone)
+
+            if phone in all_opted_out_phones and not body.include_opted_out:
+                opted_out_skipped += 1
+                row = {
+                    "tenant_id": tenant_id,
+                    "broadcast_id": broadcast_id,
+                    "lead_id": lead_id,
+                    "phone": phone,
+                    "name": lead_name,
+                    "send_status": "opted_out_skip",
+                    "tag_id": body.tag_id,
+                }
+                if _has_fail_reason:
+                    if phone in tag_opted_out_phones and phone not in globally_opted_out_phones:
+                        row["fail_reason"] = "tag_opted_out"
+                    elif phone in globally_opted_out_phones and phone not in tag_opted_out_phones:
+                        row["fail_reason"] = "globally_opted_out"
+                    else:
+                        row["fail_reason"] = "opted_out"
+                recipient_rows.append(row)
+                if phone in globally_opted_out_phones:
+                    logger.info(f"Bulk-send skipped globally-opted-out lead (id={lead_id})")
+                else:
+                    logger.info(f"Bulk-send skipped tag-opted-out lead (id={lead_id}) for tag {body.tag_id}")
+                continue
+
+            if phone in negative_reply_phones:
+                failed += 1
+                row = {
+                    "tenant_id": tenant_id,
+                    "broadcast_id": broadcast_id,
+                    "lead_id": lead_id,
+                    "phone": phone,
+                    "name": lead_name,
+                    "send_status": "opted_out_skip",
+                    "tag_id": body.tag_id,
+                }
+                if _has_fail_reason:
+                    row["fail_reason"] = "negative_reply_excluded"
+                recipient_rows.append(row)
+                logger.info(f"Bulk-send skipped negative-reply lead {phone}")
+                continue
+
+            try:
+                components: list[dict] = []
+                if has_vars:
+                    params = []
+                    for col in (body.variable_mapping or []):
+                        val = (lead.extra_cols.get(col) or "").strip()
+                        params.append({"type": "text", "text": val or "Customer"})
+                    if not params:
+                        # fallback: just substitute {{1}} with name
+                        params = [{"type": "text", "text": _clean_text(lead.name) or "Customer"}]
+                    components = [{"type": "body", "parameters": params}]
+
+                send_result = await send_template_message(
+                    to_number=phone,
+                    template_name=body.template_name,
+                    lang_code=tpl_lang,
+                    components=components,
+                    phone_number_id=best_number.get("meta_phone_number_id"),
+                    tenant_id=tenant_id,
+                )
+                sent += 1
+
+                meta_msg_id: str | None = None
+                try:
+                    meta_msg_id = send_result.get("messages", [{}])[0].get("id")
+                except Exception:
+                    pass
+
+                recipient_rows.append({
+                    "tenant_id": tenant_id,
+                    "broadcast_id": broadcast_id,
+                    "lead_id": lead_id,
+                    "phone": phone,
+                    "name": lead_name,
+                    "send_status": "sent",
+                    "tag_id": body.tag_id,
+                    "meta_message_id": meta_msg_id,
+                    "extra_cols": (lead.extra_cols or None),
+                })
+
+                if lead_id:
+                    try:
+                        msg_row = {
+                            "lead_id": lead_id,
+                            "tenant_id": tenant_id,
+                            "direction": "outbound",
+                            "channel": "whatsapp",
+                            "content": f"[Template: {body.template_name}]",
+                            "is_ai_generated": False,
+                        }
+                        if meta_msg_id:
+                            msg_row["meta_message_id"] = meta_msg_id
+                        db.table("messages").insert(msg_row).execute()
+                    except Exception as db_err:
+                        logger.error(f"messages insert failed for {phone}: {db_err}")
+            except Exception as e:
+                fail_reason = _map_meta_error(str(e))
+                logger.error(f"Bulk-send failed for {phone}: {e}")
+                failed += 1
+                row = {
+                    "tenant_id": tenant_id,
+                    "broadcast_id": broadcast_id,
+                    "lead_id": lead_id,
+                    "phone": phone,
+                    "name": lead_name,
+                    "send_status": "failed",
+                    "tag_id": body.tag_id,
+                }
+                if _has_fail_reason:
+                    row["fail_reason"] = fail_reason
+                row["fail_detail"] = _meta_error_detail(str(e))
+                recipient_rows.append(row)
+
+        if aborted:
+            for skipped_lead in eligible[idx:]:
+                phone = _normalize_phone(skipped_lead.phone or "")
+                recipient_rows.append({
+                    "tenant_id": tenant_id,
+                    "broadcast_id": broadcast_id,
+                    "lead_id": phone_to_lead_id.get(phone),
+                    "phone": phone,
+                    "name": phone_to_lead_name.get(phone),
+                    "send_status": "aborted_skip",
+                    "tag_id": body.tag_id,
+                })
+
+        # Track invalid phone numbers separately so they appear in failed CSV
+        for inv_lead in invalid_leads:
+            raw_phone = (inv_lead.phone or "").strip()
+            if not raw_phone:
+                raw_phone = "N/A"
+            row = {
+                "tenant_id": tenant_id,
+                "broadcast_id": broadcast_id,
+                "lead_id": None,
+                "phone": raw_phone,
+                "name": _clean_text(inv_lead.name),
+                "send_status": "failed",
+                "tag_id": body.tag_id,
+            }
+            if _has_fail_reason:
+                row["fail_reason"] = "invalid_number"
+            recipient_rows.append(row)
+            failed += 1
+
+        for rej_lead in rejected:
+            phone = _normalize_phone(rej_lead.phone or "")
+            if not phone:
+                continue
+            lead_id = phone_to_lead_id.get(phone)
+            if not lead_id:
+                continue
+            lead_name = phone_to_lead_name.get(phone)
+            row = {
+                "tenant_id": tenant_id,
+                "broadcast_id": broadcast_id,
+                "lead_id": lead_id,
+                "phone": phone,
+                "name": lead_name,
+                "send_status": "rejected",
+                "tag_id": body.tag_id,
+            }
+            if _has_fail_reason:
+                row["fail_reason"] = "opt_in_source_missing"
+            recipient_rows.append(row)
+
+        if recipient_rows:
+            for i in range(0, len(recipient_rows), 100):
+                batch = recipient_rows[i:i+100]
+                try:
+                    db.table("broadcast_recipients").insert(batch).execute()
+                except Exception as br_err:
+                    logger.error(f"broadcast_recipients insert failed: {br_err}")
+
+            if sent > 0:
+                initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
+                bls_rows = [
+                    {
+                        "tenant_id": tenant_id,
+                        "broadcast_id": broadcast_id,
+                        "lead_id": r["lead_id"],
+                        "tag_id": body.tag_id,
+                        "score": initial_score,
+                        "segment": initial_segment,
+                        "arc_score": initial_score,
+                        "arc_message_count": 0,
+                        "broadcast_sent_at": broadcast_timestamp.isoformat(),
+                    }
+                    for r in recipient_rows
+                    if r.get("send_status") == "sent" and r.get("lead_id")
+                ]
+                if bls_rows:
+                    for i in range(0, len(bls_rows), 100):
+                        try:
+                            db.table("broadcast_lead_scores").upsert(
+                                bls_rows[i:i+100],
+                                on_conflict="broadcast_id,lead_id",
+                            ).execute()
+                        except Exception as bls_err:
+                            logger.error(f"broadcast_lead_scores seed failed: {bls_err}")
+
+        if sent > 0:
+            await increment_send_count(best_number["id"], delta=sent)
+
+        lead_ids = [phone_to_lead_id.get(p) for p in all_phones if phone_to_lead_id.get(p)]
+        delivered_count = 0
+        opened_count = 0
+
+        if lead_ids:
+            try:
+                window_start = (broadcast_timestamp - timedelta(minutes=2)).isoformat()
+                window_end = (broadcast_timestamp + timedelta(minutes=10)).isoformat()
+
+                delivered_rows = db.table("messages") \
+                    .select("id") \
+                    .in_("lead_id", lead_ids) \
+                    .eq("direction", "outbound") \
+                    .eq("delivery_status", "delivered") \
+                    .gte("created_at", window_start) \
+                    .lte("created_at", window_end) \
+                    .execute()
+                delivered_count = len(delivered_rows.data or [])
+
+                opened_rows = db.table("messages") \
+                    .select("id") \
+                    .in_("lead_id", lead_ids) \
+                    .eq("direction", "outbound") \
+                    .eq("delivery_status", "read") \
+                    .gte("created_at", window_start) \
+                    .lte("created_at", window_end) \
+                    .execute()
+                opened_count = len(opened_rows.data or [])
+            except Exception as e:
+                logger.error(f"Failed to query delivery status: {e}")
+
+        total_failed = failed + len(rejected)
+        try:
+            history_key = "broadcast_history"
+            existing = (
+                db.table("app_settings")
+                .select("value")
+                .eq("tenant_id", tenant_id)
+                .eq("key", history_key)
+                .maybe_single()
+                .execute()
+            )
+
+            history: list[dict] = []
+            if existing and existing.data and existing.data.get("value"):
+                try:
+                    history = json.loads(existing.data["value"])
+                except Exception:
+                    history = []
+
+            opt_in_src = _clean_text(eligible[0].opt_in_source) if eligible else "unknown"
+
+            history.insert(0, {
+                "broadcast_id": broadcast_id,
+                "timestamp": broadcast_timestamp.isoformat(),
+                "template_name": body.template_name,
+                "opt_in_source": opt_in_src or "unknown",
+                "sent": sent,
+                "delivered": delivered_count,
+                "opened": opened_count,
+                "failed": total_failed,
+                "total_leads": len(eligible),
+                "number_used": best_number.get("number"),
+                "csv_file_url": body.csv_file_url,
+                "csv_file_path": body.csv_file_path,
+                "csv_file_name": body.csv_file_name,
+                "tag_id": body.tag_id,
+            })
+            history = history[:50]
+
+            db.table("app_settings").upsert({
+                "tenant_id": tenant_id,
+                "key": history_key,
+                "value": json.dumps(history),
+            }, on_conflict="tenant_id,key").execute()
+        except Exception:
+            logger.exception("broadcast_history save failed")
+
+        final_status = "aborted" if aborted else "done"
+        db.table("scheduled_broadcasts").update({
+            "status": final_status,
+            "executed_at": datetime.now(timezone.utc).isoformat(),
+            "result": json.dumps({
+                "sent": sent,
+                "failed": total_failed,
+                "opted_out_skipped": opted_out_skipped,
+                "number_used": best_number.get("number"),
+                "total": len(eligible),
+            }),
+        }).eq("id", broadcast_id).execute()
+        logger.info(f"Immediate broadcast {broadcast_id}: sent={sent} failed={total_failed} aborted={aborted}")
+
+    except Exception as exc:
+        logger.exception(f"Immediate broadcast {broadcast_id} crashed: {exc}")
+        try:
+            db.table("scheduled_broadcasts").update({
+                "status": "failed",
+                "error": str(exc)[:500],
+                "executed_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", broadcast_id).execute()
+        except Exception:
+            pass
+
+
 @router.post("/bulk-send")
 async def bulk_send(
     body: BulkSendRequest,
@@ -888,11 +1261,6 @@ async def bulk_send(
     import re as _re
     has_vars = bool(_re.search(r"\{\{\d+\}\}", tpl_body))
 
-    sent = 0
-    failed = 0
-    opted_out_skipped = 0
-    recipient_rows = []
-
     # Check if fail_reason column exists (migration 058 may not be applied yet)
     _has_fail_reason = False
     try:
@@ -901,318 +1269,384 @@ async def bulk_send(
     except Exception:
         pass
 
-    for lead in eligible:
-        phone = _normalize_phone(lead.phone or "")
-        if not phone:
-            continue
-
-        lead_id = phone_to_lead_id.get(phone)
-        lead_name = phone_to_lead_name.get(phone)
-
-        if phone in all_opted_out_phones and not body.include_opted_out:
-            opted_out_skipped += 1
-            row = {
-                "tenant_id": tenant_id,
-                "broadcast_id": broadcast_id,
-                "lead_id": lead_id,
-                "phone": phone,
-                "name": lead_name,
-                "send_status": "opted_out_skip",
-                "tag_id": body.tag_id,
-            }
-            if _has_fail_reason:
-                if phone in tag_opted_out_phones and phone not in globally_opted_out_phones:
-                    row["fail_reason"] = "tag_opted_out"
-                elif phone in globally_opted_out_phones and phone not in tag_opted_out_phones:
-                    row["fail_reason"] = "globally_opted_out"
-                else:
-                    row["fail_reason"] = "opted_out"
-            recipient_rows.append(row)
-            if phone in globally_opted_out_phones:
-                logger.info(f"Bulk-send skipped globally-opted-out lead (id={lead_id})")
-            else:
-                logger.info(f"Bulk-send skipped tag-opted-out lead (id={lead_id}) for tag {body.tag_id}")
-            continue
-
-        if phone in negative_reply_phones:
-            failed += 1
-            row = {
-                "tenant_id": tenant_id,
-                "broadcast_id": broadcast_id,
-                "lead_id": lead_id,
-                "phone": phone,
-                "name": lead_name,
-                "send_status": "opted_out_skip",
-                "tag_id": body.tag_id,
-            }
-            if _has_fail_reason:
-                row["fail_reason"] = "negative_reply_excluded"
-            recipient_rows.append(row)
-            logger.info(f"Bulk-send skipped negative-reply lead {phone}")
-            continue
-
-        try:
-            components: list[dict] = []
-            if has_vars:
-                params = []
-                for col in (body.variable_mapping or []):
-                    val = (lead.extra_cols.get(col) or "").strip()
-                    params.append({"type": "text", "text": val or "Customer"})
-                if not params:
-                    # fallback: just substitute {{1}} with name
-                    params = [{"type": "text", "text": _clean_text(lead.name) or "Customer"}]
-                components = [{"type": "body", "parameters": params}]
-
-            result = await send_template_message(
-                to_number=phone,
-                template_name=body.template_name,
-                lang_code=tpl_lang,
-                components=components,
-                phone_number_id=best_number.get("meta_phone_number_id"),
-                tenant_id=tenant_id,
-            )
-            sent += 1
-
-            meta_msg_id: str | None = None
-            try:
-                meta_msg_id = result.get("messages", [{}])[0].get("id")
-            except Exception:
-                pass
-
-            recipient_rows.append({
-                "tenant_id": tenant_id,
-                "broadcast_id": broadcast_id,
-                "lead_id": lead_id,
-                "phone": phone,
-                "name": lead_name,
-                "send_status": "sent",
-                "tag_id": body.tag_id,
-                "meta_message_id": meta_msg_id,
-                "extra_cols": (lead.extra_cols or None),
-            })
-
-            if lead_id:
-                try:
-                    msg_row = {
-                        "lead_id": lead_id,
-                        "tenant_id": tenant_id,
-                        "direction": "outbound",
-                        "channel": "whatsapp",
-                        "content": f"[Template: {body.template_name}]",
-                        "is_ai_generated": False,
-                    }
-                    if meta_msg_id:
-                        msg_row["meta_message_id"] = meta_msg_id
-                    db.table("messages").insert(msg_row).execute()
-                except Exception as db_err:
-                    logger.error(f"messages insert failed for {phone}: {db_err}")
-        except Exception as e:
-            fail_reason = _map_meta_error(str(e))
-            logger.error(f"Bulk-send failed for {phone}: {e}")
-            failed += 1
-            row = {
-                "tenant_id": tenant_id,
-                "broadcast_id": broadcast_id,
-                "lead_id": lead_id,
-                "phone": phone,
-                "name": lead_name,
-                "send_status": "failed",
-                "tag_id": body.tag_id,
-            }
-            if _has_fail_reason:
-                row["fail_reason"] = fail_reason
-            row["fail_detail"] = _meta_error_detail(str(e))
-            recipient_rows.append(row)
-
-    # Track invalid phone numbers separately so they appear in failed CSV
-    for inv_lead in invalid_leads:
-        raw_phone = (inv_lead.phone or "").strip()
-        if not raw_phone:
-            raw_phone = "N/A"
-        row = {
-            "tenant_id": tenant_id,
-            "broadcast_id": broadcast_id,
-            "lead_id": None,
-            "phone": raw_phone,
-            "name": _clean_text(inv_lead.name),
-            "send_status": "failed",
-            "tag_id": body.tag_id,
-        }
-        if _has_fail_reason:
-            row["fail_reason"] = "invalid_number"
-        recipient_rows.append(row)
-        failed += 1
-
-    for rej_lead in rejected:
-        phone = _normalize_phone(rej_lead.phone or "")
-        if not phone:
-            continue
-        lead_id = phone_to_lead_id.get(phone)
-        if not lead_id:
-            continue
-        lead_name = phone_to_lead_name.get(phone)
-        row = {
-            "tenant_id": tenant_id,
-            "broadcast_id": broadcast_id,
-            "lead_id": lead_id,
-            "phone": phone,
-            "name": lead_name,
-            "send_status": "rejected",
-            "tag_id": body.tag_id,
-        }
-        if _has_fail_reason:
-            row["fail_reason"] = "opt_in_source_missing"
-        recipient_rows.append(row)
-
-    if recipient_rows:
-        for i in range(0, len(recipient_rows), 100):
-            batch = recipient_rows[i:i+100]
-            try:
-                db.table("broadcast_recipients").insert(batch).execute()
-            except Exception as br_err:
-                logger.error(f"broadcast_recipients insert failed: {br_err}")
-
-        # ── Shell scheduled_broadcasts row + broadcast_lead_scores seeding for immediate sends ──
-        if sent > 0:
-            opt_in_src = _clean_text(eligible[0].opt_in_source) if eligible else "unknown"
-            try:
-                _insert_scheduled_broadcast(db, {
-                    "id": broadcast_id,
-                    "tenant_id": tenant_id,
-                    "template_name": body.template_name,
-                    "schedule_type": "scheduled",
-                    "fire_at": broadcast_timestamp.isoformat(),
-                    "status": "done",
-                    "leads_json": [],
-                    "variable_mapping": body.variable_mapping,
-                    "opt_in_source": opt_in_src or "unknown",
-                    "csv_file_url": body.csv_file_url,
-                    "csv_file_path": body.csv_file_path,
-                    "csv_file_name": body.csv_file_name,
-                    "tag_id": body.tag_id,
-                    "executed_at": broadcast_timestamp.isoformat(),
-                    **_retry_fields(body),
-                })
-                logger.info(f"Shell scheduled_broadcasts record inserted for immediate broadcast_id: {broadcast_id}")
-            except Exception as sb_err:
-                logger.error(f"scheduled_broadcasts shell insert failed: {sb_err}")
-
-            initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
-            bls_rows = [
-                {
-                    "tenant_id": tenant_id,
-                    "broadcast_id": broadcast_id,
-                    "lead_id": r["lead_id"],
-                    "tag_id": body.tag_id,
-                    "score": initial_score,
-                    "segment": initial_segment,
-                    "arc_score": initial_score,
-                    "arc_message_count": 0,
-                    "broadcast_sent_at": broadcast_timestamp.isoformat(),
-                }
-                for r in recipient_rows
-                if r.get("send_status") == "sent" and r.get("lead_id")
-            ]
-            if bls_rows:
-                for i in range(0, len(bls_rows), 100):
-                    try:
-                        db.table("broadcast_lead_scores").upsert(
-                            bls_rows[i:i+100],
-                            on_conflict="broadcast_id,lead_id",
-                        ).execute()
-                    except Exception as bls_err:
-                        logger.error(f"broadcast_lead_scores seed failed: {bls_err}")
-
-    if sent > 0:
-        await increment_send_count(best_number["id"], delta=sent)
-
-    lead_ids = [phone_to_lead_id.get(p) for p in all_phones if phone_to_lead_id.get(p)]
-    delivered_count = 0
-    opened_count = 0
-    
-    if lead_ids:
-        try:
-            window_start = (broadcast_timestamp - timedelta(minutes=2)).isoformat()
-            window_end = (broadcast_timestamp + timedelta(minutes=10)).isoformat()
-            
-            delivered_rows = db.table("messages") \
-                .select("id") \
-                .in_("lead_id", lead_ids) \
-                .eq("direction", "outbound") \
-                .eq("delivery_status", "delivered") \
-                .gte("created_at", window_start) \
-                .lte("created_at", window_end) \
-                .execute()
-            delivered_count = len(delivered_rows.data or [])
-            
-            opened_rows = db.table("messages") \
-                .select("id") \
-                .in_("lead_id", lead_ids) \
-                .eq("direction", "outbound") \
-                .eq("delivery_status", "read") \
-                .gte("created_at", window_start) \
-                .lte("created_at", window_end) \
-                .execute()
-            opened_count = len(opened_rows.data or [])
-        except Exception as e:
-            logger.error(f"Failed to query delivery status: {e}")
-
+    # Tracking row created up front (status='running') so /broadcast/{id}/progress and
+    # /abort work from the first poll — the actual sends happen in a background task
+    # below, started AFTER this request already has something to return.
+    opt_in_src = _clean_text(eligible[0].opt_in_source) if eligible else "unknown"
     try:
-        history_key = "broadcast_history"
-        existing = (
-            db.table("app_settings")
-            .select("value")
-            .eq("tenant_id", tenant_id)
-            .eq("key", history_key)
-            .maybe_single()
-            .execute()
-        )
-        
-        history: list[dict] = []
-        if existing and existing.data and existing.data.get("value"):
-            try:
-                history = json.loads(existing.data["value"])
-            except Exception:
-                history = []
-
-        opt_in_src = _clean_text(eligible[0].opt_in_source) if eligible else "unknown"
-        total_failed = failed + len(rejected)
-
-        history.insert(0, {
-            "broadcast_id": broadcast_id,
-            "timestamp": broadcast_timestamp.isoformat(),
+        _insert_scheduled_broadcast(db, {
+            "id": broadcast_id,
+            "tenant_id": tenant_id,
             "template_name": body.template_name,
+            "schedule_type": "scheduled",
+            "fire_at": broadcast_timestamp.isoformat(),
+            "status": "running",
+            "leads_json": [],
+            "variable_mapping": body.variable_mapping,
             "opt_in_source": opt_in_src or "unknown",
-            "sent": sent,
-            "delivered": delivered_count,
-            "opened": opened_count,
-            "failed": total_failed,
-            "total_leads": len(eligible),
-            "number_used": best_number.get("number"),
             "csv_file_url": body.csv_file_url,
             "csv_file_path": body.csv_file_path,
             "csv_file_name": body.csv_file_name,
             "tag_id": body.tag_id,
+            **_retry_fields(body),
         })
-        history = history[:50]
-        new_value = json.dumps(history)
+    except Exception as sb_err:
+        logger.error(f"scheduled_broadcasts tracking row insert failed: {sb_err}")
 
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": history_key,
-            "value": new_value,
-        }, on_conflict="tenant_id,key").execute()
-    except Exception as hist_err:
-        logger.exception("broadcast_history save failed")
+    asyncio.create_task(_execute_immediate_send(
+        tenant_id=tenant_id,
+        broadcast_id=broadcast_id,
+        broadcast_timestamp=broadcast_timestamp,
+        body=body,
+        eligible=eligible,
+        rejected=rejected,
+        invalid_leads=invalid_leads,
+        all_phones=all_phones,
+        phone_to_lead_id=phone_to_lead_id,
+        phone_to_lead_name=phone_to_lead_name,
+        all_opted_out_phones=all_opted_out_phones,
+        tag_opted_out_phones=tag_opted_out_phones,
+        globally_opted_out_phones=globally_opted_out_phones,
+        negative_reply_phones=negative_reply_phones,
+        has_vars=has_vars,
+        tpl_lang=tpl_lang,
+        best_number=best_number,
+        _has_fail_reason=_has_fail_reason,
+    ))
 
     return {
-        "queued": len(upsert_rows),
-        "sent": sent,
-        "failed": failed + len(rejected),
-        "opted_out_skipped": opted_out_skipped,
-        "number_used": best_number.get("number"),
+        "status": "queued",
         "broadcast_id": broadcast_id,
+        "total": len(eligible),
     }
+
+
+class TestSendRequest(BaseModel):
+    phone: str
+    template_name: str
+    variable_sample: Optional[dict[str, str]] = None  # {{1}}, {{2}}... sample values
+
+
+class ReactivateOptOutRequest(BaseModel):
+    lead_id: str
+    tag_id: Optional[str] = None  # present = undo a per-tag opt-out; absent = undo global opt-out
+
+
+class UpdateScheduledBroadcastRequest(BaseModel):
+    template_name: Optional[str] = None
+    fire_at: Optional[str] = None
+
+
+@router.get("/broadcast/{broadcast_id}/progress")
+async def get_broadcast_progress(broadcast_id: str, tenant_id: str = Depends(get_tenant_id)):
+    """Poll target for an in-flight 'Send Now' broadcast — status + live counts."""
+    db = get_supabase()
+    row = (
+        db.table("scheduled_broadcasts")
+        .select("status,result,error")
+        .eq("id", broadcast_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    if not row or not row.data:
+        raise HTTPException(status_code=404, detail="Broadcast not found")
+
+    result = row.data.get("result")
+    if isinstance(result, str):
+        try:
+            result = json.loads(result)
+        except Exception:
+            result = None
+
+    return {
+        "status": row.data.get("status"),
+        "error": row.data.get("error"),
+        **(result or {}),
+    }
+
+
+@router.post("/broadcast/{broadcast_id}/abort")
+async def abort_broadcast(
+    broadcast_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
+    """Stop an in-flight 'Send Now' broadcast between leads. Already-sent leads stay sent."""
+    db = get_supabase()
+    res = (
+        db.table("scheduled_broadcasts")
+        .update({"abort_requested": True})
+        .eq("id", broadcast_id)
+        .eq("tenant_id", tenant_id)
+        .in_("status", ["pending", "running"])
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=400, detail="Broadcast is not running (already finished, or not found)")
+    return {"status": "abort_requested"}
+
+
+@router.post("/broadcast/{broadcast_id}/retry-now")
+async def retry_broadcast_now(
+    broadcast_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
+    """Manually fire a retry attempt instead of waiting for the auto-retry wall-clock window."""
+    from app.services.broadcast_retry import queue_manual_retry
+    db = get_supabase()
+    try:
+        result = queue_manual_retry(db, tenant_id, broadcast_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if result["queued"] == 0:
+        return {"queued": 0, "message": "No undelivered leads left to retry."}
+    return result
+
+
+@router.get("/scheduled")
+async def list_scheduled_broadcasts(tenant_id: str = Depends(get_tenant_id)):
+    """Pending Scheduled/Drip broadcasts that haven't fired yet."""
+    db = get_supabase()
+    rows = (
+        db.table("scheduled_broadcasts")
+        .select("id,template_name,schedule_type,fire_at,created_at,tag_id,retry_of")
+        .eq("tenant_id", tenant_id)
+        .eq("status", "pending")
+        .is_("retry_of", "null")
+        .order("fire_at")
+        .execute()
+    )
+    data = rows.data or []
+
+    # Group drip batches (same template, created together) so the UI can show one
+    # "drip campaign" row instead of N identical-looking rows.
+    tag_ids = list({r["tag_id"] for r in data if r.get("tag_id")})
+    tag_names: dict[str, str] = {}
+    if tag_ids:
+        tag_rows = db.table("broadcast_tags").select("id,name").in_("id", tag_ids).eq("tenant_id", tenant_id).execute()
+        tag_names = {r["id"]: r["name"] for r in (tag_rows.data or [])}
+
+    for r in data:
+        r["tag_name"] = tag_names.get(r.get("tag_id"))
+
+    return {"data": data}
+
+
+@router.patch("/scheduled/{broadcast_id}")
+async def update_scheduled_broadcast(
+    broadcast_id: str,
+    body: UpdateScheduledBroadcastRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
+    """Edit a pending scheduled/drip broadcast's template or fire time before it goes out."""
+    db = get_supabase()
+    update: dict = {}
+    if body.template_name:
+        update["template_name"] = body.template_name
+    if body.fire_at:
+        try:
+            fire_at = datetime.fromisoformat(body.fire_at.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid fire_at format")
+        update["fire_at"] = fire_at.isoformat()
+    if not update:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
+    res = (
+        db.table("scheduled_broadcasts")
+        .update(update)
+        .eq("id", broadcast_id)
+        .eq("tenant_id", tenant_id)
+        .eq("status", "pending")
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=400, detail="Broadcast is not pending (already sent, cancelled, or not found)")
+    return {"status": "updated"}
+
+
+@router.post("/scheduled/{broadcast_id}/cancel")
+async def cancel_scheduled_broadcast(
+    broadcast_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
+    """Cancel a pending scheduled/drip broadcast before it fires."""
+    db = get_supabase()
+    res = (
+        db.table("scheduled_broadcasts")
+        .update({"status": "cancelled"})
+        .eq("id", broadcast_id)
+        .eq("tenant_id", tenant_id)
+        .eq("status", "pending")
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(status_code=400, detail="Broadcast is not pending (already sent, cancelled, or not found)")
+    return {"status": "cancelled"}
+
+
+@router.delete("/history/{broadcast_id}")
+async def delete_history_entry(
+    broadcast_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
+    """Remove one entry from the Broadcast History list (does not touch sent messages/leads)."""
+    db = get_supabase()
+    existing = (
+        db.table("app_settings")
+        .select("value")
+        .eq("tenant_id", tenant_id)
+        .eq("key", "broadcast_history")
+        .maybe_single()
+        .execute()
+    )
+    history: list[dict] = []
+    if existing and existing.data and existing.data.get("value"):
+        try:
+            history = json.loads(existing.data["value"])
+        except Exception:
+            history = []
+
+    before = len(history)
+    history = [h for h in history if h.get("broadcast_id") != broadcast_id]
+    if len(history) == before:
+        raise HTTPException(status_code=404, detail="History entry not found")
+
+    db.table("app_settings").upsert({
+        "tenant_id": tenant_id,
+        "key": "broadcast_history",
+        "value": json.dumps(history),
+    }, on_conflict="tenant_id,key").execute()
+    return {"status": "deleted"}
+
+
+@router.get("/opted-out")
+async def list_opted_out_leads(tenant_id: str = Depends(get_tenant_id)):
+    """Every lead currently excluded from broadcasts by an opt-out — global (STOP reply,
+    account-wide) or per-tag (STOP reply scoped to one product/tag's broadcasts)."""
+    db = get_supabase()
+
+    global_rows = (
+        db.table("leads")
+        .select("id,phone,name,opted_out_at")
+        .eq("tenant_id", tenant_id)
+        .eq("opted_out", True)
+        .order("opted_out_at", desc=True)
+        .limit(500)
+        .execute()
+    )
+    global_out = [
+        {
+            "lead_id": r["id"], "phone": r.get("phone"), "name": r.get("name"),
+            "opted_out_at": r.get("opted_out_at"), "scope": "global", "tag_id": None, "tag_name": None,
+        }
+        for r in (global_rows.data or [])
+    ]
+
+    tag_rows = (
+        db.table("lead_tag_opt_outs")
+        .select("lead_id,tag_id,opted_out_at,leads!inner(phone,name),broadcast_tags(name)")
+        .eq("tenant_id", tenant_id)
+        .not_.is_("tag_id", "null")
+        .order("opted_out_at", desc=True)
+        .limit(500)
+        .execute()
+    )
+    tag_out = [
+        {
+            "lead_id": r["lead_id"],
+            "phone": (r.get("leads") or {}).get("phone"),
+            "name": (r.get("leads") or {}).get("name"),
+            "opted_out_at": r.get("opted_out_at"),
+            "scope": "tag",
+            "tag_id": r.get("tag_id"),
+            "tag_name": (r.get("broadcast_tags") or {}).get("name"),
+        }
+        for r in (tag_rows.data or [])
+    ]
+
+    return {"data": global_out + tag_out}
+
+
+@router.post("/opted-out/reactivate")
+async def reactivate_opted_out_lead(
+    body: ReactivateOptOutRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
+    """Manually undo an opt-out so the lead is eligible for broadcasts again.
+    Only do this with the lead's actual re-consent — WhatsApp policy still applies."""
+    db = get_supabase()
+    if body.tag_id:
+        db.table("lead_tag_opt_outs") \
+            .delete() \
+            .eq("tenant_id", tenant_id) \
+            .eq("lead_id", body.lead_id) \
+            .eq("tag_id", body.tag_id) \
+            .execute()
+    else:
+        db.table("leads") \
+            .update({"opted_out": False, "opted_out_at": None}) \
+            .eq("tenant_id", tenant_id) \
+            .eq("id", body.lead_id) \
+            .execute()
+    logger.info(f"Opt-out manually reactivated: lead={body.lead_id} tag={body.tag_id} tenant={tenant_id}")
+    return {"status": "reactivated"}
+
+
+@router.post("/test-send")
+async def test_send(
+    body: TestSendRequest,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_outbound_manage),
+):
+    """Send one template message to a single number before dispatching to a full list.
+    Does not touch leads, broadcast_recipients, or history — a pure dry-run send."""
+    phone = _normalize_phone(body.phone or "")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Invalid phone number")
+
+    db = get_supabase()
+    tpl_row = (
+        db.table("message_templates")
+        .select("language,body_text")
+        .eq("name", body.template_name)
+        .eq("tenant_id", tenant_id)
+        .limit(1)
+        .execute()
+    )
+    if not tpl_row.data:
+        raise HTTPException(status_code=404, detail="Template not found")
+    tpl_lang = tpl_row.data[0].get("language") or "en"
+    tpl_body = tpl_row.data[0].get("body_text") or ""
+
+    components: list[dict] = []
+    if re.search(r"\{\{\d+\}\}", tpl_body):
+        var_count = len(set(re.findall(r"\{\{(\d+)\}\}", tpl_body)))
+        sample = body.variable_sample or {}
+        params = [
+            {"type": "text", "text": sample.get(str(i), "Test")}
+            for i in range(1, var_count + 1)
+        ]
+        components = [{"type": "body", "parameters": params}]
+
+    try:
+        await send_template_message(
+            to_number=phone,
+            template_name=body.template_name,
+            lang_code=tpl_lang,
+            components=components,
+            tenant_id=tenant_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=_meta_error_detail(str(e)) or str(e))
+
+    return {"status": "sent", "phone": phone}
 
 
 # --- Single source of truth for broadcast outcomes ---
