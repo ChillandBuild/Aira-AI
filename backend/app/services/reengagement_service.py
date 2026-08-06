@@ -119,7 +119,9 @@ async def process_due_reengagements() -> int:
             if not due_recipients:
                 continue
 
-            due_lead_ids = [rec["lead_id"] for rec in due_recipients]
+            # Dedup lead_ids: broadcast_recipients has no unique(broadcast_id, lead_id)
+            # constraint, so a duplicate row must not produce a duplicate send.
+            due_lead_ids = list(dict.fromkeys(rec["lead_id"] for rec in due_recipients))
             processed_ids = _already_processed_lead_ids(db, step_id, due_lead_ids)
             pending_lead_ids = [lid for lid in due_lead_ids if lid not in processed_ids]
             if not pending_lead_ids:
