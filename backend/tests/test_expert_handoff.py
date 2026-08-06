@@ -260,3 +260,19 @@ def test_confirm_expert_handoff_payment_idempotent_when_already_paid():
     fetch.data = {"id": "sess-1", "status": "paid", "lead_id": "lead-1", "tenant_id": "t-1", "collected_data": {}}
     db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
     assert eh.confirm_expert_handoff_payment("sess-1", "pay_abc123", db=db) is None
+
+
+def test_get_session_tenant_id_returns_tenant_for_known_session():
+    db = MagicMock()
+    row = MagicMock()
+    row.data = {"tenant_id": "tenant-astro-tamil"}
+    db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+    assert eh.get_session_tenant_id("sess-1", db=db) == "tenant-astro-tamil"
+
+
+def test_get_session_tenant_id_returns_none_for_unknown_session():
+    db = MagicMock()
+    row = MagicMock()
+    row.data = None
+    db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+    assert eh.get_session_tenant_id("sess-nonexistent", db=db) is None

@@ -25,6 +25,14 @@ def test_verify_webhook_signature_rejects_mismatched_hmac():
         assert pr.verify_webhook_signature(b"{}", "deadbeef") is False
 
 
+def test_verify_webhook_signature_checks_the_given_tenants_own_secret():
+    with patch.object(pr, "get_setting", return_value="whsec_test") as get_setting:
+        body = b'{"event":"payment_link.paid"}'
+        sig = hmac.new(b"whsec_test", body, hashlib.sha256).hexdigest()
+        assert pr.verify_webhook_signature(body, sig, tenant_id="tenant-astro-tamil") is True
+    get_setting.assert_called_once_with("razorpay_webhook_secret", tenant_id="tenant-astro-tamil")
+
+
 @pytest.mark.asyncio
 async def test_create_payment_link_returns_url_and_id():
     fake_resp = MagicMock()

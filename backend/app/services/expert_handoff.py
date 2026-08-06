@@ -294,6 +294,28 @@ async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: s
         return False
 
 
+def get_session_tenant_id(session_id: str, db=None) -> str | None:
+    """Look up which tenant owns a session, so the webhook route can verify the
+    Razorpay signature against that tenant's own webhook secret rather than the
+    default tenant's. Safe to call before the signature is verified: an attacker
+    supplying a forged session_id just gets a lookup miss or another tenant's
+    id, and the subsequent HMAC check against that tenant's real secret still
+    fails without it."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    row = (
+        db.table("expert_handoff_sessions")
+        .select("tenant_id")
+        .eq("id", session_id)
+        .maybe_single()
+        .execute()
+    )
+    if not row or not row.data:
+        return None
+    return row.data.get("tenant_id")
+
+
 def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db=None) -> tuple[str, str, str, str] | None:
     """Mark a session paid and mute the AI for its lead. Returns
     (phone, tenant_id, lead_id, customer_name) on success, None if the session

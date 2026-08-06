@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 
 from app.services.ai_reply import send_whatsapp
-from app.services.expert_handoff import confirm_expert_handoff_payment
+from app.services.expert_handoff import confirm_expert_handoff_payment, get_session_tenant_id
 from app.services.payment_razorpay import verify_webhook_signature
 
 logger = logging.getLogger(__name__)
@@ -15,29 +15,39 @@ async def razorpay_webhook(request: Request):
     raw_body = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
 
-    if not verify_webhook_signature(raw_body, signature):
-        logger.warning("Expert handoff Razorpay webhook: invalid signature")
-        raise HTTPException(status_code=400, detail="Invalid signature")
-
     try:
         payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    event = payload.get("event", "")
-    if event != "payment_link.paid":
-        return {"status": "ignored", "event": event}
-
     entity = payload.get("payload", {}).get("payment_link", {}).get("entity", {})
     notes = entity.get("notes", {})
     session_id = notes.get("booking_id")  # payment_razorpay.py's notes key is literally "booking_id"
-    razorpay_payment_id = (
-        payload.get("payload", {}).get("payment", {}).get("entity", {}).get("id", "")
-    )
 
     if not session_id:
         logger.error("Expert handoff webhook: no session id in notes")
         return {"status": "error", "detail": "no session id"}
+
+    # Signature is verified per-tenant: each tenant configures its own
+    # razorpay_webhook_secret, so the tenant must be known before the HMAC
+    # check runs (see get_session_tenant_id's docstring for why this lookup
+    # is safe to do before the payload is trusted).
+    tenant_id = get_session_tenant_id(session_id)
+    if not tenant_id:
+        logger.warning(f"Expert handoff webhook: unknown session id {session_id}")
+        raise HTTPException(status_code=400, detail="Unknown session")
+
+    if not verify_webhook_signature(raw_body, signature, tenant_id=tenant_id):
+        logger.warning(f"Expert handoff Razorpay webhook: invalid signature for tenant {tenant_id}")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    event = payload.get("event", "")
+    if event != "payment_link.paid":
+        return {"status": "ignored", "event": event}
+
+    razorpay_payment_id = (
+        payload.get("payload", {}).get("payment", {}).get("entity", {}).get("id", "")
+    )
 
     result = confirm_expert_handoff_payment(session_id, razorpay_payment_id)
     if result:

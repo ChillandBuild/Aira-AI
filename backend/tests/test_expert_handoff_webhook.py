@@ -23,20 +23,38 @@ def _payload(session_id="sess-1", event="payment_link.paid"):
 
 
 def test_webhook_rejects_invalid_signature():
-    with patch("app.routes.expert_handoff.verify_webhook_signature", return_value=False):
+    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=False):
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "bad"})
     assert res.status_code == 400
 
 
+def test_webhook_rejects_unknown_session_id():
+    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value=None):
+        res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "whatever"})
+    assert res.status_code == 400
+
+
+def test_webhook_verifies_signature_against_the_sessions_own_tenant():
+    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="tenant-astro-tamil") as get_tenant, \
+         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True) as verify, \
+         patch("app.routes.expert_handoff.confirm_expert_handoff_payment", return_value=None):
+        client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
+    get_tenant.assert_called_once_with("sess-1")
+    assert verify.call_args.kwargs.get("tenant_id") == "tenant-astro-tamil"
+
+
 def test_webhook_ignores_non_paid_events():
-    with patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True):
+    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True):
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(event="payment_link.cancelled"), headers={"x-razorpay-signature": "ok"})
     assert res.status_code == 200
     assert res.json()["status"] == "ignored"
 
 
 def test_webhook_confirms_payment_and_sends_receipt():
-    with patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True), \
+    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True), \
          patch("app.routes.expert_handoff.confirm_expert_handoff_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
          patch("app.routes.expert_handoff.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
@@ -49,7 +67,6 @@ def test_webhook_confirms_payment_and_sends_receipt():
 def test_webhook_missing_session_id_returns_error_status():
     payload = _payload()
     payload["payload"]["payment_link"]["entity"]["notes"] = {}
-    with patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True):
-        res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=payload, headers={"x-razorpay-signature": "ok"})
+    res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=payload, headers={"x-razorpay-signature": "ok"})
     assert res.status_code == 200
     assert res.json()["status"] == "error"
