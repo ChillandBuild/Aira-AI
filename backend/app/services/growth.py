@@ -21,6 +21,22 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+IST_OFFSET = timedelta(hours=5, minutes=30)
+
+
+def _to_ist_date(iso_ts: str | None) -> str:
+    """Convert a UTC ISO timestamp to its IST calendar date (YYYY-MM-DD)."""
+    if not iso_ts:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_ts.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return (dt + IST_OFFSET).date().isoformat()
+    except ValueError:
+        return iso_ts[:10]
+
+
 def normalize_platform(value: str | None) -> str | None:
     if not value:
         return None
@@ -287,7 +303,7 @@ def build_follow_up_summary(db=None) -> dict[str, Any]:
 def build_ad_performance(*, tenant_id: str, db=None) -> dict[str, Any]:
     db = db or get_supabase()
     now = datetime.now(timezone.utc)
-    today_iso = now.date().isoformat()
+    today_iso = (now + IST_OFFSET).date().isoformat()
     window_start_7d = now - timedelta(days=7)
     campaigns = db.table("ad_campaigns").select("*").eq("tenant_id", tenant_id).order("created_at", desc=True).execute().data or []
     if not campaigns:
@@ -432,7 +448,7 @@ def build_ad_performance(*, tenant_id: str, db=None) -> dict[str, Any]:
 
     tracked_count = len(tracked_leads)
     tracked_leads_today = sum(
-        1 for lead in tracked_leads if (lead.get("created_at") or "")[:10] == today_iso
+        1 for lead in tracked_leads if _to_ist_date(lead.get("created_at")) == today_iso
     )
     # Rates need a same-day denominator, not campaign lifetime, otherwise a
     # single day's tiny lead count makes the rate swing wildly (see

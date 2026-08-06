@@ -368,9 +368,9 @@ async def telecalling_analytics(
 ):
     db = get_supabase()
 
-    # Day bounds must use UTC midnight
+    # Tenant is IST -- "today" is the IST calendar day, not UTC's.
     now = datetime.now(timezone.utc)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = _ist_today_start_utc()
     week = _week_start()
 
     # Reporting window: defaults to "today" when no from/to given.
@@ -1053,18 +1053,16 @@ async def overview_analytics(
     """Dashboard root — KPIs and N-day series."""
     db = get_supabase()
     now = datetime.now(timezone.utc)
-    today_start_utc = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today_start = _ist_today_start_utc()
     today_ist_date = (now + IST_OFFSET).date()
     today_iso_date = today_ist_date.isoformat()
 
-    window_start_dt, days_iso = _range_params(range)
+    window_start_dt, _ = _range_params(range)
     window_span = now - window_start_dt
     prior_window_start_dt = window_start_dt - window_span
 
-    # Lead/hot-lead "today" buckets use IST calendar days (tenant is IST) --
-    # decoupled from `days_iso` above, which the messages block below still
-    # keys in UTC to match its RPC's p_timezone='UTC' day keys.
+    # Tenant is IST -- every "today"/daily bucket in this endpoint (leads,
+    # hot leads, messages) keys off IST calendar days, not UTC ones.
     # `range` above is this route's query param, so the `range()` builtin
     # is shadowed here -- build the day list with an explicit loop instead.
     _day_count = 1 if range == "today" else 30 if range == "30d" else 7
@@ -1176,8 +1174,9 @@ async def overview_analytics(
     # at 1000 and returns no error, which was silently dropping 250 of the
     # 1250 messages in a 7-day window (and over half of a 30-day window),
     # under-reporting AI replies as 579 when the true figure was 730.
-    # p_timezone='UTC' preserves this endpoint's existing day keys -- the
-    # dashboard home and operator console consume this shape.
+    # p_timezone='Asia/Kolkata' so "Inbound Today"/"Outbound Today" on the
+    # dashboard home reset at IST midnight, not UTC midnight -- this field is
+    # only consumed by AiWorkloadSection.tsx, nothing else shares these keys.
     daily_msg_rows = (
         await asyncio.to_thread(
             db.rpc("analytics_daily_messages", {
@@ -1185,15 +1184,14 @@ async def overview_analytics(
                 "p_start": window_start_dt.isoformat(),
                 "p_end": now.isoformat(),
                 "p_channel": None,
-                "p_timezone": "UTC",
+                "p_timezone": "Asia/Kolkata",
             }).execute
         )
     ).data or []
 
-    daily_msgs_map = {d: {"inbound": 0, "outbound": 0, "ai": 0, "human": 0} for d in days_iso}
+    daily_msgs_map = {d: {"inbound": 0, "outbound": 0, "ai": 0, "human": 0} for d in days_iso_ist}
     ai_count = 0
     human_count = 0
-    today_iso_day = today_start_utc.date().isoformat()
     ai_handled_today = 0
     for row in daily_msg_rows:
         day = str(row.get("day") or "")
@@ -1208,7 +1206,7 @@ async def overview_analytics(
             }
         ai_count += ai
         human_count += human
-        if day == today_iso_day:
+        if day == today_iso_date:
             ai_handled_today = ai
 
     # unreplied_24h needs per-lead rows, but only over 24h -- a bounded set,
@@ -1279,7 +1277,7 @@ async def overview_analytics(
                 "ai": daily_msgs_map[d]["ai"],
                 "human": daily_msgs_map[d]["human"],
             }
-            for d in days_iso
+            for d in days_iso_ist
         ],
         "funnel": {
             "inquiries": funnel_inquiries,
