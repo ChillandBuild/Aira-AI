@@ -90,15 +90,26 @@ class MainActivity : AppCompatActivity() {
             this,
             Manifest.permission.READ_CALL_LOG
         ) == PackageManager.PERMISSION_GRANTED
-        permissionStatus.text = if (hasCallLog) "Permission: Granted" else "Permission: Required"
+        if (hasCallLog) {
+            permissionStatus.text = getString(R.string.permission_granted)
+            permissionStatus.setBackgroundResource(R.drawable.bg_pill_success)
+            permissionStatus.setTextColor(ContextCompat.getColor(this, R.color.aira_success))
+        } else {
+            permissionStatus.text = getString(R.string.permission_required)
+            permissionStatus.setBackgroundResource(R.drawable.bg_pill_danger)
+            permissionStatus.setTextColor(ContextCompat.getColor(this, R.color.aira_danger))
+        }
     }
 
     private fun updateLastSynced() {
         val lastSync = prefs.lastSyncedTimestampMs
         lastSyncedText.text = if (lastSync > 0) {
-            "Last synced: ${java.util.Date(lastSync)}"
+            java.text.DateFormat.getDateTimeInstance(
+                java.text.DateFormat.MEDIUM,
+                java.text.DateFormat.SHORT
+            ).format(java.util.Date(lastSync))
         } else {
-            "Last synced: Never"
+            "Never"
         }
     }
 }

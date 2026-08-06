@@ -1168,6 +1168,8 @@ export const api = {
       }),
     remove: (id: string) =>
       apiFetch<{ deleted: boolean }>(`/api/v1/callers/${id}`, { method: "DELETE" }),
+    generateSyncToken: (id: string) =>
+      apiFetch<{ sync_token: string }>(`/api/v1/callers/${id}/sync-token`, { method: "POST" }),
     list: async () => {
       const res = await apiFetch<{ data: Caller[]; admin_caller?: Caller | null }>(`/api/v1/callers/`);
       return { data: res.data || [], admin_caller: res.admin_caller ?? null };
