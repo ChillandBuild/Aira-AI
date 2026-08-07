@@ -79,11 +79,19 @@ async def list_leads(
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
     offset = (page - 1) * limit
+    # NULL-safe "IS NOT TRUE": a bare .neq("col", True) compiles to `col <> true`,
+    # which SQL evaluates to NULL (row excluded) whenever the column is NULL rather
+    # than explicitly false. Both columns were added via manual ALTER outside the
+    # migration set with no guaranteed NOT NULL DEFAULT false, so untouched leads
+    # (e.g. freshly assigned, never opted out / never delivery-failed) can be NULL
+    # here and were silently vanishing from this endpoint's callers (Segments page,
+    # telecaller Dialer queue) while still showing up via Conversations' RPC path,
+    # which never applied this filter in the first place.
     query = (db.table("leads").select("*", count="exact")
              .eq("tenant_id", tenant_id)
              .is_("deleted_at", "null")
-             .neq("opted_out", True)
-             .neq("whatsapp_undeliverable", True))
+             .or_("opted_out.is.null,opted_out.eq.false")
+             .or_("whatsapp_undeliverable.is.null,whatsapp_undeliverable.eq.false"))
     if date_from:
         try:
             date.fromisoformat(date_from)

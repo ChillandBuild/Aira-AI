@@ -28,7 +28,7 @@ class LeadsDateFilterTests(unittest.TestCase):
         db = MagicMock()
         base = (
             db.table.return_value.select.return_value.eq.return_value
-            .is_.return_value.neq.return_value.neq.return_value
+            .is_.return_value.or_.return_value.or_.return_value
         )
         base.gte.return_value.lt.return_value.order.return_value.range.return_value.execute.return_value = (
             MagicMock(data=[], count=0)
@@ -58,7 +58,7 @@ class LeadsDateFilterTests(unittest.TestCase):
         db = MagicMock()
         base = (
             db.table.return_value.select.return_value.eq.return_value
-            .is_.return_value.neq.return_value.neq.return_value
+            .is_.return_value.or_.return_value.or_.return_value
         )
         base.order.return_value.range.return_value.execute.return_value = MagicMock(data=[], count=0)
         mock_get_db.return_value = db
