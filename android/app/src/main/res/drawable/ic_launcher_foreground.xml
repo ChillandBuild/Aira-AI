@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Aira Sync launcher foreground.
+
+  Two 140-degree arcs around centre 54,54 at radius 23: the upper runs 200..340
+  degrees, the lower 20..160. The lower half is an exact 180-degree rotation of
+  the upper, so both 40-degree gaps are identical and the mark is balanced.
+
+  Each arc ends in a triangular head whose base sits on the arc endpoint and is
+  rotated to the tangent there, so the arc's flat butt cap meets the base on the
+  same line - no notch and no step in width. Head is 17 wide by 18 long against
+  an 8 stroke.
+
+  Furthest point from centre is 31.5. Android's adaptive-icon safe zone is a
+  66dp circle, i.e. radius 33, so nothing here can be clipped by a launcher mask.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:pathData="M32.39,46.13 A23,23 0 0 1 75.61,46.13"
+        android:strokeColor="#FAF8F5"
+        android:strokeWidth="8"
+        android:strokeLineCap="butt" />
+
+    <path
+        android:pathData="M81.77,63.05 L67.63,49.04 L83.60,43.23 Z"
+        android:fillColor="#FAF8F5" />
+
+    <path
+        android:pathData="M75.61,61.87 A23,23 0 0 1 32.39,61.87"
+        android:strokeColor="#FAF8F5"
+        android:strokeWidth="8"
+        android:strokeLineCap="butt" />
+
+    <path
+        android:pathData="M26.23,44.95 L40.37,58.96 L24.40,64.77 Z"
+        android:fillColor="#FAF8F5" />
+
+</vector>
