@@ -29,9 +29,18 @@ import {
 import { api, API_URL, ClientRole, PermissionDef, RbacUser } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { cn } from "@/lib/utils";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 type Tab = "roles" | "users";
 type CallingProvider = "telecmi" | "sim_basic";
+
+type ConfirmState = {
+  title: string;
+  description: string;
+  tone: "danger" | "warning" | "primary";
+  confirmLabel?: string;
+  onConfirm: () => void;
+};
 
 const AIRA_SYNC_APK_URL = "https://ayftynkgmfkaqmmnlmoc.supabase.co/storage/v1/object/public/app-releases/aira-sync.apk";
 
@@ -162,6 +171,7 @@ export default function RolesPage() {
   const [syncToken, setSyncToken] = useState<{ label: string; value: string } | null>(null);
   const [showSyncToken, setShowSyncToken] = useState(true);
   const [mintingSyncToken, setMintingSyncToken] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
 
   useEffect(() => {
     setTab(urlTab);
@@ -350,7 +360,17 @@ export default function RolesPage() {
     }
   }
 
-  async function resetPassword(user: RbacUser) {
+  function resetPassword(user: RbacUser) {
+    setConfirmState({
+      title: "Reset password",
+      description: `Issue a new temporary password for "${user.full_name || user.email}"? They'll be required to set a new password on next login.`,
+      tone: "warning",
+      confirmLabel: "Reset password",
+      onConfirm: () => runResetPassword(user),
+    });
+  }
+
+  async function runResetPassword(user: RbacUser) {
     setSaving(true);
     setError(null);
     try {
@@ -361,6 +381,7 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to reset password");
     } finally {
       setSaving(false);
+      setConfirmState(null);
     }
   }
 
@@ -384,10 +405,18 @@ export default function RolesPage() {
     }
   }
 
-  async function deleteRole(roleItem: ClientRole) {
+  function deleteRole(roleItem: ClientRole) {
     if (!canWrite) return;
-    const confirmed = window.confirm(`Delete role "${roleItem.name}"? This only works when no users are assigned to it.`);
-    if (!confirmed) return;
+    setConfirmState({
+      title: "Delete role",
+      description: `Delete role "${roleItem.name}"? This only works when no users are assigned to it.`,
+      tone: "danger",
+      confirmLabel: "Delete",
+      onConfirm: () => runDeleteRole(roleItem),
+    });
+  }
+
+  async function runDeleteRole(roleItem: ClientRole) {
     setDeleting(`role:${roleItem.id}`);
     setError(null);
     try {
@@ -398,13 +427,22 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to delete role");
     } finally {
       setDeleting(null);
+      setConfirmState(null);
     }
   }
 
-  async function deleteUser(user: RbacUser) {
+  function deleteUser(user: RbacUser) {
     if (!canWrite) return;
-    const confirmed = window.confirm(`Delete user "${user.full_name || user.email}"? This removes their tenant access and disables their caller profile.`);
-    if (!confirmed) return;
+    setConfirmState({
+      title: "Delete user",
+      description: `Delete user "${user.full_name || user.email}"? This removes their tenant access and disables their caller profile.`,
+      tone: "danger",
+      confirmLabel: "Delete",
+      onConfirm: () => runDeleteUser(user),
+    });
+  }
+
+  async function runDeleteUser(user: RbacUser) {
     setDeleting(`user:${user.user_id}`);
     setError(null);
     try {
@@ -415,6 +453,7 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to delete user");
     } finally {
       setDeleting(null);
+      setConfirmState(null);
     }
   }
 
@@ -885,6 +924,17 @@ export default function RolesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmState !== null}
+        onClose={() => setConfirmState(null)}
+        onConfirm={() => confirmState?.onConfirm()}
+        title={confirmState?.title ?? ""}
+        description={confirmState?.description ?? ""}
+        tone={confirmState?.tone ?? "primary"}
+        confirmLabel={confirmState?.confirmLabel}
+        loading={saving || deleting !== null}
+      />
     </div>
   );
 }
