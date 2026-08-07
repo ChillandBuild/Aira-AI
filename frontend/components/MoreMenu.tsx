@@ -8,11 +8,14 @@ import {
   BookOpen,
   Calendar,
   Grid3X3,
+  Headset,
   Inbox,
   Layers,
+  Megaphone,
   Menu,
   Package,
   Settings,
+  ShieldCheck,
   SquarePen,
   StickyNote,
   Upload,
@@ -32,17 +35,20 @@ type MoreMenuItem = {
 };
 
 const MORE_ITEMS: MoreMenuItem[] = [
+  { href: "/dashboard/consultations", icon: Headset, label: "Consultations", permissionAny: ["conversations.view", "conversations.reply"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/leads", icon: Users, label: "Leads", permissionAny: ["leads.view", "leads.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", permissionAny: ["outbound_leads.view", "outbound_leads.manage"], feature: "outbound_messaging" },
   { href: "/dashboard/templates", icon: SquarePen, label: "Templates", permissionAny: ["templates.view", "templates.manage"], feature: "outbound_messaging" },
   { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", permissionAny: ["telecalling.scheduled.view", "telecalling.scheduled"], feature: "telecalling.scheduled" },
   { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes", permissionAny: ["telecalling.notes.view", "telecalling.notes"], feature: "telecalling.notes" },
   { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", permissionAny: ["inbound_leads.view", "inbound_leads.manage"], feature: "inbound_messaging" },
+  { href: "/dashboard/meta-ads", icon: Megaphone, label: "Meta Ads", permissionAny: ["inbound_leads.view"], feature: "inbound_messaging" },
   { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/catalog", icon: Package, label: "Catalog", permissionAny: ["catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", permissionAny: ["analytics.view"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/team", icon: Grid3X3, label: "Team", permissionAny: ["team.view", "team.manage"] },
+  { href: "/dashboard/roles", icon: ShieldCheck, label: "Roles", permissionAny: ["roles.view", "roles.manage"] },
   { href: "/dashboard/settings", icon: Settings, label: "Settings", permissionAny: ["settings.view", "settings.manage"] },
 ];
 
