@@ -5,7 +5,7 @@ import {
   BookOpen, BarChart2, Tag, Upload,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { ConfirmModal } from "../../../components/confirm-modal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { SkeletonCard } from "../components/skeleton";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

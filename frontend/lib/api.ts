@@ -1182,6 +1182,8 @@ export const api = {
       apiFetch<{ deleted: boolean }>(`/api/v1/callers/${id}`, { method: "DELETE" }),
     generateSyncToken: (id: string) =>
       apiFetch<{ sync_token: string }>(`/api/v1/callers/${id}/sync-token`, { method: "POST" }),
+    getSyncToken: (id: string) =>
+      apiFetch<{ sync_token: string }>(`/api/v1/callers/${id}/sync-token`, { method: "GET" }),
     list: async () => {
       const res = await apiFetch<{ data: Caller[]; admin_caller?: Caller | null }>(`/api/v1/callers/`);
       return { data: res.data || [], admin_caller: res.admin_caller ?? null };

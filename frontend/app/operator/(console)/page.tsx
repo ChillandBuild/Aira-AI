@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, X } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
 import { OnboardingWizard } from "./components/onboarding-wizard";
-import { ConfirmModal } from "./components/confirm-modal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 type Client = {
   id: string;

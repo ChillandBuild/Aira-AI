@@ -6,7 +6,7 @@ import { Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
 import { AlertBell } from "./alert-bell";
-import { ConfirmModal } from "./confirm-modal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 const NAV_ITEMS = [
   { href: "/operator", label: "Clients" },

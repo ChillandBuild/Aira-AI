@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Key, PowerOff, Power } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { ConfirmModal } from "../../../components/confirm-modal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import type { OverviewData } from "../types";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

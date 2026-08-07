@@ -25,13 +25,23 @@ import {
   User,
   UserPlus,
   Users,
+  X,
 } from "lucide-react";
 import { api, API_URL, ClientRole, PermissionDef, RbacUser } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { cn } from "@/lib/utils";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 type Tab = "roles" | "users";
 type CallingProvider = "telecmi" | "sim_basic";
+
+type ConfirmState = {
+  title: string;
+  description: string;
+  tone: "danger" | "warning" | "primary";
+  confirmLabel?: string;
+  onConfirm: () => void;
+};
 
 const AIRA_SYNC_APK_URL = "https://ayftynkgmfkaqmmnlmoc.supabase.co/storage/v1/object/public/app-releases/aira-sync.apk";
 
@@ -162,6 +172,9 @@ export default function RolesPage() {
   const [syncToken, setSyncToken] = useState<{ label: string; value: string } | null>(null);
   const [showSyncToken, setShowSyncToken] = useState(true);
   const [mintingSyncToken, setMintingSyncToken] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+  const [syncTokenDialogUser, setSyncTokenDialogUser] = useState<RbacUser | null>(null);
+  const [viewingSyncToken, setViewingSyncToken] = useState<string | null>(null);
 
   useEffect(() => {
     setTab(urlTab);
@@ -350,7 +363,17 @@ export default function RolesPage() {
     }
   }
 
-  async function resetPassword(user: RbacUser) {
+  function resetPassword(user: RbacUser) {
+    setConfirmState({
+      title: "Reset password",
+      description: `Issue a new temporary password for "${user.full_name || user.email}"? They'll be required to set a new password on next login.`,
+      tone: "warning",
+      confirmLabel: "Reset password",
+      onConfirm: () => runResetPassword(user),
+    });
+  }
+
+  async function runResetPassword(user: RbacUser) {
     setSaving(true);
     setError(null);
     try {
@@ -361,16 +384,24 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to reset password");
     } finally {
       setSaving(false);
+      setConfirmState(null);
     }
   }
 
-  async function generateSyncToken(user: RbacUser) {
+  function regenerateSyncToken(user: RbacUser) {
     const callerId = user.caller_profile?.id;
     if (!callerId) return;
-    const confirmed = window.confirm(
-      `Generate a new Aira Sync token for "${user.full_name || user.email}"? This immediately invalidates their current token — their Aira Sync app will stop syncing until you paste in the new one.`,
-    );
-    if (!confirmed) return;
+    setSyncTokenDialogUser(null);
+    setConfirmState({
+      title: "Regenerate Aira Sync token",
+      description: `Generate a new Aira Sync token for "${user.full_name || user.email}"? This immediately invalidates their current token — their Aira Sync app will stop syncing until you paste in the new one.`,
+      tone: "danger",
+      confirmLabel: "Regenerate",
+      onConfirm: () => runRegenerateSyncToken(user, callerId),
+    });
+  }
+
+  async function runRegenerateSyncToken(user: RbacUser, callerId: string) {
     setMintingSyncToken(callerId);
     setError(null);
     try {
@@ -381,13 +412,39 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to generate sync token");
     } finally {
       setMintingSyncToken(null);
+      setConfirmState(null);
     }
   }
 
-  async function deleteRole(roleItem: ClientRole) {
+  async function viewSyncToken(user: RbacUser) {
+    const callerId = user.caller_profile?.id;
+    if (!callerId) return;
+    setViewingSyncToken(callerId);
+    setError(null);
+    try {
+      const res = await api.callers.getSyncToken(callerId);
+      setSyncTokenDialogUser(null);
+      setShowSyncToken(true);
+      setSyncToken({ label: user.full_name || user.email, value: res.sync_token });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No sync token has been generated for this caller yet");
+    } finally {
+      setViewingSyncToken(null);
+    }
+  }
+
+  function deleteRole(roleItem: ClientRole) {
     if (!canWrite) return;
-    const confirmed = window.confirm(`Delete role "${roleItem.name}"? This only works when no users are assigned to it.`);
-    if (!confirmed) return;
+    setConfirmState({
+      title: "Delete role",
+      description: `Delete role "${roleItem.name}"? This only works when no users are assigned to it.`,
+      tone: "danger",
+      confirmLabel: "Delete",
+      onConfirm: () => runDeleteRole(roleItem),
+    });
+  }
+
+  async function runDeleteRole(roleItem: ClientRole) {
     setDeleting(`role:${roleItem.id}`);
     setError(null);
     try {
@@ -398,13 +455,22 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to delete role");
     } finally {
       setDeleting(null);
+      setConfirmState(null);
     }
   }
 
-  async function deleteUser(user: RbacUser) {
+  function deleteUser(user: RbacUser) {
     if (!canWrite) return;
-    const confirmed = window.confirm(`Delete user "${user.full_name || user.email}"? This removes their tenant access and disables their caller profile.`);
-    if (!confirmed) return;
+    setConfirmState({
+      title: "Delete user",
+      description: `Delete user "${user.full_name || user.email}"? This removes their tenant access and disables their caller profile.`,
+      tone: "danger",
+      confirmLabel: "Delete",
+      onConfirm: () => runDeleteUser(user),
+    });
+  }
+
+  async function runDeleteUser(user: RbacUser) {
     setDeleting(`user:${user.user_id}`);
     setError(null);
     try {
@@ -415,6 +481,7 @@ export default function RolesPage() {
       setError(e instanceof Error ? e.message : "Failed to delete user");
     } finally {
       setDeleting(null);
+      setConfirmState(null);
     }
   }
 
@@ -860,11 +927,10 @@ export default function RolesPage() {
                           <button
                             type="button"
                             className="btn-secondary px-3"
-                            onClick={() => generateSyncToken(user)}
-                            disabled={mintingSyncToken === user.caller_profile.id}
-                            title="Generate Aira Sync token"
+                            onClick={() => setSyncTokenDialogUser(user)}
+                            title="Aira Sync token"
                           >
-                            {mintingSyncToken === user.caller_profile.id ? <Loader2 size={14} className="animate-spin" /> : <Smartphone size={14} />}
+                            <Smartphone size={14} />
                           </button>
                         )}
                         <button
@@ -882,6 +948,67 @@ export default function RolesPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        open={confirmState !== null}
+        onClose={() => setConfirmState(null)}
+        onConfirm={() => confirmState?.onConfirm()}
+        title={confirmState?.title ?? ""}
+        description={confirmState?.description ?? ""}
+        tone={confirmState?.tone ?? "primary"}
+        confirmLabel={confirmState?.confirmLabel}
+        loading={saving || deleting !== null || mintingSyncToken !== null}
+      />
+
+      {syncTokenDialogUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-card bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-muted text-primary">
+                  <Smartphone size={18} />
+                </div>
+                <h3 className="text-lg font-bold text-ink">
+                  Aira Sync — {syncTokenDialogUser.full_name || syncTokenDialogUser.email}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSyncTokenDialogUser(null)}
+                className="text-ink-muted hover:text-ink"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-ink-secondary">
+              View this caller&apos;s current token, or regenerate it if it was lost — regenerating invalidates the current one immediately.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                className="btn-secondary w-full justify-center"
+                onClick={() => viewSyncToken(syncTokenDialogUser)}
+                disabled={viewingSyncToken === syncTokenDialogUser.caller_profile?.id}
+              >
+                {viewingSyncToken === syncTokenDialogUser.caller_profile?.id ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Eye size={14} />
+                )}
+                View current token
+              </button>
+              <button
+                type="button"
+                className="w-full justify-center rounded-xl border border-danger/30 bg-danger/5 px-4 py-2.5 text-sm font-bold text-danger transition-colors hover:bg-danger/10"
+                onClick={() => regenerateSyncToken(syncTokenDialogUser)}
+              >
+                Regenerate token
+              </button>
+            </div>
           </div>
         </div>
       )}

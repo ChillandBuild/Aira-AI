@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Clock, Pause, Play, Check, Activity, HardDrive, Cpu } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { relTime, operatorFetch } from "@/lib/operator";
-import { ConfirmModal } from "../components/confirm-modal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import { OperatorToggle } from "../components/operator-toggle";
 
 interface SystemHealth {

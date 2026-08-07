@@ -150,6 +150,38 @@ canvas {
     background: linear-gradient(135deg, #2e1065, #5b21b6);
   }
 
+  /* Button — violet outline secondary */
+  .btn-secondary {
+    background: var(--primary-light);
+    color: var(--primary);
+    font-family: var(--font-manrope), sans-serif;
+    font-weight: 600;
+    font-size: 0.8125rem;
+    padding: 0.5rem 1.125rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--primary-muted);
+    cursor: pointer;
+    letter-spacing: -0.01em;
+    transition: background 0.15s ease, border-color 0.15s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-decoration: none;
+  }
+  .btn-secondary:hover {
+    background: var(--primary-muted);
+    border-color: var(--primary);
+  }
+  .btn-secondary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  .btn-secondary:disabled:hover {
+    background: var(--primary-light);
+    border-color: var(--primary-muted);
+  }
+
   /* Universal style for elements using bg-primary acting as interactive buttons/links */
   button.bg-primary,
   label.bg-primary,
