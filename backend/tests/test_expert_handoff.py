@@ -276,3 +276,71 @@ def test_get_session_tenant_id_returns_none_for_unknown_session():
     row.data = None
     db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
     assert eh.get_session_tenant_id("sess-nonexistent", db=db) is None
+
+
+def test_confirm_expert_handoff_payment_notifies_staff_pool():
+    session_row = {"id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1", "tenant_id": "t-1", "collected_data": {"name": "Priya"}}
+    lead_row = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
+    db = MagicMock()
+
+    def make_table(name):
+        t = MagicMock()
+        if name == "expert_handoff_sessions":
+            fetch = MagicMock()
+            fetch.data = session_row
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "leads":
+            fetch = MagicMock()
+            fetch.data = lead_row
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        return t
+
+    cache = {}
+    def selector(name):
+        if name not in cache:
+            cache[name] = make_table(name)
+        return cache[name]
+    db.table.side_effect = selector
+
+    with patch.object(eh, "notify_pool") as notify:
+        eh.confirm_expert_handoff_payment("sess-1", "pay_abc123", db=db)
+
+    notify.assert_called_once()
+    args = notify.call_args[0]
+    assert args[0] == "t-1"
+    assert args[1] == "expert_handoff_paid"
+    assert "Priya" in args[3]
+
+
+def test_confirm_expert_handoff_payment_notify_failure_does_not_break_confirmation():
+    session_row = {"id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1", "tenant_id": "t-1", "collected_data": {"name": "Priya"}}
+    lead_row = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
+    db = MagicMock()
+
+    def make_table(name):
+        t = MagicMock()
+        if name == "expert_handoff_sessions":
+            fetch = MagicMock()
+            fetch.data = session_row
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "leads":
+            fetch = MagicMock()
+            fetch.data = lead_row
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        return t
+
+    cache = {}
+    def selector(name):
+        if name not in cache:
+            cache[name] = make_table(name)
+        return cache[name]
+    db.table.side_effect = selector
+
+    with patch.object(eh, "notify_pool", side_effect=RuntimeError("push service down")):
+        result = eh.confirm_expert_handoff_payment("sess-1", "pay_abc123", db=db)
+
+    assert result == ("+919876543210", "t-1", "lead-1", "Priya")

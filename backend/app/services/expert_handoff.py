@@ -9,6 +9,7 @@ import logging
 import uuid
 
 from app.services.gemini_client import gemini_chat_completion_json
+from app.services.notify import notify_pool
 from app.services.payment_razorpay import create_payment_link
 
 logger = logging.getLogger(__name__)
@@ -358,4 +359,16 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
     lead = (lead_row.data if lead_row else None) or {}
     phone = lead.get("phone", "")
     customer_name = (session.get("collected_data") or {}).get("name") or lead.get("name") or "Customer"
+
+    try:
+        notify_pool(
+            tenant_id,
+            "expert_handoff_paid",
+            "New paid consultation",
+            f"Lead '{customer_name}' paid for a consultation — check Consultations.",
+            db=db,
+        )
+    except Exception as e:
+        logger.warning(f"expert_handoff_paid notify_pool failed for session {session_id}: {e}")
+
     return (phone, tenant_id, lead_id, customer_name)
