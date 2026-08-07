@@ -4,7 +4,7 @@ import { Users, Crown, UserCheck, Mail, User, Clock, Trash2 } from "lucide-react
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { StatCard } from "../components/stat-card";
 import { SkeletonCard, SkeletonTable } from "../components/skeleton";
-import { ConfirmModal } from "../../../components/confirm-modal";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await getAuthHeaders();
