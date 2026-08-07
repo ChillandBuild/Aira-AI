@@ -248,7 +248,7 @@ async def test_segment_change_to_target_sends_to_each_recipient_with_mapped_para
             "parameters": [
                 {"type": "text", "text": "Asha"},
                 {"type": "text", "text": "+919999999999"},
-                {"type": "text", "text": "Warm (7/10)"},
+                {"type": "text", "text": "Warm"},
             ],
         }
     ]

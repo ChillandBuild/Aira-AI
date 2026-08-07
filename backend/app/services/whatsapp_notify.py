@@ -67,7 +67,7 @@ def _build_components(template: dict, lead: dict, to_segment: str) -> list[dict]
     candidate_values = [
         lead.get("name") or "Lead",
         lead.get("phone") or "",
-        f"{label} ({lead.get('score', '-')}/10)",
+        label,
         f"https://aira.ai/dashboard/conversations?lead_id={lead['id']}",
     ]
     values = candidate_values[: len(indices)]
