@@ -539,6 +539,26 @@ async def delete_caller(caller_id: UUID, tenant_id: str = Depends(get_owner_tena
     return {"deleted": True}
 
 
+@router.get("/{caller_id}/sync-token")
+async def get_sync_token(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
+    db = get_supabase()
+    result = (
+        db.table("callers")
+        .select("sync_token")
+        .eq("id", str(caller_id))
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    row = result.data if result else None
+    if not row:
+        raise HTTPException(status_code=404, detail="Caller not found")
+    token = row.get("sync_token")
+    if not token:
+        raise HTTPException(status_code=404, detail="No sync token has been generated for this caller yet")
+    return {"sync_token": token}
+
+
 @router.post("/{caller_id}/sync-token")
 async def generate_sync_token(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
     db = get_supabase()
