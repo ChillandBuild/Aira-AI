@@ -22,27 +22,42 @@ def get_setting(key: str, fallback: Optional[str] = None, tenant_id: Optional[st
     if cached and now - cached[0] < _TTL:
         return cached[1]
 
+    from app.db.supabase import get_supabase
+    db = get_supabase()
+
     value: Optional[str] = None
-    try:
-        from app.db.supabase import get_supabase
-        db = get_supabase()
-        row = (
-            db.table("app_settings")
-            .select("value")
-            .eq("tenant_id", resolved_tenant_id)
-            .eq("key", key)
-            .maybe_single()
-            .execute()
-        )
-        if row and row.data:
-            value = row.data.get("value")
-    except Exception as e:
-        logger.warning(f"get_setting({key}, tenant_id={resolved_tenant_id}) DB read failed: {e}")
+    read_ok = False
+    # One immediate retry: Supabase's REST endpoint occasionally drops a pooled
+    # keep-alive connection ("Server disconnected") on the first request after
+    # it's been idle. That's not "not configured" — retrying once resolves it
+    # without ever surfacing an error.
+    for attempt in range(2):
+        try:
+            row = (
+                db.table("app_settings")
+                .select("value")
+                .eq("tenant_id", resolved_tenant_id)
+                .eq("key", key)
+                .maybe_single()
+                .execute()
+            )
+            if row and row.data:
+                value = row.data.get("value")
+            read_ok = True
+            break
+        except Exception as e:
+            if attempt == 0:
+                continue
+            logger.warning(f"get_setting({key}, tenant_id={resolved_tenant_id}) DB read failed: {e}")
 
     if not value:
         value = fallback
 
-    _CACHE[cache_key] = (now, value)
+    # Only cache a confirmed read. Caching a failed read's None would make a
+    # transient outage look like "not configured" for the next _TTL seconds,
+    # even after the DB recovers.
+    if read_ok:
+        _CACHE[cache_key] = (now, value)
     return value
 
 
