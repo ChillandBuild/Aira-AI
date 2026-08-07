@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Copy,
   Crown,
+  Download,
   Eye,
   EyeOff,
   Folder,
@@ -19,17 +20,20 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  Smartphone,
   Trash2,
   User,
   UserPlus,
   Users,
 } from "lucide-react";
-import { api, ClientRole, PermissionDef, RbacUser } from "@/lib/api";
+import { api, API_URL, ClientRole, PermissionDef, RbacUser } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { cn } from "@/lib/utils";
 
 type Tab = "roles" | "users";
 type CallingProvider = "telecmi" | "sim_basic";
+
+const AIRA_SYNC_APK_URL = "https://ayftynkgmfkaqmmnlmoc.supabase.co/storage/v1/object/public/app-releases/aira-sync.apk";
 
 type AccessModule = {
   id: string;
@@ -155,6 +159,9 @@ export default function RolesPage() {
   const [showDraftPassword, setShowDraftPassword] = useState(false);
   const [showIssuedPassword, setShowIssuedPassword] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [syncToken, setSyncToken] = useState<{ label: string; value: string } | null>(null);
+  const [showSyncToken, setShowSyncToken] = useState(true);
+  const [mintingSyncToken, setMintingSyncToken] = useState<string | null>(null);
 
   useEffect(() => {
     setTab(urlTab);
@@ -357,6 +364,26 @@ export default function RolesPage() {
     }
   }
 
+  async function generateSyncToken(user: RbacUser) {
+    const callerId = user.caller_profile?.id;
+    if (!callerId) return;
+    const confirmed = window.confirm(
+      `Generate a new Aira Sync token for "${user.full_name || user.email}"? This immediately invalidates their current token — their Aira Sync app will stop syncing until you paste in the new one.`,
+    );
+    if (!confirmed) return;
+    setMintingSyncToken(callerId);
+    setError(null);
+    try {
+      const res = await api.callers.generateSyncToken(callerId);
+      setShowSyncToken(true);
+      setSyncToken({ label: user.full_name || user.email, value: res.sync_token });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to generate sync token");
+    } finally {
+      setMintingSyncToken(null);
+    }
+  }
+
   async function deleteRole(roleItem: ClientRole) {
     if (!canWrite) return;
     const confirmed = window.confirm(`Delete role "${roleItem.name}"? This only works when no users are assigned to it.`);
@@ -425,6 +452,72 @@ export default function RolesPage() {
             >
               <Copy size={14} /> Copy
             </button>
+          </div>
+        </div>
+      )}
+
+      {role === "owner" && callingProvider === "sim_basic" && (
+        <div className="flex flex-col gap-3 rounded-3xl border border-border-subtle bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-violet-50 text-violet-600">
+              <Smartphone size={18} />
+            </div>
+            <div>
+              <p className="font-body text-sm font-bold text-ink">Aira Sync — Android app</p>
+              <p className="mt-0.5 font-body text-xs text-ink-muted">Not on Play Store — sideload this APK on each telecaller&apos;s phone for automatic call-log tracking.</p>
+            </div>
+          </div>
+          <a
+            href={AIRA_SYNC_APK_URL}
+            download
+            className="btn-secondary shrink-0 justify-center"
+          >
+            <Download size={14} /> Download APK
+          </a>
+        </div>
+      )}
+
+      {syncToken && (
+        <div className="flex flex-col gap-3 rounded-3xl border border-violet-200 bg-violet-50 p-4">
+          <p className="font-label text-[10px] font-black uppercase tracking-wider text-violet-700">Aira Sync setup for {syncToken.label}</p>
+          <p className="font-body text-xs text-violet-700">Paste both fields into the Aira Sync app on the caller&apos;s phone, then tap Save &amp; Connect. The token is shown once.</p>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-label text-[9px] font-black uppercase tracking-wider text-ink-muted">Server URL</p>
+              <p className="mt-0.5 break-all font-mono text-sm font-bold text-ink">{API_URL}</p>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary shrink-0 justify-center"
+              onClick={() => navigator.clipboard?.writeText(API_URL)}
+            >
+              <Copy size={14} /> Copy
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="font-label text-[9px] font-black uppercase tracking-wider text-ink-muted">Sync Token</p>
+              <p className="mt-0.5 break-all font-mono text-sm font-bold text-ink">{showSyncToken ? syncToken.value : "••••••••••••••••••••••••••••••••"}</p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                className="btn-secondary justify-center px-3"
+                onClick={() => setShowSyncToken((value) => !value)}
+                title={showSyncToken ? "Hide token" : "Show token"}
+              >
+                {showSyncToken ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary justify-center"
+                onClick={() => navigator.clipboard?.writeText(syncToken.value)}
+              >
+                <Copy size={14} /> Copy
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -763,6 +856,17 @@ export default function RolesPage() {
                       <div className="flex shrink-0 gap-2">
                         <button type="button" className="btn-secondary px-3" onClick={() => startUser(user)}><Pencil size={14} /></button>
                         <button type="button" className="btn-secondary px-3" onClick={() => resetPassword(user)}><KeyRound size={14} /></button>
+                        {role === "owner" && callingProvider === "sim_basic" && user.caller_profile && (
+                          <button
+                            type="button"
+                            className="btn-secondary px-3"
+                            onClick={() => generateSyncToken(user)}
+                            disabled={mintingSyncToken === user.caller_profile.id}
+                            title="Generate Aira Sync token"
+                          >
+                            {mintingSyncToken === user.caller_profile.id ? <Loader2 size={14} className="animate-spin" /> : <Smartphone size={14} />}
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="inline-flex h-10 items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 text-red-700 transition-all hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"

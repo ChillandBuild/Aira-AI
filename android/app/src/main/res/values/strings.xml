@@ -1,7 +1,14 @@
 <resources>
     <string name="app_name">Aira Sync</string>
+    <string name="app_tagline">Automatic call-log sync</string>
+    <string name="connection_heading">Connection</string>
+    <string name="status_heading">Status</string>
+    <string name="call_log_permission_label">Call log permission</string>
+    <string name="last_synced_label">Last synced</string>
     <string name="server_url_hint">Server URL</string>
     <string name="sync_token_hint">Sync Token</string>
     <string name="save_connect">Save &amp; Connect</string>
     <string name="sync_now">Sync Now</string>
+    <string name="permission_granted">Granted</string>
+    <string name="permission_required">Required</string>
 </resources>

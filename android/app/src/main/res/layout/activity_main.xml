@@ -1,49 +1,222 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="16dp">
+    android:background="@color/aira_bg"
+    android:fillViewport="true">
 
-    <EditText
-        android:id="@+id/serverUrlInput"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/server_url_hint"
-        android:inputType="textUri" />
+        android:orientation="vertical"
+        android:padding="20dp">
 
-    <EditText
-        android:id="@+id/syncTokenInput"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="@string/sync_token_hint"
-        android:inputType="textPassword"
-        android:layout_marginTop="8dp" />
+        <!-- Brand header -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="24dp">
 
-    <Button
-        android:id="@+id/saveConnectBtn"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/save_connect"
-        android:layout_marginTop="16dp" />
+            <ImageView
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/bg_badge_circle"
+                android:padding="13dp"
+                android:src="@drawable/ic_notification"
+                android:tint="@color/aira_primary"
+                android:contentDescription="@string/app_name" />
 
-    <TextView
-        android:id="@+id/permissionStatus"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="14dp">
 
-    <TextView
-        android:id="@+id/lastSyncedText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_name"
+                    android:textColor="@color/aira_ink"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
 
-    <Button
-        android:id="@+id/syncNowBtn"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/sync_now"
-        android:layout_marginTop="16dp" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/app_tagline"
+                    android:textColor="@color/aira_ink_secondary"
+                    android:textSize="13sp"
+                    android:layout_marginTop="2dp" />
+            </LinearLayout>
+        </LinearLayout>
 
-</LinearLayout>
+        <!-- Connection card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="18dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/connection_heading"
+                android:textColor="@color/aira_ink"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="14dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/server_url_hint"
+                android:textColor="@color/aira_ink_muted"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="6dp" />
+
+            <EditText
+                android:id="@+id/serverUrlInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_input"
+                android:hint="@string/server_url_hint"
+                android:textColor="@color/aira_ink"
+                android:textColorHint="@color/aira_ink_muted"
+                android:textSize="14sp"
+                android:inputType="textUri" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/sync_token_hint"
+                android:textColor="@color/aira_ink_muted"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="6dp" />
+
+            <EditText
+                android:id="@+id/syncTokenInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_input"
+                android:hint="@string/sync_token_hint"
+                android:textColor="@color/aira_ink"
+                android:textColorHint="@color/aira_ink_muted"
+                android:textSize="14sp"
+                android:inputType="textPassword" />
+
+            <Button
+                android:id="@+id/saveConnectBtn"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:paddingTop="13dp"
+                android:paddingBottom="13dp"
+                android:background="@drawable/bg_button_primary"
+                android:text="@string/save_connect"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:elevation="0dp"
+                android:stateListAnimator="@null" />
+        </LinearLayout>
+
+        <!-- Status card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="18dp"
+            android:layout_marginTop="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/status_heading"
+                android:textColor="@color/aira_ink"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/call_log_permission_label"
+                    android:textColor="@color/aira_ink_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/permissionStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_pill_danger"
+                    android:textColor="@color/aira_danger"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/aira_border"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="14dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/last_synced_label"
+                    android:textColor="@color/aira_ink_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/lastSyncedText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/aira_ink"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/syncNowBtn"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:paddingTop="13dp"
+            android:paddingBottom="13dp"
+            android:background="@drawable/bg_button_secondary"
+            android:text="@string/sync_now"
+            android:textColor="@color/aira_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:elevation="0dp"
+            android:stateListAnimator="@null" />
+
+    </LinearLayout>
+</ScrollView>

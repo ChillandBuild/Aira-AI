@@ -17,6 +17,7 @@ from app.services.assignment import (
     save_inbox_config, save_telecalling_config,
     _INBOX_CONFIG_DEFAULT, _TELECALLING_CONFIG_DEFAULT,
 )
+from app.services.expert_handoff import get_expert_handoff_config, save_expert_handoff_config
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -67,6 +68,21 @@ class BusinessHoursUpdate(BaseModel):
     open_time: str | None = None
     close_time: str | None = None
     working_days: list[int] | None = None
+
+
+class ExpertHandoffFieldUpdate(BaseModel):
+    key: str
+    label: str
+    type: Literal["text", "date", "choice"]
+    options: list[str] | None = None
+
+
+class ExpertHandoffConfigUpdate(BaseModel):
+    enabled: bool | None = None
+    trigger_description: str | None = None
+    offer_message: str | None = None
+    fields: list[ExpertHandoffFieldUpdate] | None = None
+    amount_paise: int | None = None
 
 
 class TelecallingConfigUpdate(BaseModel):
@@ -1164,4 +1180,27 @@ async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict =
             raise HTTPException(status_code=400, detail="Invalid assignment mode")
     merged = {**current, **patch}
     save_telecalling_config(tenant_id, merged)
+    return merged
+
+
+@router.get("/expert-handoff-config")
+async def get_expert_handoff_config_route(ctx: dict = Depends(require_settings_read)):
+    return get_expert_handoff_config(ctx["tenant_id"])
+
+
+@router.patch("/expert-handoff-config")
+async def patch_expert_handoff_config(
+    payload: ExpertHandoffConfigUpdate, ctx: dict = Depends(require_settings_manage)
+):
+    tenant_id = ctx["tenant_id"]
+    current = get_expert_handoff_config(tenant_id)
+    patch = payload.model_dump(exclude_none=True)
+    if "amount_paise" in patch and patch["amount_paise"] < 0:
+        raise HTTPException(status_code=400, detail="amount_paise must be >= 0")
+    if "fields" in patch:
+        keys = [f["key"] for f in patch["fields"]]
+        if len(keys) != len(set(keys)):
+            raise HTTPException(status_code=400, detail="Duplicate field keys")
+    merged = {**current, **patch}
+    save_expert_handoff_config(tenant_id, merged)
     return merged

@@ -958,6 +958,18 @@ export interface AssignmentLogSummary {
   by_segment: Record<string, number>;
 }
 
+export interface ExpertHandoffSession {
+  id: string;
+  lead_id: string;
+  status: "awaiting_payment" | "paid";
+  collected_data: Record<string, string>;
+  amount_paise: number | null;
+  payment_link: string | null;
+  paid_at: string | null;
+  created_at: string;
+  leads: { name: string | null; phone: string | null } | null;
+}
+
 export const api = {
   leads: {
     list: async (params?: {
@@ -1168,6 +1180,8 @@ export const api = {
       }),
     remove: (id: string) =>
       apiFetch<{ deleted: boolean }>(`/api/v1/callers/${id}`, { method: "DELETE" }),
+    generateSyncToken: (id: string) =>
+      apiFetch<{ sync_token: string }>(`/api/v1/callers/${id}/sync-token`, { method: "POST" }),
     list: async () => {
       const res = await apiFetch<{ data: Caller[]; admin_caller?: Caller | null }>(`/api/v1/callers/`);
       return { data: res.data || [], admin_caller: res.admin_caller ?? null };
@@ -1985,6 +1999,14 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ caller_id: callerId }),
       }),
+  },
+  expertHandoff: {
+    listSessions: async (bucket: "awaiting_payment" | "paid") => {
+      const res = await apiFetch<{ data: ExpertHandoffSession[] }>(
+        `/api/v1/expert-handoff/sessions?bucket=${bucket}`
+      );
+      return res.data || [];
+    },
   },
 };
 

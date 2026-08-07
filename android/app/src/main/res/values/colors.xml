@@ -3,4 +3,21 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="gray">#FF888888</color>
+
+    <!-- Aira brand palette (frontend/app/globals.css is the source of truth) -->
+    <color name="aira_bg">#FAF8F5</color>
+    <color name="aira_surface">#FFFFFF</color>
+    <color name="aira_surface_mid">#F0ECE4</color>
+    <color name="aira_primary">#5B21B6</color>
+    <color name="aira_primary_dark">#4C1D95</color>
+    <color name="aira_primary_light">#F5F3FF</color>
+    <color name="aira_primary_muted">#EDE9FE</color>
+    <color name="aira_ink">#1C1917</color>
+    <color name="aira_ink_secondary">#78716C</color>
+    <color name="aira_ink_muted">#A8A29E</color>
+    <color name="aira_border">#E8E3DB</color>
+    <color name="aira_success">#059669</color>
+    <color name="aira_success_light">#ECFDF5</color>
+    <color name="aira_danger">#E11D48</color>
+    <color name="aira_danger_light">#FFF1F2</color>
 </resources>

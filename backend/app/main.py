@@ -12,6 +12,8 @@ import os
 from app.config import settings
 from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac
 from app.routes.calls import public_router as calls_public_router
+from app.routes.expert_handoff import public_router as expert_handoff_public_router
+from app.routes import expert_handoff
 
 # Configure logging
 logging.basicConfig(
@@ -545,6 +547,8 @@ app.include_router(telegram.router, prefix="/webhook/telegram", tags=["telegram-
 app.include_router(instagram.router, prefix="/webhook/instagram", tags=["instagram-webhook"])
 app.include_router(facebook.router, prefix="/webhook/facebook", tags=["facebook-webhook"])
 app.include_router(calls_public_router, prefix="/api/v1/calls", tags=["calls-telecmi"])
+app.include_router(expert_handoff_public_router, prefix="/api/v1/expert-handoff", tags=["expert-handoff-webhook"])
+app.include_router(expert_handoff.router, prefix="/api/v1/expert-handoff", tags=["expert-handoff"], dependencies=_auth)
 # API routes — all require auth
 app.include_router(leads.router, prefix="/api/v1/leads", tags=["leads"], dependencies=_auth)
 app.include_router(messages.router, prefix="/api/v1/messages", tags=["messages"], dependencies=_auth)
