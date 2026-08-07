@@ -107,7 +107,7 @@ function moduleActiveCount(rolePermissions: string[]) {
 }
 
 function providerLabel(provider: CallingProvider) {
-  return provider === "sim_basic" ? "SIM Basic" : "TeleCMI";
+  return provider === "sim_basic" ? "SIM Basic" : "Cloud Telephony";
 }
 
 function groupModules(modules: AccessModule[]) {
@@ -865,7 +865,7 @@ export default function RolesPage() {
                   </div>
                   <input className="input bg-white" placeholder="Phone number" value={userDraft.phone} onChange={(e) => setUserDraft((d) => ({ ...d, phone: e.target.value }))} />
                   {callingProvider === "telecmi" && (
-                    <input className="input bg-white" placeholder="TeleCMI agent ID" value={userDraft.telecmi_agent_id} onChange={(e) => setUserDraft((d) => ({ ...d, telecmi_agent_id: e.target.value }))} />
+                    <input className="input bg-white" placeholder="Cloud Telephony agent ID" value={userDraft.telecmi_agent_id} onChange={(e) => setUserDraft((d) => ({ ...d, telecmi_agent_id: e.target.value }))} />
                   )}
                   {atSeatLimit && (
                     <p className="font-body text-xs text-red-700">

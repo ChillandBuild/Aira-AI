@@ -152,7 +152,7 @@ export function TelecallingConfigPanel({ canManage = true }: { canManage?: boole
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-display text-sm font-bold text-ink">
-                      {(draft.calling_provider ?? "telecmi") === "sim_basic" ? "SIM Basic" : "TeleCMI"}
+                      {(draft.calling_provider ?? "telecmi") === "sim_basic" ? "SIM Basic" : "Cloud Telephony"}
                     </p>
                     <span className="badge badge-green">Active</span>
                     <span className="badge badge-gray">Developer managed</span>
@@ -160,7 +160,7 @@ export function TelecallingConfigPanel({ canManage = true }: { canManage?: boole
                   <p className="mt-1 font-body text-xs leading-relaxed text-ink-muted">
                     {(draft.calling_provider ?? "telecmi") === "sim_basic"
                       ? "Mobile SIM dialing is active. Telecallers log duration, outcome, and notes manually after each call."
-                      : "TeleCMI API calling is active. Call logs, durations, recordings, and webhook updates are handled automatically."}
+                      : "Cloud Telephony API calling is active. Call logs, durations, recordings, and webhook updates are handled automatically."}
                   </p>
                 </div>
               </div>

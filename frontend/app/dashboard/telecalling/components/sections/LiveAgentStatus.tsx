@@ -85,7 +85,7 @@ function AdminCallerCard({
         {needsSetup && (
           <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-medium">
             {isTelecmi
-              ? "Set your phone and TeleCMI Agent ID to enable click-to-call"
+              ? "Set your phone and Cloud Telephony Agent ID to enable click-to-call"
               : "Set your phone number to enable SIM calling"}
           </p>
         )}
@@ -149,7 +149,7 @@ function AdminCallerCard({
                 {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
                 <button onClick={() => onEditAgentId(caller.id, caller.telecmi_agent_id || null)}
                   className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                  title="Edit TeleCMI agent ID">
+                  title="Edit Cloud Telephony agent ID">
                   <Pencil size={9} />
                 </button>
               </span>
@@ -231,7 +231,7 @@ export default function LiveAgentStatus({
       setAgentIdInputValue("");
     } catch (err) {
       console.error("Failed to update TeleCMI agent ID:", err);
-      toast.error("Failed to update TeleCMI agent ID");
+      toast.error("Failed to update Cloud Telephony agent ID");
     } finally {
       setSavingAgentId(null);
     }
@@ -546,7 +546,7 @@ export default function LiveAgentStatus({
                         onClick={(e) => { e.stopPropagation(); handleSaveAgentId(c.id); }}
                         disabled={savingAgentId === c.id}
                         className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                        title="Save TeleCMI agent ID"
+                        title="Save Cloud Telephony agent ID"
                       >
                         {savingAgentId === c.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
                       </button>
@@ -565,7 +565,7 @@ export default function LiveAgentStatus({
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(c.id); setAgentIdInputValue(c.telecmi_agent_id || ""); }}
                         className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                        title="Edit TeleCMI agent ID"
+                        title="Edit Cloud Telephony agent ID"
                       >
                         <Pencil size={9} />
                       </button>

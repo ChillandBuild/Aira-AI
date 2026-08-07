@@ -570,7 +570,7 @@ export function CartBuilder({
                     selected={telecmi.feature_key in selected}
                     onClick={() => selectTelecallingType(telecmi.feature_key)}
                     icon={ICONS.telecalling_telecmi}
-                    title="Tele-CMI"
+                    title="Cloud Telephony"
                     subtitle={formatPricingText(telecmi)}
                   />
                 )}

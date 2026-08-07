@@ -324,7 +324,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
             effective_agent_password = get_setting("telecmi_agent_password", tenant_id=tenant_id)
         if not effective_agent_id or not effective_agent_password:
-            raise HTTPException(status_code=400, detail="No TeleCMI agent id + password found. Set them on the caller in the Team page.")
+            raise HTTPException(status_code=400, detail="No Cloud Telephony agent id + password found. Set them on the caller in the Team page.")
 
         result = await initiate_click2call(
             tenant_id=tenant_id,
@@ -338,7 +338,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         err_msg = str(e).replace(effective_agent_password, "***") if effective_agent_password else str(e)
         logger.error(f"TeleCMI call failed: {err_msg}")
         db.table("call_logs").update({"status": "failed"}).eq("id", call_log_id).execute()
-        raise HTTPException(status_code=502, detail=f"TeleCMI call failed: {err_msg}")
+        raise HTTPException(status_code=502, detail=f"Cloud Telephony call failed: {err_msg}")
 
     db.table("call_logs").update({"call_sid": request_id}).eq("id", call_log_id).execute()
     return {

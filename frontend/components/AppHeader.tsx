@@ -490,7 +490,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/roles" && (
           <div className="hidden rounded-xl border border-border-subtle bg-white px-3 py-1.5 font-body text-xs font-semibold text-ink-muted shadow-sm md:block">
-            Calling provider: <span className="text-ink">{callingProvider === "sim_basic" ? "SIM Basic" : "TeleCMI"}</span>
+            Calling provider: <span className="text-ink">{callingProvider === "sim_basic" ? "SIM Basic" : "Cloud Telephony"}</span>
           </div>
         )}
 

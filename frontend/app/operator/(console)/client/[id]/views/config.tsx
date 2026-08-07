@@ -496,13 +496,13 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const pendingProviderCopy = pendingProvider === "sim_basic"
     ? {
         title: "Switch to SIM Basic?",
-        description: "This client will use mobile SIM calling with manual call wrap-up. TeleCMI agent credentials, automatic recordings, and exact provider call duration will no longer drive new calls.",
+        description: "This client will use mobile SIM calling with manual call wrap-up. Cloud Telephony agent credentials, automatic recordings, and exact provider call duration will no longer drive new calls.",
         confirm: "Switch to SIM Basic",
       }
     : {
-        title: "Switch to TeleCMI?",
-        description: "This client will use TeleCMI click-to-call. Telecallers need TeleCMI agent ID/password, and recordings/durations come from TeleCMI webhooks.",
-        confirm: "Switch to TeleCMI",
+        title: "Switch to Cloud Telephony?",
+        description: "This client will use Cloud Telephony click-to-call. Telecallers need Cloud Telephony agent ID/password, and recordings/durations come from Cloud Telephony webhooks.",
+        confirm: "Switch to Cloud Telephony",
       };
 
   if (loading) {
@@ -546,7 +546,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           {[
             {
               id: "telecmi" as const,
-              title: "TeleCMI",
+              title: "Cloud Telephony",
               desc: "API calling with automatic call logs, duration, recordings, and webhooks.",
               icon: RadioTower,
             },
