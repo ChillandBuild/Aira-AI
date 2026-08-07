@@ -1,13 +1,38 @@
 import logging
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from app.db.supabase import get_supabase
+from app.dependencies.tenant import require_permission
 from app.services.ai_reply import send_whatsapp
 from app.services.expert_handoff import confirm_expert_handoff_payment, get_session_tenant_id
 from app.services.payment_razorpay import verify_webhook_signature
 
 logger = logging.getLogger(__name__)
 public_router = APIRouter()
+router = APIRouter()
+require_conversations_view = require_permission("conversations.view")
+
+
+@router.get("/sessions")
+def list_expert_handoff_sessions(
+    bucket: str = Query(...),
+    ctx: dict = Depends(require_conversations_view),
+):
+    if bucket not in ("awaiting_payment", "paid"):
+        raise HTTPException(status_code=400, detail="bucket must be 'awaiting_payment' or 'paid'")
+
+    db = get_supabase()
+    result = (
+        db.table("expert_handoff_sessions")
+        .select("id, lead_id, status, collected_data, amount_paise, payment_link, paid_at, created_at, leads(name, phone)")
+        .eq("tenant_id", ctx["tenant_id"])
+        .eq("status", bucket)
+        .order("created_at", desc=True)
+        .limit(50)
+        .execute()
+    )
+    return {"data": result.data or []}
 
 
 @public_router.post("/razorpay-webhook")
