@@ -78,7 +78,7 @@ def _lead_ad_source(db, tenant_id: str, lead_id: str) -> str:
     """Human-readable acquisition source for a lead's escalation alert.
 
     Returns the MOST RECENT Meta ad's creative label ("Ad: <label>"), or
-    "Direct (not from an ad)" when the lead has no ad attribution. Broadcast
+    "Organic lead" when the lead has no ad attribution. Broadcast
     attribution is not covered yet — no broadcast has ever run, so
     broadcast_recipients is empty; add it here once that data exists.
 
@@ -102,11 +102,11 @@ def _lead_ad_source(db, tenant_id: str, lead_id: str) -> str:
                 return f"Ad: {label}"
     except Exception:
         logger.exception("Ad-source lookup failed for lead %s", lead_id)
-    return "Direct (not from an ad)"
+    return "Organic lead"
 
 
 def _build_escalation_components(
-    template: dict, lead: dict, reason: str, source: str = "Direct (not from an ad)"
+    template: dict, lead: dict, reason: str, source: str = "Organic lead"
 ) -> list[dict] | None:
     """Map ordinal {{n}} placeholders in the template body to escalation values.
 

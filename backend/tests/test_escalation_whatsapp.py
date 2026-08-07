@@ -163,7 +163,7 @@ def test_build_escalation_components_source_defaults_to_direct():
     template = {"body_text": "Lead {{1}} from {{5}}: {{2}} {{3}} {{4}}"}
     lead = {"id": "lead-1", "name": "Asha", "phone": "+91999"}
     comps = whatsapp_notify._build_escalation_components(template, lead, "reason")
-    assert comps[0]["parameters"][4]["text"] == "Direct (not from an ad)"
+    assert comps[0]["parameters"][4]["text"] == "Organic lead"
 
 
 def test_lead_ad_source_returns_most_recent_creative_label():
@@ -183,7 +183,7 @@ def test_lead_ad_source_falls_back_to_direct_when_no_attribution():
     db = MagicMock()
     (db.table.return_value.select.return_value.eq.return_value.eq.return_value
      .order.return_value.limit.return_value.execute.return_value.data) = []
-    assert whatsapp_notify._lead_ad_source(db, "tenant-1", "lead-1") == "Direct (not from an ad)"
+    assert whatsapp_notify._lead_ad_source(db, "tenant-1", "lead-1") == "Organic lead"
 
 
 def test_lead_ad_source_never_raises():
@@ -191,7 +191,7 @@ def test_lead_ad_source_never_raises():
 
     db = MagicMock()
     db.table.side_effect = RuntimeError("db down")
-    assert whatsapp_notify._lead_ad_source(db, "tenant-1", "lead-1") == "Direct (not from an ad)"
+    assert whatsapp_notify._lead_ad_source(db, "tenant-1", "lead-1") == "Organic lead"
 
 
 # --- sending / cancel-if-claimed -------------------------------------------
