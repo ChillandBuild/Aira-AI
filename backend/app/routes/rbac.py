@@ -321,6 +321,31 @@ def delete_role(role_id: str, ctx: dict = Depends(require_roles_manage)):
     return {"deleted": True}
 
 
+@router.get("/audit-log")
+def list_audit_log(
+    page: int = 1,
+    limit: int = 50,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    ctx: dict = Depends(require_roles_read),
+):
+    db = get_supabase()
+    q = db.table("app_audit_logs").select(
+        "id, actor_user_id, actor_role, action, target_type, target_id, metadata, created_at",
+        count="exact",
+    ).eq("tenant_id", ctx["tenant_id"])
+
+    if date_from:
+        q = q.gte("created_at", date_from)
+    if date_to:
+        q = q.lte("created_at", date_to + "T23:59:59.999Z")
+
+    offset = (page - 1) * limit
+    result = q.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+
+    return {"data": result.data or [], "total": result.count or 0, "page": page, "limit": limit}
+
+
 @router.get("/users")
 def list_users(ctx: dict = Depends(require_roles_read)):
     db = get_supabase()
