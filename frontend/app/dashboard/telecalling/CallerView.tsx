@@ -44,6 +44,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
       if (ids.length) api.calls.recentByLeads(ids).then(setLastCalledMap).catch(() => {});
     } catch (err) {
       console.error("CallerView load error:", err);
+      toast.error("Couldn't load your lead queue — check your connection or permissions and try refreshing.");
     }
   }, [callerId]);
 

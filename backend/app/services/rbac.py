@@ -47,6 +47,7 @@ ALL_PERMISSION_KEYS = [p["key"] for p in PERMISSION_CATALOG]
 DEFAULT_TELECALLER_PERMISSIONS = [
     "dashboard.view",
     "conversations.view",
+    "leads.view",
     "telecalling.dialer",
     "telecalling.scheduled",
     "telecalling.notes",
