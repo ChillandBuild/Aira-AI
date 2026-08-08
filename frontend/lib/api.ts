@@ -546,6 +546,17 @@ export interface RbacUser {
   caller_profile: TeamMember["caller_profile"];
 }
 
+export interface AuditLogEntry {
+  id: string;
+  actor_user_id: string | null;
+  actor_role: string | null;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export interface WhatsAppAnalytics {
   messages_sent_today: number;
   messages_received_today: number;
@@ -1813,6 +1824,16 @@ export const api = {
       apiFetch<{ deleted: boolean }>(`/api/v1/rbac/users/${userId}`, {
         method: "DELETE",
       }),
+    auditLog: (params?: { page?: number; date_from?: string; date_to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.page) qs.set("page", String(params.page));
+      if (params?.date_from) qs.set("date_from", params.date_from);
+      if (params?.date_to) qs.set("date_to", params.date_to);
+      const query = qs.toString();
+      return apiFetch<{ data: AuditLogEntry[]; total: number; page: number; limit: number }>(
+        `/api/v1/rbac/audit-log${query ? `?${query}` : ""}`,
+      );
+    },
     resetPassword: (userId: string) =>
       apiFetch<{ temporary_password: string }>(`/api/v1/rbac/users/${userId}/reset-password`, {
         method: "POST",

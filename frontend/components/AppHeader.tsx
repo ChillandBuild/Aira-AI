@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Clock, LayoutGrid, List, ShieldCheck, Users } from "lucide-react";
+import { Clock, LayoutGrid, List, ScrollText, ShieldCheck, Users } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
@@ -200,7 +200,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
   const tab = searchParams.get("tab") || "";
   const leadSegment = searchParams.get("segment") || "A";
-  const rolesTab = searchParams.get("tab") === "users" ? "users" : "roles";
+  const rolesTab = (searchParams.get("tab") === "users" || searchParams.get("tab") === "audit") ? searchParams.get("tab")! : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
   const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState(true);
   const [settingsHasNotifications, setSettingsHasNotifications] = useState(true);
@@ -465,14 +465,14 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/roles" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
-            {(["roles", "users"] as const).map((item) => (
+            {(["roles", "users", "audit"] as const).map((item) => (
               <button
                 key={item}
                 type="button"
                 onClick={() => {
                   const params = new URLSearchParams(searchParams.toString());
-                  if (item === "users") params.set("tab", "users");
-                  else params.delete("tab");
+                  if (item === "roles") params.delete("tab");
+                  else params.set("tab", item);
                   const query = params.toString();
                   router.replace(`/dashboard/roles${query ? `?${query}` : ""}`, { scroll: false });
                 }}
@@ -481,8 +481,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   rolesTab === item ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
                 )}
               >
-                {item === "roles" ? <ShieldCheck size={13} /> : <Users size={13} />}
-                {item}
+                {item === "roles" ? <ShieldCheck size={13} /> : item === "users" ? <Users size={13} /> : <ScrollText size={13} />}
+                {item === "audit" ? "Audit Log" : item}
               </button>
             ))}
           </div>

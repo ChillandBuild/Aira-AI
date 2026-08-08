@@ -27,12 +27,12 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { api, API_URL, ClientRole, PermissionDef, RbacUser } from "@/lib/api";
+import { api, API_URL, AuditLogEntry, ClientRole, PermissionDef, RbacUser } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { cn } from "@/lib/utils";
 import { ConfirmModal } from "@/components/ConfirmModal";
 
-type Tab = "roles" | "users";
+type Tab = "roles" | "users" | "audit";
 type CallingProvider = "telecmi" | "sim_basic";
 
 type ConfirmState = {
@@ -150,7 +150,7 @@ export default function RolesPage() {
   const canView = canWrite || myPermissions.includes("roles.view");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const urlTab: Tab = searchParams.get("tab") === "users" ? "users" : "roles";
+  const urlTab: Tab = searchParams.get("tab") === "users" ? "users" : searchParams.get("tab") === "audit" ? "audit" : "roles";
   const [tab, setTab] = useState<Tab>(urlTab);
   const [roles, setRoles] = useState<ClientRole[]>([]);
   const [users, setUsers] = useState<RbacUser[]>([]);
@@ -175,6 +175,10 @@ export default function RolesPage() {
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [syncTokenDialogUser, setSyncTokenDialogUser] = useState<RbacUser | null>(null);
   const [viewingSyncToken, setViewingSyncToken] = useState<string | null>(null);
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   useEffect(() => {
     setTab(urlTab);
@@ -247,6 +251,20 @@ export default function RolesPage() {
     if (!roleLoading && canView) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleLoading, canView]);
+
+  useEffect(() => {
+    if (tab !== "audit" || !canView) return;
+    let active = true;
+    setAuditLoading(true);
+    api.rbac.auditLog({ page: auditPage }).then((res) => {
+      if (!active) return;
+      setAuditEntries(res.data);
+      setAuditTotal(res.total);
+    }).catch(() => undefined).finally(() => {
+      if (active) setAuditLoading(false);
+    });
+    return () => { active = false; };
+  }, [tab, auditPage, canView]);
 
   function startRole(role: ClientRole) {
     setEditingRoleId(role.id);
@@ -811,7 +829,7 @@ export default function RolesPage() {
             </div>
           </form>
         </div>
-      ) : (
+      ) : tab === "users" ? (
         <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
           {canWrite && (
           <form onSubmit={saveUser} className="card rounded-3xl space-y-4">
@@ -949,6 +967,51 @@ export default function RolesPage() {
               </div>
             )}
           </div>
+        </div>
+      ) : (
+        <div className="card rounded-3xl overflow-hidden">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-display text-base font-bold text-ink">Audit Log</h2>
+            <span className="rounded-full bg-surface-subtle px-2.5 py-1 font-label text-[10px] font-bold text-ink-muted">{auditTotal} total</span>
+          </div>
+          {auditLoading ? (
+            <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-primary" /></div>
+          ) : auditEntries.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+              <Inbox size={32} className="text-ink-muted/40" />
+              <p className="font-body text-sm text-ink-muted">No audit events yet.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border-subtle">
+              {auditEntries.map((entry) => {
+                const user = users.find((u) => u.user_id === entry.actor_user_id);
+                const metaText = entry.metadata && Object.keys(entry.metadata).length > 0
+                  ? Object.entries(entry.metadata)
+                      .filter(([, v]) => v !== null && v !== undefined && v !== "********")
+                      .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : String(v)}`)
+                      .join(" · ")
+                  : "";
+                return (
+                  <div key={entry.id} className="flex flex-col gap-1 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-2">
+                    <div className="min-w-0">
+                      <p className="font-body text-sm font-bold text-ink">
+                        {entry.action} <span className="font-body text-xs font-normal text-ink-muted">by {user?.full_name || user?.email || entry.actor_role || "system"}</span>
+                      </p>
+                      {metaText && <p className="mt-0.5 truncate font-body text-xs text-ink-muted">{metaText}</p>}
+                    </div>
+                    <p className="shrink-0 font-label text-[10px] font-bold text-ink-muted">{new Date(entry.created_at).toLocaleString()}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {auditTotal > 50 && (
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button type="button" className="btn-secondary px-3" disabled={auditPage <= 1} onClick={() => setAuditPage((p) => p - 1)}>Prev</button>
+              <span className="font-body text-xs text-ink-muted">Page {auditPage}</span>
+              <button type="button" className="btn-secondary px-3" disabled={auditPage * 50 >= auditTotal} onClick={() => setAuditPage((p) => p + 1)}>Next</button>
+            </div>
+          )}
         </div>
       )}
 
