@@ -330,10 +330,14 @@ def list_audit_log(
     ctx: dict = Depends(require_roles_read),
 ):
     db = get_supabase()
+    # Tenant-facing scope is deliberately narrower than the operator console's
+    # view of this same table: team membership and role/permission changes
+    # only, not every settings/broadcast/operator action ever logged for this
+    # tenant.
     q = db.table("app_audit_logs").select(
         "id, actor_user_id, actor_role, action, target_type, target_id, metadata, created_at",
         count="exact",
-    ).eq("tenant_id", ctx["tenant_id"])
+    ).eq("tenant_id", ctx["tenant_id"]).or_("action.like.team.%,action.like.role.%")
 
     if date_from:
         q = q.gte("created_at", date_from)
