@@ -21,7 +21,12 @@ declare global {
       init: (params: { appId: string; xfbml?: boolean; version: string }) => void;
       login: (
         callback: (response: { authResponse?: { code?: string } }) => void,
-        options: { config_id: string; response_type: string; override_default_response_type: boolean }
+        options: {
+          config_id: string;
+          response_type: string;
+          override_default_response_type: boolean;
+          extras?: { featureType?: string; sessionInfoVersion?: string };
+        }
       ) => void;
     };
     fbAsyncInit?: () => void;
@@ -47,7 +52,7 @@ function loadFacebookSdk(): Promise<void> {
   return fbSdkPromise;
 }
 
-type EmbeddedSignupSession = { waba_id?: string; phone_number_id?: string; business_id?: string };
+type EmbeddedSignupSession = { waba_id?: string; phone_number_id?: string; business_id?: string; is_coexistence?: boolean };
 type EmbeddedSignupState = "idle" | "connecting" | "finishing" | "error";
 type MetaBusinessLoginState = "idle" | "connecting" | "selecting" | "finishing" | "success" | "error";
 type MetaBusinessAssets = {
@@ -759,6 +764,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
           waba_id: session.waba_id,
           phone_number_id: session.phone_number_id,
           business_id: session.business_id,
+          is_coexistence: session.is_coexistence ?? false,
         }),
       });
       const data = await res.json();
@@ -785,11 +791,15 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
       if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
       try {
         const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-        if (data?.type === "WA_EMBEDDED_SIGNUP" && data?.event === "FINISH") {
+        if (
+          data?.type === "WA_EMBEDDED_SIGNUP" &&
+          (data?.event === "FINISH" || data?.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING")
+        ) {
           esSessionRef.current = {
             waba_id: data.data?.waba_id,
             phone_number_id: data.data?.phone_number_id,
             business_id: data.data?.business_id,
+            is_coexistence: data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
           };
           finishEmbeddedSignup();
         }
@@ -818,6 +828,30 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
         config_id: META_CONFIG_ID,
         response_type: "code",
         override_default_response_type: true,
+      }
+    );
+  }
+
+  async function handleConnectCoexistence() {
+    if (!canManage) return;
+    setEsState("connecting");
+    setEsError(null);
+    await loadFacebookSdk();
+    window.FB?.login(
+      (response) => {
+        const code = response?.authResponse?.code;
+        if (!code) {
+          setEsState("idle");
+          return;
+        }
+        esCodeRef.current = code;
+        finishEmbeddedSignup();
+      },
+      {
+        config_id: META_CONFIG_ID,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: { featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
       }
     );
   }
@@ -983,6 +1017,14 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                         className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(16,185,129,0.22)] transition-all hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {esState === "connecting" || esState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect with Meta <ArrowRight size={16} /></>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConnectCoexistence}
+                        disabled={!canManage || esState === "connecting" || esState === "finishing"}
+                        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 font-label text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Already using the WhatsApp Business app? Connect without switching <ArrowRight size={12} />
                       </button>
                     </div>
                   </div>
