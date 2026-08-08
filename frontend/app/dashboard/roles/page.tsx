@@ -481,7 +481,7 @@ export default function RolesPage() {
     if (!canWrite) return;
     setConfirmState({
       title: "Delete user",
-      description: `Delete user "${user.full_name || user.email}"? This removes their tenant access and disables their caller profile.`,
+      description: `Delete user "${user.full_name || user.email}"? This permanently removes their access and caller profile — call history stays but loses attribution to them, and any leads currently assigned to them become unassigned.`,
       tone: "danger",
       confirmLabel: "Delete",
       onConfirm: () => runDeleteUser(user),
