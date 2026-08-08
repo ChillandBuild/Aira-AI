@@ -37,10 +37,26 @@ Dashboard for this app, `AIRA`, config `Aira - Bloom Matrix` /
   dashboard but have no handler in `webhook.py` — verified the field dispatch
   is a plain `if/elif` with no `else`, so unrecognized fields are silently
   ignored (no crash, no data loss risk to existing flows). `smb_message_echoes`
-  is the field that matters most for correctness: it's how Meta reports a
-  message a human sent **from the phone app**. Without handling it, Aira never
-  learns a human already replied, so the AI can post a conflicting reply on
-  top, and the conversation view has holes.
+  is the field that matters most: it's how Meta reports a message a human sent
+  **from the phone app**. Without handling it, that message never appears in
+  Aira's `messages` table at all — the dashboard conversation view has a hole,
+  and anything downstream that reads conversation history (scoring, handover
+  notes) is working off an incomplete transcript.
+
+  **Correction found during implementation planning:** I originally scoped
+  this field's handler as also preventing the AI from posting a conflicting
+  reply on top of the human's phone-app message. Tracing `ai_reply.py`, that's
+  not achievable by this handler alone — the AI-reply pipeline gates on the
+  stored `leads.ai_enabled` boolean, not on "did an outbound message land
+  since the last inbound one." There is currently **no pre-send freshness
+  check before the AI's reply goes out**, for *any* channel — an operator
+  typing a manual reply while the AI's background task is still running for
+  the same inbound message can already race today, coexistence or not. Adding
+  that check is real, separate scope (it changes send behavior for every
+  channel, not just coexistence) and is **out of scope for this pass** — it's
+  a pre-existing gap, not something coexistence introduces. This design now
+  only claims conversation-history completeness for `smb_message_echoes`, not
+  duplicate-reply prevention.
 
 ## Scope
 
@@ -49,8 +65,9 @@ Dashboard for this app, `AIRA`, config `Aira - Bloom Matrix` /
 - Handle the `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` event.
 - Skip `register_phone_number` for the coexistence path.
 - Handle `smb_message_echoes` — record the phone-app-sent message into the
-  same place outbound messages already land, and make sure it reads as "a
-  human already responded" to whatever logic decides if the AI should reply.
+  `messages` table the same way any other outbound message is recorded, so
+  the dashboard conversation view stays complete. (Not in scope: preventing a
+  duplicate AI reply — see correction below.)
 
 **Out of scope (deferred, Approach B):**
 - Backfilling `history` (past messages) and `smb_app_state_sync` (existing
@@ -69,7 +86,7 @@ Dashboard for this app, `AIRA`, config `Aira - Bloom Matrix` /
 | D1 | Add a second, explicit "Connect existing WhatsApp Business app" entry point in the UI, separate from the current "Connect with Facebook" button | The two flows produce different Meta popup experiences (create-new vs. connect-existing) and need different `extras`. Reusing one button with a hidden mode is harder to reason about than two clearly labeled actions. |
 | D2 | Distinguish the two finish events in the shared `message` listener by `data.event`, not by which button was clicked | The Meta popup is the source of truth for which flow actually completed — a user could in principle back out and switch flows inside the popup. |
 | D3 | Add `is_coexistence: bool` to `EmbeddedSignupRequest` and thread it through to the backend route | The route needs to know explicitly whether to skip `register_phone_number`, and inferring it from other fields would be fragile. |
-| D4 | `smb_message_echoes` messages are stored via the same code path as existing outbound messages, tagged with a distinct sender/source (e.g. `source: "whatsapp_business_app"`) rather than `source: "ai"` or `source: "operator"` | Keeps the conversation timeline complete and lets AI-reply gating logic treat it exactly like any other "human already replied" signal, without inventing a parallel storage path. |
+| D4 | `smb_message_echoes` messages are stored via the exact same shape as an operator's manual reply (`leads.py:888` — `direction: "outbound"`, `channel: "whatsapp"`, `is_ai_generated: False`, `meta_message_id`) — no new column | The `messages` table has no generic "sent via" column (checked: base schema plus all migrations touching `messages` — only `reply_source`, scoped by CHECK constraint to `'faq'/'knowledge'/'ai'`, none fit). Inventing one for a cosmetic distinction nothing currently reads would be schema change for no consumer. |
 | D5 | No changes to `history` / `smb_app_state_sync` handling in this pass | Both already fail safe (silently ignored, no crash). Handling them means designing how backfilled historical data interacts with lead scoring and segment assignment without misfiring on old messages — real design work, deliberately deferred rather than rushed for one client's onboarding deadline. |
 
 ## Data flow (coexistence path)
@@ -90,7 +107,8 @@ Dashboard for this app, `AIRA`, config `Aira - Bloom Matrix` /
 6. Going forward: customer messages still arrive via the existing `messages`
    field handler (unchanged). Messages the human sends from the phone app
    arrive via `smb_message_echoes` and get a new handler branch in
-   `webhook.py`.
+   `webhook.py` that inserts them into `messages` the same way an operator's
+   manual reply is recorded today.
 
 ## Error handling
 
@@ -108,7 +126,8 @@ Dashboard for this app, `AIRA`, config `Aira - Bloom Matrix` /
   (already meets the 7-day/app-version/QR prerequisites) and confirm
   credentials save without a `register_phone_number` call in the logs.
 - Manual: send a message from the phone app during a live conversation and
-  confirm it appears in the dashboard conversation view and the AI does not
-  post a duplicate/conflicting reply.
+  confirm it appears in the dashboard conversation view with the correct
+  content and timestamp (no claim about AI duplicate-reply prevention — see
+  correction above).
 - Existing webhook signature and `messages`-field tests must keep passing
   unchanged.
