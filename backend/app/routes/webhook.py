@@ -380,6 +380,46 @@ async def whatsapp_webhook(
                     elif quality_rating == "YELLOW":
                         await handle_quality_yellow(row_id)
 
+            elif field == "smb_message_echoes":
+                meta_phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
+                db = get_supabase()
+                tenant_id = _get_tenant_id_for_meta_number(meta_phone_number_id, db) if meta_phone_number_id else None
+                if not tenant_id:
+                    logger.warning(f"No tenant for meta phone_number_id={meta_phone_number_id}, dropping smb_message_echoes payload")
+                    continue
+                for echo in value.get("message_echoes", []):
+                    echo_type = echo.get("type")
+                    echo_id = echo.get("id", "")
+                    if echo_type != "text":
+                        logger.info(f"smb_message_echoes: skipping unsupported type={echo_type}")
+                        continue
+                    body = (echo.get("text") or {}).get("body", "").strip()
+                    wa_id = echo.get("to", "")
+                    phone = f"+{wa_id}" if wa_id and not wa_id.startswith("+") else wa_id
+                    if not phone or not body or not echo_id:
+                        continue
+
+                    already = db.table("messages").select("id").eq("meta_message_id", echo_id).eq("tenant_id", tenant_id).limit(1).execute()
+                    if already.data:
+                        continue
+
+                    lead = db.table("leads").select("id").eq("phone", phone).eq("tenant_id", tenant_id).limit(1).execute()
+                    if not lead.data:
+                        logger.warning(f"smb_message_echoes: no lead for phone={phone} tenant={tenant_id}, dropping")
+                        continue
+                    lead_id = lead.data[0]["id"]
+
+                    db.table("messages").insert({
+                        "lead_id": lead_id,
+                        "tenant_id": tenant_id,
+                        "direction": "outbound",
+                        "channel": "whatsapp",
+                        "content": body,
+                        "is_ai_generated": False,
+                        "meta_message_id": echo_id,
+                    }).execute()
+                    logger.info(f"smb_message_echoes: recorded phone-app message for lead {lead_id}")
+
             elif field == "messages":
                 meta_phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
                 db = get_supabase()
