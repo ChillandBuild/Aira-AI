@@ -87,7 +87,7 @@ class RbacSeatEnforcementTests(unittest.TestCase):
         self.client = TestClient(app)
         app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
         app.dependency_overrides[get_tenant_and_role] = lambda: {
-            "tenant_id": "tenant-1", "role": "owner", "permissions": [],
+            "tenant_id": "tenant-1", "role": "owner", "permissions": [], "user_id": "user-1", "caller_id": None,
         }
 
     def tearDown(self):
