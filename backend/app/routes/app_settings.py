@@ -37,6 +37,7 @@ class EmbeddedSignupRequest(BaseModel):
     waba_id: str
     phone_number_id: str
     business_id: str | None = None
+    is_coexistence: bool = False
 
 
 class FacebookEmbeddedSignupRequest(BaseModel):
@@ -669,10 +670,15 @@ async def whatsapp_embedded_signup(
     exchange = await exchange_embedded_signup_code(payload.code)
     access_token = exchange["access_token"]
 
-    pin = "".join(secrets.choice("0123456789") for _ in range(6))
-    reg_result = await register_phone_number(payload.phone_number_id, access_token, pin)
-    if "error" in reg_result:
-        logger.warning(f"Embedded Signup: phone registration failed tenant={tenant_id}: {reg_result['error']}")
+    if payload.is_coexistence:
+        # Number is already registered on the phone's WhatsApp Business app —
+        # calling register_phone_number here would be wrong for this path.
+        logger.info(f"Embedded Signup: coexistence path — skipping phone registration tenant={tenant_id}")
+    else:
+        pin = "".join(secrets.choice("0123456789") for _ in range(6))
+        reg_result = await register_phone_number(payload.phone_number_id, access_token, pin)
+        if "error" in reg_result:
+            logger.warning(f"Embedded Signup: phone registration failed tenant={tenant_id}: {reg_result['error']}")
 
     async with httpx.AsyncClient() as client:
         sub_r = await client.post(
@@ -746,7 +752,7 @@ async def whatsapp_embedded_signup(
         action="settings.whatsapp_embedded_signup_connected",
         target_type="channel",
         target_id="whatsapp",
-        metadata={"channel": "whatsapp", "waba_id": payload.waba_id, "subscribed": subscribed},
+        metadata={"channel": "whatsapp", "waba_id": payload.waba_id, "subscribed": subscribed, "is_coexistence": payload.is_coexistence},
     )
 
     return {
