@@ -202,8 +202,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const leadSegment = searchParams.get("segment") || "A";
   const rolesTab = (searchParams.get("tab") === "users" || searchParams.get("tab") === "audit") ? searchParams.get("tab")! : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
-  const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState(true);
-  const [settingsHasNotifications, setSettingsHasNotifications] = useState(true);
+  const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState<boolean | null>(null);
+  const [settingsHasNotifications, setSettingsHasNotifications] = useState<boolean | null>(null);
 
   // Notes switcher states
   const [notesPageMode, setNotesPageMode] = useState<"by_lead" | "all_notes">("by_lead");
@@ -252,14 +252,22 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
               purchasedFeatures.includes("inbound_messaging") ||
               purchasedFeatures.includes("outbound_messaging"),
           );
+        } else {
+          setSettingsHasNotifications(true);
         }
 
         if (telecallingRes.ok) {
           const data = await telecallingRes.json();
           setSettingsHasTelecmiConfig(data.calling_provider !== "sim_basic");
+        } else {
+          setSettingsHasTelecmiConfig(true);
         }
       } catch {
         // Keep the tabs visible when availability checks fail.
+        if (active) {
+          setSettingsHasNotifications(true);
+          setSettingsHasTelecmiConfig(true);
+        }
       }
     };
 
