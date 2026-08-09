@@ -203,7 +203,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const rolesTab = (searchParams.get("tab") === "users" || searchParams.get("tab") === "audit") ? searchParams.get("tab")! : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
   const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState<boolean | null>(null);
-  const [settingsHasNotifications, setSettingsHasNotifications] = useState<boolean | null>(null);
+  const [settingsHasNotifications, setSettingsHasNotifications] = useState(true);
 
   // Notes switcher states
   const [notesPageMode, setNotesPageMode] = useState<"by_lead" | "all_notes">("by_lead");
@@ -252,8 +252,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
               purchasedFeatures.includes("inbound_messaging") ||
               purchasedFeatures.includes("outbound_messaging"),
           );
-        } else {
-          setSettingsHasNotifications(true);
         }
 
         if (telecallingRes.ok) {
@@ -264,10 +262,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         }
       } catch {
         // Keep the tabs visible when availability checks fail.
-        if (active) {
-          setSettingsHasNotifications(true);
-          setSettingsHasTelecmiConfig(true);
-        }
+        if (active) setSettingsHasTelecmiConfig(true);
       }
     };
 
@@ -349,7 +344,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                     router.replace(`/dashboard/settings${query ? `?${query}` : ""}`, { scroll: false });
                   }}
                   className={cn(
-                    "shrink-0 rounded-xl px-3 py-2 font-label text-[11px] font-bold transition-all xl:px-4 xl:text-xs",
+                    "shrink-0 rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all",
                     isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
                   )}
                 >
