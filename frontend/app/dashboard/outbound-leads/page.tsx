@@ -402,103 +402,6 @@ function SendingProgress({ names, index, total }: { names: string[]; index: numb
 }
 
 // ─── Per-broadcast Segment Dropdown ──────────────────────────────────────────
-type RetryAttempt = {
-  attempt: number;
-  label: string;
-  sent_at: string | null;
-  targeted: number;
-  delivered: number;
-  undelivered: number;
-  status: string;
-  error: string | null;
-};
-
-type RetryTimelineData = {
-  retry_enabled: boolean;
-  retry_time: string | null;
-  retry_max_attempts: number | null;
-  completed: boolean;
-  attempts: RetryAttempt[];
-  rollup: { original_targeted: number; eventually_delivered: number };
-};
-
-function RetryTimeline({ broadcastId }: { broadcastId: string }) {
-  const [open, setOpen] = useState(false);
-  const [data, setData] = useState<RetryTimelineData | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function toggle() {
-    if (open) { setOpen(false); return; }
-    setOpen(true);
-    if (data || loading) return;
-    setLoading(true);
-    try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/upload/retry-timeline/${broadcastId}`, { headers: auth });
-      if (res.ok) setData(await res.json());
-    } catch {
-      // silent — timeline is non-critical
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Only show the expander once there is at least one retry attempt to report.
-  const hasRetries = data ? data.attempts.length > 1 : true;
-
-  return (
-    <div className="mt-3 pt-3 border-t border-surface-mid/30">
-      <button
-        onClick={toggle}
-        className="flex items-center gap-1.5 font-label text-[11px] font-bold text-primary hover:underline"
-      >
-        <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-        {open ? "Hide retry timeline" : "Retry timeline"}
-      </button>
-
-      {open && !loading && data && hasRetries && (
-        <div className="mt-2.5 space-y-1.5">
-          <div className="hidden grid-cols-[1.6fr_1fr_1fr_1fr] gap-2 px-2 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted sm:grid">
-            <span>Attempt</span><span className="text-right">Targeted</span><span className="text-right">Delivered</span><span className="text-right">Still failed</span>
-          </div>
-          {data.attempts.map((a) => {
-            const failed = a.status === "failed";
-            const inFlight = a.status === "pending" || a.status === "running";
-            const sentOk = a.status === "done" && a.targeted > 0;
-            return (
-              <div key={a.attempt} className="bg-surface-low rounded-lg px-2 py-1.5">
-                <div className="grid grid-cols-2 items-center gap-2 font-body text-xs sm:grid-cols-[1.6fr_1fr_1fr_1fr]">
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-semibold text-on-surface truncate" title={a.sent_at || ""}>{a.label}</span>
-                    {failed && <span className="shrink-0 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-red-100 text-red-700">Failed</span>}
-                    {inFlight && <span className="shrink-0 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-blue-100 text-blue-700">{a.status === "pending" ? "Queued" : "Sending"}</span>}
-                    {sentOk && <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-label text-[9px] font-bold uppercase bg-green-100 text-green-700"><Check size={9} strokeWidth={3} />Sent</span>}
-                  </span>
-                  <span className="text-right text-on-surface-muted"><span className="sm:hidden">Targeted </span>{a.targeted}</span>
-                  <span className="text-right font-semibold text-green-600"><span className="font-normal text-on-surface-muted sm:hidden">Delivered </span>{a.delivered}</span>
-                  <span className="text-right font-semibold text-amber-600"><span className="font-normal text-on-surface-muted sm:hidden">Failed </span>{a.undelivered}</span>
-                </div>
-                {failed && a.error && (
-                  <p className="mt-1 font-body text-[10.5px] text-red-600 leading-snug">{a.error} — will retry at the next window.</p>
-                )}
-              </div>
-            );
-          })}
-          <p className="font-body text-[11px] text-on-surface-muted pt-1 px-2">
-            {data.rollup.eventually_delivered} of {data.rollup.original_targeted} eventually delivered
-            {!data.completed && data.retry_enabled ? " · more retries pending" : ""}.
-          </p>
-        </div>
-      )}
-      {open && !loading && data && !hasRetries && (
-        <p className="mt-2 font-body text-[11px] text-on-surface-muted px-2">
-          {data.retry_enabled ? "Auto-retry on — no undelivered leads to retry yet." : "Auto-retry was off for this broadcast."}
-        </p>
-      )}
-    </div>
-  );
-}
-
 function BroadcastSegmentDropdown({ broadcastId, tagId, onDownload }: {
   broadcastId: string;
   tagId?: string;
@@ -763,9 +666,6 @@ export default function OutboundLeadsPage() {
   const [riskLoading, setRiskLoading] = useState(false);
   const [excludeNegativeReplies, setExcludeNegativeReplies] = useState(false);
   const [includeOptedOut, setIncludeOptedOut] = useState(false);
-  const [retryEnabled, setRetryEnabled] = useState(false);
-  const [retryTime, setRetryTime] = useState("10:00");
-  const [retryMaxAttempts, setRetryMaxAttempts] = useState(2);
 
   // Tags management state
   const [tagsList, setTagsList] = useState<BroadcastTag[]>([]);
@@ -1104,31 +1004,6 @@ export default function OutboundLeadsPage() {
       toast.error("Failed to delete history entry");
     } finally {
       setDeletingHistoryId(null);
-    }
-  }
-
-  const [retryingNowId, setRetryingNowId] = useState<string | null>(null);
-
-  async function handleRetryNow(broadcastId: string) {
-    if (!canManageOutbound) {
-      toast.error("Read-only role: retry is disabled.");
-      return;
-    }
-    setRetryingNowId(broadcastId);
-    try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/upload/broadcast/${broadcastId}/retry-now`, { method: "POST", headers: auth });
-      const data: { queued: number; message?: string } = await res.json();
-      if (!res.ok) throw new Error(data.message || "Retry failed");
-      if (data.queued === 0) {
-        toast("No undelivered leads left to retry.");
-      } else {
-        toast.success(`Retrying ${data.queued} undelivered lead${data.queued === 1 ? "" : "s"}`);
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to queue retry");
-    } finally {
-      setRetryingNowId(null);
     }
   }
 
@@ -1471,9 +1346,6 @@ export default function OutboundLeadsPage() {
         tag_id: selectedTag || undefined,
         exclude_negative_replies: excludeNegativeReplies,
         include_opted_out: includeOptedOut,
-        retry_enabled: retryEnabled,
-        retry_time: retryEnabled ? retryTime : undefined,
-        retry_max_attempts: retryMaxAttempts,
       };
 
       const auth = await getAuthHeaders();
@@ -2037,54 +1909,6 @@ export default function OutboundLeadsPage() {
                     </div>
                   </div>
                 )}
-
-                {/* ── Auto-retry undelivered ── */}
-                <div className="rounded-xl border border-surface-mid bg-surface-low p-4 space-y-3">
-                  <label className="flex items-start gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={retryEnabled}
-                      onChange={(e) => setRetryEnabled(e.target.checked)}
-                      className="mt-0.5 accent-[var(--color-primary)]"
-                    />
-                    <span>
-                      <span className="font-label text-xs font-bold text-on-surface block">Auto-retry undelivered messages</span>
-                      <span className="font-body text-xs text-on-surface-muted">
-                        Re-send to leads who never got the message (Meta&apos;s daily marketing cap). Wrong numbers and unsubscribed leads are excluded automatically.
-                      </span>
-                    </span>
-                  </label>
-
-                  {retryEnabled && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-7">
-                      <div>
-                        <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
-                          Retry each day at
-                        </label>
-                        <input
-                          type="time"
-                          value={retryTime}
-                          onChange={(e) => setRetryTime(e.target.value)}
-                          className={inputCls}
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
-                          Max retries
-                        </label>
-                        <select
-                          value={retryMaxAttempts}
-                          onChange={(e) => setRetryMaxAttempts(parseInt(e.target.value, 10))}
-                          className={inputCls}
-                        >
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <option key={n} value={n}>{n} {n === 1 ? "retry" : "retries"}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
                   <button
@@ -3309,17 +3133,6 @@ export default function OutboundLeadsPage() {
                   </span>
                 </p>
 
-                {item.broadcast_id && <RetryTimeline broadcastId={item.broadcast_id} />}
-                {item.broadcast_id && item.failed > 0 && canManageOutbound && (
-                  <button
-                    onClick={() => handleRetryNow(item.broadcast_id!)}
-                    disabled={retryingNowId === item.broadcast_id}
-                    className="mt-2 flex items-center gap-1.5 font-label text-[11px] font-bold text-amber-700 hover:underline disabled:opacity-50"
-                  >
-                    <RefreshCw size={12} className={retryingNowId === item.broadcast_id ? "animate-spin" : ""} />
-                    Retry now
-                  </button>
-                )}
               </div>
             ))}
           </div>
