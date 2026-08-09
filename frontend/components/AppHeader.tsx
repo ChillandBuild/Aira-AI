@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Clock, LayoutGrid, List, ScrollText, ShieldCheck, Users } from "lucide-react";
+import { ClipboardList, Clock, LayoutGrid, List, ScrollText, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
@@ -85,7 +85,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/knowledge") {
     let tabLabel = "Documents (RAG)";
-    if (tab === "ai-tune") tabLabel = "AI Tune";
+    if (tab === "description" || tab === "ai-tune") tabLabel = "Description";
     return {
       title: `Knowledge Base / ${tabLabel}`,
       description: "Upload documents and tune AI prompts to answer lead queries accurately.",
@@ -379,6 +379,33 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           </div>
         )}
 
+        {pathname === "/dashboard/knowledge" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {(["documents", "description"] as const).map((t) => {
+              const isDescription = tab === "description" || tab === "ai-tune";
+              const isActive = t === "description" ? isDescription : !isDescription;
+              return (
+                <button
+                  key={t}
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set("tab", t);
+                    router.replace(`/dashboard/knowledge?${params.toString()}`, { scroll: false });
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                    isActive
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-[#78716c] hover:text-[#292524]"
+                  )}
+                >
+                  {t === "documents" ? "Documents (RAG)" : "Description"}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {pathname === "/dashboard/analytics" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["overview", "channels", "inbound", "templates"] as const).map((t) => (
@@ -460,6 +487,33 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
             ))}
           </nav>
           )}
+          </div>
+        )}
+
+        {pathname === "/dashboard/team" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {(["performance", "log"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (t === "performance") params.delete("tab");
+                  else params.set("tab", t);
+                  const query = params.toString();
+                  router.replace(`/dashboard/team${query ? `?${query}` : ""}`, { scroll: false });
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all",
+                  (tab === t || (t === "performance" && !tab))
+                    ? "bg-white text-primary shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
+              >
+                {t === "performance" ? <TrendingUp size={13} /> : <ClipboardList size={13} />}
+                {t === "performance" ? "Team & Performance" : "Assignment Log"}
+              </button>
+            ))}
           </div>
         )}
 

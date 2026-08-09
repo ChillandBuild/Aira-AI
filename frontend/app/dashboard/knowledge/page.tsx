@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search, Plus, Trash2, CheckCircle2, XCircle,
   Upload, FileText, Loader2, Info, AlertCircle,
-  Database, Sparkles, Save, Eye, Download, X, Link as LinkIcon
+  Save, Eye, Download, X, Link as LinkIcon
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, KnowledgeDocContent } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 interface KnowledgeDoc {
   id: string;
@@ -31,19 +31,12 @@ export default function KnowledgePage() {
   const [documents, setDocuments] = useState<KnowledgeDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
   // "ai-tune" is still accepted so existing bookmarks and links keep working.
   const tab = (rawTab === "description" || rawTab === "ai-tune" ? "description" : "documents") as
     | "documents"
     | "description";
-
-  const setTab = (val: "documents" | "description") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", val);
-    router.replace(`/dashboard/knowledge?${params.toString()}`, { scroll: false });
-  };
 
   // Document Upload
   const [uploading, setUploading] = useState(false);
@@ -300,36 +293,6 @@ export default function KnowledgePage() {
 
   return (
     <div className="space-y-6">
-      {/* Tabs */}
-      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start w-fit">
-        <button
-          onClick={() => setTab("documents")}
-          className={cn(
-            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
-            tab === "documents"
-              ? "bg-white text-primary shadow-sm"
-              : "text-[#78716c] hover:text-[#292524]"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <Database size={16} /> Documents (RAG)
-          </div>
-        </button>
-        <button
-          onClick={() => setTab("description")}
-          className={cn(
-            "px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all",
-            tab === "description"
-              ? "bg-white text-primary shadow-sm"
-              : "text-[#78716c] hover:text-[#292524]"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <Sparkles size={16} /> Description
-          </div>
-        </button>
-      </div>
-
       {tab !== "description" && (
         <div className="relative">
           <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-muted" />
