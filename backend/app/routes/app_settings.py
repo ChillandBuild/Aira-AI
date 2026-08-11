@@ -131,6 +131,27 @@ def _get_setting_value(db, tenant_id: str, key: str) -> str | None:
     )
     return row.data["value"] if row and row.data else None
 
+# One source of truth for "which settings keys belong to which channel".
+# Used to reset a channel's status and to record how it was connected.
+_CHANNEL_CREDENTIAL_KEYS: dict[str, frozenset[str]] = {
+    "whatsapp": frozenset({
+        "meta_access_token", "meta_phone_number_id", "meta_waba_id",
+        "meta_app_secret", "meta_webhook_verify_token",
+    }),
+    "instagram": frozenset({"instagram_access_token", "instagram_page_id", "instagram_app_secret"}),
+    "facebook": frozenset({"facebook_access_token", "facebook_page_id"}),
+    "meta_ads": frozenset({"meta_ads_access_token", "meta_ads_account_id"}),
+}
+
+
+def _stamp_connection_source(db, tenant_id: str, channel: str, source: str) -> None:
+    """Record whether a channel's credentials came from a Meta-guided flow or a hand-pasted token.
+
+    The UI uses this to label an embedded-provisioned channel instead of implying
+    the tenant configured it by hand. `source` is "embedded" or "manual".
+    """
+    _save_tenant_setting(db, tenant_id, f"{channel}_connection_source", source)
+
 
 async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None, str | None]:
     """Register Telegram webhook + return (success, secret_token, error_detail)."""
@@ -280,49 +301,12 @@ async def update_settings(
         if result.data:
             updated.append(key)
 
-    # Reset status of the channel to "configured" if credentials are changed
-    wa_keys = {"meta_access_token", "meta_phone_number_id", "meta_waba_id", "meta_app_secret", "meta_webhook_verify_token"}
-    ig_keys = {"instagram_access_token", "instagram_page_id", "instagram_app_secret"}
-    fb_keys = {"facebook_access_token", "facebook_page_id"}
-    ads_keys = {"meta_ads_access_token", "meta_ads_account_id"}
-
-    reset_wa = any(k in updated for k in wa_keys)
-    reset_ig = any(k in updated for k in ig_keys)
-    reset_fb = any(k in updated for k in fb_keys)
-    reset_ads = any(k in updated for k in ads_keys)
-
-    if reset_wa:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "whatsapp_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
-    if reset_ig:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "instagram_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
-    if reset_fb:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "facebook_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
-    if reset_ads:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "meta_ads_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
+    # Credentials changed by hand: the channel must be re-validated, and it is no
+    # longer whatever the embedded flow provisioned.
+    for channel, credential_keys in _CHANNEL_CREDENTIAL_KEYS.items():
+        if any(key in updated for key in credential_keys):
+            _save_tenant_setting(db, tenant_id, f"{channel}_status", "configured")
+            _stamp_connection_source(db, tenant_id, channel, "manual")
 
     from app.config_dynamic import invalidate_cache
     invalidate_cache()
