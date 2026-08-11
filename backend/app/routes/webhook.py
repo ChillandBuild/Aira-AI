@@ -380,6 +380,33 @@ async def whatsapp_webhook(
                     elif quality_rating == "YELLOW":
                         await handle_quality_yellow(row_id)
 
+            elif field == "smb_app_state_sync":
+                meta_phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
+                db = get_supabase()
+                tenant_id = _get_tenant_id_for_meta_number(meta_phone_number_id, db) if meta_phone_number_id else None
+                if not tenant_id:
+                    logger.warning(f"No tenant for meta phone_number_id={meta_phone_number_id}, dropping smb_app_state_sync payload")
+                    continue
+                for entry_row in value.get("state_sync", []):
+                    if entry_row.get("type") != "contact" or entry_row.get("action") == "remove":
+                        continue
+                    contact = entry_row.get("contact", {})
+                    wa_id = contact.get("phone_number", "")
+                    full_name = (contact.get("full_name") or "").strip()
+                    phone = f"+{wa_id}" if wa_id and not wa_id.startswith("+") else wa_id
+                    if not phone or not full_name:
+                        continue
+
+                    lead = db.table("leads").select("id,name").eq("phone", phone).eq("tenant_id", tenant_id).limit(1).execute()
+                    if not lead.data:
+                        continue
+                    lead_row = lead.data[0]
+                    if lead_row.get("name"):
+                        continue
+
+                    db.table("leads").update({"name": full_name}).eq("id", lead_row["id"]).eq("tenant_id", tenant_id).execute()
+                    logger.info(f"smb_app_state_sync: enriched name for lead {lead_row['id']}")
+
             elif field == "smb_message_echoes":
                 meta_phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
                 db = get_supabase()
