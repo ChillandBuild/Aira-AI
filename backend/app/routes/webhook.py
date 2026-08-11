@@ -380,6 +380,56 @@ async def whatsapp_webhook(
                     elif quality_rating == "YELLOW":
                         await handle_quality_yellow(row_id)
 
+            elif field == "history":
+                meta_phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
+                db = get_supabase()
+                tenant_id = _get_tenant_id_for_meta_number(meta_phone_number_id, db) if meta_phone_number_id else None
+                if not tenant_id:
+                    logger.warning(f"No tenant for meta phone_number_id={meta_phone_number_id}, dropping history payload")
+                    continue
+                for chunk in value.get("history", []):
+                    for thread in chunk.get("threads", []):
+                        wa_id = thread.get("id", "")
+                        phone = f"+{wa_id}" if wa_id and not wa_id.startswith("+") else wa_id
+                        if not phone:
+                            continue
+
+                        lead = db.table("leads").select("id").eq("phone", phone).eq("tenant_id", tenant_id).limit(1).execute()
+                        if not lead.data:
+                            logger.info(f"history: no lead for phone={phone} tenant={tenant_id}, skipping thread")
+                            continue
+                        lead_id = lead.data[0]["id"]
+
+                        for msg in thread.get("messages", []):
+                            msg_type = msg.get("type")
+                            msg_id = msg.get("id", "")
+                            if msg_type != "text":
+                                logger.info(f"history: skipping unsupported type={msg_type}")
+                                continue
+                            body = (msg.get("text") or {}).get("body", "").strip()
+                            timestamp = msg.get("timestamp")
+                            if not body or not msg_id or not timestamp:
+                                continue
+
+                            already = db.table("messages").select("id").eq("meta_message_id", msg_id).eq("tenant_id", tenant_id).limit(1).execute()
+                            if already.data:
+                                continue
+
+                            direction = "outbound" if msg.get("to") else "inbound"
+                            created_at = datetime.fromtimestamp(int(timestamp), tz=timezone.utc).isoformat()
+
+                            db.table("messages").insert({
+                                "lead_id": lead_id,
+                                "tenant_id": tenant_id,
+                                "direction": direction,
+                                "channel": "whatsapp",
+                                "content": body,
+                                "is_ai_generated": False,
+                                "meta_message_id": msg_id,
+                                "created_at": created_at,
+                            }).execute()
+                            logger.info(f"history: backfilled {direction} message for lead {lead_id}")
+
             elif field == "smb_app_state_sync":
                 meta_phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
                 db = get_supabase()
