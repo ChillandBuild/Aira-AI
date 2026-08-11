@@ -32,6 +32,11 @@ class ActivateChannelRequest(BaseModel):
     channel: str  # whatsapp | instagram | facebook | telegram | meta_ads
 
 
+class DisconnectChannelRequest(BaseModel):
+    channel: str  # meta | whatsapp | instagram | facebook | meta_ads | telegram | razorpay
+    release_assets: bool = False
+
+
 class EmbeddedSignupRequest(BaseModel):
     code: str
     waba_id: str
@@ -142,6 +147,43 @@ _CHANNEL_CREDENTIAL_KEYS: dict[str, frozenset[str]] = {
     "facebook": frozenset({"facebook_access_token", "facebook_page_id"}),
     "meta_ads": frozenset({"meta_ads_access_token", "meta_ads_account_id"}),
 }
+
+
+# What tearing down each channel means. Shared Meta keys are NOT listed here —
+# they are removed only when the last Meta channel goes (see disconnect_channel).
+_DISCONNECT_PLAN: dict[str, dict] = {
+    "whatsapp": {
+        "keys": ("meta_access_token", "meta_phone_number_id", "meta_waba_id"),
+        "assets": (("whatsapp_business_account", "meta_waba_id"), ("whatsapp_phone_number", "meta_phone_number_id")),
+    },
+    "instagram": {
+        # No Graph call: Instagram messaging rides the Facebook Page subscription,
+        # so unsubscribing here would silently kill Messenger.
+        "keys": ("instagram_access_token", "instagram_page_id", "instagram_app_secret"),
+        "assets": (("instagram_account", "instagram_page_id"),),
+    },
+    "facebook": {
+        "keys": ("facebook_access_token", "facebook_page_id"),
+        "assets": (("facebook_page", "facebook_page_id"),),
+    },
+    "meta_ads": {
+        "keys": ("meta_ads_access_token", "meta_ads_account_id", "meta_ads_account_name", "meta_ads_last_sync_at"),
+        "assets": (("ad_account", "meta_ads_account_id"),),
+    },
+    "telegram": {
+        "keys": ("telegram_bot_token", "telegram_webhook_secret"),
+        "assets": (),
+    },
+    "razorpay": {
+        "keys": ("razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"),
+        "assets": (),
+    },
+}
+
+_META_CHANNELS = ("whatsapp", "instagram", "facebook", "meta_ads")
+
+# Verify inbound webhook signatures for WhatsApp, Instagram and Messenger alike.
+_SHARED_META_KEYS = ("meta_app_secret", "meta_webhook_verify_token")
 
 
 def _stamp_connection_source(db, tenant_id: str, channel: str, source: str) -> None:
@@ -771,6 +813,126 @@ _META_BUSINESS_ONBOARDING_KEYS = (
     "meta_business_onboarding_business_id",
     "meta_business_onboarding_is_coexistence",
 )
+
+
+def _delete_tenant_settings(db, tenant_id: str, keys) -> None:
+    key_list = list(keys)
+    if not key_list:
+        return
+    db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", key_list).execute()
+
+
+async def _unsubscribe_channel_webhook(db, tenant_id: str, channel: str) -> bool:
+    """Best-effort remote unsubscribe. Never blocks the local teardown."""
+    try:
+        if channel == "whatsapp":
+            waba_id = _get_setting_value(db, tenant_id, "meta_waba_id")
+            token = _get_setting_value(db, tenant_id, "meta_access_token")
+            if not waba_id or not token:
+                return False
+            async with httpx.AsyncClient() as client:
+                await client.delete(
+                    f"https://graph.facebook.com/v21.0/{waba_id}/subscribed_apps",
+                    params={"access_token": token},
+                    timeout=10.0,
+                )
+            return True
+        if channel == "facebook":
+            page_id = _get_setting_value(db, tenant_id, "facebook_page_id")
+            token = _get_setting_value(db, tenant_id, "facebook_access_token")
+            if not page_id or not token:
+                return False
+            async with httpx.AsyncClient() as client:
+                await client.delete(
+                    f"https://graph.facebook.com/v25.0/{page_id}/subscribed_apps",
+                    params={"access_token": token},
+                    timeout=10.0,
+                )
+            return True
+        if channel == "telegram":
+            token = _get_setting_value(db, tenant_id, "telegram_bot_token")
+            if not token:
+                return False
+            async with httpx.AsyncClient() as client:
+                await client.delete(f"https://api.telegram.org/bot{token}/deleteWebhook", timeout=10.0)
+            return True
+    except Exception as exc:
+        logger.warning("Disconnect webhook unsubscribe failed tenant=%s channel=%s: %s", tenant_id, channel, exc)
+        return False
+    return False
+
+
+@router.post("/disconnect")
+async def disconnect_channel(
+    payload: DisconnectChannelRequest,
+    ctx: dict = Depends(require_settings_manage),
+    user: dict = Depends(get_current_user),
+):
+    """Tear down a channel: unsubscribe at the provider, delete credentials, optionally
+    release the Meta asset claim so it can be connected to a different workspace."""
+    tenant_id = ctx["tenant_id"]
+    channels = list(_META_CHANNELS) if payload.channel == "meta" else [payload.channel]
+    unknown = [c for c in channels if c not in _DISCONNECT_PLAN]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown channel: {unknown[0]}")
+
+    db = get_supabase()
+    results = []
+    released_assets: list[dict[str, str]] = []
+
+    for channel in channels:
+        plan = _DISCONNECT_PLAN[channel]
+        unsubscribed = await _unsubscribe_channel_webhook(db, tenant_id, channel)
+
+        if payload.release_assets:
+            for asset_type, source_key in plan["assets"]:
+                asset_id = _get_setting_value(db, tenant_id, source_key)
+                if asset_id:
+                    released_assets.append({"asset_type": asset_type, "asset_id": asset_id})
+
+        if channel == "whatsapp":
+            phone_number_id = _get_setting_value(db, tenant_id, "meta_phone_number_id")
+            if phone_number_id:
+                # History rows reference this number — deactivate, never delete.
+                db.table("phone_numbers").update({"status": "inactive", "paused_outbound": True}) \
+                    .eq("tenant_id", tenant_id).eq("meta_phone_number_id", phone_number_id).execute()
+
+        _delete_tenant_settings(
+            db, tenant_id,
+            list(plan["keys"]) + [f"{channel}_status", f"{channel}_connection_source"],
+        )
+        results.append({"channel": channel, "webhook_unsubscribed": unsubscribed})
+
+    remaining_meta = [
+        c for c in _META_CHANNELS
+        if c not in channels and any(_get_setting_value(db, tenant_id, k) for k in _DISCONNECT_PLAN[c]["keys"])
+    ]
+    if not remaining_meta and any(c in _META_CHANNELS for c in channels):
+        _delete_tenant_settings(db, tenant_id, _SHARED_META_KEYS)
+
+    if released_assets:
+        try:
+            db.rpc("release_meta_assets", {"p_tenant_id": tenant_id, "p_assets": released_assets}).execute()
+        except Exception as exc:
+            logger.error("Meta asset release failed tenant=%s: %s", tenant_id, exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Channels were disconnected, but the Meta assets could not be released. Please try again.",
+            ) from exc
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=user.get("user_id"),
+        actor_role="tenant_user",
+        action="settings.channel_disconnected",
+        target_type="channel",
+        target_id=payload.channel,
+        metadata={"channels": channels, "released_assets": len(released_assets)},
+    )
+    return {"success": True, "results": results, "released_assets": len(released_assets)}
 
 
 def _save_tenant_setting(db, tenant_id: str, key: str, value: str, *, is_secret: bool = False) -> None:
