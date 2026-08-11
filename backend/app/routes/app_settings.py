@@ -32,6 +32,11 @@ class ActivateChannelRequest(BaseModel):
     channel: str  # whatsapp | instagram | facebook | telegram | meta_ads
 
 
+class DisconnectChannelRequest(BaseModel):
+    channel: str  # meta | whatsapp | instagram | facebook | meta_ads | telegram | razorpay
+    release_assets: bool = False
+
+
 class EmbeddedSignupRequest(BaseModel):
     code: str
     waba_id: str
@@ -46,6 +51,20 @@ class FacebookEmbeddedSignupRequest(BaseModel):
 
 class MetaBusinessLoginStartRequest(BaseModel):
     code: str
+
+
+class UnifiedMetaSignupStartRequest(BaseModel):
+    code: str
+    waba_id: str
+    phone_number_id: str
+    business_id: str | None = None
+    is_coexistence: bool = False
+
+
+class UnifiedMetaSignupCompleteRequest(BaseModel):
+    session_id: str
+    page_id: str
+    ad_account_id: str | None = None
 
 
 class MetaBusinessLoginCompleteRequest(BaseModel):
@@ -116,6 +135,64 @@ def _get_setting_value(db, tenant_id: str, key: str) -> str | None:
         .execute()
     )
     return row.data["value"] if row and row.data else None
+
+# One source of truth for "which settings keys belong to which channel".
+# Used to reset a channel's status and to record how it was connected.
+_CHANNEL_CREDENTIAL_KEYS: dict[str, frozenset[str]] = {
+    "whatsapp": frozenset({
+        "meta_access_token", "meta_phone_number_id", "meta_waba_id",
+        "meta_app_secret", "meta_webhook_verify_token",
+    }),
+    "instagram": frozenset({"instagram_access_token", "instagram_page_id", "instagram_app_secret"}),
+    "facebook": frozenset({"facebook_access_token", "facebook_page_id"}),
+    "meta_ads": frozenset({"meta_ads_access_token", "meta_ads_account_id"}),
+}
+
+
+# What tearing down each channel means. Shared Meta keys are NOT listed here —
+# they are removed only when the last Meta channel goes (see disconnect_channel).
+_DISCONNECT_PLAN: dict[str, dict] = {
+    "whatsapp": {
+        "keys": ("meta_access_token", "meta_phone_number_id", "meta_waba_id"),
+        "assets": (("whatsapp_business_account", "meta_waba_id"), ("whatsapp_phone_number", "meta_phone_number_id")),
+    },
+    "instagram": {
+        # No Graph call: Instagram messaging rides the Facebook Page subscription,
+        # so unsubscribing here would silently kill Messenger.
+        "keys": ("instagram_access_token", "instagram_page_id", "instagram_app_secret"),
+        "assets": (("instagram_account", "instagram_page_id"),),
+    },
+    "facebook": {
+        "keys": ("facebook_access_token", "facebook_page_id"),
+        "assets": (("facebook_page", "facebook_page_id"),),
+    },
+    "meta_ads": {
+        "keys": ("meta_ads_access_token", "meta_ads_account_id", "meta_ads_account_name", "meta_ads_last_sync_at"),
+        "assets": (("ad_account", "meta_ads_account_id"),),
+    },
+    "telegram": {
+        "keys": ("telegram_bot_token", "telegram_webhook_secret"),
+        "assets": (),
+    },
+    "razorpay": {
+        "keys": ("razorpay_key_id", "razorpay_key_secret", "razorpay_webhook_secret"),
+        "assets": (),
+    },
+}
+
+_META_CHANNELS = ("whatsapp", "instagram", "facebook", "meta_ads")
+
+# Verify inbound webhook signatures for WhatsApp, Instagram and Messenger alike.
+_SHARED_META_KEYS = ("meta_app_secret", "meta_webhook_verify_token")
+
+
+def _stamp_connection_source(db, tenant_id: str, channel: str, source: str) -> None:
+    """Record whether a channel's credentials came from a Meta-guided flow or a hand-pasted token.
+
+    The UI uses this to label an embedded-provisioned channel instead of implying
+    the tenant configured it by hand. `source` is "embedded" or "manual".
+    """
+    _save_tenant_setting(db, tenant_id, f"{channel}_connection_source", source)
 
 
 async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None, str | None]:
@@ -266,49 +343,12 @@ async def update_settings(
         if result.data:
             updated.append(key)
 
-    # Reset status of the channel to "configured" if credentials are changed
-    wa_keys = {"meta_access_token", "meta_phone_number_id", "meta_waba_id", "meta_app_secret", "meta_webhook_verify_token"}
-    ig_keys = {"instagram_access_token", "instagram_page_id", "instagram_app_secret"}
-    fb_keys = {"facebook_access_token", "facebook_page_id"}
-    ads_keys = {"meta_ads_access_token", "meta_ads_account_id"}
-
-    reset_wa = any(k in updated for k in wa_keys)
-    reset_ig = any(k in updated for k in ig_keys)
-    reset_fb = any(k in updated for k in fb_keys)
-    reset_ads = any(k in updated for k in ads_keys)
-
-    if reset_wa:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "whatsapp_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
-    if reset_ig:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "instagram_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
-    if reset_fb:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "facebook_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
-    if reset_ads:
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": "meta_ads_status",
-            "value": "configured",
-            "is_secret": False,
-            "updated_at": "now()",
-        }, on_conflict="tenant_id,key").execute()
+    # Credentials changed by hand: the channel must be re-validated, and it is no
+    # longer whatever the embedded flow provisioned.
+    for channel, credential_keys in _CHANNEL_CREDENTIAL_KEYS.items():
+        if any(key in updated for key in credential_keys):
+            _save_tenant_setting(db, tenant_id, f"{channel}_status", "configured")
+            _stamp_connection_source(db, tenant_id, channel, "manual")
 
     from app.config_dynamic import invalidate_cache
     invalidate_cache()
@@ -728,6 +768,7 @@ async def whatsapp_embedded_signup(
         "is_secret": False,
         "updated_at": "now()",
     }, on_conflict="tenant_id,key").execute()
+    _stamp_connection_source(db, tenant_id, "whatsapp", "embedded")
 
     if display_phone:
         db.table("phone_numbers").upsert({
@@ -768,7 +809,131 @@ _META_BUSINESS_ONBOARDING_KEYS = (
     "meta_business_onboarding_token",
     "meta_business_onboarding_session_id",
     "meta_business_onboarding_expires_at",
+    "meta_business_onboarding_waba_id",
+    "meta_business_onboarding_phone_number_id",
+    "meta_business_onboarding_business_id",
+    "meta_business_onboarding_is_coexistence",
 )
+
+
+def _delete_tenant_settings(db, tenant_id: str, keys) -> None:
+    key_list = list(keys)
+    if not key_list:
+        return
+    db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", key_list).execute()
+
+
+async def _unsubscribe_channel_webhook(db, tenant_id: str, channel: str) -> bool:
+    """Best-effort remote unsubscribe. Never blocks the local teardown."""
+    try:
+        if channel == "whatsapp":
+            waba_id = _get_setting_value(db, tenant_id, "meta_waba_id")
+            token = _get_setting_value(db, tenant_id, "meta_access_token")
+            if not waba_id or not token:
+                return False
+            async with httpx.AsyncClient() as client:
+                await client.delete(
+                    f"https://graph.facebook.com/v21.0/{waba_id}/subscribed_apps",
+                    params={"access_token": token},
+                    timeout=10.0,
+                )
+            return True
+        if channel == "facebook":
+            page_id = _get_setting_value(db, tenant_id, "facebook_page_id")
+            token = _get_setting_value(db, tenant_id, "facebook_access_token")
+            if not page_id or not token:
+                return False
+            async with httpx.AsyncClient() as client:
+                await client.delete(
+                    f"https://graph.facebook.com/v25.0/{page_id}/subscribed_apps",
+                    params={"access_token": token},
+                    timeout=10.0,
+                )
+            return True
+        if channel == "telegram":
+            token = _get_setting_value(db, tenant_id, "telegram_bot_token")
+            if not token:
+                return False
+            async with httpx.AsyncClient() as client:
+                await client.delete(f"https://api.telegram.org/bot{token}/deleteWebhook", timeout=10.0)
+            return True
+    except Exception as exc:
+        logger.warning("Disconnect webhook unsubscribe failed tenant=%s channel=%s: %s", tenant_id, channel, exc)
+        return False
+    return False
+
+
+@router.post("/disconnect")
+async def disconnect_channel(
+    payload: DisconnectChannelRequest,
+    ctx: dict = Depends(require_settings_manage),
+    user: dict = Depends(get_current_user),
+):
+    """Tear down a channel: unsubscribe at the provider, delete credentials, optionally
+    release the Meta asset claim so it can be connected to a different workspace."""
+    tenant_id = ctx["tenant_id"]
+    channels = list(_META_CHANNELS) if payload.channel == "meta" else [payload.channel]
+    unknown = [c for c in channels if c not in _DISCONNECT_PLAN]
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown channel: {unknown[0]}")
+
+    db = get_supabase()
+    results = []
+    released_assets: list[dict[str, str]] = []
+
+    for channel in channels:
+        plan = _DISCONNECT_PLAN[channel]
+        unsubscribed = await _unsubscribe_channel_webhook(db, tenant_id, channel)
+
+        if payload.release_assets:
+            for asset_type, source_key in plan["assets"]:
+                asset_id = _get_setting_value(db, tenant_id, source_key)
+                if asset_id:
+                    released_assets.append({"asset_type": asset_type, "asset_id": asset_id})
+
+        if channel == "whatsapp":
+            phone_number_id = _get_setting_value(db, tenant_id, "meta_phone_number_id")
+            if phone_number_id:
+                # History rows reference this number — deactivate, never delete.
+                db.table("phone_numbers").update({"status": "inactive", "paused_outbound": True}) \
+                    .eq("tenant_id", tenant_id).eq("meta_phone_number_id", phone_number_id).execute()
+
+        _delete_tenant_settings(
+            db, tenant_id,
+            list(plan["keys"]) + [f"{channel}_status", f"{channel}_connection_source"],
+        )
+        results.append({"channel": channel, "webhook_unsubscribed": unsubscribed})
+
+    remaining_meta = [
+        c for c in _META_CHANNELS
+        if c not in channels and any(_get_setting_value(db, tenant_id, k) for k in _DISCONNECT_PLAN[c]["keys"])
+    ]
+    if not remaining_meta and any(c in _META_CHANNELS for c in channels):
+        _delete_tenant_settings(db, tenant_id, _SHARED_META_KEYS)
+
+    if released_assets:
+        try:
+            db.rpc("release_meta_assets", {"p_tenant_id": tenant_id, "p_assets": released_assets}).execute()
+        except Exception as exc:
+            logger.error("Meta asset release failed tenant=%s: %s", tenant_id, exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Channels were disconnected, but the Meta assets could not be released. Please try again.",
+            ) from exc
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=user.get("user_id"),
+        actor_role="tenant_user",
+        action="settings.channel_disconnected",
+        target_type="channel",
+        target_id=payload.channel,
+        metadata={"channels": channels, "released_assets": len(released_assets)},
+    )
+    return {"success": True, "results": results, "released_assets": len(released_assets)}
 
 
 def _save_tenant_setting(db, tenant_id: str, key: str, value: str, *, is_secret: bool = False) -> None:
@@ -810,6 +975,12 @@ def _public_business_login_assets(assets: dict[str, list[dict]]) -> dict[str, li
     }
 
 
+def _public_unified_meta_assets(assets: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Return only the assets supported by Aira's unified setup flow."""
+    public_assets = _public_business_login_assets(assets)
+    return {"pages": public_assets["pages"], "ad_accounts": public_assets["ad_accounts"]}
+
+
 def _claim_business_assets(db, tenant_id: str, claims: list[dict[str, str]]) -> None:
     """Atomically claim Meta assets so an inbound webhook has one tenant owner."""
     try:
@@ -847,6 +1018,42 @@ async def start_meta_business_login(
     _save_tenant_setting(db, tenant_id, "meta_business_onboarding_token", access_token, is_secret=True)
     _save_tenant_setting(db, tenant_id, "meta_business_onboarding_session_id", session_id, is_secret=True)
     _save_tenant_setting(db, tenant_id, "meta_business_onboarding_expires_at", expires_at)
+
+    return {"session_id": session_id, **public_assets}
+
+
+@router.post("/meta/unified-signup/start")
+async def start_unified_meta_signup(
+    payload: UnifiedMetaSignupStartRequest,
+    ctx: dict = Depends(require_settings_manage),
+):
+    """Exchange one Meta signup code and stage WhatsApp plus safe asset choices.
+
+    The popup code can only be exchanged once. The access token and WhatsApp IDs
+    therefore remain server-side until the person explicitly selects their Page
+    and optional read-only ads account.
+    """
+    from app.services.meta_cloud import exchange_embedded_signup_code, discover_business_login_assets
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    exchange = await exchange_embedded_signup_code(payload.code)
+    access_token = exchange["access_token"]
+    assets = await discover_business_login_assets(access_token)
+    public_assets = _public_unified_meta_assets(assets)
+    if not public_assets["pages"]:
+        raise HTTPException(status_code=400, detail="No Facebook Page was granted — select at least one Page during Meta signup.")
+
+    session_id = str(uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_token", access_token, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_session_id", session_id, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_expires_at", expires_at)
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_waba_id", payload.waba_id)
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_phone_number_id", payload.phone_number_id)
+    if payload.business_id:
+        _save_tenant_setting(db, tenant_id, "meta_business_onboarding_business_id", payload.business_id)
+    _save_tenant_setting(db, tenant_id, "meta_business_onboarding_is_coexistence", str(payload.is_coexistence).lower())
 
     return {"session_id": session_id, **public_assets}
 
@@ -931,13 +1138,16 @@ async def complete_meta_business_login(
         _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_status", "configured")
+        _stamp_connection_source(db, tenant_id, "meta_ads", "embedded")
     if catalog:
         _save_tenant_setting(db, tenant_id, "meta_catalog_id", catalog["id"])
         _save_tenant_setting(db, tenant_id, "meta_catalog_name", catalog.get("name") or catalog["id"])
 
     _save_tenant_setting(db, tenant_id, "facebook_status", "live" if subscribed else "configured")
+    _stamp_connection_source(db, tenant_id, "facebook", "embedded")
     if connected_instagram:
         _save_tenant_setting(db, tenant_id, "instagram_status", "live" if subscribed else "configured")
+        _stamp_connection_source(db, tenant_id, "instagram", "embedded")
     db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", list(_META_BUSINESS_ONBOARDING_KEYS)).execute()
 
     from app.config_dynamic import invalidate_cache
@@ -966,6 +1176,179 @@ async def complete_meta_business_login(
         "ad_account_id": ad_account.get("id") if ad_account else None,
         "catalog_id": catalog.get("id") if catalog else None,
         "subscribed": subscribed,
+    }
+
+
+@router.post("/meta/unified-signup/complete")
+async def complete_unified_meta_signup(
+    payload: UnifiedMetaSignupCompleteRequest,
+    ctx: dict = Depends(require_settings_manage),
+    user: dict = Depends(get_current_user),
+):
+    """Persist the validated WhatsApp, Messenger, Instagram and ads connection."""
+    from app.services.meta_cloud import discover_business_login_assets, register_phone_number, request_coexistence_sync, verify_waba_phone_number
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    access_token = _get_setting_value(db, tenant_id, "meta_business_onboarding_token")
+    session_id = _get_setting_value(db, tenant_id, "meta_business_onboarding_session_id")
+    expires_at = _get_setting_value(db, tenant_id, "meta_business_onboarding_expires_at")
+    waba_id = _get_setting_value(db, tenant_id, "meta_business_onboarding_waba_id")
+    phone_number_id = _get_setting_value(db, tenant_id, "meta_business_onboarding_phone_number_id")
+    _get_setting_value(db, tenant_id, "meta_business_onboarding_business_id")
+    is_coexistence = _get_setting_value(db, tenant_id, "meta_business_onboarding_is_coexistence") == "true"
+    if not access_token or not session_id or not expires_at or not waba_id or not phone_number_id or payload.session_id != session_id:
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.")
+    try:
+        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.") from exc
+    if expiry <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.")
+
+    assets = await discover_business_login_assets(access_token)
+    pages_by_id = {page.get("id"): page for page in assets.get("pages", []) if page.get("id")}
+    ads_by_id = {account.get("id"): account for account in assets.get("ad_accounts", []) if account.get("id")}
+    page = pages_by_id.get(payload.page_id)
+    if not page or not page.get("access_token"):
+        raise HTTPException(status_code=400, detail="Select a Facebook Page that was granted during this Meta signup.")
+    ad_account = ads_by_id.get(payload.ad_account_id) if payload.ad_account_id else None
+    if payload.ad_account_id and not ad_account:
+        raise HTTPException(status_code=400, detail="Select an ad account that was granted during this Meta signup.")
+    if not await verify_waba_phone_number(waba_id, phone_number_id, access_token):
+        raise HTTPException(status_code=400, detail="The WhatsApp number was not granted for this Meta business signup.")
+    existing_phone = (
+        db.table("phone_numbers")
+        .select("tenant_id")
+        .eq("meta_phone_number_id", phone_number_id)
+        .maybe_single()
+        .execute()
+    )
+    if existing_phone.data and existing_phone.data.get("tenant_id") != tenant_id:
+        raise HTTPException(status_code=409, detail="This WhatsApp number is already connected to another Aira workspace.")
+
+    ig_account = page.get("instagram_business_account") or {}
+    ig_account_id = ig_account.get("id")
+    claims = [
+        {"asset_type": "facebook_page", "asset_id": payload.page_id},
+        {"asset_type": "whatsapp_business_account", "asset_id": waba_id},
+        {"asset_type": "whatsapp_phone_number", "asset_id": phone_number_id},
+    ]
+    if ig_account_id:
+        claims.insert(1, {"asset_type": "instagram_account", "asset_id": ig_account_id})
+    if ad_account:
+        claims.append({"asset_type": "ad_account", "asset_id": ad_account["id"]})
+    _claim_business_assets(db, tenant_id, claims)
+
+    if not is_coexistence:
+        pin = "".join(secrets.choice("0123456789") for _ in range(6))
+        registration = await register_phone_number(phone_number_id, access_token, pin)
+        if registration.get("error"):
+            logger.warning("Unified Meta signup phone registration failed tenant=%s: %s", tenant_id, registration["error"])
+    else:
+        # Number is already registered on the phone's WhatsApp Business app —
+        # request Meta's SMB App Data API backfill instead (see meta_cloud.py).
+        await request_coexistence_sync(phone_number_id, access_token)
+
+    subscribed_whatsapp = False
+    subscribed_page = False
+    display_phone = None
+    business_name = None
+    try:
+        async with httpx.AsyncClient() as client:
+            waba_response = await client.post(
+                f"https://graph.facebook.com/v21.0/{waba_id}/subscribed_apps",
+                params={"access_token": access_token},
+                timeout=10.0,
+            )
+            subscribed_whatsapp = bool(waba_response.json().get("success", False))
+            phone_response = await client.get(
+                f"https://graph.facebook.com/v21.0/{phone_number_id}",
+                params={"fields": "display_phone_number,verified_name", "access_token": access_token},
+                timeout=10.0,
+            )
+            phone_data = phone_response.json()
+            display_phone = phone_data.get("display_phone_number")
+            business_name = phone_data.get("verified_name")
+            page_response = await client.post(
+                f"https://graph.facebook.com/v25.0/{payload.page_id}/subscribed_apps",
+                params={
+                    "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads",
+                    "access_token": page["access_token"],
+                },
+                timeout=10.0,
+            )
+            subscribed_page = bool(page_response.json().get("success", False))
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Unified Meta signup webhook setup failed tenant=%s: %s", tenant_id, exc)
+
+    for key, value, is_secret in (
+        ("meta_access_token", access_token, True),
+        ("meta_phone_number_id", phone_number_id, False),
+        ("meta_waba_id", waba_id, False),
+        ("meta_app_secret", env_settings.meta_app_secret, True),
+        ("facebook_access_token", page["access_token"], True),
+        ("facebook_page_id", payload.page_id, False),
+        ("meta_business_access_token", access_token, True),
+        ("whatsapp_status", "live" if subscribed_whatsapp else "configured", False),
+        ("facebook_status", "live" if subscribed_page else "configured", False),
+        ("whatsapp_connection_source", "embedded", False),
+        ("facebook_connection_source", "embedded", False),
+    ):
+        if value:
+            _save_tenant_setting(db, tenant_id, key, value, is_secret=is_secret)
+
+    connected_instagram = bool(ig_account_id)
+    if connected_instagram:
+        _save_tenant_setting(db, tenant_id, "instagram_access_token", page["access_token"], is_secret=True)
+        _save_tenant_setting(db, tenant_id, "instagram_page_id", ig_account_id)
+        _save_tenant_setting(db, tenant_id, "instagram_status", "live" if subscribed_page else "configured")
+        _stamp_connection_source(db, tenant_id, "instagram", "embedded")
+    if ad_account:
+        _save_tenant_setting(db, tenant_id, "meta_ads_access_token", access_token, is_secret=True)
+        _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
+        _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
+        _save_tenant_setting(db, tenant_id, "meta_ads_status", "configured")
+        _stamp_connection_source(db, tenant_id, "meta_ads", "embedded")
+    if display_phone:
+        db.table("phone_numbers").upsert({
+            "provider": "meta_cloud",
+            "number": display_phone.strip(),
+            "display_name": business_name or "WhatsApp Primary",
+            "meta_phone_number_id": phone_number_id,
+            "role": "primary",
+            "status": "active",
+            "warm_up_day": 14,
+            "paused_outbound": False,
+            "tenant_id": tenant_id,
+        }, on_conflict="number").execute()
+    db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", list(_META_BUSINESS_ONBOARDING_KEYS)).execute()
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=user.get("user_id"),
+        actor_role="tenant_user",
+        action="settings.meta_unified_signup_connected",
+        target_type="channel",
+        target_id="meta",
+        metadata={
+            "waba_id": waba_id,
+            "page_id": payload.page_id,
+            "instagram_connected": connected_instagram,
+            "ad_account_id": ad_account.get("id") if ad_account else None,
+            "whatsapp_subscribed": subscribed_whatsapp,
+            "page_subscribed": subscribed_page,
+        },
+    )
+    return {
+        "success": True,
+        "phone_number": display_phone,
+        "page_id": payload.page_id,
+        "instagram_connected": connected_instagram,
+        "ad_account_id": ad_account.get("id") if ad_account else None,
     }
 
 
@@ -1053,6 +1436,7 @@ async def facebook_embedded_signup(
         "is_secret": False,
         "updated_at": "now()",
     }, on_conflict="tenant_id,key").execute()
+    _stamp_connection_source(db, tenant_id, "facebook", "embedded")
     if connected_instagram:
         db.table("app_settings").upsert({
             "tenant_id": tenant_id,
@@ -1061,6 +1445,7 @@ async def facebook_embedded_signup(
             "is_secret": False,
             "updated_at": "now()",
         }, on_conflict="tenant_id,key").execute()
+        _stamp_connection_source(db, tenant_id, "instagram", "embedded")
 
     from app.config_dynamic import invalidate_cache
     invalidate_cache()

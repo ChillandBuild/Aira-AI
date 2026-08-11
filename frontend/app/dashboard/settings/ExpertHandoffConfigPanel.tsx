@@ -168,6 +168,7 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
               type="number"
               min={0}
               value={draft.amount_paise / 100}
+              onFocus={(e) => e.target.select()}
               onChange={(e) => setDraft({ ...draft, amount_paise: Math.round(Number(e.target.value) * 100) })}
               className="w-32 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
             />

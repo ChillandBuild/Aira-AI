@@ -113,7 +113,6 @@ interface SchedulerHealth {
 
 const JOB_LABELS: Record<string, { name: string; every: string }> = {
   "scheduled-broadcasts": { name: "Scheduled Broadcasts", every: "1 min" },
-  "broadcast-retries": { name: "Broadcast Auto-Retry", every: "5 min" },
   "token-health-check": { name: "Meta Token Health", every: "24 h" },
   "number-quality-sync": { name: "Number Quality Sync", every: "24 h" },
   "engagement-decay": { name: "Engagement Decay", every: "6 h" },
@@ -126,7 +125,6 @@ const JOB_LABELS: Record<string, { name: string; every: string }> = {
 
 const CRITICAL_JOB_IDS = new Set([
   "scheduled-broadcasts",
-  "broadcast-retries",
   "reengagement-rules",
   "assignment-sweep",
   "callback-reassignment",
