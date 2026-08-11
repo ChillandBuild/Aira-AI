@@ -22,6 +22,7 @@ export default function EmbeddedSection({
   onConnect,
   onRefreshHealth,
   onManageChannel,
+  onDisconnect,
 }: {
   settings: Setting[];
   webhookHealth: WebhookHealth | null;
@@ -33,6 +34,7 @@ export default function EmbeddedSection({
   onConnect: (isCoexistence?: boolean) => void;
   onRefreshHealth: () => void;
   onManageChannel: (channel: ChannelConfig) => void;
+  onDisconnect: (channelId: string) => void;
 }) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
@@ -67,6 +69,16 @@ export default function EmbeddedSection({
           >
             {isBusy ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>{isConnected ? "Reconnect Meta Business" : "Connect Meta Business"} <ArrowRight size={16} /></>}
           </button>
+          {isConnected && (
+            <button
+              type="button"
+              onClick={() => onDisconnect("meta")}
+              disabled={!canManage || isBusy}
+              className="mt-2 rounded-xl border border-[#e8e3db] px-4 py-3 font-label text-sm font-bold text-[#78716c] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-3 sm:mt-5"
+            >
+              Disconnect
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onConnect(true)}
@@ -113,13 +125,22 @@ export default function EmbeddedSection({
               <div className="flex shrink-0 items-center gap-2">
                 <ChannelStatusBadge configured={configured} hasTokenAlert={Boolean(alert)} isLive={isLive} />
                 {configured && (
-                  <button
-                    type="button"
-                    onClick={() => onManageChannel(channel)}
-                    className="rounded-lg px-2.5 py-1.5 font-label text-[10px] font-bold text-primary transition-colors hover:bg-[#f4f0ff]"
-                  >
-                    Manage
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onManageChannel(channel)}
+                      className="rounded-lg px-2.5 py-1.5 font-label text-[10px] font-bold text-primary transition-colors hover:bg-[#f4f0ff]"
+                    >
+                      Manage
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDisconnect(channel.id)}
+                      className="rounded-lg px-2 py-1.5 font-label text-[10px] font-bold text-[#a8a29e] transition-colors hover:bg-red-50 hover:text-red-600"
+                    >
+                      Disconnect
+                    </button>
+                  </>
                 )}
               </div>
             </div>

@@ -10,12 +10,14 @@ export default function ManualSection({
   healthLoading,
   onRefreshHealth,
   onOpenChannel,
+  onDisconnectChannel,
 }: {
   settings: Setting[];
   webhookHealth: WebhookHealth | null;
   healthLoading: boolean;
   onRefreshHealth: () => void;
   onOpenChannel: (channel: ChannelConfig) => void;
+  onDisconnectChannel: (channelId: string) => void;
 }) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-violet-200 bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
@@ -70,6 +72,7 @@ export default function ManualSection({
               healthLoading={healthLoading}
               onRefreshHealth={onRefreshHealth}
               onOpen={() => onOpenChannel(channel)}
+              onDisconnect={() => onDisconnectChannel(channel.id)}
             />
           );
         })}

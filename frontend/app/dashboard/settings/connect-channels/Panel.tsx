@@ -6,10 +6,13 @@ import { fetchSettings, saveSettings } from "./api";
 import { CHANNELS, META_CHANNELS, resolveConnectionSource } from "./channels";
 import type { ActivateResult, ChannelConfig, SaveState, Setting, SettingsMap, WebhookHealth } from "./channels";
 import { useMetaSignup } from "./useMetaSignup";
+import { buildDisconnectTarget, disconnectChannel } from "./disconnect";
+import type { DisconnectTarget } from "./disconnect";
 import EmbeddedSection from "./EmbeddedSection";
 import ManualSection from "./ManualSection";
 import ChannelConfigModal from "./ChannelConfigModal";
 import MetaAssetPickerModal from "./MetaAssetPickerModal";
+import DisconnectDialog from "./DisconnectDialog";
 
 export default function ConnectChannelsPanel({ canManage = true }: { canManage?: boolean }) {
   const [settings, setSettings] = useState<Setting[]>([]);
@@ -26,6 +29,11 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [activating, setActivating] = useState(false);
   const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
+
+  // Disconnect flow
+  const [disconnectTarget, setDisconnectTarget] = useState<DisconnectTarget | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -204,6 +212,28 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     setSelectedChannel(null);
   };
 
+  const openDisconnect = (channelId: string) => {
+    setDisconnectError(null);
+    setDisconnectTarget(buildDisconnectTarget(channelId, settings));
+  };
+
+  async function handleDisconnect(releaseAssets: boolean) {
+    if (!disconnectTarget) return;
+    setDisconnecting(true);
+    setDisconnectError(null);
+    try {
+      await disconnectChannel(disconnectTarget.channel, releaseAssets);
+      setDisconnectTarget(null);
+      setSelectedChannel(null);
+      await load();
+      loadHealth();
+    } catch (e) {
+      setDisconnectError(e instanceof Error ? e.message : "Disconnect failed");
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   const metaConnected = META_CHANNELS.some(c => isChannelConfigured(c));
 
   return (
@@ -233,6 +263,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             onConnect={meta.start}
             onRefreshHealth={loadHealth}
             onManageChannel={openChannelModal}
+            onDisconnect={openDisconnect}
           />
           <ManualSection
             settings={settings}
@@ -240,6 +271,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             healthLoading={healthLoading}
             onRefreshHealth={loadHealth}
             onOpenChannel={openChannelModal}
+            onDisconnectChannel={openDisconnect}
           />
         </div>
       )}
@@ -256,6 +288,16 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
           isBusy={meta.isBusy}
           error={meta.error}
           canManage={canManage}
+        />
+      )}
+
+      {disconnectTarget && (
+        <DisconnectDialog
+          target={disconnectTarget}
+          busy={disconnecting}
+          error={disconnectError}
+          onConfirm={handleDisconnect}
+          onCancel={() => { setDisconnectTarget(null); setDisconnectError(null); }}
         />
       )}
 

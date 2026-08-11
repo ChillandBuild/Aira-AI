@@ -14,6 +14,7 @@ export default function ChannelCard({
   healthLoading,
   onRefreshHealth,
   onOpen,
+  onDisconnect,
 }: {
   channel: ChannelConfig;
   configured: boolean;
@@ -24,6 +25,7 @@ export default function ChannelCard({
   healthLoading: boolean;
   onRefreshHealth: () => void;
   onOpen: () => void;
+  onDisconnect: () => void;
 }) {
   const viaMeta = source === "embedded" && configured;
 
@@ -64,13 +66,24 @@ export default function ChannelCard({
         ) : (
           <HealthRefreshButton loading={healthLoading} onClick={onRefreshHealth} />
         )}
-        <button
-          type="button"
-          onClick={onOpen}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#f4f0ff] px-2.5 py-1.5 font-label text-[10px] font-bold text-primary transition-colors hover:bg-[#ede9fe]"
-        >
-          <Settings2 size={12} /> {viaMeta ? "Override manually" : configured ? "Manage" : "Set up"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          {configured && (
+            <button
+              type="button"
+              onClick={onDisconnect}
+              className="rounded-lg px-2 py-1.5 font-label text-[10px] font-bold text-[#a8a29e] transition-colors hover:bg-red-50 hover:text-red-600"
+            >
+              Disconnect
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onOpen}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#f4f0ff] px-2.5 py-1.5 font-label text-[10px] font-bold text-primary transition-colors hover:bg-[#ede9fe]"
+          >
+            <Settings2 size={12} /> {viaMeta ? "Override manually" : configured ? "Manage" : "Set up"}
+          </button>
+        </div>
       </div>
     </article>
   );
