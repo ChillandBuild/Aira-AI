@@ -28,6 +28,7 @@ async def test_coexistence_signup_skips_phone_registration():
 
     with patch("app.services.meta_cloud.exchange_embedded_signup_code", new=AsyncMock(return_value={"access_token": "token-1"})), \
          patch("app.services.meta_cloud.register_phone_number", new=AsyncMock()) as register, \
+         patch("app.services.meta_cloud.request_coexistence_sync", new=AsyncMock()) as sync_trigger, \
          patch("app.routes.app_settings.get_supabase", return_value=db), \
          patch("app.routes.app_settings.httpx.AsyncClient", return_value=_Client()), \
          patch("app.routes.app_settings.record_audit_event"), \
@@ -44,6 +45,7 @@ async def test_coexistence_signup_skips_phone_registration():
         )
 
     register.assert_not_called()
+    sync_trigger.assert_awaited_once_with("phone-1", "token-1")
     assert result["success"] is True
     assert result["phone_number"] == "+919999999999"
 

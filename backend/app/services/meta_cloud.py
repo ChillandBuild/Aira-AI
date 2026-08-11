@@ -1010,3 +1010,29 @@ async def upload_media_for_template(
         raise HTTPException(status_code=500, detail="No media handle returned from Meta upload")
     logger.info("Media uploaded for template, handle=%s", handle)
     return handle
+
+
+async def request_coexistence_sync(phone_number_id: str, access_token: str) -> None:
+    """Trigger Meta's SMB App Data API to backfill a coexistence number's existing
+    phone contacts and message history. Fire-and-forget: this follows a signup
+    that already succeeded, so a failed sync *request* shouldn't read as a failed
+    connection -- errors are logged, never raised.
+    """
+    url = f"{_GRAPH_BASE}/{phone_number_id}/smb_app_data"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    for sync_type in ("smb_app_state_sync", "history"):
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(
+                    url,
+                    json={"messaging_product": "whatsapp", "sync_type": sync_type},
+                    headers=headers,
+                    timeout=20.0,
+                )
+            data = resp.json()
+            if "error" in data:
+                logger.warning("Coexistence %s sync request failed for %s: %s", sync_type, phone_number_id, data["error"])
+            else:
+                logger.info("Coexistence %s sync requested for %s: request_id=%s", sync_type, phone_number_id, data.get("request_id"))
+        except httpx.HTTPError as e:
+            logger.warning("Coexistence %s sync request failed for %s: %s", sync_type, phone_number_id, e)

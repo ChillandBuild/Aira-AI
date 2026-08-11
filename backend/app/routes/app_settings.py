@@ -662,7 +662,7 @@ async def whatsapp_embedded_signup(
     """Finish WhatsApp Embedded Signup: exchange the popup's code for a token,
     register the phone number, subscribe the webhook, and save credentials —
     the automated replacement for manually pasting them in below."""
-    from app.services.meta_cloud import exchange_embedded_signup_code, register_phone_number
+    from app.services.meta_cloud import exchange_embedded_signup_code, register_phone_number, request_coexistence_sync
 
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
@@ -674,6 +674,7 @@ async def whatsapp_embedded_signup(
         # Number is already registered on the phone's WhatsApp Business app —
         # calling register_phone_number here would be wrong for this path.
         logger.info(f"Embedded Signup: coexistence path — skipping phone registration tenant={tenant_id}")
+        await request_coexistence_sync(payload.phone_number_id, access_token)
     else:
         pin = "".join(secrets.choice("0123456789") for _ in range(6))
         reg_result = await register_phone_number(payload.phone_number_id, access_token, pin)
