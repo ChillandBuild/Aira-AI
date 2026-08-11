@@ -83,11 +83,11 @@ export function HealthRefreshButton({ loading, onClick }: { loading: boolean; on
   );
 }
 
-export function ZephyrCourier({ variant, compact = false }: { variant: "embedded" | "manual"; compact?: boolean }) {
+export function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
   const isEmbedded = variant === "embedded";
 
   return (
-    <div className={cn("relative w-full", compact ? "h-20 sm:h-24" : "h-36 w-full sm:h-48")}>
+    <div className="relative h-36 w-full sm:h-48">
       <Image
         src={isEmbedded
           ? "/aira/illustrations/aira-zephyr-embedded-3d.png"

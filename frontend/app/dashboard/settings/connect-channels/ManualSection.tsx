@@ -19,7 +19,7 @@ export default function ManualSection({
 }) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-violet-200 bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
-      <div className="flex flex-col gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-[#fbfaf8] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+      <div className="relative flex flex-col gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-violet-50/40 px-5 py-5 sm:min-h-[200px] sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:pr-[250px]">
         <div>
           <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700">Manual API connection</p>
           <h2 className="mt-1 font-display text-xl font-bold text-ink">Bring your own tokens</h2>
@@ -30,7 +30,10 @@ export default function ManualSection({
         </div>
         <div className="flex shrink-0 items-center gap-3 self-start sm:self-auto">
           <span className="rounded-lg bg-violet-600 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Advanced</span>
-          <div className="hidden w-[120px] sm:block"><ZephyrCourier variant="manual" compact /></div>
+        </div>
+        {/* Absolute so full-size art never stretches the band into an empty strip. */}
+        <div className="pointer-events-none absolute bottom-1 right-6 hidden w-[200px] sm:block">
+          <ZephyrCourier variant="manual" />
         </div>
       </div>
 

@@ -422,7 +422,7 @@ export default function SettingsPage() {
               : "text-[#78716c] hover:text-[#292524]"
           )}
         >
-          Messaging Channels
+          Channels
         </button>
         {hasTelecmiConfig && (
           <button

@@ -36,7 +36,7 @@ export default function EmbeddedSection({
 }) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
-      <div className="flex flex-col gap-4 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-[#f4f0ff] px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-7">
+      <div className="flex flex-col gap-4 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-emerald-50/40 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-7">
         <div>
           <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Embedded onboarding</p>
           <h2 className="mt-1 font-display text-xl font-bold text-ink">WhatsApp, Messenger, Instagram &amp; Ads</h2>
