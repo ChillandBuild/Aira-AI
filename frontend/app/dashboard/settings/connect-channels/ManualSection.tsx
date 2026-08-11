@@ -30,7 +30,7 @@ export default function ManualSection({
         </div>
         <div className="flex shrink-0 items-center gap-3 self-start sm:self-auto">
           <span className="rounded-lg bg-violet-600 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Advanced</span>
-          <div className="hidden w-[150px] sm:block"><ZephyrCourier variant="manual" /></div>
+          <div className="hidden w-[120px] sm:block"><ZephyrCourier variant="manual" compact /></div>
         </div>
       </div>
 

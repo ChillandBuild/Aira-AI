@@ -76,7 +76,7 @@ export default function EmbeddedSection({
             Already using the WhatsApp Business app? Connect without switching <ArrowRight size={12} />
           </button>
         </div>
-        <ZephyrCourier variant="embedded" />
+        <div className="hidden lg:block"><ZephyrCourier variant="embedded" /></div>
       </div>
 
       <div className="divide-y divide-[#f0ece4] border-t border-[#f0ece4]">
@@ -87,6 +87,16 @@ export default function EmbeddedSection({
           const statusSetting = settings.find(s => s.key === `${channel.id}_status`);
           const isLive = !channel.hasActivation || statusSetting?.display_value === "live" || Boolean(health?.last_event);
 
+          // Meta Ads is polled, not webhook-driven — "no events" would read as broken.
+          const adsLastSync = settings.find(s => s.key === "meta_ads_last_sync_at")?.display_value;
+          const activity = channel.id === "meta_ads"
+            ? (configured
+                ? (adsLastSync && adsLastSync !== "Not set" ? `Synced ${timeAgo(adsLastSync)}` : "Awaiting first sync")
+                : "Not connected")
+            : health?.last_event
+              ? `Active ${timeAgo(health.last_event)}`
+              : configured ? "No events received yet" : "Not connected";
+
           return (
             <div key={channel.id} className="flex items-center justify-between gap-3 px-5 py-3.5 sm:px-7">
               <div className="flex min-w-0 items-center gap-3">
@@ -96,7 +106,7 @@ export default function EmbeddedSection({
                 <div className="min-w-0">
                   <p className="truncate font-display text-sm font-bold text-ink">{channel.name}</p>
                   <p className="truncate font-body text-[11px] text-ink-muted">
-                    {health?.last_event ? `Active ${timeAgo(health.last_event)}` : configured ? "No events received yet" : "Not connected"}
+                    {activity}
                   </p>
                 </div>
               </div>
