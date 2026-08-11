@@ -135,7 +135,7 @@ async def extract_fields(message: str, fields: list[dict], collected_data: dict,
     return {**collected_data, **new_values}
 
 
-_ACTIVE_STATUSES = ("offer_pending", "collecting", "awaiting_confirmation", "awaiting_payment")
+_ACTIVE_STATUSES = ("offer_pending", "collecting", "awaiting_confirmation", "awaiting_payment", "paid")
 
 
 def _get_active_session(lead_id: str, tenant_id: str, db) -> dict | None:
@@ -318,7 +318,10 @@ def get_session_tenant_id(session_id: str, db=None) -> str | None:
 
 
 def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db=None) -> tuple[str, str, str, str] | None:
-    """Mark a session paid and mute the AI for its lead. Returns
+    """Mark a session paid. The AI stays live for the lead (see
+    get_paid_unresolved_session / _expert_handoff_paid_prompt_block in
+    ai_reply.py) so a lead asking "when will the expert contact me" isn't met
+    with silence while waiting for staff to pick up the notification. Returns
     (phone, tenant_id, lead_id, customer_name) on success, None if the session
     doesn't exist or was already paid (idempotent — Razorpay may retry webhooks)."""
     if db is None:
@@ -347,7 +350,6 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
 
     lead_id = session["lead_id"]
     tenant_id = session["tenant_id"]
-    db.table("leads").update({"ai_enabled": False}).eq("id", lead_id).execute()
 
     lead_row = (
         db.table("leads")
@@ -372,3 +374,46 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
         logger.warning(f"expert_handoff_paid notify_pool failed for session {session_id}: {e}")
 
     return (phone, tenant_id, lead_id, customer_name)
+
+
+def get_paid_unresolved_session(lead_id: str, tenant_id: str, db=None) -> dict | None:
+    """The lead's most recent paid-but-not-yet-resolved session, if any. Used by
+    ai_reply.py to keep the AI reassuring the lead instead of going silent, and
+    by route_expert_handoff/_get_active_session to stop a lead being offered a
+    second paid consultation while the first is still unresolved."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    result = (
+        db.table("expert_handoff_sessions")
+        .select("id")
+        .eq("lead_id", lead_id)
+        .eq("tenant_id", tenant_id)
+        .eq("status", "paid")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+def resolve_expert_handoff_session(session_id: str, tenant_id: str, db=None) -> bool:
+    """Staff marks a paid consultation as handled — the AI reassurance context
+    (get_paid_unresolved_session) stops applying and the session leaves the
+    Consultations "Paid" list. Only transitions from 'paid'; returns False if
+    the session doesn't exist, belongs to another tenant, or isn't paid yet."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    from datetime import datetime, timezone
+
+    result = (
+        db.table("expert_handoff_sessions")
+        .update({"status": "resolved", "resolved_at": datetime.now(timezone.utc).isoformat()})
+        .eq("id", session_id)
+        .eq("tenant_id", tenant_id)
+        .eq("status", "paid")
+        .execute()
+    )
+    return bool(result.data)

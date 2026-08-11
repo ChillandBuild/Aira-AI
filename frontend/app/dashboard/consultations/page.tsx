@@ -1,8 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Clock, Phone } from "lucide-react";
-import { api, ExpertHandoffSession, Lead } from "@/lib/api";
-import { ChatThread } from "@/components/chat-thread";
+import { api, ExpertHandoffSession } from "@/lib/api";
 import { ConsultationDetails } from "./ConsultationDetails";
 import { usePolling } from "@/hooks/usePolling";
 
@@ -13,8 +12,6 @@ export default function ConsultationsPage() {
   const [sessions, setSessions] = useState<ExpertHandoffSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<ExpertHandoffSession | null>(null);
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
-  const [leadLoading, setLeadLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -30,23 +27,14 @@ export default function ConsultationsPage() {
   useEffect(() => {
     setLoading(true);
     setSelectedSession(null);
-    setSelectedLead(null);
     load();
   }, [bucket, load]);
 
   usePolling(load, 30000);
 
-  async function selectSession(session: ExpertHandoffSession) {
-    setSelectedSession(session);
-    setLeadLoading(true);
-    try {
-      const lead = await api.leads.get(session.lead_id);
-      setSelectedLead(lead);
-    } catch {
-      setSelectedLead(null);
-    } finally {
-      setLeadLoading(false);
-    }
+  function handleResolved() {
+    setSelectedSession(null);
+    load();
   }
 
   return (
@@ -92,7 +80,7 @@ export default function ConsultationsPage() {
               <button
                 key={session.id}
                 type="button"
-                onClick={() => selectSession(session)}
+                onClick={() => setSelectedSession(session)}
                 className={`w-full text-left p-4 border-b border-border-subtle hover:bg-surface-subtle transition-colors ${
                   selectedSession?.id === session.id ? "bg-primary-light/40" : ""
                 }`}
@@ -117,26 +105,13 @@ export default function ConsultationsPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-6">
         {!selectedSession ? (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="font-body text-sm text-ink-muted">Select a lead to view details and reply.</p>
+          <div className="h-full flex items-center justify-center">
+            <p className="font-body text-sm text-ink-muted">Select a lead to view consultation details.</p>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-border">
-              <ConsultationDetails session={selectedSession} />
-            </div>
-            <div className="flex-1 overflow-hidden">
-              {leadLoading ? (
-                <div className="p-6 text-center font-body text-sm text-ink-muted">Loading conversation…</div>
-              ) : selectedLead ? (
-                <ChatThread lead={selectedLead} onLeadUpdate={setSelectedLead} />
-              ) : (
-                <div className="p-6 text-center font-body text-sm text-ink-muted">Could not load this lead.</div>
-              )}
-            </div>
-          </div>
+          <ConsultationDetails session={selectedSession} onResolved={handleResolved} />
         )}
       </div>
     </div>

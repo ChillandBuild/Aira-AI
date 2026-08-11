@@ -37,6 +37,11 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
   const [draft, setDraft] = useState<ExpertHandoffConfig>(DEFAULT);
   const [collapsed, setCollapsed] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [feeText, setFeeText] = useState(String(DEFAULT.amount_paise / 100));
+
+  useEffect(() => {
+    setFeeText(String(config.amount_paise / 100));
+  }, [config]);
 
   const load = useCallback(async () => {
     try {
@@ -165,11 +170,23 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
           <div>
             <div className="font-label text-sm font-semibold text-ink mb-1">Consultation fee (₹)</div>
             <input
-              type="number"
-              min={0}
-              value={draft.amount_paise / 100}
+              type="text"
+              inputMode="decimal"
+              value={feeText}
               onFocus={(e) => e.target.select()}
-              onChange={(e) => setDraft({ ...draft, amount_paise: Math.round(Number(e.target.value) * 100) })}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (!/^\d*\.?\d*$/.test(raw)) return;
+                setFeeText(raw);
+                if (raw !== "" && raw !== ".") {
+                  setDraft({ ...draft, amount_paise: Math.round(Number(raw) * 100) });
+                }
+              }}
+              onBlur={() => {
+                if (feeText === "" || feeText === "." || Number.isNaN(Number(feeText))) {
+                  setFeeText(String(draft.amount_paise / 100));
+                }
+              }}
               className="w-32 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
             />
           </div>

@@ -5,13 +5,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import require_permission
 from app.services.ai_reply import send_whatsapp
-from app.services.expert_handoff import confirm_expert_handoff_payment, get_session_tenant_id
+from app.services.expert_handoff import (
+    confirm_expert_handoff_payment,
+    get_session_tenant_id,
+    resolve_expert_handoff_session,
+)
 from app.services.payment_razorpay import verify_webhook_signature
 
 logger = logging.getLogger(__name__)
 public_router = APIRouter()
 router = APIRouter()
 require_conversations_view = require_permission("conversations.view")
+require_conversations_reply = require_permission("conversations.reply")
 
 
 @router.get("/sessions")
@@ -33,6 +38,14 @@ def list_expert_handoff_sessions(
         .execute()
     )
     return {"data": result.data or []}
+
+
+@router.patch("/sessions/{session_id}/resolve")
+def resolve_session(session_id: str, ctx: dict = Depends(require_conversations_reply)):
+    ok = resolve_expert_handoff_session(session_id, ctx["tenant_id"])
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found or not in 'paid' status")
+    return {"status": "resolved"}
 
 
 @public_router.post("/razorpay-webhook")

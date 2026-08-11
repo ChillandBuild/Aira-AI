@@ -2030,6 +2030,10 @@ export const api = {
       );
       return res.data || [];
     },
+    resolveSession: (sessionId: string) =>
+      apiFetch<{ status: string }>(`/api/v1/expert-handoff/sessions/${sessionId}/resolve`, {
+        method: "PATCH",
+      }),
   },
 };
 

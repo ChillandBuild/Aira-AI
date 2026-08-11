@@ -922,6 +922,27 @@ def _escalation_prompt_block(bh: dict, now=None) -> str:
     )
 
 
+def _expert_handoff_paid_prompt_block() -> str:
+    """System-prompt section for a lead who already paid for a human expert
+    consultation and is waiting to be contacted. Mirrors _escalation_prompt_block's
+    "stay live, don't go silent" approach for the Paid Expert Handoff flow."""
+    return (
+        "\n\nPAID CONSULTATION CONTEXT:\n"
+        "This customer has already paid for a one-on-one consultation with our "
+        "human expert. A team member has been notified.\n"
+        "Rules:\n"
+        "- Do NOT attempt to answer their original question yourself — that is "
+        "what they paid the human expert for.\n"
+        "- Do NOT offer or re-sell the paid consultation again.\n"
+        "- If they ask when the expert will contact them, or say nobody has "
+        "reached out yet: reassure them the expert has been notified and will "
+        "be in touch here on WhatsApp soon.\n"
+        "- Never promise a specific time or name a specific person.\n"
+        "- Never claim the expert has already contacted them.\n"
+        "- Otherwise, keep answering their other questions normally and helpfully.\n"
+    )
+
+
 _CATALOG_RECOMMEND_TOOL = {
     "type": "function",
     "function": {
@@ -1287,6 +1308,16 @@ async def generate_reply(
                     "Escalation prompt block failed for lead %s — replying without it",
                     lead_id,
                 )
+
+        try:
+            from app.services.expert_handoff import get_paid_unresolved_session
+            if get_paid_unresolved_session(lead_id, tenant_id, db=db):
+                system_prompt += _expert_handoff_paid_prompt_block()
+        except Exception:
+            logger.exception(
+                "Expert handoff paid-session check failed for lead %s — replying without it",
+                lead_id,
+            )
 
         if catalog_context:
             system_prompt += catalog_context

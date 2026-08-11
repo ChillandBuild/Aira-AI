@@ -223,7 +223,10 @@ async def test_route_expert_handoff_sends_payment_link_on_confirmation_yes():
     assert "https://rzp.io/x" in send.call_args[0][1]
 
 
-def test_confirm_expert_handoff_payment_mutes_ai_and_marks_paid():
+def test_confirm_expert_handoff_payment_keeps_ai_live_and_marks_paid():
+    """AI must stay live post-payment (see _expert_handoff_paid_prompt_block in
+    ai_reply.py) so a lead asking a follow-up question isn't met with silence
+    while waiting for staff to see the notify_pool alert."""
     session_row = {"id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1", "tenant_id": "t-1", "collected_data": {"name": "Priya"}}
     lead_row = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
     db = MagicMock()
@@ -251,7 +254,8 @@ def test_confirm_expert_handoff_payment_mutes_ai_and_marks_paid():
 
     result = eh.confirm_expert_handoff_payment("sess-1", "pay_abc123", db=db)
     assert result == ("+919876543210", "t-1", "lead-1", "Priya")
-    db.table("leads").update.assert_any_call({"ai_enabled": False})
+    for call in db.table("leads").update.call_args_list:
+        assert "ai_enabled" not in call.args[0]
 
 
 def test_confirm_expert_handoff_payment_idempotent_when_already_paid():
@@ -344,3 +348,47 @@ def test_confirm_expert_handoff_payment_notify_failure_does_not_break_confirmati
         result = eh.confirm_expert_handoff_payment("sess-1", "pay_abc123", db=db)
 
     assert result == ("+919876543210", "t-1", "lead-1", "Priya")
+
+
+def test_get_paid_unresolved_session_returns_session_when_paid():
+    db = MagicMock()
+    row = MagicMock()
+    row.data = [{"id": "sess-1"}]
+    (
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value
+        .eq.return_value.order.return_value.limit.return_value.execute.return_value
+    ) = row
+    assert eh.get_paid_unresolved_session("lead-1", "t-1", db=db) == {"id": "sess-1"}
+
+
+def test_get_paid_unresolved_session_returns_none_when_no_paid_session():
+    db = MagicMock()
+    row = MagicMock()
+    row.data = []
+    (
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value
+        .eq.return_value.order.return_value.limit.return_value.execute.return_value
+    ) = row
+    assert eh.get_paid_unresolved_session("lead-1", "t-1", db=db) is None
+
+
+def test_resolve_expert_handoff_session_transitions_paid_to_resolved():
+    db = MagicMock()
+    result = MagicMock()
+    result.data = [{"id": "sess-1", "status": "resolved"}]
+    (
+        db.table.return_value.update.return_value.eq.return_value
+        .eq.return_value.eq.return_value.execute.return_value
+    ) = result
+    assert eh.resolve_expert_handoff_session("sess-1", "t-1", db=db) is True
+
+
+def test_resolve_expert_handoff_session_returns_false_when_not_paid():
+    db = MagicMock()
+    result = MagicMock()
+    result.data = []
+    (
+        db.table.return_value.update.return_value.eq.return_value
+        .eq.return_value.eq.return_value.execute.return_value
+    ) = result
+    assert eh.resolve_expert_handoff_session("sess-1", "t-1", db=db) is False
