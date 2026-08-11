@@ -26,8 +26,8 @@ build/
 # OS / editor
 .DS_Store
 .claude/worktrees/
-.env.example
 backend/.env*
+!backend/.env.example
 
 # Ruflo / claude-flow runtime (removed — not used)
 .swarm/

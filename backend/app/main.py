@@ -3,9 +3,13 @@ import sys
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.events import EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIASGIMiddleware
+from slowapi.util import get_remote_address
 from app.dependencies.auth import get_current_user
 
 import os
@@ -405,10 +409,29 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Rate limiting. Webhook routes must always answer 200 even when throttled --
+# a 4xx here reads as delivery failure and triggers provider retry storms
+# (see .agents/context/security-checklist.md, hard check #2).
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+app.state.limiter = limiter
+
+
+async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    if request.url.path.startswith("/webhook/"):
+        return Response(status_code=200)
+    return JSONResponse(status_code=429, content={"detail": "Too many requests"})
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
+app.add_middleware(SlowAPIASGIMiddleware)
+
+
 @app.middleware("http")
 async def server_error_json_middleware(request: Request, call_next):
     try:
         return await call_next(request)
+    except RateLimitExceeded:
+        raise
     except Exception:
         logger.exception("Unhandled request error: %s %s", request.method, request.url.path)
         return JSONResponse(
