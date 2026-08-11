@@ -725,6 +725,7 @@ async def whatsapp_embedded_signup(
         "is_secret": False,
         "updated_at": "now()",
     }, on_conflict="tenant_id,key").execute()
+    _stamp_connection_source(db, tenant_id, "whatsapp", "embedded")
 
     if display_phone:
         db.table("phone_numbers").upsert({
@@ -974,13 +975,16 @@ async def complete_meta_business_login(
         _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_status", "configured")
+        _stamp_connection_source(db, tenant_id, "meta_ads", "embedded")
     if catalog:
         _save_tenant_setting(db, tenant_id, "meta_catalog_id", catalog["id"])
         _save_tenant_setting(db, tenant_id, "meta_catalog_name", catalog.get("name") or catalog["id"])
 
     _save_tenant_setting(db, tenant_id, "facebook_status", "live" if subscribed else "configured")
+    _stamp_connection_source(db, tenant_id, "facebook", "embedded")
     if connected_instagram:
         _save_tenant_setting(db, tenant_id, "instagram_status", "live" if subscribed else "configured")
+        _stamp_connection_source(db, tenant_id, "instagram", "embedded")
     db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", list(_META_BUSINESS_ONBOARDING_KEYS)).execute()
 
     from app.config_dynamic import invalidate_cache
@@ -1121,6 +1125,8 @@ async def complete_unified_meta_signup(
         ("meta_business_access_token", access_token, True),
         ("whatsapp_status", "live" if subscribed_whatsapp else "configured", False),
         ("facebook_status", "live" if subscribed_page else "configured", False),
+        ("whatsapp_connection_source", "embedded", False),
+        ("facebook_connection_source", "embedded", False),
     ):
         if value:
             _save_tenant_setting(db, tenant_id, key, value, is_secret=is_secret)
@@ -1130,11 +1136,13 @@ async def complete_unified_meta_signup(
         _save_tenant_setting(db, tenant_id, "instagram_access_token", page["access_token"], is_secret=True)
         _save_tenant_setting(db, tenant_id, "instagram_page_id", ig_account_id)
         _save_tenant_setting(db, tenant_id, "instagram_status", "live" if subscribed_page else "configured")
+        _stamp_connection_source(db, tenant_id, "instagram", "embedded")
     if ad_account:
         _save_tenant_setting(db, tenant_id, "meta_ads_access_token", access_token, is_secret=True)
         _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_status", "configured")
+        _stamp_connection_source(db, tenant_id, "meta_ads", "embedded")
     if display_phone:
         db.table("phone_numbers").upsert({
             "provider": "meta_cloud",
@@ -1261,6 +1269,7 @@ async def facebook_embedded_signup(
         "is_secret": False,
         "updated_at": "now()",
     }, on_conflict="tenant_id,key").execute()
+    _stamp_connection_source(db, tenant_id, "facebook", "embedded")
     if connected_instagram:
         db.table("app_settings").upsert({
             "tenant_id": tenant_id,
@@ -1269,6 +1278,7 @@ async def facebook_embedded_signup(
             "is_secret": False,
             "updated_at": "now()",
         }, on_conflict="tenant_id,key").execute()
+        _stamp_connection_source(db, tenant_id, "instagram", "embedded")
 
     from app.config_dynamic import invalidate_cache
     invalidate_cache()
