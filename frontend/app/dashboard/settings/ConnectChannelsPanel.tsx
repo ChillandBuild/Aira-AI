@@ -12,8 +12,7 @@ import { cn } from "@/lib/utils";
 
 // Not secrets — safe to expose client-side. Env var lets prod/staging override.
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
-const META_CONFIG_ID = process.env.NEXT_PUBLIC_META_CONFIG_ID || "1063294086656120";
-const META_GENERAL_CONFIG_ID = process.env.NEXT_PUBLIC_META_GENERAL_CONFIG_ID || "2226622718102220";
+const META_UNIFIED_CONFIG_ID = process.env.NEXT_PUBLIC_META_UNIFIED_CONFIG_ID || "2026693308738446";
 
 declare global {
   interface Window {
@@ -53,7 +52,6 @@ function loadFacebookSdk(): Promise<void> {
 }
 
 type EmbeddedSignupSession = { waba_id?: string; phone_number_id?: string; business_id?: string; is_coexistence?: boolean };
-type EmbeddedSignupState = "idle" | "connecting" | "finishing" | "error";
 type MetaBusinessLoginState = "idle" | "connecting" | "selecting" | "finishing" | "success" | "error";
 type MetaBusinessAssets = {
   session_id: string;
@@ -569,16 +567,13 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const [activating, setActivating] = useState(false);
   const [activateResult, setActivateResult] = useState<ActivateResult | null>(null);
 
-  const [esState, setEsState] = useState<EmbeddedSignupState>("idle");
-  const [esError, setEsError] = useState<string | null>(null);
-  const esSessionRef = useRef<EmbeddedSignupSession>({});
-  const esCodeRef = useRef<string | null>(null);
   const [metaBusinessState, setMetaBusinessState] = useState<MetaBusinessLoginState>("idle");
   const [metaBusinessError, setMetaBusinessError] = useState<string | null>(null);
   const [metaBusinessAssets, setMetaBusinessAssets] = useState<MetaBusinessAssets | null>(null);
   const [selectedMetaPageId, setSelectedMetaPageId] = useState("");
   const [selectedMetaAdAccountId, setSelectedMetaAdAccountId] = useState("");
-  const [selectedMetaCatalogId, setSelectedMetaCatalogId] = useState("");
+  const unifiedSessionRef = useRef<EmbeddedSignupSession>({});
+  const unifiedCodeRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -742,21 +737,18 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     }
   }
 
-  const finishEmbeddedSignup = useCallback(async () => {
+  const finishUnifiedMetaSignup = useCallback(async () => {
     if (!canManage) return;
-    const code = esCodeRef.current;
-    const session = esSessionRef.current;
+    const code = unifiedCodeRef.current;
+    const session = unifiedSessionRef.current;
     if (!code || !session.waba_id || !session.phone_number_id) return;
-    // Clear immediately on consumption — Meta's codes are single-use, so this also
-    // stops the other trigger (message event vs. FB.login callback) from resending
-    // the same code if both fire for one completed signup.
-    esCodeRef.current = null;
-    esSessionRef.current = {};
-    setEsState("finishing");
-    setEsError(null);
+    unifiedCodeRef.current = null;
+    unifiedSessionRef.current = {};
+    setMetaBusinessState("connecting");
+    setMetaBusinessError(null);
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/whatsapp/embedded-signup`, {
+      const res = await fetch(`${API_URL}/api/v1/settings/meta/unified-signup/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
@@ -768,26 +760,20 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Connecting WhatsApp failed");
-      esCodeRef.current = null;
-      esSessionRef.current = {};
-      setEsState("idle");
-      setActivateResult({
-        success: true,
-        message: "WhatsApp connected",
-        detail: [data.business_name, data.phone_number, data.subscribed ? "Webhook subscribed ✓" : null]
-          .filter(Boolean).join(" · "),
-      });
-      await load();
-      loadHealth();
-    } catch (e) {
-      setEsState("error");
-      setEsError(e instanceof Error ? e.message : "Connecting WhatsApp failed");
+      if (!res.ok) throw new Error(data.detail || "Meta could not list the assets you granted");
+      const assets = data as MetaBusinessAssets;
+      setMetaBusinessAssets(assets);
+      setSelectedMetaPageId(assets.pages.length === 1 ? assets.pages[0].id : "");
+      setSelectedMetaAdAccountId("");
+      setMetaBusinessState("selecting");
+    } catch (error) {
+      setMetaBusinessState("error");
+      setMetaBusinessError(error instanceof Error ? error.message : "Connecting Meta Business failed");
     }
-  }, [canManage, load, loadHealth]);
+  }, [canManage]);
 
   useEffect(() => {
-    function handleMessage(event: MessageEvent) {
+    function handleUnifiedMessage(event: MessageEvent) {
       if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
       try {
         const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
@@ -795,104 +781,43 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
           data?.type === "WA_EMBEDDED_SIGNUP" &&
           (data?.event === "FINISH" || data?.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING")
         ) {
-          esSessionRef.current = {
+          unifiedSessionRef.current = {
             waba_id: data.data?.waba_id,
             phone_number_id: data.data?.phone_number_id,
             business_id: data.data?.business_id,
             is_coexistence: data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
           };
-          finishEmbeddedSignup();
+          finishUnifiedMetaSignup();
         }
       } catch {}
     }
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [finishEmbeddedSignup]);
+    window.addEventListener("message", handleUnifiedMessage);
+    return () => window.removeEventListener("message", handleUnifiedMessage);
+  }, [finishUnifiedMetaSignup]);
 
-  async function handleConnectWithFacebook() {
-    if (!canManage) return;
-    setEsState("connecting");
-    setEsError(null);
-    await loadFacebookSdk();
-    window.FB?.login(
-      (response) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          setEsState("idle");
-          return;
-        }
-        esCodeRef.current = code;
-        finishEmbeddedSignup();
-      },
-      {
-        config_id: META_CONFIG_ID,
-        response_type: "code",
-        override_default_response_type: true,
-      }
-    );
-  }
-
-  async function handleConnectCoexistence() {
-    if (!canManage) return;
-    setEsState("connecting");
-    setEsError(null);
-    await loadFacebookSdk();
-    window.FB?.login(
-      (response) => {
-        const code = response?.authResponse?.code;
-        if (!code) {
-          setEsState("idle");
-          return;
-        }
-        esCodeRef.current = code;
-        finishEmbeddedSignup();
-      },
-      {
-        config_id: META_CONFIG_ID,
-        response_type: "code",
-        override_default_response_type: true,
-        extras: { featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" },
-      }
-    );
-  }
-
-  async function handleStartMetaBusinessLogin() {
+  async function handleStartUnifiedMetaSignup(isCoexistence = false) {
     if (!canManage) return;
     setMetaBusinessState("connecting");
     setMetaBusinessError(null);
+    unifiedCodeRef.current = null;
+    unifiedSessionRef.current = {};
     try {
       await loadFacebookSdk();
       window.FB?.login(
-        async (response) => {
+        (response) => {
           const code = response?.authResponse?.code;
           if (!code) {
             setMetaBusinessState("idle");
             return;
           }
-          try {
-            const auth = await getAuthHeaders();
-            const res = await fetch(`${API_URL}/api/v1/settings/facebook/business-login/start`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...auth },
-              body: JSON.stringify({ code }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || "Meta could not list the assets you granted");
-            const assets = data as MetaBusinessAssets;
-            setMetaBusinessAssets(assets);
-            setSelectedMetaPageId(assets.pages.length === 1 ? assets.pages[0].id : "");
-            setSelectedMetaAdAccountId("");
-            setSelectedMetaCatalogId("");
-            setMetaBusinessState("selecting");
-          } catch (error) {
-            setMetaBusinessState("error");
-            setMetaBusinessError(error instanceof Error ? error.message : "Connecting Meta assets failed");
-          }
+          unifiedCodeRef.current = code;
+          finishUnifiedMetaSignup();
         },
         {
-          config_id: META_GENERAL_CONFIG_ID,
+          config_id: META_UNIFIED_CONFIG_ID,
           response_type: "code",
           override_default_response_type: true,
+          ...(isCoexistence ? { extras: { featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" } } : {}),
         }
       );
     } catch (error) {
@@ -901,31 +826,30 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     }
   }
 
-  async function handleCompleteMetaBusinessLogin() {
+  async function handleCompleteUnifiedMetaSignup() {
     if (!canManage || !metaBusinessAssets || !selectedMetaPageId) return;
     setMetaBusinessState("finishing");
     setMetaBusinessError(null);
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/facebook/business-login/complete`, {
+      const res = await fetch(`${API_URL}/api/v1/settings/meta/unified-signup/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
           session_id: metaBusinessAssets.session_id,
           page_id: selectedMetaPageId,
           ad_account_id: selectedMetaAdAccountId || null,
-          catalog_id: selectedMetaCatalogId || null,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Connecting the selected Meta assets failed");
+      if (!res.ok) throw new Error(data.detail || "Connecting Meta Business failed");
       setMetaBusinessAssets(null);
       setMetaBusinessState("success");
       await load();
       loadHealth();
     } catch (error) {
       setMetaBusinessState("error");
-      setMetaBusinessError(error instanceof Error ? error.message : "Connecting the selected Meta assets failed");
+      setMetaBusinessError(error instanceof Error ? error.message : "Connecting Meta Business failed");
     }
   }
 
@@ -1008,20 +932,20 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                       <ZephyrCourier variant="embedded" />
                     </div>
                     <div>
-                      {esError && <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{esError}</p>}
+                      {metaBusinessError && <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{metaBusinessError}</p>}
                       {activateResult?.success && <p className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 font-body text-xs text-emerald-700">{activateResult.message}</p>}
                       <button
                         type="button"
-                        onClick={handleConnectWithFacebook}
-                        disabled={!canManage || esState === "connecting" || esState === "finishing"}
+                        onClick={() => handleStartUnifiedMetaSignup()}
+                        disabled={!canManage || metaBusinessState === "connecting" || metaBusinessState === "finishing"}
                         className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(16,185,129,0.22)] transition-all hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        {esState === "connecting" || esState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect with Meta <ArrowRight size={16} /></>}
+                        {metaBusinessState === "connecting" || metaBusinessState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect Meta Business <ArrowRight size={16} /></>}
                       </button>
                       <button
                         type="button"
-                        onClick={handleConnectCoexistence}
-                        disabled={!canManage || esState === "connecting" || esState === "finishing"}
+                        onClick={() => handleStartUnifiedMetaSignup(true)}
+                        disabled={!canManage || metaBusinessState === "connecting" || metaBusinessState === "finishing"}
                         className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 font-label text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Already using the WhatsApp Business app? Connect without switching <ArrowRight size={12} />
@@ -1067,23 +991,23 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                   <FacebookIcon size={19} />
                 </div>
                 <div>
-                  <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">General Meta connection</p>
-                  <h2 className="mt-1 font-display text-lg font-bold text-ink">Facebook, Instagram &amp; Ads</h2>
-                  <p className="mt-0.5 max-w-2xl font-body text-xs text-ink-muted">Choose the Page, linked Instagram account, optional ad account, and optional Meta catalog this workspace can use.</p>
+                  <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-blue-700">One Meta connection</p>
+                  <h2 className="mt-1 font-display text-lg font-bold text-ink">WhatsApp, Messenger, Instagram &amp; Ads</h2>
+                  <p className="mt-0.5 max-w-2xl font-body text-xs text-ink-muted">One secure Meta window connects WhatsApp, your Facebook Page and Messenger, linked Instagram, and optional read-only ad reporting.</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={handleStartMetaBusinessLogin}
+                onClick={() => handleStartUnifiedMetaSignup()}
                 disabled={!canManage || metaBusinessState === "connecting" || metaBusinessState === "finishing"}
                 className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(37,99,235,0.20)] transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {metaBusinessState === "connecting" || metaBusinessState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <><FacebookIcon size={16} />Connect Meta assets</>}
+                {metaBusinessState === "connecting" || metaBusinessState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <><FacebookIcon size={16} />Connect Meta Business</>}
               </button>
             </div>
             {(metaBusinessError || metaBusinessState === "success") && (
               <div className="border-t border-blue-100 px-5 py-3 sm:px-7">
-                {metaBusinessError ? <p className="font-body text-xs text-red-700">{metaBusinessError}</p> : <p className="font-body text-xs text-emerald-700">Facebook and the selected Meta assets are connected. You can validate the ad account from its Settings card.</p>}
+                {metaBusinessError ? <p className="font-body text-xs text-red-700">{metaBusinessError}</p> : <p className="font-body text-xs text-emerald-700">Your selected Meta channels are connected. Ads access is read-only and used only for reporting.</p>}
               </div>
             )}
           </section>
@@ -1180,8 +1104,8 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             <div className="w-full max-w-xl overflow-hidden rounded-card bg-surface shadow-card ring-1 ring-[#c4c7c7]/20">
               <div className="flex items-start justify-between border-b border-border-subtle p-6">
                 <div>
-                  <h2 className="font-display text-lg font-bold text-ink">Choose Meta assets</h2>
-                  <p className="mt-1 font-body text-xs text-ink-muted">Only these new selections are changed. Existing separately connected assets stay as they are.</p>
+                  <h2 className="font-display text-lg font-bold text-ink">Choose your Meta Business assets</h2>
+                  <p className="mt-1 font-body text-xs text-ink-muted">WhatsApp is ready. Choose the Facebook Page for Messenger and its linked Instagram account. Existing separately connected assets stay as they are.</p>
                 </div>
                 <button
                   type="button"
@@ -1200,7 +1124,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     <option value="">Choose a Page</option>
                     {metaBusinessAssets.pages.map(page => <option key={page.id} value={page.id}>{page.name}{page.instagram_business_account ? " · Instagram linked" : ""}</option>)}
                   </select>
-                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">Messenger is connected to this Page. A linked Instagram business account is connected automatically.</p>
+                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">Messenger is connected to this Page. Its linked Instagram business account is connected automatically.</p>
                 </label>
                 <label className="block">
                   <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Ad account <span className="font-normal normal-case text-ink-muted">(optional)</span></span>
@@ -1208,21 +1132,13 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
                     <option value="">Do not connect an ad account</option>
                     {metaBusinessAssets.ad_accounts.map(account => <option key={account.id} value={account.id}>{account.name}{account.account_id ? ` · ${account.account_id}` : ""}{account.currency ? ` · ${account.currency}` : ""}</option>)}
                   </select>
-                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">Aira will save the selected account and validate it before importing or managing ads.</p>
-                </label>
-                <label className="block">
-                  <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Meta catalog <span className="font-normal normal-case text-ink-muted">(optional)</span></span>
-                  <select value={selectedMetaCatalogId} onChange={event => setSelectedMetaCatalogId(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 font-body text-sm text-ink" disabled={metaBusinessState === "finishing"}>
-                    <option value="">Do not connect a catalog</option>
-                    {metaBusinessAssets.catalogs.map(catalog => <option key={catalog.id} value={catalog.id}>{catalog.name}</option>)}
-                  </select>
-                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">This is Meta&apos;s Commerce catalog. It is separate from Aira&apos;s own product catalog.</p>
+                  <p className="mt-1.5 font-body text-[11px] text-ink-muted">Aira reads reporting data from this account. It cannot create, edit, or publish ads.</p>
                 </label>
               </div>
               <div className="flex items-center justify-between gap-3 border-t border-border-subtle bg-surface-low p-5">
                 <button type="button" onClick={() => { setMetaBusinessAssets(null); setMetaBusinessState("idle"); }} className="rounded-xl px-3 py-2 font-label text-sm font-semibold text-ink-muted hover:bg-white">Cancel</button>
-                <button type="button" onClick={handleCompleteMetaBusinessLogin} disabled={!canManage || !selectedMetaPageId || metaBusinessState === "finishing"} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-label text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
-                  {metaBusinessState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect selected assets <ArrowRight size={16} /></>}
+                <button type="button" onClick={handleCompleteUnifiedMetaSignup} disabled={!canManage || !selectedMetaPageId || metaBusinessState === "finishing"} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-label text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+                  {metaBusinessState === "finishing" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect Meta Business <ArrowRight size={16} /></>}
                 </button>
               </div>
             </div>

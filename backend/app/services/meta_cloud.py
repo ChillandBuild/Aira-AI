@@ -239,6 +239,30 @@ async def discover_business_login_assets(access_token: str) -> dict[str, list[di
     return {"pages": pages, "ad_accounts": ad_accounts, "catalogs": catalogs}
 
 
+async def verify_waba_phone_number(waba_id: str, phone_number_id: str, access_token: str) -> bool:
+    """Return whether Meta confirms that a phone number belongs to this WABA.
+
+    Both IDs originate in the browser's Embedded Signup event, so this must be
+    checked with the server-held token before a tenant can claim either asset.
+    """
+    url = f"{_BUSINESS_LOGIN_GRAPH_BASE}/{waba_id}/phone_numbers"
+    params: dict | None = {"fields": "id", "limit": 100, "access_token": access_token}
+    try:
+        async with httpx.AsyncClient() as client:
+            while url:
+                response = await client.get(url, params=params, timeout=10.0)
+                data = response.json()
+                if getattr(response, "status_code", 200) >= 400 or data.get("error"):
+                    raise HTTPException(status_code=502, detail="Meta could not verify the WhatsApp business number.")
+                if any(phone.get("id") == phone_number_id for phone in data.get("data", []) if isinstance(phone, dict)):
+                    return True
+                url = data.get("paging", {}).get("next")
+                params = None
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Meta could not verify the WhatsApp business number.") from exc
+    return False
+
+
 async def register_phone_number(phone_number_id: str, access_token: str, pin: str) -> dict:
     """Register a newly-onboarded Cloud API number so it can send/receive messages.
     Required once per phone number after Embedded Signup, before it can be used.
