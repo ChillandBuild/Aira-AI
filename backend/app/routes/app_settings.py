@@ -894,9 +894,17 @@ async def disconnect_channel(
         if channel == "whatsapp":
             phone_number_id = _get_setting_value(db, tenant_id, "meta_phone_number_id")
             if phone_number_id:
-                # History rows reference this number — deactivate, never delete.
-                db.table("phone_numbers").update({"status": "inactive", "paused_outbound": True}) \
-                    .eq("tenant_id", tenant_id).eq("meta_phone_number_id", phone_number_id).execute()
+                # History rows reference this number — archive, never delete. Bookkeeping only:
+                # the webhook is already unsubscribed by here, so a failure must not abort the
+                # teardown and strand the tenant with live credentials and no delivery.
+                try:
+                    db.table("phone_numbers").update({"status": "archived", "paused_outbound": True}) \
+                        .eq("tenant_id", tenant_id).eq("meta_phone_number_id", phone_number_id).execute()
+                except Exception as exc:
+                    logger.error(
+                        "Archiving phone number failed tenant=%s phone_number_id=%s: %s",
+                        tenant_id, phone_number_id, exc,
+                    )
 
         _delete_tenant_settings(
             db, tenant_id,

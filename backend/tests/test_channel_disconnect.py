@@ -187,5 +187,31 @@ async def test_disconnecting_whatsapp_deactivates_rather_than_deletes_its_phone_
         )
 
     update_payloads = [c.args[0] for c in db.table.return_value.update.call_args_list]
-    assert {"status": "inactive", "paused_outbound": True} in update_payloads
+    # "archived" is the only teardown status phone_numbers_status_check accepts.
+    assert {"status": "archived", "paused_outbound": True} in update_payloads
     assert db.table.return_value.delete.return_value.eq.return_value.eq.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_disconnect_completes_even_if_archiving_the_phone_number_fails():
+    """Breaks if a phone_numbers write error strands the tenant with an unsubscribed
+    webhook and live credentials — delivery dead, dashboard still showing connected."""
+    from app.routes.app_settings import DisconnectChannelRequest, disconnect_channel
+
+    _StubGraphClient.calls = []
+    db = MagicMock()
+    db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.side_effect = (
+        Exception('violates check constraint "phone_numbers_status_check"')
+    )
+
+    with patch("app.routes.app_settings.get_supabase", return_value=db), \
+         patch("app.routes.app_settings._get_setting_value", return_value="phone-1"), \
+         patch("app.routes.app_settings.httpx.AsyncClient", return_value=_StubGraphClient()), \
+         patch("app.routes.app_settings.record_audit_event"):
+        await disconnect_channel(
+            DisconnectChannelRequest(channel="whatsapp", release_assets=False),
+            ctx={"tenant_id": "tenant-1"},
+            user={"user_id": "user-1"},
+        )
+
+    assert "meta_access_token" in _deleted_keys(db)
