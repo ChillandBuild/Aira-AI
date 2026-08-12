@@ -102,6 +102,19 @@ def missing_field_labels(fields: list[dict], collected_data: dict) -> list[str]:
     return [f["label"] for f in fields if not collected_data.get(f["key"])]
 
 
+_MAX_FIELD_ATTEMPTS = 2
+
+
+def pending_fields(fields: list[dict], collected_data: dict, skipped=()) -> list[dict]:
+    """Fields still needed: neither collected nor given up on. Ordered by config, so
+    the collector always asks for the first outstanding one."""
+    skipped_set = set(skipped)
+    return [
+        f for f in fields
+        if not collected_data.get(f["key"]) and f["key"] not in skipped_set
+    ]
+
+
 _EXTRACTION_SYSTEM_PROMPT = """You extract structured field values from one customer chat
 message. You are given a list of fields the business needs and the values already
 collected from earlier turns. Read the new message and return ONLY the fields you can
@@ -299,10 +312,21 @@ async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db)
     }).execute()
 
 
+# Roman-script Tamil is deliberately included: the moment the offer message is
+# written in Tanglish, leads answer in Tanglish ("seri", "aama"), and anything
+# unmatched here is treated as a refusal that cancels the session and loses the
+# sale. Spellings vary a lot in real chat, so the common ones are all listed.
+# Deliberately excluded: bare verbs like "pannunga"/"venum", which appear just as
+# often in requests that are not a yes ("call pannunga").
 _AFFIRMATIVE_RE_WORDS = frozenset({
-    "yes", "yeah", "yep", "sure", "ok", "okay", "correct", "right",
-    "ஆம்", "சரி",  # Tamil yes/okay
-    "हाँ", "ठीक",   # Hindi yes/okay
+    # English
+    "yes", "yeah", "yep", "yup", "sure", "ok", "okay", "okey", "correct", "right", "fine",
+    # Tanglish / romanized Tamil
+    "seri", "sari", "seriyaa", "seriya", "aama", "aamaa", "aamam", "ama", "amaam", "nalladhu",
+    # Tamil script
+    "ஆம்", "சரி", "ஆமாம்",
+    # Hindi
+    "हाँ", "ठीक", "haan", "theek", "thik",
 })
 
 
@@ -451,14 +475,47 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             return True
 
         if status == "collecting":
-            collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
-            missing = missing_field_labels(config["fields"], collected)
-            if missing:
-                _update_session(session["id"], {"collected_data": collected}, db)
-                await _say("ask_field", field_label=missing[0])
+            before = session.get("collected_data") or {}
+            collected = await extract_fields(body, config["fields"], before, tenant_id)
+            attempts = dict(session.get("ask_attempts") or {})
+            skipped = list(session.get("skipped_fields") or [])
+            pending = pending_fields(config["fields"], collected, skipped)
+
+            purpose = "ask_field"
+            given_up_label: str | None = None
+            if pending and collected == before:
+                # This message added nothing. Escalate how we ask, and after
+                # _MAX_FIELD_ATTEMPTS give up on the field rather than asking a third
+                # time -- live evidence 2026-08-12: the same question went out three
+                # times to a lead who had twice said they did not know the answer.
+                key = pending[0]["key"]
+                attempts[key] = attempts.get(key, 0) + 1
+                if attempts[key] >= _MAX_FIELD_ATTEMPTS:
+                    given_up_label = pending[0]["label"]
+                    skipped.append(key)
+                    pending = pending_fields(config["fields"], collected, skipped)
+                    purpose = "skip_field"
+                else:
+                    purpose = "reask_field"
+
+            patch = {
+                "collected_data": collected,
+                "ask_attempts": attempts,
+                "skipped_fields": skipped,
+            }
+            if pending:
+                _update_session(session["id"], patch, db)
+                if purpose == "skip_field":
+                    await _say(
+                        "skip_field",
+                        field_label=given_up_label,
+                        next_field_label=pending[0]["label"],
+                    )
+                else:
+                    await _say(purpose, field_label=pending[0]["label"])
             else:
-                _update_session(session["id"], {"status": "awaiting_confirmation", "collected_data": collected}, db)
-                await _say_summary(collected)
+                _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
+                await _say_summary(collected, skipped)
             return True
 
         if status == "awaiting_confirmation":
