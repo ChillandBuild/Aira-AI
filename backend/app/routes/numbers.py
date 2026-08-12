@@ -37,6 +37,9 @@ class UpdatePhoneNumber(BaseModel):
 
 _numbers_pool_limit = numbers_pool_limit
 
+# Must match phone_numbers_status_check in supabase/migrations/009_phone_numbers_incidents.sql
+_VALID_PHONE_NUMBER_STATUSES = frozenset({"active", "warming", "restricted", "archived"})
+
 
 @router.get("/")
 async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
@@ -251,6 +254,12 @@ async def update_phone_number(
     tenant_id: str = Depends(get_tenant_id),
     _ctx: dict = Depends(require_numbers_manage),
 ):
+    if payload.status is not None and payload.status not in _VALID_PHONE_NUMBER_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{payload.status}'. Must be one of: {', '.join(sorted(_VALID_PHONE_NUMBER_STATUSES))}.",
+        )
+
     db = get_supabase()
     updates = {}
     if payload.role is not None:

@@ -143,6 +143,21 @@ class NumbersLockingPatchTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.get_supabase")
+    def test_rejects_status_not_in_phone_numbers_status_check(self, mock_get_db, mock_unlocked):
+        """Breaks if an invalid status reaches the DB and trips phone_numbers_status_check (23514 -> 500)."""
+        mock_get_db.return_value = MagicMock()
+        mock_unlocked.return_value = set()
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"status": "inactive"},
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("invalid status", res.json()["detail"].lower())
+        mock_get_db.return_value.table.assert_not_called()
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
     def test_allows_activating_an_unlocked_number(self, mock_get_db, mock_unlocked):
         db = MagicMock()
         db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
