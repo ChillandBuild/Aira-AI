@@ -243,9 +243,18 @@ def test_resolve_tamil_lock_returns_tanglish_for_tanglish_message_when_not_locke
     db.table.assert_not_called()
 
 
-def test_resolve_tamil_lock_returns_tamil_and_updates_for_tamil_script_message():
+def test_resolve_tamil_lock_stays_tanglish_for_a_plain_tamil_script_message():
+    """Tenant decision 2026-08-13: writing in Tamil script is not a request to be
+    spoken to in Tamil. Only an explicit request, in Tamil script, flips the lock."""
     db = MagicMock()
     result = _resolve_tamil_lock(db, "lead-1", {}, "என் ஜாதகம் பார்க்கணும்")
+    assert result == "tanglish"
+    db.table.assert_not_called()
+
+
+def test_resolve_tamil_lock_returns_tamil_and_updates_for_tamil_script_request():
+    db = MagicMock()
+    result = _resolve_tamil_lock(db, "lead-1", {}, "தமிழ்ல பேசுங்க")
     assert result == "tamil"
     db.table("leads").update.assert_called_once_with({"tamil_locked": True})
 

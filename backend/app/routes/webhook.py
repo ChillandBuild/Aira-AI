@@ -308,6 +308,14 @@ async def _process_inbound_message_background(
 
         # Route text-like inbound content, including transcribed audio, into the reply engine.
         if msg_type in ("text", "button", "interactive", "audio") and body:
+            # Must run BEFORE route_intake: a consumed turn never reaches
+            # generate_reply, so a lead who asks for Tamil mid-intake would
+            # otherwise never get the lock set.
+            try:
+                from app.services.ai_reply import record_tamil_lock_request
+                record_tamil_lock_request(db, lead_id, tenant_id, body)
+            except Exception as e:
+                logger.error(f"Tamil lock check failed for lead {lead_id}: {e}")
             try:
                 from app.services.intake import route_intake
                 consumed = await route_intake(lead_id=lead_id, tenant_id=tenant_id, phone=phone, body=body, db=db)

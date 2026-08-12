@@ -340,6 +340,22 @@ _LANGUAGE_SWITCH_REQUEST_RE = re.compile(
 )
 
 
+# The Latin-script pattern above cannot match a request written in Tamil script
+# ("தமிழ்ல பேசுங்க"), which is the ONLY thing that may flip tanglish_escalate_tamil
+# (tenant decision 2026-08-13: a lead merely answering in Tamil script is not a
+# request and must keep getting Tanglish).
+_TAMIL_SCRIPT_REQUEST_RE = re.compile(
+    r"தமிழ"                                    # the word "Tamil" ...
+    r"[^\n]{0,20}?"                            # ... within the same clause as ...
+    r"(சொல்|பேசு|எழுது|அனுப்பு|ரிப்ளை|மட்டும்)"  # ... a say/speak/write/send/only verb
+)
+
+
+def _is_tamil_script_language_request(text: str) -> bool:
+    """True only for an explicit 'speak Tamil' request written in Tamil script."""
+    return bool(_TAMIL_SCRIPT_REQUEST_RE.search(text))
+
+
 def _is_explicit_language_switch_request(text: str) -> bool:
     """Matches the same trigger phrasing already given to the model in the LANGUAGE
     RULE prompt (e.g. 'in English please', 'tamil-la sollunga', 'reply in tamil').
@@ -379,17 +395,44 @@ def _regen_target_instruction(customer_message: str) -> str:
 _LANGUAGE_MODES = {"mirror", "tanglish", "english", "tamil", "tanglish_escalate_tamil"}
 
 
+def _should_lock_tamil(message: str) -> bool:
+    """Both conditions required: dominantly Tamil script AND an explicit request to be
+    spoken to in Tamil. Script alone is not enough -- a lead answering a question in
+    Tamil script still gets Tanglish (tenant decision 2026-08-13). A romanized request
+    ("tamil sollunga") is not enough either: the request must itself be in Tamil."""
+    return _dominant_script(message) == "ta" and _is_tamil_script_language_request(message)
+
+
+def record_tamil_lock_request(db, lead_id: str, tenant_id: str | None, message: str) -> bool:
+    """Persist leads.tamil_locked when a lead asks, in Tamil script, to be spoken to in
+    Tamil. Called from the webhook BEFORE any flow that can consume the turn
+    (route_intake), because generate_reply -- where this check used to live alone --
+    never runs on a consumed turn. Live evidence 2026-08-12: a lead sent four
+    Tamil-script messages during an intake session and tamil_locked stayed false
+    throughout. Returns True only when the lock was newly written."""
+    if _resolve_reply_language_mode(tenant_id) != "tanglish_escalate_tamil":
+        return False
+    if not _should_lock_tamil(message):
+        return False
+    try:
+        db.table("leads").update({"tamil_locked": True}).eq("id", str(lead_id)).execute()
+    except Exception:
+        logger.exception("Failed to persist tamil_locked for lead %s", lead_id)
+        return False
+    logger.info("Tamil lock set for lead %s", lead_id)
+    return True
+
+
 def _resolve_tamil_lock(db, lead_id: str, lead_data: dict, message: str) -> str:
-    """For the 'tanglish_escalate_tamil' mode: returns 'tamil' once this lead has ever
-    sent a pure-Tamil-script message (persisted via leads.tamil_locked, since the
-    _recent_thread() history window used for the LLM prompt is only 8 messages and
-    can't be trusted to remember a script switch from many turns ago). Returns
-    'tanglish' otherwise. Uses _dominant_script(), not _detect_lang() -- a Tanglish
-    message (Latin script with Tamil keywords) must never trigger this, only actual
-    Tamil Unicode script."""
+    """For the 'tanglish_escalate_tamil' mode: returns 'tamil' once this lead has asked
+    (in Tamil script) to be spoken to in Tamil, persisted via leads.tamil_locked since
+    the _recent_thread() history window used for the LLM prompt is only 8 messages and
+    can't be trusted to remember a switch from many turns ago. Returns 'tanglish'
+    otherwise. The write here is the belt-and-braces path for turns that reach
+    generate_reply directly; record_tamil_lock_request covers consumed turns."""
     if lead_data.get("tamil_locked"):
         return "tamil"
-    if _dominant_script(message) == "ta":
+    if _should_lock_tamil(message):
         try:
             db.table("leads").update({"tamil_locked": True}).eq("id", str(lead_id)).execute()
         except Exception:
