@@ -73,7 +73,7 @@ const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
 const REPLY_LANGUAGE_MODES: { id: ReplyLanguageMode; label: string; desc: string }[] = [
   { id: "mirror", label: "Mirror lead's language", desc: "Matches whatever the lead writes in — English, Tamil script, or Tanglish. Default." },
   { id: "tanglish", label: "Tanglish only", desc: "Always replies in Tanglish (Tamil words in Roman letters), regardless of what the lead writes in." },
-  { id: "tanglish_escalate_tamil", label: "Tanglish, lock to Tamil on request", desc: "Replies in Tanglish by default. If the lead ever sends a message in pure Tamil script, permanently switches to native Tamil script for the rest of that conversation." },
+  { id: "tanglish_escalate_tamil", label: "Tanglish, lock to Tamil on request", desc: "Replies in Tanglish by default. If the lead asks — in Tamil script — to be spoken to in Tamil, permanently switches to native Tamil script for the rest of that conversation. A lead simply answering in Tamil script does not trigger the switch." },
   { id: "english", label: "English only", desc: "Always replies in English, regardless of what the lead writes in." },
   { id: "tamil", label: "Tamil script only", desc: "Always replies in native Tamil script, regardless of what the lead writes in." },
 ];
