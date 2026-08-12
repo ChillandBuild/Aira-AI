@@ -1,11 +1,12 @@
-import json
-from unittest.mock import AsyncMock, patch
+import asyncio
+import unittest
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.routes.expert_handoff import public_router
+from app.routes.intake import public_router
 
 app = FastAPI()
 app.include_router(public_router, prefix="/api/v1/expert-handoff")
@@ -17,51 +18,73 @@ def _payload(session_id="sess-1", event="payment_link.paid"):
         "event": event,
         "payload": {
             "payment_link": {"entity": {"notes": {"booking_id": session_id, "booking_ref": "EH-ABC123"}}},
-            "payment": {"entity": {"id": "pay_abc123"}},
+            "payment": {"entity": {"id": "pay_abc123", "amount": 2900}},
         },
     }
 
 
 def test_webhook_rejects_invalid_signature():
-    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="t-1"), \
-         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=False):
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=False):
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "bad"})
     assert res.status_code == 400
 
 
 def test_webhook_rejects_unknown_session_id():
-    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value=None):
+    with patch("app.routes.intake.get_session_tenant_id", return_value=None):
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "whatever"})
     assert res.status_code == 400
 
 
 def test_webhook_verifies_signature_against_the_sessions_own_tenant():
-    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="tenant-astro-tamil") as get_tenant, \
-         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True) as verify, \
-         patch("app.routes.expert_handoff.confirm_expert_handoff_payment", return_value=None):
+    with patch("app.routes.intake.get_session_tenant_id", return_value="tenant-astro-tamil") as get_tenant, \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True) as verify, \
+         patch("app.routes.intake.confirm_intake_payment", return_value=None):
         client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
     get_tenant.assert_called_once_with("sess-1")
     assert verify.call_args.kwargs.get("tenant_id") == "tenant-astro-tamil"
 
 
 def test_webhook_ignores_non_paid_events():
-    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="t-1"), \
-         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True):
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True):
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(event="payment_link.cancelled"), headers={"x-razorpay-signature": "ok"})
     assert res.status_code == 200
     assert res.json()["status"] == "ignored"
 
 
 def test_webhook_confirms_payment_and_sends_receipt():
-    with patch("app.routes.expert_handoff.get_session_tenant_id", return_value="t-1"), \
-         patch("app.routes.expert_handoff.verify_webhook_signature", return_value=True), \
-         patch("app.routes.expert_handoff.confirm_expert_handoff_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
-         patch("app.routes.expert_handoff.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
+         patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}), \
+         patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
     send.assert_awaited_once()
     assert "Priya" in send.call_args[0][1]
+    assert "consultation" in send.call_args[0][1]
+
+
+def test_webhook_uses_the_tenants_configured_service_noun_in_the_receipt():
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
+         patch("app.routes.intake.get_intake_config", return_value={"service_noun": "reading"}), \
+         patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
+        client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
+    assert "reading" in send.call_args[0][1]
+    assert "consultation" not in send.call_args[0][1]
+
+
+def test_webhook_passes_the_paid_amount_through_to_confirm_intake_payment():
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=None) as confirm, \
+         patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}):
+        client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
+    assert confirm.call_args.kwargs.get("amount_paid_paise") == 2900
 
 
 def test_webhook_missing_session_id_returns_error_status():
@@ -70,3 +93,45 @@ def test_webhook_missing_session_id_returns_error_status():
     res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=payload, headers={"x-razorpay-signature": "ok"})
     assert res.status_code == 200
     assert res.json()["status"] == "error"
+
+
+class IntakeWebhookAmountTests(unittest.TestCase):
+    def test_records_the_amount_from_the_webhook_not_the_session(self):
+        from app.services.intake import confirm_intake_payment
+
+        db = MagicMock()
+        existing = MagicMock()
+        existing.data = {
+            "id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1",
+            "tenant_id": "t-1", "collected_data": {"name": "Cheran"},
+            "package_amount_paise": 500000,
+        }
+        db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = existing
+
+        confirm_intake_payment("sess-1", "pay_123", amount_paid_paise=200000, db=db)
+
+        update_patch = db.table.return_value.update.call_args[0][0]
+        self.assertEqual(update_patch["amount_paise"], 200000)
+        self.assertTrue(update_patch["amount_mismatch"])
+
+    def test_no_mismatch_flag_when_amount_matches(self):
+        from app.services.intake import confirm_intake_payment
+
+        db = MagicMock()
+        existing = MagicMock()
+        existing.data = {
+            "id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1",
+            "tenant_id": "t-1", "collected_data": {"name": "Cheran"},
+            "package_amount_paise": 500000,
+        }
+        db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = existing
+
+        confirm_intake_payment("sess-1", "pay_123", amount_paid_paise=500000, db=db)
+
+        update_patch = db.table.return_value.update.call_args[0][0]
+        self.assertEqual(update_patch["amount_paise"], 500000)
+        self.assertFalse(update_patch["amount_mismatch"])
+
+
+if __name__ == "__main__":
+    unittest.main()

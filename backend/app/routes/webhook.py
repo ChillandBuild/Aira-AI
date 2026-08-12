@@ -309,8 +309,8 @@ async def _process_inbound_message_background(
         # Route text-like inbound content, including transcribed audio, into the reply engine.
         if msg_type in ("text", "button", "interactive", "audio") and body:
             try:
-                from app.services.expert_handoff import route_expert_handoff
-                consumed = await route_expert_handoff(lead_id=lead_id, tenant_id=tenant_id, phone=phone, body=body, db=db)
+                from app.services.intake import route_intake
+                consumed = await route_intake(lead_id=lead_id, tenant_id=tenant_id, phone=phone, body=body, db=db)
                 if consumed:
                     return
             except Exception as e:

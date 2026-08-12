@@ -922,18 +922,18 @@ def _escalation_prompt_block(bh: dict, now=None) -> str:
     )
 
 
-def _expert_handoff_paid_prompt_block() -> str:
+def _intake_paid_prompt_block(service_noun: str) -> str:
     """System-prompt section for a lead who already paid for a human expert
-    consultation and is waiting to be contacted. Mirrors _escalation_prompt_block's
-    "stay live, don't go silent" approach for the Paid Expert Handoff flow."""
+    session and is waiting to be contacted. Mirrors _escalation_prompt_block's
+    "stay live, don't go silent" approach for the Intake flow."""
     return (
-        "\n\nPAID CONSULTATION CONTEXT:\n"
-        "This customer has already paid for a one-on-one consultation with our "
+        f"\n\nPAID {service_noun.upper()} CONTEXT:\n"
+        f"This customer has already paid for a one-on-one {service_noun} with our "
         "human expert. A team member has been notified.\n"
         "Rules:\n"
         "- Do NOT attempt to answer their original question yourself — that is "
         "what they paid the human expert for.\n"
-        "- Do NOT offer or re-sell the paid consultation again.\n"
+        f"- Do NOT offer or re-sell the paid {service_noun} again.\n"
         "- If they ask when the expert will contact them, or say nobody has "
         "reached out yet: reassure them the expert has been notified and will "
         "be in touch here on WhatsApp soon.\n"
@@ -1310,9 +1310,11 @@ async def generate_reply(
                 )
 
         try:
-            from app.services.expert_handoff import get_paid_unresolved_session
+            from app.services.intake import get_paid_unresolved_session, get_intake_config
             if get_paid_unresolved_session(lead_id, tenant_id, db=db):
-                system_prompt += _expert_handoff_paid_prompt_block()
+                system_prompt += _intake_paid_prompt_block(
+                    get_intake_config(tenant_id, db=db)["service_noun"]
+                )
         except Exception:
             logger.exception(
                 "Expert handoff paid-session check failed for lead %s — replying without it",

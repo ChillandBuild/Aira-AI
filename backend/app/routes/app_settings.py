@@ -17,7 +17,7 @@ from app.services.assignment import (
     save_inbox_config, save_telecalling_config,
     _INBOX_CONFIG_DEFAULT, _TELECALLING_CONFIG_DEFAULT,
 )
-from app.services.expert_handoff import get_expert_handoff_config, save_expert_handoff_config
+from app.services.intake import get_intake_config, save_intake_config
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -90,18 +90,27 @@ class BusinessHoursUpdate(BaseModel):
     working_days: list[int] | None = None
 
 
-class ExpertHandoffFieldUpdate(BaseModel):
+class IntakeFieldUpdate(BaseModel):
     key: str
     label: str
     type: Literal["text", "date", "choice"]
     options: list[str] | None = None
 
 
-class ExpertHandoffConfigUpdate(BaseModel):
+class IntakePackageUpdate(BaseModel):
+    key: str
+    name: str
+    amount_paise: int
+    description: str = ""
+
+
+class IntakeConfigUpdate(BaseModel):
     enabled: bool | None = None
     trigger_description: str | None = None
     offer_message: str | None = None
-    fields: list[ExpertHandoffFieldUpdate] | None = None
+    fields: list[IntakeFieldUpdate] | None = None
+    packages: list[IntakePackageUpdate] | None = None
+    service_noun: str | None = None
     amount_paise: int | None = None
 
 
@@ -1583,17 +1592,17 @@ async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict =
     return merged
 
 
-@router.get("/expert-handoff-config")
-async def get_expert_handoff_config_route(ctx: dict = Depends(require_settings_read)):
-    return get_expert_handoff_config(ctx["tenant_id"])
+@router.get("/intake-config")
+async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
+    return get_intake_config(ctx["tenant_id"])
 
 
-@router.patch("/expert-handoff-config")
-async def patch_expert_handoff_config(
-    payload: ExpertHandoffConfigUpdate, ctx: dict = Depends(require_settings_manage)
+@router.patch("/intake-config")
+async def patch_intake_config(
+    payload: IntakeConfigUpdate, ctx: dict = Depends(require_settings_manage)
 ):
     tenant_id = ctx["tenant_id"]
-    current = get_expert_handoff_config(tenant_id)
+    current = get_intake_config(tenant_id)
     patch = payload.model_dump(exclude_none=True)
     if "amount_paise" in patch and patch["amount_paise"] < 0:
         raise HTTPException(status_code=400, detail="amount_paise must be >= 0")
@@ -1601,6 +1610,18 @@ async def patch_expert_handoff_config(
         keys = [f["key"] for f in patch["fields"]]
         if len(keys) != len(set(keys)):
             raise HTTPException(status_code=400, detail="Duplicate field keys")
+    if "packages" in patch:
+        pkg_keys = [p["key"] for p in patch["packages"]]
+        if len(pkg_keys) != len(set(pkg_keys)):
+            raise HTTPException(status_code=400, detail="Duplicate package keys")
+        if any(p["amount_paise"] < 1 for p in patch["packages"]):
+            raise HTTPException(status_code=400, detail="Package amount must be >= 1 paise")
+        if any(not p["name"].strip() for p in patch["packages"]):
+            raise HTTPException(status_code=400, detail="Package name is required")
+    if patch.get("enabled") and not (patch.get("packages") or current.get("packages") or current.get("amount_paise")):
+        raise HTTPException(status_code=400, detail="Add at least one package before enabling")
+    if "service_noun" in patch and not patch["service_noun"].strip():
+        raise HTTPException(status_code=400, detail="service_noun cannot be blank")
     merged = {**current, **patch}
-    save_expert_handoff_config(tenant_id, merged)
+    save_intake_config(tenant_id, merged)
     return merged

@@ -1,4 +1,4 @@
-"""Generic, per-tenant paid expert handoff: a lead opts in to pay for a human
+"""Generic, per-tenant paid intake: a lead opts in to pay for a human
 consultation, details are collected via LLM slot-filling (not a rigid step
 order — see docs/superpowers/specs/2026-08-07-paid-expert-handoff-design.md
 for why), payment happens in-chat via Razorpay, and the AI mutes for that
@@ -19,12 +19,14 @@ _DEFAULT_CONFIG = {
     "trigger_description": "",
     "offer_message": "",
     "fields": [],  # list of {"key": str, "label": str, "type": "text"|"date"|"choice", "options": list[str]?}
-    "amount_paise": 0,
+    "packages": [],  # list of {"key": str, "name": str, "amount_paise": int, "description": str}
+    "service_noun": "consultation",
+    "amount_paise": 0,  # legacy single fee; superseded by packages, kept for auto-migration
 }
 
 
-def get_expert_handoff_config(tenant_id: str, db=None) -> dict:
-    """Return expert_handoff_config from app_settings, merged with defaults."""
+def get_intake_config(tenant_id: str, db=None) -> dict:
+    """Return intake_config from app_settings, merged with defaults."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
@@ -32,7 +34,7 @@ def get_expert_handoff_config(tenant_id: str, db=None) -> dict:
         db.table("app_settings")
         .select("value")
         .eq("tenant_id", tenant_id)
-        .eq("key", "expert_handoff_config")
+        .eq("key", "intake_config")
         .maybe_single()
         .execute()
     )
@@ -41,18 +43,18 @@ def get_expert_handoff_config(tenant_id: str, db=None) -> dict:
             stored = json.loads(row.data["value"])
             return {**_DEFAULT_CONFIG, **stored}
         except Exception:
-            logger.warning(f"Failed to parse expert_handoff_config for tenant {tenant_id}")
+            logger.warning(f"Failed to parse intake_config for tenant {tenant_id}")
     return dict(_DEFAULT_CONFIG)
 
 
-def save_expert_handoff_config(tenant_id: str, config: dict, db=None) -> None:
-    """Persist expert_handoff_config to app_settings."""
+def save_intake_config(tenant_id: str, config: dict, db=None) -> None:
+    """Persist intake_config to app_settings."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
     db.table("app_settings").upsert(
         {
-            "key": "expert_handoff_config",
+            "key": "intake_config",
             "value": json.dumps(config),
             "tenant_id": tenant_id,
             "is_secret": False,
@@ -68,7 +70,7 @@ message, decide if THIS message matches that description.
 Respond with JSON only: {"matches": true} or {"matches": false}. No other text."""
 
 
-async def detect_expert_handoff_intent(message: str, trigger_description: str, tenant_id: str) -> bool:
+async def detect_intake_intent(message: str, trigger_description: str, tenant_id: str) -> bool:
     """Fail closed: any error, empty trigger_description, or unparseable response -> False.
     A missed offer is recoverable (the lead can ask again); a wrongly-triggered paid
     flow from a classifier hiccup is not."""
@@ -86,7 +88,7 @@ async def detect_expert_handoff_intent(message: str, trigger_description: str, t
         )
         return bool(data.get("matches") is True)
     except Exception as e:
-        logger.warning(f"Expert handoff detection failed, defaulting to no-match: {e}")
+        logger.warning(f"Intake detection failed, defaulting to no-match: {e}")
         return False
 
 
@@ -127,7 +129,7 @@ async def extract_fields(message: str, fields: list[dict], collected_data: dict,
             purpose="expert_handoff_extraction",
         )
     except Exception as e:
-        logger.warning(f"Expert handoff extraction failed, keeping existing collected_data: {e}")
+        logger.warning(f"Intake extraction failed, keeping existing collected_data: {e}")
         return dict(collected_data)
 
     valid_keys = {f["key"] for f in fields}
@@ -135,12 +137,105 @@ async def extract_fields(message: str, fields: list[dict], collected_data: dict,
     return {**collected_data, **new_values}
 
 
-_ACTIVE_STATUSES = ("offer_pending", "collecting", "awaiting_confirmation", "awaiting_payment", "paid")
+def normalize_packages(config: dict) -> list[dict]:
+    """The tenant's packages, with the pre-packages single `amount_paise` config
+    auto-migrated to one 'standard' package so an existing tenant keeps working
+    without touching their settings."""
+    packages = config.get("packages") or []
+    if packages:
+        return [dict(p) for p in packages]
+    legacy_fee = config.get("amount_paise") or 0
+    if legacy_fee > 0:
+        return [{
+            "key": "standard",
+            "name": "Consultation",
+            "amount_paise": legacy_fee,
+            "description": "",
+        }]
+    return []
+
+
+def _rupees(amount_paise: int) -> str:
+    """Whole rupees when the amount is exact, two decimals otherwise."""
+    if amount_paise % 100 == 0:
+        return f"₹{amount_paise // 100}"
+    return f"₹{amount_paise / 100:.2f}"
+
+
+def package_list_message(packages: list[dict], service_noun: str) -> str:
+    """Rendered in Python, never by the LLM: these are prices the customer will
+    be held to, and a hallucinated figure is a real liability."""
+    lines = []
+    for p in packages:
+        line = f"• {p['name']} — {_rupees(p['amount_paise'])}"
+        if p.get("description"):
+            line += f"\n  {p['description']}"
+        lines.append(line)
+    return (
+        f"Here are our {service_noun} options:\n\n"
+        + "\n".join(lines)
+        + "\n\nWhich one would you like?"
+    )
+
+
+_PACKAGE_MATCH_SYSTEM_PROMPT = """You match a customer's reply to one of a fixed list of
+packages. You are given the packages (key and name) and the customer's message.
+
+Respond with JSON only: {"key": "<the matching package key>"} or {"key": null} if the
+message does not clearly indicate one of the listed packages.
+
+Rules:
+- The key MUST be one of the keys given. Never invent a key.
+- If the customer is ambiguous or asking a question rather than choosing, return null.
+- JSON only, no other text."""
+
+
+async def match_package(message: str, packages: list[dict], tenant_id: str) -> dict | None:
+    """Match a lead's free-text reply to one configured package. Exact name or key
+    matches short-circuit the LLM. Fails closed: any error or unknown key returns
+    None so the caller re-asks rather than charging the wrong amount."""
+    if not packages:
+        return None
+
+    cleaned = message.strip().lower()
+    for p in packages:
+        if cleaned == p["name"].strip().lower() or cleaned == p["key"].strip().lower():
+            return dict(p)
+
+    package_list = "\n".join(f"- {p['key']}: {p['name']}" for p in packages)
+    try:
+        data = await gemini_chat_completion_json(
+            system_prompt=_PACKAGE_MATCH_SYSTEM_PROMPT,
+            user_prompt=f"Packages:\n{package_list}\n\nCustomer message: {message}",
+            temperature=0.0,
+            max_tokens=50,
+            tenant_id=tenant_id,
+            purpose="intake_package_match",
+        )
+    except Exception as e:
+        logger.warning(f"Intake package match failed, treating as no-match: {e}")
+        return None
+
+    key = data.get("key")
+    for p in packages:
+        if key == p["key"]:
+            return dict(p)
+    return None
+
+
+_ACTIVE_STATUSES = (
+    "offer_pending", "awaiting_package_choice", "collecting",
+    "awaiting_confirmation", "awaiting_payment", "paid",
+)
+
+_PACKAGE_CHANGEABLE_STATUSES = (
+    "awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
+)
 
 
 def _get_active_session(lead_id: str, tenant_id: str, db) -> dict | None:
     result = (
-        db.table("expert_handoff_sessions")
+        db.table("intake_sessions")
         .select("*")
         .eq("lead_id", lead_id)
         .eq("tenant_id", tenant_id)
@@ -156,7 +251,7 @@ def _get_active_session(lead_id: str, tenant_id: str, db) -> dict | None:
 
 def _create_session(lead_id: str, tenant_id: str, db) -> dict:
     result = (
-        db.table("expert_handoff_sessions")
+        db.table("intake_sessions")
         .insert({"lead_id": lead_id, "tenant_id": tenant_id, "status": "offer_pending", "collected_data": {}})
         .execute()
     )
@@ -164,7 +259,17 @@ def _create_session(lead_id: str, tenant_id: str, db) -> dict:
 
 
 def _update_session(session_id: str, patch: dict, db) -> None:
-    db.table("expert_handoff_sessions").update(patch).eq("id", session_id).execute()
+    db.table("intake_sessions").update(patch).eq("id", session_id).execute()
+
+
+def _package_patch(package: dict) -> dict:
+    """Snapshot the chosen package onto the session row. Repricing or renaming a
+    package later must not rewrite what a past lead was actually offered."""
+    return {
+        "package_key": package["key"],
+        "package_name": package["name"],
+        "package_amount_paise": package["amount_paise"],
+    }
 
 
 async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db) -> None:
@@ -200,8 +305,8 @@ def _summary_text(fields: list[dict], collected_data: dict) -> str:
     return "Here's what I've got:\n\n" + "\n".join(lines) + "\n\nIs that correct?"
 
 
-async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: str, db=None) -> bool:
-    """Webhook-level routing for the expert handoff session. Returns True if the
+async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=None) -> bool:
+    """Webhook-level routing for the intake session. Returns True if the
     inbound message was consumed (caller must skip generate_reply for this turn)."""
     if db is None:
         from app.db.supabase import get_supabase
@@ -210,14 +315,14 @@ async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: s
         return False
 
     try:
-        config = get_expert_handoff_config(tenant_id, db=db)
+        config = get_intake_config(tenant_id, db=db)
         if not config.get("enabled"):
             return False
 
         session = _get_active_session(lead_id, tenant_id, db)
 
         if session is None:
-            matched = await detect_expert_handoff_intent(body, config["trigger_description"], tenant_id)
+            matched = await detect_intake_intent(body, config["trigger_description"], tenant_id)
             if not matched:
                 return False
             new_session = _create_session(lead_id, tenant_id, db)
@@ -231,13 +336,63 @@ async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: s
             if not _is_affirmative(body):
                 _update_session(session["id"], {"status": "cancelled"}, db)
                 return False
+            packages = normalize_packages(config)
+            if len(packages) == 1:
+                # Single package: nothing to choose, snapshot it and go straight
+                # to field collection — same as the pre-packages flow, just with
+                # the package recorded on the row.
+                collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
+                missing = missing_field_labels(config["fields"], collected)
+                patch = _package_patch(packages[0]) | {"collected_data": collected, "field_schema": config["fields"]}
+                if missing:
+                    _update_session(session["id"], patch | {"status": "collecting"}, db)
+                    await _send_and_log(phone, f"Great! Could you share your {missing[0].lower()}?", tenant_id, lead_id, db)
+                else:
+                    _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
+                    await _send_and_log(phone, _summary_text(config["fields"], collected), tenant_id, lead_id, db)
+                return True
+            if not packages:
+                logger.error(f"Intake session {session['id']} has no packages configured despite being enabled")
+                await _send_and_log(
+                    phone,
+                    "Thanks! Our team will follow up shortly with the next steps.",
+                    tenant_id, lead_id, db,
+                )
+                return True
+            _update_session(session["id"], {"status": "awaiting_package_choice"}, db)
+            await _send_and_log(
+                phone,
+                package_list_message(packages, config["service_noun"]),
+                tenant_id, lead_id, db,
+            )
+            return True
+
+        if status == "awaiting_package_choice":
+            packages = normalize_packages(config)
+            chosen = await match_package(body, packages, tenant_id)
+            if chosen is None:
+                await _send_and_log(
+                    phone,
+                    "Sorry, I didn't catch which one — "
+                    + package_list_message(packages, config["service_noun"]),
+                    tenant_id, lead_id, db,
+                )
+                return True
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
             missing = missing_field_labels(config["fields"], collected)
+            patch = _package_patch(chosen) | {
+                "collected_data": collected,
+                "field_schema": config["fields"],
+            }
             if missing:
-                _update_session(session["id"], {"status": "collecting", "collected_data": collected}, db)
-                await _send_and_log(phone, f"Great! Could you share your {missing[0].lower()}?", tenant_id, lead_id, db)
+                _update_session(session["id"], patch | {"status": "collecting"}, db)
+                await _send_and_log(
+                    phone,
+                    f"{chosen['name']} it is. Could you share your {missing[0].lower()}?",
+                    tenant_id, lead_id, db,
+                )
             else:
-                _update_session(session["id"], {"status": "awaiting_confirmation", "collected_data": collected}, db)
+                _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
                 await _send_and_log(phone, _summary_text(config["fields"], collected), tenant_id, lead_id, db)
             return True
 
@@ -256,22 +411,32 @@ async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: s
             if not _is_affirmative(body):
                 # Let the AI/human sort out a correction request; stay put.
                 return False
-            ref = f"EH-{uuid.uuid4().hex[:8].upper()}"
+            ref = f"IN-{uuid.uuid4().hex[:8].upper()}"
             collected = session.get("collected_data") or {}
             customer_name = collected.get("name", "Customer")
+            amount_paise = session.get("package_amount_paise")
+            if not amount_paise:
+                logger.error(f"Intake session {session['id']} reached payment with no package amount")
+                await _send_and_log(
+                    phone,
+                    "We've received your details — our team will send the payment link shortly.",
+                    tenant_id, lead_id, db,
+                )
+                return True
+            service_noun = config["service_noun"].capitalize()
             try:
                 link = await create_payment_link(
                     booking_id=session["id"],
                     booking_ref=ref,
-                    amount_paise=config["amount_paise"],
+                    amount_paise=amount_paise,
                     customer_name=customer_name,
                     customer_phone=phone,
-                    description=f"Consultation — {customer_name} ({ref})",
+                    description=f"{service_noun} — {customer_name} ({ref})",
                     tenant_id=tenant_id,
                 )
                 _update_session(session["id"], {
                     "status": "awaiting_payment",
-                    "amount_paise": config["amount_paise"],
+                    "amount_paise": amount_paise,
                     "payment_link": link["payment_link_url"],
                 }, db)
                 await _send_and_log(
@@ -280,7 +445,7 @@ async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: s
                     tenant_id, lead_id, db,
                 )
             except Exception as e:
-                logger.error(f"Expert handoff payment link creation failed for session {session['id']}: {e}")
+                logger.error(f"Intake payment link creation failed for session {session['id']}: {e}")
                 await _send_and_log(
                     phone,
                     "We've received your details — our team will send the payment link shortly.",
@@ -291,7 +456,7 @@ async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: s
         # awaiting_payment: nothing to do here, wait for the Razorpay webhook.
         return False
     except Exception as e:
-        logger.error(f"route_expert_handoff failed for lead {lead_id}: {e}")
+        logger.error(f"route_intake failed for lead {lead_id}: {e}")
         return False
 
 
@@ -306,7 +471,7 @@ def get_session_tenant_id(session_id: str, db=None) -> str | None:
         from app.db.supabase import get_supabase
         db = get_supabase()
     row = (
-        db.table("expert_handoff_sessions")
+        db.table("intake_sessions")
         .select("tenant_id")
         .eq("id", session_id)
         .maybe_single()
@@ -317,9 +482,14 @@ def get_session_tenant_id(session_id: str, db=None) -> str | None:
     return row.data.get("tenant_id")
 
 
-def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db=None) -> tuple[str, str, str, str] | None:
+def confirm_intake_payment(
+    session_id: str,
+    razorpay_payment_id: str,
+    amount_paid_paise: int | None = None,
+    db=None,
+) -> tuple[str, str, str, str] | None:
     """Mark a session paid. The AI stays live for the lead (see
-    get_paid_unresolved_session / _expert_handoff_paid_prompt_block in
+    get_paid_unresolved_session / _intake_paid_prompt_block in
     ai_reply.py) so a lead asking "when will the expert contact me" isn't met
     with silence while waiting for staff to pick up the notification. Returns
     (phone, tenant_id, lead_id, customer_name) on success, None if the session
@@ -331,8 +501,8 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
     from datetime import datetime, timezone
 
     existing = (
-        db.table("expert_handoff_sessions")
-        .select("id,status,lead_id,tenant_id,collected_data")
+        db.table("intake_sessions")
+        .select("id,status,lead_id,tenant_id,collected_data,package_amount_paise")
         .eq("id", session_id)
         .maybe_single()
         .execute()
@@ -342,10 +512,17 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
 
     session = existing.data
     now_iso = datetime.now(timezone.utc).isoformat()
-    db.table("expert_handoff_sessions").update({
+    expected = session.get("package_amount_paise")
+    charged = amount_paid_paise if amount_paid_paise is not None else expected
+    db.table("intake_sessions").update({
         "status": "paid",
         "razorpay_payment_id": razorpay_payment_id,
         "paid_at": now_iso,
+        "amount_paise": charged,
+        # A lead can pay a link that was just superseded by a package change.
+        # Record what actually arrived and flag the gap for staff rather than
+        # trusting config.
+        "amount_mismatch": bool(expected and charged and expected != charged),
     }).eq("id", session_id).execute()
 
     lead_id = session["lead_id"]
@@ -365,13 +542,13 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
     try:
         notify_pool(
             tenant_id,
-            "expert_handoff_paid",
+            "intake_paid",
             "New paid consultation",
-            f"Lead '{customer_name}' paid for a consultation — check Consultations.",
+            f"Lead '{customer_name}' paid for a consultation — check Intake.",
             db=db,
         )
     except Exception as e:
-        logger.warning(f"expert_handoff_paid notify_pool failed for session {session_id}: {e}")
+        logger.warning(f"intake_paid notify_pool failed for session {session_id}: {e}")
 
     return (phone, tenant_id, lead_id, customer_name)
 
@@ -379,13 +556,13 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
 def get_paid_unresolved_session(lead_id: str, tenant_id: str, db=None) -> dict | None:
     """The lead's most recent paid-but-not-yet-resolved session, if any. Used by
     ai_reply.py to keep the AI reassuring the lead instead of going silent, and
-    by route_expert_handoff/_get_active_session to stop a lead being offered a
+    by route_intake/_get_active_session to stop a lead being offered a
     second paid consultation while the first is still unresolved."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
     result = (
-        db.table("expert_handoff_sessions")
+        db.table("intake_sessions")
         .select("id")
         .eq("lead_id", lead_id)
         .eq("tenant_id", tenant_id)
@@ -398,10 +575,10 @@ def get_paid_unresolved_session(lead_id: str, tenant_id: str, db=None) -> dict |
     return rows[0] if rows else None
 
 
-def resolve_expert_handoff_session(session_id: str, tenant_id: str, db=None) -> bool:
-    """Staff marks a paid consultation as handled — the AI reassurance context
+def resolve_intake_session(session_id: str, tenant_id: str, db=None) -> bool:
+    """Staff marks a paid intake session as handled — the AI reassurance context
     (get_paid_unresolved_session) stops applying and the session leaves the
-    Consultations "Paid" list. Only transitions from 'paid'; returns False if
+    Intake "Paid" list. Only transitions from 'paid'; returns False if
     the session doesn't exist, belongs to another tenant, or isn't paid yet."""
     if db is None:
         from app.db.supabase import get_supabase
@@ -409,7 +586,7 @@ def resolve_expert_handoff_session(session_id: str, tenant_id: str, db=None) -> 
     from datetime import datetime, timezone
 
     result = (
-        db.table("expert_handoff_sessions")
+        db.table("intake_sessions")
         .update({"status": "resolved", "resolved_at": datetime.now(timezone.utc).isoformat()})
         .eq("id", session_id)
         .eq("tenant_id", tenant_id)
@@ -417,3 +594,36 @@ def resolve_expert_handoff_session(session_id: str, tenant_id: str, db=None) -> 
         .execute()
     )
     return bool(result.data)
+
+
+async def change_session_package(session_id: str, tenant_id: str, package_key: str, db=None) -> dict | None:
+    """Re-point an unpaid session at a different package and clear the stale
+    payment link. Returns None if the session is missing, already paid, or the
+    key is not configured — the caller turns that into a 404/400."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+
+    row = (
+        db.table("intake_sessions")
+        .select("id,tenant_id,lead_id,status,collected_data,package_key")
+        .eq("id", session_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    session = (row.data if row else None) or None
+    if not session or session["status"] not in _PACKAGE_CHANGEABLE_STATUSES:
+        return None
+
+    config = get_intake_config(tenant_id, db=db)
+    chosen = next((p for p in normalize_packages(config) if p["key"] == package_key), None)
+    if chosen is None:
+        return None
+
+    # The old Razorpay link stays live until Razorpay processes the cancel, so
+    # confirm_intake_payment records the amount that actually arrives rather
+    # than assuming this one. See D16.
+    patch = _package_patch(chosen) | {"payment_link": None, "amount_paise": None}
+    db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
+    return {**session, **patch}
