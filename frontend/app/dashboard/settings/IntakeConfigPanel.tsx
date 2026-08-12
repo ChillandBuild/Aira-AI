@@ -5,26 +5,37 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 
 type FieldType = "text" | "date" | "choice";
 
-interface HandoffField {
+interface IntakeField {
   key: string;
   label: string;
   type: FieldType;
   options?: string[];
 }
 
-interface ExpertHandoffConfig {
+interface IntakePackage {
+  key: string;
+  name: string;
+  amount_paise: number;
+  description: string;
+}
+
+interface IntakeConfig {
   enabled: boolean;
   trigger_description: string;
   offer_message: string;
-  fields: HandoffField[];
+  fields: IntakeField[];
+  packages: IntakePackage[];
+  service_noun: string;
   amount_paise: number;
 }
 
-const DEFAULT: ExpertHandoffConfig = {
+const DEFAULT: IntakeConfig = {
   enabled: false,
   trigger_description: "",
   offer_message: "",
   fields: [],
+  packages: [],
+  service_noun: "consultation",
   amount_paise: 0,
 };
 
@@ -32,21 +43,16 @@ function slugify(label: string): string {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
 }
 
-export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boolean }) {
-  const [config, setConfig] = useState<ExpertHandoffConfig>(DEFAULT);
-  const [draft, setDraft] = useState<ExpertHandoffConfig>(DEFAULT);
+export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean }) {
+  const [config, setConfig] = useState<IntakeConfig>(DEFAULT);
+  const [draft, setDraft] = useState<IntakeConfig>(DEFAULT);
   const [collapsed, setCollapsed] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
-  const [feeText, setFeeText] = useState(String(DEFAULT.amount_paise / 100));
-
-  useEffect(() => {
-    setFeeText(String(config.amount_paise / 100));
-  }, [config]);
 
   const load = useCallback(async () => {
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/expert-handoff-config`, { headers: auth });
+      const res = await fetch(`${API_URL}/api/v1/settings/intake-config`, { headers: auth });
       if (res.ok) {
         const data = await res.json();
         setConfig(data);
@@ -68,7 +74,7 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
     setSaveState("saving");
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/expert-handoff-config`, {
+      const res = await fetch(`${API_URL}/api/v1/settings/intake-config`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify(draft),
@@ -91,13 +97,36 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
     });
   }
 
-  function updateField(index: number, patch: Partial<HandoffField>) {
+  function updateField(index: number, patch: Partial<IntakeField>) {
     const fields = draft.fields.map((f, i) => (i === index ? { ...f, ...patch } : f));
     setDraft({ ...draft, fields });
   }
 
   function removeField(index: number) {
     setDraft({ ...draft, fields: draft.fields.filter((_, i) => i !== index) });
+  }
+
+  function addPackage() {
+    setDraft({
+      ...draft,
+      packages: [
+        ...draft.packages,
+        { key: `package_${draft.packages.length + 1}`, name: "", amount_paise: 0, description: "" },
+      ],
+    });
+  }
+
+  function updatePackage(index: number, patch: Partial<IntakePackage>) {
+    const packages = draft.packages.map((p, i) => (i === index ? { ...p, ...patch } : p));
+    setDraft({ ...draft, packages });
+  }
+
+  function removePackage(index: number) {
+    setDraft({ ...draft, packages: draft.packages.filter((_, i) => i !== index) });
+  }
+
+  function commitPackageName(index: number, name: string) {
+    updatePackage(index, { name, key: slugify(name) || `package_${index + 1}` });
   }
 
   return (
@@ -109,7 +138,7 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="font-display font-bold text-ink" style={{ fontSize: "1rem", letterSpacing: "-0.02em" }}>
-              Paid Expert Handoff
+              Paid Intake
             </h2>
             {draft.enabled ? (
               <span className="badge badge-green inline-flex items-center gap-1">
@@ -136,9 +165,9 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
               className="mt-0.5 accent-violet-600"
             />
             <div>
-              <div className="font-label text-sm font-semibold text-ink">Enable Paid Expert Handoff</div>
+              <div className="font-label text-sm font-semibold text-ink">Enable Paid Intake</div>
               <div className="font-body text-xs text-ink-muted mt-0.5">
-                Off by default. Turn on once trigger, fields, and fee below are configured.
+                Off by default. Turn on once trigger, fields, and at least one package below are configured.
               </div>
             </div>
           </label>
@@ -167,27 +196,83 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
             />
           </div>
 
-          <div>
-            <div className="font-label text-sm font-semibold text-ink mb-1">Consultation fee (₹)</div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="font-label text-sm font-semibold text-ink">Packages</div>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={addPackage}
+                  className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700"
+                >
+                  <Plus size={14} /> Add package
+                </button>
+              )}
+            </div>
+            <div className="font-body text-xs text-ink-muted">
+              The lead picks one of these right after accepting the offer, before any details are collected.
+            </div>
+
+            <div className="space-y-2">
+              {draft.packages.map((pkg, index) => (
+                <div key={index} className="rounded-2xl border border-border bg-surface-subtle p-3 space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={pkg.name}
+                      onChange={(e) => updatePackage(index, { name: e.target.value })}
+                      onBlur={(e) => commitPackageName(index, e.target.value)}
+                      placeholder="Package name (e.g. VIP)"
+                      disabled={!canManage}
+                      className="flex-1 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={pkg.amount_paise ? pkg.amount_paise / 100 : ""}
+                      onChange={(e) =>
+                        updatePackage(index, { amount_paise: Math.round(Number(e.target.value) * 100) })
+                      }
+                      placeholder="₹"
+                      disabled={!canManage}
+                      className="w-28 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                    />
+                    {canManage && (
+                      <button type="button" onClick={() => removePackage(index)} aria-label="Remove package" className="text-ink-muted hover:text-red-600">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={pkg.description}
+                    onChange={(e) => updatePackage(index, { description: e.target.value })}
+                    placeholder="What's included (shown to the lead with the price)"
+                    disabled={!canManage}
+                    className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                  />
+                </div>
+              ))}
+              {draft.packages.length === 0 && (
+                <p className="font-body text-xs text-ink-muted italic">
+                  No packages yet — add at least one before enabling.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="font-label text-sm font-semibold text-ink">What you call it</div>
+            <p className="font-body text-xs text-ink-muted">
+              The word used in messages the customer receives — the payment receipt, the Razorpay
+              description, and how the assistant refers to it. Example: consultation, reading, session.
+            </p>
             <input
               type="text"
-              inputMode="decimal"
-              value={feeText}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (!/^\d*\.?\d*$/.test(raw)) return;
-                setFeeText(raw);
-                if (raw !== "" && raw !== ".") {
-                  setDraft({ ...draft, amount_paise: Math.round(Number(raw) * 100) });
-                }
-              }}
-              onBlur={() => {
-                if (feeText === "" || feeText === "." || Number.isNaN(Number(feeText))) {
-                  setFeeText(String(draft.amount_paise / 100));
-                }
-              }}
-              className="w-32 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+              value={draft.service_noun}
+              onChange={(e) => setDraft({ ...draft, service_noun: e.target.value })}
+              disabled={!canManage}
+              className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
             />
           </div>
 
@@ -203,7 +288,7 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
               </button>
             </div>
             <div className="font-body text-xs text-ink-muted mb-3">
-              Collected in free-flowing conversation, in any order — no fixed script.
+              Collected in free-flowing conversation, in any order — no fixed script. Applies to every package.
             </div>
             <div className="space-y-2">
               {draft.fields.map((field, index) => (

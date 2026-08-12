@@ -208,18 +208,18 @@ export function Sidebar() {
           )}
         </Link>}
 
-        {/* TOP LEVEL: Consultations */}
+        {/* TOP LEVEL: Intake */}
         {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && <Link
-          href="/dashboard/consultations"
+          href="/dashboard/intake"
           className={cn(
             "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-            pathname.startsWith("/dashboard/consultations")
+            pathname.startsWith("/dashboard/intake")
               ? "bg-[#f5f3ff] text-[#5b21b6]"
               : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
           )}
         >
-          <Headset size={16} className={pathname.startsWith("/dashboard/consultations") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-          <span className="flex-grow">Consultations</span>
+          <Headset size={16} className={pathname.startsWith("/dashboard/intake") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+          <span className="flex-grow">Intake</span>
         </Link>}
 
         {/* TOP LEVEL: Leads */}

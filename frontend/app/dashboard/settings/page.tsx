@@ -9,7 +9,7 @@ import { useAuthRole } from "../contexts/AuthRoleContext";
 import ChangePasswordCard from "./ChangePasswordCard";
 import ConnectChannelsPanel from "./ConnectChannelsPanel";
 import { TelecallingConfigPanel } from "./TelecallingConfigPanel";
-import { ExpertHandoffConfigPanel } from "./ExpertHandoffConfigPanel";
+import { IntakeConfigPanel } from "./IntakeConfigPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
 import { NotificationConfigPanel } from "./NotificationConfigPanel";
 import { BusinessHoursPanel } from "./BusinessHoursPanel";
@@ -524,7 +524,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* TAB 2: Messaging Channels */}
+          {/* TAB 2: Integrations — messaging channels, Meta Ads, Razorpay */}
           {activeTab === "channels" && <ConnectChannelsPanel canManage={canManageSettings} />}
 
           {/* TAB 3: Telecalling Config */}
@@ -743,7 +743,7 @@ export default function SettingsPage() {
 
               <TelecallingConfigPanel canManage={canManageSettings} />
 
-              <ExpertHandoffConfigPanel canManage={canManageSettings} />
+              <IntakeConfigPanel canManage={canManageSettings} />
             </div>
           )}
 

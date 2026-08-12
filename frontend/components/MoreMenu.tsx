@@ -35,7 +35,7 @@ type MoreMenuItem = {
 };
 
 const MORE_ITEMS: MoreMenuItem[] = [
-  { href: "/dashboard/consultations", icon: Headset, label: "Consultations", permissionAny: ["conversations.view", "conversations.reply"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/intake", icon: Headset, label: "Intake", permissionAny: ["conversations.view", "conversations.reply"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/leads", icon: Users, label: "Leads", permissionAny: ["leads.view", "leads.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", permissionAny: ["outbound_leads.view", "outbound_leads.manage"], feature: "outbound_messaging" },
   { href: "/dashboard/templates", icon: SquarePen, label: "Templates", permissionAny: ["templates.view", "templates.manage"], feature: "outbound_messaging" },

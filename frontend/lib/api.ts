@@ -969,16 +969,34 @@ export interface AssignmentLogSummary {
   by_segment: Record<string, number>;
 }
 
-export interface ExpertHandoffSession {
+export type IntakeStatus = "awaiting_payment" | "paid" | "resolved";
+
+export interface IntakeField {
+  key: string;
+  label: string;
+  type: "text" | "date" | "choice";
+}
+
+export interface IntakeSession {
   id: string;
   lead_id: string;
-  status: "awaiting_payment" | "paid";
+  status: IntakeStatus;
   collected_data: Record<string, string>;
+  field_schema: IntakeField[] | null;
   amount_paise: number | null;
+  amount_mismatch: boolean;
+  package_key: string | null;
+  package_name: string | null;
+  package_amount_paise: number | null;
   payment_link: string | null;
   paid_at: string | null;
   created_at: string;
   leads: { name: string | null; phone: string | null } | null;
+}
+
+export interface IntakePage {
+  data: IntakeSession[];
+  next_cursor: string | null;
 }
 
 export const api = {
@@ -2023,17 +2041,34 @@ export const api = {
         body: JSON.stringify({ caller_id: callerId }),
       }),
   },
-  expertHandoff: {
-    listSessions: async (bucket: "awaiting_payment" | "paid") => {
-      const res = await apiFetch<{ data: ExpertHandoffSession[] }>(
-        `/api/v1/expert-handoff/sessions?bucket=${bucket}`
-      );
-      return res.data || [];
+  intake: {
+    listSessions: (params: {
+      status: IntakeStatus | "all";
+      packageKey?: string;
+      q?: string;
+      cursor?: string;
+    }) => {
+      const search = new URLSearchParams({ status: params.status, limit: "50" });
+      if (params.packageKey) search.set("package", params.packageKey);
+      if (params.q) search.set("q", params.q);
+      if (params.cursor) search.set("cursor", params.cursor);
+      return apiFetch<IntakePage>(`/api/v1/intake/sessions?${search}`);
     },
     resolveSession: (sessionId: string) =>
-      apiFetch<{ status: string }>(`/api/v1/expert-handoff/sessions/${sessionId}/resolve`, {
+      apiFetch<{ status: string }>(`/api/v1/intake/sessions/${sessionId}/resolve`, {
         method: "PATCH",
       }),
+    changePackage: (sessionId: string, packageKey: string) =>
+      apiFetch<IntakeSession>(`/api/v1/intake/sessions/${sessionId}/package`, {
+        method: "PATCH",
+        body: JSON.stringify({ package_key: packageKey }),
+      }),
+    csvPath: (params: { status: IntakeStatus | "all"; packageKey?: string; q?: string }) => {
+      const search = new URLSearchParams({ status: params.status });
+      if (params.packageKey) search.set("package", params.packageKey);
+      if (params.q) search.set("q", params.q);
+      return `/api/v1/intake/sessions.csv?${search}`;
+    },
   },
 };
 

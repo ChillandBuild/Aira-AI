@@ -119,7 +119,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/settings") {
     let tabLabel = "General";
-    if (tab === "channels") tabLabel = "Messaging Channels";
+    if (tab === "channels") tabLabel = "Integrations";
     if (tab === "telecalling") tabLabel = "Telecalling Config";
     if (tab === "ai" || tab === "automations") tabLabel = "Automations";
     return {
@@ -327,7 +327,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           <nav aria-label="Account settings sections" className="mr-2 hidden max-w-full overflow-x-auto rounded-2xl bg-[#e8e3db]/60 p-1 lg:flex lg:gap-0.5">
             {[
               { key: "general", label: "General Settings" },
-              { key: "channels", label: "Messaging Channels" },
+              { key: "channels", label: "Integrations" },
               ...(settingsHasTelecmiConfig ? [{ key: "telecalling", label: "Telecalling Config" }] : []),
               { key: "automations", label: "Automations" },
               ...(settingsHasNotifications ? [{ key: "notifications", label: "Notifications" }] : []),
