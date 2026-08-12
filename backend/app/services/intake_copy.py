@@ -26,7 +26,7 @@ _THREAD_WINDOW = 6
 
 PURPOSES = frozenset({
     "ask_field", "reask_field", "skip_field",
-    "payment_intro", "package_reask", "no_packages",
+    "payment_intro", "payment_delay", "package_reask", "no_packages",
 })
 
 _TASKS = {
@@ -49,6 +49,11 @@ _TASKS = {
         "any link, URL or amount yourself -- the system appends the real link after your "
         "sentence."
     ),
+    "payment_delay": (
+        "The payment link could not be generated right now. Tell the customer their "
+        "details are received and the team will send the payment link shortly. Do not "
+        "apologise at length, do not explain the failure, and do not write any link."
+    ),
     "package_reask": (
         "The customer's reply did not clearly pick one of the options. Say you did not "
         "catch which one, in one short sentence. The system re-prints the option list "
@@ -65,6 +70,7 @@ _FALLBACKS = {
     "reask_field": "Thanks! And your {field_label_lower}?",
     "skip_field": "No problem. And your {next_field_label_lower}?",
     "payment_intro": "Great, here's your payment link:",
+    "payment_delay": "We've received your details — our team will send the payment link shortly.",
     "package_reask": "Sorry, I didn't catch which one —",
     "no_packages": "Thanks! Our team will follow up shortly with the next steps.",
 }

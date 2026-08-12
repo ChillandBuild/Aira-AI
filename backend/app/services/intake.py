@@ -9,6 +9,12 @@ import logging
 import uuid
 
 from app.services.gemini_client import gemini_chat_completion_json
+from app.services.intake_copy import (
+    compose_line,
+    compose_wrapped,
+    gather_context,
+    resolve_language_mode,
+)
 from app.services.notify import notify_pool
 from app.services.payment_razorpay import create_payment_link
 
@@ -162,18 +168,24 @@ def _rupees(amount_paise: int) -> str:
     return f"₹{amount_paise / 100:.2f}"
 
 
-def package_list_message(packages: list[dict], service_noun: str) -> str:
+def package_list_block(packages: list[dict]) -> str:
     """Rendered in Python, never by the LLM: these are prices the customer will
-    be held to, and a hallucinated figure is a real liability."""
+    be held to, and a hallucinated figure is a real liability. The surrounding
+    intro/question are composed in the tenant's language by intake_copy."""
     lines = []
     for p in packages:
         line = f"• {p['name']} — {_rupees(p['amount_paise'])}"
         if p.get("description"):
             line += f"\n  {p['description']}"
         lines.append(line)
+    return "\n".join(lines)
+
+
+def package_list_message(packages: list[dict], service_noun: str) -> str:
+    """English-only wrapper, kept for callers outside route_intake."""
     return (
         f"Here are our {service_noun} options:\n\n"
-        + "\n".join(lines)
+        + package_list_block(packages)
         + "\n\nWhich one would you like?"
     )
 
@@ -300,9 +312,18 @@ def _is_affirmative(message: str) -> bool:
     return bool(tokens & _AFFIRMATIVE_RE_WORDS)
 
 
-def _summary_text(fields: list[dict], collected_data: dict) -> str:
-    lines = [f"{f['label']}: {collected_data.get(f['key'], '—')}" for f in fields]
-    return "Here's what I've got:\n\n" + "\n".join(lines) + "\n\nIs that correct?"
+def _summary_block(fields: list[dict], collected_data: dict, skipped=()) -> str:
+    """The collected values, rendered in Python. Never LLM-written -- these are the
+    details the expert works from, and a rewritten value is a wrong reading. A field
+    the lead could not answer is marked distinctly from one still blank."""
+    skipped_set = set(skipped)
+    lines = []
+    for f in fields:
+        value = collected_data.get(f["key"])
+        if not value:
+            value = "— (not provided)" if f["key"] in skipped_set else "—"
+        lines.append(f"{f['label']}: {value}")
+    return "\n".join(lines)
 
 
 async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=None) -> bool:
@@ -318,6 +339,33 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
         config = get_intake_config(tenant_id, db=db)
         if not config.get("enabled"):
             return False
+
+        # Resolved once per turn and shared by every line this turn may send.
+        language_mode = resolve_language_mode(lead_id, tenant_id, db)
+        thread, knowledge = await gather_context(db, lead_id, tenant_id, body)
+
+        async def _say(purpose: str, **kwargs) -> None:
+            text = await compose_line(
+                purpose,
+                tenant_id=tenant_id,
+                language_mode=language_mode,
+                customer_message=body,
+                thread=thread,
+                knowledge=knowledge,
+                **kwargs,
+            )
+            await _send_and_log(phone, text, tenant_id, lead_id, db)
+
+        async def _say_summary(collected: dict, skipped=()) -> None:
+            text = await compose_wrapped(
+                "summary",
+                tenant_id=tenant_id,
+                language_mode=language_mode,
+                customer_message=body,
+                block=_summary_block(config["fields"], collected, skipped),
+                thread=thread,
+            )
+            await _send_and_log(phone, text, tenant_id, lead_id, db)
 
         session = _get_active_session(lead_id, tenant_id, db)
 
@@ -346,23 +394,26 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 patch = _package_patch(packages[0]) | {"collected_data": collected, "field_schema": config["fields"]}
                 if missing:
                     _update_session(session["id"], patch | {"status": "collecting"}, db)
-                    await _send_and_log(phone, f"Great! Could you share your {missing[0].lower()}?", tenant_id, lead_id, db)
+                    await _say("ask_field", field_label=missing[0])
                 else:
                     _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
-                    await _send_and_log(phone, _summary_text(config["fields"], collected), tenant_id, lead_id, db)
+                    await _say_summary(collected)
                 return True
             if not packages:
                 logger.error(f"Intake session {session['id']} has no packages configured despite being enabled")
-                await _send_and_log(
-                    phone,
-                    "Thanks! Our team will follow up shortly with the next steps.",
-                    tenant_id, lead_id, db,
-                )
+                await _say("no_packages")
                 return True
             _update_session(session["id"], {"status": "awaiting_package_choice"}, db)
             await _send_and_log(
                 phone,
-                package_list_message(packages, config["service_noun"]),
+                await compose_wrapped(
+                    "packages",
+                    tenant_id=tenant_id,
+                    language_mode=language_mode,
+                    customer_message=body,
+                    block=package_list_block(packages),
+                    thread=thread,
+                ),
                 tenant_id, lead_id, db,
             )
             return True
@@ -371,10 +422,17 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             packages = normalize_packages(config)
             chosen = await match_package(body, packages, tenant_id)
             if chosen is None:
+                intro = await compose_line(
+                    "package_reask",
+                    tenant_id=tenant_id,
+                    language_mode=language_mode,
+                    customer_message=body,
+                    thread=thread,
+                    knowledge=knowledge,
+                )
                 await _send_and_log(
                     phone,
-                    "Sorry, I didn't catch which one — "
-                    + package_list_message(packages, config["service_noun"]),
+                    f"{intro}\n\n{package_list_block(packages)}",
                     tenant_id, lead_id, db,
                 )
                 return True
@@ -386,14 +444,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             }
             if missing:
                 _update_session(session["id"], patch | {"status": "collecting"}, db)
-                await _send_and_log(
-                    phone,
-                    f"{chosen['name']} it is. Could you share your {missing[0].lower()}?",
-                    tenant_id, lead_id, db,
-                )
+                await _say("ask_field", field_label=missing[0])
             else:
                 _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
-                await _send_and_log(phone, _summary_text(config["fields"], collected), tenant_id, lead_id, db)
+                await _say_summary(collected)
             return True
 
         if status == "collecting":
@@ -401,10 +455,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             missing = missing_field_labels(config["fields"], collected)
             if missing:
                 _update_session(session["id"], {"collected_data": collected}, db)
-                await _send_and_log(phone, f"Thanks! And your {missing[0].lower()}?", tenant_id, lead_id, db)
+                await _say("ask_field", field_label=missing[0])
             else:
                 _update_session(session["id"], {"status": "awaiting_confirmation", "collected_data": collected}, db)
-                await _send_and_log(phone, _summary_text(config["fields"], collected), tenant_id, lead_id, db)
+                await _say_summary(collected)
             return True
 
         if status == "awaiting_confirmation":
@@ -417,11 +471,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             amount_paise = session.get("package_amount_paise")
             if not amount_paise:
                 logger.error(f"Intake session {session['id']} reached payment with no package amount")
-                await _send_and_log(
-                    phone,
-                    "We've received your details — our team will send the payment link shortly.",
-                    tenant_id, lead_id, db,
-                )
+                await _say("payment_delay")
                 return True
             service_noun = config["service_noun"].capitalize()
             try:
@@ -439,18 +489,22 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                     "amount_paise": amount_paise,
                     "payment_link": link["payment_link_url"],
                 }, db)
+                intro = await compose_line(
+                    "payment_intro",
+                    tenant_id=tenant_id,
+                    language_mode=language_mode,
+                    customer_message=body,
+                    thread=thread,
+                    knowledge=knowledge,
+                )
                 await _send_and_log(
                     phone,
-                    f"Great, here's your payment link:\n{link['payment_link_url']}",
+                    f"{intro}\n{link['payment_link_url']}",
                     tenant_id, lead_id, db,
                 )
             except Exception as e:
                 logger.error(f"Intake payment link creation failed for session {session['id']}: {e}")
-                await _send_and_log(
-                    phone,
-                    "We've received your details — our team will send the payment link shortly.",
-                    tenant_id, lead_id, db,
-                )
+                await _say("payment_delay")
             return True
 
         # awaiting_payment: nothing to do here, wait for the Razorpay webhook.
