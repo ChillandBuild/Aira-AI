@@ -123,3 +123,40 @@ class IntakeCsvRouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CsvFormulaInjectionTests(unittest.TestCase):
+    def test_leading_equals_in_a_field_value_gets_a_quote_prefix(self):
+        row = {
+            "leads": {"name": "=SUM(A1:A9)", "phone": "+91"}, "status": "paid",
+            "package_name": "Basic", "amount_paise": 1000,
+            "created_at": "2026-08-01T00:00:00Z", "paid_at": None,
+            "collected_data": {"name": "=SUM(A1:A9)", "note": "+1;calc"},
+        }
+
+        result = build_csv_row(row, ["note"])
+
+        self.assertEqual(result[0], "'=SUM(A1:A9)")
+        self.assertEqual(result[-1], "'+1;calc")
+
+    def test_ordinary_values_are_untouched(self):
+        row = {
+            "leads": {"name": "Cheran", "phone": "+918056110957"}, "status": "paid",
+            "package_name": "Basic", "amount_paise": 1000,
+            "created_at": "2026-08-01T00:00:00Z", "paid_at": None,
+            "collected_data": {},
+        }
+
+        result = build_csv_row(row, [])
+
+        self.assertEqual(result[0], "Cheran")
+        self.assertEqual(result[1], "+918056110957")
+
+    def test_header_label_starting_with_formula_char_is_quoted(self):
+        rows = [{"created_at": "2026-08-01T00:00:00Z",
+                 "field_schema": [{"key": "x", "label": "=cmd()"}],
+                 "collected_data": {"x": "1"}}]
+
+        headers = build_csv_headers(rows)
+
+        self.assertEqual(headers, [("x", "'=cmd()")])

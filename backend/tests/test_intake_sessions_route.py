@@ -95,3 +95,64 @@ class IntakeSessionsListTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class IntakeSessionsFilterInjectionTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_and_role] = lambda: {
+            "tenant_id": "t-1", "role": "owner", "permissions": [],
+        }
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    @patch("app.routes.intake.get_supabase")
+    def test_rejects_a_search_query_containing_postgrest_operators(self, mock_get_db):
+        mock_get_db.return_value = MagicMock()
+        res = self.client.get("/api/v1/intake/sessions?status=all&q=" + "a),status.eq.paid,phone.ilike.*")
+        self.assertEqual(res.status_code, 400)
+
+    @patch("app.routes.intake.get_supabase")
+    def test_accepts_an_ordinary_name_search(self, mock_get_db):
+        db = MagicMock()
+        rows = MagicMock()
+        rows.data = []
+        db.table.return_value.select.return_value.eq.return_value.in_.return_value.or_.return_value.order.return_value.order.return_value.limit.return_value.execute.return_value = rows
+        mock_get_db.return_value = db
+
+        res = self.client.get("/api/v1/intake/sessions?status=all&q=Cheran")
+
+        self.assertEqual(res.status_code, 200)
+
+    @patch("app.routes.intake.get_supabase")
+    def test_rejects_a_cursor_with_a_non_timestamp_created_at(self, mock_get_db):
+        mock_get_db.return_value = MagicMock()
+        res = self.client.get(
+            "/api/v1/intake/sessions?status=all&cursor="
+            + "2026),status.eq.paid,and(1.eq.1|11111111-1111-1111-1111-111111111111"
+        )
+        self.assertEqual(res.status_code, 400)
+
+    @patch("app.routes.intake.get_supabase")
+    def test_rejects_a_cursor_with_a_non_uuid_id(self, mock_get_db):
+        mock_get_db.return_value = MagicMock()
+        res = self.client.get(
+            "/api/v1/intake/sessions?status=all&cursor=2026-08-01T00:00:00Z|not-a-uuid"
+        )
+        self.assertEqual(res.status_code, 400)
+
+    @patch("app.routes.intake.get_supabase")
+    def test_accepts_a_well_formed_cursor(self, mock_get_db):
+        db = MagicMock()
+        rows = MagicMock()
+        rows.data = []
+        db.table.return_value.select.return_value.eq.return_value.in_.return_value.or_.return_value.order.return_value.order.return_value.limit.return_value.execute.return_value = rows
+        mock_get_db.return_value = db
+
+        res = self.client.get(
+            "/api/v1/intake/sessions?status=all&cursor=2026-08-01T00:00:00Z|11111111-1111-1111-1111-111111111111"
+        )
+
+        self.assertEqual(res.status_code, 200)

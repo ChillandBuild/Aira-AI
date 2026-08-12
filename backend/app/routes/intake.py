@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -35,6 +36,14 @@ SESSION_COLUMNS = (
 
 CSV_MAX_ROWS = 5000
 
+# Both q and cursor are interpolated into PostgREST filter-string syntax
+# (or_()), not bound as query parameters, so they're validated against a
+# strict allowlist before use rather than merely escaped — a value containing
+# PostgREST operators/commas/parens could otherwise reshape the filter.
+_SEARCH_QUERY_RE = re.compile(r"^[\w \-+@.]{1,64}$", re.UNICODE)
+_CURSOR_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?$")
+_CURSOR_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
 
 def _statuses_for(status: str) -> list[str]:
     if status == "all":
@@ -59,13 +68,16 @@ def _build_query(db, tenant_id: str, status: str, package: str | None, q: str | 
     if q:
         # Matches the lead's name or phone. PostgREST needs the embedded-table
         # syntax here because name/phone live on `leads`, not on the session.
-        escaped = q.replace(",", "")
-        query = query.or_(f"name.ilike.*{escaped}*,phone.ilike.*{escaped}*", foreign_table="leads")
+        if not _SEARCH_QUERY_RE.match(q):
+            raise HTTPException(status_code=400, detail="Invalid search query")
+        query = query.or_(f"name.ilike.*{q}*,phone.ilike.*{q}*", foreign_table="leads")
     if cursor:
         parts = cursor.split("|")
         if len(parts) != 2:
             raise HTTPException(status_code=400, detail="Malformed cursor")
         created_at, last_id = parts
+        if not _CURSOR_TIMESTAMP_RE.match(created_at) or not _CURSOR_ID_RE.match(last_id):
+            raise HTTPException(status_code=400, detail="Malformed cursor")
         # Keyset, not offset: rows arriving mid-scroll would make offset paging
         # duplicate and skip rows.
         query = query.or_(

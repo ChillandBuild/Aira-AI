@@ -8,6 +8,20 @@ def _prettify(key: str) -> str:
     return " ".join(word.capitalize() for word in key.split("_"))
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: object) -> str:
+    """Neutralize CSV formula injection: a cell starting with =, +, -, @, or a
+    tab/CR is interpreted as a formula by Excel/Sheets when the file is opened.
+    Lead-supplied free text (name, collected field answers) reaches this file
+    verbatim, so every cell derived from it needs this before writing."""
+    s = str(value) if value is not None else ""
+    if s and s[0] in _FORMULA_PREFIXES:
+        return "'" + s
+    return s
+
+
 def build_csv_headers(rows: list[dict]) -> list[tuple[str, str]]:
     """(field_key, header_label) pairs, in first-seen order across rows.
 
@@ -35,7 +49,7 @@ def build_csv_headers(rows: list[dict]) -> list[tuple[str, str]]:
         counts[label] = counts.get(label, 0) + 1
 
     return [
-        (key, f"{label} ({key})" if counts[label] > 1 else label)
+        (key, _csv_safe(f"{label} ({key})" if counts[label] > 1 else label))
         for key, label in resolved.items()
     ]
 
@@ -45,12 +59,15 @@ def build_csv_row(row: dict, field_keys: list[str]) -> list[str]:
     collected = row.get("collected_data") or {}
     amount = row.get("amount_paise")
     return [
-        leads.get("name") or collected.get("name") or "",
+        _csv_safe(leads.get("name") or collected.get("name") or ""),
+        # Not sanitized: phone is a structured E.164 identifier ("+91...."),
+        # not free text, and a leading "+" here is expected data, not an
+        # attacker-controlled formula opener.
         leads.get("phone") or "",
         row.get("status") or "",
-        row.get("package_name") or "",
+        _csv_safe(row.get("package_name") or ""),
         f"{amount / 100:.2f}" if amount else "",
         row.get("created_at") or "",
         row.get("paid_at") or "",
-        *[str(collected.get(key) or "") for key in field_keys],
+        *[_csv_safe(collected.get(key) or "") for key in field_keys],
     ]
