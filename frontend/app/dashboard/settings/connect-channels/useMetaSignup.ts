@@ -8,6 +8,12 @@ import type { MetaSignupMode, ReadyMetaSignup } from "./metaSignupMode";
 // Not secrets — safe to expose client-side. Env var lets prod/staging override.
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
 const META_UNIFIED_CONFIG_ID = process.env.NEXT_PUBLIC_META_UNIFIED_CONFIG_ID || "2026693308738446";
+// Coexistence needs a WhatsApp-only Embedded Signup configuration. On the unified
+// configuration Meta ignores the whatsapp_business_app_onboarding featureType and
+// runs ordinary onboarding instead; this is the configuration that last completed
+// a real coexistence signup (tenant Astro Tamil - Co, 2026-08-10).
+const META_COEXISTENCE_CONFIG_ID =
+  process.env.NEXT_PUBLIC_META_COEXISTENCE_CONFIG_ID || "1063294086656120";
 
 declare global {
   interface Window {
@@ -137,7 +143,10 @@ export function useMetaSignup({
           const ready = coordinatorRef.current.receiveCode(attemptId, code);
           if (ready) void finish(ready);
         },
-        buildMetaLoginOptions(META_UNIFIED_CONFIG_ID, mode)
+        buildMetaLoginOptions(
+          mode === "coexistence" ? META_COEXISTENCE_CONFIG_ID : META_UNIFIED_CONFIG_ID,
+          mode
+        )
       );
     } catch (err) {
       coordinatorRef.current.cancel(attemptId);
