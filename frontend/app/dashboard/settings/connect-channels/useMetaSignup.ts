@@ -1,7 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import type { EmbeddedSignupSession, MetaBusinessAssets, MetaBusinessLoginState } from "./channels";
+import type { MetaBusinessAssets, MetaBusinessLoginState } from "./channels";
+import { MetaSignupCoordinator, buildMetaLoginOptions } from "./metaSignupMode";
+import type { MetaSignupMode, ReadyMetaSignup } from "./metaSignupMode";
 
 // Not secrets — safe to expose client-side. Env var lets prod/staging override.
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
@@ -60,16 +62,12 @@ export function useMetaSignup({
   const [assets, setAssets] = useState<MetaBusinessAssets | null>(null);
   const [selectedPageId, setSelectedPageId] = useState("");
   const [selectedAdAccountId, setSelectedAdAccountId] = useState("");
-  const sessionRef = useRef<EmbeddedSignupSession>({});
-  const codeRef = useRef<string | null>(null);
+  const [activeMode, setActiveMode] = useState<MetaSignupMode | null>(null);
+  const coordinatorRef = useRef(new MetaSignupCoordinator());
 
-  const finish = useCallback(async () => {
+  const finish = useCallback(async ({ code, session }: ReadyMetaSignup) => {
     if (!canManage) return;
-    const code = codeRef.current;
-    const session = sessionRef.current;
-    if (!code || !session.waba_id || !session.phone_number_id) return;
-    codeRef.current = null;
-    sessionRef.current = {};
+    setActiveMode(null);
     setState("connecting");
     setError(null);
     try {
@@ -92,65 +90,65 @@ export function useMetaSignup({
       setSelectedPageId(granted.pages.length === 1 ? granted.pages[0].id : "");
       setSelectedAdAccountId("");
       setState("selecting");
+      setActiveMode(null);
     } catch (err) {
       setState("error");
       setError(err instanceof Error ? err.message : "Connecting Meta Business failed");
+      setActiveMode(null);
     }
   }, [canManage]);
 
   useEffect(() => {
     function handleUnifiedMessage(event: MessageEvent) {
       if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
+      if (!event.source || typeof event.source !== "object") return;
       try {
-        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-        if (
-          data?.type === "WA_EMBEDDED_SIGNUP" &&
-          (data?.event === "FINISH" || data?.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING")
-        ) {
-          sessionRef.current = {
-            waba_id: data.data?.waba_id,
-            phone_number_id: data.data?.phone_number_id,
-            business_id: data.data?.business_id,
-            is_coexistence: data.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
-          };
-          finish();
-        }
-      } catch {}
+        const ready = coordinatorRef.current.receiveMessage(event.data as unknown, event.source);
+        if (ready) void finish(ready);
+      } catch (err) {
+        setState("error");
+        setError(err instanceof Error ? err.message : "Meta returned the wrong signup flow");
+        setActiveMode(null);
+      }
     }
     window.addEventListener("message", handleUnifiedMessage);
     return () => window.removeEventListener("message", handleUnifiedMessage);
   }, [finish]);
 
-  const start = useCallback(async (isCoexistence = false) => {
+  const start = useCallback(async (mode: MetaSignupMode) => {
     if (!canManage) return;
+    const attemptId = coordinatorRef.current.begin(mode);
+    if (attemptId === null) return;
     setState("connecting");
     setError(null);
-    codeRef.current = null;
-    sessionRef.current = {};
+    setActiveMode(mode);
     try {
       await loadFacebookSdk();
       window.FB?.login(
         (response) => {
+          if (!coordinatorRef.current.isActive(attemptId)) return;
           const code = response?.authResponse?.code;
           if (!code) {
+            coordinatorRef.current.cancel(attemptId);
             setState("idle");
+            setActiveMode(null);
             return;
           }
-          codeRef.current = code;
-          finish();
+          const ready = coordinatorRef.current.receiveCode(attemptId, code);
+          if (ready) void finish(ready);
         },
-        {
-          config_id: META_UNIFIED_CONFIG_ID,
-          response_type: "code",
-          override_default_response_type: true,
-          ...(isCoexistence ? { extras: { featureType: "whatsapp_business_app_onboarding", sessionInfoVersion: "3" } } : {}),
-        }
+        buildMetaLoginOptions(META_UNIFIED_CONFIG_ID, mode)
       );
     } catch (err) {
+      coordinatorRef.current.cancel(attemptId);
       setState("error");
       setError(err instanceof Error ? err.message : "Could not open Meta signup");
+      setActiveMode(null);
     }
   }, [canManage, finish]);
+
+  const startStandard = useCallback(() => start("standard"), [start]);
+  const startCoexistence = useCallback(() => start("coexistence"), [start]);
 
   const complete = useCallback(async () => {
     if (!canManage || !assets || !selectedPageId) return;
@@ -182,6 +180,7 @@ export function useMetaSignup({
     setAssets(null);
     setState("idle");
     setError(null);
+    setActiveMode(null);
   }, []);
 
   const isBusy = state === "connecting" || state === "finishing";
@@ -192,9 +191,11 @@ export function useMetaSignup({
     assets,
     selectedPageId,
     selectedAdAccountId,
+    activeMode,
     setSelectedPageId,
     setSelectedAdAccountId,
-    start,
+    startStandard,
+    startCoexistence,
     complete,
     dismissAssets,
     isBusy,

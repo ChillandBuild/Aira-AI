@@ -19,7 +19,9 @@ export default function EmbeddedSection({
   isBusy,
   error,
   isConnected,
+  activeMode,
   onConnect,
+  onConnectCoexistence,
   onRefreshHealth,
   onManageChannel,
   onDisconnect,
@@ -31,7 +33,9 @@ export default function EmbeddedSection({
   isBusy: boolean;
   error: string | null;
   isConnected: boolean;
-  onConnect: (isCoexistence?: boolean) => void;
+  activeMode: "standard" | "coexistence" | null;
+  onConnect: () => void;
+  onConnectCoexistence: () => void;
   onRefreshHealth: () => void;
   onManageChannel: (channel: ChannelConfig) => void;
   onDisconnect: (channelId: string) => void;
@@ -61,32 +65,37 @@ export default function EmbeddedSection({
             ))}
           </ul>
           {error && <p className="mt-4 rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{error}</p>}
-          <button
-            type="button"
-            onClick={() => onConnect()}
-            disabled={!canManage || isBusy}
-            className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(16,185,129,0.22)] transition-all hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
-          >
-            {isBusy ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>{isConnected ? "Reconnect Meta Business" : "Connect Meta Business"} <ArrowRight size={16} /></>}
-          </button>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-stretch">
+            <button
+              type="button"
+              onClick={onConnect}
+              disabled={!canManage || isBusy}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(16,185,129,0.22)] transition-all hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
+            >
+              {isBusy && activeMode === "standard" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>{isConnected ? "Reconnect Meta Business" : "Connect Meta Business"} <ArrowRight size={16} /></>}
+            </button>
+            <button
+              type="button"
+              onClick={onConnectCoexistence}
+              disabled={!canManage || isBusy}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-3 font-label text-sm font-bold text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-6"
+            >
+              {isBusy && activeMode === "coexistence" ? <><Loader2 size={16} className="animate-spin" />Opening coexistence…</> : <>Connect WhatsApp Business App <ArrowRight size={16} /></>}
+            </button>
+          </div>
+          <p className="mt-2 font-body text-xs text-emerald-700">
+            Already use the WhatsApp Business app? The second option keeps the mobile app connected.
+          </p>
           {isConnected && (
             <button
               type="button"
               onClick={() => onDisconnect("meta")}
               disabled={!canManage || isBusy}
-              className="mt-2 rounded-xl border border-[#e8e3db] px-4 py-3 font-label text-sm font-bold text-[#78716c] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60 sm:ml-3 sm:mt-5"
+              className="mt-2 rounded-xl border border-[#e8e3db] px-4 py-3 font-label text-sm font-bold text-[#78716c] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Disconnect
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => onConnect(true)}
-            disabled={!canManage || isBusy}
-            className="mt-2 flex items-center gap-1.5 rounded-xl px-1 py-2 font-label text-xs font-semibold text-emerald-700 transition-all hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Already using the WhatsApp Business app? Connect without switching <ArrowRight size={12} />
-          </button>
         </div>
         <div className="hidden lg:block"><ZephyrCourier variant="embedded" /></div>
       </div>
