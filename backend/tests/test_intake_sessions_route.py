@@ -30,7 +30,7 @@ class IntakeSessionsListTests(unittest.TestCase):
         return db
 
     @patch("app.routes.intake.get_supabase")
-    def test_status_all_returns_the_three_visible_statuses(self, mock_get_db):
+    def test_status_all_returns_the_two_visible_statuses(self, mock_get_db):
         db = self._db_returning([])
         mock_get_db.return_value = db
 
@@ -38,7 +38,7 @@ class IntakeSessionsListTests(unittest.TestCase):
 
         self.assertEqual(res.status_code, 200)
         db.table.return_value.select.return_value.eq.return_value.in_.assert_called_with(
-            "status", ["awaiting_payment", "paid", "resolved"]
+            "status", ["awaiting_payment", "paid"]
         )
 
     @patch("app.routes.intake.get_supabase")

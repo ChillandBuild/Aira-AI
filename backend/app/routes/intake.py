@@ -26,7 +26,7 @@ router = APIRouter()
 require_conversations_view = require_permission("conversations.view")
 require_conversations_reply = require_permission("conversations.reply")
 
-VISIBLE_STATUSES = ["awaiting_payment", "paid", "resolved"]
+VISIBLE_STATUSES = ["awaiting_payment", "paid"]
 
 SESSION_COLUMNS = (
     "id, lead_id, status, collected_data, field_schema, amount_paise, "

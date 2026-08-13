@@ -157,6 +157,12 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "View and manage your profile details, passwords and API access.",
     };
   }
+  if (pathname === "/dashboard/intake") {
+    return {
+      title: "Intake",
+      description: "Leads who completed a paid intake flow — awaiting payment, paid, and resolved.",
+    };
+  }
   if (pathname === "/dashboard/notes") {
     return {
       title: "Call Notes",

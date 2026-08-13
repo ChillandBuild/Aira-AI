@@ -1,20 +1,24 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
-import { API_URL, IntakeSession, IntakeStatus, api, getAuthHeaders } from "@/lib/api";
+import { API_URL, IntakeSession, api, getAuthHeaders } from "@/lib/api";
 import { IntakeTable } from "./IntakeTable";
-import { IntakeDrawer } from "./IntakeDrawer";
 import { ColumnPicker } from "./ColumnPicker";
 import { deriveColumns } from "./columns";
 
-type Filter = IntakeStatus | "all";
+type Filter = "all" | "awaiting_payment" | "paid";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "awaiting_payment", label: "Awaiting Payment" },
   { key: "paid", label: "Paid" },
-  { key: "resolved", label: "Resolved" },
 ];
+
+interface PackageOption {
+  key: string;
+  name: string;
+  amount_paise: number;
+}
 
 export default function IntakePage() {
   const [filter, setFilter] = useState<Filter>("all");
@@ -23,8 +27,8 @@ export default function IntakePage() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [selected, setSelected] = useState<IntakeSession | null>(null);
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
+  const [packages, setPackages] = useState<PackageOption[]>([]);
 
   const columns = useMemo(() => deriveColumns(rows), [rows]);
   const visibleKeys = useMemo(
@@ -44,9 +48,19 @@ export default function IntakePage() {
   }, [filter, query]);
 
   useEffect(() => {
-    setSelected(null);
     loadFirstPage();
   }, [loadFirstPage]);
+
+  useEffect(() => {
+    (async () => {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/settings/intake-config`, { headers: auth });
+      if (res.ok) {
+        const config = await res.json();
+        setPackages(config.packages ?? []);
+      }
+    })();
+  }, []);
 
   const loadMore = useCallback(async () => {
     if (!cursor || loadingMore) return;
@@ -63,6 +77,11 @@ export default function IntakePage() {
       setLoadingMore(false);
     }
   }, [cursor, filter, loadingMore, query]);
+
+  async function handleChangePackage(sessionId: string, packageKey: string) {
+    await api.intake.changePackage(sessionId, packageKey);
+    loadFirstPage();
+  }
 
   async function downloadCsv() {
     const auth = await getAuthHeaders();
@@ -134,25 +153,14 @@ export default function IntakePage() {
             rows={rows}
             columns={columns}
             visibleKeys={visibleKeys}
-            selectedId={selected?.id ?? null}
+            packages={packages}
             hasMore={Boolean(cursor)}
             loadingMore={loadingMore}
-            onSelect={setSelected}
             onLoadMore={loadMore}
+            onChangePackage={handleChangePackage}
           />
         )}
       </div>
-
-      {selected && (
-        <IntakeDrawer
-          session={selected}
-          onClose={() => setSelected(null)}
-          onChanged={() => {
-            setSelected(null);
-            loadFirstPage();
-          }}
-        />
-      )}
     </div>
   );
 }
