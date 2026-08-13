@@ -129,6 +129,41 @@ def test_system_prompt_tells_the_model_to_answer_real_questions_first():
 
 
 @pytest.mark.asyncio
+async def test_compose_line_carries_the_main_brain_identity():
+    """The collector used to compose with only a tiny hand-written system prompt --
+    no master prompt, no business description, no lead context -- so it read as a
+    different, thinner assistant the moment the paid flow took over."""
+    captured = {}
+
+    async def fake_llm_chat(messages, max_tokens, tenant_id):
+        captured["messages"] = messages
+        return "Unga place of birth sollunga."
+
+    with patch.object(ic, "_llm_chat", new=AsyncMock(side_effect=fake_llm_chat)), \
+         patch.object(ic, "_brain_prompt", return_value="MASTER PROMPT\n\nBUSINESS DESCRIPTION:\nAstro stuff"):
+        await ic.compose_line(
+            "ask_field", tenant_id="t-1", language_mode="tanglish",
+            customer_message="seri", field_label="Place of birth",
+            brain_prompt="MASTER PROMPT\n\nBUSINESS DESCRIPTION:\nAstro stuff",
+        )
+    system_content = captured["messages"][0]["content"]
+    assert "MASTER PROMPT" in system_content
+    assert "BUSINESS DESCRIPTION" in system_content
+    # the collector's own rules must still win over the general prompt
+    assert "TASK" in system_content or "real question" in system_content.lower()
+
+
+@pytest.mark.asyncio
+async def test_compose_line_works_without_a_brain_prompt():
+    with patch.object(ic, "_llm_chat", new=AsyncMock(return_value="Unga place of birth sollunga.")):
+        text = await ic.compose_line(
+            "ask_field", tenant_id="t-1", language_mode="tanglish",
+            customer_message="seri", field_label="Place of birth",
+        )
+    assert text == "Unga place of birth sollunga."
+
+
+@pytest.mark.asyncio
 async def test_compose_line_sends_flow_facts_to_the_model():
     captured = {}
 

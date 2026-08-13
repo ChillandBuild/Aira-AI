@@ -10,6 +10,7 @@ import uuid
 
 from app.services.gemini_client import gemini_chat_completion_json
 from app.services.intake_copy import (
+    collector_identity,
     compose_line,
     compose_wrapped,
     gather_context,
@@ -367,6 +368,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
         # Resolved once per turn and shared by every line this turn may send.
         language_mode = resolve_language_mode(lead_id, tenant_id, db)
         thread, knowledge = await gather_context(db, lead_id, tenant_id, body)
+        brain_prompt = collector_identity(db, lead_id, tenant_id, body)
 
         async def _say(purpose: str, **kwargs) -> None:
             text = await compose_line(
@@ -376,6 +378,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 customer_message=body,
                 thread=thread,
                 knowledge=knowledge,
+                brain_prompt=brain_prompt,
                 **kwargs,
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)

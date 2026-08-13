@@ -149,6 +149,24 @@ def _resolve_reply_language_mode(tenant_id: str | None) -> str:
     return _resolve(tenant_id)
 
 
+def _brain_prompt(db, lead_id: str, tenant_id: str, lead_data: dict, message: str) -> str:
+    """The main brain's own system prompt -- master prompt, business description, app
+    link rule, campaign and lead context. Passed to the collector so it speaks as the
+    same assistant rather than a thinner stand-in.
+
+    include_intake_context=False: this IS the intake flow, so being told an intake is
+    in progress is noise, and the 'do not mention the app' rule there would fight the
+    collector's own task wording. catalog_context is left empty deliberately -- product
+    recommendations have no business interrupting a payment flow.
+    """
+    from app.services.ai_reply import build_reply_system_prompt
+    prompt, _mode = build_reply_system_prompt(
+        db, lead_id, tenant_id, lead_data, message,
+        include_intake_context=False,
+    )
+    return prompt
+
+
 def resolve_language_mode(lead_id: str, tenant_id: str, db) -> str:
     """The language the intake flow should speak to THIS lead in. Forced modes pass
     through; tanglish_escalate_tamil resolves against leads.tamil_locked, which the
@@ -198,6 +216,25 @@ async def gather_context(db, lead_id: str, tenant_id: str, message: str) -> tupl
     return thread, knowledge
 
 
+def collector_identity(db, lead_id: str, tenant_id: str, message: str) -> str:
+    """The main brain's system prompt for this lead, for the collector to speak with.
+    Best-effort: on any failure the collector falls back to its own minimal prompt,
+    which is exactly how it behaved before -- a thinner voice, never a broken one."""
+    try:
+        row = (
+            db.table("leads")
+            .select("name,segment,needs_human_attention,tamil_locked")
+            .eq("id", str(lead_id))
+            .maybe_single()
+            .execute()
+        )
+        lead_data = (row.data if row else None) or {}
+        return _brain_prompt(db, lead_id, tenant_id, lead_data, message)
+    except Exception:
+        logger.warning("Collector identity build failed for lead %s -- using base prompt", lead_id)
+        return ""
+
+
 def _render_thread(thread: list[dict] | None) -> str:
     if not thread:
         return ""
@@ -243,16 +280,23 @@ async def compose_line(
     next_field_label: str | None = None,
     thread: list[dict] | None = None,
     knowledge: str = "",
+    brain_prompt: str = "",
 ) -> str:
-    """One outgoing collector line, worded in the tenant's configured language."""
+    """One outgoing collector line, worded in the tenant's configured language.
+
+    brain_prompt is the main brain's system prompt (see _brain_prompt). When present
+    the collector speaks with the business's real identity and rules; the collector's
+    own rules are appended after it so they win on conflict.
+    """
     if purpose not in PURPOSES:
         raise ValueError(f"unknown intake copy purpose: {purpose}")
     task = _TASKS[purpose].format(
         field_label=field_label or "the detail",
         next_field_label=next_field_label or "the next detail",
     )
+    system_content = f"{brain_prompt}\n\n{_SYSTEM_PROMPT}" if brain_prompt else _SYSTEM_PROMPT
     messages = [
-        {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": system_content},
         {
             "role": "user",
             "content": _user_prompt(task, language_mode, customer_message, thread, knowledge),
