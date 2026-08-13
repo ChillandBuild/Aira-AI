@@ -85,6 +85,8 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   const [wrapupQualityRating, setWrapupQualityRating] = useState(0);
   const [wrapupStartedAt, setWrapupStartedAt] = useState("");
   const [wrapupEndedAt, setWrapupEndedAt] = useState("");
+  const [wrapupCallbackDate, setWrapupCallbackDate] = useState("");
+  const [wrapupCallbackTime, setWrapupCallbackTime] = useState("");
   const [pendingWrapups, setPendingWrapups] = useState<CallLog[]>([]);
 
   // Live script panel
@@ -564,6 +566,8 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setWrapupQualityRating(0);
     setWrapupStartedAt("");
     setWrapupEndedAt("");
+    setWrapupCallbackDate("");
+    setWrapupCallbackTime("");
   }
 
   async function sendSimHandoffToMobile() {
@@ -609,6 +613,11 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     if (!activeCallCtx) return;
     if (!wrapupOutcome) {
       toast.error("Outcome is required");
+      return;
+    }
+    const needsCallbackSchedule = wrapupOutcome === "callback" && !!activeCallCtx.leadId;
+    if (needsCallbackSchedule && (!wrapupCallbackDate || !wrapupCallbackTime)) {
+      toast.error("Pick a date and time for the callback");
       return;
     }
     setWrapupSaving(true);
@@ -661,6 +670,15 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         await api.leads.convert(activeCallCtx.leadId, wrapupNotes);
       } else if (wrapupOutcome !== "converted" && activeCallCtx.leadId && (wrapupNotes.trim() || wrapupTags.length > 0)) {
         await saveNote(activeCallCtx.leadId, wrapupNotes, false, wrapupTags);
+      }
+
+      if (needsCallbackSchedule && activeCallCtx.leadId) {
+        await createCallback(
+          activeCallCtx.leadId,
+          new Date(`${wrapupCallbackDate}T${wrapupCallbackTime}`).toISOString(),
+          wrapupNotes.trim() || undefined,
+        );
+        loadCallbacks();
       }
 
       toast.success("Wrap-up completed");
@@ -792,6 +810,10 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setWrapupStartedAt,
     wrapupEndedAt,
     setWrapupEndedAt,
+    wrapupCallbackDate,
+    setWrapupCallbackDate,
+    wrapupCallbackTime,
+    setWrapupCallbackTime,
     wrapupSaving,
     handleWrapupSubmit,
     pendingWrapups,

@@ -1,5 +1,31 @@
 """Attendance resolution: admin overrides win, else derive from caller_status_logs activity."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+
+
+def mark_activity_today(db, caller_id: str, tenant_id: str) -> None:
+    """Best-effort presence marker: ensure today has a caller_status_logs row.
+
+    Called from real work events (e.g. dialing a call) so attendance reflects
+    actual activity even if the login ping (SessionTracker) never re-fires —
+    a long-lived PWA session that stays open across midnight is the common case.
+    """
+    today_start = date.today().isoformat()
+    existing = (
+        db.table("caller_status_logs")
+        .select("id")
+        .eq("caller_id", caller_id)
+        .gte("started_at", f"{today_start}T00:00:00")
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        return
+    db.table("caller_status_logs").insert({
+        "caller_id": caller_id,
+        "tenant_id": tenant_id,
+        "status": "active",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+    }).execute()
 
 
 def resolve_day_status(

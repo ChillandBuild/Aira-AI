@@ -22,6 +22,7 @@ from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call
 from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
+from app.services.attendance import mark_activity_today
 
 
 logger = logging.getLogger(__name__)
@@ -281,6 +282,12 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             caller_telecmi_agent_password = caller.data.get("telecmi_agent_password") or None
     if role != "owner" and not caller_phone:
         raise HTTPException(status_code=400, detail="Caller has no phone number configured")
+
+    if payload.caller_id:
+        try:
+            mark_activity_today(db, str(payload.caller_id), tenant_id)
+        except Exception as e:
+            logger.warning(f"Failed to mark caller activity for attendance: {e}")
 
     log_insert = db.table("call_logs").insert({
         "lead_id": matched_lead_id,

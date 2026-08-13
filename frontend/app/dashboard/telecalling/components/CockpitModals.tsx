@@ -1,5 +1,5 @@
 "use client";
-import { AlertCircle, Check, Copy, Phone, RefreshCw, Send, Star, X } from "lucide-react";
+import { AlertCircle, CalendarClock, Check, Copy, Phone, RefreshCw, Send, Star, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { formatPhone } from "@/lib/utils";
@@ -60,6 +60,10 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     setWrapupStartedAt,
     wrapupEndedAt,
     setWrapupEndedAt,
+    wrapupCallbackDate,
+    setWrapupCallbackDate,
+    wrapupCallbackTime,
+    setWrapupCallbackTime,
   } = cockpit;
 
   const simDurationSeconds = (() => {
@@ -253,6 +257,28 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                 </div>
               </div>
 
+              {wrapupOutcome === "callback" && activeCallCtx.leadId && (
+                <div className="flex flex-col gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                  <h4 className="font-display text-[10px] font-black text-amber-700 tracking-widest uppercase flex items-center gap-1.5">
+                    <CalendarClock size={11} /> Schedule Callback *
+                  </h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={wrapupCallbackDate}
+                      onChange={(e) => setWrapupCallbackDate(e.target.value)}
+                      className="flex-1 px-2 py-1.5 rounded-lg border border-amber-200 bg-white font-body text-[11px] focus:outline-none focus:ring-2 focus:ring-amber-300"
+                    />
+                    <input
+                      type="time"
+                      value={wrapupCallbackTime}
+                      onChange={(e) => setWrapupCallbackTime(e.target.value)}
+                      className="flex-1 px-2 py-1.5 rounded-lg border border-amber-200 bg-white font-body text-[11px] focus:outline-none focus:ring-2 focus:ring-amber-300"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
                   {activeCallProvider === "sim_basic" ? "Call Summary / Notes" : "Interaction Note / Comments"}
@@ -314,7 +340,11 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
               <button
                 type="button"
                 onClick={handleWrapupSubmit}
-                disabled={wrapupSaving || !wrapupOutcome}
+                disabled={
+                  wrapupSaving ||
+                  !wrapupOutcome ||
+                  (wrapupOutcome === "callback" && !!activeCallCtx.leadId && (!wrapupCallbackDate || !wrapupCallbackTime))
+                }
                 className="flex-1 py-3 bg-primary hover:bg-primary-dark text-white rounded-2xl font-label text-xs font-black shadow-md hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
               >
                 {wrapupSaving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}

@@ -82,10 +82,12 @@ async def update_my_status(payload: StatusToggle, ctx: dict = Depends(get_tenant
         .execute()
     ).data
 
-    if current and current["status"] == payload.status:
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    changed_at_date = (current.get("status_changed_at") or "")[:10] if current else None
+    same_status_today = current and current["status"] == payload.status and changed_at_date == now_dt.date().isoformat()
+    if same_status_today:
         return {"status": payload.status, "changed_at": current["status_changed_at"]}
-
-    now = datetime.now(timezone.utc).isoformat()
 
     # Close the previous status log entry
     db.table("caller_status_logs").update(
