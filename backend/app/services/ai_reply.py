@@ -1176,6 +1176,104 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
     return text_block, tools, items_by_id, max_images
 
 
+def build_reply_system_prompt(
+    db,
+    lead_id: str,
+    tenant_id: str,
+    lead_data: dict,
+    message: str,
+    channel: str = "whatsapp",
+    *,
+    campaign_name: str | None = None,
+    context_text: str = "",
+    catalog_context: str = "",
+    include_intake_context: bool = True,
+) -> tuple[str, str]:
+    """Assemble the main-brain system prompt, and return the reply language mode it
+    was built with (the caller needs that mode for the post-generation script-mismatch
+    check).
+
+    Extracted verbatim from generate_reply so other flows can speak with the same
+    voice. The intake collector composes its own lines and had none of this -- no
+    master prompt, no business description, no lead or campaign context -- which is
+    why it reads as a thinner, different assistant mid-conversation.
+
+    include_intake_context=False for callers that ARE the intake flow: telling the
+    collector "an intake is in progress" is noise at best, contradictory at worst.
+    """
+    system_prompt = _build_base_prompt(channel, tenant_id)
+    if campaign_name:
+        system_prompt += (
+            f'\n\nCAMPAIGN CONTEXT:\nThis lead came from the "{campaign_name}" campaign. '
+            "Assume their questions relate to that unless they clearly ask about something else. "
+            "If they ask about something outside it, offer to connect them with the team."
+        )
+    if context_text:
+        system_prompt += "\n\nKNOWLEDGE BASE:\nUse the following excerpts to answer the user's question accurately. If the answer is not in the excerpts, say you will connect them with a team member.\n\n" + context_text
+
+    lead_name = (lead_data.get("name") or "").strip()
+    lead_segment = lead_data.get("segment") or "C"
+    summary = _fetch_conversation_summary(db, lead_id)
+
+    lead_facts: list[str] = []
+    if lead_name:
+        lead_facts.append(f"Lead name: {lead_name}")
+    lead_facts.append(f"Current segment: {lead_segment} (A=hot, B=warm, C=cold, D=disqualified)")
+    if summary:
+        lead_facts.append(f"Earlier conversation summary:\n{summary}")
+    system_prompt += "\n\nLEAD CONTEXT:\n" + "\n".join(lead_facts)
+
+    reply_language_mode = _resolve_reply_language_mode(tenant_id)
+    if reply_language_mode == "tanglish_escalate_tamil":
+        reply_language_mode = _resolve_tamil_lock(db, lead_id, lead_data, message)
+    system_prompt += _language_rule_block(reply_language_mode, message)
+
+    # Escalated leads keep talking to the AI, but it must answer as a
+    # holding presence, not as if nothing happened. Degrades to a normal
+    # reply if business hours can't be read — never to no reply.
+    if lead_data.get("needs_human_attention"):
+        try:
+            from app.services.business_hours import get_business_hours
+            system_prompt += _escalation_prompt_block(
+                get_business_hours(tenant_id, db=db)
+            )
+        except Exception:
+            logger.exception(
+                "Escalation prompt block failed for lead %s — replying without it",
+                lead_id,
+            )
+
+    if include_intake_context:
+        try:
+            from app.services.intake import (
+                get_in_progress_session,
+                get_intake_config,
+                get_paid_unresolved_session,
+            )
+            if get_paid_unresolved_session(lead_id, tenant_id, db=db):
+                system_prompt += _intake_paid_prompt_block(
+                    get_intake_config(tenant_id, db=db)["service_noun"]
+                )
+            elif get_in_progress_session(lead_id, tenant_id, db=db):
+                # Covers collecting/awaiting_confirmation/awaiting_payment turns that
+                # route_intake handed back to the AI (e.g. a correction, or an
+                # off-topic question) -- without this the AI has no idea a sale is
+                # mid-flow and can derail it. See _intake_in_progress_prompt_block.
+                system_prompt += _intake_in_progress_prompt_block(
+                    get_intake_config(tenant_id, db=db)["service_noun"]
+                )
+        except Exception:
+            logger.exception(
+                "Intake session-context check failed for lead %s — replying without it",
+                lead_id,
+            )
+
+    if catalog_context:
+        system_prompt += catalog_context
+
+    return system_prompt, reply_language_mode
+
+
 async def generate_reply(
     lead_id: str,
     message: str,
@@ -1334,74 +1432,17 @@ async def generate_reply(
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
 
     try:
-        system_prompt = _build_base_prompt(channel, lead_data.get("tenant_id"))
-        if campaign_name:
-            system_prompt += (
-                f'\n\nCAMPAIGN CONTEXT:\nThis lead came from the "{campaign_name}" campaign. '
-                "Assume their questions relate to that unless they clearly ask about something else. "
-                "If they ask about something outside it, offer to connect them with the team."
-            )
-        if context_text:
-            system_prompt += "\n\nKNOWLEDGE BASE:\nUse the following excerpts to answer the user's question accurately. If the answer is not in the excerpts, say you will connect them with a team member.\n\n" + context_text
-
-        lead_name = (lead_data.get("name") or "").strip()
-        lead_segment = lead_data.get("segment") or "C"
-        summary = _fetch_conversation_summary(db, lead_id)
-
-        lead_facts: list[str] = []
-        if lead_name:
-            lead_facts.append(f"Lead name: {lead_name}")
-        lead_facts.append(f"Current segment: {lead_segment} (A=hot, B=warm, C=cold, D=disqualified)")
-        if summary:
-            lead_facts.append(f"Earlier conversation summary:\n{summary}")
-        system_prompt += "\n\nLEAD CONTEXT:\n" + "\n".join(lead_facts)
-
-        reply_language_mode = _resolve_reply_language_mode(tenant_id)
-        if reply_language_mode == "tanglish_escalate_tamil":
-            reply_language_mode = _resolve_tamil_lock(db, lead_id, lead_data, message)
-        system_prompt += _language_rule_block(reply_language_mode, message)
-
-        # Escalated leads keep talking to the AI, but it must answer as a
-        # holding presence, not as if nothing happened. Degrades to a normal
-        # reply if business hours can't be read — never to no reply.
-        if lead_data.get("needs_human_attention"):
-            try:
-                from app.services.business_hours import get_business_hours
-                system_prompt += _escalation_prompt_block(
-                    get_business_hours(tenant_id, db=db)
-                )
-            except Exception:
-                logger.exception(
-                    "Escalation prompt block failed for lead %s — replying without it",
-                    lead_id,
-                )
-
-        try:
-            from app.services.intake import (
-                get_in_progress_session,
-                get_intake_config,
-                get_paid_unresolved_session,
-            )
-            if get_paid_unresolved_session(lead_id, tenant_id, db=db):
-                system_prompt += _intake_paid_prompt_block(
-                    get_intake_config(tenant_id, db=db)["service_noun"]
-                )
-            elif get_in_progress_session(lead_id, tenant_id, db=db):
-                # Covers collecting/awaiting_confirmation/awaiting_payment turns that
-                # route_intake handed back to the AI (e.g. a correction, or an
-                # off-topic question) -- without this the AI has no idea a sale is
-                # mid-flow and can derail it. See _intake_in_progress_prompt_block.
-                system_prompt += _intake_in_progress_prompt_block(
-                    get_intake_config(tenant_id, db=db)["service_noun"]
-                )
-        except Exception:
-            logger.exception(
-                "Intake session-context check failed for lead %s — replying without it",
-                lead_id,
-            )
-
-        if catalog_context:
-            system_prompt += catalog_context
+        system_prompt, reply_language_mode = build_reply_system_prompt(
+            db,
+            lead_id,
+            tenant_id,
+            lead_data,
+            message,
+            channel,
+            campaign_name=campaign_name,
+            context_text=context_text,
+            catalog_context=catalog_context,
+        )
 
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]
