@@ -93,16 +93,34 @@ _WRAPPER_TASKS = {
     ),
 }
 
+# Live evidence 2026-08-13: a lead asked "eppo astrologer enne contact pannuvange"
+# (when will the astrologer contact me) mid-collection. The composer ignored "eppo"
+# entirely and just re-asked the pending field -- the old system prompt only allowed
+# answering a question if it came from retrieved KNOWLEDGE, and "when does the expert
+# reply" isn't a business fact, it's flow state the composer was never told. FLOW_FACTS
+# is always present (unlike KNOWLEDGE, which depends on retrieval) so this exact
+# question class is answerable regardless of which purpose is composing.
+_FLOW_FACTS = (
+    "FLOW FACTS (use only these if asked; never invent beyond them):\n"
+    "- After the customer confirms their details and pays, a human expert reviews "
+    "their case and replies here on this same WhatsApp chat. No fixed time is "
+    "promised -- never state a number of minutes/hours or name a person.\n"
+    "- Before payment, no expert has been assigned yet -- never claim one is already "
+    "reviewing anything."
+)
+
 _SYSTEM_PROMPT = (
     "You are the same WhatsApp assistant this customer has been chatting with. You are "
     "in the middle of signing them up for a paid consultation.\n"
     "Rules:\n"
-    "- Do exactly the job described under TASK and nothing else.\n"
-    "- One or two short sentences, the way a person texts on WhatsApp.\n"
+    "- If the customer's message is a real question -- not just a missing answer to "
+    "the pending field -- answer it first, in one short sentence, using FLOW FACTS or "
+    "KNOWLEDGE below if relevant. Then do the TASK in the same message. If the message "
+    "is not a question, just do the TASK.\n"
+    "- One or two short sentences total, the way a person texts on WhatsApp.\n"
     "- No greetings, no sign-offs, no emoji, no bullet lists.\n"
-    "- Never state a price, a fee, or a URL. Never invent details about the customer.\n"
-    "- If the customer asked something answerable from KNOWLEDGE below, answer it in one "
-    "short sentence first, then do the TASK in the same message.\n"
+    "- Never state a price, a fee, or a URL. Never invent details about the customer "
+    "or the expert.\n"
     "- Reply with the message text only -- no quotes, no labels, no explanation."
 )
 
@@ -196,7 +214,7 @@ def _user_prompt(
     task: str, language_mode: str, customer_message: str,
     thread: list[dict] | None, knowledge: str,
 ) -> str:
-    parts = [f"TASK:\n{task}", _language_block(language_mode, customer_message).strip()]
+    parts = [f"TASK:\n{task}", _language_block(language_mode, customer_message).strip(), _FLOW_FACTS]
     rendered = _render_thread(thread)
     if rendered:
         parts.append(f"RECENT CONVERSATION:\n{rendered}")

@@ -110,3 +110,37 @@ async def test_gather_context_survives_a_broken_knowledge_lookup():
 def test_unknown_purpose_is_rejected():
     with pytest.raises(ValueError):
         ic._fallback("not_a_purpose", None, None)
+
+
+def test_user_prompt_always_includes_flow_facts():
+    """Live evidence 2026-08-13: a lead asked 'eppo astrologer enne contact
+    pannuvange' (when will the astrologer contact me) mid-collection. The composer
+    ignored 'eppo' and just re-asked the pending field, because the only thing it was
+    ever told it could answer was retrieved KNOWLEDGE -- and 'when does the expert
+    reply' isn't a business fact, it's flow state the composer was never given."""
+    prompt = ic._user_prompt("do something", "tanglish", "eppo contact pannuvanga", None, "")
+    assert "FLOW FACTS" in prompt
+    assert "no fixed time" in prompt.lower() or "never state a" in prompt.lower()
+
+
+def test_system_prompt_tells_the_model_to_answer_real_questions_first():
+    assert "real question" in ic._SYSTEM_PROMPT.lower()
+    assert "and nothing else" not in ic._SYSTEM_PROMPT.lower()
+
+
+@pytest.mark.asyncio
+async def test_compose_line_sends_flow_facts_to_the_model():
+    captured = {}
+
+    async def fake_llm_chat(messages, max_tokens, tenant_id):
+        captured["messages"] = messages
+        return "Payment mudinjadhum astrologer reply pannuvanga. Unga place of birth sollunga."
+
+    with patch.object(ic, "_llm_chat", new=AsyncMock(side_effect=fake_llm_chat)):
+        text = await ic.compose_line(
+            "reask_field", tenant_id="t-1", language_mode="tanglish",
+            customer_message="eppo astrologer enne contact pannuvanga", field_label="Place of birth",
+        )
+    user_content = captured["messages"][1]["content"]
+    assert "FLOW FACTS" in user_content
+    assert text == "Payment mudinjadhum astrologer reply pannuvanga. Unga place of birth sollunga."
