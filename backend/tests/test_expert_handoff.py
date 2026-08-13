@@ -435,3 +435,77 @@ def test_resolve_intake_session_returns_false_when_not_paid():
         .eq.return_value.eq.return_value.execute.return_value
     ) = result
     assert eh.resolve_intake_session("sess-1", "t-1", db=db) is False
+
+
+@pytest.mark.parametrize("status", ["awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment"])
+def test_get_in_progress_session_matches_in_progress_statuses(status):
+    db = MagicMock()
+    row = MagicMock()
+    row.data = [{"id": "sess-1", "status": status}]
+    (
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value
+        .order.return_value.limit.return_value.execute.return_value
+    ) = row
+    assert eh.get_in_progress_session("lead-1", "t-1", db=db) == {"id": "sess-1", "status": status}
+
+
+@pytest.mark.parametrize("status", ["offer_pending", "paid", "resolved", "cancelled"])
+def test_get_in_progress_session_returns_none_for_other_statuses(status):
+    db = MagicMock()
+    row = MagicMock()
+    row.data = [{"id": "sess-1", "status": status}]
+    (
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value
+        .order.return_value.limit.return_value.execute.return_value
+    ) = row
+    assert eh.get_in_progress_session("lead-1", "t-1", db=db) is None
+
+
+def test_get_in_progress_session_returns_none_when_no_session():
+    db = MagicMock()
+    row = MagicMock()
+    row.data = []
+    (
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value
+        .order.return_value.limit.return_value.execute.return_value
+    ) = row
+    assert eh.get_in_progress_session("lead-1", "t-1", db=db) is None
+
+
+@pytest.mark.asyncio
+async def test_awaiting_confirmation_correction_updates_summary_instead_of_falling_through():
+    """Live evidence 2026-08-13: a lead replied 'Time of birth is 6:30 am' to the
+    summary instead of a plain yes. That's correctly not a yes, but the old code
+    dropped the session entirely and let the AI answer with no context, which
+    redirected the lead to the app instead of resuming the ₹29 payment flow they
+    were one message from completing."""
+    session = {
+        "id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_confirmation",
+        "collected_data": {"name": "Priya"}, "package_amount_paise": 2900, "skipped_fields": ["name"],
+    }
+    db = _session_db(existing_session=session)
+    with patch.object(eh, "extract_fields", new=AsyncMock(return_value={"name": "Priya Kumar"})), \
+         patch.object(eh, "create_payment_link", new=AsyncMock()) as create_link, \
+         patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "actually it's Priya Kumar", db=db)
+    assert consumed is True
+    create_link.assert_not_called()
+    assert "Priya Kumar" in send.call_args[0][1]
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["collected_data"]["name"] == "Priya Kumar"
+    assert update_patch["skipped_fields"] == []
+
+
+@pytest.mark.asyncio
+async def test_awaiting_confirmation_unrelated_reply_still_falls_through_to_ai():
+    session = {
+        "id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_confirmation",
+        "collected_data": {"name": "Priya"}, "package_amount_paise": 2900,
+    }
+    db = _session_db(existing_session=session)
+    with patch.object(eh, "extract_fields", new=AsyncMock(return_value={"name": "Priya"})), \
+         patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "when will the astrologer reply?", db=db)
+    assert consumed is False
+    send.assert_not_awaited()
+    db.table("intake_sessions").update.assert_not_called()

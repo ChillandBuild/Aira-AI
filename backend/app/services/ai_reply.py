@@ -1010,6 +1010,30 @@ _CATALOG_RECOMMEND_TOOL = {
 }
 
 
+def _intake_in_progress_prompt_block(service_noun: str) -> str:
+    """System-prompt section for a lead who is mid-way through the paid intake flow
+    -- past the offer, not yet paid. Live evidence 2026-08-13: a lead corrected a
+    field instead of confirming the summary with a plain yes; route_intake correctly
+    handed the turn to the AI (that message wasn't a yes), but with no context the AI
+    fell back to the business's general knowledge base and told the lead to download
+    the app and resubmit there -- abandoning a payment link one message from being
+    sent. This block is the guard against that: it fires for ANY in-progress status
+    (not just paid), see get_in_progress_session in intake.py."""
+    return (
+        f"\n\n{service_noun.upper()} IN PROGRESS:\n"
+        f"This customer is in the middle of signing up for the paid {service_noun} -- "
+        "details are being collected, or a payment link has already been sent and is "
+        "waiting on them.\n"
+        "Rules:\n"
+        "- Do NOT tell them about an app, a website, or any other way to reach an "
+        f"expert -- the {service_noun} they already started IS the way.\n"
+        f"- Do NOT re-offer or re-describe the paid {service_noun}.\n"
+        "- If their message is a question you can answer directly, answer it in one "
+        "short sentence, then remind them to reply so the details/payment already in "
+        "progress can continue.\n"
+    )
+
+
 def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
     """Read catalog_ai_rules (the client's own preferences, set via the catalog dashboard)
     merged with defaults, then apply the operator's controls on top: ai_media_recommendations_enabled
@@ -1353,14 +1377,26 @@ async def generate_reply(
                 )
 
         try:
-            from app.services.intake import get_paid_unresolved_session, get_intake_config
+            from app.services.intake import (
+                get_in_progress_session,
+                get_intake_config,
+                get_paid_unresolved_session,
+            )
             if get_paid_unresolved_session(lead_id, tenant_id, db=db):
                 system_prompt += _intake_paid_prompt_block(
                     get_intake_config(tenant_id, db=db)["service_noun"]
                 )
+            elif get_in_progress_session(lead_id, tenant_id, db=db):
+                # Covers collecting/awaiting_confirmation/awaiting_payment turns that
+                # route_intake handed back to the AI (e.g. a correction, or an
+                # off-topic question) -- without this the AI has no idea a sale is
+                # mid-flow and can derail it. See _intake_in_progress_prompt_block.
+                system_prompt += _intake_in_progress_prompt_block(
+                    get_intake_config(tenant_id, db=db)["service_noun"]
+                )
         except Exception:
             logger.exception(
-                "Expert handoff paid-session check failed for lead %s — replying without it",
+                "Intake session-context check failed for lead %s — replying without it",
                 lead_id,
             )
 

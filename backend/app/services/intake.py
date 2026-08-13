@@ -520,8 +520,26 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
 
         if status == "awaiting_confirmation":
             if not _is_affirmative(body):
-                # Let the AI/human sort out a correction request; stay put.
-                return False
+                # Not a yes, but not necessarily unrelated either -- the lead may be
+                # correcting or supplying a field they see is wrong or missing on the
+                # summary. Live evidence 2026-08-13: "Time of birth is 6:30 am" sent
+                # right after a summary that showed that field as not provided. Try
+                # extraction before giving up the turn; only a message that adds
+                # nothing usable is released to the AI.
+                before = session.get("collected_data") or {}
+                skipped = list(session.get("skipped_fields") or [])
+                updated = await extract_fields(body, config["fields"], before, tenant_id)
+                changed = [k for k, v in updated.items() if v and v != before.get(k)]
+                if not changed:
+                    return False
+                skipped = [k for k in skipped if k not in changed]
+                _update_session(
+                    session["id"],
+                    {"collected_data": updated, "skipped_fields": skipped},
+                    db,
+                )
+                await _say_summary(updated, skipped)
+                return True
             ref = f"IN-{uuid.uuid4().hex[:8].upper()}"
             collected = session.get("collected_data") or {}
             customer_name = collected.get("name", "Customer")
@@ -684,6 +702,38 @@ def get_paid_unresolved_session(lead_id: str, tenant_id: str, db=None) -> dict |
     )
     rows = result.data or []
     return rows[0] if rows else None
+
+
+_IN_PROGRESS_STATUSES = frozenset({
+    "awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
+})
+
+
+def get_in_progress_session(lead_id: str, tenant_id: str, db=None) -> dict | None:
+    """The lead's most recent intake session that is actively in motion -- past the
+    initial offer, not yet paid or resolved. Used by ai_reply.py so the AI does not
+    derail a near-closed sale. Live evidence 2026-08-13: a lead corrected a field at
+    awaiting_confirmation instead of saying yes; route_intake correctly handed the
+    turn to the AI (that's not a yes), but with zero context the AI answered from the
+    business's general knowledge base and told the lead to download the app and
+    resubmit there -- abandoning a ₹29 payment one message from completing."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    result = (
+        db.table("intake_sessions")
+        .select("id,status")
+        .eq("lead_id", lead_id)
+        .eq("tenant_id", tenant_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    if not rows:
+        return None
+    row = rows[0]
+    return row if row.get("status") in _IN_PROGRESS_STATUSES else None
 
 
 def resolve_intake_session(session_id: str, tenant_id: str, db=None) -> bool:
