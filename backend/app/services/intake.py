@@ -105,6 +105,50 @@ def missing_field_labels(fields: list[dict], collected_data: dict) -> list[str]:
 
 _MAX_FIELD_ATTEMPTS = 2
 
+# A message that yields no field value is not automatically a failed attempt at the
+# pending field. Live evidence 2026-08-13: a lead's fresh "Hii" was recorded as the
+# second failed attempt at place of birth, so the field was skipped and the flow
+# jumped to the summary. Greetings, withdrawals and questions are not attempts.
+_GREETING_WORDS = frozenset({
+    "hi", "hii", "hiii", "hello", "helo", "hey", "hai", "haai",
+    "vanakkam", "வணக்கம்", "namaskaram", "good", "morning", "evening", "afternoon",
+})
+
+_CANCEL_WORDS = frozenset({
+    "vendaam", "vendam", "venam", "veanam", "cancel", "stop", "quit", "exit",
+    "later", "apparam", "aprm", "baduve", "வேண்டாம்", "வேண்டாம",
+})
+
+_QUESTION_WORDS = frozenset({
+    "eppo", "eppa", "enna", "evlo", "evvalavu", "yaar", "yaaru", "epdi", "eppadi",
+    "yen", "ean", "when", "what", "how", "why", "who", "where", "will", "can", "does",
+    "is", "are", "எப்போ", "எப்படி", "என்ன", "எவ்வளவு", "ஏன்", "யார்",
+})
+
+
+def classify_non_answer(message: str) -> str:
+    """Why a message contained no field value: 'greeting' | 'cancel' | 'question' |
+    'attempt'. Only 'attempt' counts toward the skip ceiling.
+
+    Deliberately deterministic rather than another LLM call: this runs on every
+    collecting turn, and a keyword miss just falls through to 'attempt', which is
+    the old behaviour -- no worse than before, and no extra latency on the flow.
+    """
+    import re
+    tokens = set(re.findall(r"[\w஀-௿]+", message.strip().lower()))
+    if not tokens:
+        return "attempt"
+    # Cancel first: a withdrawal outranks everything else in the message.
+    if tokens & _CANCEL_WORDS:
+        return "cancel"
+    # Greeting only when that is essentially the whole message -- "hi, my name is
+    # Prem" carries a real answer and must not be treated as a bare greeting.
+    if tokens <= _GREETING_WORDS:
+        return "greeting"
+    if "?" in message or (tokens & _QUESTION_WORDS):
+        return "question"
+    return "attempt"
+
 
 def pending_fields(fields: list[dict], collected_data: dict, skipped=()) -> list[dict]:
     """Fields still needed: neither collected nor given up on. Ordered by config, so
@@ -488,19 +532,32 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             purpose = "ask_field"
             given_up_label: str | None = None
             if pending and collected == before:
-                # This message added nothing. Escalate how we ask, and after
-                # _MAX_FIELD_ATTEMPTS give up on the field rather than asking a third
-                # time -- live evidence 2026-08-12: the same question went out three
-                # times to a lead who had twice said they did not know the answer.
-                key = pending[0]["key"]
-                attempts[key] = attempts.get(key, 0) + 1
-                if attempts[key] >= _MAX_FIELD_ATTEMPTS:
-                    given_up_label = pending[0]["label"]
-                    skipped.append(key)
-                    pending = pending_fields(config["fields"], collected, skipped)
-                    purpose = "skip_field"
-                else:
+                # This message added nothing -- but that does not make it a failed
+                # attempt at the pending field. Only a genuine try counts toward the
+                # skip ceiling; a greeting or a question is answered on its own terms
+                # and leaves the counter alone, and a withdrawal ends the flow.
+                kind = classify_non_answer(body)
+                if kind == "cancel":
+                    _update_session(session["id"], {"status": "cancelled"}, db)
+                    logger.info(f"Intake session {session['id']} cancelled by lead during collection")
+                    return False
+                if kind == "greeting":
+                    purpose = "greeting_reask"
+                elif kind == "question":
                     purpose = "reask_field"
+                else:
+                    # After _MAX_FIELD_ATTEMPTS give up on the field rather than asking
+                    # a third time -- live evidence 2026-08-12: the same question went
+                    # out three times to a lead who had twice said they did not know it.
+                    key = pending[0]["key"]
+                    attempts[key] = attempts.get(key, 0) + 1
+                    if attempts[key] >= _MAX_FIELD_ATTEMPTS:
+                        given_up_label = pending[0]["label"]
+                        skipped.append(key)
+                        pending = pending_fields(config["fields"], collected, skipped)
+                        purpose = "skip_field"
+                    else:
+                        purpose = "reask_field"
 
             patch = {
                 "collected_data": collected,

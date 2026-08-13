@@ -25,7 +25,7 @@ _MAX_COMPOSE_TOKENS = 200
 _THREAD_WINDOW = 6
 
 PURPOSES = frozenset({
-    "ask_field", "reask_field", "skip_field",
+    "ask_field", "reask_field", "skip_field", "greeting_reask",
     "payment_intro", "payment_delay", "package_reask", "no_packages",
 })
 
@@ -39,6 +39,11 @@ _TASKS = {
         "they said, and if an example of {field_label} would help them answer, give one. "
         "Ask for {field_label} and nothing else: do not ask for any other detail, and "
         "never ask for something listed under ALREADY COLLECTED."
+    ),
+    "greeting_reask": (
+        "The customer just greeted you in the middle of the signup. Greet them back in "
+        "a few words, then ask again for their {field_label}. Do not restart the "
+        "conversation and do not re-introduce the service -- you are already mid-signup."
     ),
     "skip_field": (
         "The customer has now twice been unable to give their {field_label}. Tell them "
@@ -69,6 +74,7 @@ _TASKS = {
 _FALLBACKS = {
     "ask_field": "Great! Could you share your {field_label_lower}?",
     "reask_field": "Thanks! And your {field_label_lower}?",
+    "greeting_reask": "Hi! Could you share your {field_label_lower}?",
     "skip_field": "No problem. And your {next_field_label_lower}?",
     "payment_intro": "Great, here's your payment link:",
     "payment_delay": "We've received your details — our team will send the payment link shortly.",
