@@ -966,16 +966,49 @@ async def compose_new_message(
 
 @router.delete("/{lead_id}/clear-chat")
 async def clear_chat(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
-    """Delete all messages for a lead and reset AI to enabled. The lead itself is preserved."""
+    """Start this lead over: delete the transcript AND every piece of state derived
+    from it. The lead row itself is preserved.
+
+    This used to delete messages only, which made "Clear Chat" a lie -- the intake
+    session, the Tamil lock and the compacted conversation summary all survived, so
+    the next inbound message resumed mid-flow with the transcript already gone
+    (observed live 2026-08-13: a cleared lead's fresh "Hii" was answered with the
+    pending details summary). Deleting the visible history while keeping the state
+    that drives behaviour is worse than doing nothing -- it hides the cause.
+    """
     db = get_supabase()
     # Verify the lead belongs to this tenant
     lead = db.table("leads").select("id").eq("id", str(lead_id)).eq("tenant_id", tenant_id).maybe_single().execute()
     if not lead.data:
         raise HTTPException(status_code=404, detail="Lead not found")
+
     # Hard-delete all messages for this lead
     db.table("messages").delete().eq("lead_id", str(lead_id)).eq("tenant_id", tenant_id).execute()
-    # Re-enable AI so the bot picks up from a fresh start
-    db.table("leads").update({"ai_enabled": True}).eq("id", str(lead_id)).eq("tenant_id", tenant_id).execute()
+
+    # Drop the conversation state row: message_count, the compacted
+    # conversation_summary (which the AI reads back as "Earlier conversation
+    # summary") and any flow state. get_or_create_state recreates it clean.
+    try:
+        db.table("lead_conversation_state").delete().eq("lead_id", str(lead_id)).eq("tenant_id", tenant_id).execute()
+    except Exception as e:
+        logger.warning(f"clear-chat: conversation state reset failed for lead {lead_id}: {e}")
+
+    # Cancel any intake session still in motion, so the collector does not resume
+    # mid-flow against a transcript that no longer exists. Paid and resolved
+    # sessions are deliberately left alone -- those are financial records.
+    try:
+        db.table("intake_sessions").update({"status": "cancelled"}).eq("lead_id", str(lead_id)).eq(
+            "tenant_id", tenant_id
+        ).in_(
+            "status",
+            ["offer_pending", "awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment"],
+        ).execute()
+    except Exception as e:
+        logger.warning(f"clear-chat: intake session cancel failed for lead {lead_id}: {e}")
+
+    # Re-enable AI and drop the per-lead language lock so the bot picks up from a
+    # genuinely fresh start.
+    db.table("leads").update({"ai_enabled": True, "tamil_locked": False}).eq("id", str(lead_id)).eq("tenant_id", tenant_id).execute()
     return {"success": True, "message": "Chat cleared"}
 
 
