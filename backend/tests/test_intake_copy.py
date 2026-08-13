@@ -128,6 +128,33 @@ def test_system_prompt_tells_the_model_to_answer_real_questions_first():
     assert "and nothing else" not in ic._SYSTEM_PROMPT.lower()
 
 
+def test_reask_task_has_no_hardcoded_date_example():
+    """Live evidence 2026-08-13: the reask instruction contained the literal example
+    'a date as 06/06/2000', and the model asked for the DATE of birth -- already
+    collected -- while re-asking for time of birth."""
+    assert "06/06/2000" not in ic._TASKS["reask_field"]
+    assert "{field_label} and nothing else" in ic._TASKS["reask_field"]
+
+
+@pytest.mark.asyncio
+async def test_compose_line_tells_the_model_what_is_already_collected():
+    captured = {}
+
+    async def fake_llm_chat(messages, max_tokens, tenant_id):
+        captured["messages"] = messages
+        return "Unga pirandha neram sollunga."
+
+    with patch.object(ic, "_llm_chat", new=AsyncMock(side_effect=fake_llm_chat)):
+        await ic.compose_line(
+            "reask_field", tenant_id="t-1", language_mode="tanglish",
+            customer_message="theriyathu", field_label="Time of Birth",
+            collected={"full_name": "Prem", "date_of_birth": "6 july 2006"},
+        )
+    user_content = captured["messages"][1]["content"]
+    assert "ALREADY COLLECTED" in user_content
+    assert "6 july 2006" in user_content
+
+
 @pytest.mark.asyncio
 async def test_compose_line_carries_the_main_brain_identity():
     """The collector used to compose with only a tiny hand-written system prompt --

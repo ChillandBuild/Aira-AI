@@ -370,7 +370,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
         thread, knowledge = await gather_context(db, lead_id, tenant_id, body)
         brain_prompt = collector_identity(db, lead_id, tenant_id, body)
 
-        async def _say(purpose: str, **kwargs) -> None:
+        async def _say(purpose: str, collected: dict | None = None, **kwargs) -> None:
             text = await compose_line(
                 purpose,
                 tenant_id=tenant_id,
@@ -379,6 +379,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 thread=thread,
                 knowledge=knowledge,
                 brain_prompt=brain_prompt,
+                collected=collected if collected is not None else (session.get("collected_data") or {}),
                 **kwargs,
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)
@@ -421,7 +422,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 patch = _package_patch(packages[0]) | {"collected_data": collected, "field_schema": config["fields"]}
                 if missing:
                     _update_session(session["id"], patch | {"status": "collecting"}, db)
-                    await _say("ask_field", field_label=missing[0])
+                    await _say("ask_field", field_label=missing[0], collected=collected)
                 else:
                     _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
                     await _say_summary(collected)
@@ -471,7 +472,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             }
             if missing:
                 _update_session(session["id"], patch | {"status": "collecting"}, db)
-                await _say("ask_field", field_label=missing[0])
+                await _say("ask_field", field_label=missing[0], collected=collected)
             else:
                 _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
                 await _say_summary(collected)
@@ -513,9 +514,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                         "skip_field",
                         field_label=given_up_label,
                         next_field_label=pending[0]["label"],
+                        collected=collected,
                     )
                 else:
-                    await _say(purpose, field_label=pending[0]["label"])
+                    await _say(purpose, field_label=pending[0]["label"], collected=collected)
             else:
                 _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
                 await _say_summary(collected, skipped)

@@ -31,13 +31,14 @@ PURPOSES = frozenset({
 
 _TASKS = {
     "ask_field": (
-        "Ask the customer for one detail: {field_label}. Nothing else."
+        "Ask the customer for exactly one detail: {field_label}. Ask for nothing else."
     ),
     "reask_field": (
-        "The customer's last message did not contain their {field_label}. Ask for it "
-        "again, but differently from last time -- acknowledge what they said, and if a "
-        "format would help (for example a date as 06/06/2000) show it. Do not repeat "
-        "your previous sentence word for word."
+        "The customer's last message did not contain their {field_label}. Ask for that "
+        "same one detail again, worded differently from last time -- acknowledge what "
+        "they said, and if an example of {field_label} would help them answer, give one. "
+        "Ask for {field_label} and nothing else: do not ask for any other detail, and "
+        "never ask for something listed under ALREADY COLLECTED."
     ),
     "skip_field": (
         "The customer has now twice been unable to give their {field_label}. Tell them "
@@ -250,8 +251,16 @@ def _render_thread(thread: list[dict] | None) -> str:
 def _user_prompt(
     task: str, language_mode: str, customer_message: str,
     thread: list[dict] | None, knowledge: str,
+    collected: dict | None = None,
 ) -> str:
     parts = [f"TASK:\n{task}", _language_block(language_mode, customer_message).strip(), _FLOW_FACTS]
+    if collected:
+        # Without this the model has no way to know a detail is already on file, and
+        # will happily re-ask for it (live 2026-08-13: asked for a date of birth it
+        # had already been given, while re-asking for time of birth).
+        have = "\n".join(f"- {k}: {v}" for k, v in collected.items() if v)
+        if have:
+            parts.append(f"ALREADY COLLECTED (never ask for these again):\n{have}")
     rendered = _render_thread(thread)
     if rendered:
         parts.append(f"RECENT CONVERSATION:\n{rendered}")
@@ -281,6 +290,7 @@ async def compose_line(
     thread: list[dict] | None = None,
     knowledge: str = "",
     brain_prompt: str = "",
+    collected: dict | None = None,
 ) -> str:
     """One outgoing collector line, worded in the tenant's configured language.
 
@@ -299,7 +309,9 @@ async def compose_line(
         {"role": "system", "content": system_content},
         {
             "role": "user",
-            "content": _user_prompt(task, language_mode, customer_message, thread, knowledge),
+            "content": _user_prompt(
+                task, language_mode, customer_message, thread, knowledge, collected
+            ),
         },
     ]
     try:
