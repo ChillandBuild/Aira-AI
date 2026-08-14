@@ -112,6 +112,66 @@ def test_unknown_purpose_is_rejected():
         ic._fallback("not_a_purpose", None, None)
 
 
+_FIELDS = [
+    {"key": "full_name", "label": "Full Name", "type": "text"},
+    {"key": "date_of_birth", "label": "Date of birth", "type": "date"},
+]
+
+
+@pytest.mark.asyncio
+async def test_localized_fields_skips_translation_outside_tamil_mode():
+    """Live decision 2026-08-14: labels stay English in every mode except the
+    locked-native-Tamil one. No LLM call at all outside that mode -- free and
+    behaviorally identical to before this feature existed."""
+    with patch.object(ic, "_llm_chat_json", new=AsyncMock()) as mock_json:
+        fields = await ic.localized_fields(_FIELDS, "tanglish", tenant_id="t-1")
+    mock_json.assert_not_awaited()
+    assert fields == _FIELDS
+
+
+@pytest.mark.asyncio
+async def test_localized_fields_translates_labels_in_tamil_mode():
+    with patch.object(ic, "_llm_chat_json", new=AsyncMock(return_value={
+        "full_name": "முழு பெயர்", "date_of_birth": "பிறந்த தேதி",
+    })):
+        fields = await ic.localized_fields(_FIELDS, "tamil", tenant_id="t-1")
+    assert fields[0]["label"] == "முழு பெயர்"
+    assert fields[1]["label"] == "பிறந்த தேதி"
+    # keys and types untouched -- only the display label moves
+    assert fields[0]["key"] == "full_name"
+    assert fields[0]["type"] == "text"
+
+
+@pytest.mark.asyncio
+async def test_localized_fields_falls_back_on_llm_error():
+    with patch.object(ic, "_llm_chat_json", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        fields = await ic.localized_fields(_FIELDS, "tamil", tenant_id="t-1")
+    assert fields == _FIELDS
+
+
+@pytest.mark.asyncio
+async def test_localized_fields_falls_back_on_incomplete_translation():
+    """All-or-nothing: a partial rewrite (one field translated, one not) is worse
+    than the plain English original, so any missing key discards the whole result."""
+    with patch.object(ic, "_llm_chat_json", new=AsyncMock(return_value={"full_name": "முழு பெயர்"})):
+        fields = await ic.localized_fields(_FIELDS, "tamil", tenant_id="t-1")
+    assert fields == _FIELDS
+
+
+@pytest.mark.asyncio
+async def test_localized_fields_never_touches_collected_values():
+    captured = {}
+
+    async def fake_json(system_prompt, user_prompt, tenant_id):
+        captured["user_prompt"] = user_prompt
+        return {"full_name": "முழு பெயர்", "date_of_birth": "பிறந்த தேதி"}
+
+    with patch.object(ic, "_llm_chat_json", new=AsyncMock(side_effect=fake_json)):
+        await ic.localized_fields(_FIELDS, "tamil", tenant_id="t-1")
+    # only key + label are sent -- the lead's actual answers never reach this call
+    assert "Prem" not in captured["user_prompt"]
+
+
 def test_user_prompt_always_includes_flow_facts():
     """Live evidence 2026-08-13: a lead asked 'eppo astrologer enne contact
     pannuvange' (when will the astrologer contact me) mid-collection. The composer

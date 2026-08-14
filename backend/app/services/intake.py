@@ -14,6 +14,7 @@ from app.services.intake_copy import (
     compose_line,
     compose_wrapped,
     gather_context,
+    localized_fields,
     resolve_language_mode,
 )
 from app.services.notify import notify_pool
@@ -429,12 +430,13 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             await _send_and_log(phone, text, tenant_id, lead_id, db)
 
         async def _say_summary(collected: dict, skipped=()) -> None:
+            fields = await localized_fields(config["fields"], language_mode, tenant_id)
             text = await compose_wrapped(
                 "summary",
                 tenant_id=tenant_id,
                 language_mode=language_mode,
                 customer_message=body,
-                block=_summary_block(config["fields"], collected, skipped),
+                block=_summary_block(fields, collected, skipped),
                 thread=thread,
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)

@@ -223,6 +223,48 @@ async def gather_context(db, lead_id: str, tenant_id: str, message: str) -> tupl
     return thread, knowledge
 
 
+_LABEL_TRANSLATE_SYSTEM_PROMPT = """Translate each of these field labels into natural,
+native Tamil script. These are short field names on a form (like "Full Name" or "Date
+of birth"), not sentences -- keep each translation short, the way a Tamil form would
+label that field.
+
+Respond with JSON only: {"<field_key>": "<Tamil label>", ...} -- one entry per key
+given, same keys, nothing added or removed. No other text."""
+
+
+async def localized_fields(fields: list[dict], language_mode: str, tenant_id: str) -> list[dict]:
+    """Field labels translated into native Tamil script, only when language_mode is
+    the locked "tamil" mode -- every other mode (mirror, tanglish, english, or
+    tanglish_escalate_tamil before the lock fires) returns fields unchanged, no LLM
+    call at all. Live decision 2026-08-14: labels should only ever move to native
+    Tamil once the lead is genuinely locked into it; a Tanglish conversation keeps
+    its English labels exactly as before this existed.
+
+    Only 'key' and 'type' identify a field to the rest of the system -- 'label' is
+    display text with zero downstream meaning, so translating it carries none of the
+    risk that translating a collected VALUE would. This never sees a collected value;
+    only the label text is sent to the model. All-or-nothing: any missing key in the
+    response discards the whole translation and keeps the original English labels,
+    the same as a network failure would.
+    """
+    if language_mode != "tamil" or not fields:
+        return fields
+    label_list = "\n".join(f"- {f['key']}: {f['label']}" for f in fields)
+    try:
+        data = await _llm_chat_json(
+            _LABEL_TRANSLATE_SYSTEM_PROMPT,
+            f"Field labels:\n{label_list}",
+            tenant_id,
+        )
+    except Exception as e:
+        logger.warning("Field label translation failed, using English labels: %s", e)
+        return fields
+    if not all(f["key"] in data and str(data[f["key"]]).strip() for f in fields):
+        logger.warning("Field label translation incomplete, using English labels")
+        return fields
+    return [{**f, "label": str(data[f["key"]]).strip()} for f in fields]
+
+
 def collector_identity(db, lead_id: str, tenant_id: str, message: str) -> str:
     """The main brain's system prompt for this lead, for the collector to speak with.
     Best-effort: on any failure the collector falls back to its own minimal prompt,

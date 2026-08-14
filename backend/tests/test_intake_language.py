@@ -87,6 +87,27 @@ def test_summary_block_marks_skipped_fields_distinctly():
     assert "Date of birth: — (not provided)" in block
 
 
+@pytest.mark.asyncio
+async def test_summary_uses_translated_labels_when_locked_to_tamil():
+    db = MagicMock()
+    sent: list[str] = []
+    with patch.object(ik, "get_intake_config", return_value=_CONFIG), \
+         patch.object(ik, "_get_active_session", return_value=_session("collecting")), \
+         patch.object(ik, "_update_session"), \
+         patch.object(ik, "extract_fields", new=AsyncMock(return_value={"name": "Cheran", "dob": "06.06.2000"})), \
+         patch.object(ik, "resolve_language_mode", return_value="tamil"), \
+         patch.object(ik, "gather_context", new=AsyncMock(return_value=([], ""))), \
+         patch.object(ik, "localized_fields", new=AsyncMock(return_value=[
+             {"key": "name", "label": "முழு பெயர்", "type": "text"},
+             {"key": "dob", "label": "பிறந்த தேதி", "type": "date"},
+         ])), \
+         patch.object(ik, "compose_wrapped", new=AsyncMock(side_effect=lambda *a, **k: k["block"])), \
+         patch.object(ik, "_send_and_log", new=AsyncMock(side_effect=lambda p, t, *a, **k: sent.append(t))):
+        await ik.route_intake(lead_id="l-1", tenant_id="t-1", phone="+91", body="06.06.2000", db=db)
+    assert "முழு பெயர்: Cheran" in sent[0]
+    assert "Full name:" not in sent[0]
+
+
 def test_package_list_block_renders_prices_in_python():
     packages = [{"key": "s", "name": "Consultation", "amount_paise": 2900, "description": "30 min"}]
     block = ik.package_list_block(packages)
