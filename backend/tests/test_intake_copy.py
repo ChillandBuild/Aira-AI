@@ -188,6 +188,28 @@ def test_system_prompt_tells_the_model_to_answer_real_questions_first():
     assert "and nothing else" not in ic._SYSTEM_PROMPT.lower()
 
 
+@pytest.mark.asyncio
+async def test_compose_payment_receipt_uses_the_leads_language_and_prepends_the_name():
+    with patch.object(ic, "resolve_language_mode", return_value="tamil"), \
+         patch("app.db.supabase.get_supabase", return_value=MagicMock()), \
+         patch.object(ic, "_llm_chat", new=AsyncMock(return_value="Unga consultation confirm aayiduchu.")):
+        text = await ic.compose_payment_receipt(
+            lead_id="l-1", tenant_id="t-1", customer_name="Priya", service_noun="consultation",
+        )
+    assert text == "Priya, Unga consultation confirm aayiduchu."
+
+
+@pytest.mark.asyncio
+async def test_compose_payment_receipt_falls_back_to_english_on_error():
+    with patch.object(ic, "resolve_language_mode", return_value="tamil"), \
+         patch("app.db.supabase.get_supabase", return_value=MagicMock()), \
+         patch.object(ic, "_llm_chat", new=AsyncMock(side_effect=RuntimeError("boom"))):
+        text = await ic.compose_payment_receipt(
+            lead_id="l-1", tenant_id="t-1", customer_name="Priya", service_noun="consultation",
+        )
+    assert text == "Priya, Your consultation is confirmed — our expert will be in touch here on WhatsApp shortly."
+
+
 def test_reask_task_has_no_hardcoded_date_example():
     """Live evidence 2026-08-13: the reask instruction contained the literal example
     'a date as 06/06/2000', and the model asked for the DATE of birth -- already

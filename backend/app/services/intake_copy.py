@@ -26,7 +26,7 @@ _THREAD_WINDOW = 6
 
 PURPOSES = frozenset({
     "ask_field", "reask_field", "skip_field", "greeting_reask",
-    "payment_intro", "payment_delay", "package_reask", "no_packages",
+    "payment_intro", "payment_delay", "payment_receipt", "package_reask", "no_packages",
 })
 
 _TASKS = {
@@ -60,6 +60,12 @@ _TASKS = {
         "details are received and the team will send the payment link shortly. Do not "
         "apologise at length, do not explain the failure, and do not write any link."
     ),
+    "payment_receipt": (
+        "The customer's payment just went through. Thank them and confirm their "
+        "{field_label} is booked -- our expert will be in touch here on WhatsApp soon. "
+        "Do not promise a specific time or name a person. Do not include the "
+        "customer's own name in your sentence -- the system adds it separately."
+    ),
     "package_reask": (
         "The customer's reply did not clearly pick one of the options. Say you did not "
         "catch which one, in one short sentence. The system re-prints the option list "
@@ -78,6 +84,7 @@ _FALLBACKS = {
     "skip_field": "No problem. And your {next_field_label_lower}?",
     "payment_intro": "Great, here's your payment link:",
     "payment_delay": "We've received your details — our team will send the payment link shortly.",
+    "payment_receipt": "Your {field_label_lower} is confirmed — our expert will be in touch here on WhatsApp shortly.",
     "package_reask": "Sorry, I didn't catch which one —",
     "no_packages": "Thanks! Our team will follow up shortly with the next steps.",
 }
@@ -263,6 +270,32 @@ async def localized_fields(fields: list[dict], language_mode: str, tenant_id: st
         logger.warning("Field label translation incomplete, using English labels")
         return fields
     return [{**f, "label": str(data[f["key"]]).strip()} for f in fields]
+
+
+async def compose_payment_receipt(
+    lead_id: str, tenant_id: str, customer_name: str, service_noun: str
+) -> str:
+    """The payment-confirmation receipt, in the lead's actual language. Fired from
+    the Razorpay webhook route -- a code path outside the WhatsApp message flow
+    entirely, so it never went through resolve_language_mode or the composer at
+    all. Live evidence 2026-08-14: a lead locked into native Tamil for the whole
+    collection got a plain English 'Payment received, thank you...' the moment
+    payment cleared.
+
+    customer_name is prepended in code, never sent to the model, same protection
+    as every other literal value in this flow.
+    """
+    from app.db.supabase import get_supabase
+    db = get_supabase()
+    language_mode = resolve_language_mode(lead_id, tenant_id, db)
+    body = await compose_line(
+        "payment_receipt",
+        tenant_id=tenant_id,
+        language_mode=language_mode,
+        customer_message="",
+        field_label=service_noun,
+    )
+    return f"{customer_name}, {body}"
 
 
 def collector_identity(db, lead_id: str, tenant_id: str, message: str) -> str:

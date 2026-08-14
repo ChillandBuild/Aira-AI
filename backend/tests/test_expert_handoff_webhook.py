@@ -67,6 +67,24 @@ def test_webhook_confirms_payment_and_sends_receipt():
     assert "consultation" in send.call_args[0][1]
 
 
+def test_webhook_composes_the_receipt_in_the_leads_actual_language():
+    """Live evidence 2026-08-14: a lead locked into native Tamil for the whole
+    collection got a plain English 'Payment received, thank you...' receipt the
+    moment payment cleared -- this route never touched resolve_language_mode at
+    all, since it fires from Razorpay's webhook, outside the WhatsApp message flow."""
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
+         patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}), \
+         patch("app.routes.intake.compose_payment_receipt", new=AsyncMock(return_value="Priya, உங்க ரீடிங் உறுதி.")) as compose, \
+         patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
+        client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
+    compose.assert_awaited_once_with(
+        lead_id="lead-1", tenant_id="t-1", customer_name="Priya", service_noun="consultation",
+    )
+    assert send.call_args[0][1] == "Priya, உங்க ரீடிங் உறுதி."
+
+
 def test_webhook_uses_the_tenants_configured_service_noun_in_the_receipt():
     with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
          patch("app.routes.intake.verify_webhook_signature", return_value=True), \

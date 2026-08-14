@@ -17,6 +17,7 @@ from app.services.intake import (
     get_session_tenant_id,
     resolve_intake_session,
 )
+from app.services.intake_copy import compose_payment_receipt
 from app.services.intake_csv import FIXED_HEADERS, build_csv_headers, build_csv_row
 from app.services.payment_razorpay import verify_webhook_signature
 
@@ -212,9 +213,8 @@ async def razorpay_webhook(request: Request):
     if result:
         phone, tenant_id, lead_id, customer_name = result
         service_noun = get_intake_config(tenant_id)["service_noun"]
-        receipt = (
-            f"Payment received, thank you {customer_name}! 🎉\n\n"
-            f"Your {service_noun} is confirmed — our expert will be in touch here on WhatsApp shortly."
+        receipt = await compose_payment_receipt(
+            lead_id=lead_id, tenant_id=tenant_id, customer_name=customer_name, service_noun=service_noun,
         )
         try:
             await send_whatsapp(phone, receipt, tenant_id=tenant_id)
