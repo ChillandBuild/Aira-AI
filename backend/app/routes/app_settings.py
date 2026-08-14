@@ -1245,7 +1245,9 @@ async def complete_unified_meta_signup(
         .maybe_single()
         .execute()
     )
-    if existing_phone.data and existing_phone.data.get("tenant_id") != tenant_id:
+    # maybe_single() returns None outright when the number is new, not a row with data=None.
+    existing_phone_row = (existing_phone.data or {}) if existing_phone else {}
+    if existing_phone_row and existing_phone_row.get("tenant_id") != tenant_id:
         raise HTTPException(status_code=409, detail="This WhatsApp number is already connected to another Aira workspace.")
 
     ig_account = (page.get("instagram_business_account") or {}) if page else {}

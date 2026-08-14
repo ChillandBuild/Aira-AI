@@ -240,6 +240,34 @@ async def test_unified_meta_signup_connects_whatsapp_when_no_page_was_granted():
 
 
 @pytest.mark.asyncio
+async def test_unified_meta_signup_survives_a_phone_number_it_has_never_seen():
+    """Breaks if a first-time number 500s: maybe_single() returns None, not a row."""
+    from app.routes.app_settings import UnifiedMetaSignupCompleteRequest, complete_unified_meta_signup
+
+    db = MagicMock()
+    # Supabase answers a no-match maybe_single() with None rather than data=None.
+    db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = None
+    discovered = {"pages": [], "ad_accounts": [], "catalogs": []}
+    with patch("app.routes.app_settings.get_supabase", return_value=db), \
+         patch("app.routes.app_settings._get_setting_value", side_effect=[
+             "business-token", "session-1", "2999-01-01T00:00:00+00:00", "waba-1", "phone-1", None, "false",
+         ]), \
+         patch("app.services.meta_cloud.discover_business_login_assets", new=AsyncMock(return_value=discovered)), \
+         patch("app.services.meta_cloud.verify_waba_phone_number", new=AsyncMock(return_value=True)), \
+         patch("app.services.meta_cloud.register_phone_number", new=AsyncMock(return_value={"success": True})), \
+         patch("app.routes.app_settings.httpx.AsyncClient", return_value=_UnifiedMetaClient()), \
+         patch("app.routes.app_settings.record_audit_event"):
+        result = await complete_unified_meta_signup(
+            UnifiedMetaSignupCompleteRequest(session_id="session-1"),
+            ctx={"tenant_id": "tenant-1"},
+            user={"user_id": "user-1"},
+        )
+
+    assert result["success"] is True
+    assert result["phone_number"] == "+919999999999"
+
+
+@pytest.mark.asyncio
 async def test_unified_meta_signup_coexistence_never_reregisters_the_business_app_number():
     """Breaks if a coexistence signup tries to register an already active app number."""
     from app.routes.app_settings import UnifiedMetaSignupCompleteRequest, complete_unified_meta_signup
