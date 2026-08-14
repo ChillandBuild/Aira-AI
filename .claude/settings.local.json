@@ -26,9 +26,11 @@
       "Bash(cd backend && python -c*)",
       "Bash(uvicorn app.main:app*)",
       "Bash(curl -s http://127.0.0.1:8000/api/v1/*)",
-      "Write(/Users/prem/Documents/Aira AI/graphify-out/*)"
+      "Write(/Users/prem/Documents/Aira AI/graphify-out/*)",
+      "mcp__render__list_services"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "render"
   ],
@@ -62,6 +64,5 @@
         ]
       }
     ]
-  },
-  "enableAllProjectMcpServers": true
+  }
 }
