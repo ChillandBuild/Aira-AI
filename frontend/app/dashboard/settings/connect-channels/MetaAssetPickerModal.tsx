@@ -26,6 +26,7 @@ export default function MetaAssetPickerModal({
   error: string | null;
   canManage: boolean;
 }) {
+  const hasNoPages = assets.pages.length === 0;
   return (
     <Portal>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[3px]">
@@ -33,7 +34,7 @@ export default function MetaAssetPickerModal({
           <div className="flex items-start justify-between border-b border-border-subtle p-6">
             <div>
               <h2 className="font-display text-lg font-bold text-ink">Choose your Meta Business assets</h2>
-              <p className="mt-1 font-body text-xs text-ink-muted">WhatsApp is ready. Choose the Facebook Page for Messenger and its linked Instagram account. Existing separately connected assets stay as they are.</p>
+              <p className="mt-1 font-body text-xs text-ink-muted">WhatsApp is ready. Add the Facebook Page for Messenger and its linked Instagram account if you shared one. Existing separately connected assets stay as they are.</p>
             </div>
             <button
               type="button"
@@ -47,12 +48,16 @@ export default function MetaAssetPickerModal({
           <div className="max-h-[70vh] space-y-5 overflow-y-auto p-6">
             {error && <p className="rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{error}</p>}
             <label className="block">
-              <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Facebook Page <span className="text-red-600">*</span></span>
-              <select value={selectedPageId} onChange={event => onSelectPage(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 font-body text-sm text-ink" disabled={isBusy}>
-                <option value="">Choose a Page</option>
+              <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Facebook Page <span className="font-normal normal-case text-ink-muted">(optional)</span></span>
+              <select value={selectedPageId} onChange={event => onSelectPage(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 font-body text-sm text-ink disabled:bg-surface-low disabled:text-ink-muted" disabled={isBusy || hasNoPages}>
+                <option value="">{hasNoPages ? "No Page was shared with Aira" : "Do not connect a Page"}</option>
                 {assets.pages.map(page => <option key={page.id} value={page.id}>{page.name}{page.instagram_business_account ? " · Instagram linked" : ""}</option>)}
               </select>
-              <p className="mt-1.5 font-body text-[11px] text-ink-muted">Messenger is connected to this Page. Its linked Instagram business account is connected automatically.</p>
+              <p className="mt-1.5 font-body text-[11px] text-ink-muted">
+                {hasNoPages
+                  ? "WhatsApp still connects. To add Messenger and Instagram later, run this again and share a Page in the Meta window."
+                  : "Messenger is connected to this Page. Its linked Instagram business account is connected automatically."}
+              </p>
             </label>
             <label className="block">
               <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Ad account <span className="font-normal normal-case text-ink-muted">(optional)</span></span>
@@ -65,7 +70,7 @@ export default function MetaAssetPickerModal({
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-border-subtle bg-surface-low p-5">
             <button type="button" onClick={onDismiss} className="rounded-xl px-3 py-2 font-label text-sm font-semibold text-ink-muted hover:bg-white">Cancel</button>
-            <button type="button" onClick={onConfirm} disabled={!canManage || !selectedPageId || isBusy} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 font-label text-sm font-bold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="button" onClick={onConfirm} disabled={!canManage || isBusy} className="inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 font-label text-sm font-bold text-white transition-colors hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60">
               {isBusy ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>Connect Meta Business <ArrowRight size={16} /></>}
             </button>
           </div>

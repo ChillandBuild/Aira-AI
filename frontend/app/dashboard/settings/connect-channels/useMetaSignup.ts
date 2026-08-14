@@ -160,7 +160,9 @@ export function useMetaSignup({
   const startCoexistence = useCallback(() => start("coexistence"), [start]);
 
   const complete = useCallback(async () => {
-    if (!canManage || !assets || !selectedPageId) return;
+    // No Page is a valid outcome — WhatsApp connects on its own, Messenger and
+    // Instagram simply stay unconnected.
+    if (!canManage || !assets) return;
     setState("finishing");
     setError(null);
     try {
@@ -170,7 +172,7 @@ export function useMetaSignup({
         headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({
           session_id: assets.session_id,
-          page_id: selectedPageId,
+          page_id: selectedPageId || null,
           ad_account_id: selectedAdAccountId || null,
         }),
       });

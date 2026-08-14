@@ -63,7 +63,9 @@ class UnifiedMetaSignupStartRequest(BaseModel):
 
 class UnifiedMetaSignupCompleteRequest(BaseModel):
     session_id: str
-    page_id: str
+    # WhatsApp is the point of this flow; a Page is only needed for Messenger and
+    # Instagram, so a Page-less signup still connects WhatsApp.
+    page_id: str | None = None
     ad_account_id: str | None = None
 
 
@@ -1059,7 +1061,7 @@ async def start_unified_meta_signup(
     assets = await discover_business_login_assets(access_token)
     public_assets = _public_unified_meta_assets(assets)
     if not public_assets["pages"]:
-        raise HTTPException(status_code=400, detail="No Facebook Page was granted — select at least one Page during Meta signup.")
+        logger.info("Unified Meta signup granted no Facebook Page tenant=%s — connecting WhatsApp only", tenant_id)
 
     session_id = str(uuid4())
     expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
@@ -1226,9 +1228,11 @@ async def complete_unified_meta_signup(
     assets = await discover_business_login_assets(access_token)
     pages_by_id = {page.get("id"): page for page in assets.get("pages", []) if page.get("id")}
     ads_by_id = {account.get("id"): account for account in assets.get("ad_accounts", []) if account.get("id")}
-    page = pages_by_id.get(payload.page_id)
-    if not page or not page.get("access_token"):
+    page = pages_by_id.get(payload.page_id) if payload.page_id else None
+    if payload.page_id and not page:
         raise HTTPException(status_code=400, detail="Select a Facebook Page that was granted during this Meta signup.")
+    if page and not page.get("access_token"):
+        raise HTTPException(status_code=400, detail="Meta did not issue a token for that Page. Reconnect and grant the Page to Aira.")
     ad_account = ads_by_id.get(payload.ad_account_id) if payload.ad_account_id else None
     if payload.ad_account_id and not ad_account:
         raise HTTPException(status_code=400, detail="Select an ad account that was granted during this Meta signup.")
@@ -1244,13 +1248,14 @@ async def complete_unified_meta_signup(
     if existing_phone.data and existing_phone.data.get("tenant_id") != tenant_id:
         raise HTTPException(status_code=409, detail="This WhatsApp number is already connected to another Aira workspace.")
 
-    ig_account = page.get("instagram_business_account") or {}
+    ig_account = (page.get("instagram_business_account") or {}) if page else {}
     ig_account_id = ig_account.get("id")
     claims = [
-        {"asset_type": "facebook_page", "asset_id": payload.page_id},
         {"asset_type": "whatsapp_business_account", "asset_id": waba_id},
         {"asset_type": "whatsapp_phone_number", "asset_id": phone_number_id},
     ]
+    if page:
+        claims.insert(0, {"asset_type": "facebook_page", "asset_id": payload.page_id})
     if ig_account_id:
         claims.insert(1, {"asset_type": "instagram_account", "asset_id": ig_account_id})
     if ad_account:
@@ -1287,31 +1292,36 @@ async def complete_unified_meta_signup(
             phone_data = phone_response.json()
             display_phone = phone_data.get("display_phone_number")
             business_name = phone_data.get("verified_name")
-            page_response = await client.post(
-                f"https://graph.facebook.com/v25.0/{payload.page_id}/subscribed_apps",
-                params={
-                    "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads",
-                    "access_token": page["access_token"],
-                },
-                timeout=10.0,
-            )
-            subscribed_page = bool(page_response.json().get("success", False))
+            if page:
+                page_response = await client.post(
+                    f"https://graph.facebook.com/v25.0/{payload.page_id}/subscribed_apps",
+                    params={
+                        "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads",
+                        "access_token": page["access_token"],
+                    },
+                    timeout=10.0,
+                )
+                subscribed_page = bool(page_response.json().get("success", False))
     except (httpx.HTTPError, ValueError) as exc:
         logger.warning("Unified Meta signup webhook setup failed tenant=%s: %s", tenant_id, exc)
 
-    for key, value, is_secret in (
+    settings_to_save = [
         ("meta_access_token", access_token, True),
         ("meta_phone_number_id", phone_number_id, False),
         ("meta_waba_id", waba_id, False),
         ("meta_app_secret", env_settings.meta_app_secret, True),
-        ("facebook_access_token", page["access_token"], True),
-        ("facebook_page_id", payload.page_id, False),
         ("meta_business_access_token", access_token, True),
         ("whatsapp_status", "live" if subscribed_whatsapp else "configured", False),
-        ("facebook_status", "live" if subscribed_page else "configured", False),
         ("whatsapp_connection_source", "embedded", False),
-        ("facebook_connection_source", "embedded", False),
-    ):
+    ]
+    if page:
+        settings_to_save += [
+            ("facebook_access_token", page["access_token"], True),
+            ("facebook_page_id", payload.page_id, False),
+            ("facebook_status", "live" if subscribed_page else "configured", False),
+            ("facebook_connection_source", "embedded", False),
+        ]
+    for key, value, is_secret in settings_to_save:
         if value:
             _save_tenant_setting(db, tenant_id, key, value, is_secret=is_secret)
 

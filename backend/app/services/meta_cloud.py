@@ -164,77 +164,183 @@ async def exchange_embedded_signup_code(code: str) -> dict:
     return {"access_token": access_token}
 
 
-async def _get_business_login_edge(
+_PAGE_FIELDS = "id,name,access_token,instagram_business_account{id,username}"
+_AD_ACCOUNT_FIELDS = "id,name,account_id,account_status,currency,timezone_name"
+_CATALOG_FIELDS = "id,name"
+
+# Which granular scopes carry which kind of asset id. Instagram scopes are granted
+# against the linked Page, so they belong with the Page scopes.
+_PAGE_GRANT_SCOPES = (
+    "pages_show_list",
+    "pages_messaging",
+    "pages_manage_metadata",
+    "pages_read_engagement",
+    "pages_manage_engagement",
+    "pages_read_user_content",
+    "pages_manage_posts",
+    "instagram_basic",
+    "instagram_manage_messages",
+    "instagram_manage_comments",
+)
+_AD_ACCOUNT_GRANT_SCOPES = ("ads_read", "ads_management")
+_CATALOG_GRANT_SCOPES = ("catalog_management",)
+
+
+async def _debug_token_granular_scopes(client: httpx.AsyncClient, access_token: str) -> dict[str, list[str]]:
+    """Map each granted scope to the asset ids it was granted on.
+
+    Facebook Login for Business hands back a business-integration *system user*
+    token, not a personal one. That token is not a person, so `me/accounts`,
+    `me/adaccounts` and `me/product_catalogs` resolve to nothing no matter what
+    the operator picked in the signup window — verified against Meta on
+    2026-08-14, where a live signup token reported `type: SYSTEM_USER` and
+    `me/accounts` returned `{"data": []}` while the Page was plainly granted.
+    The granted asset ids only exist in the token's granular scopes.
+    """
+    if not env_settings.meta_app_id or not env_settings.meta_app_secret:
+        logger.warning("Cannot read Meta granular scopes: meta_app_id/meta_app_secret are not configured")
+        return {}
+    try:
+        response = await client.get(
+            f"{_BUSINESS_LOGIN_GRAPH_BASE}/debug_token",
+            params={
+                "input_token": access_token,
+                "access_token": f"{env_settings.meta_app_id}|{env_settings.meta_app_secret}",
+            },
+            timeout=10.0,
+        )
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Could not read the assets granted during Meta signup.") from exc
+
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict) or payload.get("error"):
+        raise HTTPException(status_code=502, detail="Could not read the assets granted during Meta signup.")
+
+    grants: dict[str, list[str]] = {}
+    for grant in data.get("granular_scopes") or []:
+        if not isinstance(grant, dict):
+            continue
+        scope = grant.get("scope")
+        if not scope:
+            continue
+        targets = [str(target) for target in grant.get("target_ids") or [] if target]
+        grants.setdefault(scope, []).extend(targets)
+    logger.info(
+        "Meta signup token type=%s scopes=%s granted_assets=%s",
+        data.get("type"),
+        ",".join(data.get("scopes") or []),
+        {scope: len(ids) for scope, ids in grants.items()},
+    )
+    return grants
+
+
+def _granted_ids(grants: dict[str, list[str]], scopes: tuple[str, ...]) -> list[str]:
+    """Collect the ids granted under any of `scopes`, first-seen order, deduped."""
+    ordered: dict[str, None] = {}
+    for scope in scopes:
+        for target in grants.get(scope, []):
+            ordered.setdefault(target, None)
+    return list(ordered)
+
+
+def _as_ad_account_id(target_id: str) -> str:
+    """Meta reports ad account grants with and without the act_ prefix."""
+    return target_id if target_id.startswith("act_") else f"act_{target_id}"
+
+
+async def _read_granted_asset(
     client: httpx.AsyncClient,
-    path: str,
+    node_id: str,
     access_token: str,
     fields: str,
-    *,
-    optional: bool = False,
-) -> list[dict]:
-    """Read every granted asset from a Meta Graph edge without exposing its token."""
-    url = f"{_BUSINESS_LOGIN_GRAPH_BASE}/{path}"
-    params: dict | None = {"fields": fields, "access_token": access_token, "limit": 100}
-    assets: list[dict] = []
+) -> dict | None:
+    """Read one granted asset by id. Returns None when Meta will not hand it over."""
+    try:
+        response = await client.get(
+            f"{_BUSINESS_LOGIN_GRAPH_BASE}/{node_id}",
+            params={"fields": fields, "access_token": access_token},
+            timeout=10.0,
+        )
+        data = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("Granted Meta asset %s could not be read during signup: %s", node_id, exc)
+        return None
+    if not isinstance(data, dict) or data.get("error") or not data.get("id"):
+        logger.warning(
+            "Granted Meta asset %s is not readable during signup: %s",
+            node_id,
+            (data or {}).get("error") if isinstance(data, dict) else data,
+        )
+        return None
+    return data
 
+
+async def _read_granted_assets(
+    client: httpx.AsyncClient,
+    node_ids: list[str],
+    access_token: str,
+    fields: str,
+) -> list[dict]:
+    assets = []
+    for node_id in node_ids:
+        asset = await _read_granted_asset(client, node_id, access_token, fields)
+        if asset:
+            assets.append(asset)
+    return assets
+
+
+async def _list_user_token_pages(client: httpx.AsyncClient, access_token: str) -> list[dict]:
+    """Best-effort me/accounts read, for Login configurations that issue a user token.
+
+    A system user token returns an empty list here, so this only ever adds Pages —
+    it can never be the reason a signup fails.
+    """
+    url = f"{_BUSINESS_LOGIN_GRAPH_BASE}/me/accounts"
+    params: dict | None = {"fields": _PAGE_FIELDS, "access_token": access_token, "limit": 100}
+    pages: list[dict] = []
     while url:
         try:
             response = await client.get(url, params=params, timeout=10.0)
             data = response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            if optional:
-                logger.info("Optional Meta business-login asset lookup failed for %s: %s", path, exc)
-                return []
-            raise HTTPException(status_code=502, detail="Could not list the Facebook Pages granted during signup.") from exc
-
-        if getattr(response, "status_code", 200) >= 400 and not data.get("error"):
-            if optional:
-                logger.info("Optional Meta business-login asset lookup returned HTTP %s for %s", response.status_code, path)
-                return []
-            raise HTTPException(status_code=502, detail="Could not list the Facebook Pages granted during signup.")
-        if data.get("error"):
-            if optional:
-                logger.info("Optional Meta business-login asset lookup was not granted for %s", path)
-                return []
-            raise HTTPException(
-                status_code=400,
-                detail=data["error"].get("message", "Could not list the Facebook Pages granted during signup."),
-            )
-
-        assets.extend(item for item in data.get("data", []) if isinstance(item, dict))
+            logger.info("me/accounts lookup skipped during Meta signup: %s", exc)
+            return pages
+        if getattr(response, "status_code", 200) >= 400 or data.get("error"):
+            logger.info("me/accounts is not readable for this Meta signup token (expected for system user tokens)")
+            return pages
+        pages.extend(item for item in data.get("data", []) if isinstance(item, dict) and item.get("id"))
         url = data.get("paging", {}).get("next")
-        # Meta's paging URL already contains the cursor and access token.
+        # Meta's paging URL already carries the cursor and access token.
         params = None
-
-    return assets
+    return pages
 
 
 async def discover_business_login_assets(access_token: str) -> dict[str, list[dict]]:
-    """Discover assets granted by a General Facebook Login for Business configuration.
+    """Discover assets granted by a Facebook Login for Business configuration.
 
-    Page access tokens remain in this server-side result. Route handlers must strip
-    them before returning assets to the browser.
+    Reads the token's granular scopes for the granted ids, then fetches each asset
+    by id. Page access tokens remain in this server-side result — route handlers
+    must strip them before returning assets to the browser.
     """
     async with httpx.AsyncClient() as client:
-        pages = await _get_business_login_edge(
-            client,
-            "me/accounts",
-            access_token,
-            "id,name,access_token,instagram_business_account{id,username}",
+        grants = await _debug_token_granular_scopes(client, access_token)
+        pages = await _read_granted_assets(
+            client, _granted_ids(grants, _PAGE_GRANT_SCOPES), access_token, _PAGE_FIELDS
         )
-        ad_accounts = await _get_business_login_edge(
+        ad_accounts = await _read_granted_assets(
             client,
-            "me/adaccounts",
+            [_as_ad_account_id(target) for target in _granted_ids(grants, _AD_ACCOUNT_GRANT_SCOPES)],
             access_token,
-            "id,name,account_id,account_status,currency,timezone_name",
-            optional=True,
+            _AD_ACCOUNT_FIELDS,
         )
-        catalogs = await _get_business_login_edge(
-            client,
-            "me/product_catalogs",
-            access_token,
-            "id,name",
-            optional=True,
+        catalogs = await _read_granted_assets(
+            client, _granted_ids(grants, _CATALOG_GRANT_SCOPES), access_token, _CATALOG_FIELDS
+        )
+        known_page_ids = {page["id"] for page in pages if page.get("id")}
+        pages.extend(
+            page for page in await _list_user_token_pages(client, access_token)
+            if page["id"] not in known_page_ids
         )
     return {"pages": pages, "ad_accounts": ad_accounts, "catalogs": catalogs}
 

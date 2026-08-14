@@ -142,6 +142,103 @@ async def test_unified_meta_signup_completion_saves_whatsapp_and_the_selected_as
     })
 
 
+class _GranularScopeMetaClient:
+    """Meta as it really answers a Facebook Login for Business system user token."""
+
+    def __init__(self):
+        self.paths = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    async def get(self, url, *args, **kwargs):
+        path = url.rsplit("/v25.0/", 1)[-1]
+        self.paths.append(path)
+        if path == "debug_token":
+            return _UnifiedResponse({"data": {
+                "type": "SYSTEM_USER",
+                "scopes": ["pages_messaging", "ads_read"],
+                "granular_scopes": [
+                    {"scope": "pages_messaging", "target_ids": ["page-1"]},
+                    {"scope": "instagram_manage_messages", "target_ids": ["page-1"]},
+                    {"scope": "ads_read", "target_ids": ["42"]},
+                ],
+            }})
+        if path == "me/accounts":
+            # A system user token is nobody, so it administers no Pages.
+            return _UnifiedResponse({"data": []})
+        if path == "page-1":
+            return _UnifiedResponse({
+                "id": "page-1",
+                "name": "Astro Tamil",
+                "access_token": "page-token",
+                "instagram_business_account": {"id": "ig-1", "username": "astro"},
+            })
+        if path == "act_42":
+            return _UnifiedResponse({"id": "act_42", "name": "Astro Tamil Test", "account_id": "42"})
+        raise AssertionError(f"unexpected Graph call: {path}")
+
+
+@pytest.mark.asyncio
+async def test_granted_assets_come_from_granular_scopes_when_me_accounts_is_empty():
+    """Breaks if signup goes back to me/*, which is always empty for a system user token."""
+    from app.services import meta_cloud
+
+    client = _GranularScopeMetaClient()
+    with patch("app.services.meta_cloud.httpx.AsyncClient", return_value=client), \
+         patch.object(meta_cloud.env_settings, "meta_app_id", "app-1", create=True), \
+         patch.object(meta_cloud.env_settings, "meta_app_secret", "app-secret", create=True):
+        assets = await meta_cloud.discover_business_login_assets("system-user-token")
+
+    assert [page["id"] for page in assets["pages"]] == ["page-1"]
+    assert assets["pages"][0]["access_token"] == "page-token"
+    assert assets["pages"][0]["instagram_business_account"] == {"id": "ig-1", "username": "astro"}
+    # The ads grant reports a bare id; it is only readable as act_<id>.
+    assert [account["id"] for account in assets["ad_accounts"]] == ["act_42"]
+    assert "debug_token" in client.paths
+
+
+@pytest.mark.asyncio
+async def test_unified_meta_signup_connects_whatsapp_when_no_page_was_granted():
+    """Breaks if a Page-less Meta signup throws away the WhatsApp connection with it."""
+    from app.routes.app_settings import UnifiedMetaSignupCompleteRequest, complete_unified_meta_signup
+
+    db = MagicMock()
+    db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
+    discovered = {"pages": [], "ad_accounts": [], "catalogs": []}
+    with patch("app.routes.app_settings.get_supabase", return_value=db), \
+         patch("app.routes.app_settings._get_setting_value", side_effect=[
+             "business-token", "session-1", "2999-01-01T00:00:00+00:00", "waba-1", "phone-1", None, "false",
+         ]), \
+         patch("app.services.meta_cloud.discover_business_login_assets", new=AsyncMock(return_value=discovered)), \
+         patch("app.services.meta_cloud.verify_waba_phone_number", new=AsyncMock(return_value=True)), \
+         patch("app.services.meta_cloud.register_phone_number", new=AsyncMock(return_value={"success": True})), \
+         patch("app.routes.app_settings.httpx.AsyncClient", return_value=_UnifiedMetaClient()), \
+         patch("app.routes.app_settings.record_audit_event"):
+        result = await complete_unified_meta_signup(
+            UnifiedMetaSignupCompleteRequest(session_id="session-1"),
+            ctx={"tenant_id": "tenant-1"},
+            user={"user_id": "user-1"},
+        )
+
+    assert result["success"] is True
+    assert result["page_id"] is None
+    assert result["instagram_connected"] is False
+    saved = {row["key"] for row in (call.args[0] for call in db.table.return_value.upsert.call_args_list) if "key" in row}
+    assert {"meta_access_token", "meta_waba_id", "meta_phone_number_id", "whatsapp_status"} <= saved
+    assert not saved & {"facebook_access_token", "facebook_page_id", "facebook_status", "instagram_page_id"}
+    db.rpc.assert_called_once_with("claim_meta_assets", {
+        "p_tenant_id": "tenant-1",
+        "p_assets": [
+            {"asset_type": "whatsapp_business_account", "asset_id": "waba-1"},
+            {"asset_type": "whatsapp_phone_number", "asset_id": "phone-1"},
+        ],
+    })
+
+
 @pytest.mark.asyncio
 async def test_unified_meta_signup_coexistence_never_reregisters_the_business_app_number():
     """Breaks if a coexistence signup tries to register an already active app number."""
