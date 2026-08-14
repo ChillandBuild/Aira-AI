@@ -66,6 +66,14 @@ def _belongs_to_current_waba(template: dict, current_waba_id: str | None) -> boo
     return not row_waba_id and not template.get("meta_template_id") and status not in {"APPROVED", "PAUSED"}
 
 
+def _clean_rejection_reason(reason) -> str | None:
+    """Meta sends the literal string 'NONE' when a template was never rejected."""
+    if not reason:
+        return None
+    text = str(reason).strip()
+    return None if text.upper() in ("NONE", "NULL") else text
+
+
 def _filter_templates_for_waba(templates: list[dict], current_waba_id: str | None) -> list[dict]:
     return [t for t in templates if _belongs_to_current_waba(t, current_waba_id)]
 
@@ -210,6 +218,11 @@ async def create_template(
         "meta_template_id": meta_template_id,
         "meta_waba_id": waba_id,
         "tenant_id": tenant_id,
+        # A reused stale row still carries the previous submission's lifecycle —
+        # reset it so the dates describe *this* submission.
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "approved_at": None,
+        "rejection_reason": None,
     }
     if payload.header_text:
         db_insert["header_text"] = payload.header_text
@@ -264,7 +277,7 @@ async def sync_template_status(
 ):
     """Pull current status from Meta API and update the local record."""
     db = get_supabase()
-    row = db.table("message_templates").select("name,meta_template_id").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
+    row = db.table("message_templates").select("name,meta_template_id,meta_waba_id,approved_at").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
     if not row.data:
         raise HTTPException(status_code=404, detail="Template not found")
 
@@ -283,9 +296,12 @@ async def sync_template_status(
     if meta_info.get("id"):
         updates["meta_template_id"] = str(meta_info["id"])
     if new_status == "APPROVED":
-        updates["approved_at"] = datetime.now(timezone.utc).isoformat()
-    if meta_info.get("rejected_reason"):
-        updates["rejection_reason"] = meta_info["rejected_reason"]
+        # Only stamp the first approval — re-syncing must not move the date to today.
+        if not row.data[0].get("approved_at"):
+            updates["approved_at"] = datetime.now(timezone.utc).isoformat()
+    else:
+        updates["approved_at"] = None
+    updates["rejection_reason"] = _clean_rejection_reason(meta_info.get("rejected_reason"))
 
     db.table("message_templates").update(updates).eq("id", template_id).eq("tenant_id", tenant_id).execute()
     updated = db.table("message_templates").select("*").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
@@ -318,7 +334,7 @@ async def sync_templates_from_meta(
         status = (t.get("status") or "PENDING").upper()
         category = (t.get("category") or "MARKETING").upper()
         language = t.get("language", "en")
-        rejection_reason = t.get("rejected_reason") or None
+        rejection_reason = _clean_rejection_reason(t.get("rejected_reason"))
         meta_id = str(t.get("id", "")) if t.get("id") else None
 
         # Parse the full components array from Meta
@@ -367,7 +383,10 @@ async def sync_templates_from_meta(
                 "buttons": buttons,
             }
             if status == "APPROVED":
-                updates["approved_at"] = datetime.now(timezone.utc).isoformat()
+                if not current.get("approved_at"):
+                    updates["approved_at"] = datetime.now(timezone.utc).isoformat()
+            elif current.get("approved_at"):
+                updates["approved_at"] = None
 
             changed = any(current.get(k) != v for k, v in updates.items())
             if changed:
@@ -454,13 +473,11 @@ async def template_status_webhook(request: Request):
                 continue
             meta_id = str(value.get("message_template_id", ""))
             new_status = value.get("event", "").upper()
-            reason = value.get("reason")
+            reason = _clean_rejection_reason(value.get("reason"))
             if not meta_id or new_status not in ("APPROVED", "REJECTED", "PAUSED"):
                 continue
-            
-            updates: dict = {"status": new_status}
-            if reason:
-                updates["rejection_reason"] = reason
+
+            updates: dict = {"status": new_status, "rejection_reason": reason}
             if new_status == "APPROVED":
                 updates["approved_at"] = datetime.now(timezone.utc).isoformat()
             db.table("message_templates").update(updates).eq("meta_template_id", meta_id).execute()
@@ -539,8 +556,14 @@ async def update_template(
         if len(btn_texts) != len(set(btn_texts)):
             raise HTTPException(status_code=400, detail="You can't enter the same text for multiple buttons.")
 
-    # Build DB updates from payload
-    updates: dict = {"status": "PENDING"}
+    # Build DB updates from payload. An edit is a fresh submission to Meta, so the
+    # lifecycle restarts: new submitted_at, no approval, no stale rejection reason.
+    updates: dict = {
+        "status": "PENDING",
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "approved_at": None,
+        "rejection_reason": None,
+    }
     if payload.body_text is not None:
         updates["body_text"] = payload.body_text
     if payload.header_text is not None:

@@ -79,6 +79,123 @@ def test_waba_filter_keeps_all_rows_when_no_waba_configured():
     assert _filter_templates_for_waba(rows, None) == rows
 
 
+# ── Lifecycle timestamps ──────────────────────────────────────────────────────
+
+def test_clean_rejection_reason_drops_metas_none_sentinel():
+    """Meta sends the literal string 'NONE' when a template was never rejected."""
+    from app.routes.templates import _clean_rejection_reason
+
+    assert _clean_rejection_reason("NONE") is None
+    assert _clean_rejection_reason("none") is None
+    assert _clean_rejection_reason("") is None
+    assert _clean_rejection_reason(None) is None
+    assert _clean_rejection_reason("INVALID_FORMAT") == "INVALID_FORMAT"
+
+
+@pytest.mark.asyncio
+async def test_create_template_resets_lifecycle_on_stale_row_reuse():
+    """Re-submitting a name whose row belongs to an old WABA must clear the old approval."""
+    from app.routes.templates import create_template, CreateTemplate
+
+    payload = CreateTemplate(
+        name="escalation_alert", category="UTILITY", language="en", body_text="Lead {{1}} needs an agent"
+    )
+
+    captured: dict = {}
+
+    mock_db = MagicMock()
+    # Stale row: same name, bound to a previous WABA, carrying an old approval.
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+        {"id": "row-old", "meta_template_id": "old-meta", "meta_waba_id": "waba-old"}
+    ]
+
+    def capture_update(values):
+        captured.update(values)
+        chain = MagicMock()
+        chain.eq.return_value.eq.return_value.execute.return_value.data = [{"id": "row-old"}]
+        return chain
+
+    mock_db.table.return_value.update.side_effect = capture_update
+
+    async def mock_submit(*args, **kwargs):
+        return {"id": "new-meta"}
+
+    with patch("app.routes.templates.get_setting", side_effect=lambda k, **kwargs: "waba-new" if k == "meta_waba_id" else None), \
+         patch("app.routes.templates.get_supabase", return_value=mock_db), \
+         patch("app.routes.templates.submit_template", side_effect=mock_submit):
+
+        await create_template(payload, tenant_id="tenant-1")
+
+    assert captured["approved_at"] is None, "stale approval date must be cleared on resubmit"
+    assert captured["rejection_reason"] is None, "stale rejection reason must be cleared on resubmit"
+    assert captured.get("submitted_at"), "submitted_at must be refreshed on resubmit"
+
+
+@pytest.mark.asyncio
+async def test_sync_status_clears_approval_when_meta_says_pending():
+    """A PENDING template must not keep an approved_at from a previous life."""
+    from app.routes.templates import sync_template_status
+
+    captured: dict = {}
+
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"name": "escalation_alert", "meta_template_id": "meta-1", "meta_waba_id": "waba-new", "approved_at": "2026-08-05T16:48:07Z"}
+    ]
+
+    def capture_update(values):
+        captured.update(values)
+        chain = MagicMock()
+        chain.eq.return_value.eq.return_value.execute.return_value.data = [{"id": "row-1"}]
+        return chain
+
+    mock_db.table.return_value.update.side_effect = capture_update
+
+    async def mock_status(*args, **kwargs):
+        return {"status": "PENDING", "id": "meta-1", "rejected_reason": "NONE"}
+
+    with patch("app.routes.templates.get_setting", side_effect=lambda k, **kwargs: "waba-new" if k == "meta_waba_id" else None), \
+         patch("app.routes.templates.get_supabase", return_value=mock_db), \
+         patch("app.routes.templates.get_template_status", side_effect=mock_status):
+
+        await sync_template_status("row-1", tenant_id="tenant-1")
+
+    assert captured["approved_at"] is None
+    assert captured["rejection_reason"] is None
+
+
+@pytest.mark.asyncio
+async def test_sync_status_preserves_original_approval_date():
+    """Re-syncing an approved template must not bump approved_at to today."""
+    from app.routes.templates import sync_template_status
+
+    captured: dict = {}
+
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"name": "hot_lead_check", "meta_template_id": "meta-2", "meta_waba_id": "waba-new", "approved_at": "2026-07-21T14:06:20Z"}
+    ]
+
+    def capture_update(values):
+        captured.update(values)
+        chain = MagicMock()
+        chain.eq.return_value.eq.return_value.execute.return_value.data = [{"id": "row-2"}]
+        return chain
+
+    mock_db.table.return_value.update.side_effect = capture_update
+
+    async def mock_status(*args, **kwargs):
+        return {"status": "APPROVED", "id": "meta-2", "rejected_reason": "NONE"}
+
+    with patch("app.routes.templates.get_setting", side_effect=lambda k, **kwargs: "waba-new" if k == "meta_waba_id" else None), \
+         patch("app.routes.templates.get_supabase", return_value=mock_db), \
+         patch("app.routes.templates.get_template_status", side_effect=mock_status):
+
+        await sync_template_status("row-2", tenant_id="tenant-1")
+
+    assert "approved_at" not in captured, "an existing approval date must be left untouched"
+
+
 # ── get_template_status ───────────────────────────────────────────────────────
 
 @pytest.mark.asyncio

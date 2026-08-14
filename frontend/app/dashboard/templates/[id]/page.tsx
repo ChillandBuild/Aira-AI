@@ -549,7 +549,7 @@ export default function TemplateDetailsPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="font-body text-xs text-ink-muted">Created Date</p>
+                    <p className="font-body text-xs text-ink-muted">Submitted Date</p>
                     <p className="font-body text-xs font-semibold text-ink mt-0.5">
                       {template.submitted_at
                         ? new Date(template.submitted_at).toLocaleDateString("en-IN", {
