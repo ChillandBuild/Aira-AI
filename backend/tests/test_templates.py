@@ -68,7 +68,8 @@ def test_waba_filter_hides_legacy_remote_templates():
     assert [r["name"] for r in visible] == ["current_remote", "local_draft"]
 
 
-def test_waba_filter_keeps_all_rows_when_no_waba_configured():
+def test_waba_filter_hides_everything_when_no_waba_configured():
+    """A tenant with no WhatsApp connection has no templates to show — fail closed."""
     from app.routes.templates import _filter_templates_for_waba
 
     rows = [
@@ -76,7 +77,36 @@ def test_waba_filter_keeps_all_rows_when_no_waba_configured():
         {"name": "other_account", "meta_template_id": "other-meta", "meta_waba_id": "waba-other"},
     ]
 
-    assert _filter_templates_for_waba(rows, None) == rows
+    assert _filter_templates_for_waba(rows, None) == []
+
+
+def test_belongs_to_current_waba_still_answers_ownership_without_a_waba():
+    """Visibility fails closed, but the ownership check must not — it guards duplicate names."""
+    from app.routes.templates import _belongs_to_current_waba
+
+    assert _belongs_to_current_waba({"name": "x", "meta_template_id": "m", "meta_waba_id": "w"}, None) is True
+
+
+@pytest.mark.asyncio
+async def test_create_template_rejected_when_no_waba_connected():
+    """Saving locally would strand a template that never reaches Meta and never renders."""
+    from app.routes.templates import create_template, CreateTemplate
+    from fastapi import HTTPException
+
+    payload = CreateTemplate(name="orphan", category="UTILITY", language="en", body_text="Hi {{1}}, welcome!")
+
+    mock_db = MagicMock()
+    mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
+
+    with patch("app.routes.templates.get_setting", return_value=None), \
+         patch("app.routes.templates.get_supabase", return_value=mock_db):
+
+        with pytest.raises(HTTPException) as exc:
+            await create_template(payload, tenant_id="tenant-1")
+
+    assert exc.value.status_code == 400
+    assert "meta_waba_id" in exc.value.detail
+    mock_db.table.return_value.insert.assert_not_called()
 
 
 # ── Lifecycle timestamps ──────────────────────────────────────────────────────

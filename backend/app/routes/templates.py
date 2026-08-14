@@ -75,6 +75,17 @@ def _clean_rejection_reason(reason) -> str | None:
 
 
 def _filter_templates_for_waba(templates: list[dict], current_waba_id: str | None) -> list[dict]:
+    """Visibility fails closed: no WhatsApp connection means nothing to show.
+
+    Templates belong to a WABA, so a disconnected tenant's rows describe an account
+    they no longer hold. They are hidden, not deleted — reconnecting the same WABA
+    brings them straight back, keeping local-only data (variations) that Meta cannot
+    restore. Note this is deliberately stricter than _belongs_to_current_waba, which
+    answers ownership rather than visibility and must keep matching rows without a
+    configured WABA so duplicate-name detection still works.
+    """
+    if not current_waba_id:
+        return []
     return [t for t in templates if _belongs_to_current_waba(t, current_waba_id)]
 
 
@@ -154,49 +165,50 @@ async def create_template(
             raise HTTPException(status_code=400, detail="You can't enter the same text for multiple buttons.")
 
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
+    if not waba_id:
+        # Saving locally would strand the template: it never reaches Meta, and the
+        # templates list hides rows for a tenant with no WABA connected.
+        raise HTTPException(status_code=400, detail="Connect Meta WhatsApp (meta_waba_id) in Settings first")
 
     db = get_supabase()
     existing = db.table("message_templates").select("id,meta_template_id,meta_waba_id").eq("name", name).eq("tenant_id", tenant_id).execute()
     existing_rows = existing.data or []
     if any(_belongs_to_current_waba(row, waba_id) for row in existing_rows):
         raise HTTPException(status_code=409, detail=f"Template '{name}' already exists")
-    stale_existing_id = existing_rows[0]["id"] if existing_rows and waba_id else None
+    stale_existing_id = existing_rows[0]["id"] if existing_rows else None
 
     meta_template_id = None
     status = "PENDING"
-    if waba_id:
-        try:
-            buttons_dict = [b.model_dump() for b in payload.buttons] if payload.buttons else None
-            carousel_dict = None
-            if payload.carousel_cards:
-                carousel_dict = []
-                for c in payload.carousel_cards:
-                    raw = c.model_dump()
-                    if c.buttons:
-                        raw["buttons"] = [b.model_dump() for b in c.buttons]
-                    carousel_dict.append(raw)
-            meta_response = await submit_template(
-                waba_id=waba_id,
-                name=name,
-                category=category,
-                language=payload.language,
-                body_text=payload.body_text,
-                header_text=payload.header_text,
-                header_media_type=payload.header_media_type,
-                header_media_url=payload.header_media_url,
-                footer_text=payload.footer_text,
-                buttons=buttons_dict,
-                carousel_cards=carousel_dict,
-                tenant_id=tenant_id,
-            )
-            meta_template_id = str(meta_response.get("id", ""))
-        except TemplateContentExistsError:
-            raise
-        except Exception as e:
-            status = "REJECTED"
-            logger.warning(f"Meta template submission failed for {name}: {e}, saved as REJECTED")
-    else:
-        logger.info(f"No meta_waba_id configured — saving template '{name}' locally as PENDING")
+    try:
+        buttons_dict = [b.model_dump() for b in payload.buttons] if payload.buttons else None
+        carousel_dict = None
+        if payload.carousel_cards:
+            carousel_dict = []
+            for c in payload.carousel_cards:
+                raw = c.model_dump()
+                if c.buttons:
+                    raw["buttons"] = [b.model_dump() for b in c.buttons]
+                carousel_dict.append(raw)
+        meta_response = await submit_template(
+            waba_id=waba_id,
+            name=name,
+            category=category,
+            language=payload.language,
+            body_text=payload.body_text,
+            header_text=payload.header_text,
+            header_media_type=payload.header_media_type,
+            header_media_url=payload.header_media_url,
+            footer_text=payload.footer_text,
+            buttons=buttons_dict,
+            carousel_cards=carousel_dict,
+            tenant_id=tenant_id,
+        )
+        meta_template_id = str(meta_response.get("id", ""))
+    except TemplateContentExistsError:
+        raise
+    except Exception as e:
+        status = "REJECTED"
+        logger.warning(f"Meta template submission failed for {name}: {e}, saved as REJECTED")
 
     db_insert = {
         "name": name,
