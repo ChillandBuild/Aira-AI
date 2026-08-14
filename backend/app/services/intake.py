@@ -382,6 +382,13 @@ def _is_affirmative(message: str) -> bool:
     return bool(tokens & _AFFIRMATIVE_RE_WORDS)
 
 
+def is_brain_led(tenant_id: str, phone: str) -> bool:
+    """Thin indirection so this module never imports intake_brain at module level --
+    intake_brain imports its state primitives from here, and the cycle would be real."""
+    from app.services.intake_brain import is_brain_led as _gate
+    return _gate(tenant_id, phone)
+
+
 def _summary_block(fields: list[dict], collected_data: dict, skipped=()) -> str:
     """The collected values, rendered in Python. Never LLM-written -- these are the
     details the expert works from, and a rewritten value is a wrong reading. A field
@@ -408,6 +415,17 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
     try:
         config = get_intake_config(tenant_id, db=db)
         if not config.get("enabled"):
+            return False
+
+        session = _get_active_session(lead_id, tenant_id, db)
+
+        # Brain-led leads (see intake_brain.py): once the offer is out, this state
+        # machine composes and sends nothing. Reporting the turn as unconsumed hands
+        # it to generate_reply, which drives the rest of the sign-up through tools.
+        # The trigger classifier and the tenant's own offer copy below are identical
+        # in both modes, so they stay here.
+        if session is not None and is_brain_led(tenant_id, phone):
+            logger.info(f"Brain-led intake: yielding turn for lead {lead_id} (session {session['id']})")
             return False
 
         # Resolved once per turn and shared by every line this turn may send.
@@ -440,8 +458,6 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 thread=thread,
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)
-
-        session = _get_active_session(lead_id, tenant_id, db)
 
         if session is None:
             matched = await detect_intake_intent(body, config["trigger_description"], tenant_id)

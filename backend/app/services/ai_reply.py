@@ -1431,6 +1431,38 @@ async def generate_reply(
         catalog_context = ""
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
 
+    # Brain-led intake (see intake_brain.py): route_intake stood aside for this lead,
+    # so this turn drives the paid sign-up itself, through tools. Catalog retrieval is
+    # suppressed while it runs — a product recommendation mid-sale is exactly the
+    # derail this flow exists to prevent. Paid sessions are left alone: they are past
+    # the sign-up and _intake_paid_prompt_block already covers them.
+    intake_tool_defs: list[dict] = []
+    intake_session: dict | None = None
+    intake_config: dict | None = None
+    intake_block = ""
+    intake_append = ""
+    intake_phone = phone or lead_data.get("phone") or ""
+    try:
+        from app.services.intake_brain import (
+            intake_prompt_block,
+            intake_tools,
+            is_brain_led,
+        )
+        if channel == "whatsapp" and is_brain_led(tenant_id, intake_phone):
+            from app.services.intake import _get_active_session, get_intake_config
+            _intake_cfg = get_intake_config(tenant_id, db=db)
+            _intake_sess = (
+                _get_active_session(lead_id, tenant_id, db) if _intake_cfg.get("enabled") else None
+            )
+            if _intake_sess and _intake_sess.get("status") != "paid":
+                intake_session, intake_config = _intake_sess, _intake_cfg
+                intake_tool_defs = intake_tools(_intake_cfg, _intake_sess)
+                intake_block = intake_prompt_block(_intake_cfg, _intake_sess)
+                catalog_context, catalog_tools, catalog_items_by_id, catalog_max_images = "", [], {}, 0
+                logger.info(f"Brain-led intake: driving session {_intake_sess['id']} for lead {lead_id}")
+    except Exception:
+        logger.exception("Brain-led intake setup failed for lead %s — replying without it", lead_id)
+
     try:
         system_prompt, reply_language_mode = build_reply_system_prompt(
             db,
@@ -1442,7 +1474,11 @@ async def generate_reply(
             campaign_name=campaign_name,
             context_text=context_text,
             catalog_context=catalog_context,
+            # The composer-led "an intake is in progress, don't derail it" block is
+            # written for a turn the AI merely stumbled into. Here the AI IS the flow.
+            include_intake_context=intake_session is None,
         )
+        system_prompt += intake_block
 
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]
@@ -1464,11 +1500,26 @@ async def generate_reply(
 
         catalog_images_to_send: list[tuple[str, bytes]] = []  # (filename, image_bytes)
 
-        if catalog_tools:
+        active_tools = intake_tool_defs + catalog_tools
+        if active_tools:
             reply_text, tool_calls = await _llm_chat_with_tools(
-                chat_messages, tools=catalog_tools, max_tokens=600, tenant_id=tenant_id,
+                chat_messages, tools=active_tools, max_tokens=600, tenant_id=tenant_id,
             )
             reply_text = reply_text.strip()
+
+            # Intake tool calls first: they may produce a payment URL that has to be
+            # appended to this reply verbatim, and they own the session's state.
+            if intake_session is not None:
+                from app.services.intake_brain import execute_intake_tools
+                intake_append = await execute_intake_tools(
+                    tool_calls,
+                    session=intake_session,
+                    config=intake_config,
+                    tenant_id=tenant_id,
+                    lead_id=str(lead_id),
+                    phone=intake_phone,
+                    db=db,
+                )
 
             # Handle tool calls — the model asked to recommend catalog items
             for tc in tool_calls:
@@ -1555,6 +1606,11 @@ async def generate_reply(
                     reply_text = regenerated
             except Exception as regen_err:
                 logger.warning(f"Script-mismatch regeneration failed for lead {lead_id}: {regen_err}")
+
+        # Appended after every rewrite path above, deliberately: the payment URL is
+        # rendered in Python and must reach the customer character-for-character.
+        if intake_append:
+            reply_text = f"{reply_text}\n{intake_append}" if reply_text else intake_append
 
         # Trigger A: AI gave a generic fallback reply
         if _is_generic_fallback(reply_text):
