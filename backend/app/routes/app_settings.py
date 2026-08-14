@@ -756,10 +756,6 @@ async def whatsapp_embedded_signup(
         "meta_access_token": access_token,
         "meta_phone_number_id": payload.phone_number_id,
         "meta_waba_id": payload.waba_id,
-        # Same Meta app for every tenant — save it here too so this tenant's inbound
-        # webhook signature verification (which reads meta_app_secret per-tenant) works
-        # immediately, without anyone manually pasting it in.
-        "meta_app_secret": env_settings.meta_app_secret,
     }
     for key, value in creds_to_save.items():
         if not value:
@@ -768,9 +764,10 @@ async def whatsapp_embedded_signup(
             "tenant_id": tenant_id,
             "key": key,
             "value": value,
-            "is_secret": key in {"meta_access_token", "meta_app_secret"},
+            "is_secret": key == "meta_access_token",
             "updated_at": "now()",
         }, on_conflict="tenant_id,key").execute()
+    _save_shared_meta_app_credentials(db, tenant_id)
 
     db.table("app_settings").upsert({
         "tenant_id": tenant_id,
@@ -965,6 +962,25 @@ def _save_tenant_setting(db, tenant_id: str, key: str, value: str, *, is_secret:
     }, on_conflict="tenant_id,key").execute()
 
 
+def _save_shared_meta_app_credentials(db, tenant_id: str) -> None:
+    """Copy the app-level Meta secrets onto a tenant that just connected a channel.
+
+    Every tenant signs up through the same Meta app, so the app secret and the
+    webhook verify token are Aira's, not theirs. Meta never returns either one —
+    the verify token in particular is a string we choose and paste into the app's
+    webhook settings — but the inbound routes read both per-tenant and
+    get_setting has no env fallback, so a tenant without these rows silently
+    fails Meta's webhook challenge with a 403. Writing them at connect time is
+    what saves someone hand-pasting them after every signup.
+    """
+    for key, value in (
+        ("meta_app_secret", env_settings.meta_app_secret),
+        ("meta_webhook_verify_token", env_settings.meta_verify_token),
+    ):
+        if value:
+            _save_tenant_setting(db, tenant_id, key, value, is_secret=True)
+
+
 def _public_business_login_assets(assets: dict[str, list[dict]]) -> dict[str, list[dict]]:
     """Return only browser-safe metadata; Graph access tokens must never leave Aira."""
     return {
@@ -1144,8 +1160,7 @@ async def complete_meta_business_login(
     _save_tenant_setting(db, tenant_id, "facebook_access_token", page_token, is_secret=True)
     _save_tenant_setting(db, tenant_id, "facebook_page_id", payload.page_id)
     _save_tenant_setting(db, tenant_id, "meta_business_access_token", access_token, is_secret=True)
-    if env_settings.meta_app_secret:
-        _save_tenant_setting(db, tenant_id, "meta_app_secret", env_settings.meta_app_secret, is_secret=True)
+    _save_shared_meta_app_credentials(db, tenant_id)
 
     connected_instagram = bool(ig_account_id)
     if connected_instagram:
@@ -1311,7 +1326,6 @@ async def complete_unified_meta_signup(
         ("meta_access_token", access_token, True),
         ("meta_phone_number_id", phone_number_id, False),
         ("meta_waba_id", waba_id, False),
-        ("meta_app_secret", env_settings.meta_app_secret, True),
         ("meta_business_access_token", access_token, True),
         ("whatsapp_status", "live" if subscribed_whatsapp else "configured", False),
         ("whatsapp_connection_source", "embedded", False),
@@ -1326,6 +1340,7 @@ async def complete_unified_meta_signup(
     for key, value, is_secret in settings_to_save:
         if value:
             _save_tenant_setting(db, tenant_id, key, value, is_secret=is_secret)
+    _save_shared_meta_app_credentials(db, tenant_id)
 
     connected_instagram = bool(ig_account_id)
     if connected_instagram:
@@ -1457,6 +1472,7 @@ async def facebook_embedded_signup(
             "is_secret": key.endswith("_access_token"),
             "updated_at": "now()",
         }, on_conflict="tenant_id,key").execute()
+    _save_shared_meta_app_credentials(db, tenant_id)
 
     db.table("app_settings").upsert({
         "tenant_id": tenant_id,

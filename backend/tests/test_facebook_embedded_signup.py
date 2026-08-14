@@ -240,6 +240,40 @@ async def test_unified_meta_signup_connects_whatsapp_when_no_page_was_granted():
 
 
 @pytest.mark.asyncio
+async def test_unified_meta_signup_writes_the_shared_webhook_verify_token():
+    """Breaks if Messenger/Instagram webhooks are left 403ing until someone pastes a token."""
+    from app.routes import app_settings as app_settings_module
+    from app.routes.app_settings import UnifiedMetaSignupCompleteRequest, complete_unified_meta_signup
+
+    db = MagicMock()
+    db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = None
+    discovered = {"pages": [], "ad_accounts": [], "catalogs": []}
+    with patch("app.routes.app_settings.get_supabase", return_value=db), \
+         patch.object(app_settings_module.env_settings, "meta_verify_token", "shared-verify-token", create=True), \
+         patch.object(app_settings_module.env_settings, "meta_app_secret", "shared-app-secret", create=True), \
+         patch("app.routes.app_settings._get_setting_value", side_effect=[
+             "business-token", "session-1", "2999-01-01T00:00:00+00:00", "waba-1", "phone-1", None, "false",
+         ]), \
+         patch("app.services.meta_cloud.discover_business_login_assets", new=AsyncMock(return_value=discovered)), \
+         patch("app.services.meta_cloud.verify_waba_phone_number", new=AsyncMock(return_value=True)), \
+         patch("app.services.meta_cloud.register_phone_number", new=AsyncMock(return_value={"success": True})), \
+         patch("app.routes.app_settings.httpx.AsyncClient", return_value=_UnifiedMetaClient()), \
+         patch("app.routes.app_settings.record_audit_event"):
+        await complete_unified_meta_signup(
+            UnifiedMetaSignupCompleteRequest(session_id="session-1"),
+            ctx={"tenant_id": "tenant-1"},
+            user={"user_id": "user-1"},
+        )
+
+    stored = [call.args[0] for call in db.table.return_value.upsert.call_args_list]
+    verify_row = next(row for row in stored if row.get("key") == "meta_webhook_verify_token")
+    assert verify_row["value"] == "shared-verify-token"
+    assert verify_row["is_secret"] is True
+    secret_row = next(row for row in stored if row.get("key") == "meta_app_secret")
+    assert secret_row["value"] == "shared-app-secret"
+
+
+@pytest.mark.asyncio
 async def test_unified_meta_signup_survives_a_phone_number_it_has_never_seen():
     """Breaks if a first-time number 500s: maybe_single() returns None, not a row."""
     from app.routes.app_settings import UnifiedMetaSignupCompleteRequest, complete_unified_meta_signup
