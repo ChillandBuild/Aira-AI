@@ -134,13 +134,18 @@ def intake_tools(config: dict, session: dict) -> list[dict]:
     if not session.get("package_key"):
         packages = normalize_packages(config)
         if packages:
+            # The name -> key mapping lives here rather than in the prompt block:
+            # tool descriptions are never read out to the customer, and the block
+            # was leaking internal keys into replies (live evidence 2026-08-15,
+            # "namma Basic (basic) package irukku").
+            mapping = "; ".join(f'"{p["name"]}" = {p["key"]}' for p in packages)
             tools.append({
                 "type": "function",
                 "function": {
                     "name": "choose_package",
                     "description": (
                         "Record which package the customer picked. Only call this once "
-                        "they have actually chosen one."
+                        f"they have actually chosen one. Package names map to keys as: {mapping}."
                     ),
                     "parameters": {
                         "type": "object",
@@ -175,10 +180,16 @@ def intake_tools(config: dict, session: dict) -> list[dict]:
     return tools
 
 
-def intake_prompt_block(config: dict, session: dict) -> str:
+def intake_prompt_block(config: dict, session: dict, *, just_sent_link: bool = False) -> str:
     """What the brain needs to know about the sale in progress. Prices are
     rendered here in Python for the same reason package_list_block does it: the
-    customer is held to these figures."""
+    customer is held to these figures.
+
+    just_sent_link=True is for the second pass after send_payment_link fired on
+    THIS turn: the session already reads awaiting_payment, but telling the model
+    the link "has already been sent" would make it write about an old link
+    instead of the one about to be appended to its own sentence.
+    """
     service_noun = config.get("service_noun") or "consultation"
     collected = session.get("collected_data") or {}
     fields = config.get("fields") or []
@@ -196,7 +207,7 @@ def intake_prompt_block(config: dict, session: dict) -> str:
         if packages:
             lines.append("\nPACKAGES (quote these exactly, never invent a price):")
             for p in packages:
-                line = f"- {p['name']} ({p['key']}) — {_rupees(p['amount_paise'])}"
+                line = f"- {p['name']} — {_rupees(p['amount_paise'])}"
                 if p.get("description"):
                     line += f": {p['description']}"
                 lines.append(line)
@@ -219,6 +230,12 @@ def intake_prompt_block(config: dict, session: dict) -> str:
             "Call save_intake_details as soon as they answer. If they say they do not "
             "know one after you have asked twice, move on to the next one — do not keep "
             "asking. If they ask you something else, answer that first, then re-ask."
+        )
+    elif just_sent_link:
+        lines.append(
+            "\nYou have just generated their payment link. Write ONE short sentence "
+            "telling them to pay using the link that follows your message — the system "
+            "appends the real link right after your text. Do not type a link yourself."
         )
     elif session.get("status") == "awaiting_payment":
         lines.append(

@@ -1478,6 +1478,7 @@ async def generate_reply(
             # written for a turn the AI merely stumbled into. Here the AI IS the flow.
             include_intake_context=intake_session is None,
         )
+        base_system_prompt = system_prompt
         system_prompt += intake_block
 
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
@@ -1511,6 +1512,10 @@ async def generate_reply(
             # appended to this reply verbatim, and they own the session's state.
             if intake_session is not None:
                 from app.services.intake_brain import execute_intake_tools
+                intake_names = {t["function"]["name"] for t in intake_tool_defs}
+                intake_fired = any(
+                    ((tc.get("function") or {}).get("name") in intake_names) for tc in tool_calls
+                )
                 intake_append = await execute_intake_tools(
                     tool_calls,
                     session=intake_session,
@@ -1520,6 +1525,21 @@ async def generate_reply(
                     phone=intake_phone,
                     db=db,
                 )
+                if intake_fired and not reply_text:
+                    # Models routinely answer a tool turn with the call ALONE and no
+                    # words, expecting a second round trip to write the sentence. Live
+                    # evidence 2026-08-15: Gemini recorded the lead's name correctly and
+                    # the customer received the generic "Thank you for reaching out"
+                    # fallback. execute_intake_tools mutates `session` in place, so
+                    # rebuilding the block here shows the model the state it just wrote
+                    # -- it asks for the NEXT field rather than the one just answered.
+                    # No tools on this pass: the work is already done.
+                    chat_messages[0]["content"] = base_system_prompt + intake_prompt_block(
+                        intake_config, intake_session, just_sent_link=bool(intake_append),
+                    )
+                    reply_text = (
+                        await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)
+                    ).strip()
 
             # Handle tool calls — the model asked to recommend catalog items
             for tc in tool_calls:

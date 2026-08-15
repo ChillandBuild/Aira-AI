@@ -214,6 +214,23 @@ def test_prompt_block_renders_package_prices_in_python():
     assert "₹29" in block
 
 
+def test_prompt_block_keeps_internal_package_keys_out_of_the_customers_view():
+    """Live evidence 2026-08-15: the block listed 'Basic (basic) — ₹5' and the model
+    read the internal key straight out to the customer."""
+    block = ib.intake_prompt_block(_CONFIG, _session(status="offer_pending"))
+    assert "(basic)" not in block
+    assert "(deep)" not in block
+    assert "Basic" in block
+
+
+def test_the_package_tool_carries_the_name_to_key_mapping_instead():
+    tool = next(t for t in ib.intake_tools(_CONFIG, _session(status="offer_pending"))
+                if t["function"]["name"] == "choose_package")
+    description = tool["function"]["description"]
+    assert "Basic" in description and "basic" in description
+    assert "Deep Dive" in description and "deep" in description
+
+
 def test_prompt_block_forbids_inventing_prices_or_links():
     block = ib.intake_prompt_block(_CONFIG, _session())
     lowered = block.lower()
@@ -464,6 +481,100 @@ async def test_generate_reply_is_reached_with_intake_tools_and_no_catalog_tools(
     assert "send_payment_link" in names
     assert "recommend_catalog_item" not in names
     assert env["build_prompt"].call_args.kwargs["include_intake_context"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_tool_call_with_no_words_gets_a_second_pass_instead_of_the_fallback():
+    """Live evidence 2026-08-15: Gemini returned the save_intake_details call alone,
+    with no text. The name was recorded correctly but the customer got the generic
+    'Thank you for reaching out' fallback. Models routinely answer a tool turn with
+    the call only, expecting a second round trip to write the sentence."""
+    from app.services import ai_reply
+
+    session = _session(package_key="basic", package_amount_paise=500)
+    chat = AsyncMock(return_value=("", [_call("save_intake_details", {"full_name": "Prem Kumar"})]))
+    second_pass = AsyncMock(return_value="Super Prem Kumar. Unga piranthaa thedhi enna?")
+    with _brain_led_env(session, chat) as env, \
+         patch.object(ai_reply, "_llm_chat", new=second_pass), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="Prem Kumar", phone="+919345679286")
+
+    second_pass.assert_awaited_once()
+    assert env["send"].await_args[0][1] == "Super Prem Kumar. Unga piranthaa thedhi enna?"
+
+
+@pytest.mark.asyncio
+async def test_the_second_pass_sees_the_state_the_tools_just_wrote():
+    """It must ask for the NEXT field, not the one just answered -- so the refreshed
+    block has to carry the value the tool call recorded a moment ago."""
+    from app.services import ai_reply
+
+    session = _session(package_key="basic", package_amount_paise=500)
+    chat = AsyncMock(return_value=("", [_call("save_intake_details", {"full_name": "Prem Kumar"})]))
+    second_pass = AsyncMock(return_value="Unga piranthaa thedhi enna?")
+    with _brain_led_env(session, chat), \
+         patch.object(ai_reply, "_llm_chat", new=second_pass), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="Prem Kumar", phone="+919345679286")
+
+    refreshed_system = second_pass.await_args[0][0][0]["content"]
+    assert "Full Name: Prem Kumar" in refreshed_system
+    assert "Date of birth" in refreshed_system
+
+
+@pytest.mark.asyncio
+async def test_no_second_pass_when_the_model_already_wrote_something():
+    from app.services import ai_reply
+
+    session = _session(package_key="basic", package_amount_paise=500)
+    chat = AsyncMock(return_value=("Super. DOB enna?", [_call("save_intake_details", {"full_name": "Prem"})]))
+    second_pass = AsyncMock(return_value="should not be used")
+    with _brain_led_env(session, chat) as env, \
+         patch.object(ai_reply, "_llm_chat", new=second_pass), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="Prem", phone="+919345679286")
+
+    second_pass.assert_not_awaited()
+    assert env["send"].await_args[0][1] == "Super. DOB enna?"
+
+
+@pytest.mark.asyncio
+async def test_a_wordless_payment_tool_call_still_gets_its_link_appended():
+    from app.services import ai_reply
+
+    session = _session(package_key="basic", package_amount_paise=500,
+                       collected_data={"full_name": "Cheran", "date_of_birth": "06.06.2000"})
+    chat = AsyncMock(return_value=("", [_call("send_payment_link")]))
+    second_pass = AsyncMock(return_value="Indha link la pay pannunga:")
+    with _brain_led_env(session, chat) as env, \
+         patch.object(ai_reply, "_llm_chat", new=second_pass), \
+         patch.object(ib, "create_payment_link",
+                      new=AsyncMock(return_value={"payment_link_url": "https://rzp.io/rzp/XYZ"})), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="seri", phone="+919345679286")
+
+    assert env["send"].await_args[0][1] == "Indha link la pay pannunga:\nhttps://rzp.io/rzp/XYZ"
+
+
+@pytest.mark.asyncio
+async def test_the_payment_second_pass_is_told_the_link_follows_its_sentence():
+    from app.services import ai_reply
+
+    session = _session(package_key="basic", package_amount_paise=500,
+                       collected_data={"full_name": "Cheran", "date_of_birth": "06.06.2000"})
+    chat = AsyncMock(return_value=("", [_call("send_payment_link")]))
+    second_pass = AsyncMock(return_value="Indha link la pay pannunga:")
+    with _brain_led_env(session, chat), \
+         patch.object(ai_reply, "_llm_chat", new=second_pass), \
+         patch.object(ib, "create_payment_link",
+                      new=AsyncMock(return_value={"payment_link_url": "https://rzp.io/rzp/XYZ"})), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="seri", phone="+919345679286")
+
+    refreshed_system = second_pass.await_args[0][0][0]["content"]
+    assert "link" in refreshed_system.lower()
+    # It must not be told the link is old news -- it was generated this very turn.
+    assert "already been sent" not in refreshed_system
 
 
 @pytest.mark.asyncio
