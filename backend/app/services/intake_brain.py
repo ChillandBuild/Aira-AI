@@ -117,6 +117,39 @@ def intake_tools(config: dict, session: dict) -> list[dict]:
                 },
             },
         },
+    ]
+
+    outstanding = _outstanding(config, session)
+    if outstanding:
+        # Without this the brain can decide to move on but has no way to say so:
+        # the field stays pending, send_payment_link is never offered, and the flow
+        # has no exit. Live evidence 2026-08-15 -- it improvised one, by starting
+        # the reading itself, unpaid.
+        tools.append({
+            "type": "function",
+            "function": {
+                "name": "skip_intake_field",
+                "description": (
+                    "Give up on one detail and move on. Call this when the customer "
+                    "has said twice that they do not know it, or clearly cannot "
+                    "provide it. The expert will work without it. Always call this "
+                    "rather than silently dropping the question."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "field_key": {
+                            "type": "string",
+                            "enum": [f["key"] for f in outstanding],
+                            "description": "The detail the customer cannot provide",
+                        }
+                    },
+                    "required": ["field_key"],
+                },
+            },
+        })
+
+    tools.append(
         {
             "type": "function",
             "function": {
@@ -128,8 +161,8 @@ def intake_tools(config: dict, session: dict) -> list[dict]:
                 ),
                 "parameters": {"type": "object", "properties": {}},
             },
-        },
-    ]
+        }
+    )
 
     if not session.get("package_key"):
         packages = normalize_packages(config)
@@ -227,9 +260,10 @@ def intake_prompt_block(config: dict, session: dict, *, just_sent_link: bool = F
         lines.append("\nSTILL NEEDED (ask for ONE at a time, in this order):")
         lines.extend(f"- {f['label']}" for f in outstanding)
         lines.append(
-            "Call save_intake_details as soon as they answer. If they say they do not "
-            "know one after you have asked twice, move on to the next one — do not keep "
-            "asking. If they ask you something else, answer that first, then re-ask."
+            "Call save_intake_details as soon as they answer. If they say twice that "
+            "they do not know one, call skip_intake_field for it and move to the next — "
+            "never just stop asking, and never move on without calling it. If they ask "
+            "you something else, answer that first, then re-ask."
         )
     elif just_sent_link:
         lines.append(
@@ -254,6 +288,13 @@ def intake_prompt_block(config: dict, session: dict, *, just_sent_link: bool = F
         "- Never claim payment is done — that is confirmed separately.\n"
         "- Never tell them to use an app, a website, or any other way to reach an "
         f"expert — this {service_noun} is the way.\n"
+        # Live evidence 2026-08-15: mid-collection and unpaid, the model wrote "tell me
+        # your question now and I'll send it to our astrologer", then offered guidance
+        # by voice note or text -- handing over the paid service for free.
+        f"- The {service_noun} itself has NOT started and will not start until they "
+        "have paid. Do not ask them for their question, do not take it, do not answer "
+        "it, and do not say the expert is looking at it or will reply to it. Your only "
+        "job right now is to finish the sign-up.\n"
         "- Keep replies short, one question at a time, in the conversation's language."
     )
     return "\n".join(lines)
@@ -269,9 +310,35 @@ async def _save_details(args: dict, *, session: dict, config: dict, db) -> None:
     session["collected_data"] = collected
     patch = {"collected_data": collected}
 
+    # A customer who first said "I don't know" and later remembers must not have
+    # their answer filed under a field the flow has already given up on.
+    skipped = [k for k in (session.get("skipped_fields") or []) if k not in new_values]
+    if skipped != (session.get("skipped_fields") or []):
+        session["skipped_fields"] = skipped
+        patch["skipped_fields"] = skipped
+
     # Status is derived from the data rather than stepped through a ladder --
     # brain-led turns can fill several fields at once, or fill the last one out
     # of order, and the session must land in the right place either way.
+    if session.get("package_key") and not _outstanding(config, session):
+        if session.get("status") not in ("awaiting_payment", "paid"):
+            patch["status"] = "awaiting_confirmation"
+            session["status"] = "awaiting_confirmation"
+    _update_session(session["id"], patch, db)
+
+
+async def _skip_field(args: dict, *, session: dict, config: dict, db) -> None:
+    """Record that a detail has been given up on, so it stops blocking the flow.
+    Only an actually-outstanding field can be skipped -- skipping one the customer
+    already answered would silently discard their answer."""
+    key = args.get("field_key")
+    if key not in {f["key"] for f in _outstanding(config, session)}:
+        logger.warning(f"Brain-led intake: refused to skip {key!r} (not an outstanding field)")
+        return
+
+    skipped = [*(session.get("skipped_fields") or []), key]
+    session["skipped_fields"] = skipped
+    patch = {"skipped_fields": skipped}
     if session.get("package_key") and not _outstanding(config, session):
         if session.get("status") not in ("awaiting_payment", "paid"):
             patch["status"] = "awaiting_confirmation"
@@ -369,6 +436,8 @@ async def execute_intake_tools(
         try:
             if name == "save_intake_details":
                 await _save_details(args, session=session, config=config, db=db)
+            elif name == "skip_intake_field":
+                await _skip_field(args, session=session, config=config, db=db)
             elif name == "choose_package":
                 await _choose_package(args, session=session, config=config, db=db)
             elif name == "send_payment_link":

@@ -193,6 +193,26 @@ def test_payment_tool_takes_no_amount_argument():
     assert tool["function"]["parameters"]["properties"] == {}
 
 
+def test_a_skip_tool_is_offered_while_fields_are_still_outstanding():
+    """Live evidence 2026-08-15: the lead said they did not know their place of birth
+    either. The brain correctly decided to move on -- and had no way to record that,
+    so the field stayed pending forever, send_payment_link was never offered, and it
+    improvised its way out by starting the reading itself, unpaid."""
+    assert "skip_intake_field" in _tool_names(ib.intake_tools(_CONFIG, _session()))
+
+
+def test_the_skip_tool_disappears_once_nothing_is_outstanding():
+    done = _session(package_key="basic", package_amount_paise=500,
+                    collected_data={"full_name": "Cheran", "date_of_birth": "06.06.2000"})
+    assert "skip_intake_field" not in _tool_names(ib.intake_tools(_CONFIG, done))
+
+
+def test_the_skip_tool_only_accepts_outstanding_field_keys():
+    tools = ib.intake_tools(_CONFIG, _session(collected_data={"full_name": "Cheran"}))
+    tool = next(t for t in tools if t["function"]["name"] == "skip_intake_field")
+    assert tool["function"]["parameters"]["properties"]["field_key"]["enum"] == ["date_of_birth"]
+
+
 def test_details_tool_advertises_the_exact_configured_field_keys():
     tool = next(t for t in ib.intake_tools(_CONFIG, _session()) if t["function"]["name"] == "save_intake_details")
     properties = tool["function"]["parameters"]["properties"]
@@ -236,6 +256,20 @@ def test_prompt_block_forbids_inventing_prices_or_links():
     lowered = block.lower()
     assert "never" in lowered
     assert "payment link" in lowered
+
+
+def test_prompt_block_forbids_starting_the_reading_before_payment():
+    """Live evidence 2026-08-15: mid-collection and unpaid, the brain wrote 'Ippo unga
+    question-ai sollunga, namma astrologer kitta anupidalam' and then offered guidance
+    by voice note or text -- giving the paid service away."""
+    lowered = ib.intake_prompt_block(_CONFIG, _session()).lower()
+    assert "question" in lowered
+    assert "until they have paid" in lowered
+
+
+def test_prompt_block_tells_the_model_how_to_give_up_on_a_field():
+    lowered = ib.intake_prompt_block(_CONFIG, _session()).lower()
+    assert "skip_intake_field" in lowered
 
 
 # --- tool execution -------------------------------------------------------
@@ -367,6 +401,65 @@ async def test_a_failed_payment_link_leaves_the_session_unpaid_and_appends_nothi
         )
     assert appended == ""
     update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_skipping_a_field_records_it_and_stops_it_blocking_the_flow():
+    db = MagicMock()
+    session = _session(package_key="basic", package_amount_paise=500,
+                       collected_data={"full_name": "Cheran"})
+    with patch.object(ib, "_update_session") as update:
+        await ib.execute_intake_tools(
+            [_call("skip_intake_field", {"field_key": "date_of_birth"})],
+            session=session, config=_CONFIG, tenant_id="t-1", lead_id="l-1",
+            phone="+91", db=db,
+        )
+    patch_arg = update.call_args[0][1]
+    assert patch_arg["skipped_fields"] == ["date_of_birth"]
+    assert patch_arg["status"] == "awaiting_confirmation"
+
+
+@pytest.mark.asyncio
+async def test_skipping_the_last_field_makes_the_payment_tool_available():
+    """The whole point of the tool: a given-up field must stop blocking the charge."""
+    db = MagicMock()
+    session = _session(package_key="basic", package_amount_paise=500,
+                       collected_data={"full_name": "Cheran"})
+    with patch.object(ib, "_update_session"):
+        await ib.execute_intake_tools(
+            [_call("skip_intake_field", {"field_key": "date_of_birth"})],
+            session=session, config=_CONFIG, tenant_id="t-1", lead_id="l-1",
+            phone="+91", db=db,
+        )
+    assert "send_payment_link" in _tool_names(ib.intake_tools(_CONFIG, session))
+
+
+@pytest.mark.asyncio
+async def test_skipping_an_unknown_or_already_collected_field_changes_nothing():
+    db = MagicMock()
+    session = _session(collected_data={"full_name": "Cheran"})
+    with patch.object(ib, "_update_session") as update:
+        await ib.execute_intake_tools(
+            [_call("skip_intake_field", {"field_key": "full_name"}),
+             _call("skip_intake_field", {"field_key": "shoe_size"})],
+            session=session, config=_CONFIG, tenant_id="t-1", lead_id="l-1",
+            phone="+91", db=db,
+        )
+    update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_a_skipped_field_is_unskipped_if_the_customer_later_provides_it():
+    db = MagicMock()
+    session = _session(package_key="basic", package_amount_paise=500,
+                       collected_data={"full_name": "Cheran"}, skipped_fields=["date_of_birth"])
+    with patch.object(ib, "_update_session") as update:
+        await ib.execute_intake_tools(
+            [_call("save_intake_details", {"date_of_birth": "06.06.2000"})],
+            session=session, config=_CONFIG, tenant_id="t-1", lead_id="l-1",
+            phone="+91", db=db,
+        )
+    assert update.call_args[0][1]["skipped_fields"] == []
 
 
 @pytest.mark.asyncio
