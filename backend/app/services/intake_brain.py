@@ -44,6 +44,25 @@ logger = logging.getLogger(__name__)
 
 BRAIN_LED_SETTING_KEY = "intake_brain_led_phones"
 
+# The only URL a customer may receive during a sign-up is the payment link Python
+# rendered and appended. Live evidence 2026-08-15: with the summary confirmed and
+# send_payment_link on the menu, the model wrote the business's own app URL out of
+# the knowledge base instead of calling the tool, sending the lead somewhere they
+# could not pay. The prompt already forbade it; a prompt is not a guarantee.
+_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+
+LINK_RETRY_NOTE = (
+    "\n\nCORRECTION:\nYour previous attempt typed a link. You cannot write links — "
+    "any URL you type is removed before the customer sees it. To give them the "
+    "payment link you MUST call the send_payment_link tool; the system then appends "
+    "the real link to your message. Write your sentence and call the tool."
+)
+
+
+def strip_model_urls(text: str) -> str:
+    """Remove any URL the model wrote itself, leaving the rest of the sentence."""
+    return _URL_RE.sub("", text or "").replace("  ", " ").strip()
+
 # Indian numbers arrive as +91XXXXXXXXXX from Meta but get typed into the console
 # in every shape a human types a phone number. Compare the last 10 digits only.
 _SIGNIFICANT_DIGITS = 10

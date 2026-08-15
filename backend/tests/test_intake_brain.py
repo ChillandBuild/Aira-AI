@@ -272,6 +272,23 @@ def test_prompt_block_tells_the_model_how_to_give_up_on_a_field():
     assert "skip_intake_field" in lowered
 
 
+# --- model-typed links ----------------------------------------------------
+
+
+def test_model_typed_urls_are_stripped():
+    text = "Payment-kku indha link-ai use pannunga: https://astrotamil.co.in/app/consultation/"
+    assert "http" not in ib.strip_model_urls(text)
+    assert "Payment-kku indha link-ai use pannunga" in ib.strip_model_urls(text)
+
+
+def test_bare_www_links_are_stripped_too():
+    assert "astrotamil" not in ib.strip_model_urls("Paarunga www.astrotamil.co.in la")
+
+
+def test_stripping_leaves_ordinary_text_alone():
+    assert ib.strip_model_urls("Unga DOB sollunga?") == "Unga DOB sollunga?"
+
+
 # --- tool execution -------------------------------------------------------
 
 
@@ -668,6 +685,70 @@ async def test_the_payment_second_pass_is_told_the_link_follows_its_sentence():
     assert "link" in refreshed_system.lower()
     # It must not be told the link is old news -- it was generated this very turn.
     assert "already been sent" not in refreshed_system
+
+
+@pytest.mark.asyncio
+async def test_a_link_the_model_typed_itself_never_reaches_the_customer():
+    """Live evidence 2026-08-15: with the summary confirmed and send_payment_link on
+    the menu, the model wrote the business's app URL out of the knowledge base instead
+    of calling the tool. The customer was sent somewhere they could not pay."""
+    from app.services import ai_reply
+
+    session = _session(status="awaiting_confirmation", package_key="basic", package_amount_paise=500,
+                       collected_data={"full_name": "Cheran", "date_of_birth": "06.06.2000"})
+    chat = AsyncMock(side_effect=[
+        ("Payment-kku indha link: https://astrotamil.co.in/app/consultation/", []),
+        ("Indha link la pay pannunga:", [_call("send_payment_link")]),
+    ])
+    with _brain_led_env(session, chat) as env, \
+         patch.object(ib, "create_payment_link",
+                      new=AsyncMock(return_value={"payment_link_url": "https://rzp.io/rzp/REAL"})), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="correct", phone="+919345679286")
+
+    sent = env["send"].await_args[0][1]
+    assert "astrotamil.co.in" not in sent
+    assert sent.endswith("https://rzp.io/rzp/REAL")
+
+
+@pytest.mark.asyncio
+async def test_the_retry_is_told_it_cannot_type_a_link_itself():
+    from app.services import ai_reply
+
+    session = _session(status="awaiting_confirmation", package_key="basic", package_amount_paise=500,
+                       collected_data={"full_name": "Cheran", "date_of_birth": "06.06.2000"})
+    chat = AsyncMock(side_effect=[
+        ("Indha link: https://astrotamil.co.in/app/", []),
+        ("Indha link la pay pannunga:", [_call("send_payment_link")]),
+    ])
+    with _brain_led_env(session, chat), \
+         patch.object(ib, "create_payment_link",
+                      new=AsyncMock(return_value={"payment_link_url": "https://rzp.io/rzp/REAL"})), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="correct", phone="+919345679286")
+
+    retry_system = chat.await_args_list[1][0][0][0]["content"]
+    assert "send_payment_link" in retry_system
+    retry_tools = [t["function"]["name"] for t in chat.await_args_list[1].kwargs["tools"]]
+    assert "send_payment_link" in retry_tools
+
+
+@pytest.mark.asyncio
+async def test_no_retry_when_the_session_is_nowhere_near_payment():
+    """A stray link mid-collection is still stripped, but must not provoke a charge."""
+    from app.services import ai_reply
+
+    session = _session(package_key="basic", package_amount_paise=500)
+    chat = AsyncMock(return_value=("Namma site: https://astrotamil.co.in — unga DOB sollunga?", []))
+    create = AsyncMock()
+    with _brain_led_env(session, chat) as env, \
+         patch.object(ib, "create_payment_link", new=create), \
+         patch.object(ib, "_update_session"):
+        await ai_reply.generate_reply(lead_id="l-1", message="site enna?", phone="+919345679286")
+
+    assert chat.await_count == 1
+    create.assert_not_awaited()
+    assert "astrotamil" not in env["send"].await_args[0][1]
 
 
 @pytest.mark.asyncio

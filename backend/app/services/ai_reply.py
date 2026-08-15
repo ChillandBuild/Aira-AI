@@ -1541,6 +1541,43 @@ async def generate_reply(
                         await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)
                     ).strip()
 
+                # The payment link is the only URL a customer may receive here, and it
+                # is appended in Python. Live evidence 2026-08-15: with the summary
+                # confirmed and send_payment_link on the menu, the model wrote the
+                # business's app URL out of the knowledge base instead of calling the
+                # tool -- the lead was sent somewhere they could not pay.
+                from app.services.intake_brain import LINK_RETRY_NOTE, strip_model_urls
+                stripped = strip_model_urls(reply_text)
+                if stripped != reply_text:
+                    logger.warning(f"Brain-led intake: removed a model-typed URL for lead {lead_id}")
+                    reply_text = stripped
+                    payment_offered = "send_payment_link" in {
+                        t["function"]["name"] for t in intake_tools(intake_config, intake_session)
+                    }
+                    if payment_offered and not intake_append:
+                        # It was reaching for the payment link and grabbed the wrong
+                        # one. One more turn, tools still available, mistake named.
+                        chat_messages[0]["content"] = (
+                            base_system_prompt
+                            + intake_prompt_block(intake_config, intake_session)
+                            + LINK_RETRY_NOTE
+                        )
+                        retry_text, retry_calls = await _llm_chat_with_tools(
+                            chat_messages, tools=intake_tool_defs, max_tokens=600, tenant_id=tenant_id,
+                        )
+                        intake_append = await execute_intake_tools(
+                            retry_calls,
+                            session=intake_session,
+                            config=intake_config,
+                            tenant_id=tenant_id,
+                            lead_id=str(lead_id),
+                            phone=intake_phone,
+                            db=db,
+                        )
+                        retry_text = strip_model_urls(retry_text.strip())
+                        if retry_text:
+                            reply_text = retry_text
+
             # Handle tool calls — the model asked to recommend catalog items
             for tc in tool_calls:
                 func = tc.get("function") or {}
