@@ -273,7 +273,7 @@ async def localized_fields(fields: list[dict], language_mode: str, tenant_id: st
 
 
 async def compose_payment_receipt(
-    lead_id: str, tenant_id: str, customer_name: str, service_noun: str
+    lead_id: str, tenant_id: str, customer_name: str | None, service_noun: str
 ) -> str:
     """The payment-confirmation receipt, in the lead's actual language. Fired from
     the Razorpay webhook route -- a code path outside the WhatsApp message flow
@@ -283,7 +283,9 @@ async def compose_payment_receipt(
     payment cleared.
 
     customer_name is prepended in code, never sent to the model, same protection
-    as every other literal value in this flow.
+    as every other literal value in this flow. It is optional: when the tenant's
+    schema holds no identifiable name field the greeting is dropped entirely
+    rather than falling back to a placeholder -- see resolve_customer_name.
     """
     from app.db.supabase import get_supabase
     db = get_supabase()
@@ -295,7 +297,7 @@ async def compose_payment_receipt(
         customer_message="",
         field_label=service_noun,
     )
-    return f"{customer_name}, {body}"
+    return f"{customer_name}, {body}" if customer_name else body
 
 
 def collector_identity(db, lead_id: str, tenant_id: str, message: str) -> str:

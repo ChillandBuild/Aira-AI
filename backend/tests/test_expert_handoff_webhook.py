@@ -128,7 +128,9 @@ class IntakeWebhookAmountTests(unittest.TestCase):
 
         confirm_intake_payment("sess-1", "pay_123", amount_paid_paise=200000, db=db)
 
-        update_patch = db.table.return_value.update.call_args[0][0]
+        # First update is the session's; a later one adopts the collected name onto
+        # the lead, so this must not read the most recent call.
+        update_patch = db.table.return_value.update.call_args_list[0][0][0]
         self.assertEqual(update_patch["amount_paise"], 200000)
         self.assertTrue(update_patch["amount_mismatch"])
 
@@ -146,7 +148,9 @@ class IntakeWebhookAmountTests(unittest.TestCase):
 
         confirm_intake_payment("sess-1", "pay_123", amount_paid_paise=500000, db=db)
 
-        update_patch = db.table.return_value.update.call_args[0][0]
+        # First update is the session's; a later one adopts the collected name onto
+        # the lead, so this must not read the most recent call.
+        update_patch = db.table.return_value.update.call_args_list[0][0][0]
         self.assertEqual(update_patch["amount_paise"], 500000)
         self.assertFalse(update_patch["amount_mismatch"])
 

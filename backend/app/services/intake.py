@@ -100,6 +100,80 @@ async def detect_intake_intent(message: str, trigger_description: str, tenant_id
         return False
 
 
+# Tenants name their own intake fields, so the key holding a person's name is
+# whatever they typed into the console -- full_name for an astrologer,
+# patient_name for a clinic, member_name for a gym. Matching on the literal key
+# "name" found none of them. Live evidence 2026-08-15: a lead who typed
+# "Prem Kumar D" got "Customer, Payment success aayiduchu" when their payment
+# cleared, and staff were notified about "Lead 'Customer'".
+#
+# The token list is deliberately short and honest: it cannot cover every language
+# a tenant might label a field in, which is exactly why resolve_customer_name
+# returns None rather than a placeholder when nothing matches. A missing greeting
+# is invisible; a wrong one is not.
+_NAME_TOKENS = ("name", "naam", "peyar")
+
+
+def _looks_like_a_name_field(key: str, label: str = "") -> bool:
+    haystack = f"{key} {label}".lower()
+    return any(token in haystack for token in _NAME_TOKENS)
+
+
+def resolve_customer_name(
+    collected_data: dict | None,
+    fields: list[dict] | None = None,
+    lead_name: str | None = None,
+) -> str | None:
+    """The customer's own name, or None when it genuinely cannot be identified.
+
+    Never returns a placeholder: callers decide how to degrade (the receipt drops
+    the greeting, the staff notification says "a lead", the Razorpay description
+    falls back to the phone number). Config order is respected so a form asking
+    for both a customer and a nominee resolves to the customer.
+    """
+    collected = collected_data or {}
+
+    def _clean(value) -> str | None:
+        text = str(value or "").strip()
+        return text or None
+
+    if fields:
+        for field in fields:
+            key = field.get("key", "")
+            if _looks_like_a_name_field(key, field.get("label", "")):
+                found = _clean(collected.get(key))
+                if found:
+                    return found
+    else:
+        for key, value in collected.items():
+            if _looks_like_a_name_field(key):
+                found = _clean(value)
+                if found:
+                    return found
+
+    return _clean(lead_name)
+
+
+def adopt_lead_name(db, lead_id: str, tenant_id: str, name: str | None) -> None:
+    """Fill in leads.name from what the customer told the collector, but only when
+    the lead has no name yet -- the guard lives in the query rather than a prior
+    read, so a name a human set by hand is never overwritten. Best effort: the
+    dashboard label is not worth failing a payment or a reply over."""
+    if not name:
+        return
+    try:
+        (
+            db.table("leads")
+            .update({"name": name})
+            .eq("id", lead_id)
+            .eq("tenant_id", tenant_id)
+            .is_("name", "null")
+            .execute()
+        )
+    except Exception as e:
+        logger.warning(f"Could not adopt collected name onto lead {lead_id}: {e}")
+
+
 def missing_field_labels(fields: list[dict], collected_data: dict) -> list[str]:
     return [f["label"] for f in fields if not collected_data.get(f["key"])]
 
@@ -622,7 +696,9 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 return True
             ref = f"IN-{uuid.uuid4().hex[:8].upper()}"
             collected = session.get("collected_data") or {}
-            customer_name = collected.get("name", "Customer")
+            # Razorpay needs a string here, so an unidentifiable customer falls back
+            # to their phone -- always real, always that person.
+            customer_name = resolve_customer_name(collected, config["fields"]) or phone
             amount_paise = session.get("package_amount_paise")
             if not amount_paise:
                 logger.error(f"Intake session {session['id']} reached payment with no package amount")
@@ -746,14 +822,23 @@ def confirm_intake_payment(
     )
     lead = (lead_row.data if lead_row else None) or {}
     phone = lead.get("phone", "")
-    customer_name = (session.get("collected_data") or {}).get("name") or lead.get("name") or "Customer"
+    customer_name = resolve_customer_name(
+        session.get("collected_data"),
+        session.get("field_schema") or get_intake_config(tenant_id, db=db).get("fields"),
+        lead.get("name"),
+    )
+    adopt_lead_name(db, lead_id, tenant_id, customer_name if not lead.get("name") else None)
 
     try:
         notify_pool(
             tenant_id,
             "intake_paid",
             "New paid consultation",
-            f"Lead '{customer_name}' paid for a consultation — check Intake.",
+            (
+                f"Lead '{customer_name}' paid for a consultation — check Intake."
+                if customer_name
+                else "A lead paid for a consultation — check Intake."
+            ),
             db=db,
         )
     except Exception as e:

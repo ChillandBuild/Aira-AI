@@ -35,8 +35,10 @@ from app.services.intake import (
     _package_patch,
     _rupees,
     _update_session,
+    adopt_lead_name,
     normalize_packages,
     pending_fields,
+    resolve_customer_name,
 )
 from app.services.payment_razorpay import create_payment_link
 
@@ -319,7 +321,7 @@ def intake_prompt_block(config: dict, session: dict, *, just_sent_link: bool = F
     return "\n".join(lines)
 
 
-async def _save_details(args: dict, *, session: dict, config: dict, db) -> None:
+async def _save_details(args: dict, *, session: dict, config: dict, lead_id: str, db) -> None:
     valid_keys = {f["key"] for f in (config.get("fields") or [])}
     new_values = {k: str(v).strip() for k, v in args.items() if k in valid_keys and str(v).strip()}
     if not new_values:
@@ -344,6 +346,13 @@ async def _save_details(args: dict, *, session: dict, config: dict, db) -> None:
             patch["status"] = "awaiting_confirmation"
             session["status"] = "awaiting_confirmation"
     _update_session(session["id"], patch, db)
+
+    # The dashboard showed this lead as unnamed while they were mid-conversation
+    # telling us exactly who they are. No-ops unless leads.name is still empty.
+    adopt_lead_name(
+        db, lead_id, session.get("tenant_id") or "",
+        resolve_customer_name(new_values, config.get("fields")),
+    )
 
 
 async def _skip_field(args: dict, *, session: dict, config: dict, db) -> None:
@@ -396,7 +405,9 @@ async def _send_payment_link(
 
     amount_paise = session["package_amount_paise"]
     collected = session.get("collected_data") or {}
-    customer_name = collected.get("name") or collected.get("full_name") or "Customer"
+    # Razorpay needs a string, so an unidentifiable customer falls back to their
+    # phone -- always real, always that person. See resolve_customer_name.
+    customer_name = resolve_customer_name(collected, config.get("fields")) or phone
     ref = f"IN-{uuid.uuid4().hex[:8].upper()}"
     service_noun = (config.get("service_noun") or "consultation").capitalize()
 
@@ -454,7 +465,7 @@ async def execute_intake_tools(
 
         try:
             if name == "save_intake_details":
-                await _save_details(args, session=session, config=config, db=db)
+                await _save_details(args, session=session, config=config, lead_id=lead_id, db=db)
             elif name == "skip_intake_field":
                 await _skip_field(args, session=session, config=config, db=db)
             elif name == "choose_package":
