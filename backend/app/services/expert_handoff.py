@@ -6,7 +6,10 @@ lead once paid.
 """
 import json
 import logging
+import re
 import uuid
+
+import httpx
 
 from app.services.gemini_client import gemini_chat_completion_json
 from app.services.notify import notify_pool
@@ -295,35 +298,64 @@ async def route_expert_handoff(lead_id: str, tenant_id: str, phone: str, body: s
         return False
 
 
+_FOLLOWUP_REF_RE = re.compile(r"^(?P<sid>.+?)::f\d+$")
+
+
+def session_ref_to_id(external_ref: str) -> str | None:
+    """Resolve a bridge external_ref to its session uuid, or None.
+
+    A follow-up's ref is ``{session_id}::f{n}`` (see astro_bridge.push_followup);
+    a consultation's ref is the bare session id. The column is uuid-typed, so a
+    non-uuid must never reach the DB — PostgREST rejects it with an APIError
+    that would surface as a 500 on a public route instead of the intended 401."""
+    ref = str(external_ref or "").strip()
+    m = _FOLLOWUP_REF_RE.match(ref)
+    if m:
+        ref = m.group("sid")
+    try:
+        return str(uuid.UUID(ref))
+    except (ValueError, AttributeError, TypeError):
+        return None
+
+
 def get_session_tenant_id(session_id: str, db=None) -> str | None:
     """Look up which tenant owns a session, so the webhook route can verify the
     Razorpay signature against that tenant's own webhook secret rather than the
     default tenant's. Safe to call before the signature is verified: an attacker
     supplying a forged session_id just gets a lookup miss or another tenant's
     id, and the subsequent HMAC check against that tenant's real secret still
-    fails without it."""
+    fails without it. Accepts a follow-up ref ("{sid}::f{n}") and treats any
+    malformed/non-uuid ref as a plain miss, never an exception."""
+    resolved = session_ref_to_id(session_id)
+    if not resolved:
+        return None
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
-    row = (
-        db.table("expert_handoff_sessions")
-        .select("tenant_id")
-        .eq("id", session_id)
-        .maybe_single()
-        .execute()
-    )
+    try:
+        row = (
+            db.table("expert_handoff_sessions")
+            .select("tenant_id")
+            .eq("id", resolved)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as e:
+        logger.warning(f"Session tenant lookup failed for ref {session_id!r}: {e}")
+        return None
     if not row or not row.data:
         return None
     return row.data.get("tenant_id")
 
 
-def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db=None) -> tuple[str, str, str, str] | None:
+def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db=None) -> dict | None:
     """Mark a session paid. The AI stays live for the lead (see
     get_paid_unresolved_session / _expert_handoff_paid_prompt_block in
     ai_reply.py) so a lead asking "when will the expert contact me" isn't met
     with silence while waiting for staff to pick up the notification. Returns
-    (phone, tenant_id, lead_id, customer_name) on success, None if the session
-    doesn't exist or was already paid (idempotent — Razorpay may retry webhooks)."""
+    {phone, tenant_id, lead_id, customer_name, session, lead} on success, None if
+    the session doesn't exist or was already paid (idempotent — Razorpay may
+    retry webhooks, and two retries may land concurrently)."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
@@ -332,7 +364,7 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
 
     existing = (
         db.table("expert_handoff_sessions")
-        .select("id,status,lead_id,tenant_id,collected_data")
+        .select("id,status,lead_id,tenant_id,collected_data,amount_paise,trigger_reason")
         .eq("id", session_id)
         .maybe_single()
         .execute()
@@ -342,18 +374,31 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
 
     session = existing.data
     now_iso = datetime.now(timezone.utc).isoformat()
-    db.table("expert_handoff_sessions").update({
-        "status": "paid",
-        "razorpay_payment_id": razorpay_payment_id,
-        "paid_at": now_iso,
-    }).eq("id", session_id).execute()
+    # The status filter is the whole point: it makes the read-then-write above a
+    # single conditional UPDATE, so of two concurrent Razorpay retries exactly one
+    # gets a row back and the other cannot bill/consult the lead twice.
+    claimed = (
+        db.table("expert_handoff_sessions")
+        .update({
+            "status": "paid",
+            "razorpay_payment_id": razorpay_payment_id,
+            "paid_at": now_iso,
+        })
+        .eq("id", session_id)
+        .eq("status", "awaiting_payment")
+        .execute()
+    )
+    if not claimed or not claimed.data:
+        logger.info(f"Expert handoff session {session_id} already claimed by a concurrent confirm — skipping")
+        return None
 
+    session = {**session, **(claimed.data[0] or {})}
     lead_id = session["lead_id"]
     tenant_id = session["tenant_id"]
 
     lead_row = (
         db.table("leads")
-        .select("phone,name")
+        .select("id,phone,name")
         .eq("id", lead_id)
         .maybe_single()
         .execute()
@@ -373,7 +418,92 @@ def confirm_expert_handoff_payment(session_id: str, razorpay_payment_id: str, db
     except Exception as e:
         logger.warning(f"expert_handoff_paid notify_pool failed for session {session_id}: {e}")
 
-    return (phone, tenant_id, lead_id, customer_name)
+    return {
+        "phone": phone,
+        "tenant_id": tenant_id,
+        "lead_id": lead_id,
+        "customer_name": customer_name,
+        "session": session,
+        "lead": lead,
+    }
+
+
+def record_astro_bridge_ids(session_id: str, tenant_id: str, bridge_response: dict, db=None) -> None:
+    """Persist the ids Django created for a pushed session, so its reply callback maps back here."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    patch = {
+        "astro_question_id": (bridge_response or {}).get("question_id"),
+        "astro_horoscope_id": (bridge_response or {}).get("horoscope_id"),
+        "astro_user_id": (bridge_response or {}).get("astro_user_id"),
+    }
+    patch = {k: v for k, v in patch.items() if v is not None}
+    if not patch:
+        logger.warning(f"Astro bridge returned no ids for session {session_id} — nothing to persist")
+        return
+    (
+        db.table("expert_handoff_sessions")
+        .update(patch)
+        .eq("id", session_id)
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+
+
+async def reconcile_pending_astro_pushes(db=None) -> int:
+    """Re-drive the Django consultation push for paid sessions it never reached.
+
+    The confirm-time push is best-effort: if Django is down for the one webhook
+    that flips a session to paid, the paid transition is idempotent and never
+    re-fires, so without this sweep the customer has paid, been told "our expert
+    will be in touch", and no astrologer ever sees the consultation. Django's
+    side is idempotent on the session id (UNIQUE order id), so re-driving is
+    always safe. Window: 3 days — older stuck sessions need a human anyway."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.services import astro_bridge
+
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=3)).isoformat()
+    try:
+        rows = (
+            db.table("expert_handoff_sessions")
+            .select("id,tenant_id,lead_id,collected_data,trigger_reason,amount_paise")
+            .eq("status", "paid")
+            .is_("astro_question_id", "null")
+            .gte("created_at", cutoff)
+            .limit(20)
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"Astro push reconcile query failed: {e}")
+        return 0
+
+    pushed = 0
+    for session in rows.data or []:
+        tenant_id = session.get("tenant_id")
+        try:
+            lead_row = (
+                db.table("leads")
+                .select("id,name,phone")
+                .eq("id", session.get("lead_id"))
+                .eq("tenant_id", tenant_id)
+                .maybe_single()
+                .execute()
+            )
+            lead = (lead_row.data if lead_row else None) or {}
+            result = await astro_bridge.push_consultation(session, lead, tenant_id)
+            if result:
+                record_astro_bridge_ids(session["id"], tenant_id, result, db=db)
+                pushed += 1
+                logger.info(f"Astro push reconciled for session {session['id']} (tenant {tenant_id})")
+        except Exception as e:
+            logger.error(f"Astro push reconcile failed for session {session.get('id')}: {e}")
+    return pushed
 
 
 def get_paid_unresolved_session(lead_id: str, tenant_id: str, db=None) -> dict | None:
@@ -417,3 +547,242 @@ def resolve_expert_handoff_session(session_id: str, tenant_id: str, db=None) -> 
         .execute()
     )
     return bool(result.data)
+
+
+_WA_SESSION_WINDOW_HOURS = 24
+
+_AUDIO_MIMES = {
+    "mp3": "audio/mpeg",
+    "m4a": "audio/mp4",
+    "mp4": "audio/mp4",
+    "aac": "audio/aac",
+    "amr": "audio/amr",
+    "ogg": "audio/ogg",
+    "opus": "audio/ogg",
+}
+
+
+def _within_whatsapp_window(last_inbound_at) -> bool:
+    from datetime import datetime, timedelta, timezone
+
+    if not last_inbound_at:
+        return False
+    try:
+        last = datetime.fromisoformat(str(last_inbound_at).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last <= timedelta(hours=_WA_SESSION_WINDOW_HOURS)
+
+
+def _astro_phone_number_id(tenant_id: str, db) -> str | None:
+    """The tenant's inbound WhatsApp number, so the astrologer's reply lands in the lead's existing thread."""
+    try:
+        rows = (
+            db.table("phone_numbers")
+            .select("meta_phone_number_id")
+            .eq("tenant_id", tenant_id)
+            .eq("role", "primary")
+            .limit(1)
+            .execute()
+        )
+        return ((rows.data or [{}])[0] or {}).get("meta_phone_number_id")
+    except Exception as e:
+        logger.warning(f"Could not resolve primary phone_number_id for tenant {tenant_id}: {e}")
+        return None
+
+
+def _media_mime(url: str, wa_type: str) -> tuple[str, str]:
+    import re
+
+    found = re.search(r"\.([a-z0-9]{2,5})(?:\?|$)", str(url or "").lower())
+    ext = found.group(1) if found else ""
+    if wa_type == "image":
+        return ("image/png", "reply.png") if ext == "png" else ("image/jpeg", "reply.jpg")
+    return _AUDIO_MIMES.get(ext, "audio/mpeg"), f"reply.{ext or 'mp3'}"
+
+
+def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str | None) -> None:
+    db.table("messages").insert({
+        "lead_id": lead_id,
+        "tenant_id": tenant_id,
+        "direction": "outbound",
+        "channel": "whatsapp",
+        "content": content,
+        "is_ai_generated": False,
+        "meta_message_id": mid,
+        "reply_source": "expert_handoff",
+    }).execute()
+
+
+async def _send_astro_media(phone: str, url: str, wa_type: str, tenant_id: str, phone_number_id: str | None) -> str | None:
+    from app.services.meta_cloud import send_media_message, upload_media_to_meta
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.get(url, follow_redirects=True)
+    resp.raise_for_status()
+
+    mime_type, filename = _media_mime(url, wa_type)
+    media_id = await upload_media_to_meta(
+        file_bytes=resp.content,
+        mime_type=mime_type,
+        filename=filename,
+        tenant_id=tenant_id,
+        phone_number_id=phone_number_id,
+    )
+    data = await send_media_message(
+        to_number=phone,
+        media_id=media_id,
+        wa_type=wa_type,
+        tenant_id=tenant_id,
+        phone_number_id=phone_number_id,
+    )
+    return (data.get("messages") or [{}])[0].get("id")
+
+
+async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
+    """Deliver one astrologer reply from the Django bridge to the lead's WhatsApp thread."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    from app.services.ai_reply import send_whatsapp
+
+    external_ref = str(payload.get("external_ref") or "")
+    session_id = session_ref_to_id(external_ref)
+    if not session_id:
+        logger.warning(f"Astro reply with malformed external_ref {external_ref!r} (tenant {tenant_id})")
+        return {"ok": True, "delivered": [], "reason": "unknown_session"}
+    try:
+        reply_id = int(payload.get("reply_id"))
+    except (TypeError, ValueError):
+        logger.error(f"Astro reply for session {external_ref} has no usable reply_id — cannot dedupe, dropping")
+        return {"ok": True, "delivered": [], "reason": "missing_reply_id"}
+
+    row = (
+        db.table("expert_handoff_sessions")
+        .select("id,lead_id,tenant_id,astro_last_reply_id")
+        .eq("id", session_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    session = (row.data if row else None) or {}
+    if not session:
+        logger.warning(f"Astro reply for unknown session {external_ref} (tenant {tenant_id})")
+        return {"ok": True, "delivered": [], "reason": "unknown_session"}
+
+    prior_reply_id = session.get("astro_last_reply_id")
+
+    # Claim the reply id before sending, not after: a Django retry that overlaps
+    # the first delivery must lose here rather than send the astrologer's answer
+    # to the customer twice. Monotonic (.lt) rather than mere inequality, so a
+    # replayed OLDER reply arriving after a newer one is also a duplicate.
+    claimed = (
+        db.table("expert_handoff_sessions")
+        .update({"astro_last_reply_id": reply_id})
+        .eq("id", session_id)
+        .eq("tenant_id", tenant_id)
+        .or_(f"astro_last_reply_id.is.null,astro_last_reply_id.lt.{reply_id}")
+        .execute()
+    )
+    if not claimed or not claimed.data:
+        logger.info(f"Astro reply {reply_id} for session {external_ref} already delivered — ignoring duplicate")
+        return {"ok": True, "duplicate": True}
+
+    lead_id = session.get("lead_id")
+    lead_row = (
+        db.table("leads")
+        .select("id,phone,last_inbound_at")
+        .eq("id", lead_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    lead = (lead_row.data if lead_row else None) or {}
+    phone = lead.get("phone") or ""
+    if not phone:
+        logger.error(f"Astro reply {reply_id} for session {external_ref} undeliverable: lead {lead_id} has no phone")
+        return {"ok": True, "delivered": [], "reason": "no_phone"}
+
+    if not _within_whatsapp_window(lead.get("last_inbound_at")):
+        logger.error(
+            f"Astro reply {reply_id} for session {external_ref} NOT delivered: the lead's 24h WhatsApp "
+            f"window closed (last_inbound_at={lead.get('last_inbound_at')}). The astrologer believes "
+            f"the customer has been answered — they have not."
+        )
+        try:
+            notify_pool(
+                tenant_id,
+                "expert_handoff_paid",
+                "Astrologer reply could not be delivered",
+                f"The 24h WhatsApp window for this consultation has closed — reach {phone} another way.",
+                db=db,
+            )
+        except Exception as e:
+            logger.warning(f"Astro reply window notify_pool failed for session {external_ref}: {e}")
+        return {"ok": True, "delivered": [], "outside_24h_window": True}
+
+    phone_number_id = _astro_phone_number_id(tenant_id, db)
+    delivered: list[str] = []
+    failed: list[str] = []
+
+    text = str(payload.get("reply_text") or "").strip()
+    if text:
+        try:
+            mid = await send_whatsapp(phone, text, tenant_id=tenant_id, phone_number_id=phone_number_id)
+        except Exception as e:
+            logger.error(f"Astro reply {reply_id} text send failed for session {external_ref}: {e}")
+            mid = None
+        if mid:
+            _log_astro_message(db, lead_id, tenant_id, text, mid)
+            delivered.append("text")
+        else:
+            failed.append("text")
+
+    for part, url, wa_type in (
+        ("image", payload.get("reply_image_url"), "image"),
+        ("voice", payload.get("reply_voice_url"), "audio"),
+    ):
+        if not url:
+            continue
+        try:
+            mid = await _send_astro_media(phone, str(url), wa_type, tenant_id, phone_number_id)
+            _log_astro_message(db, lead_id, tenant_id, str(url), mid)
+            delivered.append(part)
+        except Exception as e:
+            logger.error(f"Astro reply {reply_id} {part} send failed for session {external_ref}: {e}")
+            failed.append(part)
+
+    if failed and not delivered:
+        # Total in-window failure: every part the astrologer sent was attempted
+        # and none went out. Returning bare success here would strand the reply
+        # forever — the claim above blocks any retry, Django never retries on
+        # 2xx, and the astrologer's UI already shows it as sent. Roll the claim
+        # back so a re-push can re-drive it, and surface it to staff.
+        logger.error(f"Astro reply {reply_id} for session {external_ref} delivered nothing (failed={failed})")
+        try:
+            (
+                db.table("expert_handoff_sessions")
+                .update({"astro_last_reply_id": prior_reply_id})
+                .eq("id", session_id)
+                .eq("tenant_id", tenant_id)
+                .eq("astro_last_reply_id", reply_id)
+                .execute()
+            )
+        except Exception as e:
+            logger.warning(f"Astro reply {reply_id} claim rollback failed for session {external_ref}: {e}")
+        try:
+            notify_pool(
+                tenant_id,
+                "expert_handoff_paid",
+                "Astrologer reply could not be delivered",
+                f"WhatsApp delivery to {phone} failed for a paid consultation "
+                f"(parts failed: {', '.join(failed)}) — reach the customer another way.",
+                db=db,
+            )
+        except Exception as e:
+            logger.warning(f"Astro reply failure notify_pool failed for session {external_ref}: {e}")
+        return {"ok": True, "delivered": [], "failed": failed, "delivery_failed": True}
+
+    return {"ok": True, "delivered": delivered, "failed": failed}
