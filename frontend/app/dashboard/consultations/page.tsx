@@ -3,17 +3,27 @@ import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Clock, Phone } from "lucide-react";
 import { api, ExpertHandoffSession } from "@/lib/api";
 import { ConsultationDetails } from "./ConsultationDetails";
+import { ConsultationDashboard } from "./ConsultationDashboard";
 import { usePolling } from "@/hooks/usePolling";
 
 type Bucket = "awaiting_payment" | "paid";
+type Tab = Bucket | "dashboard";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "awaiting_payment", label: "Awaiting Payment" },
+  { key: "paid", label: "Paid" },
+  { key: "dashboard", label: "Dashboard" },
+];
 
 export default function ConsultationsPage() {
-  const [bucket, setBucket] = useState<Bucket>("awaiting_payment");
+  const [tab, setTab] = useState<Tab>("awaiting_payment");
   const [sessions, setSessions] = useState<ExpertHandoffSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<ExpertHandoffSession | null>(null);
+  const bucket: Bucket = tab === "dashboard" ? "paid" : tab;
 
   const load = useCallback(async () => {
+    if (tab === "dashboard") return; // the dashboard component polls its own stats
     try {
       const data = await api.expertHandoff.listSessions(bucket);
       setSessions(data);
@@ -22,13 +32,13 @@ export default function ConsultationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [bucket]);
+  }, [tab, bucket]);
 
   useEffect(() => {
     setLoading(true);
     setSelectedSession(null);
     load();
-  }, [bucket, load]);
+  }, [tab, load]);
 
   usePolling(load, 30000);
 
@@ -37,31 +47,43 @@ export default function ConsultationsPage() {
     load();
   }
 
+  const tabToggle = (
+    <div className="flex gap-2 p-1 bg-surface-subtle border border-border rounded-xl">
+      {TABS.map((t) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => setTab(t.key)}
+          className={`flex-1 px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-all whitespace-nowrap ${
+            tab === t.key ? "bg-white text-ink shadow-sm" : "text-ink-muted"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (tab === "dashboard") {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="p-4 border-b border-border flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+          <h1 className="font-display text-lg font-bold text-ink">Consultations</h1>
+          <div className="w-full sm:w-[360px]">{tabToggle}</div>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <ConsultationDashboard />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full">
       <div className="w-[340px] flex-shrink-0 border-r border-border flex flex-col">
         <div className="p-4 border-b border-border">
           <h1 className="font-display text-lg font-bold text-ink mb-3">Consultations</h1>
-          <div className="flex gap-2 p-1 bg-surface-subtle border border-border rounded-xl">
-            <button
-              type="button"
-              onClick={() => setBucket("awaiting_payment")}
-              className={`flex-1 px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-all ${
-                bucket === "awaiting_payment" ? "bg-white text-ink shadow-sm" : "text-ink-muted"
-              }`}
-            >
-              Awaiting Payment
-            </button>
-            <button
-              type="button"
-              onClick={() => setBucket("paid")}
-              className={`flex-1 px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-all ${
-                bucket === "paid" ? "bg-white text-ink shadow-sm" : "text-ink-muted"
-              }`}
-            >
-              Paid
-            </button>
-          </div>
+          {tabToggle}
         </div>
 
         <div className="flex-1 overflow-y-auto">

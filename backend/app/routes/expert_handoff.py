@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -42,6 +43,46 @@ def list_expert_handoff_sessions(
         .execute()
     )
     return {"data": result.data or []}
+
+
+@router.get("/stats")
+def expert_handoff_stats(ctx: dict = Depends(require_conversations_view)):
+    """Consultation dashboard: message totals, answer progress and a 14-day
+    trend for this tenant. "Answered" means the astrologer's reply came back
+    over the bridge (astro_last_reply_id is set); "pending" is paid but not
+    yet answered. Mirrors the adminweb "Aira Customers" stats."""
+    db = get_supabase()
+    rows = (
+        db.table("expert_handoff_sessions")
+        .select("status, amount_paise, paid_at, created_at, astro_last_reply_id")
+        .eq("tenant_id", ctx["tenant_id"])
+        .order("created_at", desc=True)
+        .limit(2000)
+        .execute()
+    ).data or []
+
+    consultations = [r for r in rows if r.get("status") in ("paid", "resolved")]
+    answered = sum(1 for r in consultations if r.get("astro_last_reply_id") is not None)
+    revenue_paise = sum(int(r.get("amount_paise") or 0) for r in consultations)
+
+    today = datetime.now(timezone.utc).date()
+    per_day = {(today - timedelta(days=i)).isoformat(): 0 for i in range(13, -1, -1)}
+    for r in consultations:
+        stamp = str(r.get("paid_at") or r.get("created_at") or "")[:10]
+        if stamp in per_day:
+            per_day[stamp] += 1
+
+    revenue_inr = revenue_paise / 100
+    return {
+        "totals": {
+            "messages": len(consultations),
+            "answered": answered,
+            "pending": len(consultations) - answered,
+            "awaiting_payment": sum(1 for r in rows if r.get("status") == "awaiting_payment"),
+            "revenue_inr": int(revenue_inr) if revenue_inr.is_integer() else revenue_inr,
+        },
+        "daily": [{"date": d, "count": n} for d, n in sorted(per_day.items())],
+    }
 
 
 @router.patch("/sessions/{session_id}/resolve")

@@ -981,6 +981,17 @@ export interface ExpertHandoffSession {
   leads: { name: string | null; phone: string | null } | null;
 }
 
+export interface ExpertHandoffStats {
+  totals: {
+    messages: number;
+    answered: number;
+    pending: number;
+    awaiting_payment: number;
+    revenue_inr: number;
+  };
+  daily: { date: string; count: number }[];
+}
+
 export const api = {
   leads: {
     list: async (params?: {
@@ -2034,6 +2045,7 @@ export const api = {
       apiFetch<{ status: string }>(`/api/v1/expert-handoff/sessions/${sessionId}/resolve`, {
         method: "PATCH",
       }),
+    stats: () => apiFetch<ExpertHandoffStats>("/api/v1/expert-handoff/stats"),
   },
 };
 

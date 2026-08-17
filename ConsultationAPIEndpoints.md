@@ -255,6 +255,33 @@ card with a View button deep-linking to `/inbox?tab=aira`.
 
 ---
 
+## Aira dashboard (frontend ➜ Aira)
+
+### 7. `GET /api/v1/expert-handoff/stats`
+
+Backs the **Consultations → Dashboard** tab in Aira's own dashboard. Mirrors
+the adminweb "Aira Customers" stats so both teams read the same numbers.
+
+**Auth**: Aira dashboard session (`conversations.view` permission), tenant-scoped.
+
+**Response**:
+
+```json
+{
+  "totals": {
+    "messages": 3,          // paid consultations (status paid|resolved)
+    "answered": 2,          // astrologer's reply came back over the bridge
+    "pending": 1,           // paid but not yet answered
+    "awaiting_payment": 1,  // leads still on the payment step
+    "revenue_inr": 399
+  },
+  "daily": [{"date": "2026-08-04", "count": 0}, …]   // last 14 days, oldest first
+}
+```
+
+"Answered" is `astro_last_reply_id IS NOT NULL` — i.e. the reply was received
+*and* claimed for delivery, the same definition the reply-dedup logic uses.
+
 ## Background job (Aira, not an HTTP endpoint)
 
 **`astro-push-reconcile`** — APScheduler job, every 5 minutes
