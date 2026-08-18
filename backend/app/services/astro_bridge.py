@@ -223,7 +223,16 @@ async def push_followup(
         )
         return None
 
-    payload = {"external_ref": external_ref, "question_text": question_text, "phone": phone}
+    # customer_name is in the documented follow-up contract (ConsultationAPIEndpoints.md
+    # section 2). Sent so the astrologer sees a name on the follow-up rather than a
+    # bare phone number; harmless if their side resolves the name from the phone.
+    person_name = str(_pick(collected, "person_name") or lead.get("name") or "").strip()
+    payload = {
+        "external_ref": external_ref,
+        "question_text": question_text,
+        "phone": phone,
+        "customer_name": person_name or "Customer",
+    }
     return await _post(_FOLLOWUP_PATH, payload, external_ref, tenant_id)
 
 

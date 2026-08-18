@@ -27,6 +27,7 @@ _THREAD_WINDOW = 6
 PURPOSES = frozenset({
     "ask_field", "reask_field", "skip_field", "greeting_reask",
     "payment_intro", "payment_delay", "payment_receipt", "package_reask", "no_packages",
+    "followup_sent",
 })
 
 _TASKS = {
@@ -66,6 +67,13 @@ _TASKS = {
         "Do not promise a specific time or name a person. Do not include the "
         "customer's own name in your sentence -- the system adds it separately."
     ),
+    "followup_sent": (
+        "The customer has already paid and their expert has already answered them once. "
+        "They have just sent another message, which has been passed straight to that "
+        "same expert. In one short line, tell them their message has reached their "
+        "expert and the reply will come here. Do not answer their question yourself, "
+        "do not guess when the expert will reply, and do not mention payment."
+    ),
     "package_reask": (
         "The customer's reply did not clearly pick one of the options. Say you did not "
         "catch which one, in one short sentence. The system re-prints the option list "
@@ -85,6 +93,7 @@ _FALLBACKS = {
     "payment_intro": "Great, here's your payment link:",
     "payment_delay": "We've received your details — our team will send the payment link shortly.",
     "payment_receipt": "Your {field_label_lower} is confirmed — our expert will be in touch here on WhatsApp shortly.",
+    "followup_sent": "Passed on to your expert — their reply will come here.",
     "package_reask": "Sorry, I didn't catch which one —",
     "no_packages": "Thanks! Our team will follow up shortly with the next steps.",
 }

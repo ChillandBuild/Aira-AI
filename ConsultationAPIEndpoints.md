@@ -104,6 +104,13 @@ paid for. Creates a **new** `UserQuestion` (₹0 credit) in the same thread.
 }
 ```
 
+**Who calls this**: `intake.forward_followup_to_astrologer()`, from `route_intake`.
+It fires for every message a paid customer sends *after* their expert has answered
+once (`astro_last_reply_id` set), and consumes the turn so Aira's AI does not also
+reply. `n` comes from `intake_sessions.astro_followup_count`, claimed with a
+compare-and-set (migration 180) so two messages arriving together can never take
+the same number.
+
 ⚠️ `external_ref` **must** carry the per-follow-up suffix `::f<n>` (`::f1`,
 `::f2`, …). A bare session UUID collides with the consultation's idempotency
 key and the follow-up would be silently swallowed (this was a confirmed
