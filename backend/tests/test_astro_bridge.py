@@ -237,6 +237,9 @@ async def test_push_followup_posts_followup_path():
         "external_ref": f"{SESSION_ID}::f1",
         "question_text": "And my career?",
         "phone": "+919345679286",
+        # In the documented follow-up contract, so the astrologer sees a name
+        # rather than a bare phone number on the second question.
+        "customer_name": "Meena Raman",
     }
 
 

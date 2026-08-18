@@ -494,6 +494,13 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
 
         session = _get_active_session(lead_id, tenant_id, db)
 
+        # A paid customer whose expert has already answered is in follow-up mode:
+        # everything they say goes to that same expert and the AI stays out of it.
+        # Ahead of the brain-led check on purpose — this applies in both modes.
+        if session is not None and session.get("status") == "paid":
+            if await forward_followup_to_astrologer(session, lead_id, tenant_id, phone, body, db):
+                return True
+
         # Brain-led leads (see intake_brain.py): once the offer is out, this state
         # machine composes and sends nothing. Reporting the turn as unconsumed hands
         # it to generate_reply, which drives the rest of the sign-up through tools.
@@ -764,6 +771,127 @@ def session_ref_to_id(external_ref: str) -> str | None:
         return str(uuid.UUID(ref))
     except (ValueError, AttributeError, TypeError):
         return None
+
+
+_FOLLOWUP_CLAIM_ATTEMPTS = 3
+
+
+async def forward_followup_to_astrologer(session: dict, lead_id: str, tenant_id: str, phone: str, body: str, db) -> bool:
+    """Hand a paid customer's next message to the astrologer who already answered
+    them, and tell the customer it landed. Returns True when the message was
+    consumed, meaning the AI must not also reply to it.
+
+    Only fires once the expert has actually answered: before that the lead is in
+    the paid-and-waiting state, where ai_reply's _intake_paid_prompt_block keeps
+    the AI reassuring them rather than silent (see the 2026-08-07..11 incident in
+    .agents/context/subsystem-notes.md — muting a paid lead is what we are NOT
+    doing here). Every failure path returns False for the same reason: an
+    undelivered follow-up is bad, an undelivered follow-up plus total silence is
+    what actually cost us before.
+    """
+    from app.services import astro_bridge
+
+    if session.get("astro_question_id") is None:
+        # The consultation never reached the bridge; astro-push-reconcile still
+        # owes it a push. A follow-up would have no thread to join.
+        return False
+    if session.get("astro_last_reply_id") is None:
+        return False
+
+    session_id = session["id"]
+
+    # n must be monotonic per session: Django keys idempotency off "{sid}::f{n}"
+    # and silently swallows a repeat. Claim it with a compare-and-set so two
+    # messages landing together can't both take the same number.
+    n = None
+    current = int(session.get("astro_followup_count") or 0)
+    for _ in range(_FOLLOWUP_CLAIM_ATTEMPTS):
+        claimed = (
+            db.table("intake_sessions")
+            .update({"astro_followup_count": current + 1})
+            .eq("id", session_id)
+            .eq("tenant_id", tenant_id)
+            .eq("astro_followup_count", current)
+            .execute()
+        )
+        if claimed and claimed.data:
+            n = current + 1
+            break
+        fresh = (
+            db.table("intake_sessions")
+            .select("astro_followup_count")
+            .eq("id", session_id)
+            .eq("tenant_id", tenant_id)
+            .maybe_single()
+            .execute()
+        )
+        row = (fresh.data if fresh else None) or {}
+        current = int(row.get("astro_followup_count") or 0)
+    if n is None:
+        logger.error(f"Intake follow-up: could not claim a number for session {session_id} — yielding to the AI")
+        return False
+
+    lead_row = (
+        db.table("leads")
+        .select("id,name,phone")
+        .eq("id", lead_id)
+        .eq("tenant_id", tenant_id)
+        .maybe_single()
+        .execute()
+    )
+    lead = (lead_row.data if lead_row else None) or {"phone": phone}
+
+    pushed = None
+    try:
+        pushed = await astro_bridge.push_followup(session, lead, body, tenant_id, n)
+    except Exception as e:
+        logger.error(f"Intake follow-up push raised for session {session_id}: {e}")
+
+    if not pushed:
+        # Give the number back so the next message can retry it, rather than
+        # burning n and leaving a permanent gap in the astrologer's thread.
+        try:
+            (
+                db.table("intake_sessions")
+                .update({"astro_followup_count": n - 1})
+                .eq("id", session_id)
+                .eq("tenant_id", tenant_id)
+                .eq("astro_followup_count", n)
+                .execute()
+            )
+        except Exception as e:
+            logger.warning(f"Intake follow-up counter rollback failed for session {session_id}: {e}")
+        try:
+            notify_pool(
+                tenant_id,
+                "intake_paid",
+                "Follow-up did not reach the expert",
+                f"A paid customer ({phone}) sent a follow-up that could not be delivered to the expert platform.",
+                db=db,
+            )
+        except Exception as e:
+            logger.warning(f"Intake follow-up notify_pool failed for session {session_id}: {e}")
+        return False
+
+    language_mode = resolve_language_mode(lead_id, tenant_id, db)
+    thread, knowledge = await gather_context(db, lead_id, tenant_id, body)
+    receipt = await compose_line(
+        "followup_sent",
+        tenant_id=tenant_id,
+        language_mode=language_mode,
+        customer_message=body,
+        thread=thread,
+        knowledge=knowledge,
+        brain_prompt=collector_identity(db, lead_id, tenant_id, body),
+    )
+    try:
+        await _send_and_log(phone, receipt, tenant_id, lead_id, db)
+    except Exception as e:
+        # The expert has the question either way; failing to send the receipt is
+        # not a reason to also let the AI answer it.
+        logger.error(f"Intake follow-up receipt send failed for session {session_id}: {e}")
+    logger.info(f"Intake follow-up #{n} forwarded to the expert for session {session_id}")
+    return True
 
 
 def get_session_tenant_id(session_id: str, db=None) -> str | None:

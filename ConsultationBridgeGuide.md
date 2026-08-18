@@ -104,10 +104,10 @@ software. Each one exists because of a specific failure it prevents.
 **Aira (this repo)**
 - `backend/app/services/astro_normalize.py` — pure normalization functions (no I/O)
 - `backend/app/services/astro_bridge.py` — Direction A + C clients, signature verify
-- `backend/app/services/intake.py` — payment confirm, reply delivery, reconcile job, `session_ref_to_id`
+- `backend/app/services/intake.py` — payment confirm, reply delivery, reconcile job, `session_ref_to_id`, `forward_followup_to_astrologer`
 - `backend/app/routes/intake.py` — push hook after payment; public `/astro-reply` route
 - `backend/app/main.py` — `astro-push-reconcile` scheduler job
-- `backend/supabase/migrations/179_astro_bridge_session_links.sql`
+- `backend/supabase/migrations/179_astro_bridge_session_links.sql`, `180_intake_followup_counter.sql`
 - Tests: `backend/tests/test_astro_normalize.py`, `test_astro_bridge.py`, `test_astro_reply_hardening.py`, `test_intake_stats.py`, plus updates in `test_expert_handoff*.py`
 
 **astrobackmatrimony (Django)**
