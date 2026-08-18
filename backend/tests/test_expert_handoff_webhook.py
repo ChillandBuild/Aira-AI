@@ -53,10 +53,23 @@ def test_webhook_ignores_non_paid_events():
     assert res.json()["status"] == "ignored"
 
 
+# confirm_intake_payment's success shape: the receipt fields plus the session and
+# lead rows the AstroTamil bridge push needs.
+_CONFIRMED = {
+    "phone": "+919876543210",
+    "tenant_id": "t-1",
+    "lead_id": "lead-1",
+    "customer_name": "Priya",
+    "session": {"id": "sess-1", "tenant_id": "t-1", "collected_data": {"name": "Priya"}},
+    "lead": {"id": "lead-1", "phone": "+919876543210", "name": "Priya"},
+}
+
+
 def test_webhook_confirms_payment_and_sends_receipt():
     with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
          patch("app.routes.intake.verify_webhook_signature", return_value=True), \
-         patch("app.routes.intake.confirm_intake_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=_CONFIRMED), \
+         patch("app.routes.intake.astro_bridge.push_consultation", new=AsyncMock(return_value=None)), \
          patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}), \
          patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
         res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
@@ -74,7 +87,8 @@ def test_webhook_composes_the_receipt_in_the_leads_actual_language():
     all, since it fires from Razorpay's webhook, outside the WhatsApp message flow."""
     with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
          patch("app.routes.intake.verify_webhook_signature", return_value=True), \
-         patch("app.routes.intake.confirm_intake_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=_CONFIRMED), \
+         patch("app.routes.intake.astro_bridge.push_consultation", new=AsyncMock(return_value=None)), \
          patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}), \
          patch("app.routes.intake.compose_payment_receipt", new=AsyncMock(return_value="Priya, உங்க ரீடிங் உறுதி.")) as compose, \
          patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
@@ -88,12 +102,45 @@ def test_webhook_composes_the_receipt_in_the_leads_actual_language():
 def test_webhook_uses_the_tenants_configured_service_noun_in_the_receipt():
     with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
          patch("app.routes.intake.verify_webhook_signature", return_value=True), \
-         patch("app.routes.intake.confirm_intake_payment", return_value=("+919876543210", "t-1", "lead-1", "Priya")), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=_CONFIRMED), \
+         patch("app.routes.intake.astro_bridge.push_consultation", new=AsyncMock(return_value=None)), \
          patch("app.routes.intake.get_intake_config", return_value={"service_noun": "reading"}), \
          patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send:
         client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
     assert "reading" in send.call_args[0][1]
     assert "consultation" not in send.call_args[0][1]
+
+
+def test_webhook_pushes_the_paid_consultation_to_the_astro_bridge():
+    """The whole point of the bridge: the astrologer platform learns about a paid
+    consultation without anyone re-typing it."""
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=_CONFIRMED), \
+         patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}), \
+         patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")), \
+         patch("app.routes.intake.record_astro_bridge_ids") as record, \
+         patch("app.routes.intake.astro_bridge.push_consultation",
+               new=AsyncMock(return_value={"question_id": 77})) as push:
+        res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
+    assert res.status_code == 200
+    push.assert_awaited_once_with(_CONFIRMED["session"], _CONFIRMED["lead"], "t-1")
+    record.assert_called_once_with("sess-1", "t-1", {"question_id": 77})
+
+
+def test_webhook_still_sends_the_receipt_when_the_bridge_push_fails():
+    """A Django outage must not cost the customer their confirmation message —
+    the astro-push-reconcile job re-drives the push later."""
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=_CONFIRMED), \
+         patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}), \
+         patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.123")) as send, \
+         patch("app.routes.intake.astro_bridge.push_consultation",
+               new=AsyncMock(side_effect=RuntimeError("django down"))):
+        res = client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
+    assert res.status_code == 200
+    send.assert_awaited_once()
 
 
 def test_webhook_passes_the_paid_amount_through_to_confirm_intake_payment():

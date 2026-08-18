@@ -39,6 +39,6 @@ describe("resolveConnectionSource", () => {
 describe("channel grouping", () => {
   test("splits the four Meta channels from the standalone ones", () => {
     expect(META_CHANNELS.map(c => c.id)).toEqual(["whatsapp", "instagram", "facebook", "meta_ads"]);
-    expect(STANDALONE_CHANNELS.map(c => c.id)).toEqual(["telegram", "razorpay"]);
+    expect(STANDALONE_CHANNELS.map(c => c.id)).toEqual(["telegram", "razorpay", "astro_bridge"]);
   });
 });

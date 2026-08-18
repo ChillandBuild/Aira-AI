@@ -257,15 +257,28 @@ async def test_route_intake_falls_back_gracefully_with_no_package_amount():
     assert "team will send the payment link" in send.call_args[0][1]
 
 
-def test_confirm_intake_payment_keeps_ai_live_and_marks_paid():
-    """AI must stay live post-payment (see _intake_paid_prompt_block in
-    ai_reply.py) so a lead asking a follow-up question isn't met with silence
-    while waiting for staff to see the notify_pool alert."""
-    session_row = {
-        "id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1", "tenant_id": "t-1",
-        "collected_data": {"name": "Priya"}, "package_amount_paise": 2900,
-    }
-    lead_row = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
+_SESSION_ROW = {
+    "id": "sess-1",
+    "status": "awaiting_payment",
+    "lead_id": "lead-1",
+    "tenant_id": "t-1",
+    "collected_data": {"name": "Priya"},
+    "package_amount_paise": 2900,
+    "amount_paise": 2900,
+    "trigger_reason": "Will I get married this year?",
+}
+_LEAD_ROW = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
+
+
+def _confirm_db(session_row=None, lead_row=None, claimed_rows=None):
+    """db double for confirm_intake_payment: `claimed_rows` is what the
+    conditional UPDATE ... neq(status, paid) returns — [] means another
+    concurrent webhook retry got there first."""
+    session_row = _SESSION_ROW if session_row is None else session_row
+    lead_row = _LEAD_ROW if lead_row is None else lead_row
+    if claimed_rows is None:
+        claimed_rows = [{**session_row, "status": "paid"}]
+
     db = MagicMock()
 
     def make_table(name):
@@ -274,7 +287,9 @@ def test_confirm_intake_payment_keeps_ai_live_and_marks_paid():
             fetch = MagicMock()
             fetch.data = session_row
             t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
-            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+            claimed = MagicMock()
+            claimed.data = claimed_rows
+            t.update.return_value.eq.return_value.neq.return_value.execute.return_value = claimed
         elif name == "leads":
             fetch = MagicMock()
             fetch.data = lead_row
@@ -288,11 +303,61 @@ def test_confirm_intake_payment_keeps_ai_live_and_marks_paid():
             cache[name] = make_table(name)
         return cache[name]
     db.table.side_effect = selector
+    return db
+
+
+def test_confirm_intake_payment_keeps_ai_live_and_marks_paid():
+    """AI must stay live post-payment (see _intake_paid_prompt_block in
+    ai_reply.py) so a lead asking a follow-up question isn't met with silence
+    while waiting for staff to see the notify_pool alert."""
+    db = _confirm_db()
 
     result = eh.confirm_intake_payment("sess-1", "pay_abc123", db=db)
-    assert result == ("+919876543210", "t-1", "lead-1", "Priya")
+    assert result["phone"] == "+919876543210"
+    assert result["tenant_id"] == "t-1"
+    assert result["lead_id"] == "lead-1"
+    assert result["customer_name"] == "Priya"
     for call in db.table("leads").update.call_args_list:
         assert "ai_enabled" not in call.args[0]
+
+
+def test_confirm_intake_payment_returns_session_and_lead_for_the_bridge_push():
+    db = _confirm_db()
+    result = eh.confirm_intake_payment("sess-1", "pay_abc123", db=db)
+    # astro_bridge.push_consultation(session, lead, tenant_id) needs all of these
+    assert result["session"]["id"] == "sess-1"
+    assert result["session"]["amount_paise"] == 2900
+    assert result["session"]["trigger_reason"] == "Will I get married this year?"
+    assert result["session"]["collected_data"] == {"name": "Priya"}
+    assert result["lead"]["phone"] == "+919876543210"
+
+
+def test_confirm_intake_payment_select_covers_every_field_the_push_needs():
+    db = _confirm_db()
+    eh.confirm_intake_payment("sess-1", "pay_abc123", db=db)
+    columns = db.table("intake_sessions").select.call_args[0][0]
+    for needed in ("id", "status", "lead_id", "tenant_id", "collected_data", "trigger_reason"):
+        assert needed in columns
+
+
+def test_confirm_intake_payment_update_is_gated_on_not_already_paid():
+    """Without the status filter on the UPDATE itself, two Razorpay retries both
+    pass the read-then-write guard: double consultation, double charge."""
+    db = _confirm_db()
+    eh.confirm_intake_payment("sess-1", "pay_abc123", db=db)
+
+    sessions = db.table("intake_sessions")
+    assert sessions.update.return_value.eq.call_args[0] == ("id", "sess-1")
+    assert sessions.update.return_value.eq.return_value.neq.call_args[0] == ("status", "paid")
+
+
+def test_confirm_intake_payment_loses_the_race_when_update_matches_no_row():
+    """The concurrent retry: the row still read as awaiting_payment, but the
+    conditional UPDATE claimed nothing, so this caller must not confirm."""
+    db = _confirm_db(claimed_rows=[])
+    with patch.object(eh, "notify_pool") as notify:
+        assert eh.confirm_intake_payment("sess-1", "pay_abc123", db=db) is None
+    notify.assert_not_called()
 
 
 def test_confirm_intake_payment_idempotent_when_already_paid():
@@ -308,7 +373,7 @@ def test_get_session_tenant_id_returns_tenant_for_known_session():
     row = MagicMock()
     row.data = {"tenant_id": "tenant-astro-tamil"}
     db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
-    assert eh.get_session_tenant_id("sess-1", db=db) == "tenant-astro-tamil"
+    assert eh.get_session_tenant_id("9c3e0a1b-4d5e-4f60-8a7b-1c2d3e4f5a6b", db=db) == "tenant-astro-tamil"
 
 
 def test_get_session_tenant_id_returns_none_for_unknown_session():
@@ -316,37 +381,30 @@ def test_get_session_tenant_id_returns_none_for_unknown_session():
     row = MagicMock()
     row.data = None
     db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+    assert eh.get_session_tenant_id("9c3e0a1b-4d5e-4f60-8a7b-1c2d3e4f5a6b", db=db) is None
+
+
+def test_get_session_tenant_id_rejects_a_non_uuid_ref_without_touching_the_db():
+    """The id column is uuid-typed: a non-uuid ref reaching PostgREST raises an
+    APIError, which on the public astro-reply route would surface as a 500
+    instead of the intended 401."""
+    db = MagicMock()
     assert eh.get_session_tenant_id("sess-nonexistent", db=db) is None
+    db.table.assert_not_called()
+
+
+def test_get_session_tenant_id_strips_the_followup_suffix():
+    db = MagicMock()
+    row = MagicMock()
+    row.data = {"tenant_id": "tenant-astro-tamil"}
+    db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+    sid = "9c3e0a1b-4d5e-4f60-8a7b-1c2d3e4f5a6b"
+    assert eh.get_session_tenant_id(f"{sid}::f3", db=db) == "tenant-astro-tamil"
+    assert db.table.return_value.select.return_value.eq.call_args[0] == ("id", sid)
 
 
 def test_confirm_intake_payment_notifies_staff_pool():
-    session_row = {
-        "id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1", "tenant_id": "t-1",
-        "collected_data": {"name": "Priya"}, "package_amount_paise": 2900,
-    }
-    lead_row = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
-    db = MagicMock()
-
-    def make_table(name):
-        t = MagicMock()
-        if name == "intake_sessions":
-            fetch = MagicMock()
-            fetch.data = session_row
-            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
-            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
-        elif name == "leads":
-            fetch = MagicMock()
-            fetch.data = lead_row
-            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
-            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
-        return t
-
-    cache = {}
-    def selector(name):
-        if name not in cache:
-            cache[name] = make_table(name)
-        return cache[name]
-    db.table.side_effect = selector
+    db = _confirm_db()
 
     with patch.object(eh, "notify_pool") as notify:
         eh.confirm_intake_payment("sess-1", "pay_abc123", db=db)
@@ -359,38 +417,13 @@ def test_confirm_intake_payment_notifies_staff_pool():
 
 
 def test_confirm_intake_payment_notify_failure_does_not_break_confirmation():
-    session_row = {
-        "id": "sess-1", "status": "awaiting_payment", "lead_id": "lead-1", "tenant_id": "t-1",
-        "collected_data": {"name": "Priya"}, "package_amount_paise": 2900,
-    }
-    lead_row = {"id": "lead-1", "phone": "+919876543210", "name": "Priya"}
-    db = MagicMock()
-
-    def make_table(name):
-        t = MagicMock()
-        if name == "intake_sessions":
-            fetch = MagicMock()
-            fetch.data = session_row
-            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
-            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
-        elif name == "leads":
-            fetch = MagicMock()
-            fetch.data = lead_row
-            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = fetch
-            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
-        return t
-
-    cache = {}
-    def selector(name):
-        if name not in cache:
-            cache[name] = make_table(name)
-        return cache[name]
-    db.table.side_effect = selector
+    db = _confirm_db()
 
     with patch.object(eh, "notify_pool", side_effect=RuntimeError("push service down")):
         result = eh.confirm_intake_payment("sess-1", "pay_abc123", db=db)
 
-    assert result == ("+919876543210", "t-1", "lead-1", "Priya")
+    assert result["phone"] == "+919876543210"
+    assert result["customer_name"] == "Priya"
 
 
 def test_get_paid_unresolved_session_returns_session_when_paid():
