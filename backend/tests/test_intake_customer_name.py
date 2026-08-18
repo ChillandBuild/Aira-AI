@@ -157,14 +157,14 @@ def test_confirming_payment_reports_the_name_from_the_tenants_own_schema():
     db = _paid_session_db({"full_name": "Prem Kumar D"})
     with patch.object(ik, "notify_pool"):
         result = ik.confirm_intake_payment("sess-1", "pay_1", amount_paid_paise=500, db=db)
-    assert result[3] == "Prem Kumar D"
+    assert result["customer_name"] == "Prem Kumar D"
 
 
 def test_confirming_payment_reports_no_name_when_none_can_be_identified():
     db = _paid_session_db({"date_of_birth": "06.06.2000"})
     with patch.object(ik, "notify_pool"):
         result = ik.confirm_intake_payment("sess-1", "pay_1", amount_paid_paise=500, db=db)
-    assert result[3] is None
+    assert result["customer_name"] is None
 
 
 def test_the_staff_notification_says_a_lead_rather_than_lead_customer():

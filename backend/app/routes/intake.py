@@ -2,19 +2,23 @@ import csv
 import io
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import require_permission
+from app.services import astro_bridge
 from app.services.ai_reply import send_whatsapp
 from app.services.intake import (
     change_session_package,
     confirm_intake_payment,
+    deliver_astro_reply,
     get_intake_config,
     get_session_tenant_id,
+    record_astro_bridge_ids,
     resolve_intake_session,
 )
 from app.services.intake_copy import compose_payment_receipt
@@ -140,6 +144,47 @@ def export_intake_sessions_csv(
     )
 
 
+@router.get("/stats")
+def intake_stats(ctx: dict = Depends(require_conversations_view)):
+    """Intake dashboard: message totals, answer progress and a 14-day trend for
+    this tenant. "Answered" means the astrologer's reply came back over the
+    bridge (astro_last_reply_id is set); "pending" is paid but not yet answered.
+    Mirrors the astrobackmatrimony adminweb "Aira Customers" stats so both teams
+    read the same numbers."""
+    db = get_supabase()
+    rows = (
+        db.table("intake_sessions")
+        .select("status, amount_paise, paid_at, created_at, astro_last_reply_id")
+        .eq("tenant_id", ctx["tenant_id"])
+        .order("created_at", desc=True)
+        .limit(2000)
+        .execute()
+    ).data or []
+
+    consultations = [r for r in rows if r.get("status") in ("paid", "resolved")]
+    answered = sum(1 for r in consultations if r.get("astro_last_reply_id") is not None)
+    revenue_paise = sum(int(r.get("amount_paise") or 0) for r in consultations)
+
+    today = datetime.now(timezone.utc).date()
+    per_day = {(today - timedelta(days=i)).isoformat(): 0 for i in range(13, -1, -1)}
+    for r in consultations:
+        stamp = str(r.get("paid_at") or r.get("created_at") or "")[:10]
+        if stamp in per_day:
+            per_day[stamp] += 1
+
+    revenue_inr = revenue_paise / 100
+    return {
+        "totals": {
+            "messages": len(consultations),
+            "answered": answered,
+            "pending": len(consultations) - answered,
+            "awaiting_payment": sum(1 for r in rows if r.get("status") == "awaiting_payment"),
+            "revenue_inr": int(revenue_inr) if revenue_inr.is_integer() else revenue_inr,
+        },
+        "daily": [{"date": d, "count": n} for d, n in sorted(per_day.items())],
+    }
+
+
 @router.patch("/sessions/{session_id}/resolve")
 def resolve_session(session_id: str, ctx: dict = Depends(require_conversations_reply)):
     ok = resolve_intake_session(session_id, ctx["tenant_id"])
@@ -211,7 +256,20 @@ async def razorpay_webhook(request: Request):
 
     result = confirm_intake_payment(session_id, razorpay_payment_id, amount_paid_paise=amount_paid_paise)
     if result:
-        phone, tenant_id, lead_id, customer_name = result
+        phone = result["phone"]
+        tenant_id = result["tenant_id"]
+        lead_id = result["lead_id"]
+        customer_name = result["customer_name"]
+
+        # Best-effort: a bridge outage must not block the receipt or the paid
+        # transition. The astro-push-reconcile job re-drives whatever fails here.
+        try:
+            pushed = await astro_bridge.push_consultation(result["session"], result["lead"], tenant_id)
+            if pushed:
+                record_astro_bridge_ids(session_id, tenant_id, pushed)
+        except Exception as e:
+            logger.error(f"Astro bridge consultation push failed for session {session_id}: {e}")
+
         service_noun = get_intake_config(tenant_id)["service_noun"]
         receipt = await compose_payment_receipt(
             lead_id=lead_id, tenant_id=tenant_id, customer_name=customer_name, service_noun=service_noun,
@@ -222,3 +280,38 @@ async def razorpay_webhook(request: Request):
             logger.error(f"Intake receipt send failed for {phone}: {e}")
 
     return {"status": "ok"}
+
+
+def _astro_unauthorized() -> JSONResponse:
+    # Same body for an unknown external_ref as for a bad signature: a partner that
+    # can't sign must not be able to probe which session ids exist.
+    return JSONResponse(status_code=401, content={"error": "Unauthorized", "code": "unauthorized"})
+
+
+@public_router.post("/astro-reply")
+async def astro_reply(request: Request):
+    """The astrologer's answer, called by the astrobackmatrimony Django app.
+    Signed with HMAC-SHA256 over the raw body using this tenant's
+    astro_bridge_secret. Wire contract — see ConsultationAPIEndpoints.md."""
+    raw_body = await request.body()
+    signature = request.headers.get("x-astro-signature", "")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON", "code": "invalid_json"})
+
+    external_ref = str(payload.get("external_ref") or "")
+    tenant_id = get_session_tenant_id(external_ref) if external_ref else None
+    if not tenant_id:
+        logger.warning(f"Astro reply callback: unknown external_ref {external_ref!r}")
+        return _astro_unauthorized()
+
+    secret = astro_bridge.get_bridge_secret(tenant_id)
+    if not astro_bridge.verify_astro_signature(raw_body, signature, secret):
+        logger.warning(f"Astro reply callback: invalid signature for tenant {tenant_id}")
+        return _astro_unauthorized()
+
+    return await deliver_astro_reply(payload, tenant_id)

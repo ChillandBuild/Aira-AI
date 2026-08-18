@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { API_URL, IntakeSession, api, getAuthHeaders } from "@/lib/api";
 import { IntakeTable } from "./IntakeTable";
+import { IntakeDashboard } from "./IntakeDashboard";
 import { ColumnPicker } from "./ColumnPicker";
 import { deriveColumns } from "./columns";
 
@@ -22,6 +23,10 @@ interface PackageOption {
 
 export default function IntakePage() {
   const [filter, setFilter] = useState<Filter>("all");
+  // The dashboard is a view over the same tenant's sessions, not a fourth
+  // status filter — keeping it out of `filter` means switching to it and back
+  // doesn't refetch the table or lose the staff member's place.
+  const [view, setView] = useState<"table" | "dashboard">("table");
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<IntakeSession[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -108,37 +113,55 @@ export default function IntakePage() {
             <button
               key={key}
               type="button"
-              onClick={() => setFilter(key)}
+              onClick={() => {
+                setFilter(key);
+                setView("table");
+              }}
               className={`rounded-lg px-3 py-1.5 font-label text-xs font-bold transition-all ${
-                filter === key ? "bg-white text-ink shadow-sm" : "text-ink-muted"
+                view === "table" && filter === key ? "bg-white text-ink shadow-sm" : "text-ink-muted"
               }`}
             >
               {label}
             </button>
           ))}
-        </div>
-
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search name or phone"
-          className="rounded-xl border border-border px-3 py-2 font-body text-sm"
-        />
-
-        <div className="ml-auto flex items-center gap-2">
-          <ColumnPicker columns={columns} hiddenKeys={hiddenKeys} onChange={setHiddenKeys} />
           <button
             type="button"
-            onClick={downloadCsv}
-            className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 font-label text-xs font-bold text-white hover:bg-primary/90"
+            onClick={() => setView("dashboard")}
+            className={`rounded-lg px-3 py-1.5 font-label text-xs font-bold transition-all ${
+              view === "dashboard" ? "bg-white text-ink shadow-sm" : "text-ink-muted"
+            }`}
           >
-            <Download size={12} /> Download CSV
+            Dashboard
           </button>
         </div>
+
+        {view === "table" && (
+          <>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name or phone"
+              className="rounded-xl border border-border px-3 py-2 font-body text-sm"
+            />
+
+            <div className="ml-auto flex items-center gap-2">
+              <ColumnPicker columns={columns} hiddenKeys={hiddenKeys} onChange={setHiddenKeys} />
+              <button
+                type="button"
+                onClick={downloadCsv}
+                className="inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 font-label text-xs font-bold text-white hover:bg-primary/90"
+              >
+                <Download size={12} /> Download CSV
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {view === "dashboard" ? (
+          <IntakeDashboard />
+        ) : loading ? (
           <div className="space-y-3 p-4">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="h-10 animate-pulse rounded-xl bg-border-subtle" />

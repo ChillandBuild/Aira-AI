@@ -994,6 +994,17 @@ export interface IntakeSession {
   leads: { name: string | null; phone: string | null } | null;
 }
 
+export interface IntakeStats {
+  totals: {
+    messages: number;
+    answered: number;
+    pending: number;
+    awaiting_payment: number;
+    revenue_inr: number;
+  };
+  daily: { date: string; count: number }[];
+}
+
 export interface IntakePage {
   data: IntakeSession[];
   next_cursor: string | null;
@@ -2063,6 +2074,7 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ package_key: packageKey }),
       }),
+    stats: () => apiFetch<IntakeStats>("/api/v1/intake/stats"),
     csvPath: (params: { status: IntakeStatus | "all"; packageKey?: string; q?: string }) => {
       const search = new URLSearchParams({ status: params.status });
       if (params.packageKey) search.set("package", params.packageKey);

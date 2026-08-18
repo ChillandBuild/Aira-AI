@@ -336,6 +336,8 @@ async def update_settings(
         "instagram_app_secret",
         "facebook_access_token",
         "meta_ads_access_token",
+        "astro_bridge_api_key",
+        "astro_bridge_secret",
     }
     updated = []
     for key, value in payload.updates.items():

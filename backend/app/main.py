@@ -44,6 +44,7 @@ _heartbeats = {
     "number-quality-sync": None,
     "daily-digest": None,
     "ad-insights-sync": None,
+    "astro-push-reconcile": None,
 }
 
 
@@ -281,6 +282,17 @@ async def _process_pending_whatsapp_alerts() -> None:
         logger.error(f"Pending WhatsApp alerts scheduler error: {e}")
 
 
+async def _reconcile_astro_pushes() -> None:
+    """APScheduler job: re-drive AstroTamil consultation pushes that failed at
+    payment-confirm time (paid sessions with astro_question_id still NULL)."""
+    _heartbeats["astro-push-reconcile"] = datetime.now(timezone.utc)
+    try:
+        from app.services.intake import reconcile_pending_astro_pushes
+        await reconcile_pending_astro_pushes()
+    except Exception as e:
+        logger.error(f"Astro push reconcile scheduler error: {e}")
+
+
 _scheduler = AsyncIOScheduler()
 
 
@@ -389,12 +401,19 @@ async def lifespan(app: FastAPI):
         id="pending-whatsapp-alerts",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _reconcile_astro_pushes,
+        trigger="interval",
+        minutes=5,
+        id="astro-push-reconcile",
+        replace_existing=True,
+    )
     _scheduler.add_listener(
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m)")
+    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m)")
 
     yield
 
