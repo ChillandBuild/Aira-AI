@@ -894,6 +894,59 @@ async def forward_followup_to_astrologer(session: dict, lead_id: str, tenant_id:
     return True
 
 
+_BRIDGE_AUTH_ALERT_COOLDOWN_MINUTES = 60
+
+
+def alert_bridge_auth_failure(tenant_id: str, external_ref: str, db=None) -> None:
+    """Tell staff the expert platform's replies are being rejected.
+
+    A signature mismatch on /astro-reply is the one bridge failure with no other
+    symptom: Aira answers 401, the astrologer's screen still shows the reply as
+    sent, and the customer who paid simply never hears back. Only reached once
+    the external_ref has already resolved to a real session, so this is a
+    misconfigured secret rather than someone probing the endpoint.
+
+    Rate-limited per tenant: Django retries, and one wrong secret must not put a
+    notification in every caller's tray on every retry.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+
+    since = (datetime.now(timezone.utc) - timedelta(minutes=_BRIDGE_AUTH_ALERT_COOLDOWN_MINUTES)).isoformat()
+    try:
+        recent = (
+            db.table("app_notifications")
+            .select("id")
+            .eq("tenant_id", tenant_id)
+            .eq("type", "intake_bridge_auth_failed")
+            .gte("created_at", since)
+            .limit(1)
+            .execute()
+        )
+        if recent and recent.data:
+            return
+    except Exception as e:
+        # Never let the cooldown lookup stop the alert — a missed alert is the
+        # failure this whole function exists to prevent.
+        logger.warning(f"Bridge auth alert cooldown check failed for tenant {tenant_id}: {e}")
+
+    try:
+        notify_pool(
+            tenant_id,
+            "intake_bridge_auth_failed",
+            "Expert replies are being rejected",
+            "The expert platform's reply for a paid consultation failed its signature check, "
+            "so it was not delivered to the customer. Check that astro_bridge_secret in "
+            "Settings matches AIRA_BRIDGE_SECRET on the expert platform.",
+            db=db,
+        )
+    except Exception as e:
+        logger.warning(f"Bridge auth alert notify_pool failed for tenant {tenant_id}: {e}")
+
+
 def get_session_tenant_id(session_id: str, db=None) -> str | None:
     """Look up which tenant owns a session, so the webhook route can verify the
     Razorpay signature against that tenant's own webhook secret rather than the

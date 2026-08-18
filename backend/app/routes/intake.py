@@ -13,6 +13,7 @@ from app.dependencies.tenant import require_permission
 from app.services import astro_bridge
 from app.services.ai_reply import send_whatsapp
 from app.services.intake import (
+    alert_bridge_auth_failure,
     change_session_package,
     confirm_intake_payment,
     deliver_astro_reply,
@@ -311,7 +312,11 @@ async def astro_reply(request: Request):
 
     secret = astro_bridge.get_bridge_secret(tenant_id)
     if not astro_bridge.verify_astro_signature(raw_body, signature, secret):
+        # The ref resolved to a real session, so this is the expert platform
+        # calling with a mismatched secret — not a probe. Nothing else surfaces
+        # this: they see "sent", the customer hears nothing. Tell staff.
         logger.warning(f"Astro reply callback: invalid signature for tenant {tenant_id}")
+        alert_bridge_auth_failure(tenant_id, external_ref)
         return _astro_unauthorized()
 
     return await deliver_astro_reply(payload, tenant_id)
