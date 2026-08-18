@@ -104,10 +104,10 @@ software. Each one exists because of a specific failure it prevents.
 **Aira (this repo)**
 - `backend/app/services/astro_normalize.py` — pure normalization functions (no I/O)
 - `backend/app/services/astro_bridge.py` — Direction A + C clients, signature verify
-- `backend/app/services/intake.py` — payment confirm, reply delivery, reconcile job, `session_ref_to_id`, `forward_followup_to_astrologer`
+- `backend/app/services/intake.py` — payment confirm, reply nudge, reconcile job, `session_ref_to_id`, `_compose_reply_nudge`
 - `backend/app/routes/intake.py` — push hook after payment; public `/astro-reply` route
 - `backend/app/main.py` — `astro-push-reconcile` scheduler job
-- `backend/supabase/migrations/179_astro_bridge_session_links.sql`, `180_intake_followup_counter.sql`
+- `backend/supabase/migrations/179_astro_bridge_session_links.sql`, `181_astro_reply_nudge.sql` (180 added a follow-up counter and 181 dropped it again — see below)
 - Tests: `backend/tests/test_astro_normalize.py`, `test_astro_bridge.py`, `test_astro_reply_hardening.py`, `test_intake_stats.py`, plus updates in `test_expert_handoff*.py`
 
 **astrobackmatrimony (Django)**
@@ -199,3 +199,36 @@ Every item below was actually applied in this build — none of it is theory.
 - Pre-existing security items reported separately to the maintainers
   (payment-webhook signature skip, hardcoded admin credentials, missing
   reply-ownership check, `DEBUG` hardcoded).
+
+
+## The reply does not reach WhatsApp (changed 2026-08-18)
+
+The astrologer's answer is deliberately **not** delivered to the customer's
+WhatsApp. When the reply callback arrives, Aira sends one short message — "your
+answer is ready, open the app and sign in with this number" — and the customer
+reads the answer inside the AstroTamil app.
+
+Consequences worth knowing before changing anything here:
+
+- **`reply_image_url` and `reply_voice_url` are ignored.** The media relay
+  (Meta upload + send) was deleted; nothing in Aira touches astrologer media.
+- **`reply_text` is archived, not sent.** It lands on
+  `intake_sessions.astro_last_reply_text` so support can answer "I can't find it
+  in the app", and deliberately **not** in `messages`, which records what the
+  customer actually received.
+- **The app link is appended in code**, read from the `app_download_link`
+  setting. Never let the model write it: a hallucinated download URL sent to a
+  paying customer is the failure commit `24494b3d` already fixed once.
+- **Follow-ups are gone from WhatsApp entirely** — no `push_followup`, no
+  counter, no forwarding branch in `route_intake`. The conversation continues in
+  the app.
+- **The AI stays live between payment and the nudge, and it must not promise a
+  WhatsApp answer.** `_intake_paid_prompt_block(service_noun, answer_in_app=...)`
+  switches its reassurance line on whether the tenant has an `app_download_link`,
+  and the payment receipt no longer says "in touch here on WhatsApp" at all.
+  Both are forbidden from writing a link — only `_compose_reply_nudge` may.
+- **No 24-hour window check and no staff alert on it**, by explicit decision:
+  the astrologer answers same-day in practice, and anything after that is the
+  app's problem. If that assumption ever breaks, the fix is a WhatsApp template
+  for the nudge (its text is fixed, so it qualifies) rather than reinstating the
+  check.

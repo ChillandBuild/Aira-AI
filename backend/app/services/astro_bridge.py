@@ -1,5 +1,9 @@
-"""Outbound half of the AstroTamil bridge: hands a paid expert-handoff session to
-the Django astrologer backend, and verifies the signature on its reply callback.
+"""Outbound half of the AstroTamil bridge: hands a paid intake session to the
+Django astrologer backend, and verifies the signature on its reply callback.
+
+Follow-up questions are NOT sent from here — once the astrologer has answered,
+the customer is nudged into the AstroTamil app and the conversation continues
+there. push_followup() and its endpoint were removed 2026-08-18.
 
 Django does not normalise anything it is sent — a birth date it cannot split on
 "-" raises, and a gender that is not exactly "M"/"F" silently becomes "M". So
@@ -25,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 _TIMEOUT = 20.0
 _CONSULTATION_PATH = "/api/astrologer-welcome/bridge/consultation/"
-_FOLLOWUP_PATH = "/api/astrologer-welcome/bridge/followup/"
 
 # collected_data keys are tenant-authored (expert_handoff_config.fields), so the
 # same value arrives as "dob", "date_of_birth" or "Date Of Birth" depending on who
@@ -175,65 +178,6 @@ async def push_consultation(session: dict, lead: dict, tenant_id: str) -> dict |
         "tenant_id": tenant_id,
     }
     return await _post(_CONSULTATION_PATH, payload, external_ref, tenant_id)
-
-
-async def push_followup(
-    session: dict, lead: dict, question_text: str, tenant_id: str, n: int
-) -> dict | None:
-    """Add a follow-up question to the same Django user's thread. Returns Django's response, or None.
-
-    ``n`` is the REQUIRED 1-based, monotonic per-session follow-up counter (the Nth
-    follow-up for this session). The follow-up's external_ref is ``f"{session_id}::f{n}"``
-    so Django's idempotency key ``aira_{external_ref}`` stays distinct from the
-    consultation's ``aira_<session_id>`` and from every earlier follow-up — reusing the
-    bare session id would collide and Django would swallow the follow-up as a duplicate.
-    The caller must derive ``n`` from how many follow-ups already exist for the session
-    (starting at 1) and never repeat it. Aira's ``get_session_tenant_id`` strips the
-    ``::f{n}`` suffix before its session-id lookup on the reply path.
-    """
-    session = session or {}
-    lead = lead or {}
-    session_id = str(session.get("id") or "")
-    if not session_id:
-        logger.error("Astro bridge follow-up push skipped for tenant %s: session has no id", tenant_id)
-        return None
-
-    try:
-        n = int(n)
-    except (TypeError, ValueError):
-        n = 0
-    if n < 1:
-        logger.error(
-            "Astro bridge refusing follow-up for session %s (tenant=%s): invalid follow-up "
-            "number %r — must be a positive per-session counter",
-            session_id, tenant_id, n,
-        )
-        return None
-
-    external_ref = f"{session_id}::f{n}"
-    collected = session.get("collected_data") or {}
-    phone = normalize_phone(_pick(collected, "phone") or lead.get("phone"))
-    question_text = str(question_text or "").strip()
-
-    unusable = [label for label, value in (("phone", phone), ("question", question_text)) if not value]
-    if unusable:
-        logger.error(
-            "Astro bridge refusing to push follow-up for session %s (tenant=%s): unusable %s",
-            external_ref, tenant_id, ", ".join(unusable),
-        )
-        return None
-
-    # customer_name is in the documented follow-up contract (ConsultationAPIEndpoints.md
-    # section 2). Sent so the astrologer sees a name on the follow-up rather than a
-    # bare phone number; harmless if their side resolves the name from the phone.
-    person_name = str(_pick(collected, "person_name") or lead.get("name") or "").strip()
-    payload = {
-        "external_ref": external_ref,
-        "question_text": question_text,
-        "phone": phone,
-        "customer_name": person_name or "Customer",
-    }
-    return await _post(_FOLLOWUP_PATH, payload, external_ref, tenant_id)
 
 
 def verify_astro_signature(raw_body: bytes, header: str, secret: str) -> bool:

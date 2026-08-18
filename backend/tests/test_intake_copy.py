@@ -207,7 +207,19 @@ async def test_compose_payment_receipt_falls_back_to_english_on_error():
         text = await ic.compose_payment_receipt(
             lead_id="l-1", tenant_id="t-1", customer_name="Priya", service_noun="consultation",
         )
-    assert text == "Priya, Your consultation is confirmed — our expert will be in touch here on WhatsApp shortly."
+    assert text == (
+        "Priya, Your consultation is confirmed — our expert is working on it and "
+        "we'll message you as soon as your answer is ready."
+    )
+
+
+def test_the_receipt_does_not_promise_the_answer_on_whatsapp():
+    """The answer arrives in the app now (see intake._compose_reply_nudge). The
+    receipt told every paying customer to expect it here, which was true until
+    2026-08-18 and is now a promise Aira cannot keep."""
+    for text in (ic._TASKS["payment_receipt"], ic._FALLBACKS["payment_receipt"]):
+        assert "on WhatsApp" not in text
+    assert "link" in ic._TASKS["payment_receipt"], "the model must be told not to write one"
 
 
 def test_reask_task_has_no_hardcoded_date_example():
