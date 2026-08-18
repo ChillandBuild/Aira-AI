@@ -222,6 +222,11 @@ Consequences worth knowing before changing anything here:
 - **Follow-ups are gone from WhatsApp entirely** — no `push_followup`, no
   counter, no forwarding branch in `route_intake`. The conversation continues in
   the app.
+- **The AI stays live between payment and the nudge, and it must not promise a
+  WhatsApp answer.** `_intake_paid_prompt_block(service_noun, answer_in_app=...)`
+  switches its reassurance line on whether the tenant has an `app_download_link`,
+  and the payment receipt no longer says "in touch here on WhatsApp" at all.
+  Both are forbidden from writing a link — only `_compose_reply_nudge` may.
 - **No 24-hour window check and no staff alert on it**, by explicit decision:
   the astrologer answers same-day in practice, and anything after that is the
   app's problem. If that assumption ever breaks, the fix is a WhatsApp template

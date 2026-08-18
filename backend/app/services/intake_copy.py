@@ -63,8 +63,10 @@ _TASKS = {
     ),
     "payment_receipt": (
         "The customer's payment just went through. Thank them and confirm their "
-        "{field_label} is booked -- our expert will be in touch here on WhatsApp soon. "
-        "Do not promise a specific time or name a person. Do not include the "
+        "{field_label} is booked -- our expert is working on it and we will message "
+        "them here as soon as their answer is ready. Do not promise a specific time "
+        "or name a person. Do not say where they will read the answer and do not "
+        "write any link: that comes later, in its own message. Do not include the "
         "customer's own name in your sentence -- the system adds it separately."
     ),
     "reply_ready": (
@@ -93,7 +95,7 @@ _FALLBACKS = {
     "skip_field": "No problem. And your {next_field_label_lower}?",
     "payment_intro": "Great, here's your payment link:",
     "payment_delay": "We've received your details — our team will send the payment link shortly.",
-    "payment_receipt": "Your {field_label_lower} is confirmed — our expert will be in touch here on WhatsApp shortly.",
+    "payment_receipt": "Your {field_label_lower} is confirmed — our expert is working on it and we'll message you as soon as your answer is ready.",
     "reply_ready": "Your answer is ready. Open our app and sign in with this number to read it in full:",
     "package_reask": "Sorry, I didn't catch which one —",
     "no_packages": "Thanks! Our team will follow up shortly with the next steps.",

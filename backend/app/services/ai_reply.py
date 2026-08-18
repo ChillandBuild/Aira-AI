@@ -965,10 +965,31 @@ def _escalation_prompt_block(bh: dict, now=None) -> str:
     )
 
 
-def _intake_paid_prompt_block(service_noun: str) -> str:
+def _intake_paid_prompt_block(service_noun: str, *, answer_in_app: bool = False) -> str:
     """System-prompt section for a lead who already paid for a human expert
     session and is waiting to be contacted. Mirrors _escalation_prompt_block's
-    "stay live, don't go silent" approach for the Intake flow."""
+    "stay live, don't go silent" approach for the Intake flow.
+
+    `answer_in_app` is set for tenants whose expert answers land in their own app
+    rather than on WhatsApp (see intake._compose_reply_nudge). Without it the AI
+    tells a paying customer their answer is coming to WhatsApp, which for those
+    tenants is simply untrue.
+    """
+    if answer_in_app:
+        waiting_rule = (
+            "- If they ask when the expert will contact them, or say nobody has "
+            "reached out yet: reassure them the expert has been notified, that we "
+            "will message them here the moment their answer is ready, and that they "
+            "will read the full answer in our app. Do NOT write a link or a URL of "
+            "any kind — the app link is sent automatically when the answer is "
+            "ready, and a link you invent would send a paying customer nowhere.\n"
+        )
+    else:
+        waiting_rule = (
+            "- If they ask when the expert will contact them, or say nobody has "
+            "reached out yet: reassure them the expert has been notified and will "
+            "be in touch here on WhatsApp soon.\n"
+        )
     return (
         f"\n\nPAID {service_noun.upper()} CONTEXT:\n"
         f"This customer has already paid for a one-on-one {service_noun} with our "
@@ -977,9 +998,7 @@ def _intake_paid_prompt_block(service_noun: str) -> str:
         "- Do NOT attempt to answer their original question yourself — that is "
         "what they paid the human expert for.\n"
         f"- Do NOT offer or re-sell the paid {service_noun} again.\n"
-        "- If they ask when the expert will contact them, or say nobody has "
-        "reached out yet: reassure them the expert has been notified and will "
-        "be in touch here on WhatsApp soon.\n"
+        + waiting_rule +
         "- Never promise a specific time or name a specific person.\n"
         "- Never claim the expert has already contacted them.\n"
         "- Otherwise, keep answering their other questions normally and helpfully.\n"
@@ -1251,8 +1270,10 @@ def build_reply_system_prompt(
                 get_paid_unresolved_session,
             )
             if get_paid_unresolved_session(lead_id, tenant_id, db=db):
+                from app.config_dynamic import get_setting
                 system_prompt += _intake_paid_prompt_block(
-                    get_intake_config(tenant_id, db=db)["service_noun"]
+                    get_intake_config(tenant_id, db=db)["service_noun"],
+                    answer_in_app=bool(get_setting("app_download_link", tenant_id=tenant_id)),
                 )
             elif get_in_progress_session(lead_id, tenant_id, db=db):
                 # Covers collecting/awaiting_confirmation/awaiting_payment turns that
