@@ -1269,20 +1269,27 @@ def build_reply_system_prompt(
                 get_intake_config,
                 get_paid_unresolved_session,
             )
-            if get_paid_unresolved_session(lead_id, tenant_id, db=db):
-                from app.config_dynamic import get_setting
-                system_prompt += _intake_paid_prompt_block(
-                    get_intake_config(tenant_id, db=db)["service_noun"],
-                    answer_in_app=bool(get_setting("app_download_link", tenant_id=tenant_id)),
-                )
-            elif get_in_progress_session(lead_id, tenant_id, db=db):
-                # Covers collecting/awaiting_confirmation/awaiting_payment turns that
-                # route_intake handed back to the AI (e.g. a correction, or an
-                # off-topic question) -- without this the AI has no idea a sale is
-                # mid-flow and can derail it. See _intake_in_progress_prompt_block.
-                system_prompt += _intake_in_progress_prompt_block(
-                    get_intake_config(tenant_id, db=db)["service_noun"]
-                )
+            # The enabled flag is the tenant's off switch for the whole feature, so it
+            # gates these blocks too. Without it, turning Paid Intake off left every
+            # lead holding a live session row still being told "the expert will be in
+            # touch" / "reply so the payment can continue" -- pointing at a flow that
+            # no longer runs, with no way out short of editing the rows by hand.
+            intake_config = get_intake_config(tenant_id, db=db)
+            if intake_config.get("enabled"):
+                if get_paid_unresolved_session(lead_id, tenant_id, db=db):
+                    from app.config_dynamic import get_setting
+                    system_prompt += _intake_paid_prompt_block(
+                        intake_config["service_noun"],
+                        answer_in_app=bool(get_setting("app_download_link", tenant_id=tenant_id)),
+                    )
+                elif get_in_progress_session(lead_id, tenant_id, db=db):
+                    # Covers collecting/awaiting_confirmation/awaiting_payment turns that
+                    # route_intake handed back to the AI (e.g. a correction, or an
+                    # off-topic question) -- without this the AI has no idea a sale is
+                    # mid-flow and can derail it. See _intake_in_progress_prompt_block.
+                    system_prompt += _intake_in_progress_prompt_block(
+                        intake_config["service_noun"]
+                    )
         except Exception:
             logger.exception(
                 "Intake session-context check failed for lead %s — replying without it",
