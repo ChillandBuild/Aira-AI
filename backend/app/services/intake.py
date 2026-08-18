@@ -494,13 +494,6 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
 
         session = _get_active_session(lead_id, tenant_id, db)
 
-        # A paid customer whose expert has already answered is in follow-up mode:
-        # everything they say goes to that same expert and the AI stays out of it.
-        # Ahead of the brain-led check on purpose — this applies in both modes.
-        if session is not None and session.get("status") == "paid":
-            if await forward_followup_to_astrologer(session, lead_id, tenant_id, phone, body, db):
-                return True
-
         # Brain-led leads (see intake_brain.py): once the offer is out, this state
         # machine composes and sends nothing. Reporting the turn as unconsumed hands
         # it to generate_reply, which drives the rest of the sign-up through tools.
@@ -771,127 +764,6 @@ def session_ref_to_id(external_ref: str) -> str | None:
         return str(uuid.UUID(ref))
     except (ValueError, AttributeError, TypeError):
         return None
-
-
-_FOLLOWUP_CLAIM_ATTEMPTS = 3
-
-
-async def forward_followup_to_astrologer(session: dict, lead_id: str, tenant_id: str, phone: str, body: str, db) -> bool:
-    """Hand a paid customer's next message to the astrologer who already answered
-    them, and tell the customer it landed. Returns True when the message was
-    consumed, meaning the AI must not also reply to it.
-
-    Only fires once the expert has actually answered: before that the lead is in
-    the paid-and-waiting state, where ai_reply's _intake_paid_prompt_block keeps
-    the AI reassuring them rather than silent (see the 2026-08-07..11 incident in
-    .agents/context/subsystem-notes.md — muting a paid lead is what we are NOT
-    doing here). Every failure path returns False for the same reason: an
-    undelivered follow-up is bad, an undelivered follow-up plus total silence is
-    what actually cost us before.
-    """
-    from app.services import astro_bridge
-
-    if session.get("astro_question_id") is None:
-        # The consultation never reached the bridge; astro-push-reconcile still
-        # owes it a push. A follow-up would have no thread to join.
-        return False
-    if session.get("astro_last_reply_id") is None:
-        return False
-
-    session_id = session["id"]
-
-    # n must be monotonic per session: Django keys idempotency off "{sid}::f{n}"
-    # and silently swallows a repeat. Claim it with a compare-and-set so two
-    # messages landing together can't both take the same number.
-    n = None
-    current = int(session.get("astro_followup_count") or 0)
-    for _ in range(_FOLLOWUP_CLAIM_ATTEMPTS):
-        claimed = (
-            db.table("intake_sessions")
-            .update({"astro_followup_count": current + 1})
-            .eq("id", session_id)
-            .eq("tenant_id", tenant_id)
-            .eq("astro_followup_count", current)
-            .execute()
-        )
-        if claimed and claimed.data:
-            n = current + 1
-            break
-        fresh = (
-            db.table("intake_sessions")
-            .select("astro_followup_count")
-            .eq("id", session_id)
-            .eq("tenant_id", tenant_id)
-            .maybe_single()
-            .execute()
-        )
-        row = (fresh.data if fresh else None) or {}
-        current = int(row.get("astro_followup_count") or 0)
-    if n is None:
-        logger.error(f"Intake follow-up: could not claim a number for session {session_id} — yielding to the AI")
-        return False
-
-    lead_row = (
-        db.table("leads")
-        .select("id,name,phone")
-        .eq("id", lead_id)
-        .eq("tenant_id", tenant_id)
-        .maybe_single()
-        .execute()
-    )
-    lead = (lead_row.data if lead_row else None) or {"phone": phone}
-
-    pushed = None
-    try:
-        pushed = await astro_bridge.push_followup(session, lead, body, tenant_id, n)
-    except Exception as e:
-        logger.error(f"Intake follow-up push raised for session {session_id}: {e}")
-
-    if not pushed:
-        # Give the number back so the next message can retry it, rather than
-        # burning n and leaving a permanent gap in the astrologer's thread.
-        try:
-            (
-                db.table("intake_sessions")
-                .update({"astro_followup_count": n - 1})
-                .eq("id", session_id)
-                .eq("tenant_id", tenant_id)
-                .eq("astro_followup_count", n)
-                .execute()
-            )
-        except Exception as e:
-            logger.warning(f"Intake follow-up counter rollback failed for session {session_id}: {e}")
-        try:
-            notify_pool(
-                tenant_id,
-                "intake_paid",
-                "Follow-up did not reach the expert",
-                f"A paid customer ({phone}) sent a follow-up that could not be delivered to the expert platform.",
-                db=db,
-            )
-        except Exception as e:
-            logger.warning(f"Intake follow-up notify_pool failed for session {session_id}: {e}")
-        return False
-
-    language_mode = resolve_language_mode(lead_id, tenant_id, db)
-    thread, knowledge = await gather_context(db, lead_id, tenant_id, body)
-    receipt = await compose_line(
-        "followup_sent",
-        tenant_id=tenant_id,
-        language_mode=language_mode,
-        customer_message=body,
-        thread=thread,
-        knowledge=knowledge,
-        brain_prompt=collector_identity(db, lead_id, tenant_id, body),
-    )
-    try:
-        await _send_and_log(phone, receipt, tenant_id, lead_id, db)
-    except Exception as e:
-        # The expert has the question either way; failing to send the receipt is
-        # not a reason to also let the AI answer it.
-        logger.error(f"Intake follow-up receipt send failed for session {session_id}: {e}")
-    logger.info(f"Intake follow-up #{n} forwarded to the expert for session {session_id}")
-    return True
 
 
 _BRIDGE_AUTH_ALERT_COOLDOWN_MINUTES = 60
@@ -1199,19 +1071,6 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
 # ConsultationAPIEndpoints.md. Do not rename anything that crosses the wire.
 # --------------------------------------------------------------------------
 
-_WA_SESSION_WINDOW_HOURS = 24
-
-_AUDIO_MIMES = {
-    "mp3": "audio/mpeg",
-    "m4a": "audio/mp4",
-    "mp4": "audio/mp4",
-    "aac": "audio/aac",
-    "amr": "audio/amr",
-    "ogg": "audio/ogg",
-    "opus": "audio/ogg",
-}
-
-
 def record_astro_bridge_ids(session_id: str, tenant_id: str, bridge_response: dict, db=None) -> None:
     """Persist the ids Django created for a pushed session, so its reply callback maps back here."""
     if db is None:
@@ -1290,20 +1149,6 @@ async def reconcile_pending_astro_pushes(db=None) -> int:
     return pushed
 
 
-def _within_whatsapp_window(last_inbound_at) -> bool:
-    from datetime import datetime, timedelta, timezone
-
-    if not last_inbound_at:
-        return False
-    try:
-        last = datetime.fromisoformat(str(last_inbound_at).replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    if last.tzinfo is None:
-        last = last.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) - last <= timedelta(hours=_WA_SESSION_WINDOW_HOURS)
-
-
 def _astro_phone_number_id(tenant_id: str, db) -> str | None:
     """The tenant's inbound WhatsApp number, so the astrologer's reply lands in the lead's existing thread."""
     try:
@@ -1321,14 +1166,6 @@ def _astro_phone_number_id(tenant_id: str, db) -> str | None:
         return None
 
 
-def _media_mime(url: str, wa_type: str) -> tuple[str, str]:
-    found = re.search(r"\.([a-z0-9]{2,5})(?:\?|$)", str(url or "").lower())
-    ext = found.group(1) if found else ""
-    if wa_type == "image":
-        return ("image/png", "reply.png") if ext == "png" else ("image/jpeg", "reply.jpg")
-    return _AUDIO_MIMES.get(ext, "audio/mpeg"), f"reply.{ext or 'mp3'}"
-
-
 def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str | None) -> None:
     db.table("messages").insert({
         "lead_id": lead_id,
@@ -1344,31 +1181,40 @@ def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str 
     }).execute()
 
 
-async def _send_astro_media(phone: str, url: str, wa_type: str, tenant_id: str, phone_number_id: str | None) -> str | None:
-    import httpx
+async def _compose_reply_nudge(lead_id: str, tenant_id: str, phone: str, db) -> str:
+    """The one message the customer gets when their expert has answered: the
+    answer is ready, open the app, sign in with this number.
 
-    from app.services.meta_cloud import send_media_message, upload_media_to_meta
+    The link is appended here in code, never written by the model. A model that
+    invents a download URL sends a paying customer somewhere that does not exist
+    — see commit 24494b3d, the same lesson learned on the intake offer message.
+    """
+    from app.config_dynamic import get_setting
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(url, follow_redirects=True)
-    resp.raise_for_status()
-
-    mime_type, filename = _media_mime(url, wa_type)
-    media_id = await upload_media_to_meta(
-        file_bytes=resp.content,
-        mime_type=mime_type,
-        filename=filename,
+    service_noun = get_intake_config(tenant_id, db=db).get("service_noun") or "consultation"
+    language_mode = resolve_language_mode(lead_id, tenant_id, db)
+    thread, knowledge = await gather_context(db, lead_id, tenant_id, "")
+    line = await compose_line(
+        "reply_ready",
         tenant_id=tenant_id,
-        phone_number_id=phone_number_id,
+        language_mode=language_mode,
+        customer_message="",
+        field_label=service_noun,
+        thread=thread,
+        knowledge=knowledge,
+        brain_prompt=collector_identity(db, lead_id, tenant_id, ""),
     )
-    data = await send_media_message(
-        to_number=phone,
-        media_id=media_id,
-        wa_type=wa_type,
-        tenant_id=tenant_id,
-        phone_number_id=phone_number_id,
-    )
-    return (data.get("messages") or [{}])[0].get("id")
+
+    app_link = get_setting("app_download_link", tenant_id=tenant_id)
+    if not app_link:
+        # Still worth telling them an answer exists — but without the link they
+        # have no way to reach it, so this is a configuration error, not a nudge.
+        logger.error(
+            f"Tenant {tenant_id} has no app_download_link: telling {phone} their answer "
+            f"is ready with no way to open it. Set it in Settings."
+        )
+        return line
+    return f"{line}\n{app_link}"
 
 
 async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
@@ -1423,7 +1269,7 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
     lead_id = session.get("lead_id")
     lead_row = (
         db.table("leads")
-        .select("id,phone,last_inbound_at")
+        .select("id,phone")
         .eq("id", lead_id)
         .eq("tenant_id", tenant_id)
         .maybe_single()
@@ -1433,64 +1279,36 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
     phone = lead.get("phone") or ""
     if not phone:
         logger.error(f"Astro reply {reply_id} for session {external_ref} undeliverable: lead {lead_id} has no phone")
-        return {"ok": True, "delivered": [], "reason": "no_phone"}
+        return {"ok": True, "nudged": False, "reason": "no_phone"}
 
-    if not _within_whatsapp_window(lead.get("last_inbound_at")):
-        logger.error(
-            f"Astro reply {reply_id} for session {external_ref} NOT delivered: the lead's 24h WhatsApp "
-            f"window closed (last_inbound_at={lead.get('last_inbound_at')}). The astrologer believes "
-            f"the customer has been answered — they have not."
-        )
+    # Kept, never sent: the customer reads the answer in the app, but support
+    # needs to see what the astrologer actually wrote when someone says they
+    # can't find it there. Deliberately not written to `messages` — that table
+    # is what the customer received, and this is precisely what they did not.
+    reply_text = str(payload.get("reply_text") or "").strip()
+    if reply_text:
         try:
-            notify_pool(
-                tenant_id,
-                "intake_paid",
-                "Astrologer reply could not be delivered",
-                f"The 24h WhatsApp window for this consultation has closed — reach {phone} another way.",
-                db=db,
+            (
+                db.table("intake_sessions")
+                .update({"astro_last_reply_text": reply_text})
+                .eq("id", session_id)
+                .eq("tenant_id", tenant_id)
+                .execute()
             )
         except Exception as e:
-            logger.warning(f"Astro reply window notify_pool failed for session {external_ref}: {e}")
-        return {"ok": True, "delivered": [], "outside_24h_window": True}
+            logger.warning(f"Astro reply {reply_id} text archive failed for session {external_ref}: {e}")
 
+    nudge = await _compose_reply_nudge(lead_id, tenant_id, phone, db)
     phone_number_id = _astro_phone_number_id(tenant_id, db)
-    delivered: list[str] = []
-    failed: list[str] = []
+    try:
+        mid = await send_whatsapp(phone, nudge, tenant_id=tenant_id, phone_number_id=phone_number_id)
+    except Exception as e:
+        logger.error(f"Astro reply {reply_id} nudge send failed for session {external_ref}: {e}")
+        mid = None
 
-    text = str(payload.get("reply_text") or "").strip()
-    if text:
-        try:
-            mid = await send_whatsapp(phone, text, tenant_id=tenant_id, phone_number_id=phone_number_id)
-        except Exception as e:
-            logger.error(f"Astro reply {reply_id} text send failed for session {external_ref}: {e}")
-            mid = None
-        if mid:
-            _log_astro_message(db, lead_id, tenant_id, text, mid)
-            delivered.append("text")
-        else:
-            failed.append("text")
-
-    for part, url, wa_type in (
-        ("image", payload.get("reply_image_url"), "image"),
-        ("voice", payload.get("reply_voice_url"), "audio"),
-    ):
-        if not url:
-            continue
-        try:
-            mid = await _send_astro_media(phone, str(url), wa_type, tenant_id, phone_number_id)
-            _log_astro_message(db, lead_id, tenant_id, str(url), mid)
-            delivered.append(part)
-        except Exception as e:
-            logger.error(f"Astro reply {reply_id} {part} send failed for session {external_ref}: {e}")
-            failed.append(part)
-
-    if failed and not delivered:
-        # Total in-window failure: every part the astrologer sent was attempted
-        # and none went out. Returning bare success here would strand the reply
-        # forever — the claim above blocks any retry, Django never retries on
-        # 2xx, and the astrologer's UI already shows it as sent. Roll the claim
-        # back so a re-push can re-drive it, and surface it to staff.
-        logger.error(f"Astro reply {reply_id} for session {external_ref} delivered nothing (failed={failed})")
+    if not mid:
+        # Give the claim back so a re-push from the expert platform can try the
+        # nudge again, rather than the customer never learning an answer exists.
         try:
             (
                 db.table("intake_sessions")
@@ -1502,17 +1320,8 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
             )
         except Exception as e:
             logger.warning(f"Astro reply {reply_id} claim rollback failed for session {external_ref}: {e}")
-        try:
-            notify_pool(
-                tenant_id,
-                "intake_paid",
-                "Astrologer reply could not be delivered",
-                f"WhatsApp delivery to {phone} failed for a paid consultation "
-                f"(parts failed: {', '.join(failed)}) — reach the customer another way.",
-                db=db,
-            )
-        except Exception as e:
-            logger.warning(f"Astro reply failure notify_pool failed for session {external_ref}: {e}")
-        return {"ok": True, "delivered": [], "failed": failed, "delivery_failed": True}
+        return {"ok": True, "nudged": False, "reason": "send_failed"}
 
-    return {"ok": True, "delivered": delivered, "failed": failed}
+    _log_astro_message(db, lead_id, tenant_id, nudge, mid)
+    logger.info(f"Astro reply {reply_id} for session {external_ref}: customer nudged to the app")
+    return {"ok": True, "nudged": True}

@@ -90,58 +90,58 @@ def test_get_session_tenant_id_swallows_db_errors_to_none():
 
 
 @pytest.mark.asyncio
-async def test_total_send_failure_rolls_back_claim_and_alerts_staff():
-    now_iso = datetime.now(timezone.utc).isoformat()
+async def test_nudge_send_failure_rolls_back_the_claim():
+    """The claim is what stops a redelivery. If the nudge never went out, the
+    customer does not know an answer exists, so a re-push must be able to try
+    again rather than be dropped as a duplicate."""
     db = _SeqDb({
         "intake_sessions": [
             _res({"id": SID, "lead_id": "L1", "tenant_id": TENANT, "astro_last_reply_id": 7}),
             _res([{"id": SID}]),   # claim succeeds
+            _res([{"id": SID}]),   # archive the answer text
             _res([{"id": SID}]),   # rollback
         ],
-        "leads": [_res({"id": "L1", "phone": "+919345679286", "last_inbound_at": now_iso})],
+        "leads": [_res({"id": "L1", "phone": "+919345679286"})],
     })
     with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value=None)), \
          patch("app.services.intake._astro_phone_number_id", return_value="pn1"), \
-         patch("app.services.intake.notify_pool") as notify:
+         patch("app.services.intake._compose_reply_nudge", new=AsyncMock(return_value="ready")):
         out = await deliver_astro_reply(
             {"external_ref": SID, "reply_id": 9, "reply_text": "your chart says..."},
             TENANT,
             db=db,
         )
 
-    assert out["delivered"] == []
-    assert out.get("delivery_failed") is True
-    updates = [(t, payload) for t, op, payload in db.writes if op == "update"]
-    assert (updates[0][1]) == {"astro_last_reply_id": 9}
-    assert (updates[1][1]) == {"astro_last_reply_id": 7}, "claim must roll back to the prior reply id"
-    assert notify.called, "a lost paid reply must alert staff, not just log"
+    assert out["nudged"] is False
+    updates = [p for t, op, p in db.writes if op == "update"]
+    assert {"astro_last_reply_id": 9} in updates
+    assert updates[-1] == {"astro_last_reply_id": 7}, "claim must roll back to the prior reply id"
 
 
 @pytest.mark.asyncio
-async def test_partial_delivery_keeps_the_claim():
-    now_iso = datetime.now(timezone.utc).isoformat()
+async def test_a_delivered_nudge_keeps_the_claim():
     db = _SeqDb({
         "intake_sessions": [
             _res({"id": SID, "lead_id": "L1", "tenant_id": TENANT, "astro_last_reply_id": None}),
             _res([{"id": SID}]),
+            _res([{"id": SID}]),
         ],
-        "leads": [_res({"id": "L1", "phone": "+919345679286", "last_inbound_at": now_iso})],
+        "leads": [_res({"id": "L1", "phone": "+919345679286"})],
         "messages": [_res([{"id": "m1"}])],
     })
     with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value="wamid.1")), \
          patch("app.services.intake._astro_phone_number_id", return_value="pn1"), \
          patch("app.services.intake._log_astro_message"), \
-         patch("app.services.intake.notify_pool") as notify:
+         patch("app.services.intake._compose_reply_nudge", new=AsyncMock(return_value="ready")):
         out = await deliver_astro_reply(
             {"external_ref": SID, "reply_id": 9, "reply_text": "hello"},
             TENANT,
             db=db,
         )
 
-    assert out["delivered"] == ["text"]
+    assert out["nudged"] is True
     rollbacks = [p for t, op, p in db.writes if op == "update" and p == {"astro_last_reply_id": None}]
-    assert not rollbacks, "successful delivery must keep the claim"
-    assert not notify.called
+    assert not rollbacks, "a delivered nudge must keep the claim"
 
 
 @pytest.mark.asyncio

@@ -86,38 +86,15 @@ with `already_existed: true`. Nothing is ever created twice.
 
 ---
 
-### 2. `POST /api/astrologer-welcome/bridge/followup/`
+### 2. ~~`POST /api/astrologer-welcome/bridge/followup/`~~ — no longer called by Aira
 
-A follow-up message from the same customer, riding the session they already
-paid for. Creates a **new** `UserQuestion` (₹0 credit) in the same thread.
+**Removed 2026-08-18.** Follow-up questions now happen inside the AstroTamil app,
+not on WhatsApp: once the astrologer answers, Aira nudges the customer into the
+app and the conversation continues there. `push_followup()` and its caller were
+deleted, along with the `astro_followup_count` column (migration 181).
 
-**Auth**: same `X-API-Key`.
-
-**Request**:
-
-```json
-{
-  "external_ref": "b5d2fafe-b209-4fb7-8e70-1c54780bd3d2::f1",
-  "phone": "+919990010001",
-  "customer_name": "Meena Raman",
-  "question_text": "What remedy should I do?"
-}
-```
-
-**Who calls this**: `intake.forward_followup_to_astrologer()`, from `route_intake`.
-It fires for every message a paid customer sends *after* their expert has answered
-once (`astro_last_reply_id` set), and consumes the turn so Aira's AI does not also
-reply. `n` comes from `intake_sessions.astro_followup_count`, claimed with a
-compare-and-set (migration 180) so two messages arriving together can never take
-the same number.
-
-⚠️ `external_ref` **must** carry the per-follow-up suffix `::f<n>` (`::f1`,
-`::f2`, …). A bare session UUID collides with the consultation's idempotency
-key and the follow-up would be silently swallowed (this was a confirmed
-high-severity bug during review). Aira's reply path strips the suffix when
-resolving the session (`session_ref_to_id`).
-
-**Response**: same shape as the consultation endpoint.
+The Django endpoint itself is untouched — this only records that Aira stopped
+calling it.
 
 ---
 
@@ -167,11 +144,14 @@ absolute public URLs or `null`.
 | 200 | `{"ok": true, "delivered": [], "failed": […], "delivery_failed": true}` | Accepted but every WhatsApp send failed — claim rolled back, staff alerted |
 | 401 | `{"error": …}` | Unknown `external_ref` or bad signature (deliberately identical, no information leak) |
 
-**Delivery order** (per reply, each via the phone number the lead actually
-messaged): text → image (download → upload to Meta → send) → voice. Every sent
-message is logged to `messages` with `reply_source="expert_handoff"` (the
-constrained value from migration 173 — the feature was later renamed to
-"intake" but the stored `reply_source` was deliberately left alone).
+**What Aira does with the reply (changed 2026-08-18)**: the answer is **not** sent
+to the customer. `reply_text` is archived on `intake_sessions.astro_last_reply_text`
+for staff/support visibility only, and `reply_image_url` / `reply_voice_url` are
+ignored entirely. The customer receives one short WhatsApp message telling them
+their answer is ready and to open the app and sign in with the same number; that
+nudge is what gets logged to `messages` with `reply_source="expert_handoff"`.
+The app link comes from the `app_download_link` setting and is appended in code,
+never composed by the model.
 
 **Dedup / crash-safety**: `intake_sessions.astro_last_reply_id` is
 claimed **monotonically** (`IS NULL OR < reply_id`) before sending. If *all*
