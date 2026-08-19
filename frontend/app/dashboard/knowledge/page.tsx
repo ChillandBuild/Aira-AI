@@ -317,7 +317,7 @@ export default function KnowledgePage() {
             <div>
               <h3 className="font-display font-bold text-lg text-primary">Upload Knowledge Documents</h3>
               <p className="font-body text-sm text-on-surface-muted">
-                Supports PDF, DOCX, PPTX, XLSX, CSV, TXT, and Images. AI will extract and index the content.
+                Supports PDF, DOCX, PPTX, XLSX, CSV, TXT, MD, and Images. AI will extract and index the content.
               </p>
             </div>
             {campaignTags.length > 0 && (
@@ -344,7 +344,7 @@ export default function KnowledgePage() {
             <label className={cn("inline-flex items-center gap-2 px-6 py-3 rounded-xl font-label font-semibold shadow-card transition-all", canManageKnowledge ? "bg-primary text-white hover:bg-primary/90 cursor-pointer" : "bg-primary text-white opacity-45 blur-[0.5px] cursor-not-allowed")}>
               {uploading ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
               {uploading ? "Uploading & Indexing..." : "Choose File"}
-              <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.txt,image/*" onChange={handleFileUpload} disabled={uploading || !canManageKnowledge} />
+              <input type="file" className="hidden" accept=".pdf,.docx,.pptx,.xlsx,.xls,.csv,.txt,.md,.markdown,image/*" onChange={handleFileUpload} disabled={uploading || !canManageKnowledge} />
             </label>
             {uploadError && (
               <p className="text-red-500 text-sm flex items-center justify-center gap-1">
