@@ -426,6 +426,43 @@ async def send_text_message(
     return data
 
 
+async def send_typing_indicator(
+    message_id: str,
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+) -> None:
+    """Mark an inbound message read and show the WhatsApp "typing..." bubble.
+
+    Best effort — never raises. A failed indicator must never stop the reply that
+    follows it. Meta dismisses the bubble as soon as we send a message, or after
+    25 seconds, whichever comes first. The read receipt (two blue ticks) is not
+    optional: it is the same API call.
+    """
+    if not message_id:
+        return
+    try:
+        pid, tok = _creds(phone_number_id, access_token, tenant_id)
+    except HTTPException:
+        return
+    payload = {
+        "messaging_product": "whatsapp",
+        "status": "read",
+        "message_id": message_id,
+        "typing_indicator": {"type": "text"},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{_GRAPH_BASE}/{pid}/messages",
+                json=payload,
+                headers={"Authorization": f"Bearer {tok}"},
+            )
+        if not resp.is_success:
+            logger.warning("send_typing_indicator failed: %s %s", resp.status_code, resp.text)
+    except Exception as e:
+        logger.warning("send_typing_indicator error for %s: %s", message_id, e)
+
 async def upload_media_to_meta(
     file_bytes: bytes,
     mime_type: str,

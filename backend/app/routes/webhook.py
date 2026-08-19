@@ -308,6 +308,16 @@ async def _process_inbound_message_background(
 
         # Route text-like inbound content, including transcribed audio, into the reply engine.
         if msg_type in ("text", "button", "interactive", "audio") and body:
+            if meta_message_id and meta_phone_number_id:
+                try:
+                    from app.services.meta_cloud import send_typing_indicator
+                    await send_typing_indicator(
+                        message_id=meta_message_id,
+                        phone_number_id=meta_phone_number_id,
+                        tenant_id=tenant_id,
+                    )
+                except Exception as typing_err:
+                    logger.warning(f"Typing indicator failed for lead {lead_id}: {typing_err}")
             # Must run BEFORE route_intake: a consumed turn never reaches
             # generate_reply, so a lead who asks for Tamil mid-intake would
             # otherwise never get the lock set.
