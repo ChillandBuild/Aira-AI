@@ -419,18 +419,29 @@ def _package_patch(package: dict) -> dict:
 
 
 async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db) -> None:
+    """Send, then log. The WhatsApp send is the customer-facing side effect and
+    cannot be undone -- a failure logging it afterward (e.g. a CHECK-constraint
+    violation on messages.reply_source) must never raise, or route_intake's
+    caller sees this turn as unconsumed and generate_reply() sends a second,
+    unrelated reply on top of the one that already reached the customer."""
     from app.services.ai_reply import send_whatsapp
     mid = await send_whatsapp(phone, text, tenant_id=tenant_id)
-    db.table("messages").insert({
-        "lead_id": lead_id,
-        "tenant_id": tenant_id,
-        "direction": "outbound",
-        "channel": "whatsapp",
-        "content": text,
-        "is_ai_generated": True,
-        "meta_message_id": mid,
-        "reply_source": "expert_handoff",
-    }).execute()
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id,
+            "tenant_id": tenant_id,
+            "direction": "outbound",
+            "channel": "whatsapp",
+            "content": text,
+            "is_ai_generated": True,
+            "meta_message_id": mid,
+            "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
 
 
 # Roman-script Tamil is deliberately included: the moment the offer message is
@@ -455,13 +466,6 @@ def _is_affirmative(message: str) -> bool:
     import re
     tokens = set(re.findall(r"[\w஀-௿ऀ-ॿ]+", message.strip().lower()))
     return bool(tokens & _AFFIRMATIVE_RE_WORDS)
-
-
-def is_brain_led(tenant_id: str, phone: str) -> bool:
-    """Thin indirection so this module never imports intake_brain at module level --
-    intake_brain imports its state primitives from here, and the cycle would be real."""
-    from app.services.intake_brain import is_brain_led as _gate
-    return _gate(tenant_id, phone)
 
 
 def _summary_block(fields: list[dict], collected_data: dict, skipped=()) -> str:
@@ -493,15 +497,6 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             return False
 
         session = _get_active_session(lead_id, tenant_id, db)
-
-        # Brain-led leads (see intake_brain.py): once the offer is out, this state
-        # machine composes and sends nothing. Reporting the turn as unconsumed hands
-        # it to generate_reply, which drives the rest of the sign-up through tools.
-        # The trigger classifier and the tenant's own offer copy below are identical
-        # in both modes, so they stay here.
-        if session is not None and is_brain_led(tenant_id, phone):
-            logger.info(f"Brain-led intake: yielding turn for lead {lead_id} (session {session['id']})")
-            return False
 
         # Resolved once per turn and shared by every line this turn may send.
         language_mode = resolve_language_mode(lead_id, tenant_id, db)
@@ -539,8 +534,8 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             if not matched:
                 return False
             new_session = _create_session(lead_id, tenant_id, db)
-            await _send_and_log(phone, config["offer_message"], tenant_id, lead_id, db)
             _update_session(new_session["id"], {"trigger_reason": body[:500]}, db)
+            await _send_and_log(phone, config["offer_message"], tenant_id, lead_id, db)
             return True
 
         status = session["status"]
@@ -1028,6 +1023,83 @@ def resolve_intake_session(session_id: str, tenant_id: str, db=None) -> bool:
         .execute()
     )
     return bool(result.data)
+
+
+_STALE_SESSION_HOURS = 48
+
+
+async def sweep_stale_intake_sessions(db=None) -> dict:
+    """APScheduler job (every 5 min): clear intake sessions that have sat too
+    long with no forward progress, so a lead is never permanently blocked from
+    a fresh offer and the AI stops treating a dead flow as still in progress.
+
+    - awaiting_payment older than 48h (by created_at) -> cancelled. Razorpay
+      links created here carry no expire_by (see payment_razorpay.create_payment_link),
+      so nothing but this sweep ever ends one. Safe to cancel: confirm_intake_payment()
+      updates with `.neq(status, "paid")`, not `.eq("awaiting_payment")`, so a lead
+      who pays a cancelled link days later still gets confirmed and surfaced to
+      staff -- this only stops the AI's "reply so payment can continue" nagging
+      and the re-offer block, never the payment path itself.
+    - paid older than 48h (by paid_at) -> resolved, same transition the
+      dashboard's own Resolve button performs. Nothing else ever closes these
+      out automatically; a human has to remember to click it.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=_STALE_SESSION_HOURS)).isoformat()
+    cancelled = 0
+    resolved = 0
+
+    try:
+        stale_awaiting = (
+            db.table("intake_sessions")
+            .select("id")
+            .eq("status", "awaiting_payment")
+            .lt("created_at", cutoff)
+            .limit(200)
+            .execute()
+        )
+        for row in stale_awaiting.data or []:
+            try:
+                result = (
+                    db.table("intake_sessions")
+                    .update({"status": "cancelled"})
+                    .eq("id", row["id"])
+                    .eq("status", "awaiting_payment")
+                    .execute()
+                )
+                if result.data:
+                    cancelled += 1
+            except Exception as e:
+                logger.error(f"Stale awaiting_payment cancel failed for session {row['id']}: {e}")
+    except Exception as e:
+        logger.error(f"Stale awaiting_payment sweep query failed: {e}")
+
+    try:
+        stale_paid = (
+            db.table("intake_sessions")
+            .select("id,tenant_id")
+            .eq("status", "paid")
+            .lt("paid_at", cutoff)
+            .limit(200)
+            .execute()
+        )
+        for row in stale_paid.data or []:
+            try:
+                if resolve_intake_session(row["id"], row["tenant_id"], db=db):
+                    resolved += 1
+            except Exception as e:
+                logger.error(f"Stale paid auto-resolve failed for session {row['id']}: {e}")
+    except Exception as e:
+        logger.error(f"Stale paid sweep query failed: {e}")
+
+    if cancelled or resolved:
+        logger.info(f"Intake staleness sweep: cancelled {cancelled} awaiting_payment, resolved {resolved} paid")
+    return {"cancelled": cancelled, "resolved": resolved}
 
 
 async def change_session_package(session_id: str, tenant_id: str, package_key: str, db=None) -> dict | None:

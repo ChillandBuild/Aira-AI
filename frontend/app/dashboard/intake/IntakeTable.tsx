@@ -1,17 +1,19 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Pencil } from "lucide-react";
+import { Check, CheckCircle2, Copy, Pencil } from "lucide-react";
 import { IntakeSession } from "@/lib/api";
 import { FieldColumn } from "./columns";
 
 const STATUS_BADGE: Record<string, string> = {
   awaiting_payment: "bg-amber-50 text-amber-700 border-amber-200",
   paid: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  resolved: "bg-slate-50 text-slate-500 border-slate-200",
 };
 
 const STATUS_LABEL: Record<string, string> = {
   awaiting_payment: "Awaiting payment",
   paid: "Paid",
+  resolved: "Resolved",
 };
 
 interface PackageOption {
@@ -29,6 +31,7 @@ interface IntakeTableProps {
   loadingMore: boolean;
   onLoadMore: () => void;
   onChangePackage: (sessionId: string, packageKey: string) => void;
+  onResolve: (sessionId: string) => Promise<void>;
 }
 
 function CopyLinkButton({ link }: { link: string }) {
@@ -50,6 +53,34 @@ function CopyLinkButton({ link }: { link: string }) {
     >
       {copied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
       {copied ? "Copied" : "Copy link"}
+    </button>
+  );
+}
+
+function ResolveButton({ sessionId, onResolve }: { sessionId: string; onResolve: (sessionId: string) => Promise<void> }) {
+  const [resolving, setResolving] = useState(false);
+
+  async function handleResolve(e: React.MouseEvent) {
+    e.stopPropagation();
+    setResolving(true);
+    try {
+      await onResolve(sessionId);
+    } finally {
+      setResolving(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleResolve}
+      disabled={resolving}
+      aria-label="Mark resolved"
+      title="Mark resolved"
+      className="ml-1.5 inline-flex items-center gap-1 rounded-lg border border-border px-1.5 py-0.5 font-label text-[10px] font-bold text-ink-muted hover:bg-surface-subtle disabled:opacity-50"
+    >
+      <CheckCircle2 size={11} />
+      {resolving ? "…" : "Resolve"}
     </button>
   );
 }
@@ -108,7 +139,7 @@ function PackageCell({
 }
 
 export function IntakeTable({
-  rows, columns, visibleKeys, packages, hasMore, loadingMore, onLoadMore, onChangePackage,
+  rows, columns, visibleKeys, packages, hasMore, loadingMore, onLoadMore, onChangePackage, onResolve,
 }: IntakeTableProps) {
   const sentinel = useRef<HTMLDivElement | null>(null);
 
@@ -163,6 +194,7 @@ export function IntakeTable({
                 <span className={`inline-flex rounded-full border px-2.5 py-1 font-label text-[10px] font-bold ${STATUS_BADGE[row.status]}`}>
                   {STATUS_LABEL[row.status]}
                 </span>
+                {row.status === "paid" && <ResolveButton sessionId={row.id} onResolve={onResolve} />}
               </td>
               <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
                 <PackageCell row={row} packages={packages} onChangePackage={onChangePackage} />

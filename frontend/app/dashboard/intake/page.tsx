@@ -88,6 +88,11 @@ export default function IntakePage() {
     loadFirstPage();
   }
 
+  async function handleResolve(sessionId: string) {
+    await api.intake.resolveSession(sessionId);
+    loadFirstPage();
+  }
+
   async function downloadCsv() {
     const auth = await getAuthHeaders();
     const res = await fetch(`${API_URL}${api.intake.csvPath({ status: filter, q: query || undefined })}`, {
@@ -181,6 +186,7 @@ export default function IntakePage() {
             loadingMore={loadingMore}
             onLoadMore={loadMore}
             onChangePackage={handleChangePackage}
+            onResolve={handleResolve}
           />
         )}
       </div>

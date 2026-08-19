@@ -45,6 +45,7 @@ _heartbeats = {
     "daily-digest": None,
     "ad-insights-sync": None,
     "astro-push-reconcile": None,
+    "intake-staleness-sweep": None,
 }
 
 
@@ -293,6 +294,17 @@ async def _reconcile_astro_pushes() -> None:
         logger.error(f"Astro push reconcile scheduler error: {e}")
 
 
+async def _sweep_stale_intake_sessions() -> None:
+    """APScheduler job: cancel dead awaiting_payment links and auto-resolve
+    forgotten paid sessions, both after 48h. See intake.sweep_stale_intake_sessions."""
+    _heartbeats["intake-staleness-sweep"] = datetime.now(timezone.utc)
+    try:
+        from app.services.intake import sweep_stale_intake_sessions
+        await sweep_stale_intake_sessions()
+    except Exception as e:
+        logger.error(f"Intake staleness sweep scheduler error: {e}")
+
+
 _scheduler = AsyncIOScheduler()
 
 
@@ -408,12 +420,19 @@ async def lifespan(app: FastAPI):
         id="astro-push-reconcile",
         replace_existing=True,
     )
+    _scheduler.add_job(
+        _sweep_stale_intake_sessions,
+        trigger="interval",
+        minutes=5,
+        id="intake-staleness-sweep",
+        replace_existing=True,
+    )
     _scheduler.add_listener(
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m)")
+    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m)")
 
     yield
 
