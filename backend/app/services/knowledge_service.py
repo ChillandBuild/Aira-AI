@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 _MAX_TEXT_CHARS = 50_000
 
-# Chunking: ~1500 chars (~400-450 tokens) stays under Voyage's per-input limit and
+# Chunking: ~1500 chars (~400-450 tokens) stays under Jina's per-input limit and
 # keeps each chunk semantically tight. 200-char overlap preserves cross-boundary context.
 _CHUNK_CHARS = 1500
 _CHUNK_OVERLAP = 200
