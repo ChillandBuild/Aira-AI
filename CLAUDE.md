@@ -41,6 +41,9 @@ To prevent context dilution, general invariants and rules have been split into m
 6.  **Security & Vulnerability Guidance**:
     *   Location: [.agents/context/security-checklist.md](.agents/context/security-checklist.md)
     *   Read when: Touching auth, webhooks, payments (Razorpay), file uploads, RLS policies, or any route reading `tenant_id`. Escalate to the `security-reviewer` agent for new auth/webhook/payment code or RLS changes.
+7.  **AI Reply Master Prompt**:
+    *   Location: [docs/whatsapp-master-prompt.md](docs/whatsapp-master-prompt.md)
+    *   Read when: Touching `_build_base_prompt()` / `ai_reply.py`'s prompt assembly, or the `ai_prompts` table's `master` row — this is the canonical text and explains why the per-channel rows (`whatsapp_reply` etc.) are dead weight.
 
 ## Agent skills
 
