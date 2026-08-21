@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
@@ -138,8 +138,8 @@ def export_intake_sessions_csv(
         writer.writerow(build_csv_row(row, field_keys))
     buffer.seek(0)
 
-    return StreamingResponse(
-        iter([buffer.getvalue()]),
+    return Response(
+        buffer.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="intake-{status}.csv"'},
     )

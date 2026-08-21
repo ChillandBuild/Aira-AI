@@ -227,8 +227,10 @@ def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
     app_link = (get_setting("app_download_link", tenant_id=tenant_id) or "").strip()
     if app_link:
         prompt += (
-            f"\n\nAPP LINK: {app_link}\nUse this exact link whenever you need to share "
-            "the app or a download/consultation link."
+            f"\n\nAPP LINK (reference only): {app_link}\n"
+            "This is not a standing instruction to share it. Share it only where the "
+            "rules above already call for sharing the app or a download/consultation "
+            "link -- if you need one, use this exact URL instead of inventing one."
         )
     prompt += (
         "\n\nNEVER write a placeholder like \"[Insert Link Here]\" or \"[link]\" in a reply. "
@@ -1207,10 +1209,12 @@ def build_reply_system_prompt(
     context_text: str = "",
     catalog_context: str = "",
     include_intake_context: bool = True,
-) -> tuple[str, str]:
+) -> tuple[str, str, bool]:
     """Assemble the main-brain system prompt, and return the reply language mode it
     was built with (the caller needs that mode for the post-generation script-mismatch
-    check).
+    check) plus whether an active intake session added its own holding block --
+    callers use that to suppress catalog tool-calling and to skip the escalation
+    block, since both are wrong once intake is already holding the conversation.
 
     Extracted verbatim from generate_reply so other flows can speak with the same
     voice. The intake collector composes its own lines and had none of this -- no
@@ -1247,21 +1251,13 @@ def build_reply_system_prompt(
         reply_language_mode = _resolve_tamil_lock(db, lead_id, lead_data, message)
     system_prompt += _language_rule_block(reply_language_mode, message)
 
-    # Escalated leads keep talking to the AI, but it must answer as a
-    # holding presence, not as if nothing happened. Degrades to a normal
-    # reply if business hours can't be read — never to no reply.
-    if lead_data.get("needs_human_attention"):
-        try:
-            from app.services.business_hours import get_business_hours
-            system_prompt += _escalation_prompt_block(
-                get_business_hours(tenant_id, db=db)
-            )
-        except Exception:
-            logger.exception(
-                "Escalation prompt block failed for lead %s — replying without it",
-                lead_id,
-            )
-
+    # Intake context takes priority over the generic escalation holding message --
+    # it is the more specific, money-aware story (names the expert/service, forbids
+    # invented links, forbids promising a time) and stacking the vaguer "our team
+    # will reach out" escalation block on top of it just doubles the holding
+    # pattern without adding information. Checked first so the escalation block
+    # below can see whether intake already covered this turn.
+    intake_active = False
     if include_intake_context:
         try:
             from app.services.intake import (
@@ -1282,6 +1278,7 @@ def build_reply_system_prompt(
                         intake_config["service_noun"],
                         answer_in_app=bool(get_setting("app_download_link", tenant_id=tenant_id)),
                     )
+                    intake_active = True
                 elif get_in_progress_session(lead_id, tenant_id, db=db):
                     # Covers collecting/awaiting_confirmation/awaiting_payment turns that
                     # route_intake handed back to the AI (e.g. a correction, or an
@@ -1290,16 +1287,33 @@ def build_reply_system_prompt(
                     system_prompt += _intake_in_progress_prompt_block(
                         intake_config["service_noun"]
                     )
+                    intake_active = True
         except Exception:
             logger.exception(
                 "Intake session-context check failed for lead %s — replying without it",
                 lead_id,
             )
 
+    # Escalated leads keep talking to the AI, but it must answer as a
+    # holding presence, not as if nothing happened. Degrades to a normal
+    # reply if business hours can't be read — never to no reply. Skipped
+    # when intake already added its own holding message this turn.
+    if lead_data.get("needs_human_attention") and not intake_active:
+        try:
+            from app.services.business_hours import get_business_hours
+            system_prompt += _escalation_prompt_block(
+                get_business_hours(tenant_id, db=db)
+            )
+        except Exception:
+            logger.exception(
+                "Escalation prompt block failed for lead %s — replying without it",
+                lead_id,
+            )
+
     if catalog_context:
         system_prompt += catalog_context
 
-    return system_prompt, reply_language_mode
+    return system_prompt, reply_language_mode, intake_active
 
 
 async def generate_reply(
@@ -1460,7 +1474,7 @@ async def generate_reply(
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
 
     try:
-        system_prompt, reply_language_mode = build_reply_system_prompt(
+        system_prompt, reply_language_mode, intake_active = build_reply_system_prompt(
             db,
             lead_id,
             tenant_id,
@@ -1471,6 +1485,13 @@ async def generate_reply(
             context_text=context_text,
             catalog_context=catalog_context,
         )
+        # A lead mid-payment or waiting on their expert's answer should not have the
+        # AI autonomously fire off an unrelated product photo -- the intake holding
+        # blocks tell the model not to re-sell in prose, but that has no effect on a
+        # live tool definition the model can still call regardless of what the prompt
+        # says. Drop the tool itself rather than trust prose to override it.
+        if intake_active:
+            catalog_tools = []
 
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]

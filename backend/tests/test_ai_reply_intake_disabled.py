@@ -27,7 +27,7 @@ def _build(config, *, paid=None, in_progress=None):
          patch.object(intake, "get_intake_config", return_value=config), \
          patch.object(intake, "get_paid_unresolved_session", return_value=paid), \
          patch.object(intake, "get_in_progress_session", return_value=in_progress):
-        prompt, _mode = ai_reply.build_reply_system_prompt(
+        prompt, _mode, _intake_active = ai_reply.build_reply_system_prompt(
             db=object(),
             lead_id="lead-1",
             tenant_id="t-1",

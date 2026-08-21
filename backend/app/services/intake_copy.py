@@ -186,7 +186,7 @@ def _brain_prompt(db, lead_id: str, tenant_id: str, lead_data: dict, message: st
     recommendations have no business interrupting a payment flow.
     """
     from app.services.ai_reply import build_reply_system_prompt
-    prompt, _mode = build_reply_system_prompt(
+    prompt, _mode, _intake_active = build_reply_system_prompt(
         db, lead_id, tenant_id, lead_data, message,
         include_intake_context=False,
     )

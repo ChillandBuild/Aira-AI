@@ -12,7 +12,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_and_role
@@ -1486,8 +1486,8 @@ async def export_compare(
         writer.writerow(row)
 
     filename = f"comparison_{payload['current']['start']}_vs_{payload['previous']['start']}.csv"
-    return StreamingResponse(
-        io.BytesIO(output.getvalue().encode()),
+    return Response(
+        output.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
