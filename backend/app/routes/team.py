@@ -66,7 +66,7 @@ def get_me(ctx: dict = Depends(get_tenant_and_role)):
     # Enabled features for this tenant
     tenant = (
         db.table("tenants")
-        .select("enabled_features")
+        .select("name, enabled_features")
         .eq("id", ctx["tenant_id"])
         .limit(1)
         .execute()
@@ -111,6 +111,7 @@ def get_me(ctx: dict = Depends(get_tenant_and_role)):
         "caller_profile": profile,
         "enabled_features": enabled_features,
         "is_system_admin": is_system_admin,
+        "tenant_name": tenant_row.get("name"),
     }
 
 

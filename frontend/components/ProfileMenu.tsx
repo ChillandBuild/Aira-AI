@@ -7,7 +7,7 @@ import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useLogout } from "@/hooks/useLogout";
 
 export function ProfileMenu() {
-  const { role, permissions } = useAuthRole();
+  const { role, permissions, tenantName } = useAuthRole();
   const router = useRouter();
   const [email, setEmail] = useState<string>("");
   const [fullName, setFullName] = useState<string>("");
@@ -41,8 +41,22 @@ export function ProfileMenu() {
 
   return (
     <div className="relative">
-      <button onClick={() => setOpen((v) => !v)} className="flex items-center justify-center w-[34px] h-[34px] rounded-full text-white text-[12px] font-bold transition-transform hover:scale-105" style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}>
-        {initials}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-1 transition-colors hover:bg-[#f0ece4]"
+        title={tenantName ?? undefined}
+      >
+        <span
+          className="flex items-center justify-center w-[34px] h-[34px] shrink-0 rounded-full text-white text-[12px] font-bold"
+          style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}
+        >
+          {initials}
+        </span>
+        {tenantName && (
+          <span className="hidden max-w-[150px] truncate font-body text-sm font-semibold text-[#1c1917] sm:block">
+            {tenantName}
+          </span>
+        )}
       </button>
       {open && (
         <>
@@ -53,7 +67,7 @@ export function ProfileMenu() {
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[#1c1917] truncate">{fullName}</p>
+                <p className="text-sm font-semibold text-[#1c1917] truncate">{tenantName || fullName}</p>
                 <p className="text-xs text-[#78716c] truncate">{email}</p>
               </div>
             </div>

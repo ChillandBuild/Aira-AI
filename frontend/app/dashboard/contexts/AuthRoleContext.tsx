@@ -11,6 +11,7 @@ interface RoleCtx {
   permissions: string[];
   callerId: string | null;
   enabledFeatures: string[];
+  tenantName: string | null;
   isSystemAdmin: boolean;
   forcePasswordReset: boolean;
   bootstrapError: string | null;
@@ -25,6 +26,7 @@ const AuthRoleContext = createContext<RoleCtx>({
   permissions: [],
   callerId: null,
   enabledFeatures: ["whatsapp", "telecalling"],
+  tenantName: null,
   isSystemAdmin: false,
   forcePasswordReset: false,
   bootstrapError: null,
@@ -42,6 +44,7 @@ interface CacheEntry {
   permissions: string[];
   callerId: string | null;
   enabledFeatures: string[];
+  tenantName: string | null;
   isSystemAdmin: boolean;
   forcePasswordReset: boolean;
 }
@@ -69,6 +72,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [callerId, setCallerId] = useState<string | null>(null);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>(["whatsapp", "telecalling"]);
+  const [tenantName, setTenantName] = useState<string | null>(null);
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [forcePasswordReset, setForcePasswordReset] = useState(false);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
@@ -96,6 +100,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           setPermissions(cached.permissions ?? []);
           setCallerId(cached.callerId);
           setEnabledFeatures(cached.enabledFeatures);
+          setTenantName(cached.tenantName ?? null);
           setIsSystemAdmin(cached.isSystemAdmin);
           setForcePasswordReset(cached.forcePasswordReset ?? false);
           setLoading(false);
@@ -134,6 +139,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           const newRoleSlug = d.role_slug ?? null;
           const newPermissions = d.permissions ?? [];
           const newFeatures = d.enabled_features ?? ["whatsapp", "telecalling"];
+          const newTenantName = d.tenant_name ?? null;
           const newIsAdmin = d.is_system_admin ?? false;
           const newCallerId = d.caller_id ?? null;
           const newForcePasswordReset = d.force_password_reset ?? false;
@@ -147,6 +153,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
               permissions: newPermissions,
               callerId: newCallerId,
               enabledFeatures: newFeatures,
+              tenantName: newTenantName,
               isSystemAdmin: newIsAdmin,
               forcePasswordReset: newForcePasswordReset,
             });
@@ -166,6 +173,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
           setPermissions(newPermissions);
           setCallerId(newCallerId);
           setEnabledFeatures(newFeatures);
+          setTenantName(newTenantName);
           setIsSystemAdmin(newIsAdmin);
           setForcePasswordReset(newForcePasswordReset);
           setBootstrapError(null);
@@ -184,7 +192,7 @@ export function AuthRoleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthRoleContext.Provider value={{ role, roleId, roleName, roleSlug, permissions, callerId, enabledFeatures, isSystemAdmin, forcePasswordReset, bootstrapError, loading }}>
+    <AuthRoleContext.Provider value={{ role, roleId, roleName, roleSlug, permissions, callerId, enabledFeatures, tenantName, isSystemAdmin, forcePasswordReset, bootstrapError, loading }}>
       {children}
     </AuthRoleContext.Provider>
   );
