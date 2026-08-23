@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Bell, MessageSquareText, Siren, Trash2, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Bell, MessageSquareText, Siren, X } from "lucide-react";
 import { api, NotificationConfig, Caller, WabaTemplate } from "@/lib/api";
 import {
   SaveButton,
@@ -355,9 +355,6 @@ function WhatsAppAlertCard({
   onSave: () => void;
   onChange: (next: WhatsAppBlock) => void;
 }) {
-  const [phoneInput, setPhoneInput] = useState("");
-  const [phoneError, setPhoneError] = useState<string | null>(null);
-
   const selectedTemplate = approvedTemplates.find((t) => t.id === block.template_id) || null;
   const incomplete = block.enabled && (!block.template_id || block.recipient_phones.length === 0);
 
@@ -369,25 +366,6 @@ function WhatsAppAlertCard({
         ? block.target_segments.filter((s) => s !== segment)
         : [...block.target_segments, segment],
     });
-  }
-
-  function addPhone() {
-    const trimmed = phoneInput.trim();
-    if (!E164_REGEX.test(trimmed)) {
-      setPhoneError("Enter a valid number in E.164 format, e.g. +919876543210");
-      return;
-    }
-    if (block.recipient_phones.includes(trimmed)) {
-      setPhoneError("This number is already added.");
-      return;
-    }
-    onChange({ ...block, recipient_phones: [...block.recipient_phones, trimmed] });
-    setPhoneInput("");
-    setPhoneError(null);
-  }
-
-  function removePhone(phone: string) {
-    onChange({ ...block, recipient_phones: block.recipient_phones.filter((p) => p !== phone) });
   }
 
   return (
@@ -449,60 +427,11 @@ function WhatsAppAlertCard({
               </div>
             </div>
 
-            <div>
-              <p className="mb-2 font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
-                Recipient phone numbers
-              </p>
-              {block.recipient_phones.length > 0 && (
-                <div className="mb-2 space-y-1.5">
-                  {block.recipient_phones.map((phone) => (
-                    <div
-                      key={phone}
-                      className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2"
-                    >
-                      <span className="font-mono text-sm text-ink">{phone}</span>
-                      <button
-                        type="button"
-                        onClick={() => removePhone(phone)}
-                        className="text-ink-muted transition-colors hover:text-red-600"
-                        aria-label={`Remove ${phone}`}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={phoneInput}
-                  disabled={!canManage}
-                  onChange={(e) => {
-                    setPhoneInput(e.target.value);
-                    setPhoneError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addPhone();
-                    }
-                  }}
-                  placeholder="+919876543210"
-                  className="flex-1 rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
-                />
-                <button
-                  type="button"
-                  onClick={addPhone}
-                  disabled={!canManage}
-                  className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-ink transition-colors hover:border-primary"
-                >
-                  <Plus size={14} />
-                  Add Number
-                </button>
-              </div>
-              {phoneError && <p className="mt-1.5 font-body text-xs text-red-600">{phoneError}</p>}
-            </div>
+            <PhoneRecipients
+              phones={block.recipient_phones}
+              disabled={!canManage}
+              onChange={(next) => onChange({ ...block, recipient_phones: next })}
+            />
 
             <div>
               <label className="mb-2 block font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
@@ -558,6 +487,149 @@ function WhatsAppAlertCard({
         <SaveButton state={state} dirty={dirty} disabled={!canManage} onClick={onSave} />
       </SectionFooter>
     </SettingsSection>
+  );
+}
+
+/**
+ * Recipient numbers as a tag field.
+ *
+ * The old version was a plain text box beside an "Add Number" button, and
+ * people typed a number, hit Save, and lost it — the number never left the
+ * box. Here a number becomes a chip the moment you press Enter, type a
+ * comma, or simply click away, so there is no step left to forget. Pasting
+ * a list of numbers splits them all at once.
+ */
+function PhoneRecipients({
+  phones,
+  onChange,
+  disabled = false,
+}: {
+  phones: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  /** Commits everything in the box. Returns false if something was rejected. */
+  function commit(raw: string): boolean {
+    const candidates = raw
+      .split(/[,;\n\r]+/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (candidates.length === 0) {
+      setText("");
+      setError(null);
+      return true;
+    }
+
+    const accepted: string[] = [];
+    for (const candidate of candidates) {
+      const normalised = candidate.replace(/[\s()\-.]/g, "");
+      if (!E164_REGEX.test(normalised)) {
+        setError(`"${candidate}" isn't a valid number. Include the country code, like +919876543210.`);
+        setText(candidate);
+        return false;
+      }
+      if (phones.includes(normalised) || accepted.includes(normalised)) {
+        setError(`${normalised} is already on the list.`);
+        setText(candidate);
+        return false;
+      }
+      accepted.push(normalised);
+    }
+
+    onChange([...phones, ...accepted]);
+    setText("");
+    setError(null);
+    return true;
+  }
+
+  function remove(phone: string) {
+    onChange(phones.filter((p) => p !== phone));
+    setError(null);
+  }
+
+  return (
+    <div>
+      <p className="mb-2 font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+        Recipient phone numbers
+      </p>
+
+      {/* One field: chips and the cursor live in the same box */}
+      <div
+        onClick={() => inputRef.current?.focus()}
+        className={`flex flex-wrap items-center gap-1.5 rounded-xl border bg-white p-2 transition ${
+          disabled ? "cursor-not-allowed opacity-60" : "cursor-text"
+        } ${
+          error
+            ? "border-red-400 ring-2 ring-red-100"
+            : focused
+            ? "border-primary ring-2 ring-primary/15"
+            : "border-border"
+        }`}
+      >
+        {phones.map((phone) => (
+          <span
+            key={phone}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-primary-muted bg-primary-light py-1 pl-2.5 pr-1.5 font-mono text-[13px] font-semibold text-primary"
+          >
+            {phone}
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                remove(phone);
+              }}
+              aria-label={`Remove ${phone}`}
+              className="grid h-4 w-4 place-items-center rounded-full text-primary/60 transition-colors hover:bg-primary/15 hover:text-primary disabled:cursor-not-allowed"
+            >
+              <X size={11} strokeWidth={3} />
+            </button>
+          </span>
+        ))}
+
+        <input
+          ref={inputRef}
+          type="tel"
+          inputMode="tel"
+          value={text}
+          disabled={disabled}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            commit(text);
+          }}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (error) setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === ",") {
+              e.preventDefault();
+              commit(text);
+            } else if (e.key === "Backspace" && text === "" && phones.length > 0) {
+              remove(phones[phones.length - 1]);
+            }
+          }}
+          placeholder={phones.length === 0 ? "+919876543210" : "Add another…"}
+          className="min-w-[150px] flex-1 bg-transparent px-1.5 py-1 font-mono text-sm text-ink placeholder:font-body placeholder:text-ink-muted focus:outline-none disabled:cursor-not-allowed"
+        />
+      </div>
+
+      {error ? (
+        <p className="mt-1.5 font-body text-xs text-red-600">{error}</p>
+      ) : (
+        <p className="mt-1.5 font-body text-[11px] text-ink-muted">
+          {phones.length === 0
+            ? "Type a number and press Enter. Include the country code."
+            : `${phones.length} number${phones.length === 1 ? "" : "s"} will be alerted. Press Enter after each one — or just click away.`}
+        </p>
+      )}
+    </div>
   );
 }
 
