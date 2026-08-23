@@ -1396,4 +1396,10 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
 
     _log_astro_message(db, lead_id, tenant_id, nudge, mid)
     logger.info(f"Astro reply {reply_id} for session {external_ref}: customer nudged to the app")
+
+    # The astrologer's answer just landed -- that's the resolution signal itself,
+    # unlike a generic tenant where only a human clicking Resolve (or the 48h
+    # sweep) can know the paid request was handled. No-ops if already resolved.
+    resolve_intake_session(session_id, tenant_id, db=db)
+
     return {"ok": True, "nudged": True}

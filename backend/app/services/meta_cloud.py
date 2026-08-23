@@ -407,6 +407,7 @@ async def send_text_message(
     phone_number_id: Optional[str] = None,
     access_token: Optional[str] = None,
     tenant_id: Optional[str] = None,
+    reply_to_message_id: Optional[str] = None,
 ) -> dict:
     pid, tok = _creds(phone_number_id, access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{pid}/messages"
@@ -416,6 +417,8 @@ async def send_text_message(
         "type": "text",
         "text": {"body": text},
     }
+    if reply_to_message_id:
+        payload["context"] = {"message_id": reply_to_message_id}
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {tok}"})
     if not resp.is_success:

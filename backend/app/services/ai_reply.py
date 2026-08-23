@@ -553,17 +553,25 @@ async def send_whatsapp(
     message: str,
     tenant_id: str | None = None,
     phone_number_id: str | None = None,
+    reply_to_message_id: str | None = None,
 ) -> str | None:
     """Send a WhatsApp message via Meta Cloud API. Returns message ID or None on failure.
 
     phone_number_id pins the sending number to the one that received the inbound
     message; when None, meta_cloud falls back to the tenant's default.
+    reply_to_message_id quotes the given inbound message in the WhatsApp bubble --
+    only passed when the reply is answering an older message out of order (see
+    generate_reply's burst check).
     """
     global _LAST_SEND_ERROR
     try:
         from app.services.meta_cloud import send_text_message
         data = await send_text_message(
-            to_number=to_phone, text=message, tenant_id=tenant_id, phone_number_id=phone_number_id
+            to_number=to_phone,
+            text=message,
+            tenant_id=tenant_id,
+            phone_number_id=phone_number_id,
+            reply_to_message_id=reply_to_message_id,
         )
         mid = (data.get("messages") or [{}])[0].get("id")
         logger.info(f"Meta sent to {to_phone}: id={mid}")
@@ -1380,6 +1388,7 @@ async def generate_reply(
     fb_user_id: str | None = None,
     phone_number_id: str | None = None,
     inbound_media_type: str | None = None,
+    meta_message_id: str | None = None,
 ) -> None:
     """
     Core pipeline:
@@ -1703,7 +1712,34 @@ async def generate_reply(
                 outbound_media_type = "audio"
                 outbound_media_mime_type = "audio/mpeg"
         if _wa_phone and not sid:
-            sid = await send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id)
+            reply_to_message_id = None
+            if meta_message_id:
+                try:
+                    latest_inbound = (
+                        db.table("messages")
+                        .select("meta_message_id")
+                        .eq("lead_id", lead_id)
+                        .eq("tenant_id", tenant_id)
+                        .eq("direction", "inbound")
+                        .order("created_at", desc=True)
+                        .limit(1)
+                        .execute()
+                    )
+                    latest_id = (latest_inbound.data or [{}])[0].get("meta_message_id")
+                    # A newer inbound message already landed while this reply was being
+                    # generated -- quote the one we're actually answering so it's clear
+                    # which question this reply is for.
+                    if latest_id and latest_id != meta_message_id:
+                        reply_to_message_id = meta_message_id
+                except Exception as burst_err:
+                    logger.warning(f"Burst check failed for lead {lead_id}: {burst_err}")
+            sid = await send_whatsapp(
+                _wa_phone,
+                reply_text,
+                tenant_id=lead_data.get("tenant_id"),
+                phone_number_id=phone_number_id,
+                reply_to_message_id=reply_to_message_id,
+            )
 
         # Send catalog recommendation images as follow-up WhatsApp media
         if _wa_phone and sid and catalog_images_to_send:

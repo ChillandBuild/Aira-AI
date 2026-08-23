@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Image as ImageIcon, Loader2, Mic, RadioTower, Shield, Smartphone, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Image as ImageIcon, Link2, Loader2, Mic, Plus, Puzzle, RadioTower, Shield, Smartphone, Sparkles, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
@@ -58,6 +58,30 @@ const REPLY_MODELS: { id: ReplyModelId; label: string; provider: AiProviderKey; 
   { id: "openai/gpt-5-nano-2025-08-07", label: "GPT-5 Nano", provider: "openai", costTier: "$", desc: "Previous-generation nano tier." },
   { id: "groq/llama-3.3-70b-versatile", label: "Llama 3.3 70B", provider: "groq", costTier: "$", desc: "Cheapest option overall. Fast, strong in English, weaker on Indic-language nuance. Tamil isn't in Llama's officially supported language list." },
   { id: "groq/qwen/qwen3-32b", label: "Qwen 3 32B", provider: "groq", costTier: "$", desc: "Live-tested for Tanglish -- handles Tamil-English code-mixing well, including tool calls. Slightly slower than Llama (runs a hidden reasoning pass first)." },
+];
+
+// Keys already surfaced as their own checkbox in the client sidebar (see ../sidebar.tsx's
+// PRODUCT_NAV/TC_SUB_NAV toggleKey/featureKey values, plus the deps handleToggleFeature
+// cascades in ../page.tsx). Hidden here so this raw editor can't drift out of sync with
+// those dedicated, cascade-aware controls -- this panel is only for flags with no UI of
+// their own, e.g. a one-off client integration like AstroTamil's astro_bridge.
+const MANAGED_FEATURE_KEYS = new Set([
+  "inbound_leads", "outbound_leads",
+  "telecalling", "telecalling.upload", "telecalling.dialer", "telecalling.scheduled", "telecalling.notes",
+  "whatsapp", "analytics",
+]);
+
+// Ops-entered, not client self-service: astro_bridge_url/api_key are issued by the
+// astrologer's own Django backend and astro_bridge_secret must match its
+// AIRA_BRIDGE_SECRET, so setting this up is a coordination task between Aira's team
+// and that platform's devs, not something a client's staff can meaningfully fill in
+// themselves. Mirrors astro_bridge.py's exact 3 keys -- see get_setting() call sites.
+type AstroBridgeFieldKey = "astro_bridge_url" | "astro_bridge_api_key" | "astro_bridge_secret";
+
+const ASTRO_BRIDGE_FIELDS: { key: AstroBridgeFieldKey; label: string; secret: boolean; hint: string }[] = [
+  { key: "astro_bridge_url", label: "Bridge Base URL", secret: false, hint: "Base URL of the astrologer platform, e.g. https://astro.example.com — no trailing slash." },
+  { key: "astro_bridge_api_key", label: "API Key", secret: true, hint: "The PermanentAPIKey issued by the astrologer platform. Sent as X-API-Key on every push." },
+  { key: "astro_bridge_secret", label: "Callback Secret", secret: true, hint: "Shared HMAC secret the astrologer platform signs its reply callback with. Must match its AIRA_BRIDGE_SECRET." },
 ];
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
@@ -194,6 +218,13 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [savedMasterPrompt, setSavedMasterPrompt] = useState<string>("");
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptError, setPromptError] = useState<string | null>(null);
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const [newFeatureKey, setNewFeatureKey] = useState("");
+  const [featureSaving, setFeatureSaving] = useState(false);
+  const [astroBridgeDrafts, setAstroBridgeDrafts] = useState<Record<AstroBridgeFieldKey, string>>({
+    astro_bridge_url: "", astro_bridge_api_key: "", astro_bridge_secret: "",
+  });
+  const [astroBridgeSaving, setAstroBridgeSaving] = useState<AstroBridgeFieldKey | null>(null);
 
   async function saveMasterPrompt() {
     setPromptSaving(true);
@@ -465,16 +496,87 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     Promise.all([
       apiFetch<ConfigData>(`/api/v1/operator/clients/${tenantId}/config`),
       apiFetch<CallingProviderData>(`/api/v1/operator/clients/${tenantId}/calling-provider`),
+      apiFetch<{ tenant: { enabled_features: string[] } }>(`/api/v1/operator/clients/${tenantId}/overview`),
     ])
-      .then(([configData, providerData]) => {
+      .then(([configData, providerData, overviewData]) => {
         setConfig(configData);
         setProvider(providerData);
         setMasterPrompt(configData.master_prompt || "");
         setSavedMasterPrompt(configData.master_prompt || "");
+        setEnabledFeatures(overviewData.tenant.enabled_features || []);
       })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load config"))
       .finally(() => setLoading(false));
   }, [tenantId]);
+
+  async function addCustomFeature() {
+    const key = newFeatureKey.trim().toLowerCase();
+    if (!key) return;
+    if (!/^[a-z0-9._-]+$/.test(key)) {
+      toast.error("Feature keys can only contain lowercase letters, numbers, dots, underscores and hyphens.");
+      return;
+    }
+    if (enabledFeatures.includes(key)) {
+      toast.error(`"${key}" is already enabled for this client.`);
+      return;
+    }
+    setFeatureSaving(true);
+    try {
+      const updated = [...enabledFeatures, key];
+      await apiFetch<{ enabled_features: string[] }>(
+        `/api/v1/operator/clients/${tenantId}/features`,
+        { method: "PATCH", body: JSON.stringify({ features: updated }) },
+      );
+      setEnabledFeatures(updated);
+      setNewFeatureKey("");
+      toast.success(`"${key}" enabled for this client.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to add feature flag");
+    } finally {
+      setFeatureSaving(false);
+    }
+  }
+
+  async function removeCustomFeature(key: string) {
+    setFeatureSaving(true);
+    try {
+      const updated = enabledFeatures.filter(f => f !== key);
+      await apiFetch<{ enabled_features: string[] }>(
+        `/api/v1/operator/clients/${tenantId}/features`,
+        { method: "PATCH", body: JSON.stringify({ features: updated }) },
+      );
+      setEnabledFeatures(updated);
+      toast.success(`"${key}" disabled for this client.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove feature flag");
+    } finally {
+      setFeatureSaving(false);
+    }
+  }
+
+  async function saveAstroBridgeField(key: AstroBridgeFieldKey) {
+    const value = astroBridgeDrafts[key].trim();
+    if (!value) return;
+    setAstroBridgeSaving(key);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        { method: "PATCH", body: JSON.stringify({ settings: { [key]: value } }) },
+      );
+      setAstroBridgeDrafts((prev) => ({ ...prev, [key]: "" }));
+      // Refetch rather than guess: the aggregate "astro_bridge" status depends on all
+      // 3 fields, and this component only tracks drafts for the one just saved.
+      const refreshed = await apiFetch<ConfigData>(`/api/v1/operator/clients/${tenantId}/config`);
+      setConfig(refreshed);
+      toast.success("Astro bridge field saved.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save astro bridge field");
+      toast.error("Failed to save astro bridge field.");
+    } finally {
+      setAstroBridgeSaving(null);
+    }
+  }
 
   async function updateProvider(callingProvider: "telecmi" | "sim_basic") {
     if (!provider || provider.calling_provider === callingProvider) return;
@@ -533,6 +635,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   };
   const mediaRecommendationsEnabled = config.settings.ai_media_recommendations_enabled ?? false;
   const mediaMaxImagesCeiling = Number(config.settings.catalog_ai_max_images_ceiling ?? 5);
+  const customFeatureKeys = enabledFeatures.filter(f => !MANAGED_FEATURE_KEYS.has(f));
 
   return (
     <div className="space-y-6">
@@ -982,6 +1085,115 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Astro Bridge */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Link2 size={16} className="text-ink-muted" />
+          Astro Bridge
+          {statusBadge(config.credentials_status.astro_bridge || "not_configured")}
+        </h3>
+        <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+          Sends this client&apos;s paid consultations to an astrologer platform (e.g. AstroTamil)
+          and delivers their replies back over WhatsApp. Ops-entered, not client self-service —
+          these credentials come from that platform&apos;s own dev team, coordinated directly with
+          Aira&apos;s team during setup. Also requires the <code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code> flag
+          enabled below under Custom Feature Flags.
+        </p>
+        <div className="flex flex-col gap-5">
+          {ASTRO_BRIDGE_FIELDS.map((field) => {
+            const draft = astroBridgeDrafts[field.key];
+            const saving = astroBridgeSaving === field.key;
+            return (
+              <div key={field.key} className="rounded-card border border-border bg-white p-4 shadow-sm">
+                <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                  <label className="block min-w-0 flex-1">
+                    <span className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-ink-muted">
+                      <Link2 size={13} /> {field.label}
+                    </span>
+                    <input
+                      type={field.secret ? "password" : "text"}
+                      value={draft}
+                      onChange={(e) => setAstroBridgeDrafts((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                      placeholder={field.secret ? "Enter a new value to set or replace" : "https://astro.example.com"}
+                      disabled={saving}
+                      className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary disabled:opacity-60"
+                    />
+                    <span className="mt-1 block text-[11px] leading-relaxed text-ink-muted">{field.hint}</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => saveAstroBridgeField(field.key)}
+                    disabled={saving || !draft.trim()}
+                    className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:text-ink-muted"
+                  >
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : "Save"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Custom Feature Flags */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Puzzle size={16} className="text-ink-muted" />
+          Custom Feature Flags
+        </h3>
+        <p className="mb-4 text-xs leading-relaxed text-ink-muted">
+          Raw flags with no plan/catalog entry of their own — for a one-off integration built
+          for a specific client, like AstroTamil&apos;s paid-consultation bridge to their
+          astrologer platform (<code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code>).
+          If another client needs a similar custom connection, enable a flag here and the
+          matching setup fields appear for them under Settings → Connect Channels.
+        </p>
+        <div className="rounded-card border border-border bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap gap-2 mb-4">
+            {customFeatureKeys.length === 0 && (
+              <p className="text-xs text-ink-muted">No custom flags enabled for this client.</p>
+            )}
+            {customFeatureKeys.map((key) => (
+              <span
+                key={key}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-low px-3 py-1 text-xs font-medium text-ink"
+              >
+                {key}
+                <button
+                  type="button"
+                  onClick={() => removeCustomFeature(key)}
+                  disabled={featureSaving}
+                  aria-label={`Disable ${key}`}
+                  className="text-ink-muted transition-colors hover:text-danger disabled:opacity-50"
+                >
+                  <X size={12} />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newFeatureKey}
+              onChange={(e) => setNewFeatureKey(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addCustomFeature(); }}
+              placeholder="e.g. astro_bridge"
+              disabled={featureSaving}
+              className="flex-1 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-ink-muted focus:border-primary disabled:opacity-60"
+            />
+            <button
+              type="button"
+              onClick={addCustomFeature}
+              disabled={featureSaving || !newFeatureKey.trim()}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:text-ink-muted"
+            >
+              {featureSaving ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              Enable
+            </button>
+          </div>
         </div>
       </div>
     </div>

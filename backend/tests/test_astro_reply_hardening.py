@@ -125,6 +125,7 @@ async def test_a_delivered_nudge_keeps_the_claim():
             _res({"id": SID, "lead_id": "L1", "tenant_id": TENANT, "astro_last_reply_id": None}),
             _res([{"id": SID}]),
             _res([{"id": SID}]),
+            _res([{"id": SID}]),  # resolve_intake_session's status transition
         ],
         "leads": [_res({"id": "L1", "phone": "+919345679286"})],
         "messages": [_res([{"id": "m1"}])],
@@ -142,6 +143,10 @@ async def test_a_delivered_nudge_keeps_the_claim():
     assert out["nudged"] is True
     rollbacks = [p for t, op, p in db.writes if op == "update" and p == {"astro_last_reply_id": None}]
     assert not rollbacks, "a delivered nudge must keep the claim"
+    assert any(
+        op == "update" and p.get("status") == "resolved"
+        for t, op, p in db.writes if t == "intake_sessions"
+    ), "a delivered nudge must resolve the paid session"
 
 
 @pytest.mark.asyncio

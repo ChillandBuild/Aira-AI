@@ -257,7 +257,7 @@ export default function ReengagementBuilder({ type, broadcastId, templates, canM
       {/* Clock explainer */}
       <div className="rounded-2xl border border-on-surface/10 bg-surface/50 p-5">
         <h3 className="font-label text-xs uppercase tracking-widest text-on-surface-muted">
-          {type === "broadcast" ? "Campaign Follow-up" : "Reply Follow-up"} — how timing works
+          {type === "broadcast" ? "Campaign Follow-up" : "Lead Reply Follow-up"} — how timing works
         </h3>
         <p className="mt-2 text-sm text-on-surface">
           {type === "broadcast" ? (

@@ -450,7 +450,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
               onClick={() => setReengageTrigger("inbound")}
               className={`rounded-xl px-4 py-2 text-sm ${reengageTrigger === "inbound" ? "bg-on-surface text-surface" : "bg-on-surface/10 text-on-surface"}`}
             >
-              Reply Follow-up
+              Lead Reply Follow-up
             </button>
             <button
               onClick={() => setReengageTrigger("broadcast")}

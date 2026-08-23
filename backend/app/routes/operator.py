@@ -1322,6 +1322,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "telegram": cred_status(["telegram_bot_token"]),
             "instagram": cred_status(["instagram_page_id", "instagram_access_token"]),
             "facebook": cred_status(["facebook_page_id", "facebook_access_token"]),
+            "astro_bridge": cred_status(["astro_bridge_url", "astro_bridge_api_key", "astro_bridge_secret"]),
         },
         "settings": {
             # Backend gate (ai_reply.generate_reply) only disables on the literal string
@@ -1391,6 +1392,8 @@ def update_client_config(
         "telegram_bot_token",
         "instagram_access_token",
         "facebook_access_token",
+        "astro_bridge_api_key",
+        "astro_bridge_secret",
     }
 
     for key, value in payload.settings.items():

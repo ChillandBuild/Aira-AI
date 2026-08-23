@@ -1,4 +1,4 @@
-import { MessageSquare, Send, Megaphone, IndianRupee, Sparkles } from "lucide-react";
+import { MessageSquare, Send, Megaphone, IndianRupee } from "lucide-react";
 import { InstagramIcon, FacebookIcon } from "./ui";
 
 export type EmbeddedSignupSession = { waba_id?: string; phone_number_id?: string; business_id?: string; is_coexistence?: boolean };
@@ -153,21 +153,6 @@ export const CHANNELS: ChannelConfig[] = [
       { key: "razorpay_key_id", label: "Key ID", secret: false, required: true, hint: "Razorpay Dashboard → Settings → API Keys." },
       { key: "razorpay_key_secret", label: "Key Secret", secret: true, required: true },
       { key: "razorpay_webhook_secret", label: "Webhook Secret", secret: true, required: true, hint: "Set this exact value as the Secret when creating the webhook in Razorpay Dashboard → Settings → Webhooks, pointed at the URL below." },
-    ],
-    hasActivation: false,
-  },
-  {
-    id: "astro_bridge",
-    name: "AstroTamil Consultation Bridge",
-    description: "Send paid consultations to the astrologer platform and deliver their replies back to the customer on WhatsApp.",
-    icon: Sparkles,
-    iconBg: "bg-amber-100",
-    iconColor: "text-amber-600",
-    themeColor: "amber",
-    fields: [
-      { key: "astro_bridge_url", label: "Bridge Base URL", secret: false, required: true, hint: "Base URL of the astrologer platform, e.g. https://astro.example.com — no trailing slash needed." },
-      { key: "astro_bridge_api_key", label: "API Key", secret: true, required: true, hint: "The PermanentAPIKey issued by the astrologer platform. Sent as X-API-Key on every push." },
-      { key: "astro_bridge_secret", label: "Callback Secret", secret: true, required: true, hint: "Shared HMAC secret the astrologer platform signs its reply callback with. Must match its AIRA_BRIDGE_SECRET." },
     ],
     hasActivation: false,
   },
