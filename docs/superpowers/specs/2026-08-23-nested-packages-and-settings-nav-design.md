@@ -138,10 +138,8 @@ settings):
 /dashboard/settings/auto-reply           (AI Auto-Reply toggle)
 /dashboard/settings/follow-ups           (Silence-Nudge config)
 /dashboard/settings/inbox                (InboxConfigPanel)
-/dashboard/settings/telecalling-behavior (TelecallingConfigPanel — NEEDS CONFIRMATION: verify
-                                           at implementation time whether this is genuinely
-                                           distinct from the telecalling credentials page above,
-                                           or the old tabs split one feature in two)
+/dashboard/settings/telecalling-behavior (TelecallingConfigPanel — confirmed distinct from
+                                           the telecalling credentials page above, 2026-08-24)
 /dashboard/settings/intake-config        (IntakeConfigPanel: fields, offer message, trigger)
   /dashboard/settings/intake-config/packages   (new recursive package tree editor, section 5)
 /dashboard/settings/business-hours       (BusinessHoursPanel)
