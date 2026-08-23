@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { Clock, Save, Loader2, CheckCircle2 } from "lucide-react";
+import { Clock } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
 
 type BusinessHours = {
   enabled: boolean;
@@ -86,23 +87,27 @@ export function BusinessHoursPanel({ canManage = true }: { canManage?: boolean }
     });
   }
 
-  return (
-    <div className="card rounded-3xl">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 bg-violet-100">
-          <Clock size={18} className="text-violet-600" />
-        </div>
-        <div className="min-w-0">
-          <h2 className="font-display font-bold text-ink" style={{ fontSize: "1rem", letterSpacing: "-0.02em" }}>
-            Business Hours
-          </h2>
-          <p className="font-body text-sm text-ink-muted mt-0.5">
-            When your team is reachable. The AI uses this to tell escalated customers when to expect a call.
-          </p>
-        </div>
-      </div>
+  const dayLabel = draft.working_days.length === 7
+    ? "Every day"
+    : draft.working_days.length === 0
+    ? "No working days"
+    : DAYS.filter((d) => draft.working_days.includes(d.value)).map((d) => d.label).join(", ");
 
-      <div className="mt-6 space-y-5">
+  return (
+    <SettingsSection
+      id="business-hours"
+      icon={Clock}
+      accent="sky"
+      title="Business Hours"
+      description="When your team is reachable. The AI uses this to tell escalated customers when to expect a call."
+      status={
+        draft.enabled
+          ? { label: `${draft.open_time}-${draft.close_time}`, tone: "on" }
+          : { label: "Always closed", tone: "off" }
+      }
+      dirty={isDirty}
+    >
+      <div className="space-y-5">
         <label className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface-subtle cursor-pointer hover:border-violet-300 transition-colors">
           <input
             type="checkbox"
@@ -193,37 +198,13 @@ export function BusinessHoursPanel({ canManage = true }: { canManage?: boolean }
           )}
         </div>
 
-        <div className="flex justify-end pt-2 border-t border-border">
-          <button
-            onClick={handleSave}
-            disabled={!canManage || saveState !== "idle" || !isDirty}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
-              saveState === "saved"
-                ? "bg-emerald-100 text-emerald-700 cursor-default"
-                : canManage && isDirty
-                ? "bg-primary text-white hover:bg-primary/90"
-                : "bg-surface-subtle text-ink-muted cursor-default"
-            }`}
-          >
-            {saveState === "saving" ? (
-              <>
-                <Loader2 size={14} className="animate-spin" />
-                Saving…
-              </>
-            ) : saveState === "saved" ? (
-              <>
-                <CheckCircle2 size={14} />
-                Saved
-              </>
-            ) : (
-              <>
-                <Save size={14} />
-                Save Changes
-              </>
-            )}
-          </button>
-        </div>
       </div>
-    </div>
+
+      <SectionFooter
+        status={<SaveStatus state={saveState} dirty={isDirty} idleLabel={draft.enabled ? dayLabel : "Business hours are off"} />}
+      >
+        <SaveButton state={saveState} dirty={isDirty} disabled={!canManage} onClick={handleSave} />
+      </SectionFooter>
+    </SettingsSection>
   );
 }

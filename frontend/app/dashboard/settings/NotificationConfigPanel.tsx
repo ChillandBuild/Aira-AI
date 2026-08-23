@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bell, Save, Loader2, CheckCircle2, Trash2, Plus } from "lucide-react";
+import { Bell, Trash2, Plus } from "lucide-react";
 import { api, NotificationConfig, Caller, WabaTemplate } from "@/lib/api";
+import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
 
 const EVENT_LABELS: Record<string, string> = {
   callback_due: "Callback due reminder",
@@ -69,22 +70,25 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
 
   const approvedTemplates = templates.filter((t) => t.status === "APPROVED");
 
-  return (
-    <div className="card rounded-3xl animate-slide-up">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: "#ede9fe" }}>
-          <Bell size={18} style={{ color: "#7c3aed" }} />
-        </div>
-        <div>
-          <h2 className="font-display font-bold text-ink" style={{ fontSize: "1rem" }}>Push Notifications</h2>
-          <p className="font-body text-sm text-ink-muted mt-0.5">
-            Control which push alerts your team receives. The in-app bell always records every event.
-          </p>
-        </div>
-      </div>
+  const activeEvents = Object.keys(EVENT_LABELS).filter((k) => cfg.events[k] ?? true).length;
 
+  return (
+    <SettingsSection
+      id="push-notifications"
+      icon={Bell}
+      accent="violet"
+      title="Push Notifications"
+      description="Control which push alerts your team receives. The in-app bell always records every event."
+      status={
+        cfg.push_enabled
+          ? { label: `${activeEvents}/${Object.keys(EVENT_LABELS).length} events`, tone: "on" }
+          : { label: "Push off", tone: "off" }
+      }
+      dirty={state === "dirty"}
+    >
+      <div className="space-y-4">
       {/* Master switch */}
-      <div className="mt-6 flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
+      <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
         <div>
           <p className="font-body text-sm font-semibold text-ink">Enable push notifications</p>
           <p className="font-body text-xs text-ink-muted mt-0.5">Master switch for all phone/desktop pushes.</p>
@@ -93,7 +97,7 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
       </div>
 
       {/* Per-event toggles */}
-      <div className="mt-4 space-y-2">
+      <div className="space-y-2">
         <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">Per-event push</p>
         {Object.keys(EVENT_LABELS).map((key) => {
           const on = cfg.events[key] ?? true;
@@ -111,7 +115,7 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
       </div>
 
       {/* Claimable threshold + audience */}
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
           <label className="font-body text-sm font-semibold text-ink">Claimable after (minutes)</label>
           <p className="font-body text-xs text-ink-muted mt-0.5 mb-2">How long after the slot a callback opens to claim.</p>
@@ -168,7 +172,7 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
       </div>
 
       {/* Quiet hours */}
-      <div className="mt-4 p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
+      <div className="p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
         <div className="flex items-center justify-between">
           <div>
             <p className="font-body text-sm font-semibold text-ink">Quiet hours</p>
@@ -210,22 +214,14 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
         onChange={(next) => patch({ whatsapp_escalation_notifications: next })}
       />
 
-      <div className="mt-6 flex items-center justify-end border-t border-border-subtle pt-5">
-        <button
-          onClick={save}
-          disabled={!canManage || state === "saving" || state === "idle" || state === "saved"}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
-            state === "saved" ? "bg-emerald-100 text-emerald-700"
-            : canManage && state === "dirty" ? "bg-primary text-white hover:bg-primary/90"
-            : "bg-surface-subtle text-ink-muted cursor-default"
-          }`}
-        >
-          {state === "saving" ? <><Loader2 size={14} className="animate-spin" />Saving…</>
-            : state === "saved" ? <><CheckCircle2 size={14} />Saved</>
-            : <><Save size={14} />Save Changes</>}
-        </button>
       </div>
-    </div>
+
+      <SectionFooter
+        status={<SaveStatus state={state} dirty={state === "dirty"} idleLabel={cfg.push_enabled ? "Push alerts are on" : "Push alerts are off"} />}
+      >
+        <SaveButton state={state} dirty={state === "dirty"} disabled={!canManage} onClick={save} />
+      </SectionFooter>
+    </SettingsSection>
   );
 }
 
@@ -287,7 +283,7 @@ function WhatsAppAlertSection({
   }
 
   return (
-    <div className="mt-4 p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
+    <div className="p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
       <div className="flex items-center justify-between">
         <div>
           <p className="font-body text-sm font-semibold text-ink">{title}</p>

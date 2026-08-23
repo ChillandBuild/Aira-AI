@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
-  Phone, Sparkles, Eye, EyeOff, Save, AlertCircle, Loader2, CheckCircle2, ChevronDown, Crown
+  Phone, Sparkles, Eye, EyeOff, AlertCircle, Loader2, Crown, Timer
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
@@ -13,6 +13,14 @@ import { IntakeConfigPanel } from "./IntakeConfigPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
 import { NotificationConfigPanel } from "./NotificationConfigPanel";
 import { BusinessHoursPanel } from "./BusinessHoursPanel";
+import {
+  SaveButton,
+  SaveStatus,
+  SectionFooter,
+  SettingsAccordion,
+  SettingsSection,
+  SwitchPill,
+} from "./SettingsSection";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -222,7 +230,6 @@ export default function SettingsPage() {
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   // User Profile details
   const [email, setEmail] = useState<string>("");
@@ -581,262 +588,168 @@ export default function SettingsPage() {
 
           {/* TAB 3: Telecalling Config */}
           {activeTab === "telecalling" && hasTelecmiConfig && (
-            <div className="space-y-6">
-              {/* TeleCMI Credentials Card */}
-              <div className="card rounded-3xl animate-slide-up">
-                <button
-                  type="button"
-                  onClick={() => setCollapsed(c => ({ ...c, voice: !c.voice }))}
-                  className="w-full flex items-center gap-3 text-left"
-                >
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: voiceSection.bg }}>
-                    <voiceSection.icon size={18} style={{ color: voiceSection.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="font-display font-bold text-ink" style={{ fontSize: "1rem", letterSpacing: "-0.02em" }}>
-                        {voiceSection.label}
-                      </h2>
-                      {voiceConfigured ? (
-                        <span className="badge badge-green inline-flex items-center gap-1">
-                          <CheckCircle2 size={10} /> Configured
-                        </span>
-                      ) : (
-                        <span className="badge badge-gray">Not configured</span>
-                      )}
-                    </div>
-                    <p className="font-body text-sm text-ink-muted mt-0.5">{voiceSection.description}</p>
-                  </div>
-                  <ChevronDown size={18} className={`text-ink-muted transition-transform flex-shrink-0 ${collapsed.voice ? "" : "rotate-180"}`} />
-                </button>
-
-                {!collapsed.voice && (
-                  <>
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {voiceSection.fields.map((field) => {
-                        const meta = settingFor(field.key);
-                        const draft = drafts[field.key] ?? "";
-                        const labelWithOptional = field.required === false
-                          ? `${field.label} (optional)`
-                          : field.label;
-                        if (field.secret) {
-                          return (
-                            <SecretField
-                              key={field.key}
-                              label={labelWithOptional}
-                              storedMask={meta?.display_value ?? "Not set"}
-                              isSet={!!meta?.is_set}
-                              newValue={draft}
-                              onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
-                              hint={field.hint}
-                              disabled={!canManageSettings}
-                            />
-                          );
-                        }
-                        return (
-                          <OutlinedField
-                            key={field.key}
-                            label={labelWithOptional}
-                            value={draft}
-                            onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
-                            placeholder={field.placeholder}
-                            hint={field.hint}
-                            disabled={!canManageSettings}
-                          />
-                        );
-                      })}
-                    </div>
-
-                    {/* TeleCMI Webhook URL + Setup Guide */}
-                    {(() => {
-                      const cdrUrl = tenantId
-                        ? `${API_URL}/api/v1/calls/telecmi-cdr/${tenantId}`
-                        : null;
+            <SettingsAccordion>
+              <SettingsSection
+                id="voice-credentials"
+                icon={voiceSection.icon}
+                accent="amber"
+                title={voiceSection.label}
+                description={voiceSection.description}
+                status={{
+                  label: voiceConfigured ? "Configured" : "Not configured",
+                  tone: voiceConfigured ? "on" : "warn",
+                }}
+                dirty={sectionDirty.voice ?? false}
+              >
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {voiceSection.fields.map((field) => {
+                    const meta = settingFor(field.key);
+                    const draft = drafts[field.key] ?? "";
+                    const labelWithOptional = field.required === false
+                      ? `${field.label} (optional)`
+                      : field.label;
+                    if (field.secret) {
                       return (
-                        <div className="mt-5 p-3.5 rounded-2xl bg-[#faf8f5] border border-[#e8e3db] text-xs font-body space-y-2">
-                          <p className="font-label font-bold text-[#44403c] uppercase text-[10px] tracking-wider">Setup Guide</p>
-                          <ol className="list-decimal list-inside space-y-1 text-[#57534e]">
-                            <li>Log in to your <span className="font-semibold">Cloud Telephony dashboard</span> → Settings → Webhook</li>
-                            <li>Set CDR Webhook URL to:<br />
-                              <code className="mt-1 inline-block px-2 py-1 bg-white border border-[#e8e3db] rounded text-[11px] text-[#292524] font-mono select-all break-all">
-                                {cdrUrl ?? "Retrieving webhook URL…"}
-                              </code>
-                            </li>
-                            <li>If using a Webhook Secret, append it: <code className="px-1 py-0.5 bg-white border border-[#e8e3db] rounded text-[10px] font-mono">?webhook_secret=YOUR_SECRET</code></li>
-                            <li>Set your <span className="font-semibold">App Secret</span> above (from Cloud Telephony dashboard → API Keys)</li>
-                            <li>Per-caller <span className="font-semibold">Agent IDs</span> are configured on the <span className="font-semibold">Team page</span></li>
-                          </ol>
-                        </div>
+                        <SecretField
+                          key={field.key}
+                          label={labelWithOptional}
+                          storedMask={meta?.display_value ?? "Not set"}
+                          isSet={!!meta?.is_set}
+                          newValue={draft}
+                          onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
+                          hint={field.hint}
+                          disabled={!canManageSettings}
+                        />
                       );
-                    })()}
+                    }
+                    return (
+                      <OutlinedField
+                        key={field.key}
+                        label={labelWithOptional}
+                        value={draft}
+                        onChange={v => setDrafts(d => ({ ...d, [field.key]: v }))}
+                        placeholder={field.placeholder}
+                        hint={field.hint}
+                        disabled={!canManageSettings}
+                      />
+                    );
+                  })}
+                </div>
 
-                    <div className="mt-6 flex items-center justify-between border-t border-border-subtle pt-5 gap-3 flex-wrap">
-                      <div className="min-h-[20px]">
-                        {(saveStates.voice ?? "idle") === "saved" && (
-                          <span className="inline-flex items-center gap-1.5 text-emerald-600 font-body text-sm font-medium">
-                            <CheckCircle2 size={15} /> Saved successfully
-                          </span>
-                        )}
-                        {!(sectionDirty.voice ?? false) && (saveStates.voice ?? "idle") === "idle" && voiceConfigured && (
-                          <span className="text-[11px] text-ink-muted font-body">No unsaved changes</span>
-                        )}
-                        {(sectionDirty.voice ?? false) && (saveStates.voice ?? "idle") !== "saved" && (
-                          <span className="text-[11px] text-amber-600 font-body font-medium">Unsaved changes</span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleSave("voice", voiceSection.fields.map(f => f.key))}
-                        disabled={!canManageSettings || (saveStates.voice ?? "idle") === "saving" || (saveStates.voice ?? "idle") === "saved" || !(sectionDirty.voice ?? false)}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all ${
-                          (saveStates.voice ?? "idle") === "saved"
-                            ? "bg-emerald-100 text-emerald-700 cursor-default"
-                            : canManageSettings && (sectionDirty.voice ?? false)
-                            ? "bg-primary text-white hover:bg-primary/90"
-                            : "bg-surface-subtle text-ink-muted cursor-default"
-                        }`}
-                      >
-                        {(saveStates.voice ?? "idle") === "saving" ? (
-                          <><Loader2 size={14} className="animate-spin" />Saving…</>
-                        ) : (saveStates.voice ?? "idle") === "saved" ? (
-                          <><CheckCircle2 size={14} />Saved</>
-                        ) : (
-                          <><Save size={14} />Save Changes</>
-                        )}
-                      </button>
+                {/* Webhook URL + setup guide */}
+                {(() => {
+                  const cdrUrl = tenantId
+                    ? `${API_URL}/api/v1/calls/telecmi-cdr/${tenantId}`
+                    : null;
+                  return (
+                    <div className="mt-5 space-y-2 rounded-2xl border border-border bg-surface-subtle p-4 font-body text-xs">
+                      <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-secondary">Setup Guide</p>
+                      <ol className="list-inside list-decimal space-y-1 text-ink-secondary">
+                        <li>Log in to your <span className="font-semibold">Cloud Telephony dashboard</span> → Settings → Webhook</li>
+                        <li>Set CDR Webhook URL to:<br />
+                          <code className="mt-1 inline-block select-all break-all rounded border border-border bg-white px-2 py-1 font-mono text-[11px] text-ink">
+                            {cdrUrl ?? "Retrieving webhook URL…"}
+                          </code>
+                        </li>
+                        <li>If using a Webhook Secret, append it: <code className="rounded border border-border bg-white px-1 py-0.5 font-mono text-[10px]">?webhook_secret=YOUR_SECRET</code></li>
+                        <li>Set your <span className="font-semibold">App Secret</span> above (from Cloud Telephony dashboard → API Keys)</li>
+                        <li>Per-caller <span className="font-semibold">Agent IDs</span> are configured on the <span className="font-semibold">Team page</span></li>
+                      </ol>
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
+                  );
+                })()}
+
+                <SectionFooter
+                  status={
+                    <SaveStatus
+                      state={saveStates.voice ?? "idle"}
+                      dirty={sectionDirty.voice ?? false}
+                      idleLabel={voiceConfigured ? "Credentials are set" : "Credentials not set yet"}
+                    />
+                  }
+                >
+                  <SaveButton
+                    state={saveStates.voice ?? "idle"}
+                    dirty={sectionDirty.voice ?? false}
+                    disabled={!canManageSettings}
+                    onClick={() => handleSave("voice", voiceSection.fields.map(f => f.key))}
+                  />
+                </SectionFooter>
+              </SettingsSection>
+            </SettingsAccordion>
           )}
 
           {/* TAB 4: Automations */}
           {activeTab === "automations" && (
-            <div className="space-y-6">
-              <div className="card rounded-3xl animate-slide-up">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#ede9fe]">
-                      <Sparkles size={18} className="text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <h2 className="font-display text-base font-bold text-ink">AI Auto-Reply</h2>
-                      <p className="mt-1 max-w-2xl font-body text-sm leading-relaxed text-ink-muted">
-                        Turn on automatic AI replies for inbound WhatsApp messages. Voice delivery is controlled by your operator plan settings.
-                      </p>
-                    </div>
+            <SettingsAccordion>
+              <SettingsSection
+                id="ai-auto-reply"
+                icon={Sparkles}
+                accent="violet"
+                title="AI Auto-Reply"
+                description="Turn on automatic AI replies for inbound WhatsApp messages. Voice delivery is controlled by your operator plan settings."
+                status={{ label: aiAutoReplyEnabled ? "On" : "Off", tone: aiAutoReplyEnabled ? "on" : "off" }}
+                dirty={aiAutomationDirty}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+                  <div className="min-w-0">
+                    <p className="font-body text-sm font-semibold text-ink">Reply automatically with AI</p>
+                    <p className="mt-0.5 font-body text-xs text-ink-muted">
+                      When off, inbound messages sit in the inbox until a teammate answers them.
+                    </p>
                   </div>
-                  <div className="relative inline-flex p-0.5 rounded-full bg-border-subtle/80 border border-border/40 select-none shrink-0">
-                    <button
-                      type="button"
-                      disabled={!canManageSettings}
-                      onClick={() => {
-                        setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: "false" }));
-                      }}
-                      className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
-                        !aiAutoReplyEnabled ? "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.06)]" : "text-ink-muted hover:text-ink"
-                      } disabled:cursor-not-allowed disabled:opacity-60`}
-                    >
-                      Off
-                    </button>
-                    <button
-                      type="button"
-                      disabled={!canManageSettings}
-                      onClick={() => {
-                        setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: "true" }));
-                      }}
-                      className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
-                        aiAutoReplyEnabled ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_8px_rgba(91,33,182,0.2)]" : "text-ink-muted hover:text-ink"
-                      } disabled:cursor-not-allowed disabled:opacity-60`}
-                    >
-                      On
-                    </button>
-                  </div>
+                  <SwitchPill
+                    on={aiAutoReplyEnabled}
+                    disabled={!canManageSettings}
+                    onChange={(next) => setDrafts(d => ({ ...d, [AI_AUTO_REPLY_TOGGLE.key]: next ? "true" : "false" }))}
+                  />
                 </div>
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
-                  <div className="min-h-[20px]">
-                    {(saveStates.automations_ai ?? "idle") === "saved" && (
-                      <span className="inline-flex items-center gap-1.5 font-body text-sm font-medium text-emerald-600">
-                        <CheckCircle2 size={15} /> Saved successfully
-                      </span>
-                    )}
-                    {aiAutomationDirty && (saveStates.automations_ai ?? "idle") !== "saved" && (
-                      <span className="font-body text-[11px] font-medium text-amber-600">Unsaved changes</span>
-                    )}
-                    {!aiAutomationDirty && (saveStates.automations_ai ?? "idle") === "idle" && (
-                      <span className="font-body text-[11px] text-ink-muted">
-                        {aiAutoReplyEnabled ? "AI replies are enabled" : "AI replies are disabled"}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleSave("automations_ai", [AI_AUTO_REPLY_TOGGLE.key])}
-                    disabled={!canManageSettings || (saveStates.automations_ai ?? "idle") === "saving" || (saveStates.automations_ai ?? "idle") === "saved" || !aiAutomationDirty}
-                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 font-label text-sm font-semibold transition-all ${
-                      (saveStates.automations_ai ?? "idle") === "saved"
-                        ? "bg-emerald-100 text-emerald-700 cursor-default"
-                        : canManageSettings && aiAutomationDirty
-                        ? "bg-primary text-white hover:bg-primary/90"
-                        : "bg-surface-subtle text-ink-muted cursor-default"
-                    }`}
-                  >
-                    {(saveStates.automations_ai ?? "idle") === "saving" ? (
-                      <><Loader2 size={14} className="animate-spin" />Saving...</>
-                    ) : (saveStates.automations_ai ?? "idle") === "saved" ? (
-                      <><CheckCircle2 size={14} />Saved</>
-                    ) : (
-                      <><Save size={14} />Save Changes</>
-                    )}
-                  </button>
-                </div>
-              </div>
 
-              <div className="card rounded-3xl animate-slide-up">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#ede9fe]">
-                      <Sparkles size={18} className="text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <h2 className="font-display text-base font-bold text-ink">
-                        Auto follow-up when a lead goes quiet
-                      </h2>
-                      <p className="mt-1 max-w-2xl font-body text-sm leading-relaxed text-ink-muted">
-                        After the AI answers, if the lead stays silent, send one short message about
-                        what they were discussing. Never sent while your team has taken over the chat,
-                        or during a paid consultation.
-                      </p>
-                    </div>
+                <SectionFooter
+                  status={
+                    <SaveStatus
+                      state={saveStates.automations_ai ?? "idle"}
+                      dirty={aiAutomationDirty}
+                      idleLabel={aiAutoReplyEnabled ? "AI replies are enabled" : "AI replies are disabled"}
+                    />
+                  }
+                >
+                  <SaveButton
+                    state={saveStates.automations_ai ?? "idle"}
+                    dirty={aiAutomationDirty}
+                    disabled={!canManageSettings}
+                    onClick={() => handleSave("automations_ai", [AI_AUTO_REPLY_TOGGLE.key])}
+                  />
+                </SectionFooter>
+              </SettingsSection>
+
+              <SettingsSection
+                id="silence-nudge"
+                icon={Timer}
+                accent="emerald"
+                title="Auto follow-up when a lead goes quiet"
+                description="After the AI answers, if the lead stays silent, send one short message about what they were discussing. Never sent while your team has taken over the chat, or during a paid consultation."
+                status={{ label: silenceEnabled ? "On" : "Off", tone: silenceEnabled ? "on" : "off" }}
+                dirty={silenceDirty}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+                  <div className="min-w-0">
+                    <p className="font-body text-sm font-semibold text-ink">Send a quiet-lead follow-up</p>
+                    <p className="mt-0.5 font-body text-xs text-ink-muted">
+                      One short nudge per lead, on the topic they were already asking about.
+                    </p>
                   </div>
-                  <div className="relative inline-flex shrink-0 select-none rounded-full border border-border/40 bg-border-subtle/80 p-0.5">
-                    {(["Off", "On"] as const).map(label => {
-                      const value = label === "On" ? "true" : "false";
-                      const active = silenceEnabled === (value === "true");
-                      return (
-                        <button
-                          key={label}
-                          type="button"
-                          disabled={!canManageSettings}
-                          onClick={() => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.enabled]: value }))}
-                          className={`relative z-10 rounded-full px-3 py-0.5 font-label text-xs font-bold transition-all duration-300 ${
-                            active
-                              ? label === "On"
-                                ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_8px_rgba(91,33,182,0.2)]"
-                                : "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.06)]"
-                              : "text-ink-muted hover:text-ink"
-                          } disabled:cursor-not-allowed disabled:opacity-60`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <SwitchPill
+                    on={silenceEnabled}
+                    disabled={!canManageSettings}
+                    onChange={(next) => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.enabled]: next ? "true" : "false" }))}
+                  />
                 </div>
 
                 {silenceEnabled && (
-                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
                     <label className="block">
-                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                      <span className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                         Wait time (minutes)
                       </span>
                       <input
@@ -845,8 +758,8 @@ export default function SettingsPage() {
                         disabled={!canManageSettings}
                         value={silenceValue(SILENCE_NUDGE_KEYS.delays)}
                         onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.delays]: e.target.value }))}
-                        className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60 ${
-                          silenceDelaysValid ? "border-border-subtle" : "border-red-400"
+                        className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2 font-body text-sm text-ink transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60 ${
+                          silenceDelaysValid ? "border-border focus:border-primary" : "border-red-400 focus:ring-red-200"
                         }`}
                       />
                       <span className={`mt-1 block font-body text-[11px] ${silenceDelaysValid ? "text-ink-muted" : "text-red-600"}`}>
@@ -857,7 +770,7 @@ export default function SettingsPage() {
                     </label>
 
                     <label className="block">
-                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                      <span className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                         Daily limit per lead
                       </span>
                       <input
@@ -867,8 +780,8 @@ export default function SettingsPage() {
                         disabled={!canManageSettings}
                         value={silenceValue(SILENCE_NUDGE_KEYS.cap)}
                         onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.cap]: e.target.value }))}
-                        className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60 ${
-                          silenceCapValid ? "border-border-subtle" : "border-red-400"
+                        className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2 font-body text-sm text-ink transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60 ${
+                          silenceCapValid ? "border-border focus:border-primary" : "border-red-400 focus:ring-red-200"
                         }`}
                       />
                       <span className={`mt-1 block font-body text-[11px] ${silenceCapValid ? "text-ink-muted" : "text-red-600"}`}>
@@ -879,7 +792,7 @@ export default function SettingsPage() {
                     </label>
 
                     <label className="block">
-                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                      <span className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                         Quiet hours start (IST)
                       </span>
                       <input
@@ -887,12 +800,12 @@ export default function SettingsPage() {
                         disabled={!canManageSettings}
                         value={silenceValue(SILENCE_NUDGE_KEYS.quietStart)}
                         onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.quietStart]: e.target.value }))}
-                        className="mt-1.5 w-full rounded-xl border border-border-subtle bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60"
+                        className="mt-1.5 w-full rounded-xl border border-border bg-white px-3 py-2 font-body text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
                       />
                     </label>
 
                     <label className="block">
-                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                      <span className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                         Quiet hours end (IST)
                       </span>
                       <input
@@ -900,7 +813,7 @@ export default function SettingsPage() {
                         disabled={!canManageSettings}
                         value={silenceValue(SILENCE_NUDGE_KEYS.quietEnd)}
                         onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.quietEnd]: e.target.value }))}
-                        className="mt-1.5 w-full rounded-xl border border-border-subtle bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60"
+                        className="mt-1.5 w-full rounded-xl border border-border bg-white px-3 py-2 font-body text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
                       />
                       <span className="mt-1 block font-body text-[11px] text-ink-muted">
                         The first follow-up always sends — quiet hours only delay later ones.
@@ -909,65 +822,38 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
-                  <div className="min-h-[20px]">
-                    {(saveStates.automations_silence ?? "idle") === "saved" && (
-                      <span className="inline-flex items-center gap-1.5 font-body text-sm font-medium text-emerald-600">
-                        <CheckCircle2 size={15} /> Saved successfully
-                      </span>
-                    )}
-                    {silenceDirty && (saveStates.automations_silence ?? "idle") !== "saved" && (
-                      <span className="font-body text-[11px] font-medium text-amber-600">Unsaved changes</span>
-                    )}
-                    {!silenceDirty && (saveStates.automations_silence ?? "idle") === "idle" && (
-                      <span className="font-body text-[11px] text-ink-muted">
-                        {silenceEnabled ? "Quiet-lead follow-ups are enabled" : "Quiet-lead follow-ups are off"}
-                      </span>
-                    )}
-                  </div>
-                  <button
+                <SectionFooter
+                  status={
+                    <SaveStatus
+                      state={saveStates.automations_silence ?? "idle"}
+                      dirty={silenceDirty}
+                      idleLabel={silenceEnabled ? "Quiet-lead follow-ups are enabled" : "Quiet-lead follow-ups are off"}
+                    />
+                  }
+                >
+                  <SaveButton
+                    state={saveStates.automations_silence ?? "idle"}
+                    dirty={silenceDirty && silenceDelaysValid && silenceCapValid}
+                    disabled={!canManageSettings}
                     onClick={() => handleSave("automations_silence", Object.values(SILENCE_NUDGE_KEYS))}
-                    disabled={
-                      !canManageSettings ||
-                      !silenceDirty ||
-                      !silenceDelaysValid ||
-                      !silenceCapValid ||
-                      (saveStates.automations_silence ?? "idle") === "saving" ||
-                      (saveStates.automations_silence ?? "idle") === "saved"
-                    }
-                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 font-label text-sm font-semibold transition-all ${
-                      (saveStates.automations_silence ?? "idle") === "saved"
-                        ? "cursor-default bg-emerald-100 text-emerald-700"
-                        : canManageSettings && silenceDirty && silenceDelaysValid && silenceCapValid
-                        ? "bg-primary text-white hover:bg-primary/90"
-                        : "cursor-default bg-surface-subtle text-ink-muted"
-                    }`}
-                  >
-                    {(saveStates.automations_silence ?? "idle") === "saving" ? (
-                      <><Loader2 size={14} className="animate-spin" />Saving...</>
-                    ) : (saveStates.automations_silence ?? "idle") === "saved" ? (
-                      <><CheckCircle2 size={14} />Saved</>
-                    ) : (
-                      <><Save size={14} />Save Changes</>
-                    )}
-                  </button>
-                </div>
-              </div>
+                  />
+                </SectionFooter>
+              </SettingsSection>
 
               <InboxConfigPanel canManage={canManageSettings} />
 
               <TelecallingConfigPanel canManage={canManageSettings} />
 
               <IntakeConfigPanel canManage={canManageSettings} />
-            </div>
+            </SettingsAccordion>
           )}
 
           {/* TAB 6: Notifications */}
           {activeTab === "notifications" && hasNotifications && (
-            <div className="space-y-6">
+            <SettingsAccordion>
               <BusinessHoursPanel canManage={canManageSettings} />
               <NotificationConfigPanel canManage={canManageSettings} />
-            </div>
+            </SettingsAccordion>
           )}
 
         </div>
