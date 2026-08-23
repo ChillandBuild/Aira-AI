@@ -161,10 +161,12 @@ async def test_ai_auto_reply_disabled_skips_reengagement_no_send_no_log():
     must not fire either, and (matching the opted_out/undeliverable skips) no log row is
     written so the lead+step resumes automatically once re-enabled."""
     from app.services import reengagement_service as svc
+    from app.services import automation_guards as guards
     logs = []
     db = _make_db(logs)
     lead = _lead(2)  # window wide open — would normally send freeform
-    with patch.object(svc, "get_setting", return_value="false") as get_setting, \
+    # The master-switch read lives in automation_guards, shared with silence_nudge.
+    with patch.object(guards, "get_setting", return_value="false") as get_setting, \
          patch.object(svc, "send_whatsapp", new=AsyncMock()) as wa, \
          patch.object(svc, "send_template_message", new=AsyncMock()) as tpl:
         ok = await svc._send_reengagement(db, "t1", lead, _step())

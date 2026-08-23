@@ -71,6 +71,41 @@ const AI_AUTO_REPLY_TOGGLE: ToggleDef = {
   defaultEnabled: true,
 };
 
+const SILENCE_NUDGE_KEYS = {
+  enabled: "silence_nudge_enabled",
+  delays: "silence_nudge_delays",
+  cap: "silence_nudge_daily_cap",
+  quietStart: "silence_nudge_quiet_start",
+  quietEnd: "silence_nudge_quiet_end",
+} as const;
+
+const SILENCE_NUDGE_DEFAULTS: Record<string, string> = {
+  [SILENCE_NUDGE_KEYS.enabled]: "false",
+  [SILENCE_NUDGE_KEYS.delays]: "5",
+  [SILENCE_NUDGE_KEYS.cap]: "1",
+  [SILENCE_NUDGE_KEYS.quietStart]: "21:00",
+  [SILENCE_NUDGE_KEYS.quietEnd]: "09:00",
+};
+
+const SILENCE_MAX_RUNGS = 3;
+
+/** Mirrors _parse_delays in backend/app/services/silence_nudge.py: up to three
+ *  whole minutes, 1-1440, strictly increasing. Returns null when invalid so the
+ *  UI can reject on save rather than let the backend silently fall back. */
+function parseSilenceDelays(raw: string): number[] | null {
+  const parts = raw.split(",").map(s => s.trim()).filter(Boolean);
+  if (parts.length === 0 || parts.length > SILENCE_MAX_RUNGS) return null;
+  const nums: number[] = [];
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) return null;
+    const n = parseInt(part, 10);
+    if (n < 1 || n > 1440) return null;
+    if (nums.length > 0 && n <= nums[nums.length - 1]) return null;
+    nums.push(n);
+  }
+  return nums;
+}
+
 async function fetchSettings(): Promise<Setting[]> {
   const auth = await getAuthHeaders();
   const res = await fetch(`${API_URL}/api/v1/settings/`, { headers: auth });
@@ -340,6 +375,23 @@ export default function SettingsPage() {
       ? (AI_AUTO_REPLY_TOGGLE.defaultEnabled !== false ? "true" : "false")
       : (aiAutoReplyStored === "true" ? "true" : "false");
     return draft !== stored;
+  })();
+
+  const silenceStored = (key: string) => {
+    const stored = settingFor(key)?.display_value;
+    return !stored || stored === "Not set" ? SILENCE_NUDGE_DEFAULTS[key] : stored;
+  };
+  const silenceValue = (key: string) => drafts[key] ?? silenceStored(key);
+  const silenceEnabled = silenceValue(SILENCE_NUDGE_KEYS.enabled) === "true";
+  const silenceDirty = Object.values(SILENCE_NUDGE_KEYS).some(
+    key => drafts[key] !== undefined && drafts[key] !== silenceStored(key)
+  );
+  const silenceDelaysValid = parseSilenceDelays(silenceValue(SILENCE_NUDGE_KEYS.delays)) !== null;
+  const silenceCapValid = (() => {
+    const raw = silenceValue(SILENCE_NUDGE_KEYS.cap);
+    if (!/^\d+$/.test(raw)) return false;
+    const n = parseInt(raw, 10);
+    return n >= 1 && n <= 10;
   })();
 
   async function handleSave(sectionId: string, allKeys: string[]) {
@@ -731,6 +783,169 @@ export default function SettingsPage() {
                     {(saveStates.automations_ai ?? "idle") === "saving" ? (
                       <><Loader2 size={14} className="animate-spin" />Saving...</>
                     ) : (saveStates.automations_ai ?? "idle") === "saved" ? (
+                      <><CheckCircle2 size={14} />Saved</>
+                    ) : (
+                      <><Save size={14} />Save Changes</>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="card rounded-3xl animate-slide-up">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#ede9fe]">
+                      <Sparkles size={18} className="text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="font-display text-base font-bold text-ink">
+                        Auto follow-up when a lead goes quiet
+                      </h2>
+                      <p className="mt-1 max-w-2xl font-body text-sm leading-relaxed text-ink-muted">
+                        After the AI answers, if the lead stays silent, send one short message about
+                        what they were discussing. Never sent while your team has taken over the chat,
+                        or during a paid consultation.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="relative inline-flex shrink-0 select-none rounded-full border border-border/40 bg-border-subtle/80 p-0.5">
+                    {(["Off", "On"] as const).map(label => {
+                      const value = label === "On" ? "true" : "false";
+                      const active = silenceEnabled === (value === "true");
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          disabled={!canManageSettings}
+                          onClick={() => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.enabled]: value }))}
+                          className={`relative z-10 rounded-full px-3 py-0.5 font-label text-xs font-bold transition-all duration-300 ${
+                            active
+                              ? label === "On"
+                                ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_8px_rgba(91,33,182,0.2)]"
+                                : "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.06)]"
+                              : "text-ink-muted hover:text-ink"
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {silenceEnabled && (
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                        Wait time (minutes)
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        disabled={!canManageSettings}
+                        value={silenceValue(SILENCE_NUDGE_KEYS.delays)}
+                        onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.delays]: e.target.value }))}
+                        className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60 ${
+                          silenceDelaysValid ? "border-border-subtle" : "border-red-400"
+                        }`}
+                      />
+                      <span className={`mt-1 block font-body text-[11px] ${silenceDelaysValid ? "text-ink-muted" : "text-red-600"}`}>
+                        {silenceDelaysValid
+                          ? "5 sends one message after 5 minutes. 5,60 adds a second an hour later."
+                          : "Up to 3 whole numbers, 1–1440, increasing. e.g. 5 or 5,60"}
+                      </span>
+                    </label>
+
+                    <label className="block">
+                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                        Daily limit per lead
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={10}
+                        disabled={!canManageSettings}
+                        value={silenceValue(SILENCE_NUDGE_KEYS.cap)}
+                        onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.cap]: e.target.value }))}
+                        className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60 ${
+                          silenceCapValid ? "border-border-subtle" : "border-red-400"
+                        }`}
+                      />
+                      <span className={`mt-1 block font-body text-[11px] ${silenceCapValid ? "text-ink-muted" : "text-red-600"}`}>
+                        {silenceCapValid
+                          ? "Most follow-ups one lead can get in 24 hours."
+                          : "Must be a whole number between 1 and 10."}
+                      </span>
+                    </label>
+
+                    <label className="block">
+                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                        Quiet hours start (IST)
+                      </span>
+                      <input
+                        type="time"
+                        disabled={!canManageSettings}
+                        value={silenceValue(SILENCE_NUDGE_KEYS.quietStart)}
+                        onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.quietStart]: e.target.value }))}
+                        className="mt-1.5 w-full rounded-xl border border-border-subtle bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="font-label text-xs uppercase tracking-widest text-ink-muted">
+                        Quiet hours end (IST)
+                      </span>
+                      <input
+                        type="time"
+                        disabled={!canManageSettings}
+                        value={silenceValue(SILENCE_NUDGE_KEYS.quietEnd)}
+                        onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.quietEnd]: e.target.value }))}
+                        className="mt-1.5 w-full rounded-xl border border-border-subtle bg-white px-3 py-2 font-body text-sm text-ink disabled:opacity-60"
+                      />
+                      <span className="mt-1 block font-body text-[11px] text-ink-muted">
+                        The first follow-up always sends — quiet hours only delay later ones.
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
+                  <div className="min-h-[20px]">
+                    {(saveStates.automations_silence ?? "idle") === "saved" && (
+                      <span className="inline-flex items-center gap-1.5 font-body text-sm font-medium text-emerald-600">
+                        <CheckCircle2 size={15} /> Saved successfully
+                      </span>
+                    )}
+                    {silenceDirty && (saveStates.automations_silence ?? "idle") !== "saved" && (
+                      <span className="font-body text-[11px] font-medium text-amber-600">Unsaved changes</span>
+                    )}
+                    {!silenceDirty && (saveStates.automations_silence ?? "idle") === "idle" && (
+                      <span className="font-body text-[11px] text-ink-muted">
+                        {silenceEnabled ? "Quiet-lead follow-ups are enabled" : "Quiet-lead follow-ups are off"}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleSave("automations_silence", Object.values(SILENCE_NUDGE_KEYS))}
+                    disabled={
+                      !canManageSettings ||
+                      !silenceDirty ||
+                      !silenceDelaysValid ||
+                      !silenceCapValid ||
+                      (saveStates.automations_silence ?? "idle") === "saving" ||
+                      (saveStates.automations_silence ?? "idle") === "saved"
+                    }
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 font-label text-sm font-semibold transition-all ${
+                      (saveStates.automations_silence ?? "idle") === "saved"
+                        ? "cursor-default bg-emerald-100 text-emerald-700"
+                        : canManageSettings && silenceDirty && silenceDelaysValid && silenceCapValid
+                        ? "bg-primary text-white hover:bg-primary/90"
+                        : "cursor-default bg-surface-subtle text-ink-muted"
+                    }`}
+                  >
+                    {(saveStates.automations_silence ?? "idle") === "saving" ? (
+                      <><Loader2 size={14} className="animate-spin" />Saving...</>
+                    ) : (saveStates.automations_silence ?? "idle") === "saved" ? (
                       <><CheckCircle2 size={14} />Saved</>
                     ) : (
                       <><Save size={14} />Save Changes</>

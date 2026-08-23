@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime, timezone, timedelta
-from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.services.ai_reply import send_whatsapp
+from app.services.automation_guards import lead_blocks_automated_outbound, master_switch_on
 from app.services.meta_cloud import send_template_message
 
 logger = logging.getLogger(__name__)
@@ -255,26 +255,22 @@ async def _send_reengagement(db, tenant_id: str, lead: dict, step: dict) -> bool
     lead_id = lead["id"]
     phone = lead["phone"]
     step_id = step["id"]
-    if get_setting("ai_auto_reply_enabled", fallback="true", tenant_id=tenant_id) == "false":
+    if not master_switch_on(tenant_id):
         logger.info(f"Re-engagement step {step_id} skipped for lead {lead_id} (ai_auto_reply disabled for tenant {tenant_id})")
         return False
     message_type = step["message_type"]
 
-    # If lead doesn't have a phone number, we can't send WhatsApp
-    if not phone:
-        return False
-
-    # Never re-engage a lead WhatsApp can't deliver to. Meta marks these via the delivery
-    # webhook (delivery_status=failed → leads.whatsapp_undeliverable=True). The original
-    # template never reached them, so a follow-up can't either — skip silently, no log.
-    if lead.get("whatsapp_undeliverable"):
-        logger.info(f"Re-engagement step {step_id} skipped for lead {lead_id} (whatsapp_undeliverable)")
-        return False
-
-    # Never re-engage a lead who has opted out. Messaging an opted-out lead is a
-    # compliance risk regardless of channel — skip silently, no log.
-    if lead.get("opted_out"):
-        logger.info(f"Re-engagement step {step_id} skipped for lead {lead_id} (opted_out)")
+    # Shared with silence_nudge via automation_guards: no phone (can't send),
+    # whatsapp_undeliverable (Meta marked the number unreachable via the delivery
+    # webhook — the original template never landed, so a follow-up can't either),
+    # and opted_out (a compliance risk regardless of channel).
+    #
+    # No log row on any of these skips, matching the master-switch skip above --
+    # re-engagement should resume for this lead+step once the blocker clears, not
+    # be permanently marked processed.
+    block_reason = lead_blocks_automated_outbound(lead)
+    if block_reason:
+        logger.info(f"Re-engagement step {step_id} skipped for lead {lead_id} ({block_reason})")
         return False
 
     # Check 24-hour WhatsApp session window for freeform messages

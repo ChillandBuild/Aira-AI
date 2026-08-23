@@ -747,6 +747,59 @@ Do not use markdown or quotes."""
         return REENGAGEMENT_FALLBACKS.get(cadence, "Hi! Just checking in — happy to help if you have any questions.")
 
 
+async def generate_silence_nudge(lead_id: str, db=None) -> str:
+    """One short line for a lead who went quiet minutes after a live AI reply.
+
+    Deliberately does NOT go through _build_base_prompt(): that carries catalog
+    context, and commits 24494b3d and 5716c840 both fixed link/catalog leaks
+    into outbound copy. Keep this prompt self-contained and link-free.
+    """
+    from app.services.silence_nudge import SILENCE_NUDGE_FALLBACK
+
+    db = db or get_supabase()
+    lead = (
+        db.table("leads")
+        .select("name,tenant_id")
+        .eq("id", str(lead_id))
+        .limit(1)
+        .execute()
+    )
+    lead_data = lead.data[0] if lead.data else {}
+    tenant_id = lead_data.get("tenant_id")
+
+    history_rows = list(reversed(_recent_thread(db, lead_id, limit=6)))
+    history = "\n".join(
+        f"{row.get('direction', 'unknown')}: {row.get('content', '').strip()}"
+        for row in history_rows
+        if (row.get("content") or "").strip()
+    ) or "No prior conversation history available."
+
+    prompt = f"""A customer was mid-conversation with a business on WhatsApp and has gone quiet.
+Write ONE short line checking in on them.
+
+Customer name: {lead_data.get("name") or "there"}
+Recent conversation:
+{history}
+
+Rules:
+- Under 160 characters. One sentence.
+- No greeting — the conversation is already open.
+- Refer naturally to whatever was just being discussed.
+- Offer to help further. Low pressure, never pushy.
+- NEVER include links, URLs, prices, discounts, or new offers.
+- No markdown, no quotes, at most one emoji."""
+
+    try:
+        text = await _llm_complete(prompt, max_tokens=60, tenant_id=tenant_id)
+        text = " ".join((text or "").split())
+        if not text:
+            return SILENCE_NUDGE_FALLBACK
+        return text[:160]
+    except Exception as e:
+        logger.error(f"Silence nudge copy failed for lead {lead_id}: {e}")
+        return SILENCE_NUDGE_FALLBACK
+
+
 _AI_ESCALATION_RE = re.compile(
     r"""
     (
@@ -1714,7 +1767,25 @@ async def generate_reply(
     if outbound_media_type:
         outbound_row["media_type"] = outbound_media_type
         outbound_row["media_mime_type"] = outbound_media_mime_type
-    db.table("messages").insert(outbound_row).execute()
+    _outbound_res = db.table("messages").insert(outbound_row).execute()
+
+    # Arm the silence nudge. Best-effort by design: the customer has already
+    # received their reply, and a failure here must never turn a delivered
+    # answer into an exception. Same pattern as the intake/escalation blocks.
+    try:
+        from app.services.silence_nudge import maybe_arm_after_ai_reply
+        maybe_arm_after_ai_reply(
+            db,
+            tenant_id=tenant_id,
+            lead_id=str(lead_id),
+            channel=channel,
+            is_ai=is_ai,
+            sid=sid,
+            reply_source=reply_source,
+            inserted=((_outbound_res.data or [None])[0]),
+        )
+    except Exception:
+        logger.exception("Silence nudge arm failed for lead %s — reply already sent", lead_id)
 
     # Step 5: Score Engine v2 — composite arc + intent + engagement (no gate)
     new_segment = segment  # fallback if scoring fails

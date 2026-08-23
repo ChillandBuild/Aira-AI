@@ -277,6 +277,14 @@ async def _process_inbound_message_background(
                 "media_type": "audio",
                 "media_mime_type": media_mime_type,
             }).execute()
+            # The thread has moved on — drop any pending silence nudge. This is
+            # an optimisation only; _thread_unchanged() at fire time is what
+            # actually prevents a nudge landing on top of a reply.
+            try:
+                from app.services.silence_nudge import cancel_pending
+                cancel_pending(db, lead_id)
+            except Exception:
+                logger.exception("Silence nudge cancel failed for lead %s", lead_id)
             try:
                 from app.services.notify import notify_assigned_caller_of_reply
                 notify_assigned_caller_of_reply(lead_id, tenant_id, db=db)
@@ -780,6 +788,17 @@ async def whatsapp_webhook(
                             "attributed_ad_creative_id": attributed_creative_id_for_message,
                         }
                         db.table("messages").insert(insert_row).execute()
+
+                        # The thread has moved on — drop any pending silence
+                        # nudge. Optimisation only; _thread_unchanged() at fire
+                        # time is the real guard against a nudge landing on top
+                        # of a reply.
+                        try:
+                            from app.services.silence_nudge import cancel_pending
+                            if lead_id:
+                                cancel_pending(db, lead_id)
+                        except Exception:
+                            logger.exception("Silence nudge cancel failed for lead %s", lead_id)
 
                         try:
                             from app.services.notify import notify_assigned_caller_of_reply

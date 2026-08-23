@@ -182,6 +182,17 @@ async def _process_reengagement_rules() -> None:
         logger.error(f"Re-engagement scheduler error: {e}")
 
 
+async def _process_silence_nudges() -> None:
+    """APScheduler job: send due silence nudges."""
+    try:
+        from app.services.silence_nudge import drain_due_nudges
+        count = await drain_due_nudges()
+        if count:
+            logger.info(f"Silence nudge scheduler: sent {count} nudge(s)")
+    except Exception as e:
+        logger.error(f"Silence nudge scheduler error: {e}")
+
+
 async def _sweep_unassigned_leads() -> None:
     """APScheduler job: state-based safety net that assigns any unassigned lead
     whose current segment qualifies under the tenant's telecalling_config."""
@@ -363,6 +374,13 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     _scheduler.add_job(
+        _process_silence_nudges,
+        trigger="interval",
+        minutes=1,
+        id="silence-nudge",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
         _sweep_unassigned_leads,
         trigger="interval",
         minutes=2,
@@ -432,7 +450,7 @@ async def lifespan(app: FastAPI):
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m)")
+    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m)")
 
     yield
 
