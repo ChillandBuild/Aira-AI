@@ -27,6 +27,14 @@ export function formatDateTime(dateStr: string): string {
   return `${datePart}, ${timePart}`;
 }
 
+/** Today's calendar date in IST, as YYYY-MM-DD.
+ *  `new Date().toISOString().slice(0, 10)` returns UTC's date, which is still
+ *  yesterday until 05:30 IST -- date pickers defaulting to it opened on the
+ *  wrong day every early morning. */
+export function istTodayIso(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+}
+
 export function formatIST(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString("en-IN", {
     timeZone: "Asia/Kolkata",

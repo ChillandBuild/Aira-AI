@@ -341,6 +341,9 @@ export interface SystemStatus {
 export interface AnalyticsOverview {
   daily_leads: { day: string; count: number }[];
   daily_leads_trend_pct: number | null;
+  /** Older leads brought back by an ad, per day. Optional so a frontend
+   *  deployed ahead of the backend renders Fresh-only instead of crashing. */
+  returning_ad_leads_daily?: { day: string; count: number }[];
   daily_messages: { day: string; inbound: number; outbound: number; ai: number; human: number }[];
   funnel: { inquiries: number; engaged: number; hot: number; converted: number };
   ai_vs_human: { ai: number; human: number };

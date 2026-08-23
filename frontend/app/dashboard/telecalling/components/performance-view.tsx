@@ -6,6 +6,7 @@ import {
   X, Check, Download, ChevronUp, ChevronDown, Loader2, ShieldAlert,
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, type Caller, type TelecallingAnalyticsExtended } from "@/lib/api";
+import { istTodayIso } from "@/lib/utils";
 import { formatTalk } from "./sections/performance-format";
 import TeamAttendanceGrid from "../../team/TeamAttendanceGrid";
 import LiveAgentStatus from "./sections/LiveAgentStatus";
@@ -40,12 +41,12 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   // Overall stats date-range filter
-  const [statsFrom, setStatsFrom] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [statsTo, setStatsTo] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [statsFrom, setStatsFrom] = useState<string>(istTodayIso());
+  const [statsTo, setStatsTo] = useState<string>(istTodayIso());
 
   // CSV Export
-  const [exportSince, setExportSince] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [exportUntil, setExportUntil] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [exportSince, setExportSince] = useState<string>(istTodayIso());
+  const [exportUntil, setExportUntil] = useState<string>(istTodayIso());
   const [exporting, setExporting] = useState(false);
 
   // Shift config
@@ -189,7 +190,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
   const selectedCallerName = selectedCaller?.name;
   const callerStats = stats?.per_caller?.find((p) => p.caller_id === selectedCallerId);
   const flaggedCount = (stats?.per_caller || []).filter((c) => c.bunking_flag).length;
-  const today = new Date().toISOString().split("T")[0];
+  const today = istTodayIso();
   const isTodayView = statsFrom === today && statsTo === today;
   const sortIcon = (field: SortField) =>
     sortField === field

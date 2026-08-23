@@ -196,6 +196,12 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
                 "is_ai_generated": False,
                 "meta_message_id": str(message_id),
                 "tenant_id": tenant_id,
+                # Stamp the ad flag on the message, not just the lead: the
+                # lead's ad_campaign_id is deliberately left alone on repeat
+                # contacts, so it can't tell us "this particular message came
+                # from an ad". /analytics/overview reads this column to count
+                # returning leads an ad brought back.
+                "via_ad_referral": referral.get("source_type") == "ad",
             }
             db.table("messages").insert(insert_row).execute()
 

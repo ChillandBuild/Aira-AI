@@ -60,8 +60,13 @@ def require_analytics_view(ctx: dict = Depends(get_tenant_and_role)) -> dict:
 
 
 def _today_start() -> str:
-    now = datetime.now(timezone.utc)
-    return now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    """Midnight of the current IST calendar day, as a UTC ISO string.
+
+    The tenant is IST, so "today" starts at IST midnight. Anchoring to UTC
+    midnight filed the 00:00-05:30 IST slice of every night under the
+    previous day.
+    """
+    return _ist_today_start_utc().isoformat()
 
 
 def _week_start() -> str:
@@ -376,8 +381,24 @@ async def telecalling_analytics(
     # Reporting window: defaults to "today" when no from/to given.
     if from_date and to_date:
         try:
-            range_start = datetime.combine(date.fromisoformat(from_date), datetime.min.time()).replace(tzinfo=timezone.utc)
-            range_end_exclusive = datetime.combine(date.fromisoformat(to_date), datetime.min.time()).replace(tzinfo=timezone.utc) + timedelta(days=1)
+            # A picked date range means IST calendar days -- the same
+            # definition this route's own "today" above already uses. Built at
+            # UTC midnight, every custom range ran 5.5 hours late (1 Aug-7 Aug
+            # actually fetched 1 Aug 05:30 IST to 8 Aug 05:30 IST).
+            range_start = (
+                datetime.combine(
+                    date.fromisoformat(from_date), datetime.min.time(), timezone.utc
+                )
+                - IST_OFFSET
+            )
+            range_end_exclusive = (
+                datetime.combine(
+                    date.fromisoformat(to_date) + timedelta(days=1),
+                    datetime.min.time(),
+                    timezone.utc,
+                )
+                - IST_OFFSET
+            )
         except ValueError:
             raise HTTPException(status_code=400, detail="from/to must be in YYYY-MM-DD format")
     else:
@@ -775,10 +796,17 @@ async def caller_timeline(
     db = get_supabase()
     
     if not date:
-        date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # Tenant is IST. UTC's "today" is still yesterday until 05:30 IST, so
+        # opening this page overnight showed the previous day's timeline.
+        # NB: the `date` query param shadows datetime.date inside this
+        # function -- parse with strptime, not date.fromisoformat.
+        date = (datetime.now(timezone.utc) + IST_OFFSET).strftime("%Y-%m-%d")
         
     try:
-        day_start = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        day_start = (
+            datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            - IST_OFFSET
+        )
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid date format, use YYYY-MM-DD")
         
@@ -1245,7 +1273,20 @@ async def overview_analytics(
     # Cost-per-lead and first-response speed for the selected range. Additive
     # fields only -- the dashboard home and operator console read this same
     # response and must keep working untouched.
-    money_res, response_res = await asyncio.gather(
+    # Returning leads that an ad brought back: an older lead who sent an
+    # ad-tagged message on a given day. daily_leads_map above only ever counts
+    # leads by created_at, so before this these conversations appeared in no
+    # lead count at all. Bounded by the IST day list rather than
+    # window_start_dt (a rolling "now - 7 days") so the oldest day in the
+    # series is a whole IST day, matching the buckets it is merged into.
+    returning_window_start = (
+        datetime.combine(
+            date.fromisoformat(days_iso_ist[0]), datetime.min.time(), timezone.utc
+        )
+        - IST_OFFSET
+    )
+
+    money_res, response_res, returning_res = await asyncio.gather(
         asyncio.to_thread(
             db.rpc("analytics_period_money", {
                 "p_tenant_id": tenant_id,
@@ -1260,15 +1301,32 @@ async def overview_analytics(
                 "p_end": now.isoformat(),
             }).execute
         ),
+        asyncio.to_thread(
+            db.rpc("analytics_daily_returning_ad_leads", {
+                "p_tenant_id": tenant_id,
+                "p_start": returning_window_start.isoformat(),
+                "p_end": now.isoformat(),
+                "p_timezone": "Asia/Kolkata",
+            }).execute
+        ),
     )
     money_rows = money_res.data or []
     response_rows = response_res.data or []
+
+    returning_ad_leads_map = {d: 0 for d in days_iso_ist}
+    for row in (returning_res.data or []):
+        day = str(row.get("day") or "")
+        if day in returning_ad_leads_map:
+            returning_ad_leads_map[day] = int(row.get("returning_leads") or 0)
 
     return {
         "money": money_rows[0] if money_rows else {},
         "response_times": response_rows[0] if response_rows else {},
         "daily_leads": [{"day": d, "count": daily_leads_map[d]} for d in days_iso_ist],
         "daily_leads_trend_pct": daily_leads_trend_pct,
+        "returning_ad_leads_daily": [
+            {"day": d, "count": returning_ad_leads_map[d]} for d in days_iso_ist
+        ],
         "daily_messages": [
             {
                 "day": d,

@@ -14,11 +14,12 @@ interface HeroCardProps {
   gradientId: string;
   trendPct: number | null;
   trendLabel: string;
+  sub?: string;
 }
 
 function HeroCard({
   icon, iconGradient, glowColor, label, value,
-  sparklineData, sparklineColor, gradientId, trendPct, trendLabel,
+  sparklineData, sparklineColor, gradientId, trendPct, trendLabel, sub,
 }: HeroCardProps) {
   return (
     <div className="group relative overflow-hidden card rounded-[32px] p-8 flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300">
@@ -34,6 +35,9 @@ function HeroCard({
         <div className="font-mono font-bold text-[40px] text-ink tracking-tight leading-none mt-2">
           {value}
         </div>
+        {sub && (
+          <div className="font-label text-xs font-medium text-ink-muted mt-2">{sub}</div>
+        )}
       </div>
       <TrendBadge pct={trendPct} label={trendLabel} />
     </div>
@@ -51,7 +55,23 @@ function pctVsYesterday(series: { day: string; count: number }[]): number | null
 }
 
 export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
-  const newLeadsToday = overview.daily_leads[overview.daily_leads.length - 1]?.count ?? 0;
+  // A lead created months ago who clicks a fresh ad today is a real
+  // conversation that ad money bought, but daily_leads only ever counts leads
+  // by their creation date, so they landed in no tile at all. Fresh + Returned
+  // is the honest "conversations started today"; the split stays visible so a
+  // day carried by the old list doesn't read as new growth.
+  const returningByDay = new Map(
+    (overview.returning_ad_leads_daily ?? []).map((d) => [d.day, d.count]),
+  );
+  const combinedDailyLeads = overview.daily_leads.map((d) => ({
+    day: d.day,
+    count: d.count + (returningByDay.get(d.day) ?? 0),
+  }));
+
+  const freshLeadsToday = overview.daily_leads[overview.daily_leads.length - 1]?.count ?? 0;
+  const returningLeadsToday =
+    returningByDay.get(overview.daily_leads[overview.daily_leads.length - 1]?.day ?? "") ?? 0;
+  const newLeadsToday = freshLeadsToday + returningLeadsToday;
   const newHotLeadsToday = overview.new_hot_leads_daily[overview.new_hot_leads_daily.length - 1]?.count ?? 0;
 
   return (
@@ -63,10 +83,11 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
           glowColor="bg-emerald-500/5 group-hover:bg-emerald-500/10"
           label="New Leads Today"
           value={newLeadsToday}
-          sparklineData={overview.daily_leads}
+          sub={`Fresh ${freshLeadsToday} · Returned ${returningLeadsToday}`}
+          sparklineData={combinedDailyLeads}
           sparklineColor="#10b981"
           gradientId="totalLeadsGrad"
-          trendPct={pctVsYesterday(overview.daily_leads)}
+          trendPct={pctVsYesterday(combinedDailyLeads)}
           trendLabel="vs yesterday"
         />
         <HeroCard

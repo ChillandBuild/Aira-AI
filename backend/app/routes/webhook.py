@@ -697,6 +697,13 @@ async def whatsapp_webhook(
                     if body and not ad_attributed:
                         google_ref = parse_google_ref(body)
                         if google_ref:
+                            # The message carries a Google ad tag, so flag it
+                            # regardless of what happens to the campaign link
+                            # below -- that link is skipped on repeat contacts
+                            # (it must not clobber an earlier attribution),
+                            # which previously left every returning Google
+                            # lead unflagged and uncounted.
+                            ad_attributed = True
                             try:
                                 from app.services.growth import get_or_create_campaign
                                 campaign = get_or_create_campaign(

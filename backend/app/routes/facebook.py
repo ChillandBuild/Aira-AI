@@ -198,6 +198,9 @@ async def facebook_webhook(tenant_id: str, request: Request, background_tasks: B
                 "is_ai_generated": False,
                 "fb_message_id": str(message_id),
                 "tenant_id": tenant_id,
+                # See instagram.py: the flag belongs on the message because
+                # the lead-level ad link is not refreshed on repeat contacts.
+                "via_ad_referral": referral.get("source_type") == "ad",
             }).execute()
 
             try:
