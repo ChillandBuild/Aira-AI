@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_and_role
-from app.routes.analytics import IST_OFFSET, _today_start
+from app.routes.analytics import IST_OFFSET
 
 
 def _ist_today() -> str:
@@ -146,12 +146,6 @@ class IstCalendarDayTests(unittest.TestCase):
 
     def tearDown(self):
         app.dependency_overrides.clear()
-
-    def test_today_start_is_ist_midnight(self):
-        start = datetime.fromisoformat(_today_start())
-        local = start + IST_OFFSET
-        self.assertEqual(local.time(), datetime.min.time())
-        self.assertEqual(local.date().isoformat(), _ist_today())
 
     @staticmethod
     def _bounds(db, method):

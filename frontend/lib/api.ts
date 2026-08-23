@@ -560,13 +560,6 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
-export interface WhatsAppAnalytics {
-  messages_sent_today: number;
-  messages_received_today: number;
-  ai_reply_count_today: number;
-  avg_reply_time_seconds: number | null;
-}
-
 export interface TelecallingAnalytics {
   calls_today: number;
   calls_this_week: number;
@@ -1585,7 +1578,6 @@ export const api = {
   analytics: {
     overview: () => apiFetch<AnalyticsOverview>(`/api/v1/analytics/overview`),
     adPerformance: () => apiFetch<AdPerformanceSummary>(`/api/v1/analytics/ad-performance`),
-    whatsapp: () => apiFetch<WhatsAppAnalytics>(`/api/v1/analytics/whatsapp`),
     telecalling: () => apiFetch<TelecallingAnalytics>(`/api/v1/analytics/telecalling`),
     funnel: () => apiFetch<FunnelAnalytics>(`/api/v1/analytics/funnel`),
     overviewExtended: (range: "today" | "7d" | "30d" = "7d") =>

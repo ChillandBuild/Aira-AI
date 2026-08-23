@@ -59,16 +59,6 @@ def require_analytics_view(ctx: dict = Depends(get_tenant_and_role)) -> dict:
     return ctx
 
 
-def _today_start() -> str:
-    """Midnight of the current IST calendar day, as a UTC ISO string.
-
-    The tenant is IST, so "today" starts at IST midnight. Anchoring to UTC
-    midnight filed the 00:00-05:30 IST slice of every night under the
-    previous day.
-    """
-    return _ist_today_start_utc().isoformat()
-
-
 def _week_start() -> str:
     return (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
 
@@ -301,35 +291,6 @@ def _window_aggregate(
         "conversions": round(conversions / days, 1),
         "avg_talk_seconds": avg_talk_seconds,
         "idle_minutes": round(total_idle / days, 1),
-    }
-
-
-@router.get("/whatsapp")
-async def whatsapp_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
-    db = get_supabase()
-    today = _today_start()
-
-    msgs_today_res = await asyncio.to_thread(
-        db.table("messages")
-        .select("id,direction,is_ai_generated")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", today)
-        .execute
-    )
-    msgs_today = msgs_today_res.data or []
-
-    messages_sent_today = sum(1 for m in msgs_today if m.get("direction") == "outbound")
-    messages_received_today = sum(1 for m in msgs_today if m.get("direction") == "inbound")
-    ai_reply_count_today = sum(
-        1 for m in msgs_today
-        if m.get("direction") == "outbound" and m.get("is_ai_generated")
-    )
-
-    return {
-        "messages_sent_today": messages_sent_today,
-        "messages_received_today": messages_received_today,
-        "ai_reply_count_today": ai_reply_count_today,
-        "avg_reply_time_seconds": None,
     }
 
 
