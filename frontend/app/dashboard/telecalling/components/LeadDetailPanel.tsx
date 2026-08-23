@@ -6,6 +6,7 @@ import type { NotesResponse, ActiveCallCtx } from "../types";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import LeadAttribution from "./LeadAttribution";
 import { getMessageDisplayMeta } from "../lib/message-display";
+import { TickMark } from "@/components/ui/controls";
 
 export const QUICK_NOTE_TAGS = [
   "Meeting scheduled",
@@ -444,15 +445,16 @@ export default function LeadDetailPanel({
 
                 {/* ── Pin + Save ── */}
                 <div className="flex items-center justify-between">
-                  <label className="flex items-center gap-1.5 font-body text-[11px] text-[#57534e] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={quickNotePinned}
-                      onChange={(e) => setQuickNotePinned(e.target.checked)}
-                      className="rounded border-[#d6cfc9] text-orange-500 focus:ring-orange-300"
-                    />
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={quickNotePinned}
+                    onClick={() => setQuickNotePinned(!quickNotePinned)}
+                    className="flex items-center gap-1.5 font-body text-[11px] text-[#57534e]"
+                  >
+                    <TickMark checked={quickNotePinned} size="sm" />
                     Pin this note
-                  </label>
+                  </button>
                   <button
                     onClick={() => saveQuickNote(selectedLead.id)}
                     disabled={

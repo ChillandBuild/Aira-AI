@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AlertTriangle, Loader2, X } from "lucide-react";
 import { Portal } from "./ui";
 import type { DisconnectTarget } from "./disconnect";
+import { TickMark } from "@/components/ui/controls";
 
 export default function DisconnectDialog({
   target, busy, error, onConfirm, onCancel,
@@ -49,13 +50,19 @@ export default function DisconnectDialog({
               </p>
             )}
 
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border-subtle p-3">
-              <input type="checkbox" checked={releaseAssets} onChange={e => setReleaseAssets(e.target.checked)} className="mt-0.5 h-4 w-4 accent-red-600" />
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={releaseAssets}
+              onClick={() => setReleaseAssets(!releaseAssets)}
+              className="flex w-full items-start gap-2.5 rounded-xl border border-border-subtle p-3 text-left transition-colors hover:border-border"
+            >
+              <TickMark checked={releaseAssets} size="sm" className="mt-0.5" />
               <span className="font-body text-xs text-ink-secondary">
                 Also release these assets so they can be connected to a different Aira workspace.
                 <span className="mt-0.5 block text-ink-muted">Leave this off to keep them reserved for you.</span>
               </span>
-            </label>
+            </button>
           </div>
 
           <div className="flex items-center justify-end gap-2 border-t border-border-subtle bg-surface-low p-5">

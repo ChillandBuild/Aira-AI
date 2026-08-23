@@ -5,6 +5,7 @@ import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, E
 import { operatorFetch } from "@/lib/operator";
 import { OnboardingWizard } from "./components/onboarding-wizard";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { CheckTick } from "@/components/ui/controls";
 
 type Client = {
   id: string;
@@ -363,13 +364,12 @@ export default function OperatorPage() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-start gap-2.5">
-                  <input
-                    type="checkbox"
+                  <CheckTick
                     checked={selectedIds.has(client.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => { e.stopPropagation(); toggleSelected(client.id); }}
+                    onChange={() => toggleSelected(client.id)}
                     aria-label={`Select ${client.name}`}
-                    className="mt-1 w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                    size="sm"
+                    className="mt-0.5"
                   />
                   <div>
                     <h3 className="text-base font-semibold text-ink">{client.name}</h3>
@@ -406,15 +406,12 @@ export default function OperatorPage() {
             <thead>
               <tr className="border-b border-border">
                 <th className="px-5 py-3 text-left bg-surface-mid w-10">
-                  <input
-                    type="checkbox"
+                  <CheckTick
                     checked={clients.length > 0 && selectedIds.size === clients.length}
-                    ref={(el) => {
-                      if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < clients.length;
-                    }}
-                    onChange={toggleSelectAll}
+                    indeterminate={selectedIds.size > 0 && selectedIds.size < clients.length}
+                    onChange={() => toggleSelectAll()}
                     aria-label="Select all clients"
-                    className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                    size="sm"
                   />
                 </th>
                 {["Company", "Status", "Created", "Actions"].map(h => (
@@ -434,12 +431,11 @@ export default function OperatorPage() {
                   onKeyDown={(e) => handleRowKeyDown(e, client.id)}
                 >
                   <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
+                    <CheckTick
                       checked={selectedIds.has(client.id)}
                       onChange={() => toggleSelected(client.id)}
                       aria-label={`Select ${client.name}`}
-                      className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/40 cursor-pointer"
+                      size="sm"
                     />
                   </td>
                   <td className="px-5 py-4">

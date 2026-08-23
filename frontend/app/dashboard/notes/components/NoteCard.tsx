@@ -5,6 +5,7 @@ import { formatPhone, formatDateTime } from "@/lib/utils";
 import type { NoteWithLead } from "@/lib/api";
 import type { Note } from "@/app/dashboard/telecalling/types";
 import { cardBgFor, splitNoteContent, SEGMENT_COLORS, SEGMENT_LABELS, TagChip, TagSelector } from "./shared";
+import { TickMark } from "@/components/ui/controls";
 
 interface NoteCardProps {
   note: Note | NoteWithLead;
@@ -69,10 +70,16 @@ export default function NoteCard({
         />
         <div className="flex items-center justify-between gap-2 flex-wrap mt-2">
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input type="checkbox" checked={editPinned} onChange={(e) => onPinnedChange(e.target.checked)} className="rounded" />
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={editPinned}
+              onClick={() => onPinnedChange(!editPinned)}
+              className="flex select-none items-center gap-1.5"
+            >
+              <TickMark checked={editPinned} size="sm" />
               <span className="font-label text-xs text-[#78716c]">Pinned</span>
-            </label>
+            </button>
             <TagSelector selected={editTags} onChange={onTagsChange} />
           </div>
           <div className="flex gap-2">

@@ -1,8 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Bell, Trash2, Plus } from "lucide-react";
+import { Bell, MessageSquareText, Siren, Trash2, Plus } from "lucide-react";
 import { api, NotificationConfig, Caller, WabaTemplate } from "@/lib/api";
-import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
+import {
+  SaveButton,
+  SaveStatus,
+  SectionFooter,
+  SettingsSection,
+  SwitchPill,
+  TickMark,
+  type SaveState,
+} from "./SettingsSection";
 
 const EVENT_LABELS: Record<string, string> = {
   callback_due: "Callback due reminder",
@@ -33,14 +41,35 @@ const E164_REGEX = /^\+[1-9]\d{6,14}$/;
 /** The two WhatsApp alert blocks share this shape. */
 type WhatsAppBlock = NotificationConfig["whatsapp_notifications"];
 
+/** Which card a save came from — only that card flashes "Saved". */
+type SectionKey = "push" | "lead" | "escalation";
+
+/**
+ * Owns the whole notification config but renders it as three independent
+ * cards: push alerts, WhatsApp lead notifications, WhatsApp escalation
+ * alerts. The API stores them in one row, so any Save writes the full
+ * object — the per-card dirty flags below only decide which card lights up.
+ */
 export function NotificationConfigPanel({ canManage = true }: { canManage?: boolean }) {
   const [cfg, setCfg] = useState<NotificationConfig | null>(null);
+  /** Last value known to be on the server — the baseline for dirty checks. */
+  const [saved, setSaved] = useState<NotificationConfig | null>(null);
   const [callers, setCallers] = useState<Caller[]>([]);
   const [templates, setTemplates] = useState<WabaTemplate[]>([]);
-  const [state, setState] = useState<"idle" | "dirty" | "saving" | "saved">("idle");
+  const [states, setStates] = useState<Record<SectionKey, SaveState>>({
+    push: "idle",
+    lead: "idle",
+    escalation: "idle",
+  });
 
   useEffect(() => {
-    api.notifications.getConfig().then(setCfg).catch(() => {});
+    api.notifications
+      .getConfig()
+      .then((c) => {
+        setCfg(c);
+        setSaved(c);
+      })
+      .catch(() => {});
     api.callers.list().then((res) => setCallers((res.data || []).filter((c) => c.active))).catch(() => {});
     api.templates.list().then(setTemplates).catch(() => {});
   }, []);
@@ -48,210 +77,289 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
   function patch(next: Partial<NotificationConfig>) {
     if (!canManage) return;
     setCfg((c) => (c ? { ...c, ...next } : c));
-    setState("dirty");
   }
 
-  async function save() {
+  async function save(key: SectionKey) {
     if (!cfg || !canManage) return;
-    setState("saving");
+    setStates((s) => ({ ...s, [key]: "saving" }));
     try {
-      const saved = await api.notifications.saveConfig(cfg);
-      setCfg(saved);
-      setState("saved");
-      setTimeout(() => setState("idle"), 2500);
+      const next = await api.notifications.saveConfig(cfg);
+      setCfg(next);
+      setSaved(next);
+      setStates((s) => ({ ...s, [key]: "saved" }));
+      setTimeout(() => setStates((s) => ({ ...s, [key]: "idle" })), 2500);
     } catch {
-      setState("dirty");
+      setStates((s) => ({ ...s, [key]: "idle" }));
     }
   }
 
-  if (!cfg) {
-    return <div className="card rounded-3xl h-56 animate-pulse bg-border-subtle" />;
+  if (!cfg || !saved) {
+    return (
+      <>
+        <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
+        <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
+      </>
+    );
   }
 
   const approvedTemplates = templates.filter((t) => t.status === "APPROVED");
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-  const activeEvents = Object.keys(EVENT_LABELS).filter((k) => cfg.events[k] ?? true).length;
+  const pushDirty = !same(
+    [cfg.push_enabled, cfg.events, cfg.claimable_threshold_minutes, cfg.claimable_audience, cfg.claimable_caller_ids, cfg.quiet_hours],
+    [saved.push_enabled, saved.events, saved.claimable_threshold_minutes, saved.claimable_audience, saved.claimable_caller_ids, saved.quiet_hours]
+  );
+  const leadDirty = !same(cfg.whatsapp_notifications, saved.whatsapp_notifications);
+  const escalationDirty = !same(cfg.whatsapp_escalation_notifications, saved.whatsapp_escalation_notifications);
+
+  const eventKeys = Object.keys(EVENT_LABELS);
+  const activeEvents = eventKeys.filter((k) => cfg.events[k] ?? true).length;
 
   return (
-    <SettingsSection
-      id="push-notifications"
-      icon={Bell}
-      accent="violet"
-      title="Push Notifications"
-      description="Control which push alerts your team receives. The in-app bell always records every event."
-      status={
-        cfg.push_enabled
-          ? { label: `${activeEvents}/${Object.keys(EVENT_LABELS).length} events`, tone: "on" }
-          : { label: "Push off", tone: "off" }
-      }
-      dirty={state === "dirty"}
-    >
-      <div className="space-y-4">
-      {/* Master switch */}
-      <div className="flex items-center justify-between p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
-        <div>
-          <p className="font-body text-sm font-semibold text-ink">Enable push notifications</p>
-          <p className="font-body text-xs text-ink-muted mt-0.5">Master switch for all phone/desktop pushes.</p>
-        </div>
-        <Toggle on={cfg.push_enabled} disabled={!canManage} onClick={() => patch({ push_enabled: !cfg.push_enabled })} />
-      </div>
+    <>
+      <SettingsSection
+        id="push-notifications"
+        icon={Bell}
+        accent="violet"
+        title="Push Notifications"
+        description="Phone and desktop push alerts for your team. The in-app bell always records every event regardless of these settings."
+        status={
+          cfg.push_enabled
+            ? { label: `${activeEvents}/${eventKeys.length} events`, tone: "on" }
+            : { label: "Push off", tone: "off" }
+        }
+        dirty={pushDirty}
+      >
+        <div className="space-y-4">
+          {/* Master switch */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+            <div className="min-w-0">
+              <p className="font-body text-sm font-semibold text-ink">Enable push notifications</p>
+              <p className="mt-0.5 font-body text-xs text-ink-muted">Master switch for all phone/desktop pushes.</p>
+            </div>
+            <SwitchPill on={cfg.push_enabled} disabled={!canManage} onChange={(v) => patch({ push_enabled: v })} />
+          </div>
 
-      {/* Per-event toggles */}
-      <div className="space-y-2">
-        <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">Per-event push</p>
-        {Object.keys(EVENT_LABELS).map((key) => {
-          const on = cfg.events[key] ?? true;
-          return (
-            <div key={key} className="flex items-center justify-between p-3 rounded-xl bg-surface-subtle border border-border-subtle">
-              <span className="font-body text-sm text-ink">{EVENT_LABELS[key]}</span>
-              <Toggle
-                on={on}
-                disabled={!canManage || !cfg.push_enabled}
-                onClick={() => patch({ events: { ...cfg.events, [key]: !on } })}
+          {/* Per-event toggles */}
+          <div className="space-y-2">
+            <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">Per-event push</p>
+            {eventKeys.map((key) => {
+              const on = cfg.events[key] ?? true;
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-subtle p-3"
+                >
+                  <span className="font-body text-sm text-ink">{EVENT_LABELS[key]}</span>
+                  <SwitchPill
+                    on={on}
+                    disabled={!canManage || !cfg.push_enabled}
+                    onChange={(v) => patch({ events: { ...cfg.events, [key]: v } })}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Claimable threshold + audience */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+              <label className="font-body text-sm font-semibold text-ink">Claimable after (minutes)</label>
+              <p className="mb-2 mt-0.5 font-body text-xs text-ink-muted">How long after the slot a callback opens to claim.</p>
+              <input
+                type="number"
+                min={1}
+                max={120}
+                value={cfg.claimable_threshold_minutes}
+                disabled={!canManage}
+                onChange={(e) =>
+                  patch({ claimable_threshold_minutes: Math.max(1, Math.min(120, parseInt(e.target.value) || 1)) })
+                }
+                className="w-24 rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
-          );
-        })}
-      </div>
+            <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+              <label className="font-body text-sm font-semibold text-ink">Claimable broadcast to</label>
+              <p className="mb-2 mt-0.5 font-body text-xs text-ink-muted">Who gets the &quot;open to claim&quot; alert.</p>
+              <select
+                value={cfg.claimable_audience}
+                disabled={!canManage}
+                onChange={(e) => patch({ claimable_audience: e.target.value as NotificationConfig["claimable_audience"] })}
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+              >
+                {AUDIENCE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
 
-      {/* Claimable threshold + audience */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
-          <label className="font-body text-sm font-semibold text-ink">Claimable after (minutes)</label>
-          <p className="font-body text-xs text-ink-muted mt-0.5 mb-2">How long after the slot a callback opens to claim.</p>
-          <input
-            type="number" min={1} max={120}
-            value={cfg.claimable_threshold_minutes}
-            disabled={!canManage}
-            onChange={(e) => patch({ claimable_threshold_minutes: Math.max(1, Math.min(120, parseInt(e.target.value) || 1)) })}
-            className="w-24 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
-          />
-        </div>
-        <div className="p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
-          <label className="font-body text-sm font-semibold text-ink">Claimable broadcast to</label>
-          <p className="font-body text-xs text-ink-muted mt-0.5 mb-2">Who gets the &quot;open to claim&quot; alert.</p>
-          <select
-            value={cfg.claimable_audience}
-            disabled={!canManage}
-            onChange={(e) => patch({ claimable_audience: e.target.value as NotificationConfig["claimable_audience"] })}
-            className="w-full px-3 py-2 rounded-xl bg-white border border-border text-sm text-ink focus:outline-none focus:border-primary"
-          >
-            {AUDIENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-
-          {cfg.claimable_audience === "specific" && (
-            <div className="mt-3 space-y-1.5 max-h-44 overflow-y-auto rounded-xl border border-border bg-white p-2">
-              {callers.length === 0 ? (
-                <p className="font-body text-xs text-ink-muted px-1 py-2">No telecallers found.</p>
-              ) : (
-                callers.map((c) => {
-                  const checked = cfg.claimable_caller_ids.includes(c.id);
-                  return (
-                    <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-subtle cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        disabled={!canManage}
-                        onChange={() =>
-                          patch({
-                            claimable_caller_ids: checked
-                              ? cfg.claimable_caller_ids.filter((id) => id !== c.id)
-                              : [...cfg.claimable_caller_ids, c.id],
-                          })
-                        }
-                        className="accent-primary"
-                      />
-                      <span className="font-body text-sm text-ink">{c.name}</span>
-                    </label>
-                  );
-                })
+              {cfg.claimable_audience === "specific" && (
+                <div className="mt-3 max-h-44 space-y-1.5 overflow-y-auto rounded-xl border border-border bg-white p-2">
+                  {callers.length === 0 ? (
+                    <p className="px-1 py-2 font-body text-xs text-ink-muted">No telecallers found.</p>
+                  ) : (
+                    callers.map((c) => {
+                      const checked = cfg.claimable_caller_ids.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={checked}
+                          disabled={!canManage}
+                          onClick={() =>
+                            patch({
+                              claimable_caller_ids: checked
+                                ? cfg.claimable_caller_ids.filter((id) => id !== c.id)
+                                : [...cfg.claimable_caller_ids, c.id],
+                            })
+                          }
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-55"
+                        >
+                          <TickMark checked={checked} size="sm" />
+                          <span className="font-body text-sm text-ink">{c.name}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Quiet hours */}
-      <div className="p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-body text-sm font-semibold text-ink">Quiet hours</p>
-            <p className="font-body text-xs text-ink-muted mt-0.5">Suppress pushes overnight (in-app bell still records them).</p>
           </div>
-          <Toggle on={cfg.quiet_hours.enabled} disabled={!canManage} onClick={() => patch({ quiet_hours: { ...cfg.quiet_hours, enabled: !cfg.quiet_hours.enabled } })} />
-        </div>
-        {cfg.quiet_hours.enabled && (
-          <div className="mt-3 flex items-center gap-2">
-            <HourSelect value={cfg.quiet_hours.start_hour} disabled={!canManage} onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, start_hour: h } })} />
-            <span className="text-ink-muted text-sm">to</span>
-            <HourSelect value={cfg.quiet_hours.end_hour} disabled={!canManage} onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, end_hour: h } })} />
-            <span className="text-ink-muted text-xs">IST</span>
-          </div>
-        )}
-      </div>
 
-      {/* WhatsApp alerts on segment change */}
-      <WhatsAppAlertSection
-        title="WhatsApp lead notifications"
-        subtitle="Message your team on WhatsApp when a lead's segment changes."
+          {/* Quiet hours */}
+          <div className="rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-body text-sm font-semibold text-ink">Quiet hours</p>
+                <p className="mt-0.5 font-body text-xs text-ink-muted">
+                  Suppress pushes overnight (in-app bell still records them).
+                </p>
+              </div>
+              <SwitchPill
+                on={cfg.quiet_hours.enabled}
+                disabled={!canManage}
+                onChange={(v) => patch({ quiet_hours: { ...cfg.quiet_hours, enabled: v } })}
+              />
+            </div>
+            {cfg.quiet_hours.enabled && (
+              <div className="mt-3 flex items-center gap-2">
+                <HourSelect
+                  value={cfg.quiet_hours.start_hour}
+                  disabled={!canManage}
+                  onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, start_hour: h } })}
+                />
+                <span className="text-sm text-ink-muted">to</span>
+                <HourSelect
+                  value={cfg.quiet_hours.end_hour}
+                  disabled={!canManage}
+                  onChange={(h) => patch({ quiet_hours: { ...cfg.quiet_hours, end_hour: h } })}
+                />
+                <span className="text-xs text-ink-muted">IST</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <SectionFooter
+          status={
+            <SaveStatus
+              state={states.push}
+              dirty={pushDirty}
+              idleLabel={cfg.push_enabled ? "Push alerts are on" : "Push alerts are off"}
+            />
+          }
+        >
+          <SaveButton state={states.push} dirty={pushDirty} disabled={!canManage} onClick={() => save("push")} />
+        </SectionFooter>
+      </SettingsSection>
+
+      <WhatsAppAlertCard
+        id="whatsapp-lead-alerts"
+        icon={MessageSquareText}
+        accent="emerald"
+        title="WhatsApp Lead Notifications"
+        description="Message your team on WhatsApp when a lead's segment changes."
+        switchLabel="Send a WhatsApp alert on segment change"
+        switchHelp="Uses an approved WhatsApp template — the lead never sees this message."
         segmentsLabel="Notify for segments"
         delayHelp="How long the lead must stay in the segment before sending the notification. Set to 0 to send immediately."
         block={cfg.whatsapp_notifications}
         approvedTemplates={approvedTemplates}
         canManage={canManage}
+        dirty={leadDirty}
+        state={states.lead}
+        onSave={() => save("lead")}
         onChange={(next) => patch({ whatsapp_notifications: next })}
       />
 
-      {/* WhatsApp alerts on escalation */}
-      <WhatsAppAlertSection
-        title="WhatsApp escalation alerts"
-        subtitle="Message your team on WhatsApp when a conversation is escalated to a human."
+      <WhatsAppAlertCard
+        id="whatsapp-escalation-alerts"
+        icon={Siren}
+        accent="amber"
+        title="WhatsApp Escalation Alerts"
+        description="Message your team on WhatsApp when a conversation is escalated to a human."
+        switchLabel="Send a WhatsApp alert on escalation"
+        switchHelp="Skipped automatically if a teammate claims or resolves the handover first."
         segmentsLabel="Alert for segments"
         delayHelp="How long to wait before alerting. If a teammate claims or resolves the handover first, the message is not sent."
         block={cfg.whatsapp_escalation_notifications}
         approvedTemplates={approvedTemplates}
         canManage={canManage}
+        dirty={escalationDirty}
+        state={states.escalation}
+        onSave={() => save("escalation")}
         onChange={(next) => patch({ whatsapp_escalation_notifications: next })}
       />
-
-      </div>
-
-      <SectionFooter
-        status={<SaveStatus state={state} dirty={state === "dirty"} idleLabel={cfg.push_enabled ? "Push alerts are on" : "Push alerts are off"} />}
-      >
-        <SaveButton state={state} dirty={state === "dirty"} disabled={!canManage} onClick={save} />
-      </SectionFooter>
-    </SettingsSection>
+    </>
   );
 }
 
 /**
- * One WhatsApp alert configuration block: segments, recipients, template, delay.
- * Shared by the segment-change and escalation alerts, which differ only in copy.
+ * One WhatsApp alert configuration card: segments, recipients, template, delay.
+ * The segment-change and escalation alerts differ only in copy and icon.
  */
-function WhatsAppAlertSection({
+function WhatsAppAlertCard({
+  id,
+  icon,
+  accent,
   title,
-  subtitle,
+  description,
+  switchLabel,
+  switchHelp,
   segmentsLabel,
   delayHelp,
   block,
   approvedTemplates,
   canManage,
+  dirty,
+  state,
+  onSave,
   onChange,
 }: {
+  id: string;
+  icon: React.ComponentProps<typeof SettingsSection>["icon"];
+  accent: React.ComponentProps<typeof SettingsSection>["accent"];
   title: string;
-  subtitle: string;
+  description: string;
+  switchLabel: string;
+  switchHelp: string;
   segmentsLabel: string;
   delayHelp: string;
   block: WhatsAppBlock;
   approvedTemplates: WabaTemplate[];
   canManage: boolean;
+  dirty: boolean;
+  state: SaveState;
+  onSave: () => void;
   onChange: (next: WhatsAppBlock) => void;
 }) {
   const [phoneInput, setPhoneInput] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const selectedTemplate = approvedTemplates.find((t) => t.id === block.template_id) || null;
+  const incomplete = block.enabled && (!block.template_id || block.recipient_phones.length === 0);
 
   function toggleSegment(segment: (typeof SEGMENTS)[number]) {
     const active = block.target_segments.includes(segment);
@@ -283,150 +391,173 @@ function WhatsAppAlertSection({
   }
 
   return (
-    <div className="p-4 rounded-2xl bg-surface-subtle border border-border-subtle">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-body text-sm font-semibold text-ink">{title}</p>
-          <p className="font-body text-xs text-ink-muted mt-0.5">{subtitle}</p>
+    <SettingsSection
+      id={id}
+      icon={icon}
+      accent={accent}
+      title={title}
+      description={description}
+      status={
+        !block.enabled
+          ? { label: "Off", tone: "off" }
+          : incomplete
+          ? { label: "Needs setup", tone: "warn" }
+          : {
+              label: `${block.recipient_phones.length} recipient${block.recipient_phones.length === 1 ? "" : "s"}`,
+              tone: "on",
+            }
+      }
+      dirty={dirty}
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border-subtle bg-surface-subtle p-4">
+          <div className="min-w-0">
+            <p className="font-body text-sm font-semibold text-ink">{switchLabel}</p>
+            <p className="mt-0.5 font-body text-xs text-ink-muted">{switchHelp}</p>
+          </div>
+          <SwitchPill on={block.enabled} disabled={!canManage} onChange={(v) => onChange({ ...block, enabled: v })} />
         </div>
-        <Toggle
-          on={block.enabled}
-          disabled={!canManage}
-          onClick={() => onChange({ ...block, enabled: !block.enabled })}
-        />
+
+        {block.enabled && (
+          <div className="space-y-4">
+            {incomplete && (
+              <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-body text-xs text-amber-700">
+                Pick a message template and add at least one recipient — nothing is sent until both are set.
+              </p>
+            )}
+
+            <div>
+              <p className="mb-2 font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">{segmentsLabel}</p>
+              <div className="flex flex-wrap gap-2">
+                {SEGMENTS.map((s) => {
+                  const active = block.target_segments.includes(s);
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      aria-pressed={active}
+                      disabled={!canManage}
+                      onClick={() => toggleSegment(s)}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono text-xs font-semibold transition-colors ${
+                        active ? SEGMENT_STYLES[s] : "border-border bg-white text-ink-muted hover:border-primary/30"
+                      }`}
+                    >
+                      {s} · {SEGMENT_LABELS[s]}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                Recipient phone numbers
+              </p>
+              {block.recipient_phones.length > 0 && (
+                <div className="mb-2 space-y-1.5">
+                  {block.recipient_phones.map((phone) => (
+                    <div
+                      key={phone}
+                      className="flex items-center justify-between rounded-xl border border-border bg-white px-3 py-2"
+                    >
+                      <span className="font-mono text-sm text-ink">{phone}</span>
+                      <button
+                        type="button"
+                        onClick={() => removePhone(phone)}
+                        className="text-ink-muted transition-colors hover:text-red-600"
+                        aria-label={`Remove ${phone}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={phoneInput}
+                  disabled={!canManage}
+                  onChange={(e) => {
+                    setPhoneInput(e.target.value);
+                    setPhoneError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addPhone();
+                    }
+                  }}
+                  placeholder="+919876543210"
+                  className="flex-1 rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                />
+                <button
+                  type="button"
+                  onClick={addPhone}
+                  disabled={!canManage}
+                  className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-ink transition-colors hover:border-primary"
+                >
+                  <Plus size={14} />
+                  Add Number
+                </button>
+              </div>
+              {phoneError && <p className="mt-1.5 font-body text-xs text-red-600">{phoneError}</p>}
+            </div>
+
+            <div>
+              <label className="mb-2 block font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                Message template
+              </label>
+              <select
+                value={block.template_id ?? ""}
+                disabled={!canManage}
+                onChange={(e) => onChange({ ...block, template_id: e.target.value || null })}
+                className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+              >
+                <option value="">Select a template…</option>
+                {approvedTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              {selectedTemplate && (
+                <div className="mt-2 rounded-xl border border-border-subtle bg-white p-3">
+                  <p className="mb-1 font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted">Preview</p>
+                  <p className="whitespace-pre-wrap font-mono text-xs text-ink-muted">
+                    {selectedTemplate.body_text || "No body text available."}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="mb-2 block font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">
+                Delay before sending (minutes)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={1440}
+                value={block.delay_minutes ?? 5}
+                disabled={!canManage}
+                onChange={(e) =>
+                  onChange({ ...block, delay_minutes: Math.max(0, Math.min(1440, parseInt(e.target.value) || 0)) })
+                }
+                className="w-24 rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+              />
+              <p className="mt-1 font-body text-[11px] text-ink-muted">{delayHelp}</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {block.enabled && (
-        <div className="mt-4 space-y-4">
-          <div>
-            <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">{segmentsLabel}</p>
-            <div className="flex flex-wrap gap-2">
-              {SEGMENTS.map((s) => {
-                const active = block.target_segments.includes(s);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    aria-pressed={active}
-                    disabled={!canManage}
-                    onClick={() => toggleSegment(s)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-xs font-semibold border transition-colors ${
-                      active ? SEGMENT_STYLES[s] : "bg-white text-ink-muted border-border"
-                    }`}
-                  >
-                    {s} · {SEGMENT_LABELS[s]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div>
-            <p className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2">Recipient phone numbers</p>
-            {block.recipient_phones.length > 0 && (
-              <div className="space-y-1.5 mb-2">
-                {block.recipient_phones.map((phone) => (
-                  <div key={phone} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white border border-border">
-                    <span className="font-mono text-sm text-ink">{phone}</span>
-                    <button
-                      type="button"
-                      onClick={() => removePhone(phone)}
-                      className="text-ink-muted hover:text-red-600 transition-colors"
-                      aria-label={`Remove ${phone}`}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={phoneInput}
-                disabled={!canManage}
-                onChange={(e) => { setPhoneInput(e.target.value); setPhoneError(null); }}
-                placeholder="+919876543210"
-                className="flex-1 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
-              />
-              <button
-                type="button"
-                onClick={addPhone}
-                disabled={!canManage}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-border text-sm font-semibold text-ink hover:border-primary transition-colors flex-shrink-0"
-              >
-                <Plus size={14} />Add Number
-              </button>
-            </div>
-            {phoneError && <p className="font-body text-xs text-red-600 mt-1.5">{phoneError}</p>}
-          </div>
-
-          <div>
-            <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Message template</label>
-            <select
-              value={block.template_id ?? ""}
-              disabled={!canManage}
-              onChange={(e) => onChange({ ...block, template_id: e.target.value || null })}
-              className="w-full px-3 py-2 rounded-xl bg-white border border-border text-sm text-ink focus:outline-none focus:border-primary"
-            >
-              <option value="">Select a template…</option>
-              {approvedTemplates.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-            {selectedTemplate && (
-              <div className="mt-2 p-3 rounded-xl bg-white border border-border-subtle">
-                <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">Preview</p>
-                <p className="font-mono text-xs text-ink-muted whitespace-pre-wrap">
-                  {selectedTemplate.body_text || "No body text available."}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted mb-2 block">Delay before sending (minutes)</label>
-            <input
-              type="number" min={0} max={1440}
-              value={block.delay_minutes ?? 5}
-              disabled={!canManage}
-              onChange={(e) =>
-                onChange({ ...block, delay_minutes: Math.max(0, Math.min(1440, parseInt(e.target.value) || 0)) })
-              }
-              className="w-24 px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
-            />
-            <p className="font-body text-[11px] text-ink-muted mt-1">{delayHelp}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Toggle({ on, onClick, disabled }: { on: boolean; onClick: () => void; disabled?: boolean }) {
-  return (
-    <div className={`relative inline-flex p-0.5 rounded-full bg-border-subtle/80 border border-border/40 select-none flex-shrink-0 ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={on ? onClick : undefined}
-        className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
-          !on ? "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.06)]" : "text-ink-muted hover:text-ink"
-        } ${disabled ? "cursor-not-allowed" : ""}`}
+      <SectionFooter
+        status={<SaveStatus state={state} dirty={dirty} idleLabel={block.enabled ? "Alerts are on" : "Alerts are off"} />}
       >
-        Off
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={on ? undefined : onClick}
-        className={`relative z-10 px-3 py-0.5 text-xs font-label font-bold rounded-full transition-all duration-300 ${
-          on ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_8px_rgba(91,33,182,0.2)]" : "text-ink-muted hover:text-ink"
-        } ${disabled ? "cursor-not-allowed" : ""}`}
-      >
-        On
-      </button>
-    </div>
+        <SaveButton state={state} dirty={dirty} disabled={!canManage} onClick={onSave} />
+      </SectionFooter>
+    </SettingsSection>
   );
 }
 
@@ -436,10 +567,12 @@ function HourSelect({ value, onChange, disabled }: { value: number; onChange: (h
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(parseInt(e.target.value))}
-      className="px-3 py-2 rounded-xl bg-white border border-border text-sm font-mono text-ink focus:outline-none focus:border-primary"
+      className="rounded-xl border border-border bg-white px-3 py-2 font-mono text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
     >
       {Array.from({ length: 24 }, (_, h) => (
-        <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>
+        <option key={h} value={h}>
+          {String(h).padStart(2, "0")}:00
+        </option>
       ))}
     </select>
   );

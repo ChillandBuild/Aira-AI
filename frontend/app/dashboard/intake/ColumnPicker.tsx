@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Columns3 } from "lucide-react";
 import { FieldColumn } from "./columns";
+import { TickMark } from "@/components/ui/controls";
 
 const STORAGE_KEY = "intake:hidden-columns";
 
@@ -55,17 +56,17 @@ export function ColumnPicker({ columns, hiddenKeys, onChange }: ColumnPickerProp
             <p className="p-2 font-body text-xs text-ink-muted">No field columns yet.</p>
           ) : (
             columns.map((col) => (
-              <label
+              <button
                 key={col.key}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-subtle"
+                type="button"
+                role="checkbox"
+                aria-checked={!hiddenKeys.has(col.key)}
+                onClick={() => toggle(col.key)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-surface-subtle"
               >
-                <input
-                  type="checkbox"
-                  checked={!hiddenKeys.has(col.key)}
-                  onChange={() => toggle(col.key)}
-                />
+                <TickMark checked={!hiddenKeys.has(col.key)} size="sm" />
                 <span className="font-body text-sm text-ink">{col.label}</span>
-              </label>
+              </button>
             ))
           )}
         </div>

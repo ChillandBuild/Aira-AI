@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ClipboardList, Check, X } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
+import { TickMark } from "@/components/ui/controls";
 
 interface RequestedItem {
   feature_key: string;
@@ -105,10 +106,16 @@ function RequestCard({ request, onReviewed }: { request: SubscriptionRequest; on
 
       {request.status === "submitted" && (
         <div className="space-y-3">
-          <label className="flex items-center gap-2 text-sm text-ink-secondary cursor-pointer">
-            <input type="checkbox" checked={paymentConfirmed} onChange={e => setPaymentConfirmed(e.target.checked)} className="rounded border-border" />
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={paymentConfirmed}
+            onClick={() => setPaymentConfirmed(!paymentConfirmed)}
+            className="flex items-center gap-2.5 text-left text-sm text-ink-secondary"
+          >
+            <TickMark checked={paymentConfirmed} size="sm" />
             Payment confirmed received
-          </label>
+          </button>
 
           {showReject ? (
             <div className="space-y-2">

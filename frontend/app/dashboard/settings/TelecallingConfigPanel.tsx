@@ -4,6 +4,7 @@ import { Phone, Smartphone, RadioTower } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
+import { CheckField, TickMark } from "@/components/ui/controls";
 
 type TelecallingConfig = {
   enabled: boolean;
@@ -104,18 +105,13 @@ export function TelecallingConfigPanel({ canManage = true }: { canManage?: boole
     >
       <div className="space-y-6">
         {/* Master toggle */}
-        <label className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface-subtle cursor-pointer hover:border-amber-300 transition-colors">
-          <input
-            type="checkbox"
-            checked={draft.enabled}
-            onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
-            className="mt-0.5 accent-amber-600"
-          />
-          <div>
-            <div className="font-label text-sm font-semibold text-ink">Enable Auto-Assign to Telecallers</div>
-            <div className="font-body text-xs text-ink-muted mt-0.5">Automatically assign qualifying leads to the active telecaller with fewest leads on segment change</div>
-          </div>
-        </label>
+        <CheckField
+          checked={draft.enabled}
+          disabled={!canManage}
+          onChange={(v) => setDraft({ ...draft, enabled: v })}
+          label="Enable Auto-Assign to Telecallers"
+          description="Automatically assign qualifying leads to the active telecaller with fewest leads on segment change"
+        />
 
         {/* Calling Provider */}
         <div>
@@ -151,17 +147,25 @@ export function TelecallingConfigPanel({ canManage = true }: { canManage?: boole
           <div className="font-label text-sm font-semibold text-ink mb-1">Segments to Assign</div>
           <div className="font-body text-xs text-ink-muted mb-2">Which lead segments are worked by telecallers (auto-assigned in Push mode, pooled for Call Next in Pull mode)</div>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(SEGMENT_LABELS).map(([seg, label]) => (
-              <label key={seg} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-surface-subtle cursor-pointer hover:border-amber-300 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={draft.segments.includes(seg)}
-                  onChange={() => setDraft({ ...draft, segments: toggle(draft.segments, seg) })}
-                  className="accent-amber-600"
-                />
-                <span className="font-label text-sm font-semibold text-ink">{label}</span>
-              </label>
-            ))}
+            {Object.entries(SEGMENT_LABELS).map(([seg, label]) => {
+              const active = draft.segments.includes(seg);
+              return (
+                <button
+                  key={seg}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={active}
+                  disabled={!canManage}
+                  onClick={() => setDraft({ ...draft, segments: toggle(draft.segments, seg) })}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55 ${
+                    active ? "border-primary/25 bg-primary-light/50" : "border-border bg-surface-subtle hover:border-primary/40"
+                  }`}
+                >
+                  <TickMark checked={active} size="sm" />
+                  <span className="font-label text-sm font-semibold text-ink">{label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -170,17 +174,25 @@ export function TelecallingConfigPanel({ canManage = true }: { canManage?: boole
           <div className="font-label text-sm font-semibold text-ink mb-1">Channels</div>
           <div className="font-body text-xs text-ink-muted mb-2">Which channels feed into the telecalling queue (typically WhatsApp only)</div>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(CHANNEL_LABELS).map(([ch, label]) => (
-              <label key={ch} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-surface-subtle cursor-pointer hover:border-amber-300 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={draft.channels.includes(ch)}
-                  onChange={() => setDraft({ ...draft, channels: toggle(draft.channels, ch) })}
-                  className="accent-amber-600"
-                />
-                <span className="font-label text-sm font-semibold text-ink">{label}</span>
-              </label>
-            ))}
+            {Object.entries(CHANNEL_LABELS).map(([ch, label]) => {
+              const active = draft.channels.includes(ch);
+              return (
+                <button
+                  key={ch}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={active}
+                  disabled={!canManage}
+                  onClick={() => setDraft({ ...draft, channels: toggle(draft.channels, ch) })}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55 ${
+                    active ? "border-primary/25 bg-primary-light/50" : "border-border bg-surface-subtle hover:border-primary/40"
+                  }`}
+                >
+                  <TickMark checked={active} size="sm" />
+                  <span className="font-label text-sm font-semibold text-ink">{label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -228,18 +240,14 @@ export function TelecallingConfigPanel({ canManage = true }: { canManage?: boole
             <div className="font-label text-sm font-semibold text-ink mb-1">Contact Recycling</div>
             <div className="font-body text-xs text-ink-muted mb-3">Automatically re-queue no-answer leads back into the calling queue after a delay</div>
 
-            <label className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface-subtle cursor-pointer hover:border-amber-300 transition-colors mb-3">
-              <input
-                type="checkbox"
-                checked={draft.recycle_enabled ?? false}
-                onChange={(e) => setDraft({ ...draft, recycle_enabled: e.target.checked })}
-                className="mt-0.5 accent-amber-600"
-              />
-              <div>
-                <div className="font-label text-sm font-semibold text-ink">Enable Contact Recycling</div>
-                <div className="font-body text-xs text-ink-muted mt-0.5">No-answer leads reset to &quot;new&quot; after the delay, so they re-enter the calling queue</div>
-              </div>
-            </label>
+            <CheckField
+              className="mb-3"
+              checked={draft.recycle_enabled ?? false}
+              disabled={!canManage}
+              onChange={(v) => setDraft({ ...draft, recycle_enabled: v })}
+              label="Enable Contact Recycling"
+              description={'No-answer leads reset to "new" after the delay, so they re-enter the calling queue'}
+            />
 
             {draft.recycle_enabled && (
               <div className="space-y-3 pl-1">

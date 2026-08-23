@@ -12,6 +12,11 @@ import { CheckCircle2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Sav
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// The binary controls live in one shared place so the dashboard and the
+// operator console cannot drift apart. Re-exported here because every
+// settings panel already imports from this module.
+export { SwitchPill, CheckTick, CheckField, TickMark } from "@/components/ui/controls";
+
 /* ------------------------------------------------------------------ *
  * Accordion group
  *
@@ -299,53 +304,6 @@ export function SectionFooter({
     <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-5">
       <div className="min-h-[20px] flex items-center">{status}</div>
       {children}
-    </div>
-  );
-}
-
-/** Off/On segmented pill — the app's standard binary control. */
-export function SwitchPill({
-  on,
-  onChange,
-  disabled = false,
-  labels = ["Off", "On"],
-}: {
-  on: boolean;
-  onChange: (next: boolean) => void;
-  disabled?: boolean;
-  labels?: [string, string];
-}) {
-  return (
-    <div
-      className={cn(
-        "relative inline-flex shrink-0 select-none rounded-full border border-border/50 bg-border-subtle p-0.5",
-        disabled && "opacity-50"
-      )}
-    >
-      {([false, true] as const).map((value) => {
-        const active = on === value;
-        return (
-          <button
-            key={String(value)}
-            type="button"
-            disabled={disabled}
-            aria-pressed={active}
-            onClick={() => !active && onChange(value)}
-            className={cn(
-              "relative z-10 rounded-full px-3.5 py-1 font-label text-xs font-bold transition-all duration-300",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-              active
-                ? value
-                  ? "bg-gradient-to-r from-primary to-violet-500 text-white shadow-[0_2px_10px_rgba(91,33,182,0.28)]"
-                  : "bg-white text-ink shadow-[0_2px_8px_rgba(28,25,23,0.08)]"
-                : "text-ink-muted hover:text-ink-secondary",
-              disabled && "cursor-not-allowed"
-            )}
-          >
-            {value ? labels[1] : labels[0]}
-          </button>
-        );
-      })}
     </div>
   );
 }

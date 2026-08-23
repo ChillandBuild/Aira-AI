@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { Loader2 } from "lucide-react";
+import { TickMark } from "@/components/ui/controls";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2179,17 +2180,18 @@ export default function OutboundLeadsPage() {
 
                     {riskSummary.negative_reply_count > 0 && (
                       <div className="rounded-xl border border-amber-200 bg-white/80 p-3">
-                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={excludeNegativeReplies}
-                            onChange={(e) => setExcludeNegativeReplies(e.target.checked)}
-                            className="w-4 h-4 rounded border-amber-300 text-amber-600 accent-amber-600"
-                          />
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={excludeNegativeReplies}
+                          onClick={() => setExcludeNegativeReplies(!excludeNegativeReplies)}
+                          className="flex select-none items-center gap-2.5 text-left"
+                        >
+                          <TickMark checked={excludeNegativeReplies} size="sm" />
                           <span className="font-body text-sm text-amber-900">
                             Exclude {riskSummary.negative_reply_count} lead{riskSummary.negative_reply_count !== 1 ? "s" : ""} who previously said no
                           </span>
-                        </label>
+                        </button>
                       </div>
                     )}
 
@@ -2205,20 +2207,21 @@ export default function OutboundLeadsPage() {
                             return `${n} contact${n !== 1 ? "s" : ""} opted out${suffix}.`;
                           })()}
                         </div>
-                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={includeOptedOut}
-                            onChange={(e) => setIncludeOptedOut(e.target.checked)}
-                            className="w-4 h-4 rounded border-orange-300 text-orange-600 accent-orange-600"
-                          />
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={includeOptedOut}
+                          onClick={() => setIncludeOptedOut(!includeOptedOut)}
+                          className="flex select-none items-center gap-2.5 text-left"
+                        >
+                          <TickMark checked={includeOptedOut} size="sm" />
                           <span className="font-body text-sm text-orange-900">
                             {(() => {
                               const n = riskSummary.total_opted_out_count ?? riskSummary.tag_opted_out_count ?? 0;
                               return `Send to opted-out contact${n !== 1 ? "s" : ""} anyway`;
                             })()}
                           </span>
-                        </label>
+                        </button>
                       </div>
                     )}
                   </div>

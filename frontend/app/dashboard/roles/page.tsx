@@ -31,6 +31,7 @@ import { api, API_URL, AuditLogEntry, ClientRole, PermissionDef, RbacUser } from
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { cn } from "@/lib/utils";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { CheckTick } from "@/components/ui/controls";
 
 type Tab = "roles" | "users" | "audit";
 type CallingProvider = "telecmi" | "sim_basic";
@@ -765,22 +766,20 @@ export default function RolesPage() {
                               <p className="mt-1 font-body text-xs text-ink-muted">{module.description}</p>
                             </td>
                             <td className="border-t border-border-subtle px-4 py-3 text-center">
-                              <input
-                                type="checkbox"
+                              <CheckTick
                                 checked={readChecked}
                                 disabled={!canWrite}
-                                onChange={(e) => setModuleAccess(module, "read", e.target.checked)}
-                                className="h-4 w-4 rounded border-border-subtle accent-primary"
+                                onChange={(v) => setModuleAccess(module, "read", v)}
+                                size="sm"
                                 aria-label={`${module.title} read access`}
                               />
                             </td>
                             <td className="border-t border-border-subtle px-4 py-3 text-center">
-                              <input
-                                type="checkbox"
+                              <CheckTick
                                 checked={writeChecked}
                                 disabled={!canWrite || !writeAvailable}
-                                onChange={(e) => setModuleAccess(module, "write", e.target.checked)}
-                                className="h-4 w-4 rounded border-border-subtle accent-primary disabled:opacity-30"
+                                onChange={(v) => setModuleAccess(module, "write", v)}
+                                size="sm"
                                 aria-label={`${module.title} write access`}
                               />
                             </td>

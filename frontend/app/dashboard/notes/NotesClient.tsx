@@ -16,6 +16,7 @@ import {
   dotColorFor, outcomeDotColor, scoreBadgeColor, TimelineItem,
 } from "./components/shared";
 import { useLeadsWithActivity, useNotes, useAllNotes } from "@/hooks/useApi";
+import { TickMark } from "@/components/ui/controls";
 
 type PageMode = "by_lead" | "all_notes";
 type ViewMode = "grid" | "list";
@@ -529,10 +530,16 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                         className="w-full px-2.5 py-1.5 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                       />
                       <div className="flex items-center gap-2 flex-wrap">
-                        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                          <input type="checkbox" checked={addPinned} onChange={(e) => setAddPinned(e.target.checked)} className="rounded" />
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={addPinned}
+                          onClick={() => setAddPinned(!addPinned)}
+                          className="flex select-none items-center gap-1.5"
+                        >
+                          <TickMark checked={addPinned} size="sm" />
                           <span className="font-label text-xs text-[#78716c]">Pin note</span>
-                        </label>
+                        </button>
                         <TagSelector selected={addTags} onChange={setAddTags} />
                         <button
                           type="button"

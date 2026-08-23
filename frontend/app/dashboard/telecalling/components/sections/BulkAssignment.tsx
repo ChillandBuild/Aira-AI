@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Users, Search, Loader2 } from "lucide-react";
 import { api, type Caller, type Lead } from "@/lib/api";
 import { formatPhone } from "@/lib/utils";
+import { CheckTick } from "@/components/ui/controls";
 
 interface BulkAssignmentProps {
   callers: Caller[];
@@ -107,11 +108,15 @@ export default function BulkAssignment({ callers }: BulkAssignmentProps) {
             <thead>
               <tr className="border-b border-[#f0ece4] bg-[#faf8f5]/50 sticky top-0 font-label text-[10px] text-[#a8a29e] uppercase font-bold">
                 <th className="py-2.5 px-3 w-8">
-                  <input
-                    type="checkbox"
+                  <CheckTick
                     checked={filteredLeads.length > 0 && filteredLeads.every((l) => selectedLeadIds.includes(l.id))}
-                    onChange={toggleSelectAll}
-                    className="rounded text-primary focus:ring-primary"
+                    indeterminate={
+                      selectedLeadIds.length > 0 &&
+                      !filteredLeads.every((l) => selectedLeadIds.includes(l.id))
+                    }
+                    onChange={() => toggleSelectAll()}
+                    size="sm"
+                    aria-label="Select all leads"
                   />
                 </th>
                 <th className="py-2.5 px-2">Lead</th>
@@ -128,11 +133,11 @@ export default function BulkAssignment({ callers }: BulkAssignmentProps) {
                 return (
                   <tr key={lead.id} className="border-b border-[#f0ece4] hover:bg-[#faf8f5]/20 transition-colors">
                     <td className="py-2 px-3">
-                      <input
-                        type="checkbox"
+                      <CheckTick
                         checked={isSelected}
                         onChange={() => toggleSelectLead(lead.id)}
-                        className="rounded text-primary focus:ring-primary"
+                        size="sm"
+                        aria-label={`Select ${lead.name || "lead"}`}
                       />
                     </td>
                     <td className="py-2 px-2 font-bold text-[#292524]">{lead.name || "Unnamed"}</td>

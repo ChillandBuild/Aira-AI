@@ -4,6 +4,7 @@ import { SegmentBadge } from "./segment-badge";
 import { formatConvoTime, formatPhone, cn } from "@/lib/utils";
 import { MessageCircle, Trash2, MoreVertical, MoreHorizontal, Search, X, SearchX, ChevronLeft, Pin, Filter, RefreshCw, Archive, Ban, Check, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
+import { CheckTick } from "@/components/ui/controls";
 
 const AVATAR_COLORS = [
   "bg-violet-500", "bg-blue-500", "bg-indigo-500", "bg-cyan-500",
@@ -199,8 +200,8 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
     }
   }
 
-  function toggleSelect(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
+  function toggleSelect(id: string, e?: React.MouseEvent) {
+    e?.stopPropagation();
     const next = new Set(selectedIds);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -438,11 +439,11 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
             >
               {selectionMode && (
                 <div className="pt-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
+                  <CheckTick
                     checked={selectedIds.has(lead.id)}
-                    onChange={(e) => toggleSelect(lead.id, e as unknown as React.MouseEvent)}
-                    className="cursor-pointer w-4 h-4 rounded border-surface-mid text-primary focus:ring-primary"
+                    onChange={() => toggleSelect(lead.id)}
+                    size="sm"
+                    aria-label="Select conversation"
                   />
                 </div>
               )}

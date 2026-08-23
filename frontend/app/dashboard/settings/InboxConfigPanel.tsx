@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Inbox } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
+import { CheckField, TickMark } from "@/components/ui/controls";
 
 type InboxConfig = {
   enabled: boolean;
@@ -91,32 +92,21 @@ export function InboxConfigPanel({ canManage = true }: { canManage?: boolean }) 
     >
       <div className="space-y-6">
         {/* Master toggles */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <label className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface-subtle cursor-pointer hover:border-violet-300 transition-colors">
-            <input
-              type="checkbox"
-              checked={draft.enabled}
-              onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
-              className="mt-0.5 accent-violet-600"
-            />
-            <div>
-              <div className="font-label text-sm font-semibold text-ink">Enable Inbox Escalation</div>
-              <div className="font-body text-xs text-ink-muted mt-0.5">Master switch — off means no handovers are created automatically</div>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface-subtle cursor-pointer hover:border-violet-300 transition-colors">
-            <input
-              type="checkbox"
-              checked={draft.auto_assign_enabled}
-              onChange={(e) => setDraft({ ...draft, auto_assign_enabled: e.target.checked })}
-              className="mt-0.5 accent-violet-600"
-            />
-            <div>
-              <div className="font-label text-sm font-semibold text-ink">Auto-Assign (Round-Robin)</div>
-              <div className="font-body text-xs text-ink-muted mt-0.5">Auto-assign escalated handovers to the active telecaller with fewest leads</div>
-            </div>
-          </label>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <CheckField
+            checked={draft.enabled}
+            disabled={!canManage}
+            onChange={(v) => setDraft({ ...draft, enabled: v })}
+            label="Enable Inbox Escalation"
+            description="Master switch — off means no handovers are created automatically"
+          />
+          <CheckField
+            checked={draft.auto_assign_enabled}
+            disabled={!canManage}
+            onChange={(v) => setDraft({ ...draft, auto_assign_enabled: v })}
+            label="Auto-Assign (Round-Robin)"
+            description="Auto-assign escalated handovers to the active telecaller with fewest leads"
+          />
         </div>
 
         {/* Triggers */}
@@ -124,24 +114,15 @@ export function InboxConfigPanel({ canManage = true }: { canManage?: boolean }) 
           <div className="font-label text-sm font-semibold text-ink mb-2">Escalation Triggers</div>
           <div className="space-y-2">
             {Object.entries(TRIGGER_LABELS).map(([key, { label, always }]) => (
-              <label
+              <CheckField
                 key={key}
-                className={`flex items-start gap-3 p-3 rounded-xl border transition-colors ${
-                  always ? "border-amber-200 bg-amber-50 cursor-default" : "border-border bg-surface-subtle cursor-pointer hover:border-violet-300"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={always ? true : draft.triggers.includes(key)}
-                  disabled={always}
-                  onChange={() => !always && setDraft({ ...draft, triggers: toggle(draft.triggers, key) })}
-                  className="mt-0.5 accent-violet-600"
-                />
-                <div>
-                  <span className="font-body text-sm text-ink">{label}</span>
-                  {always && <div className="text-xs text-amber-600 font-label mt-0.5">Always on — cannot be disabled (direct user request)</div>}
-                </div>
-              </label>
+                checked={always ? true : draft.triggers.includes(key)}
+                disabled={!canManage}
+                locked={always}
+                lockedNote="Always on — cannot be disabled (direct user request)"
+                onChange={() => setDraft({ ...draft, triggers: toggle(draft.triggers, key) })}
+                label={label}
+              />
             ))}
           </div>
         </div>
@@ -150,17 +131,25 @@ export function InboxConfigPanel({ canManage = true }: { canManage?: boolean }) 
         <div>
           <div className="font-label text-sm font-semibold text-ink mb-2">Channels</div>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(CHANNEL_LABELS).map(([ch, label]) => (
-              <label key={ch} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-surface-subtle cursor-pointer hover:border-violet-300 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={draft.channels.includes(ch)}
-                  onChange={() => setDraft({ ...draft, channels: toggle(draft.channels, ch) })}
-                  className="accent-violet-600"
-                />
-                <span className="font-label text-sm font-semibold text-ink">{label}</span>
-              </label>
-            ))}
+            {Object.entries(CHANNEL_LABELS).map(([ch, label]) => {
+              const active = draft.channels.includes(ch);
+              return (
+                <button
+                  key={ch}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={active}
+                  disabled={!canManage}
+                  onClick={() => setDraft({ ...draft, channels: toggle(draft.channels, ch) })}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55 ${
+                    active ? "border-primary/25 bg-primary-light/50" : "border-border bg-surface-subtle hover:border-primary/40"
+                  }`}
+                >
+                  <TickMark checked={active} size="sm" />
+                  <span className="font-label text-sm font-semibold text-ink">{label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

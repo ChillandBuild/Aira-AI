@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Package, Plus, Pencil, Trash2, MessageSquare, Zap, Brain, Phone, Cog, Settings2, Save, CheckCircle2 } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
 import { cn } from "@/lib/utils";
+import { TickMark } from "@/components/ui/controls";
 
 interface CatalogItem {
   feature_key: string;
@@ -367,11 +368,17 @@ function PackagesTab({ catalog, packages, onReload }: { catalog: CatalogItem[]; 
                     const selected = item.feature_key in form.items;
                     return (
                       <div key={item.feature_key} className="flex items-center justify-between">
-                        <label className="flex items-center gap-2 text-sm text-ink-secondary cursor-pointer">
-                          <input type="checkbox" checked={selected} onChange={() => toggleItem(item.feature_key)} className="rounded border-border" />
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={selected}
+                          onClick={() => toggleItem(item.feature_key)}
+                          className="flex items-center gap-2.5 text-left text-sm text-ink-secondary"
+                        >
+                          <TickMark checked={selected} size="sm" />
                           {item.display_name}
                           <span className="text-xs text-ink-muted">₹{itemPrice(item).toLocaleString("en-IN")}</span>
-                        </label>
+                        </button>
                         {selected && item.unit_price !== null && (
                           <input
                             type="number" min="1" value={form.items[item.feature_key]}

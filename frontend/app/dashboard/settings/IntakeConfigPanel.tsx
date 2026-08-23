@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { UserCheck, Plus, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
+import { CheckField } from "@/components/ui/controls";
 
 type FieldType = "text" | "date" | "choice";
 
@@ -140,20 +141,13 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
       dirty={isDirty}
     >
       <div className="space-y-6">
-        <label className="flex items-start gap-3 p-4 rounded-2xl border border-border bg-surface-subtle cursor-pointer hover:border-violet-300 transition-colors">
-          <input
-            type="checkbox"
-            checked={draft.enabled}
-            onChange={(e) => setDraft({ ...draft, enabled: e.target.checked })}
-            className="mt-0.5 accent-violet-600"
-          />
-          <div>
-            <div className="font-label text-sm font-semibold text-ink">Enable Paid Intake</div>
-            <div className="font-body text-xs text-ink-muted mt-0.5">
-              Off by default. Turn on once trigger, fields, and at least one package below are configured.
-            </div>
-          </div>
-        </label>
+        <CheckField
+          checked={draft.enabled}
+          disabled={!canManage}
+          onChange={(v) => setDraft({ ...draft, enabled: v })}
+          label="Enable Paid Intake"
+          description="Off by default. Turn on once trigger, fields, and at least one package below are configured."
+        />
 
         <div>
           <div className="font-label text-sm font-semibold text-ink mb-1">When should this trigger?</div>

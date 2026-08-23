@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { api, AdPerformanceRow, AdTrackingCodeResponse } from "@/lib/api";
 import { useAdFilters, useAdPerformance } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
+import { TickMark } from "@/components/ui/controls";
 
 type MetricKey =
   | "campaign_status"
@@ -505,14 +506,20 @@ export function AdPerformanceTab() {
                 </div>
                 <div className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain pr-1">
                   {METRICS.map((metric) => (
-                    <label key={metric.key} className="flex cursor-pointer items-start gap-2 rounded-xl px-2 py-2 hover:bg-stone-50">
-                      <input type="checkbox" checked={visibleMetrics.has(metric.key)} onChange={() => toggleMetric(metric.key)}
-                        className="mt-0.5 h-3.5 w-3.5 rounded border-stone-300 accent-indigo-600" />
+                    <button
+                      key={metric.key}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={visibleMetrics.has(metric.key)}
+                      onClick={() => toggleMetric(metric.key)}
+                      className="flex w-full items-start gap-2 rounded-xl px-2 py-2 text-left hover:bg-stone-50"
+                    >
+                      <TickMark checked={visibleMetrics.has(metric.key)} size="sm" className="mt-0.5" />
                       <span>
                         <span className="block font-label text-[11px] font-bold text-stone-700">{metric.label}</span>
                         <span className="block font-body text-[10px] leading-4 text-stone-400">{metric.help}</span>
                       </span>
-                    </label>
+                    </button>
                   ))}
                 </div>
               </div>
