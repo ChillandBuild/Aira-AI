@@ -79,3 +79,25 @@ export function isActive(pathname: string, href: string): boolean {
 export function getHomeHref(role: "owner" | "caller" | null): string {
   return role === "caller" ? "/dashboard/profile" : "/dashboard";
 }
+
+/** Compact elapsed time for escalation SLAs: "42m", "3h 10m", "18d 8h".
+ *  Falls back to "—" for a missing or negative span rather than rendering
+ *  a nonsense duration. */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || seconds < 0) return "—";
+  const m = Math.floor(seconds / 60);
+  if (m < 1) return "<1m";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  const d = Math.floor(h / 24);
+  return `${d}d ${h % 24}h`;
+}
+
+/** Seconds elapsed since an ISO timestamp, floored at zero so a clock skew
+ *  between the browser and Supabase can't render a negative wait. */
+export function secondsSince(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  return Number.isFinite(diff) ? Math.max(diff, 0) : null;
+}
