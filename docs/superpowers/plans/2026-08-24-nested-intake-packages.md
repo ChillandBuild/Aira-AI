@@ -24,7 +24,7 @@
 ## Task 1: Migration — session snapshot columns + status values
 
 **Files:**
-- Create: `backend/supabase/migrations/184_intake_nested_packages.sql`
+- Create: `backend/supabase/migrations/186_intake_nested_packages.sql` (184 and 185 are already taken by `184_quick_reply_blocks.sql` and `185_chat_handover_resolver.sql` — check `ls backend/supabase/migrations | tail -5` again before running this step, in case another migration lands between now and execution)
 
 **Interfaces:**
 - Produces: `intake_sessions.package_path`, `.selected_addons`, `.total_amount_paise`, `.package_draft_path`, `.addon_draft_selection` columns; `'awaiting_addon_choice'` added to the `status` CHECK constraint.
@@ -32,7 +32,7 @@
 - [ ] **Step 1: Write the migration**
 
 ```sql
--- 184_intake_nested_packages.sql
+-- 186_intake_nested_packages.sql
 -- Packages can now nest (sub-options at unlimited depth) and carry optional
 -- addons on a leaf. These columns snapshot the lead's actual path through the
 -- tree and the final charged total, same reasoning as package_key/package_name/
@@ -75,7 +75,7 @@ Expected: migration applies cleanly, `\d intake_sessions` shows the 5 new column
 - [ ] **Step 3: Commit**
 
 ```bash
-git add backend/supabase/migrations/184_intake_nested_packages.sql
+git add backend/supabase/migrations/186_intake_nested_packages.sql
 git commit -m "feat: add nested-package snapshot columns to intake_sessions"
 ```
 

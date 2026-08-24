@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the single tabbed `/dashboard/settings` page (5 tabs, 10 stacked panels, reached only via a hidden `MoreMenu` link) with one route per settings section, reachable from a new collapsible "Settings" entry in the main sidebar.
+**Goal:** Replace the single tabbed `/dashboard/settings` page (5 tabs, 11 stacked panels, reached only via a hidden `MoreMenu` link) with one route per settings section, reachable from a new collapsible "Settings" entry in the main sidebar.
 
-**Architecture:** A Next.js `layout.tsx` wraps every `/dashboard/settings/*` route in a `SettingsFormProvider` that owns the one shared fetch/save state today's `page.tsx` holds. 6 of the 10 sections are already self-contained components and just get a thin route wrapper. The other 4 (admin identity, TeleCMI credentials, AI Auto-Reply, Silence-Nudge) are raw JSX currently inline in `page.tsx` sharing that state directly — they move into their own pages, consuming the new context instead of local page state. The sidebar gets a new "Settings" entry using the same expand-in-place pattern already built for "Telecalling".
+**Architecture:** A Next.js `layout.tsx` wraps every `/dashboard/settings/*` route in a `SettingsFormProvider` that owns the one shared fetch/save state today's `page.tsx` holds. 7 of the 11 sections are already self-contained components and just get a thin route wrapper. The other 4 (admin identity, TeleCMI credentials, AI Auto-Reply, Silence-Nudge) are raw JSX currently inline in `page.tsx` sharing that state directly — they move into their own pages, consuming the new context instead of local page state. The sidebar gets a new "Settings" entry using the same expand-in-place pattern already built for "Telecalling".
+
+**Note on drift:** this plan was written against a repo snapshot; a teammate (`keerthi-sarav`) landed a new self-contained "Quick Replies" panel (`QuickRepliesPanel.tsx`, rendered at `page.tsx:850` inside the automations tab) after the first read of this file but before this plan was finalized — caught and folded in before execution (Task 6, Task 8, Task 9 below). Before executing this plan, re-check `git log --oneline -10 -- frontend/app/dashboard/settings/` for anything landed since — this file changes often.
 
 **Tech Stack:** Next.js 14 (App Router), React, TypeScript, Tailwind. No new dependencies.
 
@@ -935,7 +937,7 @@ git commit -m "feat: add /dashboard/settings/auto-reply and /follow-ups routes"
 
 ---
 
-## Task 6: Thin wrapper pages for the 6 self-contained panels
+## Task 6: Thin wrapper pages for the 7 self-contained panels
 
 **Files:**
 - Create: `frontend/app/dashboard/settings/connect-channels/page.tsx`
@@ -944,11 +946,12 @@ git commit -m "feat: add /dashboard/settings/auto-reply and /follow-ups routes"
 - Create: `frontend/app/dashboard/settings/intake-config/page.tsx`
 - Create: `frontend/app/dashboard/settings/business-hours/page.tsx`
 - Create: `frontend/app/dashboard/settings/notifications/page.tsx`
+- Create: `frontend/app/dashboard/settings/quick-replies/page.tsx`
 
 **Interfaces:**
-- Consumes: `useSettingsForm()` → `{ canManageSettings }` only (each panel is self-contained and manages its own fetch/save internally, confirmed by `IntakeConfigPanel.tsx:53-92` and the same shape in the other 5).
+- Consumes: `useSettingsForm()` → `{ canManageSettings }` only (each panel is self-contained and manages its own fetch/save internally, confirmed by `IntakeConfigPanel.tsx:53-92`, `QuickRepliesPanel.tsx:37`, and the same shape in the rest).
 
-These 6 are mechanically identical — one panel component that already manages itself, just needs `canManageSettings` passed through as `canManage`.
+These 7 are mechanically identical — one panel component that already manages itself, just needs `canManageSettings` passed through as `canManage`. `QuickRepliesPanel` (`export function QuickRepliesPanel({ canManage }: { canManage: boolean })`) landed on `main` after this plan's first draft — it's a client-authored WhatsApp quick-reply-buttons feature, unrelated to this restructure, but it's rendered inside the old "automations" tab (`page.tsx:850`) today and needs a route here too or it silently loses its settings entry point.
 
 - [ ] **Step 1: `connect-channels/page.tsx`**
 
@@ -1036,16 +1039,30 @@ export default function NotificationsSettingsPage() {
 }
 ```
 
-- [ ] **Step 7: Manual verification**
+- [ ] **Step 7: `quick-replies/page.tsx`**
 
-Run: `cd frontend && npm run dev`, navigate to all 6 new routes.
-Expected: each renders exactly what its old tab showed (channels connection cards, inbox config, telecalling behavior config, intake config incl. its inline packages section for now, business hours, notifications).
+```tsx
+// frontend/app/dashboard/settings/quick-replies/page.tsx
+"use client";
+import { useSettingsForm } from "../SettingsFormContext";
+import { QuickRepliesPanel } from "../QuickRepliesPanel";
 
-- [ ] **Step 8: Commit**
+export default function QuickRepliesSettingsPage() {
+  const { canManageSettings } = useSettingsForm();
+  return <QuickRepliesPanel canManage={canManageSettings} />;
+}
+```
+
+- [ ] **Step 8: Manual verification**
+
+Run: `cd frontend && npm run dev`, navigate to all 7 new routes.
+Expected: each renders exactly what its old tab showed (channels connection cards, inbox config, telecalling behavior config, intake config incl. its inline packages section for now, business hours, notifications, quick replies).
+
+- [ ] **Step 9: Commit**
 
 ```bash
-git add frontend/app/dashboard/settings/connect-channels/page.tsx frontend/app/dashboard/settings/inbox/page.tsx frontend/app/dashboard/settings/telecalling-behavior/page.tsx frontend/app/dashboard/settings/intake-config/page.tsx frontend/app/dashboard/settings/business-hours/page.tsx frontend/app/dashboard/settings/notifications/page.tsx
-git commit -m "feat: add thin route wrappers for the 6 self-contained settings panels"
+git add frontend/app/dashboard/settings/connect-channels/page.tsx frontend/app/dashboard/settings/inbox/page.tsx frontend/app/dashboard/settings/telecalling-behavior/page.tsx frontend/app/dashboard/settings/intake-config/page.tsx frontend/app/dashboard/settings/business-hours/page.tsx frontend/app/dashboard/settings/notifications/page.tsx frontend/app/dashboard/settings/quick-replies/page.tsx
+git commit -m "feat: add thin route wrappers for the 7 self-contained settings panels"
 ```
 
 ---
@@ -1131,6 +1148,7 @@ const SETTINGS_ROUTE_LABELS: Record<string, string> = {
   "intake-config": "Intake Config",
   "business-hours": "Business Hours",
   notifications: "Notifications",
+  "quick-replies": "Quick Replies",
 };
 
 if (pathname?.startsWith("/dashboard/settings/")) {
@@ -1182,12 +1200,12 @@ git commit -m "refactor: replace settings tab-nav header state with per-route ti
 - [ ] **Step 1: Add `Settings` to the icon imports and the `NavItem` list, and default it to collapsed**
 
 ```tsx
-// sidebar.tsx:7-11 — add Settings to the lucide-react import
+// sidebar.tsx:7-11 — add Settings, Sparkles, Reply to the lucide-react import
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
-  Settings,
+  Settings, Sparkles, Reply,
 } from "lucide-react";
 ```
 
@@ -1204,10 +1222,11 @@ const SETTINGS_ITEMS: NavItem[] = [
   { href: "/dashboard/settings/intake-config", icon: FileCheck, label: "Intake Config" },
   { href: "/dashboard/settings/business-hours", icon: Calendar, label: "Business Hours" },
   { href: "/dashboard/settings/notifications", icon: Megaphone, label: "Notifications" },
+  { href: "/dashboard/settings/quick-replies", icon: Reply, label: "Quick Replies" },
 ];
 ```
 
-`Sparkles` isn't currently imported in `sidebar.tsx` — add it to the same lucide-react import block as `Settings`.
+`Sparkles` and `Reply` aren't currently imported in `sidebar.tsx` — add both to the same lucide-react import block as `Settings`.
 
 - [ ] **Step 2: Add `expandedGroups` default entry**
 
@@ -1295,7 +1314,7 @@ Expected: no errors.
 - [ ] **Step 6: Manual verification**
 
 Run: `cd frontend && npm run dev`.
-Expected: sidebar shows a "Settings" row near the bottom. Clicking it expands to show all 10 sub-items with the same branch-line tree styling as Telecalling. Clicking a sub-item navigates and highlights correctly. Main sidebar items (Conversations, Leads, etc.) stay visible and clickable the whole time — confirms this is the in-place expand, not a Vercel-style full swap.
+Expected: sidebar shows a "Settings" row near the bottom. Clicking it expands to show all 11 sub-items with the same branch-line tree styling as Telecalling. Clicking a sub-item navigates and highlights correctly. Main sidebar items (Conversations, Leads, etc.) stay visible and clickable the whole time — confirms this is the in-place expand, not a Vercel-style full swap.
 
 - [ ] **Step 7: Commit**
 
@@ -1308,7 +1327,8 @@ git commit -m "feat: add collapsible Settings group to main sidebar"
 
 ## Self-Review Notes
 
-- **Spec coverage:** every bullet in spec section 7 has a task — context/layout extraction (Tasks 1-2), the 4 raw-JSX pages (Tasks 3-5), the 6 self-contained panels (Task 6), the redirect (Task 7), header cleanup (Task 8), sidebar group (Task 9).
+- **Spec coverage:** every bullet in spec section 7 has a task — context/layout extraction (Tasks 1-2), the 4 raw-JSX pages (Tasks 3-5), the 7 self-contained panels (Task 6), the redirect (Task 7), header cleanup (Task 8), sidebar group (Task 9).
 - **Placeholder scan:** none — every step has real, complete code moved from files read this session, or new code grounded in the same patterns.
 - **Type consistency:** `useSettingsForm()`'s returned shape (Task 1) is used identically by every consuming page in Tasks 3-6 — checked each call site pulls only fields the context actually exposes.
 - **Known follow-up, not a gap in this plan:** `intake-config/page.tsx` (Task 6) still renders the packages section inline. The separate nested-packages plan removes it and adds `intake-config/packages/page.tsx` — sequencing note for whoever picks that plan up next: do it after this one ships, since it depends on `intake-config/page.tsx` existing.
+- **Drift caught before execution:** `QuickRepliesPanel` (teammate's shipped feature, landed on `main` mid-session) was missing from the first draft of Tasks 6/8/9 — added as the 7th self-contained panel, its own route label, and its own sidebar entry once found via `git log --author=keerthi-sarav`. Re-run that check before executing this plan if time has passed since it was written — this settings directory changes often.
