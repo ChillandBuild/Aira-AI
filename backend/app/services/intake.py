@@ -486,12 +486,12 @@ async def match_addons(message: str, addons: list[dict], tenant_id: str) -> list
 
 
 _ACTIVE_STATUSES = (
-    "offer_pending", "awaiting_package_choice", "collecting",
+    "offer_pending", "awaiting_package_choice", "awaiting_addon_choice", "collecting",
     "awaiting_confirmation", "awaiting_payment", "paid",
 )
 
 _PACKAGE_CHANGEABLE_STATUSES = (
-    "awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
+    "awaiting_package_choice", "awaiting_addon_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
 )
 
 
@@ -650,6 +650,35 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)
 
+        async def _finalize_leaf(leaf: dict, path: list[dict]) -> None:
+            active_addons = _active_children(leaf.get("addons") or [])
+            if active_addons:
+                _update_session(session["id"], _package_patch(leaf, path) | {"status": "awaiting_addon_choice"}, db)
+                await _send_and_log(
+                    phone,
+                    await compose_wrapped(
+                        "addons",
+                        tenant_id=tenant_id,
+                        language_mode=language_mode,
+                        customer_message=body,
+                        block=addon_list_block(active_addons),
+                        thread=thread,
+                    ),
+                    tenant_id, lead_id, db,
+                )
+                return
+            collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
+            missing = missing_field_labels(config["fields"], collected)
+            patch = _package_patch(leaf, path, total_amount_paise=leaf["amount_paise"]) | {
+                "collected_data": collected, "field_schema": config["fields"],
+            }
+            if missing:
+                _update_session(session["id"], patch | {"status": "collecting"}, db)
+                await _say("ask_field", field_label=missing[0], collected=collected)
+            else:
+                _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
+                await _say_summary(collected)
+
         if session is None:
             matched = await detect_intake_intent(body, config["trigger_description"], tenant_id)
             if not matched:
@@ -666,25 +695,15 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 _update_session(session["id"], {"status": "cancelled"}, db)
                 return False
             packages = normalize_packages(config)
-            if len(packages) == 1:
-                # Single package: nothing to choose, snapshot it and go straight
-                # to field collection — same as the pre-packages flow, just with
-                # the package recorded on the row.
-                collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
-                missing = missing_field_labels(config["fields"], collected)
-                patch = _package_patch(packages[0]) | {"collected_data": collected, "field_schema": config["fields"]}
-                if missing:
-                    _update_session(session["id"], patch | {"status": "collecting"}, db)
-                    await _say("ask_field", field_label=missing[0], collected=collected)
-                else:
-                    _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
-                    await _say_summary(collected)
-                return True
-            if not packages:
-                logger.error(f"Intake session {session['id']} has no packages configured despite being enabled")
+            outcome, result, path = _resolve_choice(packages, [])
+            if outcome == "empty":
+                logger.error(f"Intake session {session['id']} has no active packages configured despite being enabled")
                 await _say("no_packages")
                 return True
-            _update_session(session["id"], {"status": "awaiting_package_choice"}, db)
+            if outcome == "leaf":
+                await _finalize_leaf(result, path)
+                return True
+            _update_session(session["id"], {"status": "awaiting_package_choice", "package_draft_path": path}, db)
             await _send_and_log(
                 phone,
                 await compose_wrapped(
@@ -692,7 +711,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                     tenant_id=tenant_id,
                     language_mode=language_mode,
                     customer_message=body,
-                    block=package_list_block(packages),
+                    block=package_list_block(result),
                     thread=thread,
                 ),
                 tenant_id, lead_id, db,
@@ -701,7 +720,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
 
         if status == "awaiting_package_choice":
             packages = normalize_packages(config)
-            chosen = await match_package(body, packages, tenant_id)
+            draft_path = session.get("package_draft_path") or []
+            current_level = _menu_at_path(packages, draft_path) or packages
+            active_here = _active_children(current_level)
+            chosen = await match_package(body, active_here, tenant_id)
             if chosen is None:
                 intro = await compose_line(
                     "package_reask",
@@ -713,13 +735,45 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 )
                 await _send_and_log(
                     phone,
-                    f"{intro}\n\n{package_list_block(packages)}",
+                    f"{intro}\n\n{package_list_block(active_here)}",
                     tenant_id, lead_id, db,
                 )
                 return True
+            outcome, result, path = _resolve_choice([chosen], draft_path)
+            if outcome == "empty":
+                logger.error(f"Intake session {session['id']} package {chosen['key']} has no active options")
+                await _say("no_packages")
+                return True
+            if outcome == "leaf":
+                await _finalize_leaf(result, path)
+                return True
+            _update_session(session["id"], {"package_draft_path": path}, db)
+            await _send_and_log(
+                phone,
+                await compose_wrapped(
+                    "packages",
+                    tenant_id=tenant_id,
+                    language_mode=language_mode,
+                    customer_message=body,
+                    block=package_list_block(result),
+                    thread=thread,
+                ),
+                tenant_id, lead_id, db,
+            )
+            return True
+
+        if status == "awaiting_addon_choice":
+            packages = normalize_packages(config)
+            found = _find_leaf(packages, session.get("package_key"))
+            active_addons = _active_children(found[0].get("addons") or []) if found else []
+            chosen_addons = await match_addons(body, active_addons, tenant_id)
+            addons_total = sum(a["amount_paise"] for a in chosen_addons)
+            total = (session.get("package_amount_paise") or 0) + addons_total
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
             missing = missing_field_labels(config["fields"], collected)
-            patch = _package_patch(chosen) | {
+            patch = {
+                "selected_addons": chosen_addons,
+                "total_amount_paise": total,
                 "collected_data": collected,
                 "field_schema": config["fields"],
             }

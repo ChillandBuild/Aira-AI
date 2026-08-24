@@ -542,3 +542,133 @@ async def test_awaiting_confirmation_unrelated_reply_still_falls_through_to_ai()
     assert consumed is False
     send.assert_not_awaited()
     db.table("intake_sessions").update.assert_not_called()
+
+
+_NESTED_PACKAGES_CONFIG = {
+    "enabled": True,
+    "trigger_description": "wants a reading",
+    "offer_message": "Want a reading?",
+    "fields": [{"key": "dob", "label": "Date of birth", "type": "text"}],
+    "packages": [
+        {"key": "basic", "name": "Basic", "amount_paise": 0, "description": "", "active": True, "options": [
+            {"key": "basic_q", "name": "One Question", "amount_paise": 10000, "description": "", "active": True},
+            {"key": "basic_detail", "name": "Detailed Consultation", "amount_paise": 30000, "description": "", "active": True,
+             "addons": [{"key": "pdf", "name": "PDF summary", "amount_paise": 20000, "description": "", "active": True}]},
+        ]},
+        {"key": "premium", "name": "Premium", "amount_paise": 50000, "description": "", "active": True},
+    ],
+    "service_noun": "reading",
+    "amount_paise": 0,
+}
+
+
+def _nested_session_db(existing_session=None):
+    """Same shape as _session_db above, but app_settings returns
+    _NESTED_PACKAGES_CONFIG (Basic -> One Question / Detailed Consultation with
+    a PDF addon; Premium as a flat leaf) instead of the legacy single-fee
+    config _session_db hardcodes."""
+    import json
+    db = MagicMock()
+
+    def make_table(name):
+        t = MagicMock()
+        if name == "intake_sessions":
+            active_row = MagicMock()
+            active_row.data = [existing_session] if existing_session else []
+            t.select.return_value.eq.return_value.eq.return_value.neq.return_value.order.return_value.limit.return_value.execute.return_value = active_row
+            insert_result = MagicMock()
+            created = {**(existing_session or {}), "id": "sess-1", "status": "offer_pending", "collected_data": {}}
+            insert_result.data = [created]
+            t.insert.return_value.execute.return_value = insert_result
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "app_settings":
+            row = MagicMock()
+            row.data = {"value": json.dumps(_NESTED_PACKAGES_CONFIG)}
+            t.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+        elif name == "leads":
+            row = MagicMock()
+            row.data = {"id": "lead-1", "ai_enabled": True}
+            t.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
+            t.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "messages":
+            t.insert.return_value.execute.return_value = MagicMock()
+        return t
+
+    cache = {}
+    def selector(name):
+        if name not in cache:
+            cache[name] = make_table(name)
+        return cache[name]
+    db.table.side_effect = selector
+    return db
+
+
+@pytest.mark.asyncio
+async def test_nested_package_conversation_drills_down_and_offers_addon():
+    """The spec's worked example end to end: Basic -> Detailed Consultation ->
+    PDF addon -> field collection. Verifies session snapshot columns at each
+    hop, not just the final state."""
+    # Turn 1: offer_pending -> affirmative -> 2 active roots -> shows root menu
+    session = {"id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "offer_pending", "collected_data": {}}
+    db = _nested_session_db(existing_session=session)
+    with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "yes", db=db)
+    assert consumed is True
+    assert "Basic" in send.call_args[0][1]
+    assert "Premium" in send.call_args[0][1]
+    assert "Basic —" not in send.call_args[0][1]  # non-leaf, no price shown
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["status"] == "awaiting_package_choice"
+    assert update_patch["package_draft_path"] == []
+
+    # Turn 2: awaiting_package_choice at root, lead says "Basic" -> resolves
+    # to Basic's 2 active children (both leaves) -> "choose", shows submenu
+    session = {**session, "status": "awaiting_package_choice", "package_draft_path": []}
+    db = _nested_session_db(existing_session=session)
+    with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "Basic", db=db)
+    assert consumed is True
+    assert "One Question" in send.call_args[0][1]
+    assert "Detailed Consultation" in send.call_args[0][1]
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["package_draft_path"] == [{"key": "basic", "name": "Basic"}]
+
+    # Turn 3: awaiting_package_choice at the Basic level, lead says "Detailed
+    # Consultation" -> resolves to the basic_detail leaf, which has an active
+    # addon -> moves to awaiting_addon_choice, snapshots the leaf, sends the
+    # addon menu
+    session = {**session, "package_draft_path": [{"key": "basic", "name": "Basic"}]}
+    db = _nested_session_db(existing_session=session)
+    with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "Detailed Consultation", db=db)
+    assert consumed is True
+    assert "PDF summary" in send.call_args[0][1]
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["status"] == "awaiting_addon_choice"
+    assert update_patch["package_key"] == "basic_detail"
+    assert update_patch["package_amount_paise"] == 30000
+    assert update_patch["package_path"] == [
+        {"key": "basic", "name": "Basic"}, {"key": "basic_detail", "name": "Detailed Consultation"},
+    ]
+
+    # Turn 4: awaiting_addon_choice, lead says "yes" -> match_addons (mocked)
+    # picks the PDF addon -> total_amount_paise sums leaf + addon, proceeds to
+    # field collection (collected_data starts empty, one configured field: dob)
+    session = {
+        **session, "status": "awaiting_addon_choice",
+        "package_key": "basic_detail", "package_name": "Detailed Consultation", "package_amount_paise": 30000,
+        "package_path": [{"key": "basic", "name": "Basic"}, {"key": "basic_detail", "name": "Detailed Consultation"}],
+    }
+    db = _nested_session_db(existing_session=session)
+    with patch.object(eh, "match_addons", new=AsyncMock(return_value=[
+        {"key": "pdf", "name": "PDF summary", "amount_paise": 20000, "description": "", "active": True},
+    ])), patch.object(eh, "extract_fields", new=AsyncMock(return_value={})), \
+         patch.object(eh, "_send_and_log", new=AsyncMock()):
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "yes", db=db)
+    assert consumed is True
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["selected_addons"] == [
+        {"key": "pdf", "name": "PDF summary", "amount_paise": 20000, "description": "", "active": True},
+    ]
+    assert update_patch["total_amount_paise"] == 50000
+    assert update_patch["status"] == "collecting"
