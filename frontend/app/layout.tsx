@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, JetBrains_Mono, Dancing_Script } from "next/font/google";
+import { Manrope, JetBrains_Mono, Dancing_Script, Archivo } from "next/font/google";
 import { Toaster } from "sonner";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
 import "./globals.css";
@@ -16,6 +16,17 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   display: "swap",
   weight: ["400", "500", "600", "700"],
+});
+
+// Display face for headings and KPI figures. Deliberately NOT wired to the
+// shared `font-display` role -- that alias points at Manrope and is used in 76
+// component files, so repointing it would restyle most of the app. Opt in per
+// page with `font-heading`.
+const archivo = Archivo({
+  subsets: ["latin"],
+  variable: "--font-heading",
+  display: "swap",
+  weight: ["500", "600", "700"],
 });
 
 const dancingScript = Dancing_Script({
@@ -63,7 +74,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${dancingScript.variable}`}>
+    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${archivo.variable} ${dancingScript.variable}`}>
       <head>
         <link rel="manifest" href="/aira/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>

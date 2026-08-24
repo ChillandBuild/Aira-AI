@@ -56,6 +56,9 @@ const config: Config = {
         display: ["var(--font-manrope)", "sans-serif"],
         body: ["var(--font-manrope)", "sans-serif"],
         label: ["var(--font-manrope)", "sans-serif"],
+        // Opt-in display face (Archivo). See app/layout.tsx for why this is a
+        // separate role rather than a repoint of `display`.
+        heading: ["var(--font-heading)", "var(--font-manrope)", "sans-serif"],
         mono: ["var(--font-mono)", "monospace"],
       },
       boxShadow: {

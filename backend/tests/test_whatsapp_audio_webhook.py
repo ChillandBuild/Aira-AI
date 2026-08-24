@@ -134,6 +134,9 @@ async def test_audio_background_transcribes_inserts_and_routes_reply():
         context_block="ctx",
         phone_number_id="phone-number-1",
         inbound_media_type="audio",
+        # The inbound media id doubles as the message id, so the reply can be
+        # sent as a quoted reply to the voice note it answers.
+        meta_message_id="media-1",
     )
 
 
