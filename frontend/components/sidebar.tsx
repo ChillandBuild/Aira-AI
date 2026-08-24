@@ -8,6 +8,7 @@ import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
+  Settings, Sparkles, Reply,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,20 @@ const TELECALLING_ITEMS: NavItem[] = [
   { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes" },
 ];
 
+const SETTINGS_ITEMS: NavItem[] = [
+  { href: "/dashboard/settings/general", icon: Users, label: "General" },
+  { href: "/dashboard/settings/connect-channels", icon: RadioTower, label: "Connect Channels" },
+  { href: "/dashboard/settings/telecalling", icon: Phone, label: "Telecalling Credentials" },
+  { href: "/dashboard/settings/auto-reply", icon: Sparkles, label: "Auto-Reply" },
+  { href: "/dashboard/settings/follow-ups", icon: Calendar, label: "Follow-Ups" },
+  { href: "/dashboard/settings/inbox", icon: MessageSquare, label: "Inbox" },
+  { href: "/dashboard/settings/telecalling-behavior", icon: Headset, label: "Telecalling Behavior" },
+  { href: "/dashboard/settings/intake-config", icon: FileCheck, label: "Intake Config" },
+  { href: "/dashboard/settings/business-hours", icon: Calendar, label: "Business Hours" },
+  { href: "/dashboard/settings/notifications", icon: Megaphone, label: "Notifications" },
+  { href: "/dashboard/settings/quick-replies", icon: Reply, label: "Quick Replies" },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
@@ -71,6 +86,7 @@ export function Sidebar() {
   // Track open/collapsed state of nested groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     Telecalling: true,
+    Settings: false,
   });
 
   const toggleGroup = (groupName: string) => {
@@ -147,6 +163,9 @@ export function Sidebar() {
 
   // Auto-expand active groups
   const showTc = expandedGroups.Telecalling || isTcActive;
+  const canSettings = canAny(["settings.view", "settings.manage"]);
+  const isSettingsActive = SETTINGS_ITEMS.some(item => pathname.startsWith(item.href));
+  const showSettings = expandedGroups.Settings || isSettingsActive;
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none">
@@ -461,6 +480,60 @@ export function Sidebar() {
                         href={item.href}
                         className={cn(
                           "flex items-center gap-2.5 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group",
+                          active
+                            ? "bg-white shadow-md border border-[#e8e3db] text-[#5b21b6] font-bold"
+                            : "text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"
+                        )}
+                      >
+                        <span className="truncate flex-1">{item.label}</span>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* GROUP: Settings */}
+        {isSubscribed && canSettings && (
+          <div className="space-y-0.5">
+            <button
+              onClick={() => toggleGroup("Settings")}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
+                isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+              )}
+            >
+              <Settings size={16} className={isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+              <span className="flex-1">Settings</span>
+              {showSettings ? <ChevronDown size={14} className="text-[#a8a29e]" /> : <ChevronRight size={14} className="text-[#a8a29e]" />}
+            </button>
+
+            {showSettings && (
+              <div className="space-y-0.5">
+                {SETTINGS_ITEMS.map((item, idx) => {
+                  const matches = SETTINGS_ITEMS.filter(i => pathname === i.href || pathname.startsWith(i.href + "/"));
+                  const bestMatch = matches.reduce<NavItem | null>(
+                    (best, i) => (!best || i.href.length > best.href.length ? i : best), null
+                  );
+                  const active = bestMatch?.href === item.href;
+                  const isLast = idx === SETTINGS_ITEMS.length - 1;
+
+                  return (
+                    <div key={item.href} className="relative pl-6 flex items-center h-9">
+                      <div
+                        className={cn(
+                          "absolute left-3 w-px bg-[#d6cfc9]",
+                          isLast ? "top-0 h-[18px]" : "-top-1 bottom-0"
+                        )}
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-[#d6cfc9] rounded-bl-lg" />
+
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-2.5 ml-3.5 px-3 py-1.5 w-[175px] rounded-xl text-[13px] transition-all duration-150 group",
                           active
                             ? "bg-white shadow-md border border-[#e8e3db] text-[#5b21b6] font-bold"
                             : "text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"
