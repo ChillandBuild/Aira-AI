@@ -60,7 +60,9 @@ export function PersonCell({ name, empty }: { name: string | null; empty: string
         <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-surface-mid font-mono text-[9.5px] font-bold text-ink-muted">
           ?
         </span>
-        <span className="truncate font-body text-xs italic text-ink-muted">{empty}</span>
+        {/* Not truncated: "Unassigned" is a fixed, known-length placeholder and
+            was clipping to "Unassignea" in the narrower column. */}
+        <span className="whitespace-nowrap font-body text-xs italic text-ink-muted">{empty}</span>
       </span>
     );
   }
