@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Archive, CheckCircle2, Info, MessageSquare, RotateCcw, Search, Timer, TrendingUp, UserCheck, X } from "lucide-react";
+import { CheckCircle2, Info, MessageSquare, RotateCcw, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDateTime, formatDuration } from "@/lib/utils";
 import {
@@ -12,7 +12,7 @@ import {
   type HistoryStats,
   type ResolvedHandover,
 } from "@/lib/escalations";
-import { StatCard } from "@/components/escalations/stat-card";
+import { StatBar, type StatItem } from "@/components/escalations/stat-bar";
 import { ChannelCell, DurationCell, LeadCell, PersonCell, TableEmpty, TableSkeleton, TriggerChip } from "@/components/escalations/atoms";
 
 const PAGE_SIZE = 25;
@@ -105,42 +105,38 @@ export function HistoryTab({ onOpenChat, canReply, onReopened }: HistoryTabProps
     }
   }
 
+  const historyStats: StatItem[] = [
+    {
+      label: "Resolved all-time",
+      value: String(stats.total),
+      hint: stats.total ? "Every handover closed by a human" : "Nothing resolved yet",
+    },
+    {
+      label: "Median to resolve",
+      value: formatDuration(stats.median_seconds),
+      tone: stats.median_seconds !== null && stats.median_seconds > 86_400 ? "warning" : "positive",
+      hint: "From handover to resolution",
+    },
+    {
+      label: "Top resolver",
+      value: stats.top_resolver ?? "Not recorded",
+      hint: stats.top_resolver
+        ? `${stats.top_resolver_count} of ${stats.total} resolved`
+        : "No attributed resolutions yet",
+    },
+    {
+      label: "Most common trigger",
+      value: stats.top_reason ? (TRIGGERS[stats.top_reason]?.label ?? stats.top_reason) : "—",
+      hint: stats.top_reason ? "Why the AI hands over most often" : "No triggers recorded yet",
+    },
+  ];
+
   const filtered = Boolean(debounced || resolver || reason);
   const hasUnattributed = rows.some((r) => !r.resolved_by_name);
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
-      {/* ── KPI cards ── */}
-      <div className="grid grid-cols-2 gap-3 px-6 py-5 xl:grid-cols-4">
-        <StatCard
-          icon={Archive}
-          label="Resolved all-time"
-          value={String(stats.total)}
-          detail={stats.total ? "Every handover closed by a human" : "Nothing resolved yet"}
-        />
-        <StatCard
-          icon={Timer}
-          label="Median time to resolve"
-          value={formatDuration(stats.median_seconds)}
-          tone={stats.median_seconds !== null && stats.median_seconds > 86_400 ? "warning" : "positive"}
-          detail="From handover to resolution"
-        />
-        <StatCard
-          icon={UserCheck}
-          label="Top resolver"
-          value={stats.top_resolver ?? "Not recorded"}
-          compact
-          detail={stats.top_resolver ? `${stats.top_resolver_count} of ${stats.total} resolved` : "No attributed resolutions yet"}
-          meter={stats.top_resolver ? { value: stats.top_resolver_count, max: stats.total } : undefined}
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Most common trigger"
-          value={stats.top_reason ? (TRIGGERS[stats.top_reason]?.label ?? stats.top_reason) : "—"}
-          compact
-          detail={stats.top_reason ? "Why the AI hands over most often" : "No triggers recorded yet"}
-        />
-      </div>
+      {!loading && <div className="px-6 pt-5"><StatBar items={historyStats} /></div>}
 
       {/* ── toolbar ── */}
       <div className="flex flex-wrap items-center gap-3 px-6 pb-4">

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlarmClock, CheckCircle2, Inbox, MessageSquare, Search, TriangleAlert, UserCog, Users, X } from "lucide-react";
+import { CheckCircle2, MessageSquare, Search, UserCog, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDuration, secondsSince } from "@/lib/utils";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
@@ -17,7 +17,7 @@ import {
   type Caller,
   type Handover,
 } from "@/lib/escalations";
-import { StatCard } from "@/components/escalations/stat-card";
+import { StatBar, type StatItem } from "@/components/escalations/stat-bar";
 import { HistoryTab } from "@/components/escalations/history-tab";
 import { ChannelCell, DurationCell, LeadCell, PersonCell, TableEmpty, TableSkeleton, TriggerChip } from "@/components/escalations/atoms";
 
@@ -138,6 +138,36 @@ export function EscalationPanel({
     };
   }, [visibleHandovers, currentCallerId]);
 
+  const activeStats: StatItem[] = useMemo(
+    () => [
+      {
+        label: "Open now",
+        value: String(stats.open),
+        tone: stats.open === 0 ? "positive" : stats.breaching > 0 ? "critical" : "warning",
+        hint: stats.open === 0 ? "Queue is clear" : `${stats.unassigned} waiting for an owner`,
+      },
+      {
+        label: "Longest wait",
+        value: formatDuration(stats.longest),
+        tone: stats.longest !== null && stats.longest >= DAY ? "critical" : "positive",
+        hint: stats.longest !== null && stats.longest >= DAY ? "Past the 24h line" : "Inside the 24h line",
+      },
+      {
+        label: "Breaching 24h",
+        value: String(stats.breaching),
+        tone: stats.breaching > 0 ? "critical" : "positive",
+        hint: stats.open ? `of ${stats.open} open` : "Nothing open",
+      },
+      {
+        label: role === "owner" ? "Unassigned" : "Assigned to me",
+        value: String(role === "owner" ? stats.unassigned : stats.mine),
+        tone: role === "owner" && stats.unassigned > 0 ? "warning" : "neutral",
+        hint: role === "owner" ? "Nobody has picked these up" : "Yours to handle",
+      },
+    ],
+    [stats, role]
+  );
+
   const myName = callers.find((c) => c.id === currentCallerId)?.name ?? currentCallerName ?? "You";
 
   async function handleResolve(handover: Handover) {
@@ -213,10 +243,15 @@ export function EscalationPanel({
     <div className="flex flex-1 flex-col overflow-hidden bg-background">
       {/* ── header + tabs ── */}
       <div className="flex-shrink-0 px-6 pt-6">
-        <h2 className="font-heading text-[23px] font-bold tracking-[-0.028em] text-ink">Escalations</h2>
-        <p className="mt-1 font-body text-[12.5px] font-medium text-ink-secondary">
-          Conversations the AI handed to a human.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+          <div className="min-w-0">
+            <h2 className="font-heading text-[23px] font-bold tracking-[-0.028em] text-ink">Escalations</h2>
+            <p className="mt-1 font-body text-[12.5px] font-medium text-ink-secondary">
+              Conversations the AI handed to a human.
+            </p>
+          </div>
+          {tab === "active" && !loading && <StatBar items={activeStats} />}
+        </div>
 
         <div className="-mx-6 mt-[18px] flex items-end border-b border-border px-6" role="tablist" aria-label="Escalation views">
           {([
@@ -256,41 +291,6 @@ export function EscalationPanel({
         <HistoryTab onOpenChat={onReply} canReply={canReplyToConversations} onReopened={load} />
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {/* ── KPI cards ── */}
-          <div className="grid grid-cols-2 gap-3 px-6 py-5 xl:grid-cols-4">
-            <StatCard
-              icon={Inbox}
-              label="Open now"
-              value={String(stats.open)}
-              tone={stats.open === 0 ? "positive" : stats.breaching > 0 ? "critical" : "warning"}
-              detail={stats.open === 0 ? "Queue is clear" : `${stats.unassigned} waiting for an owner`}
-              meter={stats.open ? { value: stats.unassigned, max: stats.open } : undefined}
-            />
-            <StatCard
-              icon={AlarmClock}
-              label="Longest wait"
-              value={formatDuration(stats.longest)}
-              tone={stats.longest !== null && stats.longest >= DAY ? "critical" : "positive"}
-              detail={stats.longest !== null && stats.longest >= DAY ? "Past the 24h line" : "Inside the 24h line"}
-            />
-            <StatCard
-              icon={TriangleAlert}
-              label="Breaching 24h"
-              value={String(stats.breaching)}
-              tone={stats.breaching > 0 ? "critical" : "positive"}
-              detail={stats.open ? `of ${stats.open} open` : "Nothing open"}
-              meter={stats.open ? { value: stats.breaching, max: stats.open } : undefined}
-            />
-            <StatCard
-              icon={Users}
-              label={role === "owner" ? "Unassigned" : "Assigned to me"}
-              value={String(role === "owner" ? stats.unassigned : stats.mine)}
-              tone={role === "owner" && stats.unassigned > 0 ? "warning" : "neutral"}
-              detail={role === "owner" ? "Nobody has picked these up" : "Yours to handle"}
-              meter={stats.open ? { value: role === "owner" ? stats.unassigned : stats.mine, max: stats.open } : undefined}
-            />
-          </div>
-
           {/* ── toolbar ── */}
           <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
             <div className="relative h-[34px] min-w-[200px] flex-[0_1_300px]">
