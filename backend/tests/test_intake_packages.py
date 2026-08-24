@@ -232,6 +232,57 @@ class IntakeConfigRouteTests(unittest.TestCase):
         self.assertEqual(saved["service_noun"], "reading")
         self.assertEqual(saved["packages"][0]["key"], "vip")
 
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_saves_a_nested_package_tree(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0}
+        res = self.client.patch("/api/v1/settings/intake-config", json={
+            "packages": [
+                {"key": "basic", "name": "Basic", "amount_paise": 0, "description": "", "active": True, "options": [
+                    {"key": "basic_q", "name": "One Question", "amount_paise": 10000, "description": "", "active": True},
+                ]},
+            ],
+        })
+        self.assertEqual(res.status_code, 200)
+        saved = mock_save.call_args[0][1]
+        self.assertEqual(saved["packages"][0]["options"][0]["key"], "basic_q")
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_non_leaf_amount_paise_is_not_validated(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0}
+        res = self.client.patch("/api/v1/settings/intake-config", json={
+            "packages": [
+                {"key": "basic", "name": "Basic", "amount_paise": 0, "description": "", "active": True, "options": [
+                    {"key": "basic_q", "name": "One Question", "amount_paise": 10000, "description": "", "active": True},
+                ]},
+            ],
+        })
+        self.assertEqual(res.status_code, 200)
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_rejects_a_leaf_with_zero_amount(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0}
+        res = self.client.patch("/api/v1/settings/intake-config", json={
+            "packages": [{"key": "basic", "name": "Basic", "amount_paise": 0, "description": "", "active": True}],
+        })
+        self.assertEqual(res.status_code, 400)
+        mock_save.assert_not_called()
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_rejects_a_duplicate_key_between_a_sub_package_and_an_addon(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0}
+        res = self.client.patch("/api/v1/settings/intake-config", json={
+            "packages": [
+                {"key": "basic", "name": "Basic", "amount_paise": 10000, "description": "", "active": True,
+                 "addons": [{"key": "basic", "name": "Dup", "amount_paise": 500, "description": "", "active": True}]},
+            ],
+        })
+        self.assertEqual(res.status_code, 400)
+        mock_save.assert_not_called()
+
 
 from app.services.intake import _active_children, _find_leaf, _menu_at_path, _resolve_choice
 

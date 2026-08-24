@@ -99,11 +99,25 @@ class IntakeFieldUpdate(BaseModel):
     options: list[str] | None = None
 
 
+class IntakeAddonUpdate(BaseModel):
+    key: str
+    name: str
+    amount_paise: int = 0
+    description: str = ""
+    active: bool = True
+
+
 class IntakePackageUpdate(BaseModel):
     key: str
     name: str
-    amount_paise: int
+    amount_paise: int = 0
     description: str = ""
+    active: bool = True
+    options: list["IntakePackageUpdate"] | None = None
+    addons: list[IntakeAddonUpdate] | None = None
+
+
+IntakePackageUpdate.model_rebuild()
 
 
 class IntakeConfigUpdate(BaseModel):
@@ -1622,6 +1636,32 @@ async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict =
     return merged
 
 
+def _walk_packages(nodes: list[dict]):
+    """Yield (node, is_leaf) for every package node in the tree, depth-first."""
+    for n in nodes:
+        options = n.get("options") or []
+        yield n, not options
+        yield from _walk_packages(options)
+
+
+def _validate_packages(packages: list[dict]) -> None:
+    keys: list[str] = []
+    for node, is_leaf in _walk_packages(packages):
+        keys.append(node["key"])
+        if not node["name"].strip():
+            raise HTTPException(status_code=400, detail="Package name is required")
+        if is_leaf and node["amount_paise"] < 1:
+            raise HTTPException(status_code=400, detail="Package amount must be >= 1 paise")
+        for addon in node.get("addons") or []:
+            keys.append(addon["key"])
+            if not addon["name"].strip():
+                raise HTTPException(status_code=400, detail="Addon name is required")
+            if addon["amount_paise"] < 0:
+                raise HTTPException(status_code=400, detail="Addon amount must be >= 0")
+    if len(keys) != len(set(keys)):
+        raise HTTPException(status_code=400, detail="Duplicate package or addon keys")
+
+
 @router.get("/intake-config")
 async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
     return get_intake_config(ctx["tenant_id"])
@@ -1641,13 +1681,7 @@ async def patch_intake_config(
         if len(keys) != len(set(keys)):
             raise HTTPException(status_code=400, detail="Duplicate field keys")
     if "packages" in patch:
-        pkg_keys = [p["key"] for p in patch["packages"]]
-        if len(pkg_keys) != len(set(pkg_keys)):
-            raise HTTPException(status_code=400, detail="Duplicate package keys")
-        if any(p["amount_paise"] < 1 for p in patch["packages"]):
-            raise HTTPException(status_code=400, detail="Package amount must be >= 1 paise")
-        if any(not p["name"].strip() for p in patch["packages"]):
-            raise HTTPException(status_code=400, detail="Package name is required")
+        _validate_packages(patch["packages"])
     if patch.get("enabled") and not (patch.get("packages") or current.get("packages") or current.get("amount_paise")):
         raise HTTPException(status_code=400, detail="Add at least one package before enabling")
     if "service_noun" in patch and not patch["service_noun"].strip():
