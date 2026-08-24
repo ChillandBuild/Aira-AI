@@ -286,6 +286,7 @@ async def test_send_whatsapp_voice_reply_defaults_to_default_gemini_voice_when_n
 
 
 def test_generate_reply_uses_voice_only_for_audio_inbound_whatsapp_dispatch():
+    import ast
     import inspect
     source = inspect.getsource(ai_reply.generate_reply)
     signature = inspect.signature(ai_reply.generate_reply)
@@ -294,4 +295,14 @@ def test_generate_reply_uses_voice_only_for_audio_inbound_whatsapp_dispatch():
     assert "ai_voice_reply_speaker" in source
     assert 'inbound_media_type == "audio"' in source
     assert "send_whatsapp_voice_reply" in source
-    assert "send_whatsapp(_wa_phone, reply_text" in source
+    # Structural, not textual: the call is reflowed across lines and carries
+    # extra keywords, so a literal source match breaks on formatting alone.
+    text_sends = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "send_whatsapp"
+        and {a.id for a in node.args if isinstance(a, ast.Name)} >= {"_wa_phone", "reply_text"}
+    ]
+    assert text_sends, "generate_reply no longer sends the text reply via send_whatsapp(_wa_phone, reply_text, ...)"

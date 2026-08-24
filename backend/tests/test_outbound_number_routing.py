@@ -1,5 +1,6 @@
 # backend/tests/test_outbound_number_routing.py
 """Replies must go out from the number that received the inbound (Option 2)."""
+import ast
 import inspect
 from pathlib import Path
 
@@ -45,9 +46,50 @@ def test_generate_reply_accepts_phone_number_id():
     assert "phone_number_id" in inspect.signature(generate_reply).parameters
 
 
+def _send_whatsapp_calls(src: str) -> list[ast.Call]:
+    """Every `send_whatsapp(...)` call in a source string, as AST nodes.
+
+    Asserted structurally rather than by matching the call's source text: the
+    call is routinely reflowed across lines and gains keyword arguments (it
+    picked up `reply_to_message_id`, and a quick-reply-block branch, in
+    2026-08), which silently broke a literal string match even though the
+    wiring under test never changed."""
+    return [
+        node
+        for node in ast.walk(ast.parse(src))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "send_whatsapp"
+    ]
+
+
 def test_generate_reply_forwards_phone_number_id_to_send_whatsapp():
-    src = _read("app/services/ai_reply.py")
-    assert "send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get(\"tenant_id\"), phone_number_id=phone_number_id)" in src
+    calls = _send_whatsapp_calls(_read("app/services/ai_reply.py"))
+
+    # There is more than one text-reply dispatch (the ordinary path, plus the
+    # fallback when a quick-reply block fails to send). EVERY one of them has to
+    # forward the number, so this asserts over all of them -- an `any()` here
+    # would stay green while one branch silently regressed.
+    dispatches = [
+        c for c in calls
+        if {a.id for a in c.args if isinstance(a, ast.Name)} >= {"_wa_phone", "reply_text"}
+    ]
+    assert dispatches, "no send_whatsapp(_wa_phone, reply_text, ...) dispatch found in ai_reply.py"
+
+    def forwards(call: ast.Call) -> bool:
+        return any(
+            kw.arg == "phone_number_id"
+            and isinstance(kw.value, ast.Name)
+            and kw.value.id == "phone_number_id"
+            for kw in call.keywords
+        ) and any(kw.arg == "tenant_id" for kw in call.keywords)
+
+    offenders = [c.lineno for c in dispatches if not forwards(c)]
+    assert not offenders, (
+        f"send_whatsapp(_wa_phone, reply_text, ...) at line(s) {offenders} does not forward "
+        "phone_number_id=phone_number_id -- those replies fall back to the app_settings "
+        "default number instead of going out from the number that received the inbound"
+    )
 
 
 def test_webhook_threads_inbound_phone_number_id_to_reply():
