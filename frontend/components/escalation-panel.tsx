@@ -282,8 +282,8 @@ export function EscalationPanel({
     <div className="flex flex-1 flex-col overflow-hidden bg-background">
       {/* ── header + tabs ── */}
       <div className="flex-shrink-0 px-6 pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-          <div className="min-w-0">
+        <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+          <div className="min-w-0 flex-shrink-0">
             <h2 className="font-heading text-[23px] font-bold tracking-[-0.028em] text-ink">Escalations</h2>
             <p className="mt-1 font-body text-[12.5px] font-medium text-ink-secondary">
               Conversations the AI handed to a human.

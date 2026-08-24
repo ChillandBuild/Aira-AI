@@ -23,13 +23,13 @@ export type StatItem = {
  *  single-line strip that replaced them briefly. */
 export function StatCards({ items }: { items: StatItem[] }) {
   return (
-    <div className="flex flex-wrap gap-2.5">
+    <div className="flex flex-1 flex-wrap gap-2.5">
       {items.map((item) => {
         const tone = TONE[item.tone ?? "neutral"];
         return (
           <div
             key={item.label}
-            className="min-w-[162px] rounded-xl border border-border bg-surface px-5 py-3.5 shadow-sm"
+            className="min-w-[150px] flex-1 rounded-xl border border-border bg-surface px-5 py-3.5 shadow-sm"
           >
             <p className="flex items-center gap-1.5 font-heading text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
               <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", tone.dot)} aria-hidden />
