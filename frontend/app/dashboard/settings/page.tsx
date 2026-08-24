@@ -10,6 +10,7 @@ import ChangePasswordCard from "./ChangePasswordCard";
 import ConnectChannelsPanel from "./ConnectChannelsPanel";
 import { TelecallingConfigPanel } from "./TelecallingConfigPanel";
 import { IntakeConfigPanel } from "./IntakeConfigPanel";
+import { QuickRepliesPanel } from "./QuickRepliesPanel";
 import { InboxConfigPanel } from "./InboxConfigPanel";
 import { NotificationConfigPanel } from "./NotificationConfigPanel";
 import { BusinessHoursPanel } from "./BusinessHoursPanel";
@@ -845,6 +846,8 @@ export default function SettingsPage() {
               <TelecallingConfigPanel canManage={canManageSettings} />
 
               <IntakeConfigPanel canManage={canManageSettings} />
+
+              <QuickRepliesPanel canManage={canManageSettings} />
             </SettingsAccordion>
           )}
 
