@@ -14,11 +14,19 @@ interface IntakeField {
   options?: string[];
 }
 
+// WhatsApp truncates reply-button titles past 20 chars without erroring, so a
+// package whose name is longer needs an explicit short label or it drops out of
+// the button menu entirely. Mirrors BUTTON_TITLE_MAX/BUTTON_COUNT_MAX in
+// backend/app/services/meta_cloud.py.
+const BUTTON_TITLE_MAX = 20;
+const BUTTON_COUNT_MAX = 3;
+
 interface IntakePackage {
   key: string;
   name: string;
   amount_paise: number;
   description: string;
+  button_label?: string;
 }
 
 interface IntakeConfig {
@@ -228,8 +236,51 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
                   disabled={!canManage}
                   className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
                 />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={pkg.button_label ?? ""}
+                    onChange={(e) =>
+                      updatePackage(index, {
+                        button_label: e.target.value.slice(0, BUTTON_TITLE_MAX),
+                      })
+                    }
+                    placeholder={
+                      pkg.name.length > BUTTON_TITLE_MAX
+                        ? "Short button label (required — name is too long)"
+                        : "Short button label (optional)"
+                    }
+                    disabled={!canManage}
+                    className="flex-1 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                  />
+                  <span
+                    className={`font-label text-xs tabular-nums ${
+                      (pkg.button_label ?? "").length >= BUTTON_TITLE_MAX
+                        ? "text-red-600"
+                        : "text-ink-muted"
+                    }`}
+                  >
+                    {(pkg.button_label ?? "").length}/{BUTTON_TITLE_MAX}
+                  </span>
+                </div>
               </div>
             ))}
+            {draft.packages.length > BUTTON_COUNT_MAX && (
+              <p className="font-body text-xs text-ink-muted">
+                With more than {BUTTON_COUNT_MAX} packages, WhatsApp can&apos;t show tap buttons —
+                leads will see the priced list as text and type their choice.
+              </p>
+            )}
+            {draft.packages.length >= 2 &&
+              draft.packages.length <= BUTTON_COUNT_MAX &&
+              draft.packages.some(
+                (p) => !(p.button_label ?? "").trim() && p.name.length > BUTTON_TITLE_MAX,
+              ) && (
+                <p className="font-body text-xs text-amber-700">
+                  One or more package names are longer than {BUTTON_TITLE_MAX} characters and have
+                  no short button label — leads will see the text list instead of tap buttons.
+                </p>
+              )}
             {draft.packages.length === 0 && (
               <p className="font-body text-xs text-ink-muted italic">
                 No packages yet — add at least one before enabling.
