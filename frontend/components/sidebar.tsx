@@ -8,12 +8,13 @@ import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
-  Settings, Sparkles, Reply,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
+import { getVisibleSettingsItems, SETTINGS_ITEMS, type CallingProvider } from "@/components/settingsNavigation";
 
 type NavItem = {
   href: string;
@@ -44,25 +45,13 @@ const TELECALLING_ITEMS: NavItem[] = [
   { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes" },
 ];
 
-const SETTINGS_ITEMS: NavItem[] = [
-  { href: "/dashboard/settings/general", icon: Users, label: "General" },
-  { href: "/dashboard/settings/connect-channels", icon: RadioTower, label: "Connect Channels" },
-  { href: "/dashboard/settings/telecalling", icon: Phone, label: "Telecalling Credentials" },
-  { href: "/dashboard/settings/auto-reply", icon: Sparkles, label: "Auto-Reply" },
-  { href: "/dashboard/settings/follow-ups", icon: Calendar, label: "Follow-Ups" },
-  { href: "/dashboard/settings/inbox", icon: MessageSquare, label: "Inbox" },
-  { href: "/dashboard/settings/telecalling-behavior", icon: Headset, label: "Telecalling Behavior" },
-  { href: "/dashboard/settings/intake-config", icon: FileCheck, label: "Intake Config" },
-  { href: "/dashboard/settings/business-hours", icon: Calendar, label: "Business Hours" },
-  { href: "/dashboard/settings/notifications", icon: Megaphone, label: "Notifications" },
-  { href: "/dashboard/settings/quick-replies", icon: Reply, label: "Quick Replies" },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
   const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
+  const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
+  const [callingProvider, setCallingProvider] = useState<CallingProvider>(null);
 
   useEffect(() => {
     let active = true;
@@ -73,11 +62,32 @@ export function Sidebar() {
         if (res.ok && active) {
           const data = await res.json();
           setSubStatus(data.status);
+          setPurchasedFeatures((data.items ?? []).map((item: { feature_key: string }) => item.feature_key));
         } else if (active) {
           setSubStatus("active");
         }
       } catch {
         if (active) setSubStatus("active");
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth });
+        if (!active) return;
+        if (res.ok) {
+          const data = await res.json();
+          setCallingProvider((data.calling_provider as Exclude<CallingProvider, null> | undefined) ?? "telecmi");
+        } else {
+          setCallingProvider("telecmi");
+        }
+      } catch {
+        if (active) setCallingProvider("telecmi");
       }
     })();
     return () => { active = false; };
@@ -164,6 +174,7 @@ export function Sidebar() {
   // Auto-expand active groups
   const showTc = expandedGroups.Telecalling || isTcActive;
   const canSettings = canAny(["settings.view", "settings.manage"]);
+  const visibleSettingsItems = getVisibleSettingsItems(purchasedFeatures, callingProvider);
   const isSettingsActive = SETTINGS_ITEMS.some(item => pathname.startsWith(item.href));
   const showSettings = expandedGroups.Settings || isSettingsActive;
 
@@ -512,13 +523,13 @@ export function Sidebar() {
 
             {showSettings && (
               <div className="space-y-0.5">
-                {SETTINGS_ITEMS.map((item, idx) => {
-                  const matches = SETTINGS_ITEMS.filter(i => pathname === i.href || pathname.startsWith(i.href + "/"));
+                {visibleSettingsItems.map((item, idx) => {
+                  const matches = visibleSettingsItems.filter(i => pathname === i.href || pathname.startsWith(i.href + "/"));
                   const bestMatch = matches.reduce<NavItem | null>(
                     (best, i) => (!best || i.href.length > best.href.length ? i : best), null
                   );
                   const active = bestMatch?.href === item.href;
-                  const isLast = idx === SETTINGS_ITEMS.length - 1;
+                  const isLast = idx === visibleSettingsItems.length - 1;
 
                   return (
                     <div key={item.href} className="relative pl-6 flex items-center h-9">

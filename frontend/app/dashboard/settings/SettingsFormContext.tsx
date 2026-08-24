@@ -1,9 +1,10 @@
 "use client";
 import { createContext, useContext, useCallback, useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { createClient } from "@/lib/supabase/client";
+import { hasNotificationSettings } from "@/components/settingsNavigation";
 import ChangePasswordCard from "./ChangePasswordCard";
 
 export type Setting = {
@@ -116,7 +117,7 @@ export function SettingsFormProvider({ children }: { children: React.ReactNode }
     })();
   }, []);
 
-  const hasNotifications = purchasedFeatures.length === 0 || purchasedFeatures.includes("inbound_messaging") || purchasedFeatures.includes("outbound_messaging");
+  const hasNotifications = hasNotificationSettings(purchasedFeatures);
   const hasTelecmiConfig = callingProvider === null ? null : callingProvider === "telecmi";
 
   const load = useCallback(async () => {
@@ -235,5 +236,21 @@ export function SettingsFormProvider({ children }: { children: React.ReactNode }
     );
   }
 
-  return <SettingsFormCtx.Provider value={value}>{children}</SettingsFormCtx.Provider>;
+  return (
+    <SettingsFormCtx.Provider value={value}>
+      <div className="min-w-0">
+        {error && (
+          <div className="mb-5 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 p-3.5 text-red-700">
+            <AlertCircle size={15} />
+            <span className="font-body text-sm">{error}</span>
+          </div>
+        )}
+        {loading ? (
+          <div className="space-y-5">
+            <div className="card h-56 animate-pulse rounded-3xl bg-border-subtle" />
+          </div>
+        ) : children}
+      </div>
+    </SettingsFormCtx.Provider>
+  );
 }

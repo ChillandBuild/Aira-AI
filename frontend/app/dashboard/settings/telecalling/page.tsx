@@ -105,7 +105,7 @@ export default function TelecallingSettingsPage() {
   const { settingFor, drafts, setDrafts, saveStates, canManageSettings, tenantId, hasTelecmiConfig, handleSave } = useSettingsForm();
 
   useEffect(() => {
-    if (hasTelecmiConfig === false) router.replace("/dashboard/settings?tab=automations", { scroll: false });
+    if (hasTelecmiConfig === false) router.replace("/dashboard/settings/telecalling-behavior", { scroll: false });
   }, [hasTelecmiConfig, router]);
 
   if (hasTelecmiConfig !== true) return null;

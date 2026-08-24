@@ -109,9 +109,6 @@ export default function FollowUpsSettingsPage() {
                 onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.quietStart]: e.target.value }))}
                 className="mt-1.5 w-full rounded-xl border border-border bg-white px-3 py-2 font-body text-sm text-ink transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60"
               />
-              <span className="mt-1 block font-body text-[11px] text-ink-muted">
-                The first follow-up always sends — quiet hours only delay later ones.
-              </span>
             </label>
 
             <label className="block">
