@@ -1,7 +1,21 @@
 # Intake Package Picker — WhatsApp Reply Buttons
 
-Status: approved by user, ready for implementation plan.
+Status: **IMPLEMENTED THEN REVERTED — do not resurrect without asking.**
 Date: 2026-08-24
+
+> Built and merged on 2026-08-24 (`6d2749a4`), then reverted the same day at the
+> user's direction: reply buttons are to be a **standalone feature**, and the paid
+> intake flow is to be left exactly as it was. `intake.py` and `IntakeConfigPanel.tsx`
+> are restored byte-identical to their pre-implementation state, and `button_label`
+> does not exist on `intake_config`.
+>
+> The one piece deliberately kept is the `send_interactive_buttons` validation fix in
+> `meta_cloud.py` — it raises on an over-long button title instead of silently
+> truncating. That is a standalone safety improvement with no tie to intake.
+>
+> Consequence: the nested-packages spec no longer needs to preserve `button_label`
+> (section 9 is void). The remaining live work is the standalone button library
+> described in section 8.
 
 ## 1. Problem
 
