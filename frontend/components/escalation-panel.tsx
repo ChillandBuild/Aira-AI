@@ -17,7 +17,7 @@ import {
   type Caller,
   type Handover,
 } from "@/lib/escalations";
-import { StatBar, type StatItem } from "@/components/escalations/stat-bar";
+import { StatCards, type StatItem } from "@/components/escalations/stat-cards";
 import { HistoryTab } from "@/components/escalations/history-tab";
 import { ChannelCell, DurationCell, LeadCell, PersonCell, TableEmpty, TableSkeleton, TriggerChip } from "@/components/escalations/atoms";
 
@@ -59,6 +59,7 @@ export function EscalationPanel({
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState<"all" | "unassigned" | "mine" | "breaching">("all");
+  const [historyStats, setHistoryStats] = useState<StatItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const visibleHandovers = useMemo(
@@ -144,25 +145,25 @@ export function EscalationPanel({
         label: "Open now",
         value: String(stats.open),
         tone: stats.open === 0 ? "positive" : stats.breaching > 0 ? "critical" : "warning",
-        hint: stats.open === 0 ? "Queue is clear" : `${stats.unassigned} waiting for an owner`,
+        detail: stats.open === 0 ? "Queue is clear" : `${stats.unassigned} waiting for an owner`,
       },
       {
         label: "Longest wait",
         value: formatDuration(stats.longest),
         tone: stats.longest !== null && stats.longest >= DAY ? "critical" : "positive",
-        hint: stats.longest !== null && stats.longest >= DAY ? "Past the 24h line" : "Inside the 24h line",
+        detail: stats.longest !== null && stats.longest >= DAY ? "Past the 24h line" : "Inside the 24h line",
       },
       {
         label: "Breaching 24h",
         value: String(stats.breaching),
         tone: stats.breaching > 0 ? "critical" : "positive",
-        hint: stats.open ? `of ${stats.open} open` : "Nothing open",
+        detail: stats.open ? `of ${stats.open} open` : "Nothing open",
       },
       {
         label: role === "owner" ? "Unassigned" : "Assigned to me",
         value: String(role === "owner" ? stats.unassigned : stats.mine),
         tone: role === "owner" && stats.unassigned > 0 ? "warning" : "neutral",
-        hint: role === "owner" ? "Nobody has picked these up" : "Yours to handle",
+        detail: role === "owner" ? "Nobody has picked these up" : "Yours to handle",
       },
     ],
     [stats, role]
@@ -250,10 +251,10 @@ export function EscalationPanel({
               Conversations the AI handed to a human.
             </p>
           </div>
-          {tab === "active" && !loading && <StatBar items={activeStats} />}
+          {!loading && <StatCards items={tab === "active" ? activeStats : historyStats} />}
         </div>
 
-        <div className="-mx-6 mt-[18px] flex items-end border-b border-border px-6" role="tablist" aria-label="Escalation views">
+        <div className="-mx-6 mt-5 flex items-end border-b border-border-subtle px-6" role="tablist" aria-label="Escalation views">
           {([
             { key: "active", label: "Active", count: visibleHandovers.length, critical: true },
             { key: "history", label: "History", count: null, critical: false },
@@ -288,11 +289,16 @@ export function EscalationPanel({
       </div>
 
       {tab === "history" ? (
-        <HistoryTab onOpenChat={onReply} canReply={canReplyToConversations} onReopened={load} />
+        <HistoryTab
+          onOpenChat={onReply}
+          canReply={canReplyToConversations}
+          onReopened={load}
+          onStatsChange={setHistoryStats}
+        />
       ) : (
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          {/* ── toolbar ── */}
-          <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* ── toolbar (stays in the header; only the list below scrolls) ── */}
+          <div className="flex flex-wrap items-center gap-3 px-6 py-4">
             <div className="relative h-[34px] min-w-[200px] flex-[0_1_300px]">
               <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
               <input
@@ -333,7 +339,10 @@ export function EscalationPanel({
             </div>
           </div>
 
-          {/* ── table ── */}
+          <div className="h-px flex-shrink-0 bg-border" />
+
+          {/* ── list ── */}
+          <div className="flex flex-1 flex-col overflow-y-auto">
           {!loading && visibleHandovers.length === 0 ? (
             <TableEmpty
               icon={<CheckCircle2 size={26} className="text-success" />}
@@ -356,7 +365,7 @@ export function EscalationPanel({
                       { label: "Channel", w: "" },
                       { label: "Why escalated", w: "" },
                       { label: "Waiting", w: "w-[124px]" },
-                      { label: "Assigned", w: "w-[160px]" },
+                      { label: "Assigned", w: "w-[196px]" },
                       { label: "Actions", w: "w-[244px]" },
                     ].map((c) => (
                       <th
@@ -482,6 +491,7 @@ export function EscalationPanel({
               </table>
             </div>
           )}
+          </div>
         </div>
       )}
     </div>

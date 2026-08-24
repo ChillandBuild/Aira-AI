@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Info, MessageSquare, RotateCcw, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDateTime, formatDuration } from "@/lib/utils";
@@ -12,7 +12,7 @@ import {
   type HistoryStats,
   type ResolvedHandover,
 } from "@/lib/escalations";
-import { StatBar, type StatItem } from "@/components/escalations/stat-bar";
+import { type StatItem } from "@/components/escalations/stat-cards";
 import { ChannelCell, DurationCell, LeadCell, PersonCell, TableEmpty, TableSkeleton, TriggerChip } from "@/components/escalations/atoms";
 
 const PAGE_SIZE = 25;
@@ -23,9 +23,12 @@ interface HistoryTabProps {
   /** Reopening puts a handover back in the active pool, so the parent has to
    *  refresh its list and the rail badge. */
   onReopened: () => void;
+  /** The KPI cards live in the shared page header next to the title, but the
+   *  numbers are only known here, so they are handed upward. */
+  onStatsChange: (items: StatItem[]) => void;
 }
 
-export function HistoryTab({ onOpenChat, canReply, onReopened }: HistoryTabProps) {
+export function HistoryTab({ onOpenChat, canReply, onReopened, onStatsChange }: HistoryTabProps) {
   const [rows, setRows] = useState<ResolvedHandover[]>([]);
   const [stats, setStats] = useState<HistoryStats>(EMPTY_HISTORY_STATS);
   const [total, setTotal] = useState(0);
@@ -105,41 +108,43 @@ export function HistoryTab({ onOpenChat, canReply, onReopened }: HistoryTabProps
     }
   }
 
-  const historyStats: StatItem[] = [
+  const historyStats: StatItem[] = useMemo(() => [
     {
       label: "Resolved all-time",
       value: String(stats.total),
-      hint: stats.total ? "Every handover closed by a human" : "Nothing resolved yet",
+      detail: stats.total ? "Every handover closed by a human" : "Nothing resolved yet",
     },
     {
       label: "Median to resolve",
       value: formatDuration(stats.median_seconds),
       tone: stats.median_seconds !== null && stats.median_seconds > 86_400 ? "warning" : "positive",
-      hint: "From handover to resolution",
+      detail: "From handover to resolution",
     },
     {
       label: "Top resolver",
       value: stats.top_resolver ?? "Not recorded",
-      hint: stats.top_resolver
+      detail: stats.top_resolver
         ? `${stats.top_resolver_count} of ${stats.total} resolved`
         : "No attributed resolutions yet",
     },
     {
       label: "Most common trigger",
       value: stats.top_reason ? (TRIGGERS[stats.top_reason]?.label ?? stats.top_reason) : "—",
-      hint: stats.top_reason ? "Why the AI hands over most often" : "No triggers recorded yet",
+      detail: stats.top_reason ? "Why the AI hands over most often" : "No triggers recorded yet",
     },
-  ];
+  ], [stats]);
+
+  useEffect(() => {
+    onStatsChange(historyStats);
+  }, [historyStats, onStatsChange]);
 
   const filtered = Boolean(debounced || resolver || reason);
   const hasUnattributed = rows.some((r) => !r.resolved_by_name);
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto">
-      {!loading && <div className="px-6 pt-5"><StatBar items={historyStats} /></div>}
-
+    <div className="flex flex-1 flex-col overflow-hidden">
       {/* ── toolbar ── */}
-      <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
+      <div className="flex flex-wrap items-center gap-3 px-6 py-4">
         <div className="relative h-[34px] min-w-[200px] flex-[0_1_300px]">
           <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
@@ -191,7 +196,10 @@ export function HistoryTab({ onOpenChat, canReply, onReopened }: HistoryTabProps
         </div>
       </div>
 
-      {/* ── table ── */}
+      <div className="h-px flex-shrink-0 bg-border" />
+
+      {/* ── list (only this scrolls; filters stay in the header) ── */}
+      <div className="flex flex-1 flex-col overflow-y-auto">
       {error ? (
         <TableEmpty
           icon={<Info size={24} className="text-ink-muted" />}
@@ -217,7 +225,7 @@ export function HistoryTab({ onOpenChat, canReply, onReopened }: HistoryTabProps
                   {[
                     { label: "Lead", w: "" },
                     { label: "Why escalated", w: "" },
-                    { label: "Resolved by", w: "w-[160px]" },
+                    { label: "Resolved by", w: "w-[196px]" },
                     { label: "Resolved", w: "w-[150px]" },
                     { label: "Time to resolve", w: "w-[120px]" },
                     { label: "Actions", w: "w-[190px]" },
@@ -314,6 +322,7 @@ export function HistoryTab({ onOpenChat, canReply, onReopened }: HistoryTabProps
           )}
         </>
       )}
+      </div>
     </div>
   );
 }
