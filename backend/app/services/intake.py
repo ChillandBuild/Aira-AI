@@ -431,6 +431,60 @@ async def match_package(message: str, packages: list[dict], tenant_id: str) -> d
     return None
 
 
+def addon_list_block(addons: list[dict]) -> str:
+    """Same non-LLM-rendered-price principle as package_list_block -- see its
+    docstring."""
+    lines = []
+    for a in addons:
+        line = f"• {a['name']} — +{_rupees(a['amount_paise'])}"
+        if a.get("description"):
+            line += f"\n  {a['description']}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+_ADDON_DECLINE_WORDS = frozenset({"no", "skip", "none", "no thanks", "nope", "not needed"})
+
+_ADDON_MATCH_SYSTEM_PROMPT = """You match a customer's reply to zero or more addons from a
+fixed list. You are given the addons (key and name) and the customer's message.
+
+Respond with JSON only: {"keys": ["<matching addon keys>"]} -- an empty list if the customer
+declined, said no/skip/none, or didn't clearly choose any of the listed addons.
+
+Rules:
+- Every key in the list MUST be one of the keys given. Never invent a key.
+- If ambiguous, return an empty list rather than guessing.
+- JSON only, no other text."""
+
+
+async def match_addons(message: str, addons: list[dict], tenant_id: str) -> list[dict]:
+    """Match a lead's free-text reply to zero or more configured addons.
+    Multi-select, unlike match_package -- an empty result is a valid, common
+    outcome (the lead declined all addons), not a failure to re-ask about."""
+    if not addons:
+        return []
+
+    if message.strip().lower() in _ADDON_DECLINE_WORDS:
+        return []
+
+    addon_list = "\n".join(f"- {a['key']}: {a['name']}" for a in addons)
+    try:
+        data = await gemini_chat_completion_json(
+            system_prompt=_ADDON_MATCH_SYSTEM_PROMPT,
+            user_prompt=f"Addons:\n{addon_list}\n\nCustomer message: {message}",
+            temperature=0.0,
+            max_tokens=100,
+            tenant_id=tenant_id,
+            purpose="intake_addon_match",
+        )
+    except Exception as e:
+        logger.warning(f"Intake addon match failed, treating as no addons chosen: {e}")
+        return []
+
+    keys = set(data.get("keys") or [])
+    return [a for a in addons if a["key"] in keys]
+
+
 _ACTIVE_STATUSES = (
     "offer_pending", "awaiting_package_choice", "collecting",
     "awaiting_confirmation", "awaiting_payment", "paid",
@@ -470,14 +524,19 @@ def _update_session(session_id: str, patch: dict, db) -> None:
     db.table("intake_sessions").update(patch).eq("id", session_id).execute()
 
 
-def _package_patch(package: dict) -> dict:
+def _package_patch(package: dict, path: list[dict] | None = None, total_amount_paise: int | None = None) -> dict:
     """Snapshot the chosen package onto the session row. Repricing or renaming a
     package later must not rewrite what a past lead was actually offered."""
-    return {
+    patch = {
         "package_key": package["key"],
         "package_name": package["name"],
         "package_amount_paise": package["amount_paise"],
     }
+    if path is not None:
+        patch["package_path"] = path
+    if total_amount_paise is not None:
+        patch["total_amount_paise"] = total_amount_paise
+    return patch
 
 
 async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db) -> None:

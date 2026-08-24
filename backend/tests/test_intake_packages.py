@@ -293,5 +293,72 @@ class FindLeafTests(unittest.TestCase):
         self.assertIsNone(_find_leaf(NESTED_PACKAGES, "nope"))
 
 
+from app.services.intake import _package_patch, addon_list_block, match_addons
+
+ADDONS = [
+    {"key": "pdf", "name": "PDF summary", "amount_paise": 20000, "description": ""},
+    {"key": "call", "name": "Follow-up call", "amount_paise": 15000, "description": ""},
+]
+
+
+class AddonListBlockTests(unittest.TestCase):
+    def test_renders_names_and_plus_prices(self):
+        text = addon_list_block(ADDONS)
+        self.assertIn("PDF summary — +₹200", text)
+        self.assertIn("Follow-up call — +₹150", text)
+
+
+class MatchAddonsTests(unittest.TestCase):
+    def test_no_addons_configured_returns_empty_without_calling_llm(self):
+        with mock_patch("app.services.intake.gemini_chat_completion_json") as llm:
+            result = asyncio.run(match_addons("yes please", [], "t-1"))
+        self.assertEqual(result, [])
+        llm.assert_not_called()
+
+    def test_decline_words_short_circuit_without_calling_the_llm(self):
+        with mock_patch("app.services.intake.gemini_chat_completion_json") as llm:
+            result = asyncio.run(match_addons("no thanks", ADDONS, "t-1"))
+        self.assertEqual(result, [])
+        llm.assert_not_called()
+
+    def test_llm_selects_multiple_addons(self):
+        with mock_patch(
+            "app.services.intake.gemini_chat_completion_json",
+            new=AsyncMock(return_value={"keys": ["pdf", "call"]}),
+        ):
+            result = asyncio.run(match_addons("both please", ADDONS, "t-1"))
+        self.assertEqual({a["key"] for a in result}, {"pdf", "call"})
+
+    def test_unknown_keys_from_the_llm_are_dropped_not_guessed(self):
+        with mock_patch(
+            "app.services.intake.gemini_chat_completion_json",
+            new=AsyncMock(return_value={"keys": ["pdf", "made_up"]}),
+        ):
+            result = asyncio.run(match_addons("the summary one", ADDONS, "t-1"))
+        self.assertEqual([a["key"] for a in result], ["pdf"])
+
+    def test_llm_failure_returns_no_addons_not_a_crash(self):
+        with mock_patch(
+            "app.services.intake.gemini_chat_completion_json",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            result = asyncio.run(match_addons("uhh", ADDONS, "t-1"))
+        self.assertEqual(result, [])
+
+
+class PackagePatchTests(unittest.TestCase):
+    def test_defaults_have_no_path_or_total(self):
+        patch = _package_patch({"key": "basic", "name": "Basic", "amount_paise": 10000})
+        self.assertEqual(patch, {
+            "package_key": "basic", "package_name": "Basic", "package_amount_paise": 10000,
+        })
+
+    def test_includes_path_and_total_when_given(self):
+        path = [{"key": "basic", "name": "Basic"}]
+        patch = _package_patch({"key": "basic", "name": "Basic", "amount_paise": 10000}, path=path, total_amount_paise=30000)
+        self.assertEqual(patch["package_path"], path)
+        self.assertEqual(patch["total_amount_paise"], 30000)
+
+
 if __name__ == "__main__":
     unittest.main()
