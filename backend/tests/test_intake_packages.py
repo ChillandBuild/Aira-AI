@@ -158,6 +158,28 @@ class ChangeSessionPackageTests(unittest.TestCase):
         self.assertEqual(update_patch["package_key"], "vip")
         self.assertEqual(update_patch["package_amount_paise"], 500000)
 
+    def test_finds_a_nested_leaf_by_key(self):
+        db = self._db_with_session("awaiting_payment")
+        with mock_patch("app.services.intake.get_intake_config", return_value={
+            "packages": NESTED_PACKAGES, "service_noun": "reading",
+        }):
+            result = asyncio.run(change_session_package("s-1", "t-1", "basic_detail", db=db))
+        self.assertIsNotNone(result)
+        update_patch = db.table.return_value.update.call_args[0][0]
+        self.assertEqual(update_patch["package_key"], "basic_detail")
+        self.assertEqual(update_patch["package_amount_paise"], 30000)
+        self.assertEqual(update_patch["package_path"], [
+            {"key": "basic", "name": "Basic"}, {"key": "basic_detail", "name": "Detailed Consultation"},
+        ])
+
+    def test_refuses_a_non_leaf_key(self):
+        db = self._db_with_session("awaiting_payment")
+        with mock_patch("app.services.intake.get_intake_config", return_value={
+            "packages": NESTED_PACKAGES, "service_noun": "reading",
+        }):
+            result = asyncio.run(change_session_package("s-1", "t-1", "basic", db=db))
+        self.assertIsNone(result)
+
 
 class IntakeConfigRouteTests(unittest.TestCase):
     def setUp(self):

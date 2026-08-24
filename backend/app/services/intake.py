@@ -1298,14 +1298,16 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
         return None
 
     config = get_intake_config(tenant_id, db=db)
-    chosen = next((p for p in normalize_packages(config) if p["key"] == package_key), None)
-    if chosen is None:
+    packages = normalize_packages(config)
+    found = _find_leaf(packages, package_key)
+    if found is None:
         return None
+    chosen, path = found
 
     # The old Razorpay link stays live until Razorpay processes the cancel, so
     # confirm_intake_payment records the amount that actually arrives rather
     # than assuming this one. See D16.
-    patch = _package_patch(chosen) | {"payment_link": None, "amount_paise": None}
+    patch = _package_patch(chosen, path, total_amount_paise=chosen["amount_paise"]) | {"payment_link": None, "amount_paise": None}
     db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
     return {**session, **patch}
 
