@@ -46,6 +46,11 @@ recursive nodes:
 - `addons` is optional, leaf-only.
 - `active: bool` (default `true`) on any node at any depth. Inactive node (and its whole
   subtree) is filtered out of both the bot's package list and `match_package()` candidates.
+- **Non-leaf `amount_paise` is display-only and unused for charging** — a parent's true price
+  depends on which leaf gets picked. `package_list_block()` (section 4) shows a price only for
+  leaf entries in the list it's given; non-leaf entries show name + description, no price.
+  Validation (`backend/app/routes/app_settings.py:1643-1650`) requires `amount_paise >= 1` only
+  on leaves — non-leaf nodes default `amount_paise` to `0` and skip that check.
 
 ## 3. Session snapshot (`intake_sessions` table)
 
@@ -146,10 +151,34 @@ settings):
 /dashboard/settings/notifications        (NotificationConfigPanel)
 ```
 
-- Each new route's page component renders the existing panel component unchanged — no panel
-  logic rewritten, just relocated out of the tabbed monolith.
-- `/dashboard/settings` becomes a redirect to `/dashboard/settings/general`. `MoreMenu`/
-  `ProfileMenu` links need no change (still point at `/dashboard/settings`).
+- 6 of the 10 panels are already self-contained components (`ConnectChannelsPanel`,
+  `InboxConfigPanel`, `TelecallingConfigPanel`, `IntakeConfigPanel`, `BusinessHoursPanel`,
+  `NotificationConfigPanel`) — their new route page renders them unchanged, no logic
+  rewritten.
+- The other 4 (admin identity card, TeleCMI credentials, AI Auto-Reply toggle, Silence-Nudge
+  config) are raw JSX currently living inline in `page.tsx:540-841`, sharing one page-level
+  state blob (`drafts`, `saveStates`, `handleSave`, `settingFor`, a single `GET/PATCH
+  /api/v1/settings/` fetch). Splitting them into routes requires lifting that shared state out
+  first:
+  - New `frontend/app/dashboard/settings/SettingsFormContext.tsx` — `SettingsFormProvider`
+    (the exact state/effects from `page.tsx:225-337` and `handleSave` from `:404-437`, moved
+    verbatim) + `useSettingsForm()` hook exposing `{ loading, error, canViewSettings,
+    canManageSettings, settings, drafts, setDrafts, saveStates, settingFor, handleSave, email,
+    fullName, initials, memberSince, tenantId, hasNotifications, hasTelecmiConfig }`. Provider
+    renders the `roleLoading` spinner / `!canViewSettings` fallback (`page.tsx:439-453`)
+    itself, so every route under it gets that guard for free.
+  - New `frontend/app/dashboard/settings/layout.tsx` wraps all child routes in
+    `SettingsFormProvider` — one fetch, shared by every settings page, same network behavior
+    as today.
+  - Each of the 4 raw-JSX sections becomes its own page consuming `useSettingsForm()`; each
+    page-specific constant (`SECTIONS`/`AI_AUTO_REPLY_TOGGLE`/`SILENCE_NUDGE_KEYS`/
+    `parseSilenceDelays`/`OutlinedField`/`SecretField`) moves from `page.tsx` into the one page
+    that uses it — no shared-component file needed for single-consumer pieces (YAGNI).
+- `frontend/app/dashboard/settings/page.tsx` shrinks to a redirect to
+  `/dashboard/settings/general`. `MoreMenu`/`ProfileMenu` links need no change (still point at
+  `/dashboard/settings`).
+- The mobile pill-switcher (`page.tsx:461-524`) and desktop tab-nav (`AppHeader.tsx:332-360`)
+  are deleted — dead once the sidebar Settings group replaces them.
 - Old `?tab=` bookmarks/links break silently — acceptable, this is operator-only tooling (no
   external client ever reaches these settings).
 
