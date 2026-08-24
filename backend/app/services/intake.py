@@ -305,10 +305,17 @@ def _rupees(amount_paise: int) -> str:
 def package_list_block(packages: list[dict]) -> str:
     """Rendered in Python, never by the LLM: these are prices the customer will
     be held to, and a hallucinated figure is a real liability. The surrounding
-    intro/question are composed in the tenant's language by intake_copy."""
+    intro/question are composed in the tenant's language by intake_copy.
+
+    A non-leaf entry (has `options`) shows no price -- its true price depends on
+    which leaf under it gets picked, so `amount_paise` on a non-leaf is display-only
+    and would be misleading here."""
     lines = []
     for p in packages:
-        line = f"• {p['name']} — {_rupees(p['amount_paise'])}"
+        if p.get("options"):
+            line = f"• {p['name']}"
+        else:
+            line = f"• {p['name']} — {_rupees(p['amount_paise'])}"
         if p.get("description"):
             line += f"\n  {p['description']}"
         lines.append(line)

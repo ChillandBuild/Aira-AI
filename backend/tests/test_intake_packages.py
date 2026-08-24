@@ -70,6 +70,16 @@ class PackageListMessageTests(unittest.TestCase):
         packages = [{"key": "b", "name": "Basic", "amount_paise": 1000, "description": ""}]
         self.assertNotIn("—  ", package_list_message(packages, "consultation"))
 
+    def test_omits_price_for_a_non_leaf_package(self):
+        packages = [
+            {"key": "basic", "name": "Basic", "amount_paise": 0, "description": "Pick a level", "options": [
+                {"key": "basic_q", "name": "One Question", "amount_paise": 10000, "description": ""},
+            ]},
+        ]
+        text = package_list_message(packages, "consultation")
+        self.assertIn("Basic\n", text)
+        self.assertNotIn("Basic —", text)
+
 
 PACKAGES = [
     {"key": "basic", "name": "Basic", "amount_paise": 50000, "description": ""},
