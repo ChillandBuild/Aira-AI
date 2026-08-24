@@ -487,6 +487,58 @@ async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db)
         )
 
 
+# WhatsApp's interactive body cap. Over this the API rejects the message, so fall
+# back to a plain text list rather than lose the turn.
+_WA_INTERACTIVE_BODY_MAX = 1024
+
+
+async def _send_buttons_and_log(
+    phone: str, text: str, buttons: list[dict], tenant_id: str, lead_id: str, db
+) -> None:
+    """Send `text` as a WhatsApp interactive button message, then log it.
+
+    Carries _send_and_log's guarantee: this never raises. A failure to send falls back
+    to the plain text list, and a failure to log is swallowed -- either one escaping
+    would make route_intake's caller treat the turn as unconsumed and send a second,
+    unrelated reply on top of one the customer already received.
+    """
+    from app.services import meta_cloud
+
+    if len(text) > _WA_INTERACTIVE_BODY_MAX:
+        await _send_and_log(phone, text, tenant_id, lead_id, db)
+        return
+
+    try:
+        data = await meta_cloud.send_interactive_buttons(
+            to_number=phone, body_text=text, buttons=buttons, tenant_id=tenant_id
+        )
+    except Exception:
+        logger.exception("Intake package buttons send failed, falling back to text list")
+        await _send_and_log(phone, text, tenant_id, lead_id, db)
+        return
+
+    mid = (data.get("messages") or [{}])[0].get("id")
+    # Log the labels alongside the body so the thread the AI reads back, and the
+    # operator inbox, both show what the lead was actually offered.
+    logged = text + "\n\n" + " ".join(f"[{b['title']}]" for b in buttons)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id,
+            "tenant_id": tenant_id,
+            "direction": "outbound",
+            "channel": "whatsapp",
+            "content": logged,
+            "is_ai_generated": True,
+            "meta_message_id": mid,
+            "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake button message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+
+
 # Roman-script Tamil is deliberately included: the moment the offer message is
 # written in Tanglish, leads answer in Tanglish ("seri", "aama"), and anything
 # unmatched here is treated as a refusal that cancels the session and loses the

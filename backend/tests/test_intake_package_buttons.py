@@ -100,3 +100,67 @@ async def test_match_package_still_matches_name_without_llm():
         result = await match_package("One Question", pkgs, "tenant-1")
     assert result["key"] == "basic"
     llm.assert_not_called()
+
+
+from unittest.mock import MagicMock
+
+from app.services.intake import _send_buttons_and_log
+
+_BUTTONS = [{"id": "basic", "title": "One Question"}, {"id": "det", "title": "Detailed"}]
+
+
+def _fake_db():
+    db = MagicMock()
+    db.table.return_value.insert.return_value.execute.return_value = MagicMock()
+    return db
+
+
+@pytest.mark.asyncio
+async def test_send_buttons_logs_body_and_labels():
+    db = _fake_db()
+    send = AsyncMock(return_value={"messages": [{"id": "wamid.9"}]})
+    with patch("app.services.meta_cloud.send_interactive_buttons", new=send):
+        await _send_buttons_and_log("+919000000000", "Pick one", _BUTTONS, "t1", "l1", db)
+
+    send.assert_awaited_once()
+    logged = db.table.return_value.insert.call_args[0][0]
+    assert logged["content"] == "Pick one\n\n[One Question] [Detailed]"
+    assert logged["meta_message_id"] == "wamid.9"
+    assert logged["channel"] == "whatsapp"
+    assert logged["reply_source"] == "expert_handoff"
+
+
+@pytest.mark.asyncio
+async def test_send_buttons_falls_back_to_text_when_send_fails():
+    db = _fake_db()
+    send = AsyncMock(side_effect=RuntimeError("meta down"))
+    fallback = AsyncMock()
+    with patch("app.services.meta_cloud.send_interactive_buttons", new=send):
+        with patch("app.services.intake._send_and_log", new=fallback):
+            await _send_buttons_and_log("+919000000000", "Pick one", _BUTTONS, "t1", "l1", db)
+
+    fallback.assert_awaited_once_with("+919000000000", "Pick one", "t1", "l1", db)
+
+
+@pytest.mark.asyncio
+async def test_send_buttons_falls_back_when_body_too_long():
+    db = _fake_db()
+    long_body = "x" * 1025
+    send = AsyncMock()
+    fallback = AsyncMock()
+    with patch("app.services.meta_cloud.send_interactive_buttons", new=send):
+        with patch("app.services.intake._send_and_log", new=fallback):
+            await _send_buttons_and_log("+919000000000", long_body, _BUTTONS, "t1", "l1", db)
+
+    send.assert_not_awaited()
+    fallback.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_send_buttons_never_raises_when_logging_fails():
+    db = MagicMock()
+    db.table.return_value.insert.return_value.execute.side_effect = RuntimeError("constraint")
+    send = AsyncMock(return_value={"messages": [{"id": "wamid.9"}]})
+    with patch("app.services.meta_cloud.send_interactive_buttons", new=send):
+        await _send_buttons_and_log("+919000000000", "Pick one", _BUTTONS, "t1", "l1", db)
+    # No assertion needed: the test fails if this raises.
