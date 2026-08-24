@@ -331,6 +331,61 @@ def package_list_message(packages: list[dict], service_noun: str) -> str:
     )
 
 
+def _active_children(nodes: list[dict]) -> list[dict]:
+    return [n for n in nodes if n.get("active", True)]
+
+
+def _resolve_choice(level: list[dict], path: list[dict]) -> tuple[str, dict | list[dict], list[dict]]:
+    """Resolve what the bot should do at a given menu level, auto-descending
+    through any chain of single-active-option levels -- this is the recursive
+    generalization of the old root-only "if len(packages) == 1: auto-select" rule.
+
+    Returns one of:
+      ("leaf", node, path)      -- a single purchasable package was resolved
+      ("choose", [nodes], path) -- 2+ active options, ask the lead to pick
+      ("empty", [], path)       -- zero active options at this level (misconfigured)
+    `path` is the breadcrumb [{key, name}, ...] from root to here."""
+    active = _active_children(level)
+    if not active:
+        return ("empty", [], path)
+    if len(active) == 1:
+        only = active[0]
+        new_path = path + [{"key": only["key"], "name": only["name"]}]
+        if only.get("options"):
+            return _resolve_choice(only["options"], new_path)
+        return ("leaf", only, new_path)
+    return ("choose", active, path)
+
+
+def _menu_at_path(packages: list[dict], path: list[dict]) -> list[dict]:
+    """Re-derive the menu the lead is currently looking at, by walking the live
+    config from root using the keys already confirmed in `path`. Always re-derived
+    rather than cached, so an operator editing packages mid-conversation can't
+    leave the lead looking at a stale menu."""
+    level = packages
+    for step in path:
+        match = next((n for n in level if n.get("key") == step["key"]), None)
+        level = match["options"] if match and match.get("options") else []
+    return level
+
+
+def _find_leaf(packages: list[dict], key: str, path: list[dict] | None = None) -> tuple[dict, list[dict]] | None:
+    """Depth-first search for a leaf package by key anywhere in the tree,
+    returning it with its breadcrumb. Used when a session already has a
+    package_key and the bot needs to look up that leaf's current addons, or
+    when an operator repoints a session at any leaf regardless of depth."""
+    path = path or []
+    for node in packages:
+        node_path = path + [{"key": node["key"], "name": node["name"]}]
+        if node.get("options"):
+            found = _find_leaf(node["options"], key, node_path)
+            if found:
+                return found
+        elif node["key"] == key:
+            return (node, node_path)
+    return None
+
+
 _PACKAGE_MATCH_SYSTEM_PROMPT = """You match a customer's reply to one of a fixed list of
 packages. You are given the packages (key and name) and the customer's message.
 

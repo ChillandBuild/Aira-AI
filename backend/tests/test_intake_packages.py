@@ -211,5 +211,87 @@ class IntakeConfigRouteTests(unittest.TestCase):
         self.assertEqual(saved["packages"][0]["key"], "vip")
 
 
+from app.services.intake import _active_children, _find_leaf, _menu_at_path, _resolve_choice
+
+
+NESTED_PACKAGES = [
+    {"key": "basic", "name": "Basic", "amount_paise": 0, "description": "", "active": True, "options": [
+        {"key": "basic_q", "name": "One Question", "amount_paise": 10000, "description": "", "active": True},
+        {"key": "basic_detail", "name": "Detailed Consultation", "amount_paise": 30000, "description": "", "active": True,
+         "addons": [{"key": "pdf", "name": "PDF summary", "amount_paise": 20000, "description": "", "active": True}]},
+    ]},
+    {"key": "premium", "name": "Premium", "amount_paise": 50000, "description": "", "active": True},
+]
+
+
+class ActiveChildrenTests(unittest.TestCase):
+    def test_filters_out_inactive_nodes(self):
+        nodes = [{"key": "a", "active": True}, {"key": "b", "active": False}, {"key": "c"}]
+        result = _active_children(nodes)
+        self.assertEqual([n["key"] for n in result], ["a", "c"])
+
+
+class ResolveChoiceTests(unittest.TestCase):
+    def test_two_active_roots_asks_the_lead(self):
+        outcome, result, path = _resolve_choice(NESTED_PACKAGES, [])
+        self.assertEqual(outcome, "choose")
+        self.assertEqual([n["key"] for n in result], ["basic", "premium"])
+        self.assertEqual(path, [])
+
+    def test_single_active_root_with_no_children_is_a_leaf(self):
+        outcome, result, path = _resolve_choice([NESTED_PACKAGES[1]], [])
+        self.assertEqual(outcome, "leaf")
+        self.assertEqual(result["key"], "premium")
+        self.assertEqual(path, [{"key": "premium", "name": "Premium"}])
+
+    def test_single_active_root_with_children_auto_descends(self):
+        outcome, result, path = _resolve_choice([NESTED_PACKAGES[0]], [])
+        self.assertEqual(outcome, "choose")
+        self.assertEqual([n["key"] for n in result], ["basic_q", "basic_detail"])
+        self.assertEqual(path, [{"key": "basic", "name": "Basic"}])
+
+    def test_auto_descends_through_a_single_active_child_to_a_leaf(self):
+        single_child_chain = [{"key": "only", "name": "Only", "active": True, "options": [
+            {"key": "leaf", "name": "Leaf", "amount_paise": 5000, "active": True},
+        ]}]
+        outcome, result, path = _resolve_choice(single_child_chain, [])
+        self.assertEqual(outcome, "leaf")
+        self.assertEqual(result["key"], "leaf")
+        self.assertEqual(path, [{"key": "only", "name": "Only"}, {"key": "leaf", "name": "Leaf"}])
+
+    def test_zero_active_options_is_empty(self):
+        outcome, result, path = _resolve_choice([{"key": "a", "active": False}], [])
+        self.assertEqual(outcome, "empty")
+        self.assertEqual(result, [])
+
+
+class MenuAtPathTests(unittest.TestCase):
+    def test_root_path_returns_top_level(self):
+        self.assertEqual([n["key"] for n in _menu_at_path(NESTED_PACKAGES, [])], ["basic", "premium"])
+
+    def test_walks_into_a_matched_key(self):
+        menu = _menu_at_path(NESTED_PACKAGES, [{"key": "basic", "name": "Basic"}])
+        self.assertEqual([n["key"] for n in menu], ["basic_q", "basic_detail"])
+
+    def test_unknown_key_in_path_returns_empty(self):
+        self.assertEqual(_menu_at_path(NESTED_PACKAGES, [{"key": "nope", "name": "?"}]), [])
+
+
+class FindLeafTests(unittest.TestCase):
+    def test_finds_a_nested_leaf_and_its_path(self):
+        found = _find_leaf(NESTED_PACKAGES, "basic_detail")
+        self.assertIsNotNone(found)
+        leaf, path = found
+        self.assertEqual(leaf["key"], "basic_detail")
+        self.assertEqual(path, [{"key": "basic", "name": "Basic"}, {"key": "basic_detail", "name": "Detailed Consultation"}])
+
+    def test_finds_a_root_level_leaf(self):
+        found = _find_leaf(NESTED_PACKAGES, "premium")
+        self.assertEqual(found[1], [{"key": "premium", "name": "Premium"}])
+
+    def test_unknown_key_returns_none(self):
+        self.assertIsNone(_find_leaf(NESTED_PACKAGES, "nope"))
+
+
 if __name__ == "__main__":
     unittest.main()
