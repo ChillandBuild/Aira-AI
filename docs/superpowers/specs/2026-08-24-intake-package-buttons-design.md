@@ -211,10 +211,17 @@ confirm buttons render, tap one, confirm the session advances to `collecting` an
   Bot Flow Builder removed on 2026-06-01 ([decisions/log.md:16](../../../.agents/decisions/log.md#L16))
   and is explicitly rejected.
 
-## 9. Known risk
+## 9. Known risk — build order
 
-`button_label` is a new optional field on a JSON blob that the nested-packages spec is
-concurrently restructuring into recursive nodes. If both are implemented by different
-sessions without coordination, one will overwrite the other's node shape. Whichever lands
-second must read the other's merged config shape first. Flagged rather than solved here
-because the ordering is the user's call.
+`button_label` is a new optional field on the same `intake_config` JSON blob that the
+nested-packages spec restructures into recursive nodes. Built independently, one overwrites
+the other's node shape.
+
+**Ordering decided by the user on 2026-08-24: this spec ships first, nested packages
+second.**
+
+Consequence to carry into the nested-packages implementation: its recursive node shape must
+preserve `button_label` on every node it defines, and `package_buttons()` must then be
+revisited so it reads whichever level of the tree is currently being asked. Neither is
+work for this spec, but the nested-packages plan cannot be written as if `button_label`
+does not exist.
