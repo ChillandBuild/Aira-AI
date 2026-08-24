@@ -104,23 +104,86 @@ Lead: yes
 → proceeds to field collection, same as today
 ```
 
-## 5. Frontend — package editor (new page, see section 7 for routing)
+## 5. Tap UI — buttons and list messages (revives, adapts `2026-08-24-intake-package-buttons-design.md`)
+
+That spec was implemented, merged, then reverted the same day (2026-08-24) because reply
+buttons were judged to belong in the general, standalone Quick Reply Blocks system instead of
+welded to intake specifically. Revisited and reversed after tracing the actual runtime
+wiring: `route_intake` and the AI tool-call path (`generate_reply`) are mutually exclusive per
+turn (`webhook.py:338-348` — a message `route_intake` consumes never reaches `generate_reply`),
+so a package menu can never be sent via the AI's tool-call decision no matter how the button
+data is stored. The deterministic mechanism is revived, adapted to fire at any depth in the
+now-recursive tree, and extended to a second WhatsApp UI type this session identified as
+already built but never wired up.
+
+**Two WhatsApp-native tap UIs already exist in this codebase, both currently uncalled by
+anything:**
+
+| Type | Function | Real WhatsApp limits (verified against Meta's Cloud API docs, 2026-08-24) |
+|---|---|---|
+| Reply buttons | `send_interactive_buttons` (`meta_cloud.py:612`) | 2-3 buttons, title ≤ 20 chars (`BUTTON_COUNT_MAX`/`BUTTON_TITLE_MAX`, `meta_cloud.py:83-84`) |
+| List message | `send_list_message` (`meta_cloud.py:678`) | ≤ 10 rows total, row title ≤ 24 chars, row description ≤ 72 chars, section title ≤ 24 chars, open-button label ≤ 20 chars |
+
+Both already receive correctly: `webhook.py:548` normalizes a tapped button *or* a tapped list
+row into plain text (`button_reply`/`list_reply`, same `.title` field) before it ever reaches
+`route_intake` — so `match_package`/`match_addons` need no changes at all. A tap looks
+identical to a typed exact-match reply.
+
+**Three-tier eligibility, decided in pure Python — no LLM, same rule as prices never being
+LLM-authored:**
+
+1. 1 active option at a level → auto-select, no message (existing `_resolve_choice` behavior,
+   unchanged).
+2. 2-3 active options, every one's short label ≤ 20 chars → reply buttons.
+3. 4-10 active options, every one's short label ≤ 24 chars → list message.
+4. Anything else (11+ options, or a label too long even for the list tier) → today's plain-text
+   `package_list_block`/`addon_list_block` path, unchanged.
+
+**Data model addition** — one new optional field per package/addon node, reused for both
+tiers (list rows tolerate more characters than buttons, so a label valid for buttons is always
+valid for a list row too):
+
+```json
+{ "key": "basic_detail", "name": "Detailed Consultation", "button_label": "Detailed", "amount_paise": 30000, ... }
+```
+
+Resolution order for a node's short label: `button_label` if set, else `name` if it fits the
+tier's limit, else that node makes the whole level ineligible for that tier (drops to the next
+one down).
+
+**`send_list_message` gets the same fail-loud treatment `send_interactive_buttons` already
+has** (`meta_cloud.py:624-631`, the fix kept from the reverted spec) — today it silently
+truncates `button_text`/`header_text`/`footer_text` and validates nothing about `sections`.
+Zero callers exist yet, so tightening this to raise on an over-limit row/section title, an
+over-limit row description, or more than 10 total rows is a safe, behavior-invisible change
+until this plan adds the first caller.
+
+Prices and button/row titles are never composed by the LLM — the composer (`compose_wrapped`)
+still only writes the surrounding intro/outro sentence, exactly as it does for the text-list
+path today; the classifier (`match_package`/`match_addons`) is unchanged because a tap already
+arrives as normalized text.
+
+## 6. Frontend — package editor (new page, see section 8 for routing)
 
 Recursive `PackageEditor` component: expand/collapse per node, "Add sub-package" (→
 `options[]`), "Add addon" (→ `addons[]`, leaf rows only), active-toggle checkbox, indent per
 depth. Key uniqueness enforced tree-wide on save (dedupe suffix on collision) — today's
 `commitPackageName` (`IntakeConfigPanel.tsx:128-130`) only slugifies within a flat list.
 
-## 6. Testing
+## 7. Testing
 
 - Unit: `normalize_packages()` backward-compat (flat array = all leaves, no `options` key).
 - Unit: auto-descend at multiple depths; 0-active-option edge case doesn't crash.
 - Unit: `match_package()` scoped to current level only, not whole tree.
+- Unit: tap-UI eligibility function — 1/2/3/4/10/11-option boundaries, and a label too long for
+  buttons but fine for a list row (verifies tier fallback, not just a pass/fail split).
+- Unit: `send_list_message` raises (not truncates) on an over-limit row title, row description,
+  section title, or more than 10 total rows.
 - Integration: multi-turn conversation sim — drill 2 levels → addon pick → verify all
   snapshot columns land correctly.
 - Regression: existing single-level-package tenants unaffected (no `options` present).
 
-## 7. Settings navigation restructure
+## 8. Settings navigation restructure
 
 Current state (verified):
 - Main sidebar (`frontend/components/sidebar.tsx:46`) is flat — no "Settings" entry. Only
@@ -189,7 +252,7 @@ Telecalling today) → shows the list above → click "Intake Config" → click 
 → lands on the tree editor from section 5. Main sidebar (Conversations, Leads, etc.) stays
 visible throughout.
 
-## 8. Known risk, explicitly out of scope
+## 9. Known risk, explicitly out of scope
 
 The astrologer bridge currently receives only the rupee amount, not which package tier was
 purchased (`.agents/context/subsystem-notes.md:416`). Nesting deepens this gap — sub-option
