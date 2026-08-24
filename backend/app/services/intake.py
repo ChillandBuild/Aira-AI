@@ -10,6 +10,7 @@ import re
 import uuid
 
 from app.services.gemini_client import gemini_chat_completion_json
+from app.services.meta_cloud import BUTTON_COUNT_MAX, BUTTON_TITLE_MAX
 from app.services.intake_copy import (
     collector_identity,
     compose_line,
@@ -324,6 +325,44 @@ def package_list_message(packages: list[dict], service_noun: str) -> str:
     )
 
 
+# WhatsApp caps reply buttons at 3 per message and 20 characters per title. Prices are
+# deliberately never put on a button -- they would not survive the 20-character limit,
+# and they belong in the body text where package_list_block renders them in Python.
+_BUTTON_PACKAGE_MIN = 2
+
+
+def package_button_title(pkg: dict) -> str | None:
+    """The reply-button title for one package, or None if it cannot be a button.
+
+    Prefers an explicit `button_label` so a tenant can shorten a long package name;
+    falls back to `name` when that already fits.
+    """
+    label = (pkg.get("button_label") or "").strip()
+    if label:
+        return label if len(label) <= BUTTON_TITLE_MAX else None
+    name = (pkg.get("name") or "").strip()
+    if name and len(name) <= BUTTON_TITLE_MAX:
+        return name
+    return None
+
+
+def package_buttons(packages: list[dict]) -> list[dict] | None:
+    """Reply buttons for the package picker, or None to fall back to a text list.
+
+    All-or-nothing: one ineligible package sends the whole set to text rather than
+    showing a partial menu that hides an option the lead can pay for.
+    """
+    if not (_BUTTON_PACKAGE_MIN <= len(packages) <= BUTTON_COUNT_MAX):
+        return None
+    out: list[dict] = []
+    for p in packages:
+        title = package_button_title(p)
+        if not title:
+            return None
+        out.append({"id": p["key"], "title": title})
+    return out
+
+
 _PACKAGE_MATCH_SYSTEM_PROMPT = """You match a customer's reply to one of a fixed list of
 packages. You are given the packages (key and name) and the customer's message.
 
@@ -345,7 +384,11 @@ async def match_package(message: str, packages: list[dict], tenant_id: str) -> d
 
     cleaned = message.strip().lower()
     for p in packages:
-        if cleaned == p["name"].strip().lower() or cleaned == p["key"].strip().lower():
+        # button_label is included because a tapped reply button sends its title back
+        # verbatim -- without this a shortened label misses the short-circuit and burns
+        # an LLM call to re-derive what the tap already told us exactly.
+        candidates = [p["name"], p["key"], p.get("button_label") or ""]
+        if any(cleaned == c.strip().lower() for c in candidates if c and c.strip()):
             return dict(p)
 
     package_list = "\n".join(f"- {p['key']}: {p['name']}" for p in packages)
@@ -442,6 +485,69 @@ async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db)
             "Intake message send succeeded but logging it failed for lead %s -- "
             "message was delivered, this is an audit-trail gap only", lead_id,
         )
+
+
+# WhatsApp's interactive body cap. Over this the API rejects the message, so fall
+# back to a plain text list rather than lose the turn.
+_WA_INTERACTIVE_BODY_MAX = 1024
+
+
+async def _send_buttons_and_log(
+    phone: str, text: str, buttons: list[dict], tenant_id: str, lead_id: str, db
+) -> None:
+    """Send `text` as a WhatsApp interactive button message, then log it.
+
+    Carries _send_and_log's guarantee: this never raises. A failure to send falls back
+    to the plain text list, and a failure to log is swallowed -- either one escaping
+    would make route_intake's caller treat the turn as unconsumed and send a second,
+    unrelated reply on top of one the customer already received.
+    """
+    from app.services import meta_cloud
+
+    if len(text) > _WA_INTERACTIVE_BODY_MAX:
+        await _send_and_log(phone, text, tenant_id, lead_id, db)
+        return
+
+    try:
+        data = await meta_cloud.send_interactive_buttons(
+            to_number=phone, body_text=text, buttons=buttons, tenant_id=tenant_id
+        )
+    except Exception:
+        logger.exception("Intake package buttons send failed, falling back to text list")
+        await _send_and_log(phone, text, tenant_id, lead_id, db)
+        return
+
+    mid = (data.get("messages") or [{}])[0].get("id")
+    # Log the labels alongside the body so the thread the AI reads back, and the
+    # operator inbox, both show what the lead was actually offered.
+    logged = text + "\n\n" + " ".join(f"[{b['title']}]" for b in buttons)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id,
+            "tenant_id": tenant_id,
+            "direction": "outbound",
+            "channel": "whatsapp",
+            "content": logged,
+            "is_ai_generated": True,
+            "meta_message_id": mid,
+            "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake button message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+
+
+async def _dispatch_package_ask(
+    phone: str, text: str, packages: list[dict], tenant_id: str, lead_id: str, db
+) -> None:
+    """Send an already-composed package question as buttons when eligible, else text."""
+    buttons = package_buttons(packages)
+    if buttons:
+        await _send_buttons_and_log(phone, text, buttons, tenant_id, lead_id, db)
+    else:
+        await _send_and_log(phone, text, tenant_id, lead_id, db)
 
 
 # Roman-script Tamil is deliberately included: the moment the offer message is
@@ -564,18 +670,15 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 await _say("no_packages")
                 return True
             _update_session(session["id"], {"status": "awaiting_package_choice"}, db)
-            await _send_and_log(
-                phone,
-                await compose_wrapped(
-                    "packages",
-                    tenant_id=tenant_id,
-                    language_mode=language_mode,
-                    customer_message=body,
-                    block=package_list_block(packages),
-                    thread=thread,
-                ),
-                tenant_id, lead_id, db,
+            packages_text = await compose_wrapped(
+                "packages",
+                tenant_id=tenant_id,
+                language_mode=language_mode,
+                customer_message=body,
+                block=package_list_block(packages),
+                thread=thread,
             )
+            await _dispatch_package_ask(phone, packages_text, packages, tenant_id, lead_id, db)
             return True
 
         if status == "awaiting_package_choice":
@@ -590,10 +693,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                     thread=thread,
                     knowledge=knowledge,
                 )
-                await _send_and_log(
+                await _dispatch_package_ask(
                     phone,
                     f"{intro}\n\n{package_list_block(packages)}",
-                    tenant_id, lead_id, db,
+                    packages, tenant_id, lead_id, db,
                 )
                 return True
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)

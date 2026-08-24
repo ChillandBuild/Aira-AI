@@ -77,6 +77,12 @@ class TemplateContentExistsError(HTTPException):
     pass
 
 
+# WhatsApp reply-button limits. Enforced rather than trimmed: the API accepts an
+# over-long title and silently delivers it truncated, so a caller that guesses wrong
+# ships a mangled label to the customer with nothing logged anywhere.
+BUTTON_TITLE_MAX = 20
+BUTTON_COUNT_MAX = 3
+
 _GRAPH_BASE = "https://graph.facebook.com/v21.0"
 _BUSINESS_LOGIN_GRAPH_BASE = "https://graph.facebook.com/v25.0"
 
@@ -611,6 +617,19 @@ async def send_interactive_buttons(
     access_token: Optional[str] = None,
     tenant_id: Optional[str] = None,
 ) -> dict:
+    # Validate before _creds(), which reads settings over the network -- an invalid
+    # button set should fail loudly and locally, not after an I/O round trip.
+    if not buttons:
+        raise ValueError("send_interactive_buttons needs at least one button")
+    if len(buttons) > BUTTON_COUNT_MAX:
+        raise ValueError(f"WhatsApp allows at most {BUTTON_COUNT_MAX} buttons, got {len(buttons)}")
+    for b in buttons:
+        if len(b["title"]) > BUTTON_TITLE_MAX:
+            raise ValueError(
+                f"Button title {b['title']!r} exceeds {BUTTON_TITLE_MAX} characters — "
+                "WhatsApp truncates silently, so callers must shorten it first"
+            )
+
     pid, tok = _creds(phone_number_id, access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{pid}/messages"
     payload = {
@@ -622,8 +641,8 @@ async def send_interactive_buttons(
             "body": {"text": body_text},
             "action": {
                 "buttons": [
-                    {"type": "reply", "reply": {"id": b["id"], "title": b["title"][:20]}}
-                    for b in buttons[:3]
+                    {"type": "reply", "reply": {"id": b["id"], "title": b["title"]}}
+                    for b in buttons
                 ],
             },
         },
