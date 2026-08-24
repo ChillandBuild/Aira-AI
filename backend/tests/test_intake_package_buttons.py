@@ -164,3 +164,38 @@ async def test_send_buttons_never_raises_when_logging_fails():
     with patch("app.services.meta_cloud.send_interactive_buttons", new=send):
         await _send_buttons_and_log("+919000000000", "Pick one", _BUTTONS, "t1", "l1", db)
     # No assertion needed: the test fails if this raises.
+
+
+from app.services.intake import _dispatch_package_ask
+
+
+@pytest.mark.asyncio
+async def test_dispatch_uses_buttons_when_eligible():
+    db = _fake_db()
+    pkgs = [_pkg("basic", "One Question"), _pkg("det", "Detailed Consultation", "Detailed")]
+    btn = AsyncMock()
+    txt = AsyncMock()
+    with patch("app.services.intake._send_buttons_and_log", new=btn):
+        with patch("app.services.intake._send_and_log", new=txt):
+            await _dispatch_package_ask("+919000000000", "Pick one", pkgs, "t1", "l1", db)
+
+    btn.assert_awaited_once()
+    txt.assert_not_awaited()
+    assert btn.call_args[0][2] == [
+        {"id": "basic", "title": "One Question"},
+        {"id": "det", "title": "Detailed"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_dispatch_uses_text_when_four_packages():
+    db = _fake_db()
+    pkgs = [_pkg(f"k{i}", f"Name {i}") for i in range(4)]
+    btn = AsyncMock()
+    txt = AsyncMock()
+    with patch("app.services.intake._send_buttons_and_log", new=btn):
+        with patch("app.services.intake._send_and_log", new=txt):
+            await _dispatch_package_ask("+919000000000", "Pick one", pkgs, "t1", "l1", db)
+
+    txt.assert_awaited_once_with("+919000000000", "Pick one", "t1", "l1", db)
+    btn.assert_not_awaited()

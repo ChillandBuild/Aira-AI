@@ -539,6 +539,17 @@ async def _send_buttons_and_log(
         )
 
 
+async def _dispatch_package_ask(
+    phone: str, text: str, packages: list[dict], tenant_id: str, lead_id: str, db
+) -> None:
+    """Send an already-composed package question as buttons when eligible, else text."""
+    buttons = package_buttons(packages)
+    if buttons:
+        await _send_buttons_and_log(phone, text, buttons, tenant_id, lead_id, db)
+    else:
+        await _send_and_log(phone, text, tenant_id, lead_id, db)
+
+
 # Roman-script Tamil is deliberately included: the moment the offer message is
 # written in Tanglish, leads answer in Tanglish ("seri", "aama"), and anything
 # unmatched here is treated as a refusal that cancels the session and loses the
@@ -659,18 +670,15 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 await _say("no_packages")
                 return True
             _update_session(session["id"], {"status": "awaiting_package_choice"}, db)
-            await _send_and_log(
-                phone,
-                await compose_wrapped(
-                    "packages",
-                    tenant_id=tenant_id,
-                    language_mode=language_mode,
-                    customer_message=body,
-                    block=package_list_block(packages),
-                    thread=thread,
-                ),
-                tenant_id, lead_id, db,
+            packages_text = await compose_wrapped(
+                "packages",
+                tenant_id=tenant_id,
+                language_mode=language_mode,
+                customer_message=body,
+                block=package_list_block(packages),
+                thread=thread,
             )
+            await _dispatch_package_ask(phone, packages_text, packages, tenant_id, lead_id, db)
             return True
 
         if status == "awaiting_package_choice":
@@ -685,10 +693,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                     thread=thread,
                     knowledge=knowledge,
                 )
-                await _send_and_log(
+                await _dispatch_package_ask(
                     phone,
                     f"{intro}\n\n{package_list_block(packages)}",
-                    tenant_id, lead_id, db,
+                    packages, tenant_id, lead_id, db,
                 )
                 return True
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
