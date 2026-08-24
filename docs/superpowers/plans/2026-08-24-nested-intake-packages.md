@@ -1457,9 +1457,522 @@ git commit -m "refactor: move package editing out of IntakeConfigPanel into its 
 
 ---
 
+## Task 10: Tap UI — reply buttons and list messages at the package/addon menu
+
+Revives `docs/superpowers/specs/2026-08-24-intake-package-buttons-design.md` (implemented,
+merged, then reverted same-day 2026-08-24) adapted to the recursive tree and extended to a
+second WhatsApp UI tier. See spec section 5 for the full reasoning — short version: the AI
+tool-call path can never fire during an active intake turn (`webhook.py:338-348`), so this
+must be deterministic Python inside `route_intake`, not routed through `generate_reply`.
+
+**Files:**
+- Modify: `backend/app/routes/app_settings.py` (Task 7's `IntakePackageUpdate`/`IntakeAddonUpdate`, add `button_label`)
+- Modify: `backend/app/services/meta_cloud.py:678-716` (`send_list_message` — add fail-loud validation)
+- Modify: `backend/app/services/intake.py` (new eligibility/build/send helpers; rewire the 3 menu-send call sites Task 5 added)
+- Modify: `frontend/app/dashboard/settings/intake-config/packages/PackageEditor.tsx` (Task 8 — add `button_label` field to `IntakePackage`/`IntakeAddon` and a UI input)
+- Test: `backend/tests/test_intake_packages.py`, `backend/tests/test_meta_cloud_interactive_buttons.py` if it exists (check first — the reverted feature's tests may still be present even though the feature code was reverted; reuse rather than duplicate)
+
+**Interfaces:**
+- Produces: `_short_label(node, limit) -> str | None`, `_tap_mode(level) -> str` (`"buttons"|"list"|"text"`), `_build_buttons(level) -> list[dict]`, `_build_list_sections(level) -> list[dict]`, `_send_buttons_and_log(...)`, `_send_list_and_log(...)`.
+- Consumes: `send_interactive_buttons`/`send_list_message` (`meta_cloud.py`), `BUTTON_COUNT_MAX`/`BUTTON_TITLE_MAX` constants (`meta_cloud.py:83-84`).
+
+- [ ] **Step 1: Check for a pre-existing button test file from the reverted feature**
+
+Run: `ls backend/tests/ | grep -i "package_button\|interactive_button"`
+Expected: may find `test_intake_package_buttons.py` and/or `test_meta_cloud_interactive_buttons.py` — these were listed in `git log --author=keerthi-sarav --name-only` as touched by the reverted feature. If a revert (`git revert`) was used rather than a manual undo, these test files may have been deleted along with the feature, or may still exist testing code that no longer exists (in which case they'd currently be failing/erroring on import — check `pytest backend/tests/test_intake_package_buttons.py -v` if the file exists, before writing anything new). Reuse whatever is salvageable; don't duplicate coverage.
+
+- [ ] **Step 2: Add `button_label` to the backend Pydantic models — extends Task 7's `IntakePackageUpdate`/`IntakeAddonUpdate`**
+
+```python
+class IntakeAddonUpdate(BaseModel):
+    key: str
+    name: str
+    amount_paise: int = 0
+    description: str = ""
+    active: bool = True
+    button_label: str | None = None
+
+
+class IntakePackageUpdate(BaseModel):
+    key: str
+    name: str
+    amount_paise: int = 0
+    description: str = ""
+    active: bool = True
+    button_label: str | None = None
+    options: list["IntakePackageUpdate"] | None = None
+    addons: list[IntakeAddonUpdate] | None = None
+
+
+IntakePackageUpdate.model_rebuild()
+```
+
+No new validation needed for `button_label` itself — an over-long or missing label just drops
+that level out of the buttons/list tiers at send time (Step 5), it's never a save-time error.
+
+- [ ] **Step 3: Write the failing tests for the eligibility function**
+
+```python
+# append to backend/tests/test_intake_packages.py
+from app.services.intake import _build_buttons, _build_list_sections, _short_label, _tap_mode
+
+def _leaf(key, name, button_label=None):
+    return {"key": key, "name": name, "amount_paise": 10000, "active": True, "button_label": button_label}
+
+
+class ShortLabelTests(unittest.TestCase):
+    def test_uses_button_label_when_set(self):
+        self.assertEqual(_short_label(_leaf("k", "Very Long Package Name Indeed", "Short"), 20), "Short")
+
+    def test_falls_back_to_name_when_it_fits(self):
+        self.assertEqual(_short_label(_leaf("k", "Basic"), 20), "Basic")
+
+    def test_none_when_neither_fits(self):
+        self.assertIsNone(_short_label(_leaf("k", "Way Too Long A Package Name"), 20))
+
+
+class TapModeTests(unittest.TestCase):
+    def test_one_option_is_text(self):
+        # single-option levels never reach _tap_mode in practice (auto-selected by
+        # _resolve_choice first), but the function itself must not special-case count==1
+        # into a UI tier -- confirms it's a pure boundary check, not flow-aware.
+        self.assertEqual(_tap_mode([_leaf("a", "A")]), "text")
+
+    def test_two_to_three_short_labels_is_buttons(self):
+        self.assertEqual(_tap_mode([_leaf("a", "A"), _leaf("b", "B")]), "buttons")
+        self.assertEqual(_tap_mode([_leaf("a", "A"), _leaf("b", "B"), _leaf("c", "C")]), "buttons")
+
+    def test_four_to_ten_short_labels_is_list(self):
+        level = [_leaf(f"k{i}", f"Option {i}") for i in range(4)]
+        self.assertEqual(_tap_mode(level), "list")
+        level10 = [_leaf(f"k{i}", f"Option {i}") for i in range(10)]
+        self.assertEqual(_tap_mode(level10), "list")
+
+    def test_eleven_options_is_text(self):
+        level = [_leaf(f"k{i}", f"Option {i}") for i in range(11)]
+        self.assertEqual(_tap_mode(level), "text")
+
+    def test_a_label_too_long_for_buttons_but_fine_for_list_drops_to_list_tier(self):
+        level = [_leaf("a", "A"), _leaf("b", "A Name Definitely Over Twenty Chars")]
+        self.assertEqual(_tap_mode(level), "text")  # 2 options but one exceeds button limit -> falls all the way to text, not silently to list, because count is in the 2-3 band not 4-10
+
+    def test_a_label_too_long_even_for_list_tier_is_text(self):
+        level = [_leaf(f"k{i}", "A Description Text Well Over Twenty Four Characters Long") for i in range(5)]
+        self.assertEqual(_tap_mode(level), "text")
+
+
+class BuildButtonsAndSectionsTests(unittest.TestCase):
+    def test_build_buttons_uses_key_as_id(self):
+        buttons = _build_buttons([_leaf("basic_q", "One Question")])
+        self.assertEqual(buttons, [{"id": "basic_q", "title": "One Question"}])
+
+    def test_build_list_sections_wraps_rows_in_one_section(self):
+        sections = _build_list_sections([_leaf("a", "A"), _leaf("b", "B")])
+        self.assertEqual(sections, [{"rows": [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]}])
+```
+
+Note on `test_a_label_too_long_for_buttons_but_fine_for_list_drops_to_list_tier`: with only 2
+options, the level never reaches the 4-10 band regardless of label length, so it correctly
+lands on `"text"` — the test name states the boundary being checked (label length matters
+independently of count), not a claim that this specific case reaches the list tier.
+
+- [ ] **Step 4: Run tests to verify they fail**
+
+Run: `cd backend && pytest tests/test_intake_packages.py::ShortLabelTests tests/test_intake_packages.py::TapModeTests tests/test_intake_packages.py::BuildButtonsAndSectionsTests -v`
+Expected: FAIL — none of these functions exist yet.
+
+- [ ] **Step 5: Implement, inserted into `backend/app/services/intake.py` after `addon_list_block` (Task 4)**
+
+```python
+_BUTTON_TITLE_MAX = 20
+_LIST_ROW_TITLE_MAX = 24
+
+
+def _short_label(node: dict, limit: int) -> str | None:
+    label = node.get("button_label") or node["name"]
+    return label if len(label) <= limit else None
+
+
+def _tap_mode(level: list[dict]) -> str:
+    """Pure Python, no LLM -- same rule as prices never being LLM-authored.
+    Returns "buttons", "list", or "text"."""
+    n = len(level)
+    if 2 <= n <= 3 and all(_short_label(item, _BUTTON_TITLE_MAX) for item in level):
+        return "buttons"
+    if 4 <= n <= 10 and all(_short_label(item, _LIST_ROW_TITLE_MAX) for item in level):
+        return "list"
+    return "text"
+
+
+def _build_buttons(level: list[dict]) -> list[dict]:
+    return [{"id": item["key"], "title": _short_label(item, _BUTTON_TITLE_MAX)} for item in level]
+
+
+def _build_list_sections(level: list[dict]) -> list[dict]:
+    return [{"rows": [
+        {"id": item["key"], "title": _short_label(item, _LIST_ROW_TITLE_MAX)}
+        for item in level
+    ]}]
+```
+
+- [ ] **Step 6: Run tests to verify they pass**
+
+Run: `cd backend && pytest tests/test_intake_packages.py::ShortLabelTests tests/test_intake_packages.py::TapModeTests tests/test_intake_packages.py::BuildButtonsAndSectionsTests -v`
+Expected: PASS.
+
+- [ ] **Step 7: Write the failing tests for `send_list_message`'s new validation**
+
+```python
+# new file: backend/tests/test_meta_cloud_list_message.py
+import asyncio
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import AsyncMock, patch as mock_patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.services.meta_cloud import send_list_message
+
+
+class SendListMessageValidationTests(unittest.TestCase):
+    def test_rejects_more_than_ten_rows(self):
+        sections = [{"rows": [{"id": str(i), "title": f"Row {i}"} for i in range(11)]}]
+        with self.assertRaises(ValueError):
+            asyncio.run(send_list_message("+911234567890", "body", "Choose", sections))
+
+    def test_rejects_a_row_title_over_24_chars(self):
+        sections = [{"rows": [{"id": "1", "title": "A Row Title Well Over Twenty Four Characters"}]}]
+        with self.assertRaises(ValueError):
+            asyncio.run(send_list_message("+911234567890", "body", "Choose", sections))
+
+    def test_rejects_a_row_description_over_72_chars(self):
+        long_desc = "x" * 73
+        sections = [{"rows": [{"id": "1", "title": "Row", "description": long_desc}]}]
+        with self.assertRaises(ValueError):
+            asyncio.run(send_list_message("+911234567890", "body", "Choose", sections))
+
+    def test_rejects_a_section_title_over_24_chars(self):
+        sections = [{"title": "A Section Title Well Over Twenty Four Chars", "rows": [{"id": "1", "title": "Row"}]}]
+        with self.assertRaises(ValueError):
+            asyncio.run(send_list_message("+911234567890", "body", "Choose", sections))
+
+    def test_valid_sections_pass_validation_and_reach_the_http_call(self):
+        sections = [{"rows": [{"id": "1", "title": "Row"}]}]
+        with mock_patch("app.services.meta_cloud._creds", return_value=("pid", "tok")):
+            with mock_patch("app.services.meta_cloud.httpx.AsyncClient") as client_cls:
+                mock_resp = AsyncMock()
+                mock_resp.is_success = True
+                mock_resp.json = lambda: {"messages": [{"id": "wamid.1"}]}
+                client_cls.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_resp)
+                result = asyncio.run(send_list_message("+911234567890", "body", "Choose", sections))
+        self.assertEqual(result["messages"][0]["id"], "wamid.1")
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+(The mocking pattern for the `httpx.AsyncClient` call mirrors whatever `test_meta_cloud_interactive_buttons.py` or `test_facebook_embedded_signup.py` already use in this codebase for `meta_cloud.py` functions — check one of those files first and match its exact mock shape rather than the sketch above if it differs.)
+
+- [ ] **Step 8: Run tests to verify they fail**
+
+Run: `cd backend && pytest tests/test_meta_cloud_list_message.py -v`
+Expected: FAIL — `send_list_message` currently truncates silently instead of raising, and validates nothing about `sections`.
+
+- [ ] **Step 9: Implement, replacing `backend/app/services/meta_cloud.py:678-716`**
+
+```python
+LIST_ROW_COUNT_MAX = 10
+LIST_ROW_TITLE_MAX = 24
+LIST_ROW_DESCRIPTION_MAX = 72
+LIST_SECTION_TITLE_MAX = 24
+
+
+async def send_list_message(
+    to_number: str,
+    body_text: str,
+    button_text: str,
+    sections: list[dict],
+    header_text: Optional[str] = None,
+    footer_text: Optional[str] = None,
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+) -> dict:
+    """Send a WhatsApp interactive list message (up to 10 rows across sections).
+
+    Validates before _creds(), same reasoning as send_interactive_buttons: an invalid
+    payload should fail loudly and locally, not silently truncate (WhatsApp truncates
+    over-long titles with no error) or fail after a network round trip."""
+    if len(button_text) > BUTTON_TITLE_MAX:
+        raise ValueError(f"List button label {button_text!r} exceeds {BUTTON_TITLE_MAX} characters")
+    total_rows = sum(len(s.get("rows") or []) for s in sections)
+    if total_rows == 0:
+        raise ValueError("send_list_message needs at least one row")
+    if total_rows > LIST_ROW_COUNT_MAX:
+        raise ValueError(f"WhatsApp allows at most {LIST_ROW_COUNT_MAX} rows total, got {total_rows}")
+    for s in sections:
+        if "title" in s and len(s["title"]) > LIST_SECTION_TITLE_MAX:
+            raise ValueError(f"Section title {s['title']!r} exceeds {LIST_SECTION_TITLE_MAX} characters")
+        for row in s.get("rows") or []:
+            if len(row["title"]) > LIST_ROW_TITLE_MAX:
+                raise ValueError(f"Row title {row['title']!r} exceeds {LIST_ROW_TITLE_MAX} characters")
+            if len(row.get("description", "")) > LIST_ROW_DESCRIPTION_MAX:
+                raise ValueError(f"Row description for {row['title']!r} exceeds {LIST_ROW_DESCRIPTION_MAX} characters")
+
+    pid, tok = _creds(phone_number_id, access_token, tenant_id)
+    url = f"{_GRAPH_BASE}/{pid}/messages"
+    interactive: dict = {
+        "type": "list",
+        "body": {"text": body_text},
+        "action": {
+            "button": button_text,
+            "sections": sections,
+        },
+    }
+    if header_text:
+        if len(header_text) > 60:
+            raise ValueError(f"List header {header_text!r} exceeds 60 characters")
+        interactive["header"] = {"type": "text", "text": header_text}
+    if footer_text:
+        if len(footer_text) > 60:
+            raise ValueError(f"List footer {footer_text!r} exceeds 60 characters")
+        interactive["footer"] = {"text": footer_text}
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "interactive",
+        "interactive": interactive,
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {tok}"})
+    if not resp.is_success:
+        logger.error("send_list_message failed: %s %s", resp.status_code, resp.text)
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    logger.info("Meta list message sent to %s", to_number)
+    return resp.json()
+```
+
+- [ ] **Step 10: Run tests to verify they pass**
+
+Run: `cd backend && pytest tests/test_meta_cloud_list_message.py -v`
+Expected: PASS.
+
+- [ ] **Step 11: Write the failing tests for the send-and-log helpers**
+
+```python
+# append to backend/tests/test_intake_packages.py
+from app.services.intake import _send_buttons_and_log, _send_list_and_log
+
+class SendButtonsAndLogTests(unittest.TestCase):
+    def test_logs_the_body_and_button_titles(self):
+        db = MagicMock()
+        with mock_patch(
+            "app.services.intake.send_interactive_buttons",
+            new=AsyncMock(return_value={"messages": [{"id": "wamid.1"}]}),
+        ):
+            asyncio.run(_send_buttons_and_log(
+                "+91123", "Pick one:", [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}],
+                "t-1", "lead-1", db,
+            ))
+        logged = db.table.return_value.insert.call_args[0][0]
+        self.assertIn("Pick one:", logged["content"])
+        self.assertIn("[A]", logged["content"])
+        self.assertEqual(logged["meta_message_id"], "wamid.1")
+        self.assertEqual(logged["reply_source"], "expert_handoff")
+
+
+class SendListAndLogTests(unittest.TestCase):
+    def test_logs_the_body_and_row_titles(self):
+        db = MagicMock()
+        sections = [{"rows": [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]}]
+        with mock_patch(
+            "app.services.intake.send_list_message",
+            new=AsyncMock(return_value={"messages": [{"id": "wamid.2"}]}),
+        ):
+            asyncio.run(_send_list_and_log("+91123", "Pick one:", "Choose", sections, "t-1", "lead-1", db))
+        logged = db.table.return_value.insert.call_args[0][0]
+        self.assertIn("[A]", logged["content"])
+        self.assertIn("[B]", logged["content"])
+        self.assertEqual(logged["meta_message_id"], "wamid.2")
+```
+
+- [ ] **Step 12: Run tests to verify they fail**
+
+Run: `cd backend && pytest tests/test_intake_packages.py::SendButtonsAndLogTests tests/test_intake_packages.py::SendListAndLogTests -v`
+Expected: FAIL — functions don't exist.
+
+- [ ] **Step 13: Implement, inserted into `backend/app/services/intake.py` right after `_send_and_log` (after line 439, the existing function ends around there)**
+
+```python
+async def _send_buttons_and_log(phone: str, body_text: str, buttons: list[dict], tenant_id: str, lead_id: str, db) -> None:
+    """Same non-raising-into-caller contract as _send_and_log -- see its docstring."""
+    from app.services.meta_cloud import send_interactive_buttons
+    data = await send_interactive_buttons(phone, body_text, buttons, tenant_id=tenant_id)
+    mid = (data.get("messages") or [{}])[0].get("id")
+    logged_text = body_text + "\n\n" + "  ".join(f"[{b['title']}]" for b in buttons)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound",
+            "channel": "whatsapp", "content": logged_text, "is_ai_generated": True,
+            "meta_message_id": mid, "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake button message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+
+
+async def _send_list_and_log(phone: str, body_text: str, button_text: str, sections: list[dict], tenant_id: str, lead_id: str, db) -> None:
+    """Same non-raising-into-caller contract as _send_and_log -- see its docstring."""
+    from app.services.meta_cloud import send_list_message
+    data = await send_list_message(phone, body_text, button_text, sections, tenant_id=tenant_id)
+    mid = (data.get("messages") or [{}])[0].get("id")
+    row_titles = [row["title"] for section in sections for row in section.get("rows") or []]
+    logged_text = body_text + "\n\n" + "  ".join(f"[{t}]" for t in row_titles)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound",
+            "channel": "whatsapp", "content": logged_text, "is_ai_generated": True,
+            "meta_message_id": mid, "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake list message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+```
+
+- [ ] **Step 14: Run tests to verify they pass**
+
+Run: `cd backend && pytest tests/test_intake_packages.py::SendButtonsAndLogTests tests/test_intake_packages.py::SendListAndLogTests -v`
+Expected: PASS.
+
+- [ ] **Step 15: Wire a `_send_menu` dispatcher into `route_intake`, replacing the 3 menu-send call sites Task 5 added**
+
+Add this nested closure right after `_finalize_leaf` (which Task 5 Step 5 added):
+
+```python
+        async def _send_menu(purpose: str, level: list[dict]) -> None:
+            mode = _tap_mode(level)
+            block = package_list_block(level) if purpose == "packages" else addon_list_block(level)
+            text = await compose_wrapped(
+                purpose, tenant_id=tenant_id, language_mode=language_mode,
+                customer_message=body, block=block, thread=thread,
+            )
+            if mode == "buttons":
+                await _send_buttons_and_log(phone, text, _build_buttons(level), tenant_id, lead_id, db)
+            elif mode == "list":
+                await _send_list_and_log(phone, text, "Choose", _build_list_sections(level), tenant_id, lead_id, db)
+            else:
+                await _send_and_log(phone, text, tenant_id, lead_id, db)
+```
+
+Then replace all 3 places Task 5 sends a menu with a call to it. In `_finalize_leaf` (Task 5
+Step 5), replace:
+
+```python
+                await _send_and_log(
+                    phone,
+                    await compose_wrapped(
+                        "addons",
+                        tenant_id=tenant_id,
+                        language_mode=language_mode,
+                        customer_message=body,
+                        block=addon_list_block(active_addons),
+                        thread=thread,
+                    ),
+                    tenant_id, lead_id, db,
+                )
+```
+
+with:
+
+```python
+                await _send_menu("addons", active_addons)
+```
+
+In the `offer_pending` block (Task 5 Step 6), replace:
+
+```python
+            await _send_and_log(
+                phone,
+                await compose_wrapped(
+                    "packages",
+                    tenant_id=tenant_id,
+                    language_mode=language_mode,
+                    customer_message=body,
+                    block=package_list_block(result),
+                    thread=thread,
+                ),
+                tenant_id, lead_id, db,
+            )
+            return True
+```
+
+with:
+
+```python
+            await _send_menu("packages", result)
+            return True
+```
+
+And the identical block inside `awaiting_package_choice` (Task 5 Step 7, the "choose" branch) gets the same replacement.
+
+- [ ] **Step 16: Run the full intake suite**
+
+Run: `cd backend && pytest tests/test_intake_packages.py -v`
+Expected: PASS — including Task 5's integration tests (`NestedPackageConversationTests`), since none of the packages in those fixtures have `button_label` set and their option counts should be verified against the new tiers: if `NESTED_PACKAGES`' root level (2 options: Basic, Premium) or Basic's children (2 options) happen to land in the 2-3 buttons band with short-enough names, those integration tests now assert against a buttons message instead of plain text and need their assertions updated to match (check the actual names — "Basic"/"Premium" and "One Question"/"Detailed Consultation" are all ≤ 20 chars, so this WILL trigger the buttons tier; update Task 5's Step 2 test assertions in that same test run rather than leaving them silently broken).
+
+- [ ] **Step 17: Frontend — add `button_label` to the package/addon types and editor UI**
+
+In `frontend/app/dashboard/settings/intake-config/packages/PackageEditor.tsx` (Task 8), add
+`button_label?: string;` to both `IntakeAddon` and `IntakePackage` interfaces, and add one
+small input next to each node's description field:
+
+```tsx
+// added to PackageNode, right after the description <input> (leaf nodes only — button_label
+// is meaningless on a non-leaf node, since non-leaves are never sent as buttons/list rows)
+{isLeaf && (
+  <input
+    type="text"
+    value={node.button_label ?? ""}
+    onChange={(e) => onChange({ ...node, button_label: e.target.value || undefined })}
+    placeholder="Short button label (optional, ≤20 chars — falls back to name)"
+    maxLength={20}
+    disabled={!canManage}
+    className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+  />
+)}
+```
+
+Add the same input to the addon row block (after the addon's name input), with the same
+`maxLength={20}` and placeholder text.
+
+- [ ] **Step 18: Manual verification**
+
+Run: `cd frontend && npm run dev` and, separately, exercise the WhatsApp sandbox/test number
+this tenant uses for intake.
+Expected: a 2-3 package menu arrives as tappable buttons; a 4-10 package menu arrives as a
+list message ("Choose" button → bottom sheet); an 11+ or long-label menu still arrives as the
+original plain-text list. Tapping a button or list row completes the pick exactly like typing
+the name did before.
+
+- [ ] **Step 19: Commit**
+
+```bash
+git add backend/app/routes/app_settings.py backend/app/services/meta_cloud.py backend/app/services/intake.py backend/tests/ frontend/app/dashboard/settings/intake-config/packages/PackageEditor.tsx
+git commit -m "feat: send package/addon menus as WhatsApp buttons or list messages when eligible"
+```
+
+---
+
 ## Self-Review Notes
 
-- **Spec coverage:** data model + non-leaf display (Task 2, spec section 2), session snapshot columns (Task 1, spec section 3), bot flow incl. the worked example (Tasks 3-6, spec section 4), frontend editor (Tasks 8-9, spec section 5), testing (every task carries its own tests, matching spec section 6 item-for-item).
+- **Spec coverage:** data model + non-leaf display (Task 2, spec section 2), session snapshot columns (Task 1, spec section 3), bot flow incl. the worked example (Tasks 3-6, spec section 4), tap UI/buttons/list message (Task 10, spec section 5), frontend editor (Tasks 8-9, spec section 6), testing (every task carries its own tests, matching spec section 7 item-for-item).
 - **Placeholder scan:** one intentional exception, called out explicitly rather than hidden — Task 5 Step 2's integration test fixture depends on Step 1's discovery of the existing mock harness, since guessing the wrong shape would produce a test that can't run; every other step has complete, real code.
-- **Type consistency:** `IntakePackage`/`IntakeAddon` (frontend, Task 8) mirror `IntakePackageUpdate`/`IntakeAddonUpdate` (backend, Task 7) field-for-field. `_resolve_choice`'s 3-outcome contract (`"leaf"`/`"choose"`/`"empty"`) is used identically at both call sites in Task 5. `_package_patch`'s new optional params match what Task 5 and Task 6 each pass.
-- **Sequencing:** Task 8 depends on `intake-config/page.tsx` existing, which is the *other* plan's Task 6 — do not start Task 8 until that plan has shipped through at least its Task 6.
+- **Type consistency:** `IntakePackage`/`IntakeAddon` (frontend, Task 8) mirror `IntakePackageUpdate`/`IntakeAddonUpdate` (backend, Task 7) field-for-field, both extended with `button_label` in Task 10. `_resolve_choice`'s 3-outcome contract (`"leaf"`/`"choose"`/`"empty"`) is used identically at both call sites in Task 5. `_package_patch`'s new optional params match what Task 5 and Task 6 each pass.
+- **Sequencing:** Task 8 depends on `intake-config/page.tsx` existing, which is the *other* plan's Task 6 — do not start Task 8 until that plan has shipped through at least its Task 6. Task 10 depends on Task 5's `_finalize_leaf`/`offer_pending`/`awaiting_package_choice` code already existing (it edits those exact blocks) and on Task 8's `PackageEditor.tsx` existing (it adds a field to it) — run Task 10 last.
+- **Reversal on record:** Task 10 revives a feature (`2026-08-24-intake-package-buttons-design.md`) that was explicitly reverted "at the user's direction" earlier the same day it was written. The reversal was re-examined and overturned in this session after tracing that the alternative (the general Quick Reply Blocks / AI tool-call system) structurally cannot fire during an active intake turn (`webhook.py:338-348`) — not a change of preference, a correction of a technical assumption. If this surprises whoever executes the plan, that's the paper trail.
