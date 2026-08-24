@@ -29,15 +29,15 @@ export function StatCards({ items }: { items: StatItem[] }) {
         return (
           <div
             key={item.label}
-            className="min-w-[138px] rounded-xl border border-border bg-surface px-4 py-3 shadow-sm"
+            className="min-w-[162px] rounded-xl border border-border bg-surface px-5 py-3.5 shadow-sm"
           >
-            <p className="flex items-center gap-1.5 font-heading text-[9.5px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
+            <p className="flex items-center gap-1.5 font-heading text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-muted">
               <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", tone.dot)} aria-hidden />
               <span className="truncate">{item.label}</span>
             </p>
             <p
               className={cn(
-                "mt-2 truncate font-heading text-[24px] font-bold leading-none tracking-[-0.035em] tabular-nums",
+                "mt-2.5 truncate font-heading text-[29px] font-bold leading-none tracking-[-0.035em] tabular-nums",
                 tone.value
               )}
               title={item.value}
@@ -45,7 +45,7 @@ export function StatCards({ items }: { items: StatItem[] }) {
               {item.value}
             </p>
             {item.detail && (
-              <p className="mt-1.5 truncate font-body text-[11px] font-medium text-ink-secondary" title={item.detail}>
+              <p className="mt-2 truncate font-body text-[11.5px] font-medium text-ink-secondary" title={item.detail}>
                 {item.detail}
               </p>
             )}

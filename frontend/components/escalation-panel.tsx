@@ -14,8 +14,11 @@ import {
   reopenHandover,
   resolveHandover,
   severityForWait,
+  EMPTY_HISTORY_STATS,
+  TRIGGERS,
   type Caller,
   type Handover,
+  type HistoryStats,
 } from "@/lib/escalations";
 import { StatCards, type StatItem } from "@/components/escalations/stat-cards";
 import { HistoryTab } from "@/components/escalations/history-tab";
@@ -59,7 +62,9 @@ export function EscalationPanel({
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState<"all" | "unassigned" | "mine" | "breaching">("all");
-  const [historyStats, setHistoryStats] = useState<StatItem[]>([]);
+  const [historyStats, setHistoryStats] = useState<HistoryStats>(EMPTY_HISTORY_STATS);
+  const [historyResolver, setHistoryResolver] = useState("");
+  const [historyReason, setHistoryReason] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const visibleHandovers = useMemo(
@@ -118,6 +123,10 @@ export function EscalationPanel({
 
   function switchTab(next: Tab) {
     setTab(next);
+    setSearchQuery("");
+    setQuickFilter("all");
+    setHistoryResolver("");
+    setHistoryReason("");
     const params = new URLSearchParams(searchParams.toString());
     if (next === "history") params.set("tab", "history");
     else params.delete("tab");
@@ -167,6 +176,35 @@ export function EscalationPanel({
       },
     ],
     [stats, role]
+  );
+
+  const historyCards: StatItem[] = useMemo(
+    () => [
+      {
+        label: "Resolved all-time",
+        value: String(historyStats.total),
+        detail: historyStats.total ? "Every handover closed by a human" : "Nothing resolved yet",
+      },
+      {
+        label: "Median to resolve",
+        value: formatDuration(historyStats.median_seconds),
+        tone: historyStats.median_seconds !== null && historyStats.median_seconds > DAY ? "warning" : "positive",
+        detail: "From handover to resolution",
+      },
+      {
+        label: "Top resolver",
+        value: historyStats.top_resolver ?? "Not recorded",
+        detail: historyStats.top_resolver
+          ? `${historyStats.top_resolver_count} of ${historyStats.total} resolved`
+          : "No attributed resolutions yet",
+      },
+      {
+        label: "Most common trigger",
+        value: historyStats.top_reason ? (TRIGGERS[historyStats.top_reason]?.label ?? historyStats.top_reason) : "—",
+        detail: historyStats.top_reason ? "Why the AI hands over most often" : "No triggers recorded yet",
+      },
+    ],
+    [historyStats]
   );
 
   const myName = callers.find((c) => c.id === currentCallerId)?.name ?? currentCallerName ?? "You";
@@ -251,10 +289,11 @@ export function EscalationPanel({
               Conversations the AI handed to a human.
             </p>
           </div>
-          {!loading && <StatCards items={tab === "active" ? activeStats : historyStats} />}
+          {!loading && <StatCards items={tab === "active" ? activeStats : historyCards} />}
         </div>
 
-        <div className="-mx-6 mt-5 flex items-end border-b border-border-subtle px-6" role="tablist" aria-label="Escalation views">
+        <div className="-mx-6 mt-5 flex flex-wrap items-end justify-between gap-x-8 gap-y-2 border-b border-border px-6">
+          <div className="flex items-end" role="tablist" aria-label="Escalation views">
           {([
             { key: "active", label: "Active", count: visibleHandovers.length, critical: true },
             { key: "history", label: "History", count: null, critical: false },
@@ -285,27 +324,18 @@ export function EscalationPanel({
               )}
             </button>
           ))}
-        </div>
-      </div>
+          </div>
 
-      {tab === "history" ? (
-        <HistoryTab
-          onOpenChat={onReply}
-          canReply={canReplyToConversations}
-          onReopened={load}
-          onStatsChange={setHistoryStats}
-        />
-      ) : (
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* ── toolbar (stays in the header; only the list below scrolls) ── */}
-          <div className="flex flex-wrap items-center gap-3 px-6 py-4">
-            <div className="relative h-[34px] min-w-[200px] flex-[0_1_300px]">
+          {/* Search + filters sit on the tab row so the list starts directly
+              under the header rule instead of a row lower. */}
+          <div className="flex flex-wrap items-center gap-2 pb-2.5">
+            <div className="relative h-[34px] w-[240px]">
               <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search name, phone, reason…"
+                placeholder={tab === "active" ? "Search name, phone, reason…" : "Search name or phone…"}
                 aria-label="Search escalations"
                 className="h-[34px] w-full rounded-[9px] border border-border bg-surface pl-[33px] pr-8 font-body text-[12.5px] text-ink outline-none transition-shadow placeholder:text-ink-muted focus:border-primary focus:ring-[3px] focus:ring-primary/15"
               />
@@ -320,8 +350,8 @@ export function EscalationPanel({
               )}
             </div>
 
-            <div className="ml-auto flex flex-wrap items-center gap-1.5">
-              {QUICK_FILTERS.map((f) => (
+            {tab === "active" ? (
+              QUICK_FILTERS.map((f) => (
                 <button
                   key={f.key}
                   onClick={() => setQuickFilter(f.key)}
@@ -335,12 +365,49 @@ export function EscalationPanel({
                 >
                   {f.label}
                 </button>
-              ))}
-            </div>
+              ))
+            ) : (
+              <>
+                <select
+                  value={historyResolver}
+                  onChange={(e) => setHistoryResolver(e.target.value)}
+                  aria-label="Filter by resolver"
+                  className="h-[34px] cursor-pointer rounded-full border border-border bg-surface px-3.5 font-body text-[11.5px] font-semibold text-ink-secondary outline-none transition-colors hover:border-ink-muted focus:border-primary"
+                >
+                  <option value="">Anyone</option>
+                  {historyStats.resolvers.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                <select
+                  value={historyReason}
+                  onChange={(e) => setHistoryReason(e.target.value)}
+                  aria-label="Filter by reason"
+                  className="h-[34px] cursor-pointer rounded-full border border-border bg-surface px-3.5 font-body text-[11.5px] font-semibold text-ink-secondary outline-none transition-colors hover:border-ink-muted focus:border-primary"
+                >
+                  <option value="">Any reason</option>
+                  {historyStats.reasons.map((r) => (
+                    <option key={r} value={r}>{TRIGGERS[r]?.label ?? r}</option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
+        </div>
+      </div>
 
-          <div className="h-px flex-shrink-0 bg-border" />
-
+      {tab === "history" ? (
+        <HistoryTab
+          onOpenChat={onReply}
+          canReply={canReplyToConversations}
+          onReopened={load}
+          search={searchQuery}
+          resolver={historyResolver}
+          reason={historyReason}
+          onStatsChange={setHistoryStats}
+        />
+      ) : (
+        <div className="flex flex-1 flex-col overflow-hidden">
           {/* ── list ── */}
           <div className="flex flex-1 flex-col overflow-y-auto">
           {!loading && visibleHandovers.length === 0 ? (

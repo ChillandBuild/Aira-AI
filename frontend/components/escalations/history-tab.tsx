@@ -1,18 +1,17 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Info, MessageSquare, RotateCcw, Search, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2, Info, MessageSquare, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDateTime, formatDuration } from "@/lib/utils";
 import {
   EMPTY_HISTORY_STATS,
-  TRIGGERS,
   fetchHistory,
   reopenHandover,
   severityForWait,
   type HistoryStats,
   type ResolvedHandover,
 } from "@/lib/escalations";
-import { type StatItem } from "@/components/escalations/stat-cards";
+
 import { ChannelCell, DurationCell, LeadCell, PersonCell, TableEmpty, TableSkeleton, TriggerChip } from "@/components/escalations/atoms";
 
 const PAGE_SIZE = 25;
@@ -23,22 +22,23 @@ interface HistoryTabProps {
   /** Reopening puts a handover back in the active pool, so the parent has to
    *  refresh its list and the rail badge. */
   onReopened: () => void;
-  /** The KPI cards live in the shared page header next to the title, but the
-   *  numbers are only known here, so they are handed upward. */
-  onStatsChange: (items: StatItem[]) => void;
+  /** Search and filters live in the shared page header, so they arrive as
+   *  props; the raw stats go back up because the header renders both the KPI
+   *  cards and the resolver/reason dropdown options from them. */
+  search: string;
+  resolver: string;
+  reason: string;
+  onStatsChange: (stats: HistoryStats) => void;
 }
 
-export function HistoryTab({ onOpenChat, canReply, onReopened, onStatsChange }: HistoryTabProps) {
+export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver, reason, onStatsChange }: HistoryTabProps) {
   const [rows, setRows] = useState<ResolvedHandover[]>([]);
   const [stats, setStats] = useState<HistoryStats>(EMPTY_HISTORY_STATS);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(false);
-  const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
-  const [resolver, setResolver] = useState<string>("");
-  const [reason, setReason] = useState<string>("");
 
   useEffect(() => {
     const handle = setTimeout(() => setDebounced(search.trim()), 300);
@@ -108,95 +108,15 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, onStatsChange }: 
     }
   }
 
-  const historyStats: StatItem[] = useMemo(() => [
-    {
-      label: "Resolved all-time",
-      value: String(stats.total),
-      detail: stats.total ? "Every handover closed by a human" : "Nothing resolved yet",
-    },
-    {
-      label: "Median to resolve",
-      value: formatDuration(stats.median_seconds),
-      tone: stats.median_seconds !== null && stats.median_seconds > 86_400 ? "warning" : "positive",
-      detail: "From handover to resolution",
-    },
-    {
-      label: "Top resolver",
-      value: stats.top_resolver ?? "Not recorded",
-      detail: stats.top_resolver
-        ? `${stats.top_resolver_count} of ${stats.total} resolved`
-        : "No attributed resolutions yet",
-    },
-    {
-      label: "Most common trigger",
-      value: stats.top_reason ? (TRIGGERS[stats.top_reason]?.label ?? stats.top_reason) : "—",
-      detail: stats.top_reason ? "Why the AI hands over most often" : "No triggers recorded yet",
-    },
-  ], [stats]);
-
   useEffect(() => {
-    onStatsChange(historyStats);
-  }, [historyStats, onStatsChange]);
+    onStatsChange(stats);
+  }, [stats, onStatsChange]);
 
   const filtered = Boolean(debounced || resolver || reason);
   const hasUnattributed = rows.some((r) => !r.resolved_by_name);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* ── toolbar ── */}
-      <div className="flex flex-wrap items-center gap-3 px-6 py-4">
-        <div className="relative h-[34px] min-w-[200px] flex-[0_1_300px]">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or phone…"
-            aria-label="Search resolved escalations"
-            className="h-[34px] w-full rounded-[9px] border border-border bg-surface pl-[33px] pr-8 font-body text-[12.5px] text-ink outline-none transition-shadow placeholder:text-ink-muted focus:border-primary focus:ring-[3px] focus:ring-primary/15"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted transition-colors hover:text-ink"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <select
-            value={resolver}
-            onChange={(e) => setResolver(e.target.value)}
-            aria-label="Filter by resolver"
-            className="h-[34px] cursor-pointer rounded-full border border-border bg-surface px-3.5 font-body text-[11.5px] font-semibold text-ink-secondary outline-none transition-colors hover:border-ink-muted focus:border-primary"
-          >
-            <option value="">Anyone</option>
-            {stats.resolvers.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          <select
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            aria-label="Filter by reason"
-            className="h-[34px] cursor-pointer rounded-full border border-border bg-surface px-3.5 font-body text-[11.5px] font-semibold text-ink-secondary outline-none transition-colors hover:border-ink-muted focus:border-primary"
-          >
-            <option value="">Any reason</option>
-            {stats.reasons.map((r) => (
-              <option key={r} value={r}>
-                {TRIGGERS[r]?.label ?? r}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="h-px flex-shrink-0 bg-border" />
 
       {/* ── list (only this scrolls; filters stay in the header) ── */}
       <div className="flex flex-1 flex-col overflow-y-auto">
