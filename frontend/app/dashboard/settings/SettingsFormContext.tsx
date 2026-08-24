@@ -58,7 +58,7 @@ interface SettingsFormContextValue {
   memberSince: string | null;
   tenantId: string | null;
   hasNotifications: boolean;
-  hasTelecmiConfig: boolean;
+  hasTelecmiConfig: boolean | null;
 }
 
 const SettingsFormCtx = createContext<SettingsFormContextValue | null>(null);
@@ -117,7 +117,7 @@ export function SettingsFormProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const hasNotifications = purchasedFeatures.length === 0 || purchasedFeatures.includes("inbound_messaging") || purchasedFeatures.includes("outbound_messaging");
-  const hasTelecmiConfig = callingProvider === "telecmi";
+  const hasTelecmiConfig = callingProvider === null ? null : callingProvider === "telecmi";
 
   const load = useCallback(async () => {
     try {

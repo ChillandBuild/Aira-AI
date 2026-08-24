@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Phone, Eye, EyeOff } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import { useSettingsForm } from "../SettingsFormContext";
 import {
@@ -100,7 +101,14 @@ function SecretField({
 }
 
 export default function TelecallingSettingsPage() {
-  const { settingFor, drafts, setDrafts, saveStates, canManageSettings, tenantId, handleSave } = useSettingsForm();
+  const router = useRouter();
+  const { settingFor, drafts, setDrafts, saveStates, canManageSettings, tenantId, hasTelecmiConfig, handleSave } = useSettingsForm();
+
+  useEffect(() => {
+    if (hasTelecmiConfig === false) router.replace("/dashboard/settings?tab=automations", { scroll: false });
+  }, [hasTelecmiConfig, router]);
+
+  if (hasTelecmiConfig !== true) return null;
 
   const voiceConfigured = VOICE_SECTION.fields.filter(f => f.required !== false).every(f => settingFor(f.key)?.is_set);
   const dirty = VOICE_SECTION.fields.some(f => {
