@@ -66,3 +66,37 @@ def test_buttons_for_three_packages():
 def test_buttons_none_when_any_package_ineligible():
     pkgs = [_pkg("a", "Basic"), _pkg("b", "Detailed Consultation")]
     assert package_buttons(pkgs) is None
+
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from app.services.intake import match_package
+
+
+@pytest.mark.asyncio
+async def test_match_package_matches_button_label_without_llm():
+    pkgs = [_pkg("basic", "One Question"), _pkg("det", "Detailed Consultation", "Detailed")]
+    with patch("app.services.intake.gemini_chat_completion_json", new=AsyncMock()) as llm:
+        result = await match_package("Detailed", pkgs, "tenant-1")
+    assert result["key"] == "det"
+    llm.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_match_package_button_label_is_case_insensitive():
+    pkgs = [_pkg("basic", "One Question"), _pkg("det", "Detailed Consultation", "Detailed")]
+    with patch("app.services.intake.gemini_chat_completion_json", new=AsyncMock()) as llm:
+        result = await match_package("  detailed  ", pkgs, "tenant-1")
+    assert result["key"] == "det"
+    llm.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_match_package_still_matches_name_without_llm():
+    pkgs = [_pkg("basic", "One Question"), _pkg("det", "Detailed Consultation", "Detailed")]
+    with patch("app.services.intake.gemini_chat_completion_json", new=AsyncMock()) as llm:
+        result = await match_package("One Question", pkgs, "tenant-1")
+    assert result["key"] == "basic"
+    llm.assert_not_called()

@@ -384,7 +384,11 @@ async def match_package(message: str, packages: list[dict], tenant_id: str) -> d
 
     cleaned = message.strip().lower()
     for p in packages:
-        if cleaned == p["name"].strip().lower() or cleaned == p["key"].strip().lower():
+        # button_label is included because a tapped reply button sends its title back
+        # verbatim -- without this a shortened label misses the short-circuit and burns
+        # an LLM call to re-derive what the tap already told us exactly.
+        candidates = [p["name"], p["key"], p.get("button_label") or ""]
+        if any(cleaned == c.strip().lower() for c in candidates if c and c.strip()):
             return dict(p)
 
     package_list = "\n".join(f"- {p['key']}: {p['name']}" for p in packages)
