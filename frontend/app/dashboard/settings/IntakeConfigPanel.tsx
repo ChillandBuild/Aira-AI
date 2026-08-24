@@ -4,6 +4,7 @@ import { UserCheck, Plus, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
 import { CheckField } from "@/components/ui/controls";
+import { slugify } from "./slugify";
 
 type FieldType = "text" | "date" | "choice";
 
@@ -40,10 +41,6 @@ const DEFAULT: IntakeConfig = {
   service_noun: "consultation",
   amount_paise: 0,
 };
-
-function slugify(label: string): string {
-  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
-}
 
 export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean }) {
   const [config, setConfig] = useState<IntakeConfig>(DEFAULT);
