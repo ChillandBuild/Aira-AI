@@ -145,3 +145,33 @@ def test_load_active_blocks_returns_empty_on_db_error():
     db = MagicMock()
     db.table.side_effect = RuntimeError("db down")
     assert load_active_blocks(db, "t1") == []
+
+
+def test_ai_reply_wires_quick_replies_into_the_shared_tool_list():
+    """Guard against the block tool being sent in a second, separate LLM call, and
+    against the early-return that would skip scoring (see the plan's spec correction)."""
+    source = (Path(__file__).resolve().parents[1] / "app" / "services" / "ai_reply.py").read_text(
+        encoding="utf-8"
+    )
+    assert "should_offer_quick_replies" in source
+    assert "quick_reply_tool" in source
+    # One merged tool list, one LLM call.
+    assert "catalog_tools + quick_reply_tool" in source
+    # The block overrides the reply rather than returning early.
+    assert 'reply_source = "quick_reply_block"' in source
+
+
+def test_generate_reply_binds_fallthrough_vars_outside_the_try():
+    """The LLM try/except does not return -- it falls through to the channel
+    dispatch, which reads chosen_block and catalog_images_to_send. Binding either
+    only inside the try turns any LLM failure into a NameError and a lost reply.
+    """
+    source = (Path(__file__).resolve().parents[1] / "app" / "services" / "ai_reply.py").read_text(
+        encoding="utf-8"
+    )
+    init_block = source.index("chosen_block: dict | None = None")
+    init_images = source.index("catalog_images_to_send: list[tuple[str, bytes]] = []")
+    # The try that wraps build_reply_system_prompt + the LLM call.
+    llm_try = source.index("system_prompt, reply_language_mode, intake_active = build_reply_system_prompt")
+    assert init_block < llm_try, "chosen_block must be bound before the LLM try block"
+    assert init_images < llm_try, "catalog_images_to_send must be bound before the LLM try block"
