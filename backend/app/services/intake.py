@@ -10,6 +10,7 @@ import re
 import uuid
 
 from app.services.gemini_client import gemini_chat_completion_json
+from app.services.meta_cloud import BUTTON_COUNT_MAX, BUTTON_TITLE_MAX
 from app.services.intake_copy import (
     collector_identity,
     compose_line,
@@ -322,6 +323,44 @@ def package_list_message(packages: list[dict], service_noun: str) -> str:
         + package_list_block(packages)
         + "\n\nWhich one would you like?"
     )
+
+
+# WhatsApp caps reply buttons at 3 per message and 20 characters per title. Prices are
+# deliberately never put on a button -- they would not survive the 20-character limit,
+# and they belong in the body text where package_list_block renders them in Python.
+_BUTTON_PACKAGE_MIN = 2
+
+
+def package_button_title(pkg: dict) -> str | None:
+    """The reply-button title for one package, or None if it cannot be a button.
+
+    Prefers an explicit `button_label` so a tenant can shorten a long package name;
+    falls back to `name` when that already fits.
+    """
+    label = (pkg.get("button_label") or "").strip()
+    if label:
+        return label if len(label) <= BUTTON_TITLE_MAX else None
+    name = (pkg.get("name") or "").strip()
+    if name and len(name) <= BUTTON_TITLE_MAX:
+        return name
+    return None
+
+
+def package_buttons(packages: list[dict]) -> list[dict] | None:
+    """Reply buttons for the package picker, or None to fall back to a text list.
+
+    All-or-nothing: one ineligible package sends the whole set to text rather than
+    showing a partial menu that hides an option the lead can pay for.
+    """
+    if not (_BUTTON_PACKAGE_MIN <= len(packages) <= BUTTON_COUNT_MAX):
+        return None
+    out: list[dict] = []
+    for p in packages:
+        title = package_button_title(p)
+        if not title:
+            return None
+        out.append({"id": p["key"], "title": title})
+    return out
 
 
 _PACKAGE_MATCH_SYSTEM_PROMPT = """You match a customer's reply to one of a fixed list of
