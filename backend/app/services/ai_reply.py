@@ -1535,6 +1535,26 @@ async def generate_reply(
         catalog_context = ""
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
 
+    # Client-authored button blocks. Loaded before the intake guard below, which may
+    # drop the tool again -- see should_offer_quick_replies for why the tool has to be
+    # removed rather than merely discouraged in the prompt.
+    quick_reply_blocks: list[dict] = []
+    quick_reply_tool: list[dict] = []
+    try:
+        from app.services.quick_replies import build_quick_reply_tool, load_active_blocks
+        if channel == "whatsapp":
+            quick_reply_blocks = load_active_blocks(db, tenant_id)
+            quick_reply_tool = build_quick_reply_tool(quick_reply_blocks)
+    except Exception:
+        logger.warning(f"Quick reply tool build failed for tenant {tenant_id}")
+
+    # Bound out here, not inside the try below: that block's except does not return,
+    # it falls through to the channel dispatch, which reads both of these. A variable
+    # only assigned inside the try raises NameError on any LLM failure -- turning a
+    # recoverable error into a lost reply. (catalog_images_to_send had this bug.)
+    chosen_block: dict | None = None
+    catalog_images_to_send: list[tuple[str, bytes]] = []  # (filename, image_bytes)
+
     try:
         system_prompt, reply_language_mode, intake_active = build_reply_system_prompt(
             db,
@@ -1555,6 +1575,15 @@ async def generate_reply(
         if intake_active:
             catalog_tools = []
 
+        # Same reasoning as the catalog guard above, applied to quick reply blocks:
+        # a lead mid-payment must not be handed an unrelated button menu, and the
+        # only reliable way to stop that is to remove the tool.
+        from app.services.quick_replies import should_offer_quick_replies
+        if not should_offer_quick_replies(
+            channel, intake_active, quick_reply_blocks, recent_thread
+        ):
+            quick_reply_tool = []
+
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]
         for row in reversed(recent_thread):  # oldest first
@@ -1573,13 +1602,47 @@ async def generate_reply(
         if not chat_messages or chat_messages[-1].get("role") != "user" or chat_messages[-1].get("content") != message:
             chat_messages.append({"role": "user", "content": message})
 
-        catalog_images_to_send: list[tuple[str, bytes]] = []  # (filename, image_bytes)
-
-        if catalog_tools:
+        # One call with both tools. A second call for quick replies would double
+        # latency and cost on every reply for tenants using both features.
+        all_tools = catalog_tools + quick_reply_tool
+        if all_tools:
             reply_text, tool_calls = await _llm_chat_with_tools(
-                chat_messages, tools=catalog_tools, max_tokens=600, tenant_id=tenant_id,
+                chat_messages, tools=all_tools, max_tokens=600, tenant_id=tenant_id,
             )
             reply_text = reply_text.strip()
+
+            # Resolved here, applied after reply_source is assigned below. A block
+            # wins over a catalog recommendation: sending both gives the lead a
+            # product photo and an unrelated button menu for one question.
+            from app.services.quick_replies import QUICK_REPLY_TOOL_NAME, resolve_block
+            for tc in tool_calls:
+                func = tc.get("function") or {}
+                if func.get("name") != QUICK_REPLY_TOOL_NAME:
+                    continue
+                try:
+                    args = json.loads(func.get("arguments") or "{}")
+                except (ValueError, TypeError):
+                    continue
+                chosen_block = resolve_block(quick_reply_blocks, args.get("block_name"))
+                if chosen_block:
+                    logger.info(
+                        "Quick reply block selected: lead %s -> %s", lead_id, chosen_block["name"]
+                    )
+                else:
+                    logger.warning(
+                        "Model asked for unknown quick reply block %r for lead %s; "
+                        "replying normally", args.get("block_name"), lead_id,
+                    )
+                break
+
+            # Diagnostic for "why didn't my buttons show?" -- the one question a
+            # client will ask that logs must be able to answer. INFO, not WARNING:
+            # not calling the tool is usually correct.
+            if quick_reply_tool and not chosen_block:
+                logger.info(
+                    "Quick reply blocks offered but none selected for lead %s (%d available)",
+                    lead_id, len(quick_reply_blocks),
+                )
 
             # Handle tool calls — the model asked to recommend catalog items
             for tc in tool_calls:
@@ -1628,6 +1691,19 @@ async def generate_reply(
 
         is_ai = True
         reply_source = "knowledge" if context_text else "ai"
+
+        if chosen_block:
+            from app.services.quick_replies import format_block_log
+            reply_text = format_block_log(chosen_block)
+            reply_source = "quick_reply_block"
+            # The block replaces the reply, so a catalog photo from the same turn
+            # would arrive as an unrelated second message.
+            if catalog_images_to_send:
+                logger.warning(
+                    "Quick reply block and catalog recommendation both fired for lead %s; "
+                    "sending the block only", lead_id,
+                )
+                catalog_images_to_send = []
 
         if not reply_text:
             reply_text = _FALLBACK_BY_LANG.get(_detect_lang(message), _FALLBACK_BY_LANG["en"])
@@ -1733,13 +1809,38 @@ async def generate_reply(
                         reply_to_message_id = meta_message_id
                 except Exception as burst_err:
                     logger.warning(f"Burst check failed for lead {lead_id}: {burst_err}")
-            sid = await send_whatsapp(
-                _wa_phone,
-                reply_text,
-                tenant_id=lead_data.get("tenant_id"),
-                phone_number_id=phone_number_id,
-                reply_to_message_id=reply_to_message_id,
-            )
+            if chosen_block:
+                from app.services.meta_cloud import send_interactive_buttons
+                from app.services.quick_replies import to_send_buttons
+                try:
+                    _btn_data = await send_interactive_buttons(
+                        to_number=_wa_phone,
+                        body_text=chosen_block["body_text"],
+                        buttons=to_send_buttons(chosen_block),
+                        tenant_id=lead_data.get("tenant_id"),
+                        phone_number_id=phone_number_id,
+                    )
+                    sid = (_btn_data.get("messages") or [{}])[0].get("id")
+                except Exception:
+                    # Never lose the turn over a button failure -- fall back to the
+                    # block's body as ordinary text.
+                    logger.exception("Quick reply block send failed for lead %s", lead_id)
+                    reply_text = chosen_block["body_text"]
+                    sid = await send_whatsapp(
+                        _wa_phone,
+                        reply_text,
+                        tenant_id=lead_data.get("tenant_id"),
+                        phone_number_id=phone_number_id,
+                        reply_to_message_id=reply_to_message_id,
+                    )
+            else:
+                sid = await send_whatsapp(
+                    _wa_phone,
+                    reply_text,
+                    tenant_id=lead_data.get("tenant_id"),
+                    phone_number_id=phone_number_id,
+                    reply_to_message_id=reply_to_message_id,
+                )
 
         # Send catalog recommendation images as follow-up WhatsApp media
         if _wa_phone and sid and catalog_images_to_send:
