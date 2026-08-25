@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, JetBrains_Mono, Dancing_Script, Instrument_Sans } from "next/font/google";
+import { Manrope, JetBrains_Mono, Dancing_Script, Plus_Jakarta_Sans } from "next/font/google";
 import { Toaster } from "sonner";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
 import "./globals.css";
@@ -22,7 +22,7 @@ const jetbrainsMono = JetBrains_Mono({
 // shared `font-display` role -- that alias points at Manrope and is used in 76
 // component files, so repointing it would restyle most of the app. Opt in per
 // page with `font-heading`.
-const instrumentSans = Instrument_Sans({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-heading",
   display: "swap",
@@ -73,7 +73,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${instrumentSans.variable} ${dancingScript.variable}`}>
+    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${plusJakarta.variable} ${dancingScript.variable}`}>
       <head>
         <link rel="manifest" href="/aira/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>
