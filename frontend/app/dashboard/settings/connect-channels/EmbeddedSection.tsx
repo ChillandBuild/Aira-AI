@@ -41,10 +41,10 @@ export default function EmbeddedSection({
   onDisconnect: (channelId: string) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-emerald-200 bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
-      <div className="flex flex-col gap-4 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-emerald-50/40 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-7">
+    <section className="overflow-hidden rounded-[28px] border border-primary-muted bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
+      <div className="flex flex-col gap-4 border-b border-primary-muted bg-gradient-to-r from-primary-light via-white to-primary-light/40 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-7">
         <div>
-          <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Embedded onboarding</p>
+          <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Embedded onboarding</p>
           <h2 className="mt-1 font-display text-xl font-bold text-ink">WhatsApp, Messenger, Instagram &amp; Ads</h2>
           <p className="mt-1 max-w-2xl font-body text-xs text-ink-muted">
             One secure Meta window connects WhatsApp, your Facebook Page and Messenger, linked
@@ -52,7 +52,7 @@ export default function EmbeddedSection({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2 self-start">
-          <span className="rounded-lg bg-emerald-500 px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Recommended</span>
+          <span className="rounded-lg bg-gradient-to-br from-[#2e1065] to-primary px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Recommended</span>
           <HealthRefreshButton loading={healthLoading} onClick={onRefreshHealth} />
         </div>
       </div>
@@ -61,7 +61,7 @@ export default function EmbeddedSection({
         <div>
           <ul className="space-y-3 font-body text-sm text-[#57534e]">
             {VALUE_PROPS.map(item => (
-              <li key={item} className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-emerald-500" />{item}</li>
+              <li key={item} className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-primary" />{item}</li>
             ))}
           </ul>
           {error && <p className="mt-4 rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{error}</p>}
@@ -70,7 +70,7 @@ export default function EmbeddedSection({
               type="button"
               onClick={onConnect}
               disabled={!canManage || isBusy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(16,185,129,0.22)] transition-all hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#2e1065] to-primary px-4 py-3 font-label text-sm font-bold text-white shadow-[0_8px_20px_rgba(91,33,182,0.28)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-8"
             >
               {isBusy && activeMode === "standard" ? <><Loader2 size={16} className="animate-spin" />Connecting…</> : <>{isConnected ? "Reconnect Meta Business" : "Connect Meta Business"} <ArrowRight size={16} /></>}
             </button>
@@ -78,12 +78,12 @@ export default function EmbeddedSection({
               type="button"
               onClick={onConnectCoexistence}
               disabled={!canManage || isBusy}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-3 font-label text-sm font-bold text-emerald-700 transition-all hover:border-emerald-400 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-6"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-primary-muted bg-white px-4 py-3 font-label text-sm font-bold text-primary transition-all hover:border-primary/40 hover:bg-primary-light disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-6"
             >
               {isBusy && activeMode === "coexistence" ? <><Loader2 size={16} className="animate-spin" />Opening coexistence…</> : <>Connect WhatsApp Business App <ArrowRight size={16} /></>}
             </button>
           </div>
-          <p className="mt-2 font-body text-xs text-emerald-700">
+          <p className="mt-2 font-body text-xs text-ink-muted">
             Already use the WhatsApp Business app? The second option keeps the mobile app connected.
           </p>
           {isConnected && (

@@ -30,7 +30,7 @@ export { SwitchPill, CheckTick, CheckField, TickMark } from "@/components/ui/con
 type AccordionCtx = {
   isOpen: (id: string) => boolean;
   toggle: (id: string) => void;
-  register: (id: string) => () => void;
+  register: (id: string, defaultOpen: boolean) => () => void;
 };
 
 const Ctx = createContext<AccordionCtx | null>(null);
@@ -39,8 +39,13 @@ export function SettingsAccordion({ children }: { children: React.ReactNode }) {
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set());
   const [ids, setIds] = useState<string[]>([]);
 
-  const register = useCallback((id: string) => {
+  // Sections seed their own open/closed state on registration — the group's
+  // openIds otherwise starts empty regardless of what each section asked for.
+  const register = useCallback((id: string, defaultOpen: boolean) => {
     setIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    if (defaultOpen) {
+      setOpenIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    }
     return () => setIds((prev) => prev.filter((x) => x !== id));
   }, []);
 
@@ -161,8 +166,8 @@ export function SettingsSection({
   const register = group?.register;
   useEffect(() => {
     if (!register) return;
-    return register(id);
-  }, [register, id]);
+    return register(id, defaultOpen);
+  }, [register, id, defaultOpen]);
 
   const open = group ? group.isOpen(id) : localOpen;
   const onToggle = () => (group ? group.toggle(id) : setLocalOpen((o) => !o));
