@@ -96,7 +96,7 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
 
   if (!cfg || !saved) {
     return (
-      <div className="space-y-3.5 sm:space-y-4">
+      <div className="space-y-3 sm:space-y-3.5">
         <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
         <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
         <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
