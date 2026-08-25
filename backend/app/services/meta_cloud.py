@@ -675,6 +675,12 @@ async def send_audio_message(
     )
 
 
+LIST_ROW_COUNT_MAX = 10
+LIST_ROW_TITLE_MAX = 24
+LIST_ROW_DESCRIPTION_MAX = 72
+LIST_SECTION_TITLE_MAX = 24
+
+
 async def send_list_message(
     to_number: str,
     body_text: str,
@@ -686,21 +692,45 @@ async def send_list_message(
     access_token: Optional[str] = None,
     tenant_id: Optional[str] = None,
 ) -> dict:
-    """Send a WhatsApp interactive list message (up to 10 rows across sections)."""
+    """Send a WhatsApp interactive list message (up to 10 rows across sections).
+
+    Validates before _creds(), same reasoning as send_interactive_buttons: an invalid
+    payload should fail loudly and locally, not silently truncate (WhatsApp truncates
+    over-long titles with no error) or fail after a network round trip."""
+    if len(button_text) > BUTTON_TITLE_MAX:
+        raise ValueError(f"List button label {button_text!r} exceeds {BUTTON_TITLE_MAX} characters")
+    total_rows = sum(len(s.get("rows") or []) for s in sections)
+    if total_rows == 0:
+        raise ValueError("send_list_message needs at least one row")
+    if total_rows > LIST_ROW_COUNT_MAX:
+        raise ValueError(f"WhatsApp allows at most {LIST_ROW_COUNT_MAX} rows total, got {total_rows}")
+    for s in sections:
+        if "title" in s and len(s["title"]) > LIST_SECTION_TITLE_MAX:
+            raise ValueError(f"Section title {s['title']!r} exceeds {LIST_SECTION_TITLE_MAX} characters")
+        for row in s.get("rows") or []:
+            if len(row["title"]) > LIST_ROW_TITLE_MAX:
+                raise ValueError(f"Row title {row['title']!r} exceeds {LIST_ROW_TITLE_MAX} characters")
+            if len(row.get("description", "")) > LIST_ROW_DESCRIPTION_MAX:
+                raise ValueError(f"Row description for {row['title']!r} exceeds {LIST_ROW_DESCRIPTION_MAX} characters")
+    if header_text and len(header_text) > 60:
+        raise ValueError(f"List header {header_text!r} exceeds 60 characters")
+    if footer_text and len(footer_text) > 60:
+        raise ValueError(f"List footer {footer_text!r} exceeds 60 characters")
+
     pid, tok = _creds(phone_number_id, access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{pid}/messages"
     interactive: dict = {
         "type": "list",
         "body": {"text": body_text},
         "action": {
-            "button": button_text[:20],
+            "button": button_text,
             "sections": sections,
         },
     }
     if header_text:
-        interactive["header"] = {"type": "text", "text": header_text[:60]}
+        interactive["header"] = {"type": "text", "text": header_text}
     if footer_text:
-        interactive["footer"] = {"text": footer_text[:60]}
+        interactive["footer"] = {"text": footer_text}
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,

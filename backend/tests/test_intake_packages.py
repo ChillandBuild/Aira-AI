@@ -433,5 +433,60 @@ class PackagePatchTests(unittest.TestCase):
         self.assertEqual(patch["total_amount_paise"], 30000)
 
 
+from app.services.intake import _build_buttons, _build_list_sections, _short_label, _tap_mode
+
+
+def _leaf(key, name, button_label=None):
+    return {"key": key, "name": name, "amount_paise": 10000, "active": True, "button_label": button_label}
+
+
+class ShortLabelTests(unittest.TestCase):
+    def test_uses_button_label_when_set(self):
+        self.assertEqual(_short_label(_leaf("k", "Very Long Package Name Indeed", "Short"), 20), "Short")
+
+    def test_falls_back_to_name_when_it_fits(self):
+        self.assertEqual(_short_label(_leaf("k", "Basic"), 20), "Basic")
+
+    def test_none_when_neither_fits(self):
+        self.assertIsNone(_short_label(_leaf("k", "Way Too Long A Package Name"), 20))
+
+
+class TapModeTests(unittest.TestCase):
+    def test_one_option_is_text(self):
+        self.assertEqual(_tap_mode([_leaf("a", "A")]), "text")
+
+    def test_two_to_three_short_labels_is_buttons(self):
+        self.assertEqual(_tap_mode([_leaf("a", "A"), _leaf("b", "B")]), "buttons")
+        self.assertEqual(_tap_mode([_leaf("a", "A"), _leaf("b", "B"), _leaf("c", "C")]), "buttons")
+
+    def test_four_to_ten_short_labels_is_list(self):
+        level = [_leaf(f"k{i}", f"Option {i}") for i in range(4)]
+        self.assertEqual(_tap_mode(level), "list")
+        level10 = [_leaf(f"k{i}", f"Option {i}") for i in range(10)]
+        self.assertEqual(_tap_mode(level10), "list")
+
+    def test_eleven_options_is_text(self):
+        level = [_leaf(f"k{i}", f"Option {i}") for i in range(11)]
+        self.assertEqual(_tap_mode(level), "text")
+
+    def test_a_label_too_long_for_buttons_with_only_two_options_is_text(self):
+        level = [_leaf("a", "A"), _leaf("b", "A Name Definitely Over Twenty Chars")]
+        self.assertEqual(_tap_mode(level), "text")
+
+    def test_a_label_too_long_even_for_list_tier_is_text(self):
+        level = [_leaf(f"k{i}", "A Description Text Well Over Twenty Four Characters Long") for i in range(5)]
+        self.assertEqual(_tap_mode(level), "text")
+
+
+class BuildButtonsAndSectionsTests(unittest.TestCase):
+    def test_build_buttons_uses_key_as_id(self):
+        buttons = _build_buttons([_leaf("basic_q", "One Question")])
+        self.assertEqual(buttons, [{"id": "basic_q", "title": "One Question"}])
+
+    def test_build_list_sections_wraps_rows_in_one_section(self):
+        sections = _build_list_sections([_leaf("a", "A"), _leaf("b", "B")])
+        self.assertEqual(sections, [{"rows": [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]}])
+
+
 if __name__ == "__main__":
     unittest.main()

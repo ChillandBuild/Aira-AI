@@ -443,6 +443,37 @@ def addon_list_block(addons: list[dict]) -> str:
     return "\n".join(lines)
 
 
+_BUTTON_TITLE_MAX = 20
+_LIST_ROW_TITLE_MAX = 24
+
+
+def _short_label(node: dict, limit: int) -> str | None:
+    label = node.get("button_label") or node["name"]
+    return label if len(label) <= limit else None
+
+
+def _tap_mode(level: list[dict]) -> str:
+    """Pure Python, no LLM -- same rule as prices never being LLM-authored.
+    Returns "buttons", "list", or "text"."""
+    n = len(level)
+    if 2 <= n <= 3 and all(_short_label(item, _BUTTON_TITLE_MAX) for item in level):
+        return "buttons"
+    if 4 <= n <= 10 and all(_short_label(item, _LIST_ROW_TITLE_MAX) for item in level):
+        return "list"
+    return "text"
+
+
+def _build_buttons(level: list[dict]) -> list[dict]:
+    return [{"id": item["key"], "title": _short_label(item, _BUTTON_TITLE_MAX)} for item in level]
+
+
+def _build_list_sections(level: list[dict]) -> list[dict]:
+    return [{"rows": [
+        {"id": item["key"], "title": _short_label(item, _LIST_ROW_TITLE_MAX)}
+        for item in level
+    ]}]
+
+
 _ADDON_DECLINE_WORDS = frozenset({"no", "skip", "none", "no thanks", "nope", "not needed"})
 
 _ADDON_MATCH_SYSTEM_PROMPT = """You match a customer's reply to zero or more addons from a

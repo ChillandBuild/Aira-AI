@@ -105,6 +105,7 @@ class IntakeAddonUpdate(BaseModel):
     amount_paise: int = 0
     description: str = ""
     active: bool = True
+    button_label: str | None = None
 
 
 class IntakePackageUpdate(BaseModel):
@@ -113,6 +114,7 @@ class IntakePackageUpdate(BaseModel):
     amount_paise: int = 0
     description: str = ""
     active: bool = True
+    button_label: str | None = None
     options: list["IntakePackageUpdate"] | None = None
     addons: list[IntakeAddonUpdate] | None = None
 
