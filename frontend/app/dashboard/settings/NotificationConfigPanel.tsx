@@ -6,6 +6,7 @@ import {
   SaveButton,
   SaveStatus,
   SectionFooter,
+  SettingsAccordion,
   SettingsSection,
   SwitchPill,
   TickMark,
@@ -95,10 +96,11 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
 
   if (!cfg || !saved) {
     return (
-      <>
+      <div className="space-y-6 sm:space-y-7">
         <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
         <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
-      </>
+        <div className="card rounded-3xl h-24 animate-pulse bg-border-subtle" />
+      </div>
     );
   }
 
@@ -116,7 +118,7 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
   const activeEvents = eventKeys.filter((k) => cfg.events[k] ?? true).length;
 
   return (
-    <>
+    <SettingsAccordion>
       <SettingsSection
         id="push-notifications"
         icon={Bell}
@@ -312,7 +314,7 @@ export function NotificationConfigPanel({ canManage = true }: { canManage?: bool
         onSave={() => save("escalation")}
         onChange={(next) => patch({ whatsapp_escalation_notifications: next })}
       />
-    </>
+    </SettingsAccordion>
   );
 }
 

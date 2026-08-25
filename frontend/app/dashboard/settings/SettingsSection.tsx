@@ -6,6 +6,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { CheckCircle2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Save } from "lucide-react";
@@ -22,15 +23,20 @@ export { SwitchPill, CheckTick, CheckField, TickMark } from "@/components/ui/con
  *
  * Sections keep their own open state when rendered standalone. Wrapped
  * in <SettingsAccordion>, they hand that state to the group so the
- * toolbar can expand/collapse everything at once. Every section starts
- * open — settings now live one page per topic, so there's no longer a
- * wall of stacked forms to collapse against.
+ * toolbar can expand/collapse everything at once.
+ *
+ * Default open state follows the section count: a page with a single
+ * section opens it (nothing to choose between, so a closed card would
+ * just be an extra click), while a page with two or more starts fully
+ * collapsed so you land on the list of topics, not a wall of forms.
+ * Seeding waits until every section has registered — they all mount in
+ * the same commit, so the first non-empty id list is the full one.
  * ------------------------------------------------------------------ */
 
 type AccordionCtx = {
   isOpen: (id: string) => boolean;
   toggle: (id: string) => void;
-  register: (id: string, defaultOpen: boolean) => () => void;
+  register: (id: string) => () => void;
 };
 
 const Ctx = createContext<AccordionCtx | null>(null);
@@ -38,16 +44,19 @@ const Ctx = createContext<AccordionCtx | null>(null);
 export function SettingsAccordion({ children }: { children: React.ReactNode }) {
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set());
   const [ids, setIds] = useState<string[]>([]);
+  const seeded = useRef(false);
 
-  // Sections seed their own open/closed state on registration — the group's
-  // openIds otherwise starts empty regardless of what each section asked for.
-  const register = useCallback((id: string, defaultOpen: boolean) => {
+  const register = useCallback((id: string) => {
     setIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-    if (defaultOpen) {
-      setOpenIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
-    }
     return () => setIds((prev) => prev.filter((x) => x !== id));
   }, []);
+
+  useEffect(() => {
+    if (seeded.current || ids.length === 0) return;
+    seeded.current = true;
+    // Lone section opens; two or more stay closed until the user picks one.
+    if (ids.length === 1) setOpenIds(new Set(ids));
+  }, [ids]);
 
   const toggle = useCallback((id: string) => {
     setOpenIds((prev) => {
@@ -66,7 +75,7 @@ export function SettingsAccordion({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={value}>
-      <div className="space-y-4 sm:space-y-5">
+      <div className={ids.length > 1 ? "space-y-6 sm:space-y-7" : "space-y-4 sm:space-y-5"}>
         {ids.length > 1 && (
           <div className="flex items-center justify-between gap-3 px-1">
             <p className="font-label text-[11px] font-bold uppercase tracking-[0.14em] text-ink-muted">
@@ -163,11 +172,13 @@ export function SettingsSection({
   const panelId = `${useId()}-panel`;
   const a = ACCENTS[accent];
 
+  // Inside a group the count rule decides the initial state, so only the
+  // standalone path reads defaultOpen.
   const register = group?.register;
   useEffect(() => {
     if (!register) return;
-    return register(id, defaultOpen);
-  }, [register, id, defaultOpen]);
+    return register(id);
+  }, [register, id]);
 
   const open = group ? group.isOpen(id) : localOpen;
   const onToggle = () => (group ? group.toggle(id) : setLocalOpen((o) => !o));
