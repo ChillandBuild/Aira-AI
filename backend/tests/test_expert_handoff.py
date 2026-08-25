@@ -608,21 +608,28 @@ async def test_nested_package_conversation_drills_down_and_offers_addon():
     """The spec's worked example end to end: Basic -> Detailed Consultation ->
     PDF addon -> field collection. Verifies session snapshot columns at each
     hop, not just the final state."""
-    # Turn 1: offer_pending -> affirmative -> 2 active roots -> shows root menu
+    # Turn 1: offer_pending -> affirmative -> 2 active roots, both short-labeled
+    # ("Basic"/"Premium" are <= 20 chars) -> buttons tier, not plain text
     session = {"id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "offer_pending", "collected_data": {}}
     db = _nested_session_db(existing_session=session)
-    with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+    with patch.object(eh, "_send_buttons_and_log", new=AsyncMock()) as send:
         consumed = await eh.route_intake("lead-1", "t-1", "+91999", "yes", db=db)
     assert consumed is True
     assert "Basic" in send.call_args[0][1]
     assert "Premium" in send.call_args[0][1]
     assert "Basic —" not in send.call_args[0][1]  # non-leaf, no price shown
+    buttons = send.call_args[0][2]
+    assert {b["id"] for b in buttons} == {"basic", "premium"}
     update_patch = db.table("intake_sessions").update.call_args[0][0]
     assert update_patch["status"] == "awaiting_package_choice"
     assert update_patch["package_draft_path"] == []
 
-    # Turn 2: awaiting_package_choice at root, lead says "Basic" -> resolves
-    # to Basic's 2 active children (both leaves) -> "choose", shows submenu
+    # Turn 2: awaiting_package_choice at root, lead says "Basic" -> resolves to
+    # Basic's 2 active children -> "choose", but "Detailed Consultation" is 21
+    # chars (over the 20-char button limit, no button_label set on the fixture)
+    # so this level fails the buttons tier and falls to plain text -- exactly
+    # the scenario button_label exists for (spec section 5), unexercised here
+    # since this fixture doesn't set one.
     session = {**session, "status": "awaiting_package_choice", "package_draft_path": []}
     db = _nested_session_db(existing_session=session)
     with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:

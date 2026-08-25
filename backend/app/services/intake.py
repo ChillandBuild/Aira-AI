@@ -596,6 +596,45 @@ async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db)
         )
 
 
+async def _send_buttons_and_log(phone: str, body_text: str, buttons: list[dict], tenant_id: str, lead_id: str, db) -> None:
+    """Same non-raising-into-caller contract as _send_and_log -- see its docstring."""
+    from app.services.meta_cloud import send_interactive_buttons
+    data = await send_interactive_buttons(phone, body_text, buttons, tenant_id=tenant_id)
+    mid = (data.get("messages") or [{}])[0].get("id")
+    logged_text = body_text + "\n\n" + "  ".join(f"[{b['title']}]" for b in buttons)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound",
+            "channel": "whatsapp", "content": logged_text, "is_ai_generated": True,
+            "meta_message_id": mid, "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake button message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+
+
+async def _send_list_and_log(phone: str, body_text: str, button_text: str, sections: list[dict], tenant_id: str, lead_id: str, db) -> None:
+    """Same non-raising-into-caller contract as _send_and_log -- see its docstring."""
+    from app.services.meta_cloud import send_list_message
+    data = await send_list_message(phone, body_text, button_text, sections, tenant_id=tenant_id)
+    mid = (data.get("messages") or [{}])[0].get("id")
+    row_titles = [row["title"] for section in sections for row in section.get("rows") or []]
+    logged_text = body_text + "\n\n" + "  ".join(f"[{t}]" for t in row_titles)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound",
+            "channel": "whatsapp", "content": logged_text, "is_ai_generated": True,
+            "meta_message_id": mid, "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake list message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+
+
 # Roman-script Tamil is deliberately included: the moment the offer message is
 # written in Tanglish, leads answer in Tanglish ("seri", "aama"), and anything
 # unmatched here is treated as a refusal that cancels the session and loses the
@@ -681,22 +720,25 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)
 
+        async def _send_menu(purpose: str, level: list[dict]) -> None:
+            mode = _tap_mode(level)
+            block = package_list_block(level) if purpose == "packages" else addon_list_block(level)
+            text = await compose_wrapped(
+                purpose, tenant_id=tenant_id, language_mode=language_mode,
+                customer_message=body, block=block, thread=thread,
+            )
+            if mode == "buttons":
+                await _send_buttons_and_log(phone, text, _build_buttons(level), tenant_id, lead_id, db)
+            elif mode == "list":
+                await _send_list_and_log(phone, text, "Choose", _build_list_sections(level), tenant_id, lead_id, db)
+            else:
+                await _send_and_log(phone, text, tenant_id, lead_id, db)
+
         async def _finalize_leaf(leaf: dict, path: list[dict]) -> None:
             active_addons = _active_children(leaf.get("addons") or [])
             if active_addons:
                 _update_session(session["id"], _package_patch(leaf, path) | {"status": "awaiting_addon_choice"}, db)
-                await _send_and_log(
-                    phone,
-                    await compose_wrapped(
-                        "addons",
-                        tenant_id=tenant_id,
-                        language_mode=language_mode,
-                        customer_message=body,
-                        block=addon_list_block(active_addons),
-                        thread=thread,
-                    ),
-                    tenant_id, lead_id, db,
-                )
+                await _send_menu("addons", active_addons)
                 return
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
             missing = missing_field_labels(config["fields"], collected)
@@ -735,18 +777,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 await _finalize_leaf(result, path)
                 return True
             _update_session(session["id"], {"status": "awaiting_package_choice", "package_draft_path": path}, db)
-            await _send_and_log(
-                phone,
-                await compose_wrapped(
-                    "packages",
-                    tenant_id=tenant_id,
-                    language_mode=language_mode,
-                    customer_message=body,
-                    block=package_list_block(result),
-                    thread=thread,
-                ),
-                tenant_id, lead_id, db,
-            )
+            await _send_menu("packages", result)
             return True
 
         if status == "awaiting_package_choice":
@@ -779,18 +810,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 await _finalize_leaf(result, path)
                 return True
             _update_session(session["id"], {"package_draft_path": path}, db)
-            await _send_and_log(
-                phone,
-                await compose_wrapped(
-                    "packages",
-                    tenant_id=tenant_id,
-                    language_mode=language_mode,
-                    customer_message=body,
-                    block=package_list_block(result),
-                    thread=thread,
-                ),
-                tenant_id, lead_id, db,
-            )
+            await _send_menu("packages", result)
             return True
 
         if status == "awaiting_addon_choice":

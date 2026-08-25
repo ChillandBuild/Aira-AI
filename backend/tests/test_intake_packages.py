@@ -488,5 +488,41 @@ class BuildButtonsAndSectionsTests(unittest.TestCase):
         self.assertEqual(sections, [{"rows": [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]}])
 
 
+from app.services.intake import _send_buttons_and_log, _send_list_and_log
+
+
+class SendButtonsAndLogTests(unittest.TestCase):
+    def test_logs_the_body_and_button_titles(self):
+        db = MagicMock()
+        with mock_patch(
+            "app.services.meta_cloud.send_interactive_buttons",
+            new=AsyncMock(return_value={"messages": [{"id": "wamid.1"}]}),
+        ):
+            asyncio.run(_send_buttons_and_log(
+                "+91123", "Pick one:", [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}],
+                "t-1", "lead-1", db,
+            ))
+        logged = db.table.return_value.insert.call_args[0][0]
+        self.assertIn("Pick one:", logged["content"])
+        self.assertIn("[A]", logged["content"])
+        self.assertEqual(logged["meta_message_id"], "wamid.1")
+        self.assertEqual(logged["reply_source"], "expert_handoff")
+
+
+class SendListAndLogTests(unittest.TestCase):
+    def test_logs_the_body_and_row_titles(self):
+        db = MagicMock()
+        sections = [{"rows": [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]}]
+        with mock_patch(
+            "app.services.meta_cloud.send_list_message",
+            new=AsyncMock(return_value={"messages": [{"id": "wamid.2"}]}),
+        ):
+            asyncio.run(_send_list_and_log("+91123", "Pick one:", "Choose", sections, "t-1", "lead-1", db))
+        logged = db.table.return_value.insert.call_args[0][0]
+        self.assertIn("[A]", logged["content"])
+        self.assertIn("[B]", logged["content"])
+        self.assertEqual(logged["meta_message_id"], "wamid.2")
+
+
 if __name__ == "__main__":
     unittest.main()
