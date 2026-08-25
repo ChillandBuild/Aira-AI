@@ -139,11 +139,12 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
       ) : (
         <>
           <div className="flex-1 overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse">
+            <table className="w-full min-w-[1040px] border-collapse">
               <thead>
                 <tr>
                   {[
                     { label: "Lead", w: "" },
+                    { label: "Channel", w: "" },
                     { label: "Why escalated", w: "" },
                     { label: "Resolved by", w: "w-[196px]" },
                     { label: "Resolved", w: "w-[150px]" },
@@ -163,16 +164,16 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
                 </tr>
               </thead>
               {loading ? (
-                <TableSkeleton columns={6} />
+                <TableSkeleton columns={7} />
               ) : (
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.id} className="group border-b border-border-subtle bg-surface transition-colors hover:bg-surface-low">
                       <td className="px-3.5 py-3 pl-6 text-center align-middle">
                         <LeadCell lead={row.leads} />
-                        <span className="mt-1 block">
-                          <ChannelCell lead={row.leads} />
-                        </span>
+                      </td>
+                      <td className="px-3.5 py-3 text-center align-middle">
+                        <ChannelCell lead={row.leads} />
                       </td>
                       <td className="px-3.5 py-3 text-center align-middle">
                         <TriggerChip reason={row.reason} />
