@@ -42,7 +42,7 @@ export function ChannelCell({ lead }: { lead: EscalationLead }) {
 
 export function LeadCell({ lead }: { lead: EscalationLead }) {
   return (
-    <span className="flex flex-wrap items-center gap-2">
+    <span className="flex flex-wrap items-center justify-center gap-2">
       <span className="font-heading text-[13.5px] font-bold tracking-[-0.015em] text-ink">
         {lead?.name || "Unknown Lead"}
       </span>
@@ -56,7 +56,7 @@ export function LeadCell({ lead }: { lead: EscalationLead }) {
 export function PersonCell({ name, empty }: { name: string | null; empty: string }) {
   if (!name) {
     return (
-      <span className="flex items-center gap-2">
+      <span className="flex items-center justify-center gap-2">
         <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-surface-mid font-mono text-[9.5px] font-bold text-ink-muted">
           ?
         </span>
@@ -67,7 +67,7 @@ export function PersonCell({ name, empty }: { name: string | null; empty: string
     );
   }
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex items-center justify-center gap-2">
       <span className="flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-full bg-primary-muted font-mono text-[9.5px] font-bold text-primary">
         {initialsOf(name)}
       </span>
@@ -115,7 +115,7 @@ export function TableSkeleton({ columns, rows = 5 }: { columns: number; rows?: n
           {Array.from({ length: columns }).map((_, c) => (
             <td key={c} className="px-3.5 py-3.5 first:pl-6 last:pr-6">
               <span
-                className="block h-3.5 animate-pulse rounded-full bg-surface-mid"
+                className="mx-auto block h-3.5 animate-pulse rounded-full bg-surface-mid"
                 style={{ width: c === 0 ? "70%" : c === columns - 1 ? "45%" : "55%" }}
               />
             </td>

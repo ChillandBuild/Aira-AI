@@ -153,7 +153,7 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
                     <th
                       key={c.label}
                       className={cn(
-                        "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-low px-3.5 py-2.5 text-left font-heading text-[9.5px] font-semibold uppercase tracking-[0.09em] text-ink-muted first:pl-6 last:pr-6 last:text-right",
+                        "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-low px-3.5 py-2.5 text-center font-heading text-[9.5px] font-semibold uppercase tracking-[0.09em] text-ink-muted first:pl-6 last:pr-6",
                         c.w
                       )}
                     >
@@ -168,31 +168,31 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.id} className="group border-b border-border-subtle bg-surface transition-colors hover:bg-surface-low">
-                      <td className="px-3.5 py-3 pl-6 align-middle">
+                      <td className="px-3.5 py-3 pl-6 text-center align-middle">
                         <LeadCell lead={row.leads} />
                         <span className="mt-1 block">
                           <ChannelCell lead={row.leads} />
                         </span>
                       </td>
-                      <td className="px-3.5 py-3 align-middle">
+                      <td className="px-3.5 py-3 text-center align-middle">
                         <TriggerChip reason={row.reason} />
                       </td>
-                      <td className="px-3.5 py-3 align-middle">
+                      <td className="px-3.5 py-3 text-center align-middle">
                         <PersonCell name={row.resolved_by_name} empty="Not recorded" />
                       </td>
-                      <td className="px-3.5 py-3 align-middle">
+                      <td className="px-3.5 py-3 text-center align-middle">
                         <span className="font-mono text-[11.5px] text-ink-secondary">
                           {row.resolved_at ? formatDateTime(row.resolved_at) : "—"}
                         </span>
                       </td>
-                      <td className="px-3.5 py-3 align-middle">
+                      <td className="px-3.5 py-3 text-center align-middle">
                         <DurationCell
                           text={formatDuration(row.duration_seconds)}
                           severity={severityForWait(row.duration_seconds)}
                         />
                       </td>
-                      <td className="px-3.5 py-3 pr-6 text-right align-middle">
-                        <span className="inline-flex items-center justify-end gap-1.5 opacity-50 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      <td className="px-3.5 py-3 pr-6 text-center align-middle">
+                        <span className="inline-flex items-center justify-center gap-1.5 opacity-50 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                           <button
                             onClick={() => onOpenChat(row.lead_id)}
                             className="inline-flex h-7 w-[100px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface font-label text-[11px] font-bold text-ink transition-colors hover:border-ink-muted"

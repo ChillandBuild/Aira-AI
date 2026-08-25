@@ -438,7 +438,7 @@ export function EscalationPanel({
                       <th
                         key={c.label}
                         className={cn(
-                          "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-low px-3.5 py-2.5 text-left font-heading text-[9.5px] font-semibold uppercase tracking-[0.09em] text-ink-muted first:pl-6 last:pr-6 last:text-right",
+                          "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-low px-3.5 py-2.5 text-center font-heading text-[9.5px] font-semibold uppercase tracking-[0.09em] text-ink-muted first:pl-6 last:pr-6",
                           c.w
                         )}
                       >
@@ -457,27 +457,27 @@ export function EscalationPanel({
                       const isMine = h.assigned_to === currentCallerId;
                       return (
                         <tr key={h.id} className="group border-b border-border-subtle bg-surface transition-colors hover:bg-surface-low">
-                          <td className={cn("px-3.5 py-3 pl-6 align-middle", SPINE[severity])}>
+                          <td className={cn("px-3.5 py-3 pl-6 text-center align-middle", SPINE[severity])}>
                             <LeadCell lead={h.leads} />
                           </td>
-                          <td className="px-3.5 py-3 align-middle">
+                          <td className="px-3.5 py-3 text-center align-middle">
                             <ChannelCell lead={h.leads} />
                           </td>
-                          <td className="px-3.5 py-3 align-middle">
+                          <td className="px-3.5 py-3 text-center align-middle">
                             <TriggerChip reason={h.reason} />
                           </td>
-                          <td className="px-3.5 py-3 align-middle">
+                          <td className="px-3.5 py-3 text-center align-middle">
                             <DurationCell
                               text={formatDuration(waited)}
                               severity={severity}
                               sub={new Date(h.opened_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                             />
                           </td>
-                          <td className="px-3.5 py-3 align-middle">
+                          <td className="px-3.5 py-3 text-center align-middle">
                             <PersonCell name={h.assigned_to ? h.caller_name ?? "Assigned" : null} empty="Unassigned" />
                           </td>
-                          <td className="px-3.5 py-3 pr-6 text-right align-middle">
-                            <span className="inline-flex items-center justify-end gap-1.5 opacity-50 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                          <td className="px-3.5 py-3 pr-6 text-center align-middle">
+                            <span className="inline-flex items-center justify-center gap-1.5 opacity-50 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                               {role === "owner" || isMine ? (
                                 <>
                                   <button
