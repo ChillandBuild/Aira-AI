@@ -75,7 +75,7 @@ export function SettingsAccordion({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={value}>
-      <div className={ids.length > 1 ? "space-y-6 sm:space-y-7" : "space-y-4 sm:space-y-5"}>
+      <div className="space-y-3.5 sm:space-y-4">
         {ids.length > 1 && (
           <div className="flex items-center justify-between gap-3 px-1">
             <p className="font-label text-[11px] font-bold uppercase tracking-[0.14em] text-ink-muted">
