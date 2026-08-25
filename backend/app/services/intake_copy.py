@@ -104,6 +104,7 @@ _FALLBACKS = {
 _WRAPPER_FALLBACKS = {
     "summary": ("Here's what I've got:", "Is that correct?"),
     "packages": ("Here are our options:", "Which one would you like?"),
+    "addons": ("Want to add any of these?", "Reply with the ones you'd like, or say no thanks."),
 }
 
 _WRAPPER_TASKS = {
@@ -116,6 +117,12 @@ _WRAPPER_TASKS = {
         "You are showing the customer the list of paid options. Write a short intro "
         "line and a short closing question asking which one they want. Do not mention "
         "any price -- the list with prices is inserted between your two lines."
+    ),
+    "addons": (
+        "You are showing the customer optional add-ons available on top of the package "
+        "they just picked. Write a short intro line and a short closing question asking "
+        "which add-ons they want, or none. Do not mention any price -- the list with "
+        "prices is inserted between your two lines."
     ),
 }
 

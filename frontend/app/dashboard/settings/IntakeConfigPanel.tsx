@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { UserCheck, Plus, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
 import { CheckField } from "@/components/ui/controls";
+import { slugify } from "./slugify";
 
 type FieldType = "text" | "date" | "choice";
 
@@ -40,10 +42,6 @@ const DEFAULT: IntakeConfig = {
   service_noun: "consultation",
   amount_paise: 0,
 };
-
-function slugify(label: string): string {
-  return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
-}
 
 export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean }) {
   const [config, setConfig] = useState<IntakeConfig>(DEFAULT);
@@ -107,29 +105,6 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
     setDraft({ ...draft, fields: draft.fields.filter((_, i) => i !== index) });
   }
 
-  function addPackage() {
-    setDraft({
-      ...draft,
-      packages: [
-        ...draft.packages,
-        { key: `package_${draft.packages.length + 1}`, name: "", amount_paise: 0, description: "" },
-      ],
-    });
-  }
-
-  function updatePackage(index: number, patch: Partial<IntakePackage>) {
-    const packages = draft.packages.map((p, i) => (i === index ? { ...p, ...patch } : p));
-    setDraft({ ...draft, packages });
-  }
-
-  function removePackage(index: number) {
-    setDraft({ ...draft, packages: draft.packages.filter((_, i) => i !== index) });
-  }
-
-  function commitPackageName(index: number, name: string) {
-    updatePackage(index, { name, key: slugify(name) || `package_${index + 1}` });
-  }
-
   return (
     <SettingsSection
       id="paid-intake"
@@ -173,69 +148,19 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
           />
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-surface-subtle p-3">
+          <div>
             <div className="font-label text-sm font-semibold text-ink">Packages</div>
-            {canManage && (
-              <button
-                type="button"
-                onClick={addPackage}
-                className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700"
-              >
-                <Plus size={14} /> Add package
-              </button>
-            )}
+            <div className="font-body text-xs text-ink-muted">
+              {draft.packages.length} package{draft.packages.length === 1 ? "" : "s"} configured — nested sub-options and addons supported.
+            </div>
           </div>
-          <div className="font-body text-xs text-ink-muted">
-            The lead picks one of these right after accepting the offer, before any details are collected.
-          </div>
-
-          <div className="space-y-2">
-            {draft.packages.map((pkg, index) => (
-              <div key={index} className="rounded-2xl border border-border bg-surface-subtle p-3 space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={pkg.name}
-                    onChange={(e) => updatePackage(index, { name: e.target.value })}
-                    onBlur={(e) => commitPackageName(index, e.target.value)}
-                    placeholder="Package name (e.g. VIP)"
-                    disabled={!canManage}
-                    className="flex-1 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
-                  />
-                  <input
-                    type="number"
-                    min={1}
-                    value={pkg.amount_paise ? pkg.amount_paise / 100 : ""}
-                    onChange={(e) =>
-                      updatePackage(index, { amount_paise: Math.round(Number(e.target.value) * 100) })
-                    }
-                    placeholder="₹"
-                    disabled={!canManage}
-                    className="w-28 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
-                  />
-                  {canManage && (
-                    <button type="button" onClick={() => removePackage(index)} aria-label="Remove package" className="text-ink-muted hover:text-red-600">
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  value={pkg.description}
-                  onChange={(e) => updatePackage(index, { description: e.target.value })}
-                  placeholder="What's included (shown to the lead with the price)"
-                  disabled={!canManage}
-                  className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
-                />
-              </div>
-            ))}
-            {draft.packages.length === 0 && (
-              <p className="font-body text-xs text-ink-muted italic">
-                No packages yet — add at least one before enabling.
-              </p>
-            )}
-          </div>
+          <Link
+            href="/dashboard/settings/intake-config/packages"
+            className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700"
+          >
+            Manage Packages →
+          </Link>
         </div>
 
         <div className="space-y-1">

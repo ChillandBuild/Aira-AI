@@ -305,10 +305,17 @@ def _rupees(amount_paise: int) -> str:
 def package_list_block(packages: list[dict]) -> str:
     """Rendered in Python, never by the LLM: these are prices the customer will
     be held to, and a hallucinated figure is a real liability. The surrounding
-    intro/question are composed in the tenant's language by intake_copy."""
+    intro/question are composed in the tenant's language by intake_copy.
+
+    A non-leaf entry (has `options`) shows no price -- its true price depends on
+    which leaf under it gets picked, so `amount_paise` on a non-leaf is display-only
+    and would be misleading here."""
     lines = []
     for p in packages:
-        line = f"• {p['name']} — {_rupees(p['amount_paise'])}"
+        if p.get("options"):
+            line = f"• {p['name']}"
+        else:
+            line = f"• {p['name']} — {_rupees(p['amount_paise'])}"
         if p.get("description"):
             line += f"\n  {p['description']}"
         lines.append(line)
@@ -322,6 +329,61 @@ def package_list_message(packages: list[dict], service_noun: str) -> str:
         + package_list_block(packages)
         + "\n\nWhich one would you like?"
     )
+
+
+def _active_children(nodes: list[dict]) -> list[dict]:
+    return [n for n in nodes if n.get("active", True)]
+
+
+def _resolve_choice(level: list[dict], path: list[dict]) -> tuple[str, dict | list[dict], list[dict]]:
+    """Resolve what the bot should do at a given menu level, auto-descending
+    through any chain of single-active-option levels -- this is the recursive
+    generalization of the old root-only "if len(packages) == 1: auto-select" rule.
+
+    Returns one of:
+      ("leaf", node, path)      -- a single purchasable package was resolved
+      ("choose", [nodes], path) -- 2+ active options, ask the lead to pick
+      ("empty", [], path)       -- zero active options at this level (misconfigured)
+    `path` is the breadcrumb [{key, name}, ...] from root to here."""
+    active = _active_children(level)
+    if not active:
+        return ("empty", [], path)
+    if len(active) == 1:
+        only = active[0]
+        new_path = path + [{"key": only["key"], "name": only["name"]}]
+        if only.get("options"):
+            return _resolve_choice(only["options"], new_path)
+        return ("leaf", only, new_path)
+    return ("choose", active, path)
+
+
+def _menu_at_path(packages: list[dict], path: list[dict]) -> list[dict]:
+    """Re-derive the menu the lead is currently looking at, by walking the live
+    config from root using the keys already confirmed in `path`. Always re-derived
+    rather than cached, so an operator editing packages mid-conversation can't
+    leave the lead looking at a stale menu."""
+    level = packages
+    for step in path:
+        match = next((n for n in level if n.get("key") == step["key"]), None)
+        level = match["options"] if match and match.get("options") else []
+    return level
+
+
+def _find_leaf(packages: list[dict], key: str, path: list[dict] | None = None) -> tuple[dict, list[dict]] | None:
+    """Depth-first search for a leaf package by key anywhere in the tree,
+    returning it with its breadcrumb. Used when a session already has a
+    package_key and the bot needs to look up that leaf's current addons, or
+    when an operator repoints a session at any leaf regardless of depth."""
+    path = path or []
+    for node in packages:
+        node_path = path + [{"key": node["key"], "name": node["name"]}]
+        if node.get("options"):
+            found = _find_leaf(node["options"], key, node_path)
+            if found:
+                return found
+        elif node["key"] == key:
+            return (node, node_path)
+    return None
 
 
 _PACKAGE_MATCH_SYSTEM_PROMPT = """You match a customer's reply to one of a fixed list of
@@ -369,13 +431,98 @@ async def match_package(message: str, packages: list[dict], tenant_id: str) -> d
     return None
 
 
+def addon_list_block(addons: list[dict]) -> str:
+    """Same non-LLM-rendered-price principle as package_list_block -- see its
+    docstring."""
+    lines = []
+    for a in addons:
+        line = f"• {a['name']} — +{_rupees(a['amount_paise'])}"
+        if a.get("description"):
+            line += f"\n  {a['description']}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+_BUTTON_TITLE_MAX = 20
+_LIST_ROW_TITLE_MAX = 24
+
+
+def _short_label(node: dict, limit: int) -> str | None:
+    label = node.get("button_label") or node["name"]
+    return label if len(label) <= limit else None
+
+
+def _tap_mode(level: list[dict]) -> str:
+    """Pure Python, no LLM -- same rule as prices never being LLM-authored.
+    Returns "buttons", "list", or "text"."""
+    n = len(level)
+    if 2 <= n <= 3 and all(_short_label(item, _BUTTON_TITLE_MAX) for item in level):
+        return "buttons"
+    if 4 <= n <= 10 and all(_short_label(item, _LIST_ROW_TITLE_MAX) for item in level):
+        return "list"
+    return "text"
+
+
+def _build_buttons(level: list[dict]) -> list[dict]:
+    return [{"id": item["key"], "title": _short_label(item, _BUTTON_TITLE_MAX)} for item in level]
+
+
+def _build_list_sections(level: list[dict]) -> list[dict]:
+    return [{"rows": [
+        {"id": item["key"], "title": _short_label(item, _LIST_ROW_TITLE_MAX)}
+        for item in level
+    ]}]
+
+
+_ADDON_DECLINE_WORDS = frozenset({"no", "skip", "none", "no thanks", "nope", "not needed"})
+
+_ADDON_MATCH_SYSTEM_PROMPT = """You match a customer's reply to zero or more addons from a
+fixed list. You are given the addons (key and name) and the customer's message.
+
+Respond with JSON only: {"keys": ["<matching addon keys>"]} -- an empty list if the customer
+declined, said no/skip/none, or didn't clearly choose any of the listed addons.
+
+Rules:
+- Every key in the list MUST be one of the keys given. Never invent a key.
+- If ambiguous, return an empty list rather than guessing.
+- JSON only, no other text."""
+
+
+async def match_addons(message: str, addons: list[dict], tenant_id: str) -> list[dict]:
+    """Match a lead's free-text reply to zero or more configured addons.
+    Multi-select, unlike match_package -- an empty result is a valid, common
+    outcome (the lead declined all addons), not a failure to re-ask about."""
+    if not addons:
+        return []
+
+    if message.strip().lower() in _ADDON_DECLINE_WORDS:
+        return []
+
+    addon_list = "\n".join(f"- {a['key']}: {a['name']}" for a in addons)
+    try:
+        data = await gemini_chat_completion_json(
+            system_prompt=_ADDON_MATCH_SYSTEM_PROMPT,
+            user_prompt=f"Addons:\n{addon_list}\n\nCustomer message: {message}",
+            temperature=0.0,
+            max_tokens=100,
+            tenant_id=tenant_id,
+            purpose="intake_addon_match",
+        )
+    except Exception as e:
+        logger.warning(f"Intake addon match failed, treating as no addons chosen: {e}")
+        return []
+
+    keys = set(data.get("keys") or [])
+    return [a for a in addons if a["key"] in keys]
+
+
 _ACTIVE_STATUSES = (
-    "offer_pending", "awaiting_package_choice", "collecting",
+    "offer_pending", "awaiting_package_choice", "awaiting_addon_choice", "collecting",
     "awaiting_confirmation", "awaiting_payment", "paid",
 )
 
 _PACKAGE_CHANGEABLE_STATUSES = (
-    "awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
+    "awaiting_package_choice", "awaiting_addon_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
 )
 
 
@@ -408,14 +555,19 @@ def _update_session(session_id: str, patch: dict, db) -> None:
     db.table("intake_sessions").update(patch).eq("id", session_id).execute()
 
 
-def _package_patch(package: dict) -> dict:
+def _package_patch(package: dict, path: list[dict] | None = None, total_amount_paise: int | None = None) -> dict:
     """Snapshot the chosen package onto the session row. Repricing or renaming a
     package later must not rewrite what a past lead was actually offered."""
-    return {
+    patch = {
         "package_key": package["key"],
         "package_name": package["name"],
         "package_amount_paise": package["amount_paise"],
     }
+    if path is not None:
+        patch["package_path"] = path
+    if total_amount_paise is not None:
+        patch["total_amount_paise"] = total_amount_paise
+    return patch
 
 
 async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db) -> None:
@@ -440,6 +592,45 @@ async def _send_and_log(phone: str, text: str, tenant_id: str, lead_id: str, db)
     except Exception:
         logger.exception(
             "Intake message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+
+
+async def _send_buttons_and_log(phone: str, body_text: str, buttons: list[dict], tenant_id: str, lead_id: str, db) -> None:
+    """Same non-raising-into-caller contract as _send_and_log -- see its docstring."""
+    from app.services.meta_cloud import send_interactive_buttons
+    data = await send_interactive_buttons(phone, body_text, buttons, tenant_id=tenant_id)
+    mid = (data.get("messages") or [{}])[0].get("id")
+    logged_text = body_text + "\n\n" + "  ".join(f"[{b['title']}]" for b in buttons)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound",
+            "channel": "whatsapp", "content": logged_text, "is_ai_generated": True,
+            "meta_message_id": mid, "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake button message send succeeded but logging it failed for lead %s -- "
+            "message was delivered, this is an audit-trail gap only", lead_id,
+        )
+
+
+async def _send_list_and_log(phone: str, body_text: str, button_text: str, sections: list[dict], tenant_id: str, lead_id: str, db) -> None:
+    """Same non-raising-into-caller contract as _send_and_log -- see its docstring."""
+    from app.services.meta_cloud import send_list_message
+    data = await send_list_message(phone, body_text, button_text, sections, tenant_id=tenant_id)
+    mid = (data.get("messages") or [{}])[0].get("id")
+    row_titles = [row["title"] for section in sections for row in section.get("rows") or []]
+    logged_text = body_text + "\n\n" + "  ".join(f"[{t}]" for t in row_titles)
+    try:
+        db.table("messages").insert({
+            "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound",
+            "channel": "whatsapp", "content": logged_text, "is_ai_generated": True,
+            "meta_message_id": mid, "reply_source": "expert_handoff",
+        }).execute()
+    except Exception:
+        logger.exception(
+            "Intake list message send succeeded but logging it failed for lead %s -- "
             "message was delivered, this is an audit-trail gap only", lead_id,
         )
 
@@ -529,6 +720,38 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)
 
+        async def _send_menu(purpose: str, level: list[dict]) -> None:
+            mode = _tap_mode(level)
+            block = package_list_block(level) if purpose == "packages" else addon_list_block(level)
+            text = await compose_wrapped(
+                purpose, tenant_id=tenant_id, language_mode=language_mode,
+                customer_message=body, block=block, thread=thread,
+            )
+            if mode == "buttons":
+                await _send_buttons_and_log(phone, text, _build_buttons(level), tenant_id, lead_id, db)
+            elif mode == "list":
+                await _send_list_and_log(phone, text, "Choose", _build_list_sections(level), tenant_id, lead_id, db)
+            else:
+                await _send_and_log(phone, text, tenant_id, lead_id, db)
+
+        async def _finalize_leaf(leaf: dict, path: list[dict]) -> None:
+            active_addons = _active_children(leaf.get("addons") or [])
+            if active_addons:
+                _update_session(session["id"], _package_patch(leaf, path) | {"status": "awaiting_addon_choice"}, db)
+                await _send_menu("addons", active_addons)
+                return
+            collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
+            missing = missing_field_labels(config["fields"], collected)
+            patch = _package_patch(leaf, path, total_amount_paise=leaf["amount_paise"]) | {
+                "collected_data": collected, "field_schema": config["fields"],
+            }
+            if missing:
+                _update_session(session["id"], patch | {"status": "collecting"}, db)
+                await _say("ask_field", field_label=missing[0], collected=collected)
+            else:
+                _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
+                await _say_summary(collected)
+
         if session is None:
             matched = await detect_intake_intent(body, config["trigger_description"], tenant_id)
             if not matched:
@@ -545,42 +768,24 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 _update_session(session["id"], {"status": "cancelled"}, db)
                 return False
             packages = normalize_packages(config)
-            if len(packages) == 1:
-                # Single package: nothing to choose, snapshot it and go straight
-                # to field collection — same as the pre-packages flow, just with
-                # the package recorded on the row.
-                collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
-                missing = missing_field_labels(config["fields"], collected)
-                patch = _package_patch(packages[0]) | {"collected_data": collected, "field_schema": config["fields"]}
-                if missing:
-                    _update_session(session["id"], patch | {"status": "collecting"}, db)
-                    await _say("ask_field", field_label=missing[0], collected=collected)
-                else:
-                    _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
-                    await _say_summary(collected)
-                return True
-            if not packages:
-                logger.error(f"Intake session {session['id']} has no packages configured despite being enabled")
+            outcome, result, path = _resolve_choice(packages, [])
+            if outcome == "empty":
+                logger.error(f"Intake session {session['id']} has no active packages configured despite being enabled")
                 await _say("no_packages")
                 return True
-            _update_session(session["id"], {"status": "awaiting_package_choice"}, db)
-            await _send_and_log(
-                phone,
-                await compose_wrapped(
-                    "packages",
-                    tenant_id=tenant_id,
-                    language_mode=language_mode,
-                    customer_message=body,
-                    block=package_list_block(packages),
-                    thread=thread,
-                ),
-                tenant_id, lead_id, db,
-            )
+            if outcome == "leaf":
+                await _finalize_leaf(result, path)
+                return True
+            _update_session(session["id"], {"status": "awaiting_package_choice", "package_draft_path": path}, db)
+            await _send_menu("packages", result)
             return True
 
         if status == "awaiting_package_choice":
             packages = normalize_packages(config)
-            chosen = await match_package(body, packages, tenant_id)
+            draft_path = session.get("package_draft_path") or []
+            current_level = _menu_at_path(packages, draft_path) or packages
+            active_here = _active_children(current_level)
+            chosen = await match_package(body, active_here, tenant_id)
             if chosen is None:
                 intro = await compose_line(
                     "package_reask",
@@ -592,13 +797,34 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 )
                 await _send_and_log(
                     phone,
-                    f"{intro}\n\n{package_list_block(packages)}",
+                    f"{intro}\n\n{package_list_block(active_here)}",
                     tenant_id, lead_id, db,
                 )
                 return True
+            outcome, result, path = _resolve_choice([chosen], draft_path)
+            if outcome == "empty":
+                logger.error(f"Intake session {session['id']} package {chosen['key']} has no active options")
+                await _say("no_packages")
+                return True
+            if outcome == "leaf":
+                await _finalize_leaf(result, path)
+                return True
+            _update_session(session["id"], {"package_draft_path": path}, db)
+            await _send_menu("packages", result)
+            return True
+
+        if status == "awaiting_addon_choice":
+            packages = normalize_packages(config)
+            found = _find_leaf(packages, session.get("package_key"))
+            active_addons = _active_children(found[0].get("addons") or []) if found else []
+            chosen_addons = await match_addons(body, active_addons, tenant_id)
+            addons_total = sum(a["amount_paise"] for a in chosen_addons)
+            total = (session.get("package_amount_paise") or 0) + addons_total
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
             missing = missing_field_labels(config["fields"], collected)
-            patch = _package_patch(chosen) | {
+            patch = {
+                "selected_addons": chosen_addons,
+                "total_amount_paise": total,
                 "collected_data": collected,
                 "field_schema": config["fields"],
             }
@@ -1123,14 +1349,16 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
         return None
 
     config = get_intake_config(tenant_id, db=db)
-    chosen = next((p for p in normalize_packages(config) if p["key"] == package_key), None)
-    if chosen is None:
+    packages = normalize_packages(config)
+    found = _find_leaf(packages, package_key)
+    if found is None:
         return None
+    chosen, path = found
 
     # The old Razorpay link stays live until Razorpay processes the cancel, so
     # confirm_intake_payment records the amount that actually arrives rather
     # than assuming this one. See D16.
-    patch = _package_patch(chosen) | {"payment_link": None, "amount_paise": None}
+    patch = _package_patch(chosen, path, total_amount_paise=chosen["amount_paise"]) | {"payment_link": None, "amount_paise": None}
     db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
     return {**session, **patch}
 

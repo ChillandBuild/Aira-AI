@@ -6,9 +6,23 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
-import { API_URL, getAuthHeaders, api } from "@/lib/api";
+import { api } from "@/lib/api";
 
 import { cn } from "@/lib/utils";
+
+const SETTINGS_ROUTE_LABELS: Record<string, string> = {
+  general: "General",
+  "connect-channels": "Connect Channels",
+  telecalling: "Telecalling Credentials",
+  "auto-reply": "Auto-Reply",
+  "follow-ups": "Follow-Ups",
+  inbox: "Inbox",
+  "telecalling-behavior": "Telecalling Behavior",
+  "intake-config": "Intake Config",
+  "business-hours": "Business Hours",
+  notifications: "Notifications",
+  "quick-replies": "Quick Replies",
+};
 
 // Define a map of exact path matches and dynamic route prefixes
 function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
@@ -117,13 +131,11 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "Manage sender numbers and outbound routing.",
     };
   }
-  if (pathname === "/dashboard/settings") {
-    let tabLabel = "General";
-    if (tab === "channels") tabLabel = "Integrations";
-    if (tab === "telecalling") tabLabel = "Telecalling Config";
-    if (tab === "ai" || tab === "automations") tabLabel = "Automations";
+  if (pathname?.startsWith("/dashboard/settings/")) {
+    const segment = pathname.split("/")[3] ?? "general";
+    const label = SETTINGS_ROUTE_LABELS[segment] ?? "Settings";
     return {
-      title: `Account Settings / ${tabLabel}`,
+      title: `Account Settings / ${label}`,
       description: "Configure global parameters, voice calling and AI behavior.",
     };
   }
@@ -208,8 +220,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const leadSegment = searchParams.get("segment") || "A";
   const rolesTab = (searchParams.get("tab") === "users" || searchParams.get("tab") === "audit") ? searchParams.get("tab")! : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
-  const [settingsHasTelecmiConfig, setSettingsHasTelecmiConfig] = useState<boolean | null>(null);
-  const [settingsHasNotifications, setSettingsHasNotifications] = useState(true);
 
   // Notes switcher states
   const [notesPageMode, setNotesPageMode] = useState<"by_lead" | "all_notes">("by_lead");
@@ -235,50 +245,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
       active = false;
     };
   }, [pathname]);
-
-  useEffect(() => {
-    if (pathname !== "/dashboard/settings") return;
-    let active = true;
-
-    const loadSettingsHeaderState = async () => {
-      try {
-        const auth = await getAuthHeaders();
-        const [subscriptionRes, telecallingRes] = await Promise.all([
-          fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth }),
-          fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth }),
-        ]);
-
-        if (!active) return;
-
-        if (subscriptionRes.ok) {
-          const data = await subscriptionRes.json();
-          const purchasedFeatures = (data.items ?? []).map((item: { feature_key: string }) => item.feature_key);
-          setSettingsHasNotifications(
-            purchasedFeatures.length === 0 ||
-              purchasedFeatures.includes("inbound_messaging") ||
-              purchasedFeatures.includes("outbound_messaging"),
-          );
-        }
-
-        if (telecallingRes.ok) {
-          const data = await telecallingRes.json();
-          setSettingsHasTelecmiConfig(data.calling_provider !== "sim_basic");
-        } else {
-          setSettingsHasTelecmiConfig(true);
-        }
-      } catch {
-        // Keep the tabs visible when availability checks fail.
-        if (active) setSettingsHasTelecmiConfig(true);
-      }
-    };
-
-    void loadSettingsHeaderState();
-    return () => {
-      active = false;
-    };
-  }, [pathname]);
-
-
 
   // Listen to NotesClient page mode and view mode states
   useEffect(() => {
@@ -329,39 +295,6 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
       {/* Right side actions */}
       <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
-        {pathname === "/dashboard/settings" && (
-          <nav aria-label="Account settings sections" className="mr-2 hidden max-w-full overflow-x-auto rounded-2xl bg-[#e8e3db]/60 p-1 lg:flex lg:gap-0.5">
-            {[
-              { key: "general", label: "General Settings" },
-              { key: "channels", label: "Integrations" },
-              ...(settingsHasTelecmiConfig ? [{ key: "telecalling", label: "Telecalling Config" }] : []),
-              { key: "automations", label: "Automations" },
-              ...(settingsHasNotifications ? [{ key: "notifications", label: "Notifications" }] : []),
-            ].map(({ key, label }) => {
-              const isActive = tab === key || (key === "general" && !tab) || (key === "automations" && tab === "ai");
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    const params = new URLSearchParams(searchParams.toString());
-                    if (key === "general") params.delete("tab");
-                    else params.set("tab", key);
-                    const query = params.toString();
-                    router.replace(`/dashboard/settings${query ? `?${query}` : ""}`, { scroll: false });
-                  }}
-                  className={cn(
-                    "shrink-0 rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all",
-                    isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </nav>
-        )}
-
         {pathname === "/dashboard/outbound-leads" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["upload", "history", "tags", "opted-out"] as const).map((t) => (

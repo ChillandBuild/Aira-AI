@@ -8,11 +8,13 @@ import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
+import { getVisibleSettingsItems, SETTINGS_ITEMS, type CallingProvider } from "@/components/settingsNavigation";
 
 type NavItem = {
   href: string;
@@ -48,6 +50,8 @@ export function Sidebar() {
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
   const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
+  const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
+  const [callingProvider, setCallingProvider] = useState<CallingProvider>(null);
 
   useEffect(() => {
     let active = true;
@@ -58,6 +62,7 @@ export function Sidebar() {
         if (res.ok && active) {
           const data = await res.json();
           setSubStatus(data.status);
+          setPurchasedFeatures((data.items ?? []).map((item: { feature_key: string }) => item.feature_key));
         } else if (active) {
           setSubStatus("active");
         }
@@ -67,10 +72,31 @@ export function Sidebar() {
     })();
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth });
+        if (!active) return;
+        if (res.ok) {
+          const data = await res.json();
+          setCallingProvider((data.calling_provider as Exclude<CallingProvider, null> | undefined) ?? "telecmi");
+        } else {
+          setCallingProvider("telecmi");
+        }
+      } catch {
+        if (active) setCallingProvider("telecmi");
+      }
+    })();
+    return () => { active = false; };
+  }, []);
   
   // Track open/collapsed state of nested groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     Telecalling: true,
+    Settings: false,
   });
 
   const toggleGroup = (groupName: string) => {
@@ -147,6 +173,10 @@ export function Sidebar() {
 
   // Auto-expand active groups
   const showTc = expandedGroups.Telecalling || isTcActive;
+  const canSettings = canAny(["settings.view", "settings.manage"]);
+  const visibleSettingsItems = getVisibleSettingsItems(purchasedFeatures, callingProvider);
+  const isSettingsActive = SETTINGS_ITEMS.some(item => pathname.startsWith(item.href));
+  const showSettings = expandedGroups.Settings || isSettingsActive;
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none">
@@ -461,6 +491,60 @@ export function Sidebar() {
                         href={item.href}
                         className={cn(
                           "flex items-center gap-2.5 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group",
+                          active
+                            ? "bg-white shadow-md border border-[#e8e3db] text-[#5b21b6] font-bold"
+                            : "text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"
+                        )}
+                      >
+                        <span className="truncate flex-1">{item.label}</span>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* GROUP: Settings */}
+        {isSubscribed && canSettings && (
+          <div className="space-y-0.5">
+            <button
+              onClick={() => toggleGroup("Settings")}
+              className={cn(
+                "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
+                isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+              )}
+            >
+              <Settings size={16} className={isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+              <span className="flex-1">Settings</span>
+              {showSettings ? <ChevronDown size={14} className="text-[#a8a29e]" /> : <ChevronRight size={14} className="text-[#a8a29e]" />}
+            </button>
+
+            {showSettings && (
+              <div className="space-y-0.5">
+                {visibleSettingsItems.map((item, idx) => {
+                  const matches = visibleSettingsItems.filter(i => pathname === i.href || pathname.startsWith(i.href + "/"));
+                  const bestMatch = matches.reduce<NavItem | null>(
+                    (best, i) => (!best || i.href.length > best.href.length ? i : best), null
+                  );
+                  const active = bestMatch?.href === item.href;
+                  const isLast = idx === visibleSettingsItems.length - 1;
+
+                  return (
+                    <div key={item.href} className="relative pl-6 flex items-center h-9">
+                      <div
+                        className={cn(
+                          "absolute left-3 w-px bg-[#d6cfc9]",
+                          isLast ? "top-0 h-[18px]" : "-top-1 bottom-0"
+                        )}
+                      />
+                      <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-[#d6cfc9] rounded-bl-lg" />
+
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          "flex items-center gap-2.5 ml-3.5 px-3 py-1.5 w-[175px] rounded-xl text-[13px] transition-all duration-150 group",
                           active
                             ? "bg-white shadow-md border border-[#e8e3db] text-[#5b21b6] font-bold"
                             : "text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"

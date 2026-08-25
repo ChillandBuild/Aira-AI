@@ -6,7 +6,7 @@ export default function ChannelsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/dashboard/settings?tab=channels");
+    router.replace("/dashboard/settings/connect-channels");
   }, [router]);
 
   return (

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart2,
   BookOpen,
@@ -23,7 +23,9 @@ import {
   X,
 } from "lucide-react";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
+import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn, isActive } from "@/lib/utils";
+import { getVisibleSettingsItems, type CallingProvider } from "@/components/settingsNavigation";
 
 type MoreMenuItem = {
   href: string;
@@ -49,7 +51,6 @@ const MORE_ITEMS: MoreMenuItem[] = [
   { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", permissionAny: ["analytics.view"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/team", icon: Grid3X3, label: "Team", permissionAny: ["team.view", "team.manage"] },
   { href: "/dashboard/roles", icon: ShieldCheck, label: "Roles", permissionAny: ["roles.view", "roles.manage"] },
-  { href: "/dashboard/settings", icon: Settings, label: "Settings", permissionAny: ["settings.view", "settings.manage"] },
 ];
 
 function isVisible(item: MoreMenuItem, role: string | null, enabledFeatures: string[], permissions: string[]) {
@@ -63,8 +64,42 @@ export function MoreMenu() {
   const pathname = usePathname() || "/dashboard";
   const { role, enabledFeatures, permissions } = useAuthRole();
   const [isOpen, setIsOpen] = useState(false);
+  const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
+  const [callingProvider, setCallingProvider] = useState<CallingProvider>(null);
 
   const items = MORE_ITEMS.filter((item) => isVisible(item, role, enabledFeatures, permissions));
+  const canSettings = role === "owner" || permissions.includes("settings.view") || permissions.includes("settings.manage");
+  const settingsItems = getVisibleSettingsItems(purchasedFeatures, callingProvider);
+  const settingsActive = pathname.startsWith("/dashboard/settings");
+
+  useEffect(() => {
+    if (!canSettings) return;
+    let active = true;
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const [subscriptionRes, telecallingRes] = await Promise.all([
+          fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth }),
+          fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth }),
+        ]);
+        if (!active) return;
+
+        if (subscriptionRes.ok) {
+          const data = await subscriptionRes.json();
+          setPurchasedFeatures((data.items ?? []).map((item: { feature_key: string }) => item.feature_key));
+        }
+        if (telecallingRes.ok) {
+          const data = await telecallingRes.json();
+          setCallingProvider((data.calling_provider as Exclude<CallingProvider, null> | undefined) ?? "telecmi");
+        } else {
+          setCallingProvider("telecmi");
+        }
+      } catch {
+        if (active) setCallingProvider("telecmi");
+      }
+    })();
+    return () => { active = false; };
+  }, [canSettings]);
 
   return (
     <div className="relative md:hidden">
@@ -98,7 +133,7 @@ export function MoreMenu() {
                 <X size={18} />
               </button>
             </div>
-            {items.length === 0 ? (
+            {items.length === 0 && !canSettings ? (
               <div className="rounded-xl border border-border-subtle bg-surface-low px-3 py-4 text-center font-body text-sm text-ink-muted">
                 No more sections are available for this account.
               </div>
@@ -124,6 +159,39 @@ export function MoreMenu() {
                     </Link>
                   );
                 })}
+                {canSettings && (
+                  <div className="mt-1 rounded-xl border border-border-subtle bg-surface-low p-2">
+                    <div className={cn(
+                      "flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-bold",
+                      settingsActive ? "text-primary" : "text-ink",
+                    )}>
+                      <Settings size={17} />
+                      <span>Settings</span>
+                    </div>
+                    <div className="mt-1 flex flex-col gap-1 border-l border-border pl-2">
+                      {settingsItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = isActive(pathname, item.href);
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              "flex min-h-10 items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] font-semibold",
+                              active
+                                ? "bg-primary-light text-primary"
+                                : "text-ink-secondary hover:bg-white hover:text-ink",
+                            )}
+                          >
+                            <Icon size={15} />
+                            <span className="min-w-0 truncate">{item.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
