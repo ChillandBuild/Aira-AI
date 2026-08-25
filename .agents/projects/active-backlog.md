@@ -168,6 +168,21 @@
 - [2026-08-23-nested-packages-and-settings-nav-design.md](../../docs/superpowers/specs/2026-08-23-nested-packages-and-settings-nav-design.md) is still approved and unbuilt. An earlier version of the 2026-08-24 button work added a `button_label` field to `intake_config` package nodes, which would have collided with that spec's recursive node shape. **That work was reverted** — `button_label` does not exist anywhere. The nested-packages plan can be written against the current flat node shape with no coordination needed.
 - The settings-nav restructure in that same spec (splitting the Automations tab into `/dashboard/settings/auto-reply`, `/follow-ups`, etc.) now also needs to relocate the new `QuickRepliesPanel`, which currently sits in the Automations tab alongside `IntakeConfigPanel`.
 
-## Dev-environment tooling gaps blocking documented workflows (re-confirmed 2026-08-24)
-- **`graphify` is not on PATH and `graphify-out/` does not exist in this environment.** `make wiki-refresh` and `make wiki` both fail, and `/second-brain-close`'s "has code changed since the wiki?" check (`find ... -newer graphify-out/manifest.json`) silently returns **nothing** when the manifest is missing — i.e. it reports a false "no code changed" rather than an error. This matters because CLAUDE.md names `graphify query "<question>"` as step 1 of the lookup order for *any* task; that path is currently unavailable, so sessions fall back to targeted greps/reads. Either install graphify and build the graph once, or soften the CLAUDE.md instruction to match reality.
+## Dev-environment tooling gaps blocking documented workflows (re-confirmed 2026-08-25)
+- **`graphify` is not on PATH and `graphify-out/` does not exist in this environment.** `make wiki-refresh` and `make wiki` both fail, and `/second-brain-close`'s "has code changed since the wiki?" check (`find ... -newer graphify-out/manifest.json`) silently returns **nothing** when the manifest is missing — i.e. it reports a false "no code changed" rather than an error. This matters because CLAUDE.md names `graphify query "<question>"` as step 1 of the lookup order for *any* task; that path is currently unavailable, so sessions fall back to targeted greps/reads. Either install graphify and build the graph once, or soften the CLAUDE.md instruction to match reality. **Demonstrated on 2026-08-25**: the `find ... -newer` check printed nothing while three frontend components had just been committed — a silent false negative, not a skip. `make` is also not on PATH in this shell, so every `make <target>` in CLAUDE.md must be run as its underlying script instead.
 - **`lefthook` and `gitleaks` still not on PATH** (first logged 2026-07-23, still true). Hooks silently no-op; credential scanning falls back to 4 narrow patterns.
+
+
+## `second_brain_close.py` stale-claim check is ~100% false positives (2026-08-25)
+- It reported **21 stale claims**; every one was verified and **none was stale**. It flags any
+  `path/like/this.py` string that is not on disk, but `.agents/` legitimately references:
+  **deliberately removed** modules (`broadcast_retry.py` — the note says "service deleted"),
+  **renamed** ones (`expert_handoff.py` → `intake.py`, whose note warns against dropping the live
+  Razorpay alias), **parked-on-a-branch** ones (`intake_brain.py`), **gitignored** files
+  (`android/**/*.jks`), **third-party** paths (`slowapi/middleware.py`), and **URL routes** that
+  merely look like files (`/intake/sessions.csv`).
+- A decisions log's *job* is to reference things that no longer exist, so this check is
+  structurally wrong for `log.md`. Cost: 21 lines of noise every close, which trains everyone to
+  skim past the section — where a genuine stale claim would then hide.
+- **Fix**: skip `decisions/log.md` entirely; ignore paths matched by `.gitignore`; ignore strings
+  that aren't repo-rooted (third-party, URL paths); or allow an inline `<!-- historical -->` marker.

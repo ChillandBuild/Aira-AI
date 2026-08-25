@@ -478,3 +478,24 @@
 Load-bearing, and it has already caused one live bug. The `except Exception` around the LLM call sets a fallback `reply_text` and **falls through** to the channel dispatch below. Any variable bound only *inside* that `try` is unbound on the exception path — and the dispatch reads several of them.
 
 This shipped broken: `catalog_images_to_send` was assigned inside the try and read after it, so **every LLM failure on a WhatsApp lead raised `NameError` instead of sending the fallback, and the lead got nothing.** Fixed 2026-08-24; `chosen_block` and `catalog_images_to_send` are now bound before the `try`, guarded by a regression test that asserts their position in the source. **If you add a variable that the send/dispatch path reads, bind it before the `try`.**
+
+
+## Source-text assertion tests break on reformatting, not on regressions (2026-08-25)
+
+Several backend tests assert on the **source text** of a function rather than its
+behaviour — e.g. `assert "send_whatsapp(_wa_phone, reply_text" in source`. They exist
+because the real call is buried in `generate_reply`'s dispatch and is expensive to
+exercise, so the contract is checked statically instead.
+
+- **They fail on formatting alone.** Reflowing a call across lines, or adding a keyword
+  argument, breaks the literal match while the behaviour is untouched. This produced 3
+  red `Backend Tests` runs on `main` that looked like product bugs and were not.
+- **Fix them with `ast`, not by loosening the string.** Parse the source, walk for the
+  `ast.Call` node, and assert on its args/keywords. Survives reflow and added kwargs.
+- **Quantify over ALL matching call sites, not `any()`.** `ai_reply.py` has **two**
+  text-reply dispatches (the ordinary path and the quick-reply-block fallback). An
+  `any(...)` assertion was verified to stay **green** with `phone_number_id` deleted from
+  one of them — exactly the regression the test exists to catch. Collect the dispatches,
+  then assert none of them is missing the argument, and name the offending `lineno`.
+- **Always test the test.** Inject the regression, confirm the assertion fails, restore.
+  A loosened assertion that cannot fail is worse than no test.
