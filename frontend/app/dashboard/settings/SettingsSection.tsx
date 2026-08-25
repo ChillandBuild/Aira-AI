@@ -9,8 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
-import { CheckCircle2, ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Save } from "lucide-react";
+import { CheckCircle2, ChevronDown, Loader2, Save } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { publishHeaderAccordion } from "@/lib/headerAccordion";
 import { cn } from "@/lib/utils";
 
 // The binary controls live in one shared place so the dashboard and the
@@ -22,8 +23,9 @@ export { SwitchPill, CheckTick, CheckField, TickMark } from "@/components/ui/con
  * Accordion group
  *
  * Sections keep their own open state when rendered standalone. Wrapped
- * in <SettingsAccordion>, they hand that state to the group so the
- * toolbar can expand/collapse everything at once.
+ * in <SettingsAccordion>, they hand that state to the group, which
+ * publishes the section count and an expand/collapse-all control to the
+ * app header (see lib/headerAccordion).
  *
  * Default open state follows the section count: a page with a single
  * section opens it (nothing to choose between, so a closed card would
@@ -73,31 +75,23 @@ export function SettingsAccordion({ children }: { children: React.ReactNode }) {
 
   const allOpen = ids.length > 0 && ids.every((id) => openIds.has(id));
 
+  const toggleAll = useCallback(() => {
+    setOpenIds((prev) => (ids.every((id) => prev.has(id)) ? new Set() : new Set(ids)));
+  }, [ids]);
+
+  // The section count and expand/collapse-all live in the app header. Only
+  // publish once there's more than one section — a lone section has nothing
+  // to expand against.
+  useEffect(() => {
+    publishHeaderAccordion(
+      ids.length > 1 ? { count: ids.length, openCount: openIds.size, allOpen, toggleAll } : null
+    );
+    return () => publishHeaderAccordion(null);
+  }, [ids, openIds, allOpen, toggleAll]);
+
   return (
     <Ctx.Provider value={value}>
-      <div className="space-y-3.5 sm:space-y-4">
-        {ids.length > 1 && (
-          <div className="flex items-center justify-between gap-3 px-1">
-            <p className="font-label text-[11px] font-bold uppercase tracking-[0.14em] text-ink-muted">
-              {ids.length} section{ids.length === 1 ? "" : "s"}
-              {openIds.size > 0 && (
-                <span className="ml-2 font-mono text-[10px] font-semibold normal-case tracking-normal text-primary">
-                  {openIds.size} open
-                </span>
-              )}
-            </p>
-            <button
-              type="button"
-              onClick={() => setOpenIds(allOpen ? new Set() : new Set(ids))}
-              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 font-label text-[11px] font-bold text-ink-secondary transition-all hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
-            >
-              {allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
-              {allOpen ? "Collapse all" : "Expand all"}
-            </button>
-          </div>
-        )}
-        {children}
-      </div>
+      <div className="space-y-3.5 sm:space-y-4">{children}</div>
     </Ctx.Provider>
   );
 }

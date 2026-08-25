@@ -1,12 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { ClipboardList, Clock, LayoutGrid, List, ScrollText, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, ClipboardList, Clock, LayoutGrid, List, ScrollText, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { api } from "@/lib/api";
+import { useHeaderAccordion } from "@/lib/headerAccordion";
 
 import { cn } from "@/lib/utils";
 
@@ -208,6 +209,8 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { role } = useAuthRole();
+  // Section count + expand/collapse-all, published by a settings accordion.
+  const accordion = useHeaderAccordion();
 
   let { title, description } = getRouteMetadata(pathname || "", searchParams);
 
@@ -295,6 +298,27 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
       {/* Right side actions */}
       <div className="flex shrink-0 items-center gap-2 md:gap-2.5">
+        {accordion && (
+          <div className="mr-1 hidden items-center gap-2.5 md:flex">
+            <span className="font-label text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-muted">
+              {accordion.count} sections
+              {accordion.openCount > 0 && (
+                <span className="ml-1.5 font-mono text-[10px] font-semibold normal-case tracking-normal text-primary">
+                  {accordion.openCount} open
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={accordion.toggleAll}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#e8e3db] bg-white px-3 py-1.5 font-label text-[11px] font-bold text-[#57534e] transition-all hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+            >
+              {accordion.allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+              {accordion.allOpen ? "Collapse all" : "Expand all"}
+            </button>
+          </div>
+        )}
+
         {pathname === "/dashboard/outbound-leads" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
             {(["upload", "history", "tags", "opted-out"] as const).map((t) => (
