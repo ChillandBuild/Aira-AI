@@ -120,9 +120,13 @@ _WRAPPER_TASKS = {
     ),
     "addons": (
         "You are showing the customer optional add-ons available on top of the package "
-        "they just picked. Write a short intro line and a short closing question asking "
-        "which add-ons they want, or none. Do not mention any price -- the list with "
-        "prices is inserted between your two lines."
+        "they just picked. The confirmed package name (and its description, if any) is "
+        "inserted between your two lines, above the addon list -- do not name or "
+        "describe the package yourself, and do not assume the package name matches the "
+        "customer's last message, which may only name a broader category. Write a short "
+        "intro line and a short closing question asking which add-ons they want, or "
+        "none. Do not mention any price -- the list with prices is inserted between "
+        "your two lines."
     ),
 }
 

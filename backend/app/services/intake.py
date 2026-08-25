@@ -720,9 +720,19 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             )
             await _send_and_log(phone, text, tenant_id, lead_id, db)
 
-        async def _send_menu(purpose: str, level: list[dict]) -> None:
+        async def _send_menu(purpose: str, level: list[dict], selected: dict | None = None) -> None:
             mode = _tap_mode(level)
             block = package_list_block(level) if purpose == "packages" else addon_list_block(level)
+            if selected:
+                # A single-active-child branch (e.g. "Career Reading") auto-skips straight
+                # to its leaf ("General Career Reading") without ever asking again -- so
+                # the customer's last message still names the branch, not the leaf. Render
+                # the resolved leaf as a fact here instead of letting the composer guess
+                # "what was picked" from that stale customer_message.
+                fact = selected["name"]
+                if selected.get("description"):
+                    fact += f"\n{selected['description']}"
+                block = f"{fact}\n\n{block}"
             text = await compose_wrapped(
                 purpose, tenant_id=tenant_id, language_mode=language_mode,
                 customer_message=body, block=block, thread=thread,
@@ -738,7 +748,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             active_addons = _active_children(leaf.get("addons") or [])
             if active_addons:
                 _update_session(session["id"], _package_patch(leaf, path) | {"status": "awaiting_addon_choice"}, db)
-                await _send_menu("addons", active_addons)
+                await _send_menu("addons", active_addons, selected=leaf)
                 return
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
             missing = missing_field_labels(config["fields"], collected)

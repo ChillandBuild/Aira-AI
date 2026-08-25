@@ -649,6 +649,10 @@ async def test_nested_package_conversation_drills_down_and_offers_addon():
     with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
         consumed = await eh.route_intake("lead-1", "t-1", "+91999", "Detailed Consultation", db=db)
     assert consumed is True
+    # The addon offer must name the resolved leaf, not just list its addons --
+    # otherwise an auto-skipped branch (single active child) leaves the customer
+    # with no confirmation of which specific package they landed on.
+    assert "Detailed Consultation" in send.call_args[0][1]
     assert "PDF summary" in send.call_args[0][1]
     update_patch = db.table("intake_sessions").update.call_args[0][0]
     assert update_patch["status"] == "awaiting_addon_choice"
