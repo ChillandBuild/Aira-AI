@@ -433,7 +433,7 @@ class PackagePatchTests(unittest.TestCase):
         self.assertEqual(patch["total_amount_paise"], 30000)
 
 
-from app.services.intake import _build_buttons, _build_list_sections, _short_label, _tap_mode
+from app.services.intake import _NO_ADDONS_OPTION, _build_buttons, _build_list_sections, _short_label, _tap_mode
 
 
 def _leaf(key, name, button_label=None):
@@ -475,6 +475,18 @@ class TapModeTests(unittest.TestCase):
 
     def test_a_label_too_long_even_for_list_tier_is_text(self):
         level = [_leaf(f"k{i}", "A Description Text Well Over Twenty Four Characters Long") for i in range(5)]
+        self.assertEqual(_tap_mode(level), "text")
+
+    def test_no_addons_option_counts_toward_the_tier(self):
+        # A single addon alone is below the buttons floor (n=1 -> text), but with
+        # the decline tap folded in it's 2 -> buttons. Confirms _send_menu's
+        # addons path can't silently drop the decline option's own weight.
+        self.assertEqual(_tap_mode([_leaf("pdf", "PDF summary"), _NO_ADDONS_OPTION]), "buttons")
+
+    def test_ten_addons_plus_decline_falls_back_to_text(self):
+        # 10 real addons already fill WhatsApp's list-row cap; adding the decline
+        # option must push this to "text", never silently exceed the cap.
+        level = [_leaf(f"a{i}", f"Addon {i}") for i in range(10)] + [_NO_ADDONS_OPTION]
         self.assertEqual(_tap_mode(level), "text")
 
 

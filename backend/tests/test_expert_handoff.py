@@ -243,6 +243,23 @@ async def test_route_intake_sends_payment_link_on_confirmation_yes():
 
 
 @pytest.mark.asyncio
+async def test_route_intake_charges_total_amount_including_addons():
+    """Live bug 2026-08-25: the payment link was created from package_amount_paise
+    alone, so a lead who added a paid addon was charged the base package price --
+    the addon total was tracked on the session but never actually collected."""
+    session = {
+        "id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_confirmation",
+        "collected_data": {"name": "Priya"}, "package_amount_paise": 49900, "total_amount_paise": 59800,
+    }
+    db = _session_db(existing_session=session)
+    with patch.object(eh, "create_payment_link", new=AsyncMock(return_value={"payment_link_url": "https://rzp.io/x", "razorpay_payment_link_id": "plink_1"})) as create_link, \
+         patch.object(eh, "_send_and_log", new=AsyncMock()):
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "yes correct", db=db)
+    assert consumed is True
+    assert create_link.call_args.kwargs["amount_paise"] == 59800
+
+
+@pytest.mark.asyncio
 async def test_route_intake_falls_back_gracefully_with_no_package_amount():
     session = {
         "id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_confirmation",
@@ -643,17 +660,24 @@ async def test_nested_package_conversation_drills_down_and_offers_addon():
     # Turn 3: awaiting_package_choice at the Basic level, lead says "Detailed
     # Consultation" -> resolves to the basic_detail leaf, which has an active
     # addon -> moves to awaiting_addon_choice, snapshots the leaf, sends the
-    # addon menu
+    # addon menu. 1 real addon + the synthetic "No thanks" decline option = 2
+    # items, both short-labeled -> buttons tier, not plain text.
     session = {**session, "package_draft_path": [{"key": "basic", "name": "Basic"}]}
     db = _nested_session_db(existing_session=session)
-    with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+    with patch.object(eh, "_send_buttons_and_log", new=AsyncMock()) as send:
         consumed = await eh.route_intake("lead-1", "t-1", "+91999", "Detailed Consultation", db=db)
     assert consumed is True
-    # The addon offer must name the resolved leaf, not just list its addons --
-    # otherwise an auto-skipped branch (single active child) leaves the customer
-    # with no confirmation of which specific package they landed on.
+    # The addon offer must name the resolved leaf and its price, not just list
+    # its addons -- otherwise an auto-skipped branch (single active child)
+    # leaves the customer with no confirmation of which specific package they
+    # landed on, or what it costs before addons.
     assert "Detailed Consultation" in send.call_args[0][1]
+    assert "₹300" in send.call_args[0][1]
     assert "PDF summary" in send.call_args[0][1]
+    buttons = send.call_args[0][2]
+    # The customer must be able to tap their way out of the addon offer, not
+    # just type a decline word nobody told them existed.
+    assert {b["title"] for b in buttons} == {"PDF summary", "No thanks"}
     update_patch = db.table("intake_sessions").update.call_args[0][0]
     assert update_patch["status"] == "awaiting_addon_choice"
     assert update_patch["package_key"] == "basic_detail"
@@ -683,3 +707,64 @@ async def test_nested_package_conversation_drills_down_and_offers_addon():
     ]
     assert update_patch["total_amount_paise"] == 50000
     assert update_patch["status"] == "collecting"
+
+
+def _awaiting_addon_choice_session():
+    return {
+        "id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_addon_choice",
+        "collected_data": {}, "package_key": "basic_detail", "package_name": "Detailed Consultation",
+        "package_amount_paise": 30000,
+        "package_path": [{"key": "basic", "name": "Basic"}, {"key": "basic_detail", "name": "Detailed Consultation"}],
+    }
+
+
+@pytest.mark.asyncio
+async def test_addon_choice_off_topic_reply_reasks_instead_of_silently_declining():
+    """Live bug 2026-08-25: typing "career reading" (a package name, not an addon
+    or a decline) at the addon step silently proceeded with zero addons -- the
+    customer lost the upsell with no warning. Only an explicit decline word may
+    end this step with no addons; anything else must re-show the offer."""
+    db = _nested_session_db(existing_session=_awaiting_addon_choice_session())
+    with patch.object(eh, "match_addons", new=AsyncMock(return_value=[])), \
+         patch.object(eh, "_send_buttons_and_log", new=AsyncMock()) as send:
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "career reading", db=db)
+    assert consumed is True
+    assert "PDF summary" in send.call_args[0][1]
+    db.table("intake_sessions").update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_addon_choice_explicit_decline_proceeds_with_no_addons():
+    db = _nested_session_db(existing_session=_awaiting_addon_choice_session())
+    with patch.object(eh, "match_addons", new=AsyncMock()) as match_addons, \
+         patch.object(eh, "extract_fields", new=AsyncMock(return_value={})), \
+         patch.object(eh, "_send_and_log", new=AsyncMock()):
+        consumed = await eh.route_intake("lead-1", "t-1", "+91999", "no thanks", db=db)
+    assert consumed is True
+    match_addons.assert_not_awaited()  # explicit decline short-circuits before the classifier
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["selected_addons"] == []
+    assert update_patch["total_amount_paise"] == 30000
+    assert update_patch["status"] == "collecting"
+
+
+@pytest.mark.asyncio
+async def test_addon_choice_cancel_word_cancels_session():
+    db = _nested_session_db(existing_session=_awaiting_addon_choice_session())
+    consumed = await eh.route_intake("lead-1", "t-1", "+91999", "cancel", db=db)
+    assert consumed is False
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_package_choice_cancel_word_cancels_session():
+    session = {
+        "id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_package_choice",
+        "collected_data": {}, "package_draft_path": [],
+    }
+    db = _nested_session_db(existing_session=session)
+    consumed = await eh.route_intake("lead-1", "t-1", "+91999", "cancel", db=db)
+    assert consumed is False
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["status"] == "cancelled"

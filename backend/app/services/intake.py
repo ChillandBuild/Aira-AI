@@ -476,6 +476,11 @@ def _build_list_sections(level: list[dict]) -> list[dict]:
 
 _ADDON_DECLINE_WORDS = frozenset({"no", "skip", "none", "no thanks", "nope", "not needed"})
 
+# Tap target for declining every addon -- its title is one of _ADDON_DECLINE_WORDS
+# above (case-insensitive), so match_addons's early-exit decline check catches it
+# with no extra wiring: the tap just becomes the same body text a typed "no thanks" would.
+_NO_ADDONS_OPTION = {"key": "no_addons", "name": "No thanks"}
+
 _ADDON_MATCH_SYSTEM_PROMPT = """You match a customer's reply to zero or more addons from a
 fixed list. You are given the addons (key and name) and the customer's message.
 
@@ -721,7 +726,11 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             await _send_and_log(phone, text, tenant_id, lead_id, db)
 
         async def _send_menu(purpose: str, level: list[dict], selected: dict | None = None) -> None:
-            mode = _tap_mode(level)
+            # Addons are optional -- unlike a package pick, "none of these" is a valid
+            # tap, not just a typed decline. Fold it into the tier math as a real option
+            # so it never pushes a menu over WhatsApp's 3-button/10-row hard caps.
+            tap_level = level + [_NO_ADDONS_OPTION] if purpose == "addons" and level else level
+            mode = _tap_mode(tap_level)
             block = package_list_block(level) if purpose == "packages" else addon_list_block(level)
             if selected:
                 # A single-active-child branch (e.g. "Career Reading") auto-skips straight
@@ -729,7 +738,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 # the customer's last message still names the branch, not the leaf. Render
                 # the resolved leaf as a fact here instead of letting the composer guess
                 # "what was picked" from that stale customer_message.
-                fact = selected["name"]
+                fact = f"{selected['name']} — {_rupees(selected['amount_paise'])}"
                 if selected.get("description"):
                     fact += f"\n{selected['description']}"
                 block = f"{fact}\n\n{block}"
@@ -738,9 +747,9 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 customer_message=body, block=block, thread=thread,
             )
             if mode == "buttons":
-                await _send_buttons_and_log(phone, text, _build_buttons(level), tenant_id, lead_id, db)
+                await _send_buttons_and_log(phone, text, _build_buttons(tap_level), tenant_id, lead_id, db)
             elif mode == "list":
-                await _send_list_and_log(phone, text, "Choose", _build_list_sections(level), tenant_id, lead_id, db)
+                await _send_list_and_log(phone, text, "Choose", _build_list_sections(tap_level), tenant_id, lead_id, db)
             else:
                 await _send_and_log(phone, text, tenant_id, lead_id, db)
 
@@ -795,6 +804,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             draft_path = session.get("package_draft_path") or []
             current_level = _menu_at_path(packages, draft_path) or packages
             active_here = _active_children(current_level)
+            if classify_non_answer(body) == "cancel":
+                _update_session(session["id"], {"status": "cancelled"}, db)
+                logger.info(f"Intake session {session['id']} cancelled by lead during package choice")
+                return False
             chosen = await match_package(body, active_here, tenant_id)
             if chosen is None:
                 intro = await compose_line(
@@ -826,8 +839,27 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
         if status == "awaiting_addon_choice":
             packages = normalize_packages(config)
             found = _find_leaf(packages, session.get("package_key"))
-            active_addons = _active_children(found[0].get("addons") or []) if found else []
-            chosen_addons = await match_addons(body, active_addons, tenant_id)
+            leaf = found[0] if found else None
+            active_addons = _active_children(leaf.get("addons") or []) if leaf else []
+
+            is_decline = body.strip().lower() in _ADDON_DECLINE_WORDS
+            if not is_decline and classify_non_answer(body) == "cancel":
+                _update_session(session["id"], {"status": "cancelled"}, db)
+                logger.info(f"Intake session {session['id']} cancelled by lead during addon choice")
+                return False
+
+            chosen_addons = [] if is_decline else await match_addons(body, active_addons, tenant_id)
+            if not is_decline and not chosen_addons:
+                # An empty match_addons result is ambiguous -- explicit decline or
+                # simply no match -- so is_decline above is what actually decides
+                # "the customer said no". Anything else that matched nothing (a
+                # greeting, a question, an off-topic reply like "career reading")
+                # re-shows the offer instead of silently treating silence as "no
+                # thanks", matching package choice's own reask-until-resolved
+                # behaviour rather than guessing on the customer's behalf.
+                await _send_menu("addons", active_addons, selected=leaf)
+                return True
+
             addons_total = sum(a["amount_paise"] for a in chosen_addons)
             total = (session.get("package_amount_paise") or 0) + addons_total
             collected = await extract_fields(body, config["fields"], session.get("collected_data") or {}, tenant_id)
@@ -931,7 +963,10 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
             # Razorpay needs a string here, so an unidentifiable customer falls back
             # to their phone -- always real, always that person.
             customer_name = resolve_customer_name(collected, config["fields"]) or phone
-            amount_paise = session.get("package_amount_paise")
+            # total_amount_paise is package + addons; package_amount_paise alone
+            # is the fallback for sessions from before addons existed, where
+            # total was never set.
+            amount_paise = session.get("total_amount_paise") or session.get("package_amount_paise")
             if not amount_paise:
                 logger.error(f"Intake session {session['id']} reached payment with no package amount")
                 await _say("payment_delay")
@@ -1103,7 +1138,7 @@ def confirm_intake_payment(
     existing = (
         db.table("intake_sessions")
         .select("id,status,lead_id,tenant_id,collected_data,field_schema,"
-                "package_key,package_name,package_amount_paise,trigger_reason")
+                "package_key,package_name,package_amount_paise,total_amount_paise,trigger_reason")
         .eq("id", session_id)
         .maybe_single()
         .execute()
@@ -1113,7 +1148,10 @@ def confirm_intake_payment(
 
     session = existing.data
     now_iso = datetime.now(timezone.utc).isoformat()
-    expected = session.get("package_amount_paise")
+    # Mirrors the amount actually used to create the payment link (route_intake's
+    # awaiting_confirmation block): total (package + addons) when set, else the
+    # bare package price for sessions from before addons existed.
+    expected = session.get("total_amount_paise") or session.get("package_amount_paise")
     charged = amount_paid_paise if amount_paid_paise is not None else expected
     # The status filter is the whole point: it turns the read-then-write above into
     # a single conditional UPDATE, so of two concurrent Razorpay retries exactly one
