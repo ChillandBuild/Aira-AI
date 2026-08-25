@@ -23,8 +23,8 @@ export { SwitchPill, CheckTick, CheckField, TickMark } from "@/components/ui/con
  * Sections keep their own open state when rendered standalone. Wrapped
  * in <SettingsAccordion>, they hand that state to the group so the
  * toolbar can expand/collapse everything at once. Every section starts
- * closed — the settings tabs are long, and a wall of open forms was the
- * thing that made them unreadable.
+ * open — settings now live one page per topic, so there's no longer a
+ * wall of stacked forms to collapse against.
  * ------------------------------------------------------------------ */
 
 type AccordionCtx = {
@@ -138,7 +138,7 @@ export function SettingsSection({
   accent = "violet",
   status,
   dirty = false,
-  defaultOpen = false,
+  defaultOpen = true,
   children,
 }: {
   /** Stable id — required for the group toolbar to drive this section. */

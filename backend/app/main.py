@@ -14,7 +14,7 @@ from app.dependencies.auth import get_current_user
 
 import os
 from app.config import settings
-from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac, quick_replies
+from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac, quick_replies, feedback
 from app.routes.calls import public_router as calls_public_router
 from app.routes.intake import public_router as intake_public_router
 from app.routes import intake
@@ -654,5 +654,6 @@ app.include_router(call_scripts.router, prefix="/api/v1/call-scripts", tags=["ca
 app.include_router(telecalling_upload.router, prefix="/api/v1/telecalling-upload", tags=["telecalling-upload"], dependencies=_auth)
 app.include_router(subscriptions.router, prefix="/api/v1/subscriptions", tags=["subscriptions"], dependencies=_auth)
 app.include_router(quick_replies.router, prefix="/api/v1/quick-replies", tags=["quick-replies"], dependencies=_auth)
+app.include_router(feedback.router, prefix="/api/v1/feedback", tags=["feedback"], dependencies=_auth)
 
 

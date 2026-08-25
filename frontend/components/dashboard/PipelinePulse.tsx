@@ -79,7 +79,7 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <HeroCard
           icon={<MessageSquare size={18} />}
-          iconGradient="bg-gradient-to-tr from-emerald-500 to-teal-400"
+          iconGradient="bg-gradient-to-br from-emerald-800 to-emerald-500"
           glowColor="bg-emerald-500/5 group-hover:bg-emerald-500/10"
           label="New Leads Today"
           value={newLeadsToday}
@@ -92,7 +92,7 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
         />
         <HeroCard
           icon={<TrendingUp size={18} />}
-          iconGradient="bg-gradient-to-tr from-amber-500 to-orange-500"
+          iconGradient="bg-gradient-to-br from-amber-800 to-orange-500"
           glowColor="bg-amber-500/5 group-hover:bg-amber-500/10"
           label="New Hot Leads Today"
           value={newHotLeadsToday}
@@ -104,7 +104,7 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
         />
         <HeroCard
           icon={<CheckCircle2 size={18} />}
-          iconGradient="bg-gradient-to-tr from-violet-600 to-purple-500"
+          iconGradient="bg-gradient-to-br from-[#2e1065] to-primary"
           glowColor="bg-violet-500/5 group-hover:bg-violet-500/10"
           label="Conversions Today"
           value={overview.converted_today}

@@ -1,17 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { LogOut, Settings, Monitor, ChevronRight } from "lucide-react";
+import { LogOut, MessageSquarePlus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useLogout } from "@/hooks/useLogout";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 export function ProfileMenu() {
-  const { role, permissions, tenantName } = useAuthRole();
-  const router = useRouter();
+  const { tenantName } = useAuthRole();
   const [email, setEmail] = useState<string>("");
   const [fullName, setFullName] = useState<string>("");
   const [open, setOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -34,10 +34,6 @@ export function ProfileMenu() {
 
   const logout = useLogout();
   const initials = email ? email.charAt(0).toUpperCase() : "U";
-  const canAccessSettings =
-    role === "owner" ||
-    permissions.includes("settings.view") ||
-    permissions.includes("settings.manage");
 
   return (
     <div className="relative">
@@ -73,28 +69,15 @@ export function ProfileMenu() {
             </div>
 
             <div className="py-1">
-              {canAccessSettings && (
-                <button
-                  onClick={() => {
-                    setOpen(false);
-                    router.push("/dashboard/settings");
-                  }}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
-                >
-                  <Settings size={16} className="text-[#78716c]" />
-                  <span className="flex-1">Settings</span>
-                </button>
-              )}
-
               <button
-                className="w-full flex items-center justify-between gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
-                onClick={() => {}}
+                onClick={() => {
+                  setOpen(false);
+                  setFeedbackOpen(true);
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
               >
-                <div className="flex items-center gap-2.5">
-                  <Monitor size={16} className="text-[#78716c]" />
-                  <span>Theme</span>
-                </div>
-                <ChevronRight size={14} className="text-[#a8a29e]" />
+                <MessageSquarePlus size={16} className="text-[#78716c]" />
+                <span>Feedback</span>
               </button>
             </div>
 
@@ -109,6 +92,7 @@ export function ProfileMenu() {
           </div>
         </>
       )}
+      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   );
 }

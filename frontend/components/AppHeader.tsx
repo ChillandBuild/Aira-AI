@@ -277,16 +277,16 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:left-[220px] md:h-20 md:gap-4 md:px-7">
+    <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-[#e8e3db] bg-[#faf8f5] px-4 md:left-[220px] md:h-16 md:gap-4 md:px-6">
       {/* Left side: menu trigger + title and description */}
       <div className="flex min-w-0 items-center gap-3">
         <MoreMenu />
         <div className="flex min-w-0 flex-col justify-center select-none">
-          <h1 className="font-display text-base font-bold leading-tight text-on-surface md:text-lg">
+          <h1 className="font-display text-sm font-bold leading-tight text-on-surface md:text-base">
             {title}
           </h1>
           {description && (
-            <p className="mt-0.5 hidden max-w-[650px] truncate font-body text-xs text-on-surface-muted sm:block">
+            <p className="mt-0.5 hidden max-w-[650px] truncate font-body text-[11px] text-on-surface-muted sm:block">
               {description}
             </p>
           )}

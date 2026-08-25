@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
-  ChevronDown, ChevronRight, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
+  ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,7 @@ const TELECALLING_ITEMS: NavItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
   const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
@@ -180,15 +181,54 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none">
-      {/* Brand — h-20 (80px) matches the header so this bottom border and the
+      {/* Brand — h-16 (64px) matches the header so this bottom border and the
           header border form one continuous divider. shrink-0 is essential: the
           nav below overflows and would otherwise compress this box under flex
-          pressure, lifting the divider above the header's fixed 80px line. */}
-      <div className="h-20 shrink-0 flex items-center px-5 border-b border-[#e8e3db]">
-        <AiraLogo className="h-7 w-auto text-[#1c1917]" />
+          pressure, lifting the divider above the header's fixed 64px line. */}
+      <div className="h-16 shrink-0 flex items-center px-5 border-b border-[#e8e3db]">
+        <AiraLogo className="h-6 w-auto text-[#1c1917]" />
       </div>
 
 
+      {showSettings ? (
+        <div className="flex-grow overflow-y-auto px-3 py-4 space-y-0.5 scrollbar-thin">
+          <button
+            onClick={() => {
+              setExpandedGroups((prev) => ({ ...prev, Settings: false }));
+              router.push("/dashboard");
+            }}
+            className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#1c1917] transition-all hover:bg-[#f0ece4]"
+          >
+            <ChevronLeft size={16} />
+            <span>Settings</span>
+          </button>
+
+          {visibleSettingsItems.map((item) => {
+            const matches = visibleSettingsItems.filter(
+              (i) => pathname === i.href || pathname.startsWith(i.href + "/")
+            );
+            const bestMatch = matches.reduce<NavItem | null>(
+              (best, i) => (!best || i.href.length > best.href.length ? i : best), null
+            );
+            const active = bestMatch?.href === item.href;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-xl text-sm transition-all duration-150",
+                  active
+                    ? "bg-[#f5f3ff] font-bold text-[#5b21b6]"
+                    : "text-[#1c1917] hover:bg-[#f0ece4]"
+                )}
+              >
+                <span className="truncate">{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview / Dashboard */}
         {can("dashboard.view") ? (
@@ -508,60 +548,20 @@ export function Sidebar() {
 
         {/* GROUP: Settings */}
         {isSubscribed && canSettings && (
-          <div className="space-y-0.5">
-            <button
-              onClick={() => toggleGroup("Settings")}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] hover:bg-[#f0ece4]"
-              )}
-            >
-              <Settings size={16} className={isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-              <span className="flex-1">Settings</span>
-              {showSettings ? <ChevronDown size={14} className="text-[#a8a29e]" /> : <ChevronRight size={14} className="text-[#a8a29e]" />}
-            </button>
-
-            {showSettings && (
-              <div className="space-y-0.5">
-                {visibleSettingsItems.map((item, idx) => {
-                  const matches = visibleSettingsItems.filter(i => pathname === i.href || pathname.startsWith(i.href + "/"));
-                  const bestMatch = matches.reduce<NavItem | null>(
-                    (best, i) => (!best || i.href.length > best.href.length ? i : best), null
-                  );
-                  const active = bestMatch?.href === item.href;
-                  const isLast = idx === visibleSettingsItems.length - 1;
-
-                  return (
-                    <div key={item.href} className="relative pl-6 flex items-center h-9">
-                      <div
-                        className={cn(
-                          "absolute left-3 w-px bg-[#d6cfc9]",
-                          isLast ? "top-0 h-[18px]" : "-top-1 bottom-0"
-                        )}
-                      />
-                      <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-[#d6cfc9] rounded-bl-lg" />
-
-                      <Link
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-2.5 ml-3.5 px-3 py-1.5 w-[175px] rounded-xl text-[13px] transition-all duration-150 group",
-                          active
-                            ? "bg-white shadow-md border border-[#e8e3db] text-[#5b21b6] font-bold"
-                            : "text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"
-                        )}
-                      >
-                        <span className="truncate flex-1">{item.label}</span>
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
+          <button
+            onClick={() => toggleGroup("Settings")}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
+              isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] hover:bg-[#f0ece4]"
             )}
-          </div>
+          >
+            <Settings size={16} className={isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+            <span className="flex-1">Settings</span>
+            <ChevronRight size={14} className="text-[#a8a29e]" />
+          </button>
         )}
       </div>
-
-
+      )}
     </aside>
   );
 }

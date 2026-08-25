@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { UserCheck, Plus, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
@@ -146,21 +145,6 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
             rows={2}
             className="w-full px-3 py-2 rounded-xl border border-border text-sm font-body text-ink bg-white"
           />
-        </div>
-
-        <div className="flex items-center justify-between rounded-2xl border border-border bg-surface-subtle p-3">
-          <div>
-            <div className="font-label text-sm font-semibold text-ink">Packages</div>
-            <div className="font-body text-xs text-ink-muted">
-              {draft.packages.length} package{draft.packages.length === 1 ? "" : "s"} configured — nested sub-options and addons supported.
-            </div>
-          </div>
-          <Link
-            href="/dashboard/settings/intake-config/packages"
-            className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700"
-          >
-            Manage Packages →
-          </Link>
         </div>
 
         <div className="space-y-1">

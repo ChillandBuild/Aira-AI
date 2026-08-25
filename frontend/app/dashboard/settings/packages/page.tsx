@@ -1,10 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Package } from "lucide-react";
+import { Package } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { useSettingsForm } from "../../SettingsFormContext";
-import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "../../SettingsSection";
+import { useSettingsForm } from "../SettingsFormContext";
+import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "../SettingsSection";
 import { PackageEditor, type IntakePackage } from "./PackageEditor";
 
 export default function PackagesSettingsPage() {
@@ -54,10 +53,6 @@ export default function PackagesSettingsPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/dashboard/settings/intake-config" className="inline-flex items-center gap-1.5 text-xs font-label font-semibold text-ink-muted hover:text-ink">
-        <ArrowLeft size={14} /> Back to Intake Config
-      </Link>
-
       <SettingsSection
         id="intake-packages"
         icon={Package}

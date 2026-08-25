@@ -57,3 +57,6 @@ android/local.properties
 android/keystore.properties
 android/**/*.jks
 android/**/*.keystore
+
+# Firecrawl MCP scrape output — dropped at repo root by the tool, not source content
+.firecrawl/
