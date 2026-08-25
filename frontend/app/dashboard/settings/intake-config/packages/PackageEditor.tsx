@@ -10,6 +10,7 @@ export interface IntakeAddon {
   amount_paise: number;
   description: string;
   active: boolean;
+  button_label?: string;
 }
 
 export interface IntakePackage {
@@ -18,6 +19,7 @@ export interface IntakePackage {
   amount_paise: number;
   description: string;
   active: boolean;
+  button_label?: string;
   options?: IntakePackage[];
   addons?: IntakeAddon[];
 }
@@ -169,6 +171,18 @@ function PackageNode({
         className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
       />
 
+      {isLeaf && (
+        <input
+          type="text"
+          value={node.button_label ?? ""}
+          onChange={(e) => onChange({ ...node, button_label: e.target.value || undefined })}
+          placeholder="Short button label (optional, ≤20 chars — falls back to name)"
+          maxLength={20}
+          disabled={!canManage}
+          className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+        />
+      )}
+
       {canManage && (
         <div className="flex gap-3">
           {!hasAddons && (
@@ -204,38 +218,49 @@ function PackageNode({
         <div className="space-y-2 pt-1 pl-5 border-l-2 border-border">
           <div className="font-label text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Addons</div>
           {node.addons!.map((addon, i) => (
-            <div key={addon.key} className="flex items-center gap-2">
+            <div key={addon.key} className="space-y-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={addon.name}
+                  onChange={(e) => updateAddon(i, { name: e.target.value })}
+                  onBlur={(e) => {
+                    const others = new Set(allKeys);
+                    others.delete(addon.key);
+                    updateAddon(i, { key: uniqueKey(slugify(e.target.value) || "addon", others) });
+                  }}
+                  placeholder="Addon name"
+                  disabled={!canManage}
+                  className="flex-1 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  value={addon.amount_paise ? addon.amount_paise / 100 : ""}
+                  onChange={(e) => updateAddon(i, { amount_paise: Math.round(Number(e.target.value) * 100) })}
+                  placeholder="+₹"
+                  disabled={!canManage}
+                  className="w-20 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                />
+                <label className="flex items-center gap-1 text-xs font-body text-ink-muted">
+                  <input type="checkbox" checked={addon.active} disabled={!canManage} onChange={(e) => updateAddon(i, { active: e.target.checked })} />
+                  Active
+                </label>
+                {canManage && (
+                  <button type="button" onClick={() => removeAddon(i)} aria-label="Remove addon" className="text-ink-muted hover:text-red-600">
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
-                value={addon.name}
-                onChange={(e) => updateAddon(i, { name: e.target.value })}
-                onBlur={(e) => {
-                  const others = new Set(allKeys);
-                  others.delete(addon.key);
-                  updateAddon(i, { key: uniqueKey(slugify(e.target.value) || "addon", others) });
-                }}
-                placeholder="Addon name"
+                value={addon.button_label ?? ""}
+                onChange={(e) => updateAddon(i, { button_label: e.target.value || undefined })}
+                placeholder="Short button label (optional, ≤20 chars — falls back to name)"
+                maxLength={20}
                 disabled={!canManage}
-                className="flex-1 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
               />
-              <input
-                type="number"
-                min={0}
-                value={addon.amount_paise ? addon.amount_paise / 100 : ""}
-                onChange={(e) => updateAddon(i, { amount_paise: Math.round(Number(e.target.value) * 100) })}
-                placeholder="+₹"
-                disabled={!canManage}
-                className="w-20 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
-              />
-              <label className="flex items-center gap-1 text-xs font-body text-ink-muted">
-                <input type="checkbox" checked={addon.active} disabled={!canManage} onChange={(e) => updateAddon(i, { active: e.target.checked })} />
-                Active
-              </label>
-              {canManage && (
-                <button type="button" onClick={() => removeAddon(i)} aria-label="Remove addon" className="text-ink-muted hover:text-red-600">
-                  <Trash2 size={14} />
-                </button>
-              )}
             </div>
           ))}
           {canManage && (
