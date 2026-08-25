@@ -91,7 +91,7 @@ export function SettingsAccordion({ children }: { children: React.ReactNode }) {
 
   return (
     <Ctx.Provider value={value}>
-      <div className="space-y-3.5 sm:space-y-4">{children}</div>
+      <div className="space-y-2 sm:space-y-2.5">{children}</div>
     </Ctx.Provider>
   );
 }
