@@ -499,3 +499,35 @@ exercise, so the contract is checked statically instead.
   then assert none of them is missing the argument, and name the offending `lineno`.
 - **Always test the test.** Inject the regression, confirm the assertion fails, restore.
   A loosened assertion that cannot fail is worse than no test.
+
+
+## Settings accordion: open-by-count, and the header bridge for its toolbar (2026-08-26)
+
+`frontend/app/dashboard/settings/SettingsSection.tsx` holds both the card
+(`SettingsSection`) and the group (`SettingsAccordion`). Two rules are load-bearing:
+
+- **Initial open state comes from the section COUNT, not per-section props.** One
+  section → opens; two or more → all collapsed, so the page reads as a list of topics.
+  Sections `register(id)` on mount and the group seeds **once**, on the first commit
+  where the id list is non-empty — every section mounts in the same commit, so that
+  first list is the complete one. A section that mounts in a *later* commit (behind its
+  own loading gate) therefore misses the seed and stays closed; render sections together
+  or the rule silently misapplies. `defaultOpen` now only affects a `SettingsSection`
+  rendered **outside** a group (Inbox, Intake Config, Business Hours, Quick Replies,
+  Telecalling Behavior, Packages — all single-section pages, all open by default).
+- **A group must actually wrap its sections.** `NotificationConfigPanel` rendered its
+  three cards in a bare `<>`, so they were outside the group entirely: no count rule, no
+  spacing, no toolbar. It is now wrapped in `<SettingsAccordion>` — the only multi-section
+  settings page today. Its loading skeleton carries the same `space-y` as the group so
+  nothing shifts when data lands.
+
+The section count and Expand all / Collapse all render in **`AppHeader.tsx`**, not above
+the cards (same "chrome belongs in the header" call as the telecalling tab note above).
+The bridge is `frontend/lib/headerAccordion.ts` — a `useSyncExternalStore` store, chosen
+over a React context so publishing re-renders **only the header**, not the whole dashboard
+subtree under `ClientLayout`. The accordion publishes `{count, openCount, allOpen,
+toggleAll}` when it has >1 section and publishes `null` on unmount, which is what clears
+the control when you navigate off Notifications. Note this is a *different* mechanism from
+the Notes page's header controls, which use `window` CustomEvents; prefer the store for
+new work. The header group is `hidden md:flex`, matching the other page-specific header
+control groups — there is no mobile affordance for expand-all by design.
