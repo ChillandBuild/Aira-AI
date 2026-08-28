@@ -59,6 +59,12 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
 
     # Meta webhook event payloads have "object": "instagram" and "entry" list
     if payload.get("object") != "instagram":
+        # Diagnostic: every drop below this point used to be silent, so a verified
+        # webhook that produced no lead was indistinguishable from one that worked.
+        logger.info(
+            f"Instagram webhook ignored for tenant {tenant_id}: "
+            f"object={payload.get('object')!r} keys={sorted(payload.keys())}"
+        )
         return {"status": "ok", "detail": "not_instagram_object"}
 
     entries = payload.get("entry", [])
@@ -75,10 +81,24 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
             continue
 
         messaging = entry.get("messaging", [])
+        if not messaging:
+            # Instagram-Login delivers some field types under entry[].changes[]
+            # rather than entry[].messaging[]; those fall through here silently.
+            logger.info(
+                f"Instagram entry {ig_account_id} for tenant {tenant_id} has no "
+                f"messaging events: keys={sorted(entry.keys())}"
+            )
+            continue
+
         for event in messaging:
             # We ignore echo messages (messages sent by our own application/page)
             message = event.get("message", {})
             if not message or message.get("is_echo"):
+                logger.info(
+                    f"Instagram event skipped for tenant {tenant_id}: "
+                    f"has_message={bool(message)} is_echo={bool(message.get('is_echo'))} "
+                    f"event_keys={sorted(event.keys())}"
+                )
                 continue
 
             message_id = message.get("mid")
@@ -86,6 +106,12 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
             sender_id = event.get("sender", {}).get("id")
 
             if not sender_id or not text or not message_id:
+                # Attachments, stickers and reactions land here — no text to reply to.
+                logger.info(
+                    f"Instagram message skipped for tenant {tenant_id}: "
+                    f"has_sender={bool(sender_id)} has_text={bool(text)} "
+                    f"has_mid={bool(message_id)} message_keys={sorted(message.keys())}"
+                )
                 continue
 
             # Meta Ad referral — present when user clicks a Click-to-Instagram-DM ad
@@ -204,6 +230,7 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
                 "via_ad_referral": referral.get("source_type") == "ad",
             }
             db.table("messages").insert(insert_row).execute()
+            logger.info(f"Instagram message stored for tenant {tenant_id}: lead={lead_id} mid={message_id}")
 
             try:
                 from app.services.notify import notify_assigned_caller_of_reply
