@@ -682,7 +682,15 @@ async def activate_channel(
     if "error" in data:
         raise HTTPException(status_code=400, detail=data["error"].get("message", "Invalid credentials"))
 
-    sub_fields = "messages,messaging_postbacks,message_deliveries,message_reads"
+    # Page and Instagram are separate webhook objects with separate field
+    # vocabularies. message_deliveries/message_reads are Messenger-only; sending
+    # them to the Instagram node rejects the whole call with (#100) and leaves the
+    # channel subscribed to nothing, so Instagram gets its own equivalents.
+    sub_fields = (
+        "messages,messaging_postbacks,messaging_seen"
+        if channel == "instagram"
+        else "messages,messaging_postbacks,message_deliveries,message_reads"
+    )
     async with httpx.AsyncClient() as client:
         sub_r = await client.post(
             f"https://graph.facebook.com/v21.0/{page_id}/subscribed_apps",
