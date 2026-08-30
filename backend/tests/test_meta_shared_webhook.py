@@ -143,3 +143,30 @@ def test_app_id_check_is_a_guard_not_a_gate():
     # token_app_id and ...` then skips the check rather than blocking activation.
     assert "return None" in helper
     assert "debug_token" in helper
+
+
+# ── the wrong-app refusal Meta actually sends ───────────────────────────────
+# Meta answers debug_token for a foreign token with "(#100) The App_id in the
+# input_token did not match the Viewing App" rather than with data. Treating that
+# as merely inconclusive let a Test Aira token activate on 2026-08-30 12:21.
+
+def test_foreign_token_refusal_is_treated_as_a_mismatch():
+    source = _read("app/routes/app_settings.py")
+    helper = source[source.index("async def _resolve_token_app_id"):]
+    helper = helper[:helper.index('@router.post("/activate")')]
+
+    assert '"did not match the viewing app" in message.lower()' in helper
+    assert "return None, True" in helper
+    # A genuine outage must still fail open.
+    assert helper.count("return None, False") >= 3
+
+
+def test_activation_blocks_on_the_foreign_flag_not_just_a_differing_id():
+    source = _read("app/routes/app_settings.py")
+    body = source[source.index("async def activate_channel"):]
+    branch = body[body.index("# instagram or facebook"):]
+
+    assert "token_app_id, token_is_foreign = await _resolve_token_app_id(token)" in branch
+    assert "if token_is_foreign or (" in branch
+    # The id is unknown in the foreign case, so the message must not print None.
+    assert 'belongs_to = f"Meta app {token_app_id}" if token_app_id else "a different Meta app"' in branch
