@@ -574,3 +574,36 @@ skips the entry with a "belongs to tenant X, not Y" warning and looks exactly li
 allows only one callback URL per webhook object — so one Meta app serves Instagram/Messenger for
 exactly **one** tenant. WhatsApp has no such limit: `/webhook/whatsapp` takes no tenant and resolves
 it from the payload (`_resolve_tenant_from_payload`).
+
+## debug_token: Meta's refusal *is* the answer (2026-08-30)
+
+`_resolve_token_app_id()` in `routes/app_settings.py` identifies which Meta app issued an access
+token, so `activate_channel` can refuse a token from the wrong app. The trap is what Meta returns
+for a **foreign** token — the case the check exists for:
+
+```
+GET /v21.0/debug_token?input_token=<Test Aira token>&access_token=<AIRA app token>
+→ 400  (#100) The App_id in the input_token did not match the Viewing App
+```
+
+Meta does **not** return `data.app_id` with a differing value. It returns no data at all, plus that
+error. A first implementation treated "no data" as inconclusive and failed open, so a Test Aira
+token activated cleanly on 2026-08-30 12:21 — the guard silently skipping the exact scenario it was
+written for. The function now returns `(app_id, is_foreign)` and matches that message
+case-insensitively; every other error path still fails open so a Graph outage cannot block
+onboarding.
+
+**Two Meta apps have near-identical names**, which is worth knowing before reading any log:
+
+| Name | App ID | Status |
+|---|---|---|
+| `Test Aira` | `2915845815438559` | Development, no privacy policy, **not** review-ready |
+| `AIRA` | `2225044871604460` | Published, Bloom Matrix, **the app the backend trusts** |
+
+Always cite the **ID**. `META_APP_ID` / `META_APP_SECRET` in Render are AIRA's; the backend has never
+heard of Test Aira, so anything configured there is discarded at the signature check.
+
+**Capability errors look like scope errors but are not.** With a Test Aira token,
+`POST /{ig-account-id}/subscribed_apps` returns `(#3) Application does not have the capability to
+make this API call.` That is the *app* lacking Instagram messaging capability, not the token lacking
+scopes — the frontend's "check token scopes" hint is misleading here.

@@ -195,7 +195,44 @@
 ## Instagram/Messenger for Astro Tamil — wired but unproven, and not review-ready (2026-08-30)
 - **State at close**: tenant `Astro Tamil` (`eba3ed94-…`) has `instagram_page_id = 17841442269423222`; `instagram_access_token` and `instagram_app_secret` were written **directly via SQL** (Test Aira's Page token, and Test Aira's app secret `e7da5a94…` / md5 `b1779b33…`) so that the app configured in Meta and the secret the backend verifies against finally match. `meta_app_secret` was deliberately left untouched so WhatsApp keeps working. **No inbound Instagram DM has been observed yet.** The last blocker handed to the user: Test Aira's callback URL points at `/webhook/facebook/9dfe3f53-…` — wrong route *and* wrong tenant — and must become `/webhook/instagram/eba3ed94-277c-430f-a992-19bbe855e2f4` with verify token `aira_super_secret_token_2` and field `messages`.
 - **Test Aira (`2915845815438559`) cannot be submitted for App Review**: Basic settings show an empty Privacy policy URL, Terms of Service and User data deletion both pointing at `facebook.com`, no app icon, no category, and App Mode still Development. Either fix all of that, or move the channel config onto the app that runs WhatsApp.
-- **A third Meta app exists and nobody has opened it.** The frontend's embedded signup targets `2225044871604460` as a **hardcoded `||` fallback** (`useMetaSignup.ts:9`), which a Vercel `NEXT_PUBLIC_META_APP_ID` could override; Render's MCP exposes no way to read env vars back, so this was never confirmed. The app that actually owns WhatsApp — whose secret hashes to `0bc23dc7…` — was never identified by name. Do that before any App Review work; find it via developers.facebook.com/apps → the app whose WhatsApp → API Setup shows phone number id `1169577579582721`.
+- ~~**A third Meta app exists and nobody has opened it**~~ — **RESOLVED 2026-08-30**. It is **`2225044871604460`, display name "AIRA", under the Bloom Matrix account** — confirmed by the user against Render's `META_APP_ID`. It is already **Published** and uses Meta's newer **Use cases** console layout (no "Products" list). Recorded in [stack-and-rules](../context/stack-and-rules.md#the-meta-app--one-app-for-every-client).
 - **Regenerate the Page access token** — it was pasted into a chat transcript this session.
-- **Multi-tenant IG/FB is structurally blocked**: one Meta app serves exactly one tenant for these channels (tenant in the callback path vs. one callback URL per webhook object). Port WhatsApp's payload-based `_resolve_tenant_from_payload` to the IG/FB routes if a second tenant ever needs Instagram or Messenger.
+- ~~**Multi-tenant IG/FB is structurally blocked**~~ — **RESOLVED 2026-08-30** (`da162424`, live). `/webhook/instagram` and `/webhook/facebook` now take no tenant and resolve it from `entry[].id`; the `/{tenant_id}` routes remain for URLs already configured in Meta.
 - **Unwind Test Aira properly** if the config moves: clearing a callback URL does not unsubscribe the Page — its `subscribed_apps` entry keeps delivering until the Page is disconnected under Messenger → Generate access tokens.
+
+
+## Meta channels — verified state at 2026-08-30 close
+Routing, diagnostics and webhook self-registration shipped and are live (`da162424`, `80e6b104`).
+Two claims in the previous version of this block were **disproved by live logs** and are corrected
+here: the AIRA app *does* have the Instagram webhook object, and the sync *has* run.
+
+**Proven working (Render logs, 2026-08-30 12:21):**
+- `App webhook subscription live: instagram -> https://aira-ai-5tfr.onrender.com/webhook/instagram`
+  — `POST /{app-id}/subscriptions` succeeded against app `2225044871604460`, and the shared
+  tenant-agnostic endpoint answered Meta's `hub.challenge`. The manual console step is gone, and
+  the Instagram webhook object exists on that app (a missing one could not have been registered).
+- The `(#100)` bad-field error is gone; `subscribed_fields` per channel was correct.
+
+**Still open:**
+- **Astro Tamil's Instagram token is Test Aira's, and Test Aira lacks the capability.**
+  `subscribed_apps` now fails with `(#3) Application does not have the capability to make this API
+  call.` Mint a Page access token **inside app `2225044871604460`** and replace
+  `instagram_access_token`.
+- **`instagram_app_secret` must be cleared.** It currently holds Test Aira's secret
+  (`e7da5a94…`). Now that the callback URL is registered on the AIRA app, Meta signs inbound events
+  with **AIRA's** secret, so leaving Test Aira's value there fails every signature — the same bug as
+  before with the two apps swapped. Blank the field so it falls back to `meta_app_secret`; the
+  Panel.tsx fix (`cbe6575d`) made clearing possible.
+- **Two Meta apps have near-identical names** — `Test Aira` (`2915845815438559`, Development, no
+  privacy policy, not review-ready) and `AIRA` (`2225044871604460`, Published, Bloom Matrix, the one
+  the backend trusts). This collision caused real confusion; always cite the app **ID**, not the name.
+- **`META_VERIFY_TOKEN` is not set in Render.** The env list goes straight from `META_APP_SECRET` to
+  `PUBLIC_BASE_URL`. `resolve_verify_token()` falls back to any tenant's stored copy
+  (`aira_super_secret_token_2`, on all five tenants), so nothing is broken — but env is the intended
+  source and should be set.
+- **Regenerate the Page access token** once the screencast is done — it was pasted into a chat
+  transcript.
+- **No inbound Instagram DM has ever been observed.** Everything above stays unproven until one lands.
+- **App Review still blocked**: Development mode means only users with an app role can complete the
+  embedded-signup popup. Real client onboarding needs Meta approval for Instagram/Messenger
+  messaging — the reason for the screencast.
