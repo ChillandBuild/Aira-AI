@@ -442,6 +442,39 @@ async def webhook_health(ctx: dict = Depends(require_settings_read)):
     return {"health": health, "token_alerts": token_alerts}
 
 
+async def _resolve_token_app_id(access_token: str) -> str | None:
+    """Ask Meta which app issued this token. None when it can't be determined.
+
+    Same `debug_token` call `meta_cloud._read_granular_scopes` already makes. Used
+    as a guard, not a gate: an inconclusive answer never blocks activation.
+    """
+    if not env_settings.meta_app_id or not env_settings.meta_app_secret:
+        return None
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://graph.facebook.com/v21.0/debug_token",
+                params={
+                    "input_token": access_token,
+                    "access_token": f"{env_settings.meta_app_id}|{env_settings.meta_app_secret}",
+                },
+                timeout=10.0,
+            )
+        body = r.json()
+    except (httpx.HTTPError, ValueError) as e:
+        logger.warning(f"debug_token lookup failed: {e}")
+        return None
+
+    data = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(data, dict) or not data.get("app_id"):
+        # Meta refuses to introspect a token issued by an unrelated app, so an
+        # error here is itself weak evidence of a mismatch — too weak to block on.
+        err = (body or {}).get("error", {}).get("message", "no data returned")
+        logger.warning(f"debug_token could not identify the token's app: {err}")
+        return None
+    return str(data["app_id"])
+
+
 @router.post("/activate")
 async def activate_channel(
     payload: ActivateChannelRequest,
@@ -681,6 +714,22 @@ async def activate_channel(
     data = r.json()
     if "error" in data:
         raise HTTPException(status_code=400, detail=data["error"].get("message", "Invalid credentials"))
+
+    # A token from a different Meta app passes /me and subscribes happily — and then
+    # every inbound event fails signature verification and is dropped, because Meta
+    # signs with the App Secret of the app that owns the subscription. That failure is
+    # invisible from the product, so catch the mismatch here, at the click.
+    token_app_id = await _resolve_token_app_id(token)
+    if token_app_id and env_settings.meta_app_id and token_app_id != env_settings.meta_app_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"This token belongs to Meta app {token_app_id}, but Aira verifies webhooks "
+                f"with app {env_settings.meta_app_id}. Configure {channel} in app "
+                f"{env_settings.meta_app_id} and use a Page token from it — otherwise messages "
+                f"arrive and are rejected as unsigned. Nothing was changed."
+            ),
+        )
 
     # Page and Instagram are separate webhook objects with separate field
     # vocabularies. message_deliveries/message_reads are Messenger-only; sending

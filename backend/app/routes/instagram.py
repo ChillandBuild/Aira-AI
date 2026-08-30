@@ -5,7 +5,12 @@ from app.db.supabase import get_supabase
 from app.config_dynamic import get_setting
 from app.services.growth import record_stage_event, get_or_create_campaign
 from app.services.ai_reply import generate_reply
-from app.services.meta_webhook_verify import verify_meta_signature, resolve_tenant_for_page
+from app.services.meta_webhook_verify import (
+    verify_meta_signature,
+    resolve_tenant_for_page,
+    resolve_tenants_from_payload,
+    matches_any_tenant_verify_token,
+)
 from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
@@ -267,3 +272,56 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
                 logger.error(f"Failed to queue generate_reply task for Instagram lead {lead_id}: {reply_err}")
 
     return {"status": "ok"}
+
+
+# ── Shared, tenant-agnostic endpoint ────────────────────────────────────────
+# Meta allows exactly one callback URL per app per webhook object, so the
+# /{tenant_id} routes above can only ever serve a single tenant per Meta app.
+# These routes take no tenant and derive it from entry[].id instead — the same
+# approach /webhook/whatsapp has always used. The per-tenant routes stay for the
+# URLs already configured in Meta.
+
+@router.get("")
+async def verify_instagram_webhook_shared(request: Request):
+    mode = request.query_params.get("hub.mode")
+    token = request.query_params.get("hub.verify_token")
+    challenge = request.query_params.get("hub.challenge")
+
+    if mode == "subscribe" and matches_any_tenant_verify_token(token):
+        logger.info("Instagram webhook verified on the shared endpoint")
+        return Response(content=challenge, media_type="text/plain")
+
+    logger.warning("Instagram shared webhook verification failed — token matched no tenant")
+    return Response(content="Forbidden", status_code=403)
+
+
+@router.post("")
+async def instagram_webhook_shared(request: Request, background_tasks: BackgroundTasks):
+    """Route each entry to its owning tenant, then reuse the per-tenant handler.
+
+    The signature is checked inside that handler, against the resolved tenant's
+    secret — resolving from an unverified body only picks which secret to verify
+    against, it never grants trust. Entries owned by another tenant are skipped by
+    the handler's own ownership check, so calling it once per distinct tenant
+    processes every entry exactly once.
+    """
+    raw_body = await request.body()
+    try:
+        import json as _json
+        payload = _json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except Exception:
+        logger.error("Failed to parse Instagram shared webhook request JSON")
+        return {"status": "ok", "detail": "invalid_json"}
+
+    tenants = resolve_tenants_from_payload(payload, "instagram")
+    if not tenants:
+        entry_ids = [e.get("id") for e in payload.get("entry", []) or []]
+        logger.warning(
+            f"Instagram shared webhook: no tenant owns entries {entry_ids} — "
+            f"is instagram_page_id set to the IG business account id for this account?"
+        )
+        return {"status": "ok", "detail": "no_tenant_for_entries"}
+
+    for tenant_id in tenants:
+        await instagram_webhook(tenant_id, request, background_tasks)
+    return {"status": "ok", "tenants": len(tenants)}

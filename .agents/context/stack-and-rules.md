@@ -25,8 +25,27 @@
 - **WhatsApp Business Account (WABA) ID**: `meta_waba_id = 994218516456571`
 - **Backend Production URL**: `https://aira-ai-5tfr.onrender.com`
 - **WhatsApp Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/whatsapp`
-- **Instagram Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/instagram/{tenant_id}`
-- **Facebook Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/facebook/{tenant_id}`
+- **Instagram Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/instagram` (shared — preferred). The legacy `/webhook/instagram/{tenant_id}` form still works but serves only that one tenant.
+- **Facebook Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/facebook` (shared — preferred). Legacy `/webhook/facebook/{tenant_id}` likewise.
+
+### The Meta app — one app for every client
+There is exactly **one** Meta app for all tenants. It belongs to the **Bloom Matrix** account and
+holds the approved WhatsApp messaging + management permissions. Its id and secret live **only** in
+Render env (`META_APP_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`) — never per tenant, never in the
+repo.
+- **Production Meta App ID**: `2225044871604460` (Bloom Matrix)
+- Onboarding a client adds **no** Render env var. Client-specific values (`meta_waba_id`,
+  `meta_phone_number_id`, `meta_access_token`, `{facebook,instagram}_page_id`,
+  `{facebook,instagram}_access_token`) are written per tenant into `app_settings` by Embedded
+  Signup.
+- Configuring a channel in any **other** Meta app silently breaks it: Meta signs each payload with
+  the App Secret of the app owning the subscription, so every event fails verification and is
+  dropped. `activate_channel` now refuses a token whose `debug_token` app id differs from
+  `META_APP_ID`, and a signature rejection logs the secret's fingerprint — see
+  [subsystem-notes](subsystem-notes.md#meta-webhook-signature-verification--which-apps-secret-signs-what-2026-08-30).
+- **Rotating `META_APP_SECRET` does not reach existing tenants.** `_save_shared_meta_app_credentials()`
+  copies it into `app_settings` only at connect time, and `get_setting` has no env fallback. Rotating
+  it requires re-writing every tenant's row or every already-onboarded client breaks.
 - **Telegram Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/telegram/{tenant_id}`
 
 ## Hard Invariants (Never Break)
