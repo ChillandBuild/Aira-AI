@@ -34,6 +34,13 @@ holds the approved WhatsApp messaging + management permissions. Its id and secre
 Render env (`META_APP_ID`, `META_APP_SECRET`, `META_VERIFY_TOKEN`) — never per tenant, never in the
 repo.
 - **Production Meta App ID**: `2225044871604460` (Bloom Matrix)
+- **The callback URL + verify token are app-level and now register themselves.**
+  `services/meta_app_webhooks.py` calls `POST /{app-id}/subscriptions` with the shared
+  tenant-agnostic URLs; it runs on every channel activation and on demand via
+  `POST /api/v1/settings/webhook-subscriptions/sync`. Nothing per-client configures them
+  because there is nothing per-client about them — one URL and one token serve every tenant.
+  The verify token resolves from `META_VERIFY_TOKEN`, falling back to any tenant's stored
+  copy (this deployment has the tenants' copies but not the env var).
 - Onboarding a client adds **no** Render env var. Client-specific values (`meta_waba_id`,
   `meta_phone_number_id`, `meta_access_token`, `{facebook,instagram}_page_id`,
   `{facebook,instagram}_access_token`) are written per tenant into `app_settings` by Embedded

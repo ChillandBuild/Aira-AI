@@ -442,6 +442,20 @@ async def webhook_health(ctx: dict = Depends(require_settings_read)):
     return {"health": health, "token_alerts": token_alerts}
 
 
+@router.post("/webhook-subscriptions/sync")
+async def sync_webhook_subscriptions(ctx: dict = Depends(require_settings_manage)):
+    """Register the app-level callback URL + verify token for every channel.
+
+    App-level rather than tenant-level: it installs the same canonical URLs derived
+    from server config for everyone and takes no caller input, so this cannot be used
+    to point the app's webhooks somewhere of the caller's choosing.
+    """
+    from app.services.meta_app_webhooks import sync_all_app_webhook_subscriptions
+
+    results = await sync_all_app_webhook_subscriptions()
+    return {"results": results, "all_ok": all(r.get("ok") for r in results.values())}
+
+
 async def _resolve_token_app_id(access_token: str) -> str | None:
     """Ask Meta which app issued this token. None when it can't be determined.
 
@@ -690,11 +704,15 @@ async def activate_channel(
             target_id="whatsapp",
             metadata={"channel": "whatsapp", "subscribed": subscribed},
         )
+        from app.services.meta_app_webhooks import ensure_app_webhook_subscription
+        wa_webhook_registration = await ensure_app_webhook_subscription("whatsapp")
+
         return {
             "channel": "whatsapp",
             "phone_number": data.get("display_phone_number"),
             "business_name": data.get("verified_name"),
             "subscribed": subscribed,
+            "webhook_registration": wa_webhook_registration,
         }
 
     # instagram or facebook
@@ -760,6 +778,13 @@ async def activate_channel(
         "updated_at": "now()",
     }, on_conflict="tenant_id,key").execute()
 
+    # The callback URL + verify token are app-level and were historically pasted into
+    # the Meta console by hand — which is why a channel could be "live" here while Meta
+    # had nowhere to deliver to. Re-assert them on every activation: idempotent, and it
+    # removes the manual step entirely.
+    from app.services.meta_app_webhooks import ensure_app_webhook_subscription
+    webhook_registration = await ensure_app_webhook_subscription(channel)
+
     logger.info(f"{channel} activated tenant={tenant_id} page={data.get('name')} subscribed={subscribed}")
     record_audit_event(
         db,
@@ -776,6 +801,7 @@ async def activate_channel(
         "page_name": data.get("name"),
         "page_id": data.get("id"),
         "subscribed": subscribed,
+        "webhook_registration": webhook_registration,
     }
 
 
