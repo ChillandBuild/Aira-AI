@@ -98,8 +98,11 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   }
 
   // Check if a channel's fields are completely set in DB
+  // Optional fields must not gate activation. Counting them made the Instagram
+  // App Secret mandatory in practice, and the only way to light the button back
+  // up was pasting a secret that then broke webhook signature checks.
   const isChannelConfigured = useCallback((channel: ChannelConfig) => {
-    return channel.fields.every(f => settings.find(s => s.key === f.key)?.is_set);
+    return channel.fields.every(f => !f.required || settings.find(s => s.key === f.key)?.is_set);
   }, [settings]);
 
   // Check if modal channel has drafts changes
@@ -109,7 +112,9 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
       const meta = settings.find(s => s.key === f.key);
       const draft = drafts[f.key];
       if (draft === undefined) return false;
-      if (f.secret) return draft.length > 0;
+      // Emptying a stored secret is a change too — treating it as "no change"
+      // left no way to remove a credential once saved.
+      if (f.secret) return draft.length > 0 || Boolean(meta?.is_set);
       const stored = meta?.display_value === "Not set" ? "" : (meta?.display_value ?? "");
       return draft !== stored;
     });
@@ -128,7 +133,9 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
       // so first-time saves (e.g. instagram_app_secret) aren't dropped.
       const current = settingFor(f.key);
       if (f.secret) {
-        if (draft.length > 0) updates[f.key] = draft;
+        // Send the empty string when clearing an existing secret; skip it only
+        // when there was nothing stored to clear.
+        if (draft.length > 0 || current?.is_set) updates[f.key] = draft;
       } else {
         const stored = current?.display_value === "Not set" ? "" : (current?.display_value ?? "");
         if (draft !== stored) updates[f.key] = draft;
