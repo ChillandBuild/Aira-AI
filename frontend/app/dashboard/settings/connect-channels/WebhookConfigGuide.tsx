@@ -2,7 +2,10 @@
 import { API_URL } from "@/lib/api";
 import { CopyButton } from "./ui";
 
-export default function WebhookConfigGuide({ channelId, tenantId }: { channelId: string; tenantId: string | null }) {
+// tenantId is still accepted so the caller needn't change, but Instagram and Facebook
+// no longer put it in the callback URL: Meta allows one callback URL per app per
+// webhook object, so a URL naming one client could only ever serve that client.
+export default function WebhookConfigGuide({ channelId }: { channelId: string; tenantId?: string | null }) {
   if (channelId === "whatsapp") {
     const url = `${API_URL}/webhook/whatsapp`;
     return (
@@ -36,41 +39,41 @@ export default function WebhookConfigGuide({ channelId, tenantId }: { channelId:
   }
 
   if (channelId === "instagram") {
-    const url = tenantId ? `${API_URL}/webhook/instagram/${tenantId}` : null;
+    const url = `${API_URL}/webhook/instagram`;
     return (
       <div className="p-5 rounded-2xl bg-surface-subtle border border-border-subtle font-body text-xs text-ink-secondary space-y-2.5">
         <p className="font-semibold text-ink text-sm">Meta Webhook Configuration Guide:</p>
-        <p>1. In your Meta Developer App, add the <strong>Instagram Graph API</strong> product.</p>
-        <p>2. Set the Webhook Callback URL to:</p>
+        <p>1. Paste a <strong>Page access token</strong> below, then click <strong>Validate &amp; Activate</strong>. That registers the callback URL and verify token with Meta for you — you should not need to open the Meta console at all.</p>
+        <p>2. For reference, or to set it by hand, the Callback URL is:</p>
         <div className="flex items-center gap-2">
           <div className="flex-grow p-3 rounded-xl bg-white border border-border font-mono text-xs select-all break-all text-primary font-medium">
-            {url ?? "Retrieving webhook URL…"}
+            {url}
           </div>
-          {url && <CopyButton text={url} />}
+          <CopyButton text={url} />
         </div>
-        <p>3. Use the verify token you set in your WhatsApp integration (meta_webhook_verify_token).</p>
-        <p>4. Subscribe to <strong>messages</strong> Webhook event fields.</p>
-        <p>5. After saving credentials, click <strong>Validate &amp; Activate</strong> to auto-subscribe the webhook.</p>
+        <p>3. This one URL serves every client — no client ID in it. Aira works out who a message belongs to from the Instagram account it was sent to.</p>
+        <p>4. Verify token: the same <strong>meta_webhook_verify_token</strong> your WhatsApp uses. Subscribe to <strong>messages</strong>.</p>
+        <p>5. The token must come from the <strong>same Meta app the backend uses</strong>. A token from a different app is refused, and names the app it belongs to.</p>
       </div>
     );
   }
 
   if (channelId === "facebook") {
-    const url = tenantId ? `${API_URL}/webhook/facebook/${tenantId}` : null;
+    const url = `${API_URL}/webhook/facebook`;
     return (
       <div className="p-5 rounded-2xl bg-surface-subtle border border-border-subtle font-body text-xs text-ink-secondary space-y-2.5">
         <p className="font-semibold text-ink text-sm">Facebook Messenger Webhook Configuration Guide:</p>
-        <p>1. In your Meta Developer App, add the <strong>Messenger</strong> product and link your Page.</p>
-        <p>2. Set the Webhook Callback URL to:</p>
+        <p>1. Paste a <strong>Page access token</strong> below, then click <strong>Validate &amp; Activate</strong>. That registers the callback URL and verify token with Meta for you — you should not need to open the Meta console at all.</p>
+        <p>2. For reference, or to set it by hand, the Callback URL is:</p>
         <div className="flex items-center gap-2">
           <div className="flex-grow p-3 rounded-xl bg-white border border-border font-mono text-xs select-all break-all text-primary font-medium">
-            {url ?? "Retrieving webhook URL…"}
+            {url}
           </div>
-          {url && <CopyButton text={url} />}
+          <CopyButton text={url} />
         </div>
-        <p>3. Use the same verify token configured in your WhatsApp integration (meta_webhook_verify_token).</p>
-        <p>4. Subscribe to <strong>messages</strong> Webhook event fields under your Page.</p>
-        <p>5. After saving credentials, click <strong>Validate &amp; Activate</strong> to auto-subscribe the webhook.</p>
+        <p>3. This one URL serves every client — no client ID in it. Aira works out who a message belongs to from the Page it was sent to.</p>
+        <p>4. Verify token: the same <strong>meta_webhook_verify_token</strong> your WhatsApp uses. Subscribe to <strong>messages</strong> under your Page.</p>
+        <p>5. The token must come from the <strong>same Meta app the backend uses</strong>. A token from a different app is refused, and names the app it belongs to.</p>
       </div>
     );
   }
