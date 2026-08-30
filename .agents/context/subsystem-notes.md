@@ -535,3 +535,42 @@ the control when you navigate off Notifications. Note this is a *different* mech
 the Notes page's header controls, which use `window` CustomEvents; prefer the store for
 new work. The header group is `hidden md:flex`, matching the other page-specific header
 control groups — there is no mobile affordance for expand-all by design.
+
+## Meta webhook signature verification — which app's secret signs what (2026-08-30)
+
+Every inbound Meta webhook is HMAC-checked in `services/meta_webhook_verify.py` against a secret
+read from `app_settings`. The rule that trips people up: the secret belongs to the **Meta app that
+owns the webhook subscription**, not to the channel or the tenant.
+
+- `meta_app_secret` is **app-level, not tenant-level**. `_save_shared_meta_app_credentials()`
+  copies it (and `meta_webhook_verify_token`) from the backend's env onto every tenant at connect
+  time, so all tenants hold the identical value. WhatsApp (`routes/webhook.py`) and Facebook
+  (`routes/facebook.py`) verify against it and have **no per-channel override**.
+- Instagram alone has one: `verify_meta_signature(..., secret_key="instagram_app_secret")`, falling
+  back to `meta_app_secret` when that key is empty. It exists for the Instagram-Login
+  (`graph.instagram.com`) flavour, which is signed by a different secret.
+- **Therefore**: configuring a channel's webhook in a Meta app other than the one whose secret is in
+  the backend env silently 403s every event. On 2026-08-29 a Page/Instagram webhook was configured
+  in a "Test Aira" app (`2915845815438559`, app secret md5 `b1779b33…`) while the backend held a
+  third app's secret (md5 `0bc23dc7…`, the one WhatsApp runs on) — a continuous 403 flood with no
+  other symptom.
+- **The verify-token GET proves nothing about app identity.** `verify_instagram_webhook` /
+  `verify_facebook_webhook` only compare `hub.verify_token` to the tenant setting, so *any* app that
+  pastes the right URL and token passes "Verify and save". Only the signed POST discriminates.
+- **How to diagnose**: compare `md5(value)` of `meta_app_secret` / `instagram_app_secret` in
+  `app_settings` against the secret at Meta → App settings → Basic. A WhatsApp POST returning 200
+  **with no accompanying WARNING** proves the stored secret is valid for whichever app sends
+  WhatsApp — all three drop paths in `routes/webhook.py` log a warning before returning 200.
+
+**Instagram must be the Facebook-Login flavour.** `send_instagram()` posts to
+`graph.facebook.com/v21.0/me/messages` with a **Page** access token, and activation subscribes on the
+same host — nothing in the codebase calls `graph.instagram.com`. So `instagram_access_token` holds a
+*Page* token (the embedded flow writes the same token to both channels) and `instagram_app_secret`
+should be left **blank**. `instagram_page_id` must hold the IG business account id (`17841…`),
+because that is what arrives as `entry.id` and what `resolve_tenant_for_page()` matches — a mismatch
+skips the entry with a "belongs to tenant X, not Y" warning and looks exactly like nothing happening.
+
+**One tenant per Meta app.** The IG/FB callback URLs carry `tenant_id` in the path, but a Meta app
+allows only one callback URL per webhook object — so one Meta app serves Instagram/Messenger for
+exactly **one** tenant. WhatsApp has no such limit: `/webhook/whatsapp` takes no tenant and resolves
+it from the payload (`_resolve_tenant_from_payload`).
