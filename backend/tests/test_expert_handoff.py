@@ -644,16 +644,20 @@ async def test_nested_package_conversation_drills_down_and_offers_addon():
     # Turn 2: awaiting_package_choice at root, lead says "Basic" -> resolves to
     # Basic's 2 active children -> "choose", but "Detailed Consultation" is 21
     # chars (over the 20-char button limit, no button_label set on the fixture)
-    # so this level fails the buttons tier and falls to plain text -- exactly
-    # the scenario button_label exists for (spec section 5), unexercised here
-    # since this fixture doesn't set one.
+    # so this level fails the buttons tier -- but with only 2 options it still
+    # qualifies for the list tier (24-char row cap fits both names), so it's
+    # tappable as a list rather than falling back to plain text.
     session = {**session, "status": "awaiting_package_choice", "package_draft_path": []}
     db = _nested_session_db(existing_session=session)
-    with patch.object(eh, "_send_and_log", new=AsyncMock()) as send:
+    with patch.object(eh, "_send_list_and_log", new=AsyncMock()) as send:
         consumed = await eh.route_intake("lead-1", "t-1", "+91999", "Basic", db=db)
     assert consumed is True
     assert "One Question" in send.call_args[0][1]
     assert "Detailed Consultation" in send.call_args[0][1]
+    sections = send.call_args[0][3]
+    rows = [row for section in sections for row in section["rows"]]
+    assert {r["id"] for r in rows} == {"basic_q", "basic_detail"}
+    assert {r["title"] for r in rows} == {"One Question", "Detailed Consultation"}
     update_patch = db.table("intake_sessions").update.call_args[0][0]
     assert update_patch["package_draft_path"] == [{"key": "basic", "name": "Basic"}]
 

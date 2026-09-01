@@ -454,11 +454,16 @@ def _short_label(node: dict, limit: int) -> str | None:
 
 def _tap_mode(level: list[dict]) -> str:
     """Pure Python, no LLM -- same rule as prices never being LLM-authored.
-    Returns "buttons", "list", or "text"."""
+    Returns "buttons", "list", or "text". Buttons need a clean fit (2-3 options,
+    every title <=20 chars) -- WhatsApp's real cap, kept as-is. Any other count
+    from 2-10 falls to a list, which always renders (see _row_title's truncation
+    fallback) rather than ever giving up on tappability over label length alone.
+    Only outside 2-10 -- zero/one option, or more than WhatsApp's 10-row list cap
+    -- is genuinely unfixable in code and stays "text"."""
     n = len(level)
     if 2 <= n <= 3 and all(_short_label(item, _BUTTON_TITLE_MAX) for item in level):
         return "buttons"
-    if 4 <= n <= 10 and all(_short_label(item, _LIST_ROW_TITLE_MAX) for item in level):
+    if 2 <= n <= 10:
         return "list"
     return "text"
 
@@ -467,9 +472,22 @@ def _build_buttons(level: list[dict]) -> list[dict]:
     return [{"id": item["key"], "title": _short_label(item, _BUTTON_TITLE_MAX)} for item in level]
 
 
+def _row_title(node: dict) -> str:
+    """List rows are the last tappable option before plain text -- unlike a button,
+    which only renders when _tap_mode already confirmed a clean fit, a list row
+    still needs a title even when the configured name/button_label is longer than
+    WhatsApp's 24-char row cap. Truncating (rather than failing) is what lets
+    _tap_mode treat every 2-10 option level as tappable, never falling through to
+    unclickable text over label length alone."""
+    label = node.get("button_label") or node["name"]
+    if len(label) <= _LIST_ROW_TITLE_MAX:
+        return label
+    return label[: _LIST_ROW_TITLE_MAX - 1].rstrip() + "…"
+
+
 def _build_list_sections(level: list[dict]) -> list[dict]:
     return [{"rows": [
-        {"id": item["key"], "title": _short_label(item, _LIST_ROW_TITLE_MAX)}
+        {"id": item["key"], "title": _row_title(item)}
         for item in level
     ]}]
 

@@ -433,7 +433,7 @@ class PackagePatchTests(unittest.TestCase):
         self.assertEqual(patch["total_amount_paise"], 30000)
 
 
-from app.services.intake import _NO_ADDONS_OPTION, _build_buttons, _build_list_sections, _short_label, _tap_mode
+from app.services.intake import _NO_ADDONS_OPTION, _build_buttons, _build_list_sections, _row_title, _short_label, _tap_mode
 
 
 def _leaf(key, name, button_label=None):
@@ -469,13 +469,18 @@ class TapModeTests(unittest.TestCase):
         level = [_leaf(f"k{i}", f"Option {i}") for i in range(11)]
         self.assertEqual(_tap_mode(level), "text")
 
-    def test_a_label_too_long_for_buttons_with_only_two_options_is_text(self):
+    def test_a_label_too_long_for_buttons_with_only_two_options_falls_back_to_list(self):
+        # Too long for a button (>20 chars), but with only 2 options this now falls
+        # to a list rather than giving up on tappability -- list rows truncate
+        # (see _row_title) instead of failing outright.
         level = [_leaf("a", "A"), _leaf("b", "A Name Definitely Over Twenty Chars")]
-        self.assertEqual(_tap_mode(level), "text")
+        self.assertEqual(_tap_mode(level), "list")
 
-    def test_a_label_too_long_even_for_list_tier_is_text(self):
+    def test_a_label_too_long_even_for_list_tier_still_becomes_a_list(self):
+        # Even a name longer than the 24-char row cap stays tappable: _row_title
+        # truncates it rather than _tap_mode falling back to plain text.
         level = [_leaf(f"k{i}", "A Description Text Well Over Twenty Four Characters Long") for i in range(5)]
-        self.assertEqual(_tap_mode(level), "text")
+        self.assertEqual(_tap_mode(level), "list")
 
     def test_no_addons_option_counts_toward_the_tier(self):
         # A single addon alone is below the buttons floor (n=1 -> text), but with
@@ -498,6 +503,19 @@ class BuildButtonsAndSectionsTests(unittest.TestCase):
     def test_build_list_sections_wraps_rows_in_one_section(self):
         sections = _build_list_sections([_leaf("a", "A"), _leaf("b", "B")])
         self.assertEqual(sections, [{"rows": [{"id": "a", "title": "A"}, {"id": "b", "title": "B"}]}])
+
+
+class RowTitleTests(unittest.TestCase):
+    def test_short_name_passes_through_unchanged(self):
+        self.assertEqual(_row_title(_leaf("k", "Basic")), "Basic")
+
+    def test_name_over_the_row_cap_is_truncated_with_ellipsis(self):
+        title = _row_title(_leaf("k", "A Description Text Well Over Twenty Four Characters Long"))
+        self.assertEqual(len(title), 24)
+        self.assertTrue(title.endswith("…"))
+
+    def test_button_label_override_still_respected_when_it_fits(self):
+        self.assertEqual(_row_title(_leaf("k", "Very Long Package Name Indeed", "Short")), "Short")
 
 
 from app.services.intake import _send_buttons_and_log, _send_list_and_log
