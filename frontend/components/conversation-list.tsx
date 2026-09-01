@@ -3,7 +3,7 @@ import { api, Lead } from "@/lib/api";
 import { SegmentBadge } from "./segment-badge";
 import { ChannelAvatar, getChannel } from "./channel-avatar";
 import { formatConvoTime, formatPhone, cn } from "@/lib/utils";
-import { MessageCircle, Trash2, MoreVertical, MoreHorizontal, Search, X, SearchX, ChevronLeft, Pin, Filter, RefreshCw, Archive, Ban, Check, CheckCheck } from "lucide-react";
+import { MessageCircle, Trash2, MoreVertical, MoreHorizontal, Search, X, SearchX, ChevronLeft, Pin, Filter, RefreshCw, Archive, Ban, Check, CheckCheck, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import { CheckTick } from "@/components/ui/controls";
 
@@ -43,19 +43,19 @@ interface PlatformIconProps {
   className?: string;
 }
 
-const PLATFORMS: { value: PlatformFilter; label: string; icon: React.FC<PlatformIconProps> }[] = [
-  { value: "whatsapp", label: "WhatsApp", icon: MessageCircle },
-  { value: "instagram", label: "Instagram", icon: IgIcon },
-  { value: "facebook", label: "Facebook", icon: FbIcon },
-  { value: "telegram", label: "Telegram", icon: TgIcon },
-  { value: "all", label: "All", icon: SearchX },
+const PLATFORMS: { value: PlatformFilter; label: string; short: string; icon: React.FC<PlatformIconProps> }[] = [
+  { value: "all", label: "All channels", short: "All", icon: Inbox },
+  { value: "whatsapp", label: "WhatsApp", short: "WA", icon: MessageCircle },
+  { value: "instagram", label: "Instagram", short: "IG", icon: IgIcon },
+  { value: "facebook", label: "Facebook", short: "FB", icon: FbIcon },
+  { value: "telegram", label: "Telegram", short: "TG", icon: TgIcon },
 ];
 
 const SEGMENTS = [
-  { label: "Hot", value: "A" },
-  { label: "Warm", value: "B" },
-  { label: "Cold", value: "C" },
-  { label: "DQ", value: "D" },
+  { label: "Hot", value: "A", bg: "bg-segment-a-bg", text: "text-segment-a-text", border: "border-segment-a-border" },
+  { label: "Warm", value: "B", bg: "bg-segment-b-bg", text: "text-segment-b-text", border: "border-segment-b-border" },
+  { label: "Cold", value: "C", bg: "bg-segment-c-bg", text: "text-segment-c-text", border: "border-segment-c-border" },
+  { label: "DQ", value: "D", bg: "bg-segment-d-bg", text: "text-segment-d-text", border: "border-segment-d-border" },
 ] as const;
 
 interface Props {
@@ -91,18 +91,35 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
   const [cardMenuId, setCardMenuId] = useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setMenuOpen(false);
       }
+      // The toggle button lives inside filterRef, so its own click is never
+      // treated as "outside" — it keeps toggling instead of double-firing.
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setFiltersOpen(false);
+      }
       if (!(event.target as HTMLElement).closest?.("[data-card-menu]")) {
         setCardMenuId(null);
       }
     }
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFiltersOpen(false);
+        setMenuOpen(false);
+        setCardMenuId(null);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   function accountLabel(lead: Lead): string {
@@ -150,6 +167,8 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
         return new Date(bTime).getTime() - new Date(aTime).getTime();
       });
   }, [leads, platform, segment, searchQuery]);
+
+  const activeFilterCount = (platform !== "all" ? 1 : 0) + (segment ? 1 : 0);
 
   const platformCounts = useMemo(() => {
     const counts: Record<string, number> = { whatsapp: 0, instagram: 0, facebook: 0, telegram: 0, all: leads.length };
@@ -202,6 +221,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
       case "instagram": return "text-pink-500";
       case "facebook": return "text-blue-600";
       case "telegram": return "text-sky-500";
+      case "all": return "text-primary";
       default: return "text-green-500";
     }
   }
@@ -295,21 +315,112 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                   </button>
                 )}
               </div>
-              <button
-                onClick={() => setFiltersOpen((v) => !v)}
-                title="Filters"
-                className={cn(
-                  "w-9 h-9 rounded-xl flex items-center justify-center transition-colors shrink-0 relative",
-                  filtersOpen
-                    ? "bg-primary text-white shadow-sm"
-                    : "bg-surface-low border border-surface-mid text-on-surface-muted hover:bg-surface-mid"
+              {/* ── Filters: anchored popover, floats over the list ── */}
+              <div className="relative shrink-0" ref={filterRef}>
+                <button
+                  onClick={() => setFiltersOpen((v) => !v)}
+                  title="Filters"
+                  aria-haspopup="dialog"
+                  aria-expanded={filtersOpen}
+                  className={cn(
+                    "w-9 h-9 rounded-xl flex items-center justify-center transition-colors relative",
+                    filtersOpen
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-surface-low border border-surface-mid text-on-surface-muted hover:bg-surface-mid"
+                  )}
+                >
+                  <Filter size={14} />
+                  {activeFilterCount > 0 && !filtersOpen && (
+                    <span className="absolute -top-1 -right-1 h-[15px] min-w-[15px] px-1 rounded-full bg-primary ring-2 ring-surface flex items-center justify-center font-label text-[9px] font-bold text-white tabular-nums">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {filtersOpen && (
+                  <div
+                    role="dialog"
+                    aria-label="Filters"
+                    className="absolute right-0 top-[calc(100%+8px)] z-30 w-[264px] rounded-2xl border border-surface-mid bg-surface p-2.5 shadow-[0_16px_40px_-8px_rgba(24,16,48,0.22)] animate-popover-in"
+                  >
+                    {/* Channel */}
+                    <div className="flex items-center justify-between px-0.5 pb-1.5">
+                      <span className="font-label text-[9.5px] font-bold uppercase tracking-[0.08em] text-on-surface-muted">Channel</span>
+                      {activeFilterCount > 0 && (
+                        <button
+                          onClick={() => { onPlatformChange("all"); setSegment(null); }}
+                          className="font-label text-[10px] font-semibold text-primary hover:underline"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {PLATFORMS.map((p) => {
+                        const count = p.value === "all" ? platformCounts.all : (platformCounts[p.value] ?? 0);
+                        const Icon = p.icon;
+                        const active = platform === p.value;
+                        return (
+                          <button
+                            key={p.value}
+                            onClick={() => onPlatformChange(p.value)}
+                            title={p.label}
+                            aria-pressed={active}
+                            className={cn(
+                              "h-7 pl-2 pr-1.5 rounded-lg font-label text-[11px] font-semibold flex items-center gap-1.5 transition-all duration-150",
+                              getPlatformBg(active, p.value)
+                            )}
+                          >
+                            <Icon size={11} className={active ? "text-white" : getPlatformColor(p.value)} />
+                            {p.short}
+                            <span className={cn(
+                              "min-w-[16px] px-1 rounded-md text-[9px] font-bold leading-[14px] text-center tabular-nums",
+                              active ? "bg-white/25 text-white" : "bg-surface-mid text-on-surface-muted"
+                            )}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Stage */}
+                    <div className="mt-2.5 px-0.5 pb-1.5">
+                      <span className="font-label text-[9.5px] font-bold uppercase tracking-[0.08em] text-on-surface-muted">Stage</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1">
+                      {SEGMENTS.map((f) => {
+                        const count = leads.filter((l) => l.segment === f.value && (platform === "all" || getLeadPlatform(l) === platform)).length;
+                        const active = segment === f.value;
+                        return (
+                          <button
+                            key={f.value}
+                            onClick={() => setSegment(active ? null : f.value)}
+                            aria-pressed={active}
+                            className={cn(
+                              "h-[38px] rounded-lg border flex flex-col items-center justify-center gap-px transition-all duration-150",
+                              active
+                                ? cn(f.bg, f.border, "shadow-sm")
+                                : "bg-surface-low border-transparent hover:bg-surface-mid"
+                            )}
+                          >
+                            <span className={cn("font-label text-[9px] font-bold uppercase tracking-[0.06em]", active ? f.text : "text-on-surface-muted")}>
+                              {f.label}
+                            </span>
+                            <span className={cn("font-label text-[12px] font-bold leading-none tabular-nums", active ? f.text : "text-on-surface")}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <p className="mt-2.5 border-t border-surface-mid pt-2 px-0.5 font-label text-[10.5px] text-on-surface-muted">
+                      <span className="font-bold text-on-surface tabular-nums">{visible.length}</span> conversations
+                    </p>
+                  </div>
                 )}
-              >
-                <Filter size={14} />
-                {(segment !== null || platform !== "all") && !filtersOpen && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
-                )}
-              </button>
+              </div>
               <button
                 onClick={handleRefresh}
                 title="Refresh"
@@ -319,55 +430,6 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                 <RefreshCw size={14} className={isRefreshing ? "animate-spin" : ""} />
               </button>
             </div>
-
-            {/* ── Collapsible filter panel ── */}
-            {filtersOpen && (
-              <div className="mt-3 space-y-3 pb-1">
-                <div className="flex gap-1.5 flex-wrap">
-                  {PLATFORMS.map((p) => {
-                    const count = p.value === "all" ? platformCounts.all : (platformCounts[p.value] ?? 0);
-                    const Icon = p.icon;
-                    return (
-                      <button
-                        key={p.value}
-                        onClick={() => onPlatformChange(p.value)}
-                        className={cn(
-                          "px-2.5 py-1.5 rounded-lg font-label text-[11px] font-semibold transition-all duration-200 flex items-center gap-1.5",
-                          getPlatformBg(platform === p.value, p.value)
-                        )}
-                      >
-                        <Icon size={11} className={platform === p.value ? "text-white" : getPlatformColor(p.value === "all" ? "whatsapp" : p.value)} />
-                        {p.label === "WhatsApp" ? "WA" : p.label === "All" ? "All" : p.label.substring(0, 4)}
-                        <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[18px] text-center", platform === p.value ? "bg-white/20 text-white" : "bg-surface-mid text-on-surface-muted")}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  {SEGMENTS.map((f) => {
-                    const count = leads.filter(l => l.segment === f.value && (platform === "all" || getLeadPlatform(l) === platform)).length;
-                    return (
-                      <button
-                        key={f.value}
-                        onClick={() => setSegment(segment === f.value ? null : f.value)}
-                        className={cn(
-                          "px-2.5 py-1 rounded-lg font-label text-[11px] font-semibold transition-all duration-200 flex items-center gap-1.5",
-                          segment === f.value ? "bg-primary text-white shadow-sm" : "bg-surface-low text-on-surface-muted hover:bg-surface-mid hover:text-on-surface"
-                        )}
-                      >
-                        {f.label}
-                        <span className={cn("px-1.5 py-0.5 rounded-full text-[9px] font-bold min-w-[18px] text-center", segment === f.value ? "bg-white/20 text-white" : "bg-surface-mid text-on-surface-muted")}>
-                          {count}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="font-label text-[11px] text-on-surface-muted">{visible.length} conversations</p>
-              </div>
-            )}
           </>
         )}
       </div>

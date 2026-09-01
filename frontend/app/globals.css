@@ -338,3 +338,18 @@ canvas {
 .animate-slide-up {
   animation: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Anchored popovers (conversation filters) — scale + drop in from the anchor. */
+@keyframes popover-in {
+  0% { transform: translateY(-4px) scale(0.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.animate-popover-in {
+  transform-origin: top right;
+  animation: popover-in 0.14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-popover-in { animation: none; }
+}
