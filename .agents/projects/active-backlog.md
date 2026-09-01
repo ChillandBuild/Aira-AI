@@ -226,13 +226,39 @@ here: the AIRA app *does* have the Instagram webhook object, and the sync *has* 
 - **Two Meta apps have near-identical names** — `Test Aira` (`2915845815438559`, Development, no
   privacy policy, not review-ready) and `AIRA` (`2225044871604460`, Published, Bloom Matrix, the one
   the backend trusts). This collision caused real confusion; always cite the app **ID**, not the name.
-- **`META_VERIFY_TOKEN` is not set in Render.** The env list goes straight from `META_APP_SECRET` to
-  `PUBLIC_BASE_URL`. `resolve_verify_token()` falls back to any tenant's stored copy
-  (`aira_super_secret_token_2`, on all five tenants), so nothing is broken — but env is the intended
-  source and should be set.
+- ~~**`META_VERIFY_TOKEN` is not set in Render**~~ — **RESOLVED 2026-09-01**, the user added it
+  (`aira_super_secret_token_2`, matching what all five tenants hold and what is registered with
+  Meta). `resolve_verify_token()`'s DB fallback is now a safety net rather than the mechanism.
 - **Regenerate the Page access token** once the screencast is done — it was pasted into a chat
   transcript.
 - **No inbound Instagram DM has ever been observed.** Everything above stays unproven until one lands.
 - **App Review still blocked**: Development mode means only users with an app role can complete the
   embedded-signup popup. Real client onboarding needs Meta approval for Instagram/Messenger
   messaging — the reason for the screencast.
+
+
+## Meta app secret rotation — pending, do before real client onboarding (2026-09-01)
+The app secret was readable in plaintext from Render logs until `da232b80` muted httpx. Anyone who
+had log access has it. Rotating is deliberately **three** steps, and skipping the third breaks every
+tenant at once:
+1. Meta app `2225044871604460` → App settings → Basic → **Reset** the app secret.
+2. Update `META_APP_SECRET` in Render.
+3. **Rewrite every tenant's stored `meta_app_secret`.** `_save_shared_meta_app_credentials()` only
+   runs at connect/save time and `get_setting` has no env fallback, so existing tenants keep the
+   stale value and every inbound webhook fails signature verification until the rows are updated.
+   One `UPDATE app_settings SET value = … WHERE key = 'meta_app_secret'` covers it.
+
+## Per-channel Embedded Signup configurations — not created yet (2026-09-01)
+The popup forces the client to grant Instagram, Pages, Catalogs **and** Ads before "Next" enables,
+because `META_UNIFIED_CONFIG_ID` (`2026693308738446`) requests all of them. Config IDs are what
+decide the checkboxes, and a WhatsApp-only one already exists and works
+(`META_COEXISTENCE_CONFIG_ID` = `1063294086656120`, though it carries the coexistence
+`featureType`). To let a client grant only what they are buying, create in
+**Facebook Login for Business → Configurations**:
+- a plain WhatsApp-only config (no coexistence `featureType`), and
+- an Instagram/Messenger-only config (`pages_show_list`, `pages_messaging`, `pages_manage_metadata`,
+  `instagram_basic`, `instagram_manage_messages`).
+Then add each as an env var and pick per channel — `buildMetaLoginOptions(configId, mode)` already
+takes the config as an argument. **Note** the IG/Pages-only path cannot reuse `MetaSignupCoordinator`:
+it only parses `WA_EMBEDDED_SIGNUP` messages and requires a `waba_id`. That path goes through the
+existing business-login flow (`complete_meta_business_login` → `discover_business_login_assets`).

@@ -36,17 +36,21 @@ class BuildAdPerformanceTests(unittest.TestCase):
 
     def test_tracked_leads_today_only_counts_leads_created_today(self):
         now = datetime.now(timezone.utc)
-        today = now.date().isoformat()
-        old = (now - timedelta(days=30)).date().isoformat()
+        # Stamp both leads from `now` rather than building "{utc_date}T09:00:00+00:00".
+        # build_ad_performance buckets by IST calendar date (growth.py's IST_OFFSET),
+        # so between 18:30 and 00:00 UTC the UTC date is already a day behind IST and
+        # a "today" fixture built that way lands on the previous IST day.
+        today_ts = now.isoformat()
+        old_ts = (now - timedelta(days=30)).isoformat()
 
         campaigns = [{"id": "camp-1", "platform": "facebook", "campaign_name": "C1",
                       "external_campaign_id": "ext-1", "spend_inr": 100}]
         leads = [
             {"id": "l1", "ad_campaign_id": "camp-1", "segment": "C",
-             "converted_at": None, "created_at": f"{today}T09:00:00+00:00",
+             "converted_at": None, "created_at": today_ts,
              "ad_name": None, "ad_set_name": None},
             {"id": "l2", "ad_campaign_id": "camp-1", "segment": "C",
-             "converted_at": None, "created_at": f"{old}T09:00:00+00:00",
+             "converted_at": None, "created_at": old_ts,
              "ad_name": None, "ad_set_name": None},
         ]
         db = self._mock_db(campaigns=campaigns, leads=leads)

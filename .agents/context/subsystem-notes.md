@@ -607,3 +607,46 @@ heard of Test Aira, so anything configured there is discarded at the signature c
 `POST /{ig-account-id}/subscribed_apps` returns `(#3) Application does not have the capability to
 make this API call.` That is the *app* lacking Instagram messaging capability, not the token lacking
 scopes — the frontend's "check token scopes" hint is misleading here.
+
+## Graph API credentials leak through httpx's request log (2026-09-01)
+
+Meta's Graph API takes credentials as **query parameters**, and `httpx` logs every request URL at
+INFO including the query string. That put the Meta app secret — inside the `{app_id}|{secret}` app
+access token — and every Page access token into Render's logs in plaintext:
+
+```
+HTTP Request: GET .../debug_token?input_token=EAApb8kIM…&access_token=2225044871604460|366a9b73…
+```
+
+Enough to forge webhook signatures for every tenant. `main.py` now sets the `httpx` logger to
+WARNING; our own log lines are unaffected, and `test_httpx_logging_muted.py` imports the app and
+asserts the logger is genuinely quiet at INFO so it cannot silently regress.
+
+**The rule to carry**: any new Graph call passing a secret as a query param re-opens this the moment
+someone raises httpx's level. Prefer checking what a new outbound call logs before shipping it —
+this was found only by reading production logs for an unrelated reason.
+
+## Who owns a Page access token (2026-09-01)
+
+A recurring point of confusion worth stating plainly: a Page access token has **two** owners.
+
+- **Which Page it controls** — the client's.
+- **Which app issued it** — always Aira's (`2225044871604460`). Clients have no Meta app.
+
+The issuing app decides what the token may do (its approved permissions) *and* whose app secret
+signs the resulting webhooks. So a token must always be minted through Aira's app, never from
+anything client-side — but it grants access to the client's Page, which means a Page admin has to
+approve it. Either the client approves through the Embedded Signup popup (normal), or the client
+grants Aira an Admin/Partner role on their Page first and it is minted by hand (debugging only).
+Manual onboarding is therefore not merely "paste a token" — without a Page role there is nothing to
+generate, because Meta will not show that Page.
+
+## Embedded Signup: config IDs decide the consent checkboxes (2026-09-01)
+
+Which assets the popup demands is set by the **login configuration**, not by code.
+`META_UNIFIED_CONFIG_ID` (`2026693308738446`) requests WhatsApp + Instagram + Pages + Catalogs +
+Ads, so Meta keeps "Next" disabled until the client grants all of them — that is the cause of the
+"I only want WhatsApp but must tick everything" complaint. `META_COEXISTENCE_CONFIG_ID`
+(`1063294086656120`) is a working WhatsApp-only configuration. `buildMetaLoginOptions(configId, mode)`
+already takes the config as a parameter, so per-bundle configs are a matter of creating them in
+Meta and passing the right id. See active-backlog for the two still to create.

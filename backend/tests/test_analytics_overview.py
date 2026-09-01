@@ -149,15 +149,20 @@ class AnalyticsOverviewTrendTests(unittest.TestCase):
     @patch("app.routes.analytics.get_supabase")
     def test_channel_breakdown_today_and_ad_attributed_today_only_count_todays_leads(self, mock_get_db):
         from datetime import datetime, timezone, timedelta
-        today = datetime.now(timezone.utc).date().isoformat()
-        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
+        # Stamp from `now` rather than building "{utc_date}T09:00:00+00:00": the
+        # today-scoped fields bucket by IST calendar date, so between 18:30 and 00:00
+        # UTC the UTC date is a day behind IST and a "today" fixture built that way
+        # lands on the previous IST day.
+        now = datetime.now(timezone.utc)
+        today_ts = now.isoformat()
+        yesterday_ts = (now - timedelta(days=1)).isoformat()
 
         leads_rows = [
-            {"id": "l1", "created_at": f"{today}T09:00:00+00:00", "segment": "A",
+            {"id": "l1", "created_at": today_ts, "segment": "A",
              "source": "whatsapp", "converted_at": None, "ad_campaign_id": "camp-1"},
-            {"id": "l2", "created_at": f"{today}T10:00:00+00:00", "segment": "B",
+            {"id": "l2", "created_at": today_ts, "segment": "B",
              "source": "instagram", "converted_at": None, "ad_campaign_id": None},
-            {"id": "l3", "created_at": f"{yesterday}T10:00:00+00:00", "segment": "C",
+            {"id": "l3", "created_at": yesterday_ts, "segment": "C",
              "source": "whatsapp", "converted_at": None, "ad_campaign_id": "camp-2"},
         ]
         self._mock_db(mock_get_db, leads_rows=leads_rows, prior_leads_rows=[], msgs_rows=[])
