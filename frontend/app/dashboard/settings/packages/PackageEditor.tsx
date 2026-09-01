@@ -49,7 +49,7 @@ export function PackageEditor({ packages, onChange, canManage }: PackageEditorPr
     <div className="space-y-2">
       {hasOversizedLevel(packages) && (
         <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-body text-amber-800">
-          ⚠ One of these menus has more than WhatsApp's 10-option limit — it will show as
+          ⚠ One of these menus has more than WhatsApp&apos;s 10-option limit — it will show as
           plain text instead of tappable buttons. Reduce the number of active options here,
           or split them into a sub-package.
         </p>
