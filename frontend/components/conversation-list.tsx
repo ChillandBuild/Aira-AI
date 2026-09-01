@@ -1,30 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { api, Lead } from "@/lib/api";
 import { SegmentBadge } from "./segment-badge";
+import { ChannelAvatar, getChannel } from "./channel-avatar";
 import { formatConvoTime, formatPhone, cn } from "@/lib/utils";
 import { MessageCircle, Trash2, MoreVertical, MoreHorizontal, Search, X, SearchX, ChevronLeft, Pin, Filter, RefreshCw, Archive, Ban, Check, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { CheckTick } from "@/components/ui/controls";
-
-const AVATAR_COLORS = [
-  "bg-violet-500", "bg-blue-500", "bg-indigo-500", "bg-cyan-500",
-  "bg-teal-500", "bg-pink-500", "bg-rose-500", "bg-orange-500",
-  "bg-amber-500", "bg-emerald-500",
-];
-
-function getAvatarColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function getInitials(lead: Lead): string {
-  if (lead.name) return lead.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
-  if (lead.phone) return lead.phone.slice(-2);
-  return "??";
-}
 
 type ConversationLead = Lead & { last_reply_at?: string };
 
@@ -138,12 +119,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
     }
   }
 
-  const getLeadPlatform = (lead: Lead) => {
-    if (lead.source === "instagram" || lead.source === "telegram" || lead.source === "facebook") {
-      return lead.source;
-    }
-    return "whatsapp";
-  };
+  const getLeadPlatform = (lead: Lead) => getChannel(lead.source);
 
   const visible = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -448,23 +424,8 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                 </div>
               )}
 
-              {/* Avatar with channel badge */}
-              <div className="relative shrink-0 mt-0.5">
-                <div className={cn("w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold text-sm select-none", getAvatarColor(lead.id))}>
-                  {getInitials(lead)}
-                </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full bg-surface border-2 border-surface flex items-center justify-center shadow-sm">
-                  {lead.source === "instagram" ? (
-                    <IgIcon size={10} className="text-pink-500" />
-                  ) : lead.source === "telegram" ? (
-                    <TgIcon size={10} className="text-sky-500" />
-                  ) : lead.source === "facebook" ? (
-                    <FbIcon size={10} className="text-blue-600" />
-                  ) : (
-                    <MessageCircle size={10} className="text-green-500" />
-                  )}
-                </div>
-              </div>
+              {/* Channel avatar — the logo of the channel the chat arrived on */}
+              <ChannelAvatar source={lead.source} size={44} className="mt-0.5" />
 
               {/* Content */}
               <div className="flex-1 min-w-0">

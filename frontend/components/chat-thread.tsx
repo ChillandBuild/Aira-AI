@@ -5,6 +5,7 @@ import { api, Lead, Message } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
+import { ChannelAvatar } from "./channel-avatar";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import {
   Bot, User, CheckCircle2, Send, PowerOff, Power,
@@ -13,26 +14,6 @@ import {
   Music, Video, Download, X, Eraser, MoreVertical,
   ArrowLeft,
 } from "lucide-react";
-
-const AVATAR_COLORS = [
-  "bg-violet-500", "bg-blue-500", "bg-indigo-500", "bg-cyan-500",
-  "bg-teal-500", "bg-pink-500", "bg-rose-500", "bg-orange-500",
-  "bg-amber-500", "bg-emerald-500",
-];
-
-function getAvatarColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function getInitials(name: string | null, phone: string | null): string {
-  if (name) return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
-  if (phone) return phone.slice(-2);
-  return "?";
-}
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -539,10 +520,8 @@ export function ChatThread({
             <ArrowLeft size={18} />
           </button>
         )}
-        {/* Avatar */}
-        <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-white font-semibold text-sm shrink-0 select-none", getAvatarColor(lead.id))}>
-          {getInitials(current.name, current.phone)}
-        </div>
+        {/* Channel avatar — the logo of the channel this chat arrived on */}
+        <ChannelAvatar source={current.source} size={36} />
 
         {/* Name + subtitle */}
         <div className="flex-1 min-w-0">
