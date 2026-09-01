@@ -374,10 +374,21 @@ async def update_settings(
 
     # Credentials changed by hand: the channel must be re-validated, and it is no
     # longer whatever the embedded flow provisioned.
+    touched_meta_channel = False
     for channel, credential_keys in _CHANNEL_CREDENTIAL_KEYS.items():
         if any(key in updated for key in credential_keys):
             _save_tenant_setting(db, tenant_id, f"{channel}_status", "configured")
             _stamp_connection_source(db, tenant_id, channel, "manual")
+            if channel in ("whatsapp", "instagram", "facebook"):
+                touched_meta_channel = True
+
+    # The app secret and verify token are Aira's own, identical for every tenant, and
+    # only the WhatsApp form asks for them. Embedded Signup copies them in; a manual
+    # save never did — so an Instagram- or Facebook-only tenant had no way to get them
+    # and every inbound message was dropped as unsigned. Fill the gap here, without
+    # overwriting anything the operator typed in this same request.
+    if touched_meta_channel:
+        _save_shared_meta_app_credentials(db, tenant_id, only_if_missing=True)
 
     from app.config_dynamic import invalidate_cache
     invalidate_cache()
@@ -1077,7 +1088,7 @@ def _save_tenant_setting(db, tenant_id: str, key: str, value: str, *, is_secret:
     }, on_conflict="tenant_id,key").execute()
 
 
-def _save_shared_meta_app_credentials(db, tenant_id: str) -> None:
+def _save_shared_meta_app_credentials(db, tenant_id: str, only_if_missing: bool = False) -> None:
     """Copy the app-level Meta secrets onto a tenant that just connected a channel.
 
     Every tenant signs up through the same Meta app, so the app secret and the
@@ -1087,13 +1098,26 @@ def _save_shared_meta_app_credentials(db, tenant_id: str) -> None:
     get_setting has no env fallback, so a tenant without these rows silently
     fails Meta's webhook challenge with a 403. Writing them at connect time is
     what saves someone hand-pasting them after every signup.
+
+    `only_if_missing` is for manual saves. The WhatsApp form asks the operator for
+    both values directly, and `update_settings` has already stored whatever they
+    typed by the time this runs — so skipping keys that already have a value keeps
+    an explicit entry from being overwritten, while still filling the gap for an
+    Instagram- or Facebook-only tenant whose form never asks for them.
     """
+    # META_VERIFY_TOKEN is not set on every deployment; fall back to the copy the
+    # existing tenants already hold rather than writing nothing.
+    from app.services.meta_app_webhooks import resolve_verify_token
+
     for key, value in (
         ("meta_app_secret", env_settings.meta_app_secret),
-        ("meta_webhook_verify_token", env_settings.meta_verify_token),
+        ("meta_webhook_verify_token", env_settings.meta_verify_token or resolve_verify_token()),
     ):
-        if value:
-            _save_tenant_setting(db, tenant_id, key, value, is_secret=True)
+        if not value:
+            continue
+        if only_if_missing and _get_setting_value(db, tenant_id, key):
+            continue
+        _save_tenant_setting(db, tenant_id, key, value, is_secret=True)
 
 
 def _public_business_login_assets(assets: dict[str, list[dict]]) -> dict[str, list[dict]]:

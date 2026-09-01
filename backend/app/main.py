@@ -27,6 +27,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# httpx logs every request URL at INFO, query string included. Meta's Graph API takes
+# credentials as query params, so that wrote the Meta app secret (inside the
+# `{app_id}|{secret}` app access token) and every Page access token into Render's logs
+# in plaintext — enough to forge webhook signatures for every tenant. Warnings and
+# errors from httpx still come through; our own log lines are unaffected.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 # Initialize Sentry
 if settings.sentry_dsn:
     import sentry_sdk
