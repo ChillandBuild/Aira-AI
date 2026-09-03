@@ -173,10 +173,42 @@ def test_generate_reply_regen_call_carries_no_conversation_history():
     history mostly failed (1/6) because it re-triggers the same anchor. An isolated
     call with no prior turns fixed it 10/10."""
     source = inspect.getsource(ai_reply.generate_reply)
-    regen_block = source[source.index('elif reply_language_mode == "mirror" and _reply_script_mismatch(message, reply_text):'):]
+    regen_block = source[source.index("regen_target: str | None = None"):]
     regen_block = regen_block[: regen_block.index("except Exception as regen_err")]
     assert "chat_messages +" not in regen_block
     assert "_regen_target_instruction(message)" in regen_block
+
+
+def test_generate_reply_regen_guard_covers_forced_modes_not_just_mirror():
+    """Live evidence 2026-08-31: a tenant on reply_language_mode=tanglish got one
+    native-Tamil-script reply mid-conversation and it shipped uncaught, because the
+    regen safety net used to only run for mode == 'mirror'. Forced modes (tanglish,
+    english, tamil -- tanglish_escalate_tamil is already resolved to one of these
+    before this point) need the same catch, checked against their own fixed target
+    instead of the customer's script."""
+    source = inspect.getsource(ai_reply.generate_reply)
+    assert "_forced_mode_script_mismatch(reply_language_mode, reply_text)" in source
+    assert "_FORCED_MODE_TARGET_INSTRUCTION.get(reply_language_mode)" in source
+
+
+def test_forced_mode_script_mismatch_flags_tamil_reply_under_tanglish_mode():
+    assert ai_reply._forced_mode_script_mismatch("tanglish", "நல்லா இருக்கு") is True
+
+
+def test_forced_mode_script_mismatch_accepts_tanglish_reply_under_tanglish_mode():
+    assert ai_reply._forced_mode_script_mismatch("tanglish", "eppo varuvinga") is False
+
+
+def test_forced_mode_script_mismatch_flags_latin_reply_under_tamil_mode():
+    assert ai_reply._forced_mode_script_mismatch("tamil", "eppo varuvinga") is True
+
+
+def test_forced_mode_script_mismatch_accepts_tamil_script_under_tamil_mode():
+    assert ai_reply._forced_mode_script_mismatch("tamil", "நல்லா இருக்கு") is False
+
+
+def test_forced_mode_script_mismatch_noop_for_mirror():
+    assert ai_reply._forced_mode_script_mismatch("mirror", "நல்லா இருக்கு") is False
 
 
 def test_resolve_reply_language_mode_defaults_to_mirror_with_no_tenant():

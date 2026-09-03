@@ -394,6 +394,38 @@ def _regen_target_instruction(customer_message: str) -> str:
     )
 
 
+# Fixed regen target per forced reply_language_mode -- unlike mirror mode, these modes
+# don't take their target from the customer's script, so the mismatch check below can't
+# reuse _reply_script_mismatch/_regen_target_instruction (both keyed off the customer's
+# message). tanglish_escalate_tamil never appears here: build_reply_system_prompt already
+# resolves it to "tamil" or "tanglish" before this point.
+_FORCED_MODE_TARGET_INSTRUCTION = {
+    "tanglish": (
+        "natural Tanglish (Tamil words spelled in English letters, e.g. 'eppo varuvinga', "
+        "'jaadhagam paakanum', the way a Tamil customer-service agent casually texts on "
+        "WhatsApp) -- not Tamil script, not formal English"
+    ),
+    "english": "natural English",
+    "tamil": "natural Tamil script (the way a Tamil customer-service agent would text)",
+}
+
+
+def _forced_mode_script_mismatch(mode: str, reply_text: str) -> bool:
+    """True if reply_text's script doesn't match this tenant's forced reply_language_mode.
+    Same Indic-vs-Latin bucket _reply_script_mismatch uses, except the target comes from
+    the forced mode instead of the customer's script. Live evidence 2026-08-31: a tenant
+    on 'tanglish' got one native-Tamil-script reply mid-conversation (the LANGUAGE STYLE
+    prompt instruction alone doesn't reliably hold, same failure class as the mirror-mode
+    silent switch this file already documents) -- and it shipped uncaught because the
+    regen guard used to only run for mode == 'mirror'."""
+    reply_is_indic = _dominant_script(reply_text) != "en"
+    if mode == "tamil":
+        return not reply_is_indic
+    if mode in ("tanglish", "english"):
+        return reply_is_indic
+    return False
+
+
 _LANGUAGE_MODES = {"mirror", "tanglish", "english", "tamil", "tanglish_escalate_tamil"}
 
 
@@ -1707,41 +1739,57 @@ async def generate_reply(
 
         if not reply_text:
             reply_text = _FALLBACK_BY_LANG.get(_detect_lang(message), _FALLBACK_BY_LANG["en"])
-        elif reply_language_mode == "mirror" and _reply_script_mismatch(message, reply_text):
+        else:
             # Preemptive prompt instructions (LANGUAGE RULE + the per-turn script note
-            # above) do not reliably stop silent script-switch anchoring -- live-tested
-            # 0/6, see subsystem-notes.md 2026-07-13. This catches it after generation,
-            # before anything is sent, and asks for one corrected regeneration.
-            #
-            # The regen call deliberately carries NO conversation history and is framed
-            # as an isolated translation task, not "continue the chat" -- live-tested
-            # 2026-07-13: feeding the wrong reply back in as part of the same history
-            # (i.e. asking the model to "redo" its own last turn) mostly failed (1/6,
-            # the anchor re-triggers even with an explicit correction). An isolated
-            # rewrite-only call with no prior turns to anchor to fixed it 10/10. The
-            # target language must be named explicitly ("English or Tanglish"), not
-            # "Latin script" -- a vague script-only instruction let the model drift
-            # into literal Latin (the dead language) once, since any Latin-alphabet
-            # text technically satisfies "not Tamil script".
-            try:
-                regen_messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a translator. Rewrite the following WhatsApp reply so it is in "
-                            f"{_regen_target_instruction(message)}. Keep the same meaning, tone, and "
-                            "length. Output ONLY the rewritten reply, nothing else."
-                        ),
-                    },
-                    {"role": "user", "content": reply_text},
-                ]
-                regenerated = (await _llm_chat(regen_messages, max_tokens=600, tenant_id=tenant_id)).strip()
-                if regenerated:
-                    if _reply_script_mismatch(message, regenerated):
-                        logger.warning(f"Script-mismatch regen still mismatched for lead {lead_id}")
-                    reply_text = regenerated
-            except Exception as regen_err:
-                logger.warning(f"Script-mismatch regeneration failed for lead {lead_id}: {regen_err}")
+            # above, or the forced-mode LANGUAGE STYLE block) do not reliably stop a
+            # silent script switch -- live-tested 0/6 for mirror mode, see
+            # subsystem-notes.md 2026-07-13; the same failure hits forced modes too
+            # (live evidence 2026-08-31, see _forced_mode_script_mismatch). This catches
+            # it after generation, before anything is sent, and asks for one corrected
+            # regeneration. mirror's target is the customer's own script; every forced
+            # mode has a fixed target regardless of what the customer wrote.
+            regen_target: str | None = None
+            if reply_language_mode == "mirror":
+                if _reply_script_mismatch(message, reply_text):
+                    regen_target = _regen_target_instruction(message)
+            elif _forced_mode_script_mismatch(reply_language_mode, reply_text):
+                regen_target = _FORCED_MODE_TARGET_INSTRUCTION.get(reply_language_mode)
+
+            if regen_target:
+                # The regen call deliberately carries NO conversation history and is
+                # framed as an isolated translation task, not "continue the chat" --
+                # live-tested 2026-07-13: feeding the wrong reply back in as part of the
+                # same history (i.e. asking the model to "redo" its own last turn) mostly
+                # failed (1/6, the anchor re-triggers even with an explicit correction).
+                # An isolated rewrite-only call with no prior turns to anchor to fixed it
+                # 10/10. The target language must be named explicitly ("English or
+                # Tanglish"), not "Latin script" -- a vague script-only instruction let
+                # the model drift into literal Latin (the dead language) once, since any
+                # Latin-alphabet text technically satisfies "not Tamil script".
+                try:
+                    regen_messages = [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a translator. Rewrite the following WhatsApp reply so it is in "
+                                f"{regen_target}. Keep the same meaning, tone, and "
+                                "length. Output ONLY the rewritten reply, nothing else."
+                            ),
+                        },
+                        {"role": "user", "content": reply_text},
+                    ]
+                    regenerated = (await _llm_chat(regen_messages, max_tokens=600, tenant_id=tenant_id)).strip()
+                    if regenerated:
+                        still_mismatched = (
+                            _reply_script_mismatch(message, regenerated)
+                            if reply_language_mode == "mirror"
+                            else _forced_mode_script_mismatch(reply_language_mode, regenerated)
+                        )
+                        if still_mismatched:
+                            logger.warning(f"Script-mismatch regen still mismatched for lead {lead_id}")
+                        reply_text = regenerated
+                except Exception as regen_err:
+                    logger.warning(f"Script-mismatch regeneration failed for lead {lead_id}: {regen_err}")
 
         # Trigger A: AI gave a generic fallback reply
         if _is_generic_fallback(reply_text):
