@@ -650,3 +650,41 @@ Ads, so Meta keeps "Next" disabled until the client grants all of them — that 
 (`1063294086656120`) is a working WhatsApp-only configuration. `buildMetaLoginOptions(configId, mode)`
 already takes the config as a parameter, so per-bundle configs are a matter of creating them in
 Meta and passing the right id. See active-backlog for the two still to create.
+
+## Login config: asset scope is not permission scope — Nira shipped without `pages_manage_metadata` (2026-09-04)
+
+Sharper version of the 2026-09-01 note above. Knowing a config "requests Pages" is not enough —
+each individual Page permission the code's Graph calls need must be ticked separately in the
+configuration's **Permissions** step, and a missing one fails silently.
+
+`META_UNIFIED_CONFIG_ID` (`2026693308738446`, "Nira - Bloom Matrix") requested Pages as an
+**asset** and carried `pages_show_list` + `pages_messaging`, but **not `pages_manage_metadata`**.
+Consequence: `POST /{page_id}/subscribed_apps` (`app_settings.py:1288`, `:1585`) could never
+succeed, so a Facebook/Instagram Page would appear to connect while its messaging webhook was
+never subscribed — inbound Messenger and IG DMs silently never arrive. Nothing in the UI surfaces
+this; the failure is a `logger.warning` on the `subscribed_apps` response. Fixed 2026-09-04 by
+adding the permission to the configuration (no code change).
+
+**The rule:** every Graph endpoint the backend calls maps to a permission that must be present in
+the *specific config id the frontend passes*. The mapping as of 2026-09-04:
+
+| Call | Permission |
+|---|---|
+| `GET /me/accounts?fields=…,instagram_business_account` | `pages_show_list`, `instagram_basic` |
+| `POST /{page_id}/subscribed_apps` | `pages_manage_metadata` |
+| `POST /me/messages` (Messenger + IG) | `pages_messaging`, `instagram_manage_messages` |
+| `GET /{ad_account}/insights` | `ads_read` |
+| `POST /{waba_id}/subscribed_apps`, templates | `whatsapp_business_management` |
+
+**Three configs exist and only two are wired to code.** `useMetaSignup.ts:10` defaults to Nira
+(`2026693308738446`) and `:16` to Aira (`1063294086656120`, coexistence). **Mira**
+(`2226622718102220`) is referenced nowhere in the current frontend — it is an orphan carrying
+`ads_management` and `pages_manage_ads`, neither of which any code calls. Don't "fix" a connect
+bug by editing Mira; check `useMetaSignup.ts` for the id actually in play first. (This exact
+mistake cost a round-trip on 2026-09-04.)
+
+**Diagnosing a grant that looks complete but isn't:** run `debug_token?input_token=<token>` in the
+Graph API Explorer. A scope listed in `scopes` but appearing in `granular_scopes` **with no
+`target_ids`** means the permission was granted with zero assets attached — e.g. the account holds
+no Page at all. That is a different failure from the permission being absent, and it looks
+identical from the app's side (`me/accounts` returns `{"data": []}` either way).

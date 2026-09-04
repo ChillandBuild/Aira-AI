@@ -262,3 +262,39 @@ Then add each as an env var and pick per channel — `buildMetaLoginOptions(conf
 takes the config as an argument. **Note** the IG/Pages-only path cannot reuse `MetaSignupCoordinator`:
 it only parses `WA_EMBEDDED_SIGNUP` messages and requires a `waba_id`. That path goes through the
 existing business-login flow (`complete_meta_business_login` → `discover_business_login_assets`).
+
+## Meta App Review — submission assembled but NOT submitted (2026-09-04/05)
+Scoping, the `pages_manage_metadata` API test call, Data Handling and Reviewer instructions are
+done — see [decisions log](../decisions/log.md) for what was dropped and why. Remaining before
+anyone clicks Submit:
+- **`pages_messaging` card**: set the "Select a Page" dropdown to **Bloom Matrix** (the unticked
+  box is "provide instructions for how to reproduce"), and paste the reproduce block with real
+  credentials.
+- **Marketing API Access Tier card**: description text + the comply checkbox.
+- **A separate reviewer Facebook account.** Meta's own note on the `pages_messaging` card requires
+  a **real** Facebook account granted the **Tester** role — explicitly *not* an App Roles test user,
+  which cannot receive bot messages. Do not hand over the owner's personal account (`Vivek T`): it
+  admins the Business Manager that owns app `2225044871604460`, and a reviewer login from an
+  unfamiliar location can trip Facebook's security checks and lock it. New accounts sometimes get
+  restricted, so create it early. Then give it full control of the **Bloom Matrix** Page and accept
+  both invites.
+- **A dedicated Aira tenant with dummy data.** The reviewer instructions send them to Conversations;
+  a tenant holding live customer chats would expose real names and phone numbers to a third party.
+- **Link an Instagram Business account** to the Bloom Matrix Page — `instagram_manage_messages` is
+  otherwise untestable.
+- **App settings → Basic**: Privacy Policy, Terms and the Data Deletion Instructions URL are still
+  empty in Meta. The pages already exist (`/privacy-policy`, `/terms-and-conditions`,
+  `/data-deletion`); only the dashboard fields need filling. A missing data-deletion URL is a
+  routine rejection.
+- **Dry run before submitting** — as the new test account, connect the Page through Settings →
+  Connect Channels, send a Messenger message, confirm it reaches Conversations and that a reply
+  gets back. This is the only step that proves the reviewer can follow the instructions, and it
+  doubles as the functional check that Nira's `pages_manage_metadata` fix works.
+- **Optional, for `requests-4`**: a one-page policy on handling government/authority requests for
+  user data (legality review, challenge provision, minimum disclosure, logging). Without it, only
+  "data minimization" can be ticked honestly.
+
+**Cleanup, low priority**: the orphan **Mira** config (`2226622718102220`) still carries
+`ads_management` and `pages_manage_ads`, neither of which is in the submission or called by any
+code. Uncheck them so the config matches what Meta approves. See
+[subsystem-notes](../context/subsystem-notes.md#login-config-asset-scope-is-not-permission-scope--nira-shipped-without-pages_manage_metadata-2026-09-04).
