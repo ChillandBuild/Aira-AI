@@ -157,7 +157,10 @@ async def upload_item_media(
         "tenant_id": tenant_id,
         "catalog_item_id": str(item_id),
         "storage_path": storage_path,
-        "label": (label or "").strip() or file.filename,
+        # No filename fallback -- a raw upload filename ("IMG_2026.png") makes a
+        # useless WhatsApp caption. ai_reply.py falls back to the item's own name
+        # when label is empty, and the dashboard prompts the operator to name it.
+        "label": (label or "").strip() or None,
         "sort_order": next_sort_order,
     }).execute()
     if not res.data:
