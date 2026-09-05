@@ -690,3 +690,66 @@ Graph API Explorer. A scope listed in `scopes` but appearing in `granular_scopes
 `target_ids`** means the permission was granted with zero assets attached — e.g. the account holds
 no Page at all. That is a different failure from the permission being absent, and it looks
 identical from the app's side (`me/accounts` returns `{"data": []}` either way).
+
+## Embedded Signup: every asset in a configuration is MANDATORY — hence four configs (2026-09-06)
+
+**Supersedes the "three configs, Mira is an orphan" note above.** Mira is wired now, and a
+fourth config exists.
+
+**The finding that drove all of it:** Meta's signup window will not enable **Next** until every
+asset listed in the login configuration has been selected. Verified from the user's own
+screenshots on the Nira config: Page blank -> Next greyed; Instagram blank -> greyed; Ad account
+blank -> greyed; all filled -> blue. Meta's own docs say the same obliquely ("if you select the
+Catalogs asset but don't actually need access to customer catalogs, your customers will likely
+abandon the flow at the catalog selection screen"). There is **no per-asset "optional" switch** in
+the configuration UI. The only lever is a narrower configuration.
+
+Consequence: a WhatsApp-only customer had **no working path** before this. The unified window
+demanded a Page + Instagram + ad account they may not own, and the coexistence button hard-errors
+unless the number is already live on the WhatsApp Business mobile app.
+
+**The four configurations (Meta app `2225044871604460`), all system-user / never-expire:**
+
+| Name | ID | Assets | Login variation | Drives |
+|---|---|---|---|---|
+| Aira - WhatsApp Only | `1063294086656120` | WhatsApp accounts | WhatsApp Embedded Signup | WhatsApp card + the coexistence button |
+| Mira - Insta - Facebook | `2226622718102220` | Pages, Instagram | General | Messenger + Instagram cards |
+| Nira - Full | `2026693308738446` | WhatsApp, Pages, Ads, Instagram | WhatsApp Embedded Signup | top "Connect Meta Business" panel |
+| kira - only Ads | `28328955280071486` | Ad accounts | General | Meta Ads card |
+
+**One config serves both WhatsApp-only and coexistence.** Coexistence is switched on by the
+login-time `extras.featureType`, not by the configuration — so `1063294086656120` runs plain
+WhatsApp onboarding without extras and connect-without-switching with them. `resolveMetaSignupCompletion`
+therefore checks "did Meta open the flow we asked for" (coexistence has its own `FINISH_...` event;
+every other mode ends on `FINISH`), NOT mode equality — an earlier mode-equality check would have
+rejected `whatsapp_only` outright.
+
+**Why WhatsApp cannot share a hook with the rest.** `useMetaSignup` cannot finish until Meta posts
+the `WA_EMBEDDED_SIGNUP` browser message — `MetaSignupCoordinator.takeReady()` needs both the OAuth
+code and that message. A **General** login variation never sends one. Point the WhatsApp hook at
+Mira or kira and the spinner runs forever. That is why `useMetaChannelSignup.ts` exists as a
+separate hook that completes off the `FB.login` callback alone.
+
+**Messenger and Instagram are one connection, not two.** Instagram DMs ride the linked Page's
+token (`complete_meta_business_login` reads `page.instagram_business_account` and reuses
+`page["access_token"]` for `instagram_access_token`). One Page signup lights up both cards.
+
+**Ads cannot go through the Page endpoint.** `/facebook/business-login/start` raises 400 when the
+signup granted no Page, and `/complete` requires a `page_id` with a Page access token. Meta Ads
+needs nothing from a Page at runtime — `meta_ads_insights_sync.py` reads only `meta_ads_access_token`
++ `meta_ads_account_id` — so ads-only got its own `/meta/ads-signup/{start,complete}` pair with its
+own staging keys (`meta_ads_onboarding_*`), rather than a flag on the Page endpoint.
+
+**Ad-account discovery still runs through `debug_token`.** Same SYSTEM_USER problem as the 2026-08-14
+note above: `me/adaccounts` is empty, so the id comes from `granular_scopes[].target_ids` under
+`ads_read`/`ads_management`, then gets the `act_` prefix. **This silently returns nothing if
+`meta_app_id`/`meta_app_secret` are unset on the backend** — `_debug_token_granular_scopes` only logs
+a warning, and the operator sees "no ad account was granted" with no cause.
+
+**`catalog_management` is NOT used at runtime — the decisions-log claim was wrong.**
+`send_catalog_message()` (`meta_cloud.py:749`) exists but **has zero callers anywhere in
+`backend/` or `frontend/`**. The unified signup also strips catalogs before the picker
+(`_public_unified_meta_assets`), and the only endpoint that can persist one
+(`/facebook/business-login/complete`) never receives a `catalog_id` from the frontend. The
+dashboard "Catalog" page is Aira's own internal product list with no Meta reference at all.
+Catalogue was removed from the Nira config on 2026-09-06 for this reason.
