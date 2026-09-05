@@ -76,6 +76,15 @@ class MetaBusinessLoginCompleteRequest(BaseModel):
     catalog_id: str | None = None
 
 
+class MetaAdsSignupStartRequest(BaseModel):
+    code: str
+
+
+class MetaAdsSignupCompleteRequest(BaseModel):
+    session_id: str
+    ad_account_id: str
+
+
 class InboxConfigUpdate(BaseModel):
     enabled: bool | None = None
     auto_assign_enabled: bool | None = None
@@ -949,6 +958,14 @@ _META_BUSINESS_ONBOARDING_KEYS = (
     "meta_business_onboarding_is_coexistence",
 )
 
+# The ads-only signup stages under its own keys so a WhatsApp signup running in
+# another tab cannot consume or clear this session's token.
+_META_ADS_ONBOARDING_KEYS = (
+    "meta_ads_onboarding_token",
+    "meta_ads_onboarding_session_id",
+    "meta_ads_onboarding_expires_at",
+)
+
 
 def _delete_tenant_settings(db, tenant_id: str, keys) -> None:
     key_list = list(keys)
@@ -1153,6 +1170,11 @@ def _public_unified_meta_assets(assets: dict[str, list[dict]]) -> dict[str, list
     """Return only the assets supported by Aira's unified setup flow."""
     public_assets = _public_business_login_assets(assets)
     return {"pages": public_assets["pages"], "ad_accounts": public_assets["ad_accounts"]}
+
+
+def _public_meta_ads_assets(assets: dict[str, list[dict]]) -> dict[str, list[dict]]:
+    """Return only ad accounts — the ads-only Login configuration grants nothing else."""
+    return {"ad_accounts": _public_business_login_assets(assets)["ad_accounts"]}
 
 
 def _claim_business_assets(db, tenant_id: str, claims: list[dict[str, str]]) -> None:
@@ -1532,6 +1554,102 @@ async def complete_unified_meta_signup(
         "page_id": payload.page_id,
         "instagram_connected": connected_instagram,
         "ad_account_id": ad_account.get("id") if ad_account else None,
+    }
+
+
+@router.post("/meta/ads-signup/start")
+async def start_meta_ads_signup(
+    payload: MetaAdsSignupStartRequest,
+    ctx: dict = Depends(require_settings_manage),
+):
+    """Exchange an ads-only Login code and list the ad accounts it granted.
+
+    Deliberately separate from `/facebook/business-login/start`, which rejects any
+    signup that granted no Page — the ads-only Login configuration grants exactly
+    one asset type and never includes a Page. The token stays server-side while the
+    browser picks which granted account to connect.
+    """
+    from app.services.meta_cloud import exchange_embedded_signup_code, discover_business_login_assets
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    exchange = await exchange_embedded_signup_code(payload.code)
+    access_token = exchange["access_token"]
+    assets = await discover_business_login_assets(access_token)
+    public_assets = _public_meta_ads_assets(assets)
+    if not public_assets["ad_accounts"]:
+        raise HTTPException(
+            status_code=400,
+            detail="No ad account was granted — select an ad account during Meta signup.",
+        )
+
+    session_id = str(uuid4())
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    _save_tenant_setting(db, tenant_id, "meta_ads_onboarding_token", access_token, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "meta_ads_onboarding_session_id", session_id, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "meta_ads_onboarding_expires_at", expires_at)
+
+    return {"session_id": session_id, **public_assets}
+
+
+@router.post("/meta/ads-signup/complete")
+async def complete_meta_ads_signup(
+    payload: MetaAdsSignupCompleteRequest,
+    ctx: dict = Depends(require_settings_manage),
+    user: dict = Depends(get_current_user),
+):
+    """Validate the chosen ad account against the staged token, then connect Meta Ads.
+
+    Nothing here touches WhatsApp, Page or Instagram settings: an ads-only tenant has
+    none, and a tenant that already connected them must keep what they have.
+    """
+    from app.services.meta_cloud import discover_business_login_assets
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    access_token = _get_setting_value(db, tenant_id, "meta_ads_onboarding_token")
+    session_id = _get_setting_value(db, tenant_id, "meta_ads_onboarding_session_id")
+    expires_at = _get_setting_value(db, tenant_id, "meta_ads_onboarding_expires_at")
+    if not access_token or not session_id or not expires_at or payload.session_id != session_id:
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.")
+    try:
+        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.") from exc
+    if expiry <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="This Meta signup session has expired. Start the connection again.")
+
+    assets = await discover_business_login_assets(access_token)
+    ads_by_id = {account.get("id"): account for account in assets.get("ad_accounts", []) if account.get("id")}
+    ad_account = ads_by_id.get(payload.ad_account_id)
+    if not ad_account:
+        raise HTTPException(status_code=400, detail="Select an ad account that was granted during this Meta signup.")
+
+    _claim_business_assets(db, tenant_id, [{"asset_type": "ad_account", "asset_id": ad_account["id"]}])
+
+    _save_tenant_setting(db, tenant_id, "meta_ads_access_token", access_token, is_secret=True)
+    _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
+    _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
+    _save_tenant_setting(db, tenant_id, "meta_ads_status", "configured")
+    _stamp_connection_source(db, tenant_id, "meta_ads", "embedded")
+    db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", list(_META_ADS_ONBOARDING_KEYS)).execute()
+
+    from app.config_dynamic import invalidate_cache
+    invalidate_cache()
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=user.get("user_id"),
+        actor_role="tenant_user",
+        action="settings.meta_ads_signup_connected",
+        target_type="channel",
+        target_id="meta_ads",
+        metadata={"ad_account_id": ad_account["id"]},
+    )
+    return {
+        "success": True,
+        "ad_account_id": ad_account["id"],
+        "ad_account_name": ad_account.get("name") or ad_account["id"],
     }
 
 

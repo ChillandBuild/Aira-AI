@@ -4,14 +4,16 @@ import { AlertCircle } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { fetchSettings, saveSettings } from "./api";
 import { CHANNELS, META_CHANNELS, resolveConnectionSource } from "./channels";
-import type { ActivateResult, ChannelConfig, SaveState, Setting, SettingsMap, WebhookHealth } from "./channels";
+import type { ActivateResult, ChannelConfig, EmbeddedSignupTarget, SaveState, Setting, SettingsMap, WebhookHealth } from "./channels";
 import { useMetaSignup } from "./useMetaSignup";
+import { useMetaChannelSignup } from "./useMetaChannelSignup";
 import { buildDisconnectTarget, disconnectChannel } from "./disconnect";
 import type { DisconnectTarget } from "./disconnect";
 import EmbeddedSection from "./EmbeddedSection";
 import ManualSection from "./ManualSection";
 import ChannelConfigModal from "./ChannelConfigModal";
 import MetaAssetPickerModal from "./MetaAssetPickerModal";
+import MetaChannelPickerModal from "./MetaChannelPickerModal";
 import DisconnectDialog from "./DisconnectDialog";
 
 export default function ConnectChannelsPanel({ canManage = true }: { canManage?: boolean }) {
@@ -92,6 +94,26 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
     canManage,
     onConnected: async () => { await load(); loadHealth(); },
   });
+
+  // Per-card signup for Page/Instagram and ads. Kept apart from `meta` because those
+  // Login configurations are General, and only WhatsApp's variation posts the
+  // WA_EMBEDDED_SIGNUP message that `meta` waits on before it can finish.
+  const channelSignup = useMetaChannelSignup({
+    canManage,
+    onConnected: async () => { await load(); loadHealth(); },
+  });
+
+  const startEmbedded = useCallback((target: EmbeddedSignupTarget) => {
+    if (target === "whatsapp") {
+      meta.startWhatsAppOnly();
+      return;
+    }
+    channelSignup.start(target);
+  }, [meta, channelSignup]);
+
+  // One busy marker across both hooks so a card can only launch one Meta window.
+  const busyTarget: EmbeddedSignupTarget | null =
+    meta.activeMode === "whatsapp_only" ? "whatsapp" : channelSignup.busyTarget;
 
   function settingFor(key: string) {
     return settings.find(s => s.key === key);
@@ -245,10 +267,12 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
 
   return (
     <div className="mx-auto w-full max-w-[1440px] space-y-8">
-      {error && (
+      {/* A per-card signup can fail before its picker exists — Meta granted nothing,
+          or the code exchange was rejected — so that error needs a home up here. */}
+      {(error || (channelSignup.error && !channelSignup.assets)) && (
         <div className="flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 p-3.5 text-red-700">
           <AlertCircle size={15} />
-          <span className="font-body text-sm">{error}</span>
+          <span className="font-body text-sm">{error || channelSignup.error}</span>
         </div>
       )}
 
@@ -278,8 +302,11 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
             settings={settings}
             webhookHealth={webhookHealth}
             healthLoading={healthLoading}
+            canManage={canManage}
+            busyTarget={busyTarget}
             onRefreshHealth={loadHealth}
             onOpenChannel={openChannelModal}
+            onEmbeddedConnect={startEmbedded}
             onDisconnectChannel={openDisconnect}
           />
         </div>
@@ -296,6 +323,20 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
           onDismiss={meta.dismissAssets}
           isBusy={meta.isBusy}
           error={meta.error}
+          canManage={canManage}
+        />
+      )}
+
+      {channelSignup.assets && channelSignup.target && (
+        <MetaChannelPickerModal
+          target={channelSignup.target}
+          assets={channelSignup.assets}
+          selectedId={channelSignup.selectedId}
+          onSelect={channelSignup.setSelectedId}
+          onConfirm={channelSignup.complete}
+          onDismiss={channelSignup.dismiss}
+          isBusy={channelSignup.finishing}
+          error={channelSignup.error}
           canManage={canManage}
         />
       )}

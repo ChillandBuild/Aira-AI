@@ -1,4 +1,8 @@
-export type MetaSignupMode = "standard" | "coexistence";
+// "standard" runs the full Nira config (WhatsApp + Page + Instagram + ads).
+// "whatsapp_only" runs the WhatsApp-only config, so Meta asks for nothing else.
+// "coexistence" runs that same WhatsApp-only config with Meta's connect-without-
+// switching feature turned on for a number already live on the mobile app.
+export type MetaSignupMode = "standard" | "whatsapp_only" | "coexistence";
 export type MetaSignupFinishEvent = "FINISH" | "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING";
 
 type MetaSignupMessage = {
@@ -53,16 +57,19 @@ export function resolveMetaSignupCompletion(
   requestedMode: MetaSignupMode,
   event: MetaSignupFinishEvent
 ): boolean {
-  const completedMode = event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING" ? "coexistence" : "standard";
-  if (completedMode !== requestedMode) {
-    if (requestedMode === "coexistence") {
+  // Only coexistence has its own finish event. Every other mode ends on FINISH,
+  // so the check is "did Meta open the flow we asked for", not a mode equality.
+  const wantedCoexistence = requestedMode === "coexistence";
+  const gotCoexistence = event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING";
+  if (gotCoexistence !== wantedCoexistence) {
+    if (wantedCoexistence) {
       throw new Error(
         "Meta did not open the connect-without-switching flow. Check WhatsApp coexistence eligibility and try again."
       );
     }
     throw new Error("Meta returned a different signup flow. Start the connection again.");
   }
-  return completedMode === "coexistence";
+  return gotCoexistence;
 }
 
 function parseMetaSignupMessage(value: unknown): MetaSignupMessage | null {

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { ChannelStatusBadge, HealthRefreshButton, ZephyrCourier, timeAgo } from "./ui";
 import { META_CHANNELS } from "./channels";
 import type { ChannelConfig, Setting, WebhookHealth } from "./channels";
+import type { MetaSignupMode } from "./metaSignupMode";
 
 const VALUE_PROPS = [
   "Secure one-click connection",
@@ -33,7 +34,7 @@ export default function EmbeddedSection({
   isBusy: boolean;
   error: string | null;
   isConnected: boolean;
-  activeMode: "standard" | "coexistence" | null;
+  activeMode: MetaSignupMode | null;
   onConnect: () => void;
   onConnectCoexistence: () => void;
   onRefreshHealth: () => void;

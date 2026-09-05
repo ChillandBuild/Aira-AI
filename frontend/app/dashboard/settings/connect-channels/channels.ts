@@ -172,6 +172,24 @@ export const STANDALONE_CHANNELS: ChannelConfig[] = CHANNELS.filter(
   c => !META_CHANNEL_IDS.includes(c.id as (typeof META_CHANNEL_IDS)[number])
 );
 
+export type EmbeddedSignupTarget = "whatsapp" | "page" | "ads";
+
+/**
+ * Which Embedded Signup configuration connects each channel from its own card.
+ *
+ * Meta makes every asset listed in a Login configuration mandatory, so one combined
+ * configuration blocks any customer who lacks one of its assets. Each target points
+ * at a narrow configuration instead. Messenger and Instagram share "page" because
+ * Instagram DMs ride the linked Page's token — one signup connects both. Channels
+ * absent here have no embedded path.
+ */
+export const EMBEDDED_SIGNUP_TARGETS: Record<string, EmbeddedSignupTarget> = {
+  whatsapp: "whatsapp",
+  instagram: "page",
+  facebook: "page",
+  meta_ads: "ads",
+};
+
 export type ConnectionSource = "embedded" | "manual";
 
 /**

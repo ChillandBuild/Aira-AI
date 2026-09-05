@@ -6,14 +6,16 @@ import { MetaSignupCoordinator, buildMetaLoginOptions } from "./metaSignupMode";
 import type { MetaSignupMode, ReadyMetaSignup } from "./metaSignupMode";
 
 // Not secrets — safe to expose client-side. Env var lets prod/staging override.
-const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
+export const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID || "2225044871604460";
 const META_UNIFIED_CONFIG_ID = process.env.NEXT_PUBLIC_META_UNIFIED_CONFIG_ID || "2026693308738446";
-// Coexistence needs a WhatsApp-only Embedded Signup configuration. On the unified
-// configuration Meta ignores the whatsapp_business_app_onboarding featureType and
-// runs ordinary onboarding instead; this is the configuration that last completed
-// a real coexistence signup (tenant Astro Tamil - Co, 2026-08-10).
-const META_COEXISTENCE_CONFIG_ID =
-  process.env.NEXT_PUBLIC_META_COEXISTENCE_CONFIG_ID || "1063294086656120";
+// Meta makes every asset listed in a Login configuration mandatory, so a customer
+// with no Page or ad account cannot get through the unified window at all. This
+// WhatsApp-only configuration asks for the WABA and nothing else, and doubles as the
+// coexistence configuration — that flow is switched on by the extras sent at login
+// time, not by the configuration. It last completed a real coexistence signup on
+// 2026-08-10 (tenant Astro Tamil - Co).
+const META_WHATSAPP_ONLY_CONFIG_ID =
+  process.env.NEXT_PUBLIC_META_WHATSAPP_ONLY_CONFIG_ID || "1063294086656120";
 
 declare global {
   interface Window {
@@ -34,7 +36,7 @@ declare global {
 }
 
 let fbSdkPromise: Promise<void> | null = null;
-function loadFacebookSdk(): Promise<void> {
+export function loadFacebookSdk(): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
   if (window.FB) return Promise.resolve();
   if (fbSdkPromise) return fbSdkPromise;
@@ -70,6 +72,24 @@ export function useMetaSignup({
   const [selectedAdAccountId, setSelectedAdAccountId] = useState("");
   const [activeMode, setActiveMode] = useState<MetaSignupMode | null>(null);
   const coordinatorRef = useRef(new MetaSignupCoordinator());
+  // The requested mode has to outlive `activeMode`, which clears the moment the Meta
+  // window closes — `finish` still needs to know whether to skip the asset picker.
+  const requestedModeRef = useRef<MetaSignupMode | null>(null);
+
+  const submitSelection = useCallback(async (
+    sessionId: string,
+    pageId: string | null,
+    adAccountId: string | null,
+  ) => {
+    const auth = await getAuthHeaders();
+    const res = await fetch(`${API_URL}/api/v1/settings/meta/unified-signup/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...auth },
+      body: JSON.stringify({ session_id: sessionId, page_id: pageId, ad_account_id: adAccountId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Connecting Meta Business failed");
+  }, []);
 
   const finish = useCallback(async ({ code, session }: ReadyMetaSignup) => {
     if (!canManage) return;
@@ -92,6 +112,18 @@ export function useMetaSignup({
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Meta could not list the assets you granted");
       const granted = data as MetaBusinessAssets;
+
+      // The WhatsApp-only configuration grants no Page and no ad account, so there is
+      // nothing to choose — an empty picker would only add a dead click.
+      if (requestedModeRef.current !== "standard") {
+        setState("finishing");
+        await submitSelection(granted.session_id, null, null);
+        setAssets(null);
+        setState("success");
+        await onConnected();
+        return;
+      }
+
       setAssets(granted);
       setSelectedPageId(granted.pages.length === 1 ? granted.pages[0].id : "");
       setSelectedAdAccountId("");
@@ -102,7 +134,7 @@ export function useMetaSignup({
       setError(err instanceof Error ? err.message : "Connecting Meta Business failed");
       setActiveMode(null);
     }
-  }, [canManage]);
+  }, [canManage, submitSelection, onConnected]);
 
   useEffect(() => {
     function handleUnifiedMessage(event: MessageEvent) {
@@ -128,6 +160,7 @@ export function useMetaSignup({
     setState("connecting");
     setError(null);
     setActiveMode(mode);
+    requestedModeRef.current = mode;
     try {
       await loadFacebookSdk();
       window.FB?.login(
@@ -144,7 +177,7 @@ export function useMetaSignup({
           if (ready) void finish(ready);
         },
         buildMetaLoginOptions(
-          mode === "coexistence" ? META_COEXISTENCE_CONFIG_ID : META_UNIFIED_CONFIG_ID,
+          mode === "standard" ? META_UNIFIED_CONFIG_ID : META_WHATSAPP_ONLY_CONFIG_ID,
           mode
         )
       );
@@ -157,6 +190,7 @@ export function useMetaSignup({
   }, [canManage, finish]);
 
   const startStandard = useCallback(() => start("standard"), [start]);
+  const startWhatsAppOnly = useCallback(() => start("whatsapp_only"), [start]);
   const startCoexistence = useCallback(() => start("coexistence"), [start]);
 
   const complete = useCallback(async () => {
@@ -166,18 +200,7 @@ export function useMetaSignup({
     setState("finishing");
     setError(null);
     try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/meta/unified-signup/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({
-          session_id: assets.session_id,
-          page_id: selectedPageId || null,
-          ad_account_id: selectedAdAccountId || null,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Connecting Meta Business failed");
+      await submitSelection(assets.session_id, selectedPageId || null, selectedAdAccountId || null);
       setAssets(null);
       setState("success");
       await onConnected();
@@ -185,7 +208,7 @@ export function useMetaSignup({
       setState("error");
       setError(err instanceof Error ? err.message : "Connecting Meta Business failed");
     }
-  }, [canManage, assets, selectedPageId, selectedAdAccountId, onConnected]);
+  }, [canManage, assets, selectedPageId, selectedAdAccountId, submitSelection, onConnected]);
 
   const dismissAssets = useCallback(() => {
     setAssets(null);
@@ -206,6 +229,7 @@ export function useMetaSignup({
     setSelectedPageId,
     setSelectedAdAccountId,
     startStandard,
+    startWhatsAppOnly,
     startCoexistence,
     complete,
     dismissAssets,

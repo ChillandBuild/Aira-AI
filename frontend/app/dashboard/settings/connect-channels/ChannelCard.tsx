@@ -1,5 +1,5 @@
 "use client";
-import { Settings2 } from "lucide-react";
+import { Settings2, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChannelStatusBadge, HealthRefreshButton } from "./ui";
 import type { ChannelConfig, ConnectionSource } from "./channels";
@@ -12,8 +12,11 @@ export default function ChannelCard({
   source,
   metadata,
   healthLoading,
+  canManage = true,
+  embeddedBusy = false,
   onRefreshHealth,
   onOpen,
+  onEmbeddedConnect,
   onDisconnect,
 }: {
   channel: ChannelConfig;
@@ -23,8 +26,13 @@ export default function ChannelCard({
   source: ConnectionSource;
   metadata: string;
   healthLoading: boolean;
+  canManage?: boolean;
+  embeddedBusy?: boolean;
   onRefreshHealth: () => void;
   onOpen: () => void;
+  // Only the Meta-backed channels pass this; Telegram and Razorpay have no
+  // Embedded Signup, so their cards keep the manual button alone.
+  onEmbeddedConnect?: () => void;
   onDisconnect: () => void;
 }) {
   const viaMeta = source === "embedded" && configured;
@@ -74,6 +82,18 @@ export default function ChannelCard({
               className="rounded-lg px-2 py-1.5 font-label text-[10px] font-bold text-[#a8a29e] transition-colors hover:bg-red-50 hover:text-red-600"
             >
               Disconnect
+            </button>
+          )}
+          {!configured && onEmbeddedConnect && (
+            <button
+              type="button"
+              onClick={onEmbeddedConnect}
+              disabled={!canManage || embeddedBusy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#2e1065] to-primary px-2.5 py-1.5 font-label text-[10px] font-bold text-white shadow-[0_4px_12px_rgba(91,33,182,0.22)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {embeddedBusy
+                ? <><Loader2 size={12} className="animate-spin" /> Opening…</>
+                : <><Sparkles size={12} /> Connect via Meta</>}
             </button>
           )}
           <button

@@ -1,22 +1,28 @@
 "use client";
 import { ZephyrCourier, timeAgo } from "./ui";
 import ChannelCard from "./ChannelCard";
-import { CHANNELS, resolveConnectionSource } from "./channels";
-import type { ChannelConfig, Setting, WebhookHealth } from "./channels";
+import { CHANNELS, EMBEDDED_SIGNUP_TARGETS, resolveConnectionSource } from "./channels";
+import type { ChannelConfig, EmbeddedSignupTarget, Setting, WebhookHealth } from "./channels";
 
 export default function ManualSection({
   settings,
   webhookHealth,
   healthLoading,
+  canManage,
+  busyTarget,
   onRefreshHealth,
   onOpenChannel,
+  onEmbeddedConnect,
   onDisconnectChannel,
 }: {
   settings: Setting[];
   webhookHealth: WebhookHealth | null;
   healthLoading: boolean;
+  canManage: boolean;
+  busyTarget: EmbeddedSignupTarget | null;
   onRefreshHealth: () => void;
   onOpenChannel: (channel: ChannelConfig) => void;
+  onEmbeddedConnect: (target: EmbeddedSignupTarget) => void;
   onDisconnectChannel: (channelId: string) => void;
 }) {
   return (
@@ -60,6 +66,8 @@ export default function ManualSection({
                 ? `Active event: ${timeAgo(health.last_event)}`
                 : "No events received yet";
 
+          const embeddedTarget = EMBEDDED_SIGNUP_TARGETS[channel.id];
+
           return (
             <ChannelCard
               key={channel.id}
@@ -70,8 +78,11 @@ export default function ManualSection({
               source={source}
               metadata={metadata}
               healthLoading={healthLoading}
+              canManage={canManage}
+              embeddedBusy={Boolean(embeddedTarget) && busyTarget === embeddedTarget}
               onRefreshHealth={onRefreshHealth}
               onOpen={() => onOpenChannel(channel)}
+              onEmbeddedConnect={embeddedTarget ? () => onEmbeddedConnect(embeddedTarget) : undefined}
               onDisconnect={() => onDisconnectChannel(channel.id)}
             />
           );
