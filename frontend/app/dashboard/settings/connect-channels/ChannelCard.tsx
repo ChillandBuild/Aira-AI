@@ -40,10 +40,10 @@ export default function ChannelCard({
   return (
     <article
       className={cn(
-        "flex min-h-[270px] flex-col justify-between rounded-3xl border bg-white p-5 shadow-sm transition-all duration-300",
+        "flex min-h-[270px] flex-col justify-between rounded-3xl border bg-white p-5 transition-all duration-300",
         viaMeta
-          ? "border-[#ece7fb] bg-[#fdfcff]"
-          : "border-[#e8e3db] hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-lg"
+          ? "border-violet-200/90 bg-gradient-to-b from-[#fdfcff] to-white shadow-[0_4px_24px_rgba(124,58,237,0.09)] hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_8px_30px_rgba(124,58,237,0.18)]"
+          : "border-violet-100/70 shadow-[0_4px_20px_rgba(124,58,237,0.07)] hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_8px_28px_rgba(124,58,237,0.16)]"
       )}
     >
       <div>

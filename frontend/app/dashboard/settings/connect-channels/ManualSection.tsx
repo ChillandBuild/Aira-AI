@@ -26,7 +26,7 @@ export default function ManualSection({
   onDisconnectChannel: (channelId: string) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-violet-200 bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
+    <section className="overflow-hidden rounded-[28px] border border-violet-200/80 bg-white shadow-[0_12px_40px_rgba(124,58,237,0.08),0_2px_10px_rgba(0,0,0,0.04)] ring-1 ring-violet-100/50">
       <div className="relative flex flex-col gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-violet-50/40 px-5 py-5 sm:min-h-[200px] sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:pr-[250px]">
         <div>
           <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700">Manual API connection</p>
