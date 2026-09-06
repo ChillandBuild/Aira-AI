@@ -83,11 +83,36 @@ export function HealthRefreshButton({ loading, onClick }: { loading: boolean; on
   );
 }
 
-export function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
+export function ZephyrCourier({
+  variant,
+  compact = false,
+  className = "",
+}: {
+  variant: "embedded" | "manual";
+  compact?: boolean;
+  className?: string;
+}) {
   const isEmbedded = variant === "embedded";
 
+  if (compact) {
+    return (
+      <div className={cn("relative h-36 w-36 sm:h-40 sm:w-40", className)}>
+        <Image
+          src={isEmbedded
+            ? "/aira/illustrations/aira-zephyr-embedded-3d.png"
+            : "/aira/illustrations/aira-zephyr-manual-3d.png"}
+          alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
+          fill
+          sizes="180px"
+          className="object-contain"
+          unoptimized
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="relative h-48 w-full sm:h-64">
+    <div className={cn("relative h-48 w-full sm:h-64", className)}>
       <Image
         src={isEmbedded
           ? "/aira/illustrations/aira-zephyr-embedded-3d.png"

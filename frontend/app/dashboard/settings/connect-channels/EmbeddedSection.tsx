@@ -42,11 +42,11 @@ export default function EmbeddedSection({
   onDisconnect: (channelId: string) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-violet-200/80 bg-white shadow-[0_12px_40px_rgba(124,58,237,0.10),0_2px_10px_rgba(0,0,0,0.04)] ring-1 ring-violet-100/60">
-      <div className="relative flex flex-col gap-5 border-b border-violet-100/80 bg-gradient-to-b from-primary-light/40 via-primary-light/20 to-white px-6 py-6 sm:min-h-[190px] sm:flex-row sm:items-start sm:justify-between sm:px-8 sm:pr-[250px]">
+    <section className="overflow-hidden rounded-[28px] border border-violet-200/90 bg-white shadow-[0_0_30px_rgba(124,58,237,0.12),0_4px_20px_rgba(0,0,0,0.04)] ring-1 ring-violet-200/50">
+      <div className="relative flex flex-col gap-4 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-violet-50/40 px-6 py-6 sm:min-h-[170px] sm:flex-row sm:items-center sm:justify-between sm:px-8 sm:pr-[200px]">
         <div className="relative z-10 max-w-xl">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <p className="font-label text-[11px] font-extrabold uppercase tracking-[0.2em] text-primary">Connectivity Hub</p>
+            <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700">Connectivity Hub</p>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-primary via-purple-600 to-indigo-600 px-3 py-1 font-label text-[10px] font-bold tracking-wide text-white shadow-[0_0_16px_rgba(124,58,237,0.55)] ring-1 ring-violet-300/50">
               <Sparkles size={11} className="text-amber-300 animate-pulse" />
               Recommended
@@ -57,11 +57,8 @@ export default function EmbeddedSection({
             Your central command for all Meta integrations. Manage WhatsApp, Facebook Messenger, linked Instagram, and ad reporting from a single, secure gateway.
           </p>
         </div>
-        <div className="relative z-10 flex shrink-0 items-center gap-2 self-start">
-          <HealthRefreshButton loading={healthLoading} onClick={onRefreshHealth} />
-        </div>
-        <div className="pointer-events-none absolute bottom-1 right-6 hidden w-[200px] sm:block">
-          <ZephyrCourier variant="embedded" />
+        <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 hidden sm:block">
+          <ZephyrCourier variant="embedded" compact />
         </div>
       </div>
 
@@ -120,11 +117,12 @@ export default function EmbeddedSection({
         <div className="lg:col-span-7">
           <div className="mb-3.5 flex items-center justify-between">
             <h3 className="font-label text-xs font-bold uppercase tracking-wider text-ink-muted flex items-center gap-2">
-              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
               Active Channels
             </h3>
+            <HealthRefreshButton loading={healthLoading} onClick={onRefreshHealth} />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-2.5">
             {META_CHANNELS.map(channel => {
               const configured = channel.fields.every(f => settings.find(s => s.key === f.key)?.is_set);
               const health = webhookHealth?.health?.[channel.id];
@@ -145,14 +143,14 @@ export default function EmbeddedSection({
               return (
                 <div
                   key={channel.id}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-violet-100/90 bg-white/95 p-3.5 shadow-[0_4px_20px_rgba(124,58,237,0.07)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_8px_25px_rgba(124,58,237,0.18)]"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-violet-200/90 bg-white p-3.5 shadow-[0_0_15px_rgba(124,58,237,0.18),0_2px_6px_rgba(124,58,237,0.08)] ring-1 ring-violet-400/20 transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-[0_0_24px_rgba(124,58,237,0.35)] hover:ring-violet-400/40"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", channel.iconBg)}>
                       <channel.icon size={18} className={channel.iconColor} />
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate font-display text-sm font-bold text-ink leading-tight">{channel.name}</p>
+                      <p className="font-display text-sm font-bold text-ink leading-tight">{channel.name}</p>
                       <p className="truncate font-body text-[11px] text-ink-muted mt-0.5">
                         {activity}
                       </p>
