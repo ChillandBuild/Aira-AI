@@ -43,37 +43,29 @@ export default function EmbeddedSection({
 }) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-primary-muted bg-white shadow-[0_16px_45px_rgba(28,25,23,0.06)]">
-      <div className="flex flex-col gap-5 border-b border-primary-muted/50 bg-gradient-to-br from-primary-light/80 via-white to-primary-light/30 px-6 py-7 sm:flex-row sm:items-start sm:justify-between sm:px-8">
-        <div className="max-w-xl">
-          <p className="font-label text-[11px] font-extrabold uppercase tracking-[0.2em] text-primary">Embedded onboarding</p>
-          <h2 className="mt-2.5 font-display text-2xl font-bold tracking-tight text-ink">WhatsApp, Messenger, Instagram &amp; Ads</h2>
-          <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+      <div className="flex flex-col gap-4 border-b border-primary-muted bg-gradient-to-r from-primary-light via-white to-primary-light/40 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-7">
+        <div>
+          <p className="font-label text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Embedded onboarding</p>
+          <h2 className="mt-1 font-display text-xl font-bold text-ink">WhatsApp, Messenger, Instagram &amp; Ads</h2>
+          <p className="mt-1 max-w-2xl font-body text-xs text-ink-muted">
             One secure Meta window connects WhatsApp, your Facebook Page and Messenger, linked
             Instagram, and optional read-only ad reporting.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3 self-start">
-          <span className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#2e1065] to-primary px-3.5 py-1.5 font-label text-xs font-bold tracking-wide text-white shadow-lg shadow-primary/20 ring-1 ring-primary/10">
-            <CheckCircle2 size={14} className="text-white/90" />
-            Recommended
-          </span>
+        <div className="flex shrink-0 items-center gap-2 self-start">
+          <span className="rounded-lg bg-gradient-to-br from-[#2e1065] to-primary px-2.5 py-1 font-label text-[10px] font-bold text-white shadow-sm">Recommended</span>
           <HealthRefreshButton loading={healthLoading} onClick={onRefreshHealth} />
         </div>
       </div>
 
-      <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+      <div className="grid gap-5 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-center">
         <div>
-          <ul className="space-y-3.5 font-body text-[15px] text-ink/80">
+          <ul className="space-y-3 font-body text-sm text-[#57534e]">
             {VALUE_PROPS.map(item => (
-              <li key={item} className="flex items-center gap-3">
-                <div className="flex shrink-0 items-center justify-center rounded-full bg-primary-light/50 p-1">
-                  <CheckCircle2 size={16} className="text-primary" />
-                </div>
-                {item}
-              </li>
+              <li key={item} className="flex items-center gap-2"><CheckCircle2 size={16} className="shrink-0 text-primary" />{item}</li>
             ))}
           </ul>
-          {error && <p className="mt-5 rounded-xl bg-red-50 px-4 py-3 font-body text-sm text-red-700">{error}</p>}
+          {error && <p className="mt-4 rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{error}</p>}
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-stretch">
             <button
               type="button"
@@ -92,7 +84,7 @@ export default function EmbeddedSection({
               {isBusy && activeMode === "coexistence" ? <><Loader2 size={16} className="animate-spin" />Opening coexistence…</> : <>Connect WhatsApp Business App <ArrowRight size={16} /></>}
             </button>
           </div>
-          <p className="mt-3.5 font-body text-[13px] leading-relaxed text-ink-muted/90">
+          <p className="mt-2 font-body text-xs text-ink-muted">
             Already use the WhatsApp Business app? The second option keeps the mobile app connected.
           </p>
           {isConnected && (
@@ -100,13 +92,13 @@ export default function EmbeddedSection({
               type="button"
               onClick={() => onDisconnect("meta")}
               disabled={!canManage || isBusy}
-              className="mt-4 rounded-xl border border-border px-5 py-3 font-label text-sm font-bold text-ink-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-2 rounded-xl border border-[#e8e3db] px-4 py-3 font-label text-sm font-bold text-[#78716c] transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Disconnect
             </button>
           )}
         </div>
-        <div className="hidden lg:flex lg:justify-end lg:items-center"><ZephyrCourier variant="embedded" /></div>
+        <div className="hidden lg:block"><ZephyrCourier variant="embedded" /></div>
       </div>
 
       <div className="divide-y divide-[#f0ece4] border-t border-[#f0ece4]">
