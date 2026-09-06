@@ -713,6 +713,11 @@ async def activate_channel(
                     "tenant_id": tenant_id,
                 }, on_conflict="number").execute()
                 logger.info(f"Automatically registered active primary number {display_phone} for tenant {tenant_id}")
+                # Mirror the human-readable identity onto app_settings so the
+                # Connectivity Hub can name the account without a second fetch.
+                _save_tenant_setting(db, tenant_id, "meta_phone_display", display_phone.strip())
+                if data.get("verified_name"):
+                    _save_tenant_setting(db, tenant_id, "meta_verified_name", data["verified_name"])
         except Exception as phone_reg_err:
             logger.warning(f"Failed to auto-register phone number on activation: {phone_reg_err}")
 
@@ -925,6 +930,12 @@ async def whatsapp_embedded_signup(
             "paused_outbound": False,
             "tenant_id": tenant_id,
         }, on_conflict="number").execute()
+
+    if display_phone:
+        _save_tenant_setting(db, tenant_id, "meta_phone_display", display_phone.strip())
+    if info_data.get("verified_name"):
+        _save_tenant_setting(db, tenant_id, "meta_verified_name", info_data["verified_name"])
+    _save_tenant_setting(db, tenant_id, "meta_connected_at", datetime.now(timezone.utc).isoformat())
 
     from app.config_dynamic import invalidate_cache
     invalidate_cache()
@@ -1343,6 +1354,11 @@ async def complete_meta_business_login(
     if connected_instagram:
         _save_tenant_setting(db, tenant_id, "instagram_status", "live" if subscribed else "configured")
         _stamp_connection_source(db, tenant_id, "instagram", "embedded")
+    if page.get("name"):
+        _save_tenant_setting(db, tenant_id, "facebook_page_name", page["name"])
+    if ig_account.get("username"):
+        _save_tenant_setting(db, tenant_id, "instagram_username", ig_account["username"])
+    _save_tenant_setting(db, tenant_id, "meta_connected_at", datetime.now(timezone.utc).isoformat())
     db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", list(_META_BUSINESS_ONBOARDING_KEYS)).execute()
 
     from app.config_dynamic import invalidate_cache
@@ -1515,6 +1531,15 @@ async def complete_unified_meta_signup(
         _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_status", "configured")
         _stamp_connection_source(db, tenant_id, "meta_ads", "embedded")
+    if page and page.get("name"):
+        _save_tenant_setting(db, tenant_id, "facebook_page_name", page["name"])
+    if ig_account.get("username"):
+        _save_tenant_setting(db, tenant_id, "instagram_username", ig_account["username"])
+    if display_phone:
+        _save_tenant_setting(db, tenant_id, "meta_phone_display", display_phone.strip())
+    if business_name:
+        _save_tenant_setting(db, tenant_id, "meta_verified_name", business_name)
+    _save_tenant_setting(db, tenant_id, "meta_connected_at", datetime.now(timezone.utc).isoformat())
     if display_phone:
         db.table("phone_numbers").upsert({
             "provider": "meta_cloud",

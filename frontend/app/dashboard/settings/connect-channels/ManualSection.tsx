@@ -1,7 +1,7 @@
 "use client";
 import { ZephyrCourier, timeAgo } from "./ui";
 import ChannelCard from "./ChannelCard";
-import { CHANNELS, EMBEDDED_SIGNUP_TARGETS, resolveConnectionSource } from "./channels";
+import { STANDALONE_CHANNELS, EMBEDDED_SIGNUP_TARGETS, resolveConnectionSource } from "./channels";
 import type { ChannelConfig, EmbeddedSignupTarget, Setting, WebhookHealth } from "./channels";
 
 export default function ManualSection({
@@ -46,7 +46,7 @@ export default function ManualSection({
       </div>
 
       <div className="grid grid-cols-1 gap-5 p-5 sm:p-7 md:grid-cols-2 lg:grid-cols-3">
-        {CHANNELS.map(channel => {
+        {STANDALONE_CHANNELS.map(channel => {
           const configured = channel.fields.every(f => settings.find(s => s.key === f.key)?.is_set);
           const health = webhookHealth?.health?.[channel.id];
           const alert = webhookHealth?.token_alerts?.find(a => a.channel === channel.id);
