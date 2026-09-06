@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Sparkles, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ZephyrCourier, timeAgo } from "./ui";
-import { META_CHANNELS, EMBEDDED_SIGNUP_TARGETS } from "./channels";
+import { META_CHANNELS } from "./channels";
 import type { ChannelConfig, EmbeddedSignupTarget, Setting, WebhookHealth } from "./channels";
 import type { MetaSignupMode } from "./metaSignupMode";
 
@@ -55,10 +55,8 @@ export default function EmbeddedSection({
   error,
   isConnected,
   activeMode,
-  busyTarget,
   onConnect,
   onConnectCoexistence,
-  onEmbeddedConnect,
   onRefreshHealth,
   onManageChannel,
   onDisconnect,
@@ -145,7 +143,7 @@ export default function EmbeddedSection({
   return (
     <section className="overflow-hidden rounded-[20px] border border-border bg-white shadow-card">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="grid items-center gap-6 bg-gradient-to-b from-[#fbfaff] to-white px-6 py-6 sm:grid-cols-[1fr_auto] sm:gap-10 sm:px-8">
+      <div className="grid items-center gap-6 bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white px-6 py-6 sm:grid-cols-[1fr_auto] sm:gap-10 sm:px-8">
         <div className="min-w-0">
           <p className="font-label text-[9.5px] font-bold uppercase tracking-[0.17em] text-ink-muted">
             Connectivity Hub
@@ -163,53 +161,64 @@ export default function EmbeddedSection({
             <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 font-body text-sm text-red-700">{error}</p>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
-            {isConnected ? (
-              <>
-                <span className="inline-flex items-center gap-2 font-label text-xs font-bold text-emerald-600">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                  Connected{connectedAt ? ` · ${timeAgo(connectedAt)}` : ""}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen(v => !v)}
-                  disabled={!canManage}
-                  className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-4 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Manage connection
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDisconnect("meta")}
-                  disabled={!canManage || isBusy}
-                  className="font-label text-xs font-bold text-ink-muted underline decoration-transparent underline-offset-4 transition-colors hover:text-danger hover:decoration-current disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Disconnect Meta
-                </button>
-              </>
-            ) : (
-              <>
+          {isConnected ? (
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+              <span className="inline-flex items-center gap-2 font-label text-xs font-bold text-emerald-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Connected{connectedAt ? ` · ${timeAgo(connectedAt)}` : ""}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(v => !v)}
+                disabled={!canManage}
+                className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-4 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Manage connection
+              </button>
+              <button
+                type="button"
+                onClick={() => onDisconnect("meta")}
+                disabled={!canManage || isBusy}
+                className="font-label text-xs font-bold text-ink-muted underline decoration-transparent underline-offset-4 transition-colors hover:text-danger hover:decoration-current disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Disconnect Meta
+              </button>
+            </div>
+          ) : (
+            <div className="mt-5 space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
                   onClick={onConnect}
                   disabled={!canManage || isBusy}
-                  className="inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-br from-[#3b0f79] to-primary px-5 py-2.5 font-label text-[13px] font-bold text-white shadow-[0_1px_2px_rgba(46,16,101,0.24),0_6px_16px_-8px_rgba(91,33,182,0.6)] transition-all hover:-translate-y-px hover:shadow-[0_2px_4px_rgba(46,16,101,0.2),0_12px_24px_-10px_rgba(91,33,182,0.7)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="relative inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] px-5 py-2.5 font-label text-[13px] font-bold text-white shadow-[0_0_20px_-3px_rgba(124,58,237,0.45),0_2px_4px_rgba(46,16,101,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_28px_rgba(124,58,237,0.65),0_6px_16px_rgba(46,16,101,0.3)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isBusy && activeMode === "standard" && <Loader2 size={14} className="animate-spin" />}
                   Connect Meta Business
                 </button>
+
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-50/90 px-2.5 py-1 font-label text-[10.5px] font-bold uppercase tracking-wider text-violet-700 shadow-[0_0_12px_rgba(139,92,246,0.32)]">
+                  <Sparkles size={11} className="animate-pulse text-violet-600" />
+                  Recommended
+                </span>
+
                 <button
                   type="button"
                   onClick={onConnectCoexistence}
                   disabled={!canManage || isBusy}
-                  className="inline-flex items-center gap-2 font-label text-[12.5px] font-bold text-primary underline decoration-primary/40 underline-offset-4 transition-colors hover:decoration-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-[11px] border border-border bg-white px-4 py-2.5 font-label text-[13px] font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isBusy && activeMode === "coexistence" && <Loader2 size={14} className="animate-spin" />}
-                  Use WhatsApp Coexistence instead
+                  <Smartphone size={13} className="text-ink-secondary" />
+                  WhatsApp Coexistence
                 </button>
-              </>
-            )}
-          </div>
+              </div>
+
+              <p className="font-body text-[12px] leading-relaxed text-ink-secondary">
+                <span className="font-semibold text-ink">Prefer using your phone?</span> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing conversations with Aira.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="hidden shrink-0 justify-self-end sm:block">
@@ -293,8 +302,6 @@ export default function EmbeddedSection({
             const configured = isConfigured(channel);
             const status = statusFor(channel);
             const asset = assetFor(channel);
-            const target = EMBEDDED_SIGNUP_TARGETS[channel.id];
-
             return (
               <div
                 key={channel.id}
@@ -348,8 +355,8 @@ export default function EmbeddedSection({
                   {status.label}
                 </span>
 
-                <div className="flex min-w-[150px] items-center justify-end gap-3.5">
-                  {configured ? (
+                <div className={cn("flex items-center justify-end gap-3.5", configured ? "min-w-[150px]" : "min-w-0")}>
+                  {configured && (
                     <>
                       <button
                         type="button"
@@ -367,17 +374,7 @@ export default function EmbeddedSection({
                         Disconnect
                       </button>
                     </>
-                  ) : target ? (
-                    <button
-                      type="button"
-                      onClick={() => onEmbeddedConnect(target)}
-                      disabled={!canManage || isBusy || busyTarget === target}
-                      className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-4 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {busyTarget === target && <Loader2 size={12} className="animate-spin" />}
-                      Connect
-                    </button>
-                  ) : null}
+                  )}
                 </div>
               </div>
             );
