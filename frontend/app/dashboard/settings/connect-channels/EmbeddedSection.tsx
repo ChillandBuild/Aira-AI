@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Check, Loader2, Sparkles, Smartphone } from "lucide-react";
+import { Check, Loader2, Sparkles, Smartphone, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ZephyrCourier, timeAgo } from "./ui";
 import { META_CHANNELS } from "./channels";
@@ -145,16 +145,31 @@ export default function EmbeddedSection({
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="grid items-center gap-6 bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white px-6 py-6 sm:grid-cols-[1fr_auto] sm:gap-10 sm:px-8">
         <div className="min-w-0">
-          <p className="font-label text-[9.5px] font-bold uppercase tracking-[0.17em] text-ink-muted">
-            Connectivity Hub
-          </p>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200/90 bg-purple-50/90 px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
+              <Activity size={12} className="text-primary" />
+              Activity Hub
+            </span>
+            {!isConnected && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-50/90 px-2.5 py-1 font-label text-[10.5px] font-bold uppercase tracking-wider text-violet-700 shadow-[0_0_12px_rgba(139,92,246,0.32)]">
+                <Sparkles size={11} className="animate-pulse text-violet-600" />
+                Recommended
+              </span>
+            )}
+          </div>
+
           <h2 className="mt-2.5 font-display text-[26px] font-bold leading-[1.15] tracking-tight text-ink">
             {isConnected ? verifiedName ?? "Meta Business" : "Connect Meta Business"}
           </h2>
-          <p className="mt-2 max-w-[60ch] font-body text-[13px] leading-relaxed text-ink-secondary">
-            {isConnected
-              ? "WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting, through one Meta connection."
-              : "One secure connection brings WhatsApp, Messenger, Instagram and your Click-to-WhatsApp ad reporting into Aira."}
+          <p className="mt-2 max-w-[70ch] font-body text-[13px] leading-relaxed text-ink-secondary">
+            {isConnected ? (
+              "WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting, through one Meta connection."
+            ) : (
+              <>
+                One secure connection brings WhatsApp, Messenger, Instagram and your Click-to-WhatsApp ad reporting into Aira.{" "}
+                <span className="font-medium text-ink">Prefer using your phone?</span> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing conversations with Aira.
+              </>
+            )}
           </p>
 
           {error && (
@@ -185,44 +200,33 @@ export default function EmbeddedSection({
               </button>
             </div>
           ) : (
-            <div className="mt-5 space-y-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={onConnect}
-                  disabled={!canManage || isBusy}
-                  className="relative inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] px-5 py-2.5 font-label text-[13px] font-bold text-white shadow-[0_0_20px_-3px_rgba(124,58,237,0.45),0_2px_4px_rgba(46,16,101,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_28px_rgba(124,58,237,0.65),0_6px_16px_rgba(46,16,101,0.3)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isBusy && activeMode === "standard" && <Loader2 size={14} className="animate-spin" />}
-                  Connect Meta Business
-                </button>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={onConnect}
+                disabled={!canManage || isBusy}
+                className="relative inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] px-5 py-2.5 font-label text-[13px] font-bold text-white shadow-[0_0_20px_-3px_rgba(124,58,237,0.45),0_2px_4px_rgba(46,16,101,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_28px_rgba(124,58,237,0.65),0_6px_16px_rgba(46,16,101,0.3)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isBusy && activeMode === "standard" && <Loader2 size={14} className="animate-spin" />}
+                Connect Meta Business
+              </button>
 
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-50/90 px-2.5 py-1 font-label text-[10.5px] font-bold uppercase tracking-wider text-violet-700 shadow-[0_0_12px_rgba(139,92,246,0.32)]">
-                  <Sparkles size={11} className="animate-pulse text-violet-600" />
-                  Recommended
-                </span>
-
-                <button
-                  type="button"
-                  onClick={onConnectCoexistence}
-                  disabled={!canManage || isBusy}
-                  className="inline-flex items-center gap-2 rounded-[11px] border border-border bg-white px-4 py-2.5 font-label text-[13px] font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isBusy && activeMode === "coexistence" && <Loader2 size={14} className="animate-spin" />}
-                  <Smartphone size={13} className="text-ink-secondary" />
-                  WhatsApp Coexistence
-                </button>
-              </div>
-
-              <p className="font-body text-[12px] leading-relaxed text-ink-secondary">
-                <span className="font-semibold text-ink">Prefer using your phone?</span> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing conversations with Aira.
-              </p>
+              <button
+                type="button"
+                onClick={onConnectCoexistence}
+                disabled={!canManage || isBusy}
+                className="inline-flex items-center gap-2 rounded-[11px] border border-border bg-white px-4 py-2.5 font-label text-[13px] font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isBusy && activeMode === "coexistence" && <Loader2 size={14} className="animate-spin" />}
+                <Smartphone size={13} className="text-ink-secondary" />
+                WhatsApp Coexistence
+              </button>
             </div>
           )}
         </div>
 
         <div className="hidden shrink-0 justify-self-end sm:block">
-          <ZephyrCourier variant="embedded" compact />
+          <ZephyrCourier variant="embedded" compact className="!h-44 !w-44 sm:!h-48 sm:!w-48 lg:!h-52 lg:!w-52" />
         </div>
       </div>
 
