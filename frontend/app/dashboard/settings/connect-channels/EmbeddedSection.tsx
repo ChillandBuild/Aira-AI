@@ -298,11 +298,10 @@ export default function EmbeddedSection({
 
       {/* ── Channels ───────────────────────────────────────────────────── */}
       <div className="px-6 pb-2 pt-5 sm:px-8">
-        <div className="mb-2.5 flex items-center justify-center gap-2 text-center">
+        <div className="mb-1 flex items-baseline justify-between gap-3">
           <span className="font-label text-[9.5px] font-bold uppercase tracking-[0.15em] text-ink-muted">
             Channels
           </span>
-          <span className="h-1 w-1 rounded-full bg-ink-muted/40" />
           <span className="font-label text-[9.5px] font-bold uppercase tracking-[0.15em] text-ink-muted">
             {connectedCount > 0 ? `${connectedCount} connected` : "None connected yet"}
           </span>
@@ -356,17 +355,15 @@ export default function EmbeddedSection({
                   )}
                 </p>
 
-                <div className="flex justify-center">
-                  <span
-                    className={cn(
-                      "inline-flex min-w-[120px] items-center justify-center gap-2 font-label text-xs font-bold",
-                      STATE_STYLES[status.state]
-                    )}
-                  >
-                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_STYLES[status.state])} />
-                    {status.label}
-                  </span>
-                </div>
+                <span
+                  className={cn(
+                    "inline-flex min-w-[120px] items-center gap-2 font-label text-xs font-bold",
+                    STATE_STYLES[status.state]
+                  )}
+                >
+                  <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_STYLES[status.state])} />
+                  {status.label}
+                </span>
 
                 <div className={cn("flex items-center justify-end gap-3.5", configured ? "min-w-[150px]" : "min-w-0")}>
                   {configured && (
