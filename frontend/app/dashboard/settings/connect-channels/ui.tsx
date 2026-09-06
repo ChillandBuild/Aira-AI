@@ -87,15 +87,15 @@ export function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
   const isEmbedded = variant === "embedded";
 
   return (
-    <div className="relative h-36 w-full sm:h-48">
+    <div className="relative h-48 w-full sm:h-64">
       <Image
         src={isEmbedded
           ? "/aira/illustrations/aira-zephyr-embedded-3d.png"
           : "/aira/illustrations/aira-zephyr-manual-3d.png"}
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
-        sizes="(min-width: 1024px) 220px, 120px"
-        className="object-contain scale-[1.2]"
+        sizes="(min-width: 1024px) 300px, 150px"
+        className="object-contain origin-right scale-[1.3] lg:scale-[1.5]"
         unoptimized
       />
     </div>
