@@ -1208,3 +1208,13 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Files**: `backend/app/routes/app_settings.py`, `backend/tests/test_meta_ads_only_signup.py` (5 new), `frontend/.../connect-channels/{useMetaSignup,useMetaChannelSignup,metaSignupMode,channels,ChannelCard,ManualSection,EmbeddedSection,Panel,MetaChannelPickerModal,channels.test}.*`. Backend **1560/1560**; frontend typecheck + lint clean, 71 tests, production build green. Committed `dd039293` on `main` **locally — not pushed**.
 - **Nothing has been through a real Meta window.** This sandbox has no internet; all three new paths are unverified end to end. See active-backlog.
 
+**2026-09-06 — EmbeddedSection UI Redesign: Compact single-line channel cards & WhatsApp Coexistence (frontend)**
+- **Decision**: Button label changed from "Connect WhatsApp Business App" to "WhatsApp Coexistence" to match Meta coexistence terminology.
+- **UI Redesign**: Redesigned `EmbeddedSection.tsx` into a streamlined "Connectivity Hub" layout:
+  - Header: Dropped the redundant "Recommended" badge and mock stats in favor of a clean "Connectivity Hub" badge and clear subtitle.
+  - Controls: "Connect Meta Business" and "WhatsApp Coexistence" buttons made compact (`px-4 py-2.5 font-label text-xs sm:text-sm font-bold`) and aligned inline with "Disconnect".
+  - Channels Grid: Transformed the bottom channel list into a 2-column grid of compact single-line cards. Each card contains icon, title, and last activity on the left, with the status badge (`Live` / `Not configured`) and action buttons (`Manage`, `Disconnect`) aligned horizontally on the right and always visible when configured.
+  - Mascot: `ZephyrCourier` scaled up (`scale-[1.5]` on desktop) with container height adjusted and right-anchored.
+- **Files**: `frontend/app/dashboard/settings/connect-channels/EmbeddedSection.tsx`, `frontend/app/dashboard/settings/connect-channels/ui.tsx`.
+- **Verification**: `npm run typecheck` passing with 0 errors.
+
