@@ -148,7 +148,7 @@ export default function EmbeddedSection({
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200/90 bg-purple-50/90 px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
               <Activity size={12} className="text-primary" />
-              Activity Hub
+              Connectivity Hub
             </span>
             {!isConnected && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-50/90 px-2.5 py-1 font-label text-[10.5px] font-bold uppercase tracking-wider text-violet-700 shadow-[0_0_12px_rgba(139,92,246,0.32)]">
@@ -161,16 +161,22 @@ export default function EmbeddedSection({
           <h2 className="mt-2.5 font-display text-[26px] font-bold leading-[1.15] tracking-tight text-ink">
             {isConnected ? verifiedName ?? "Meta Business" : "Connect Meta Business"}
           </h2>
-          <p className="mt-2 max-w-[70ch] font-body text-[13px] leading-relaxed text-ink-secondary">
-            {isConnected ? (
-              "WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting, through one Meta connection."
-            ) : (
-              <>
-                One secure connection brings WhatsApp, Messenger, Instagram and your Click-to-WhatsApp ad reporting into Aira.{" "}
-                <span className="font-medium text-ink">Prefer using your phone?</span> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing conversations with Aira.
-              </>
-            )}
-          </p>
+          {isConnected ? (
+            <p className="mt-2 max-w-[70ch] font-body text-[13px] leading-relaxed text-ink-secondary">
+              WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting, through one Meta connection.
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-3 max-w-[90ch] sm:grid-cols-2 sm:gap-6">
+              <div className="flex items-start gap-2.5 font-body text-[13px] leading-relaxed text-ink-secondary">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                <span>One secure connection brings WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting into Aira.</span>
+              </div>
+              <div className="flex items-start gap-2.5 font-body text-[13px] leading-relaxed text-ink-secondary">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                <span><strong className="font-semibold text-ink">Prefer using your phone?</strong> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing with Aira.</span>
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 font-body text-sm text-red-700">{error}</p>
@@ -292,10 +298,11 @@ export default function EmbeddedSection({
 
       {/* ── Channels ───────────────────────────────────────────────────── */}
       <div className="px-6 pb-2 pt-5 sm:px-8">
-        <div className="mb-1 flex items-baseline justify-between gap-3">
+        <div className="mb-2.5 flex items-center justify-center gap-2 text-center">
           <span className="font-label text-[9.5px] font-bold uppercase tracking-[0.15em] text-ink-muted">
             Channels
           </span>
+          <span className="h-1 w-1 rounded-full bg-ink-muted/40" />
           <span className="font-label text-[9.5px] font-bold uppercase tracking-[0.15em] text-ink-muted">
             {connectedCount > 0 ? `${connectedCount} connected` : "None connected yet"}
           </span>
@@ -349,15 +356,17 @@ export default function EmbeddedSection({
                   )}
                 </p>
 
-                <span
-                  className={cn(
-                    "inline-flex min-w-[120px] items-center gap-2 font-label text-xs font-bold",
-                    STATE_STYLES[status.state]
-                  )}
-                >
-                  <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_STYLES[status.state])} />
-                  {status.label}
-                </span>
+                <div className="flex justify-center">
+                  <span
+                    className={cn(
+                      "inline-flex min-w-[120px] items-center justify-center gap-2 font-label text-xs font-bold",
+                      STATE_STYLES[status.state]
+                    )}
+                  >
+                    <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_STYLES[status.state])} />
+                    {status.label}
+                  </span>
+                </div>
 
                 <div className={cn("flex items-center justify-end gap-3.5", configured ? "min-w-[150px]" : "min-w-0")}>
                   {configured && (
