@@ -75,9 +75,9 @@ export function HealthRefreshButton({ loading, onClick }: { loading: boolean; on
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-white px-2.5 py-1.5 font-label text-[10px] font-bold text-[#57534e] shadow-sm transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-wait disabled:opacity-60"
+      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 font-label text-[11px] font-bold text-ink-muted shadow-sm transition-all hover:border-primary/30 hover:text-primary hover:shadow disabled:cursor-wait disabled:opacity-60"
     >
-      <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+      <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
       Refresh health
     </button>
   );
@@ -87,15 +87,15 @@ export function ZephyrCourier({ variant }: { variant: "embedded" | "manual" }) {
   const isEmbedded = variant === "embedded";
 
   return (
-    <div className="relative h-36 w-full sm:h-48">
+    <div className="relative h-48 w-full sm:h-64">
       <Image
         src={isEmbedded
           ? "/aira/illustrations/aira-zephyr-embedded-3d.png"
           : "/aira/illustrations/aira-zephyr-manual-3d.png"}
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
-        sizes="(min-width: 1024px) 220px, 120px"
-        className="object-contain scale-[1.2]"
+        sizes="(min-width: 1024px) 300px, 150px"
+        className="object-contain scale-[1.3] lg:scale-[1.5] origin-right"
         unoptimized
       />
     </div>
