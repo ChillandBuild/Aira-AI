@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw, Info, Sparkles } from "lucide-react";
+import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, RefreshCw, Info, Sparkles } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -523,11 +523,11 @@ function ExportAllDropdown({ tagCount }: { tagCount: number }) {
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="flex h-9 items-center gap-1.5 px-3 rounded-xl bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors"
+        className="flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors"
       >
-        <Download size={13} className="text-[#5b21b6]" />
+        <Download size={12} className="text-[#5b21b6]" />
         <span>Export All</span>
-        <ChevronDown size={12} className={cn("text-gray-400 transition-transform", open && "rotate-180")} />
+        <ChevronDown size={11} className={cn("text-gray-400 transition-transform", open && "rotate-180")} />
       </button>
       {open && createPortal(
         <div
@@ -2502,22 +2502,22 @@ export default function OutboundLeadsPage() {
               </div>
 
               {/* Action Controls */}
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Search */}
                 <div className="relative">
-                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search tags…"
                     value={tagsSearch}
                     onChange={(e) => setTagsSearch(e.target.value)}
-                    className="h-9 w-36 sm:w-44 pl-8 pr-7 text-xs bg-white/90 border border-purple-100/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all placeholder:text-gray-400 text-gray-800 shadow-xs"
+                    className="h-8 w-32 sm:w-40 pl-7 pr-6 text-xs bg-white/90 border border-purple-100/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all placeholder:text-gray-400 text-gray-800 shadow-xs"
                   />
                   {tagsSearch && (
                     <button
                       type="button"
                       onClick={() => setTagsSearch("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs px-1"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs px-1"
                     >
                       ✕
                     </button>
@@ -2531,10 +2531,10 @@ export default function OutboundLeadsPage() {
                 <button
                   onClick={loadTags}
                   disabled={tagsListLoading}
-                  className="flex h-9 items-center gap-1.5 px-3 rounded-xl bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                  className="flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
                   title="Refresh tags"
                 >
-                  <RefreshCw size={13} className={cn("text-[#5b21b6] transition-transform", tagsListLoading && "animate-spin")} />
+                  <RefreshCw size={12} className={cn("text-[#5b21b6] transition-transform", tagsListLoading && "animate-spin")} />
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
 
@@ -2542,7 +2542,7 @@ export default function OutboundLeadsPage() {
                 <button
                   onClick={() => setShowCreateTag((p) => !p)}
                   className={cn(
-                    "flex h-9 items-center gap-1.5 px-3.5 rounded-xl font-label text-xs font-bold transition-all",
+                    "flex h-8 items-center gap-1.5 px-3 rounded-lg font-label text-xs font-bold transition-all",
                     showCreateTag
                       ? "bg-purple-100 border border-purple-200 text-[#5b21b6] hover:bg-purple-200/70"
                       : "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95"
@@ -2552,7 +2552,7 @@ export default function OutboundLeadsPage() {
                     <span>Cancel</span>
                   ) : (
                     <>
-                      <Plus size={15} />
+                      <Plus size={14} />
                       <span>New Tag</span>
                     </>
                   )}
@@ -2563,15 +2563,15 @@ export default function OutboundLeadsPage() {
 
           {/* Create Tag Panel */}
           {showCreateTag && (
-            <div className="border-b border-purple-100/80 bg-gradient-to-br from-purple-50/50 via-white to-violet-50/30 p-5 md:px-8 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="max-w-2xl">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-1.5 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed]" />
-                  <p className="font-label text-xs font-bold uppercase tracking-wider text-[#5b21b6]">Create New Tag</p>
+            <div className="border-b border-purple-100/80 bg-gradient-to-br from-purple-50/50 via-white to-violet-50/30 p-4 md:px-8 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="max-w-3xl">
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="w-1.5 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed]" />
+                  <p className="font-label text-[11px] font-bold uppercase tracking-wider text-[#5b21b6]">Create New Tag</p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex flex-col sm:flex-row gap-2.5 items-end">
                   <div className="flex-1 w-full">
-                    <label className="font-label text-xs font-medium text-gray-600 mb-1.5 block">Tag Name</label>
+                    <label className="font-label text-[11px] font-medium text-gray-600 mb-1 block">Tag Name</label>
                     <input
                       type="text"
                       value={newTagName}
@@ -2579,43 +2579,56 @@ export default function OutboundLeadsPage() {
                       onKeyDown={(e) => e.key === "Enter" && canManageOutbound && handleCreateTag()}
                       placeholder="e.g. VIP Customers, Flash Sale, Diapers"
                       autoFocus
-                      className="w-full h-9 px-3.5 rounded-xl border border-purple-100/90 bg-white font-body text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] shadow-xs transition-all"
+                      className="w-full h-8 px-3 rounded-lg border border-purple-100/90 bg-white font-body text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] shadow-xs transition-all"
                     />
                   </div>
                   <div className="w-full sm:w-auto">
-                    <label className="font-label text-xs font-medium text-gray-600 mb-1.5 block">Color Palette</label>
-                    <div className="flex items-center gap-1.5 p-1 bg-white border border-purple-100/90 rounded-xl shadow-xs">
-                      {PRESET_COLORS.slice(0, 8).map((c) => (
+                    <label className="font-label text-[11px] font-medium text-gray-600 mb-1 block">Color Palette</label>
+                    <div className="flex items-center gap-1.5 h-8 px-2 bg-white border border-purple-100/90 rounded-lg shadow-xs">
+                      {PRESET_COLORS.map((c) => (
                         <button
                           key={c}
                           type="button"
                           onClick={() => { setCustomTagColor(""); setNewTagColor(c); }}
                           className={cn(
-                            "w-5 h-5 rounded-full transition-transform border border-black/10 shrink-0",
+                            "w-[18px] h-[18px] rounded-full transition-transform border border-black/10 shrink-0",
                             newTagColor === c && !customTagColor ? "ring-2 ring-offset-1 ring-[#7c3aed] scale-110" : "hover:scale-110"
                           )}
                           style={{ backgroundColor: c }}
                           title={c}
                         />
                       ))}
-                      <div className="w-px h-5 bg-purple-100 mx-1 shrink-0" />
-                      <div className="relative flex items-center gap-1 shrink-0 pr-1">
-                        <Palette size={12} className="text-[#5b21b6] shrink-0" />
-                        <input
-                          type="color"
-                          value={customTagColor || newTagColor}
-                          onChange={(e) => { setCustomTagColor(e.target.value); setNewTagColor(e.target.value); }}
-                          className="w-5 h-5 rounded-full cursor-pointer border border-black/10 p-0 overflow-hidden"
-                          title="Custom color picker"
-                        />
+                      <div className="w-px h-3.5 bg-purple-100 mx-0.5 shrink-0" />
+                      {/* Circular multicolor custom color option */}
+                      <div className="relative shrink-0 flex items-center justify-center">
+                        <div
+                          className={cn(
+                            "w-[18px] h-[18px] rounded-full transition-transform border border-black/10 cursor-pointer overflow-hidden shadow-2xs hover:scale-110 relative flex items-center justify-center",
+                            customTagColor ? "ring-2 ring-offset-1 ring-[#7c3aed] scale-110" : ""
+                          )}
+                          style={{
+                            background: customTagColor
+                              ? customTagColor
+                              : "conic-gradient(from 0deg, #ff0055, #ff5500, #ffcc00, #33cc33, #0099ff, #7700ff, #ff00aa, #ff0055)",
+                          }}
+                          title={customTagColor ? `Custom color: ${customTagColor}` : "Pick custom multicolor"}
+                        >
+                          <input
+                            type="color"
+                            value={customTagColor || newTagColor}
+                            onChange={(e) => { setCustomTagColor(e.target.value); setNewTagColor(e.target.value); }}
+                            className="absolute -inset-2 w-10 h-10 opacity-0 cursor-pointer"
+                            title="Pick custom color"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end">
                     <button
                       type="button"
                       onClick={() => setShowCreateTag(false)}
-                      className="h-9 px-3 rounded-xl border border-purple-100 text-gray-600 hover:bg-purple-50/50 font-label text-xs font-semibold transition-colors"
+                      className="h-8 px-2.5 rounded-lg border border-purple-100 text-gray-600 hover:bg-purple-50/50 font-label text-xs font-semibold transition-colors"
                     >
                       Cancel
                     </button>
@@ -2624,7 +2637,7 @@ export default function OutboundLeadsPage() {
                       onClick={handleCreateTag}
                       disabled={creatingTag || !newTagName.trim() || !canManageOutbound}
                       title={canManageOutbound ? "Create tag" : "Read-only role: saving is disabled"}
-                      className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95 disabled:opacity-40 flex items-center gap-1.5 transition-all shrink-0"
+                      className="h-8 px-3 rounded-lg bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95 disabled:opacity-40 flex items-center gap-1.5 transition-all shrink-0"
                     >
                       {creatingTag && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                       <span>Create Tag</span>
@@ -2681,9 +2694,9 @@ export default function OutboundLeadsPage() {
                     <button
                       type="button"
                       onClick={() => setShowCreateTag(true)}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_4px_14px_rgba(91,33,182,0.3)] hover:opacity-95 transition-all hover:scale-[1.02]"
+                      className="flex h-8 items-center gap-1.5 px-3.5 rounded-lg bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95 transition-all hover:scale-[1.02]"
                     >
-                      <Plus size={16} />
+                      <Plus size={14} />
                       <span>Create Your First Tag</span>
                     </button>
                   </div>
