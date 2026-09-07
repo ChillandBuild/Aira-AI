@@ -1,5 +1,4 @@
 "use client";
-import { useState } from "react";
 import { Check, Loader2, Sparkles, Smartphone, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ZephyrCourier, timeAgo } from "./ui";
@@ -77,8 +76,6 @@ export default function EmbeddedSection({
   onManageChannel: (channel: ChannelConfig) => void;
   onDisconnect: (channelId: string) => void;
 }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   /** A settings value, or null when the row is missing or never set. */
   function val(key: string): string | null {
     const row = settings.find(s => s.key === key);
@@ -183,18 +180,31 @@ export default function EmbeddedSection({
           )}
 
           {isConnected ? (
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3">
+            <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2.5">
               <span className="inline-flex items-center gap-2 font-label text-xs font-bold text-emerald-600">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Connected{connectedAt ? ` · ${timeAgo(connectedAt)}` : ""}
               </span>
               <button
                 type="button"
-                onClick={() => setMenuOpen(v => !v)}
-                disabled={!canManage}
-                className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-4 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={onConnect}
+                disabled={!canManage || isBusy}
+                title="Refresh permissions and re-pick assets"
+                className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-3.5 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Manage connection
+                {isBusy && activeMode === "standard" && <Loader2 size={12} className="animate-spin" />}
+                Reconnect Meta Business
+              </button>
+              <button
+                type="button"
+                onClick={onConnectCoexistence}
+                disabled={!canManage || isBusy}
+                title="Keep the WhatsApp mobile app working alongside Aira"
+                className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-3.5 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isBusy && activeMode === "coexistence" && <Loader2 size={12} className="animate-spin" />}
+                <Smartphone size={13} className="text-ink-secondary" />
+                Switch to Coexistence
               </button>
               <button
                 type="button"
@@ -240,34 +250,6 @@ export default function EmbeddedSection({
           />
         </div>
       </div>
-
-      {/* ── Manage menu ────────────────────────────────────────────────── */}
-      {isConnected && menuOpen && (
-        <div className="grid gap-px border-t border-border-subtle bg-border-subtle sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => { setMenuOpen(false); onConnect(); }}
-            disabled={!canManage || isBusy}
-            className="flex flex-col gap-1 bg-[#fdfcfa] px-6 py-4 text-left transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 sm:px-8"
-          >
-            <span className="font-label text-[12.5px] font-bold text-ink">Reconnect Meta Business</span>
-            <span className="font-body text-[11.5px] leading-snug text-ink-secondary">
-              Refresh permissions and re-pick assets
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMenuOpen(false); onConnectCoexistence(); }}
-            disabled={!canManage || isBusy}
-            className="flex flex-col gap-1 bg-[#fdfcfa] px-6 py-4 text-left transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 sm:px-8"
-          >
-            <span className="font-label text-[12.5px] font-bold text-ink">Switch to Coexistence</span>
-            <span className="font-body text-[11.5px] leading-snug text-ink-secondary">
-              Keep the WhatsApp mobile app working alongside Aira
-            </span>
-          </button>
-        </div>
-      )}
 
       {/* ── Account strip / value props ────────────────────────────────── */}
       {isConnected ? (
