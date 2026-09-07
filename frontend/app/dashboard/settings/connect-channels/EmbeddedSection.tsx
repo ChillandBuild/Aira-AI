@@ -149,7 +149,7 @@ export default function EmbeddedSection({
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div
         className={cn(
-          "grid items-center gap-6 px-6 pt-2.5 pb-3 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-3 sm:pb-3.5 transition-colors duration-300",
+          "grid items-center gap-6 px-6 pt-2 pb-3 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-3 sm:pb-3.5 transition-colors duration-300",
           isConnected
             ? "bg-gradient-to-b from-emerald-50/70 via-[#f8fdfa] to-white"
             : "bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white"
@@ -211,9 +211,9 @@ export default function EmbeddedSection({
                 onClick={onConnect}
                 disabled={!canManage || isBusy}
                 title="Refresh permissions and re-pick assets"
-                className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-3.5 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="relative inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] px-3.5 py-2 font-label text-xs font-bold text-white shadow-[0_0_16px_-3px_rgba(124,58,237,0.45),0_2px_4px_rgba(46,16,101,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(124,58,237,0.65),0_4px_12px_rgba(46,16,101,0.3)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isBusy && activeMode === "standard" && <Loader2 size={12} className="animate-spin" />}
+                {isBusy && activeMode === "standard" && <Loader2 size={12} className="animate-spin text-white" />}
                 Reconnect Meta Business
               </button>
               <button
@@ -231,7 +231,7 @@ export default function EmbeddedSection({
                 type="button"
                 onClick={() => onDisconnect("meta")}
                 disabled={!canManage || isBusy}
-                className="font-label text-xs font-bold text-ink-muted underline decoration-transparent underline-offset-4 transition-colors hover:text-danger hover:decoration-current disabled:cursor-not-allowed disabled:opacity-60"
+                className="font-label text-xs font-bold text-red-600 underline decoration-red-300 underline-offset-4 transition-colors hover:text-red-700 hover:decoration-red-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Disconnect Meta
               </button>
