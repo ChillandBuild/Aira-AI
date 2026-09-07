@@ -191,7 +191,7 @@ export function Sidebar() {
 
 
       {showSettings ? (
-        <div className="flex-grow overflow-y-auto px-3 py-4 space-y-0.5 scrollbar-thin">
+        <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1 scrollbar-thin">
           <button
             onClick={() => {
               setExpandedGroups((prev) => ({ ...prev, Settings: false }));
@@ -217,13 +217,25 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center px-3 py-2 rounded-xl text-sm transition-all duration-150",
+                  "flex items-center px-3.5 py-2.5 rounded-xl text-sm transition-all duration-150",
                   active
-                    ? "bg-[#f5f3ff] font-bold text-[#5b21b6]"
-                    : "text-[#1c1917] hover:bg-[#f0ece4]"
+                    ? "bg-white border border-[#e2dcce] shadow-[0_1px_4px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.02)] font-black"
+                    : "text-[#78716c] hover:text-[#1c1917] hover:bg-[#f0ece4]"
                 )}
               >
-                <span className="truncate">{item.label}</span>
+                {active && (
+                  <span className="w-1.5 h-4 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] mr-2.5 flex-shrink-0 shadow-[0_1px_4px_rgba(91,33,182,0.25)]" />
+                )}
+                <span
+                  className={cn(
+                    "truncate",
+                    active
+                      ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] bg-clip-text text-transparent font-black tracking-tight"
+                      : "font-medium"
+                  )}
+                >
+                  {item.label}
+                </span>
               </Link>
             );
           })}
