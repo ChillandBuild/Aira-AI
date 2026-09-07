@@ -45,6 +45,51 @@ const TELECALLING_ITEMS: NavItem[] = [
   { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes" },
 ];
 
+function MainNavItem({
+  href,
+  active,
+  icon: Icon,
+  label,
+  badge,
+}: {
+  href: string;
+  active: boolean;
+  icon: typeof LayoutDashboard;
+  label: string;
+  badge?: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border group",
+        active
+          ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
+          : "border-transparent text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+      )}
+    >
+      {active && (
+        <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] -ml-0.5 mr-0.5 flex-shrink-0 shadow-[0_1px_3px_rgba(91,33,182,0.25)]" />
+      )}
+      <Icon
+        size={16}
+        className={active ? "text-[#5b21b6] flex-shrink-0" : "text-[#1c1917] group-hover:text-[#1c1917] flex-shrink-0"}
+      />
+      <span
+        className={cn(
+          "truncate flex-grow",
+          active
+            ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] bg-clip-text text-transparent font-black tracking-tight"
+            : "font-medium"
+        )}
+      >
+        {label}
+      </span>
+      {badge}
+    </Link>
+  );
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -244,256 +289,166 @@ export function Sidebar() {
       <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview / Dashboard */}
         {can("dashboard.view") ? (
-          <Link
+          <MainNavItem
             href="/dashboard"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname === "/dashboard"
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <LayoutDashboard size={16} className={pathname === "/dashboard" ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Dashboard</span>
-          </Link>
+            active={pathname === "/dashboard"}
+            icon={LayoutDashboard}
+            label="Dashboard"
+          />
         ) : (
-          <Link
+          <MainNavItem
             href="/dashboard/profile"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname === "/dashboard/profile"
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <LayoutDashboard size={16} className={pathname === "/dashboard/profile" ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Overview</span>
-          </Link>
+            active={pathname === "/dashboard/profile"}
+            icon={LayoutDashboard}
+            label="Overview"
+          />
         )}
 
         {/* TOP LEVEL: Conversations */}
-        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && <Link
-          href="/dashboard/conversations"
-          className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-            pathname.startsWith("/dashboard/conversations")
-              ? "bg-[#f5f3ff] text-[#5b21b6]"
-              : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-          )}
-        >
-          <MessageSquare size={16} className={pathname.startsWith("/dashboard/conversations") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-          <span className="flex-grow">Conversations</span>
-          {inboxCount > 0 && (
-            <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
-              {inboxCount}
-            </span>
-          )}
-        </Link>}
+        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
+          <MainNavItem
+            href="/dashboard/conversations"
+            active={pathname.startsWith("/dashboard/conversations")}
+            icon={MessageSquare}
+            label="Conversations"
+            badge={
+              inboxCount > 0 ? (
+                <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
+                  {inboxCount}
+                </span>
+              ) : undefined
+            }
+          />
+        )}
 
         {/* TOP LEVEL: Intake */}
-        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && <Link
-          href="/dashboard/intake"
-          className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-            pathname.startsWith("/dashboard/intake")
-              ? "bg-[#f5f3ff] text-[#5b21b6]"
-              : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-          )}
-        >
-          <Headset size={16} className={pathname.startsWith("/dashboard/intake") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-          <span className="flex-grow">Intake</span>
-        </Link>}
+        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
+          <MainNavItem
+            href="/dashboard/intake"
+            active={pathname.startsWith("/dashboard/intake")}
+            icon={Headset}
+            label="Intake"
+          />
+        )}
 
         {/* TOP LEVEL: Leads */}
         {isSubscribed && can("leads.view") && messagingOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/leads"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/leads")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <Users size={16} className={pathname.startsWith("/dashboard/leads") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Segments</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/leads")}
+            icon={Users}
+            label="Segments"
+          />
         )}
 
         {/* TOP LEVEL: Inbound Leads */}
         {isSubscribed && can("inbound_leads.view") && inboundOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/inbound-leads"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/inbound-leads")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <RadioTower size={16} className={pathname.startsWith("/dashboard/inbound-leads") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Inbound Leads</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/inbound-leads")}
+            icon={RadioTower}
+            label="Inbound Leads"
+          />
         )}
 
         {/* TOP LEVEL: Meta Ads */}
         {isSubscribed && can("inbound_leads.view") && inboundOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/meta-ads"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/meta-ads")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <Megaphone size={16} className={pathname.startsWith("/dashboard/meta-ads") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Meta Ads</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/meta-ads")}
+            icon={Megaphone}
+            label="Meta Ads"
+          />
         )}
 
         {/* TOP LEVEL: Outbound Leads */}
         {isSubscribed && canAny(["outbound_leads.view", "outbound_leads.manage"]) && outboundOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/outbound-leads"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/outbound-leads")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <Upload size={16} className={pathname.startsWith("/dashboard/outbound-leads") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Outbound Leads</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/outbound-leads")}
+            icon={Upload}
+            label="Outbound Leads"
+          />
         )}
 
         {/* TOP LEVEL: Templates */}
         {isSubscribed && canAny(["templates.view", "templates.manage"]) && outboundOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/templates"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/templates")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <FileCheck size={16} className={pathname.startsWith("/dashboard/templates") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Templates</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/templates")}
+            icon={FileCheck}
+            label="Templates"
+          />
         )}
 
         {/* TOP LEVEL: Numbers Pool */}
         {isSubscribed && canAny(["numbers.view", "numbers.manage"]) && messagingOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/numbers"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/numbers")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <Layers size={16} className={pathname.startsWith("/dashboard/numbers") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Numbers Pool</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/numbers")}
+            icon={Layers}
+            label="Numbers Pool"
+          />
         )}
 
         {/* TOP LEVEL: Knowledge Base */}
         {isSubscribed && canAny(["knowledge.view", "knowledge.manage"]) && messagingOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/knowledge"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/knowledge")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <BookOpen size={16} className={pathname.startsWith("/dashboard/knowledge") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Knowledge Base</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/knowledge")}
+            icon={BookOpen}
+            label="Knowledge Base"
+          />
         )}
 
         {/* TOP LEVEL: Catalog */}
         {isSubscribed && canAny(["catalog.view", "catalog.manage"]) && messagingOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/catalog"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/catalog")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <Package size={16} className={pathname.startsWith("/dashboard/catalog") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Catalog</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/catalog")}
+            icon={Package}
+            label="Catalog"
+          />
         )}
 
         {/* TOP LEVEL: Analytics */}
         {isSubscribed && can("analytics.view") && messagingOn && (
-          <Link
+          <MainNavItem
             href="/dashboard/analytics"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/analytics")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <BarChart2 size={16} className={pathname.startsWith("/dashboard/analytics") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Analytics</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/analytics")}
+            icon={BarChart2}
+            label="Analytics"
+          />
         )}
 
         {/* TOP LEVEL: Subscription */}
         {canAny(["subscription.view", "subscription.manage"]) && (
-          <Link
+          <MainNavItem
             href="/dashboard/subscription"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname === "/dashboard/subscription"
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <CreditCard size={16} className={pathname === "/dashboard/subscription" ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Subscription</span>
-          </Link>
+            active={pathname === "/dashboard/subscription"}
+            icon={CreditCard}
+            label="Subscription"
+          />
         )}
 
         {/* TOP LEVEL: Team */}
         {isSubscribed && can("team.view") && (
-          <Link
+          <MainNavItem
             href="/dashboard/team"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/team")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <Users size={16} className={pathname.startsWith("/dashboard/team") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Team</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/team")}
+            icon={Users}
+            label="Team"
+          />
         )}
 
         {/* TOP LEVEL: Roles */}
         {isSubscribed && canAny(["roles.view", "roles.manage"]) && (
-          <Link
+          <MainNavItem
             href="/dashboard/roles"
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-150 group",
-              pathname.startsWith("/dashboard/roles")
-                ? "bg-[#f5f3ff] text-[#5b21b6]"
-                : "text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
-            )}
-          >
-            <ShieldCheck size={16} className={pathname.startsWith("/dashboard/roles") ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span>Roles</span>
-          </Link>
+            active={pathname.startsWith("/dashboard/roles")}
+            icon={ShieldCheck}
+            label="Roles"
+          />
         )}
 
         {/* GROUP: Telecalling */}
@@ -542,13 +497,25 @@ export function Sidebar() {
                       <Link
                         href={item.href}
                         className={cn(
-                          "flex items-center gap-2.5 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group",
+                          "flex items-center gap-2 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group border",
                           active
-                            ? "bg-white shadow-md border border-[#e8e3db] text-[#5b21b6] font-bold"
-                            : "text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"
+                            ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
+                            : "border-transparent text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"
                         )}
                       >
-                        <span className="truncate flex-1">{item.label}</span>
+                        {active && (
+                          <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] mr-1 flex-shrink-0 shadow-[0_1px_3px_rgba(91,33,182,0.25)]" />
+                        )}
+                        <span
+                          className={cn(
+                            "truncate flex-1",
+                            active
+                              ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] bg-clip-text text-transparent font-black tracking-tight"
+                              : "font-medium"
+                          )}
+                        >
+                          {item.label}
+                        </span>
                       </Link>
                     </div>
                   );
