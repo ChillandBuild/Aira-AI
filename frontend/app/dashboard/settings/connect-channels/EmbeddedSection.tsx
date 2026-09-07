@@ -1,7 +1,7 @@
 "use client";
-import { Check, Loader2, Sparkles, Smartphone, Activity } from "lucide-react";
+import { Check, Loader2, Sparkles, Smartphone, Activity, MessageSquare, Building2, Megaphone, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ZephyrCourier, timeAgo } from "./ui";
+import { ZephyrCourier, timeAgo, FacebookIcon } from "./ui";
 import { META_CHANNELS } from "./channels";
 import type { ChannelConfig, EmbeddedSignupTarget, Setting, WebhookHealth } from "./channels";
 import type { MetaSignupMode } from "./metaSignupMode";
@@ -280,15 +280,63 @@ export default function EmbeddedSection({
 
       {/* ── Account strip / value props ────────────────────────────────── */}
       {isConnected ? (
-        <dl className="grid border-y border-border-subtle bg-[#fdfcfa] sm:grid-cols-2 lg:grid-cols-4">
-          <StripCell label="WhatsApp number" value={phoneDisplay} detail={verifiedName ? `${verifiedName} · verified` : null} />
-          <StripCell label="WhatsApp Business account" value={wabaId} detail="Webhook subscribed" mono />
+        <dl className="grid border-y border-border-subtle bg-gradient-to-r from-emerald-50/50 via-[#f9fcf9] to-indigo-50/40 sm:grid-cols-2 lg:grid-cols-4">
           <StripCell
+            icon={MessageSquare}
+            iconBg="bg-emerald-100/90 text-emerald-700 ring-1 ring-emerald-400/25"
+            cellBg="hover:bg-gradient-to-br hover:from-emerald-50/70 hover:to-white"
+            label="WhatsApp number"
+            value={phoneDisplay}
+            detail={
+              verifiedName ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                  <CheckCircle2 size={11} className="text-emerald-600" />
+                  {verifiedName} · verified
+                </span>
+              ) : null
+            }
+          />
+          <StripCell
+            icon={Building2}
+            iconBg="bg-teal-100/90 text-teal-700 ring-1 ring-teal-400/25"
+            cellBg="hover:bg-gradient-to-br hover:from-teal-50/70 hover:to-white"
+            label="WhatsApp Business account"
+            value={wabaId}
+            detail={
+              <span className="inline-flex items-center gap-1.5 font-semibold text-teal-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-pulse" />
+                Webhook subscribed
+              </span>
+            }
+            mono
+          />
+          <StripCell
+            icon={FacebookIcon}
+            iconBg="bg-blue-100/90 text-blue-600 ring-1 ring-blue-400/25"
+            cellBg="hover:bg-gradient-to-br hover:from-blue-50/70 hover:to-white"
             label="Facebook Page"
             value={pageName}
-            detail={igUsername ? `Messenger + Instagram @${igUsername}` : "Messenger"}
+            detail={
+              <span className="font-semibold text-blue-700">
+                {igUsername ? `Messenger + Instagram @${igUsername}` : "Messenger"}
+              </span>
+            }
           />
-          <StripCell label="Ad account" value={adsName} detail={adsId} detailMono />
+          <StripCell
+            icon={Megaphone}
+            iconBg="bg-indigo-100/90 text-indigo-600 ring-1 ring-indigo-400/25"
+            cellBg="hover:bg-gradient-to-br hover:from-indigo-50/70 hover:to-white"
+            label="Ad account"
+            value={adsName}
+            detail={
+              adsId ? (
+                <span className="font-mono text-[11px] font-semibold text-indigo-700">
+                  {adsId}
+                </span>
+              ) : null
+            }
+            detailMono
+          />
         </dl>
       ) : (
         <div className="grid border-y border-border-subtle bg-[#fdfcfa] sm:grid-cols-3">
@@ -430,39 +478,62 @@ export default function EmbeddedSection({
 }
 
 function StripCell({
+  icon: Icon,
+  iconBg,
   label,
   value,
   detail,
   mono = false,
   detailMono = false,
+  cellBg = "",
 }: {
+  icon: React.ComponentType<{ size?: number | string; className?: string }>;
+  iconBg: string;
   label: string;
   value: string | null;
-  detail: string | null;
+  detail: React.ReactNode | string | null;
   mono?: boolean;
   detailMono?: boolean;
+  cellBg?: string;
 }) {
   return (
-    <div className="min-w-0 border-b border-border-subtle px-6 py-3 transition-colors last:border-b-0 hover:bg-white sm:px-8 sm:py-3.5 sm:[&:nth-child(n+3)]:border-b-0 lg:border-b-0 lg:border-l lg:first:border-l-0">
-      <dt className="font-label text-[9.5px] font-bold uppercase tracking-[0.13em] text-ink-muted">{label}</dt>
-      <dd
-        className={cn(
-          "mt-1.5 truncate font-display text-[14px] font-bold leading-tight text-ink",
-          mono && "font-mono text-[13px] font-medium tabular-nums tracking-tight"
-        )}
-      >
-        {value ?? <span className="font-body text-[13px] font-medium text-ink-muted">Not linked</span>}
-      </dd>
-      {detail && (
-        <p
+    <div
+      className={cn(
+        "group relative min-w-0 border-b border-border-subtle/80 px-5 py-3 transition-all duration-200 hover:bg-white/95 sm:px-6 sm:py-3.5 sm:[&:nth-child(n+3)]:border-b-0 lg:border-b-0 lg:border-l lg:first:border-l-0",
+        cellBg
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div
           className={cn(
-            "mt-0.5 truncate font-body text-[11.5px] text-ink-secondary",
-            detailMono && "font-mono tabular-nums tracking-tight"
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] shadow-xs transition-transform duration-200 group-hover:scale-105",
+            iconBg
           )}
         >
-          {detail}
-        </p>
-      )}
+          <Icon size={15} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <dt className="font-label text-[9px] font-bold uppercase tracking-[0.14em] text-ink-muted">{label}</dt>
+          <dd
+            className={cn(
+              "mt-1 truncate font-display text-[13.5px] font-bold leading-tight text-ink",
+              mono && "font-mono text-[13px] font-medium tabular-nums tracking-tight"
+            )}
+          >
+            {value ?? <span className="font-body text-[12.5px] font-medium text-ink-muted">Not linked</span>}
+          </dd>
+          {detail && (
+            <div
+              className={cn(
+                "mt-0.5 truncate font-body text-[11px] leading-tight text-ink-secondary",
+                detailMono && "font-mono tabular-nums tracking-tight"
+              )}
+            >
+              {detail}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
