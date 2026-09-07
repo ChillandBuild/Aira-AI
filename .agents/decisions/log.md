@@ -1223,3 +1223,15 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Rationale**: (a) The card never named the account it was connected to. (b) Side-by-side columns of unequal length left a large empty region whenever one ran out of content, which is why the layout is bands, not columns. (c) The de-duplication of Meta channels across the hub and the manual grid was proposed and **declined** — duplicate rows/cards stay.
 - **Also**: manual token override for a Meta channel no longer has a `ChannelCard` entry point — it now runs through the hub row's **Manage**, which opens the same `ChannelConfigModal`.
 - **Backend**: `app_settings.py` now persists `meta_phone_display`, `meta_verified_name`, `facebook_page_name`, `instagram_username`, `meta_connected_at` at all four connect paths (manual WhatsApp activation, WhatsApp Embedded Signup, Page/Instagram signup, unified Meta Business). Meta already returned every one of these — `_PAGE_FIELDS` in `meta_cloud.py` requests `name` and `instagram_business_account{id,username}` — they were simply discarded.
+
+**2026-09-07 — Connectivity Hub Header & Channel Alignment Polished (frontend)**
+- **Decision & UI Updates**:
+  - **Header & Badges**: Promoted "Connectivity Hub" to an enhanced pill badge with icon, placed beside a glowing "RECOMMENDED" badge with a soft violet luminous aura.
+  - **Side-by-side Guidance**: Restructured the subtitle and "Prefer using your phone?" coexistence advice into two side-by-side bullet points utilizing the horizontal space between the content and the mascot.
+  - **CTAs**: Beautified "Connect Meta Business" with a radiant gradient and ambient glow; gave "WhatsApp Coexistence" its own dedicated button with phone icon.
+  - **Channel Table Streamlining**: Removed redundant per-row "Connect" buttons from unconfigured channel rows, ensuring connection actions stay unified through the header CTAs.
+  - **Alignment**: Aligned "Channels" to the left directly above the channel icons and names, and aligned connection count status (`None connected yet` / `{n} connected`) to the right directly above the "Manage" and "Disconnect" actions.
+  - **Mascot**: Slightly enlarged the `ZephyrCourier` compact mascot (`!h-44 !w-44 sm:!h-48 sm:!w-48 lg:!h-52 lg:!w-52`) with high-DPI image sizing.
+- **Files**: `frontend/app/dashboard/settings/connect-channels/EmbeddedSection.tsx`, `frontend/app/dashboard/settings/connect-channels/ui.tsx`.
+- **Verification**: `npm run typecheck` (0 errors), `npm run lint` (0 errors), `vitest` (71/71 passing).
+

@@ -143,7 +143,7 @@ export default function EmbeddedSection({
   return (
     <section className="overflow-hidden rounded-[20px] border border-border bg-white shadow-card">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="grid items-center gap-6 bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white px-6 py-6 sm:grid-cols-[1fr_auto] sm:gap-10 sm:px-8">
+      <div className="grid items-center gap-6 bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white px-6 pt-5 pb-3.5 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-6 sm:pb-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200/90 bg-purple-50/90 px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
@@ -231,8 +231,13 @@ export default function EmbeddedSection({
           )}
         </div>
 
-        <div className="hidden shrink-0 justify-self-end sm:block">
-          <ZephyrCourier variant="embedded" compact className="!h-44 !w-44 sm:!h-48 sm:!w-48 lg:!h-52 lg:!w-52" />
+        <div className="hidden shrink-0 self-center justify-self-end sm:block -my-4 sm:-my-6">
+          <ZephyrCourier
+            variant="embedded"
+            compact
+            className="!h-48 !w-48 sm:!h-52 sm:!w-52 lg:!h-56 lg:!w-56"
+            imageClassName="scale-[1.12] sm:scale-[1.15] origin-center"
+          />
         </div>
       </div>
 
@@ -429,12 +434,12 @@ function StripCell({
   detailMono?: boolean;
 }) {
   return (
-    <div className="min-w-0 border-b border-border-subtle px-6 py-4 transition-colors last:border-b-0 hover:bg-white sm:px-8 sm:[&:nth-child(n+3)]:border-b-0 lg:border-b-0 lg:border-l lg:first:border-l-0">
+    <div className="min-w-0 border-b border-border-subtle px-6 py-3 transition-colors last:border-b-0 hover:bg-white sm:px-8 sm:py-3.5 sm:[&:nth-child(n+3)]:border-b-0 lg:border-b-0 lg:border-l lg:first:border-l-0">
       <dt className="font-label text-[9.5px] font-bold uppercase tracking-[0.13em] text-ink-muted">{label}</dt>
       <dd
         className={cn(
-          "mt-2 truncate font-display text-[14.5px] font-bold leading-tight text-ink",
-          mono && "font-mono text-[13.5px] font-medium tabular-nums tracking-tight"
+          "mt-1.5 truncate font-display text-[14px] font-bold leading-tight text-ink",
+          mono && "font-mono text-[13px] font-medium tabular-nums tracking-tight"
         )}
       >
         {value ?? <span className="font-body text-[13px] font-medium text-ink-muted">Not linked</span>}
@@ -442,7 +447,7 @@ function StripCell({
       {detail && (
         <p
           className={cn(
-            "mt-1 truncate font-body text-[11.5px] text-ink-secondary",
+            "mt-0.5 truncate font-body text-[11.5px] text-ink-secondary",
             detailMono && "font-mono tabular-nums tracking-tight"
           )}
         >

@@ -87,10 +87,12 @@ export function ZephyrCourier({
   variant,
   compact = false,
   className = "",
+  imageClassName = "",
 }: {
   variant: "embedded" | "manual";
   compact?: boolean;
   className?: string;
+  imageClassName?: string;
 }) {
   const isEmbedded = variant === "embedded";
 
@@ -104,7 +106,7 @@ export function ZephyrCourier({
           alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
           fill
           sizes="220px"
-          className="object-contain"
+          className={cn("object-contain", imageClassName)}
           unoptimized
         />
       </div>
@@ -120,7 +122,7 @@ export function ZephyrCourier({
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
         sizes="(min-width: 1024px) 300px, 150px"
-        className="object-contain origin-right scale-[1.3] lg:scale-[1.5]"
+        className={cn("object-contain origin-right scale-[1.3] lg:scale-[1.5]", imageClassName)}
         unoptimized
       />
     </div>
