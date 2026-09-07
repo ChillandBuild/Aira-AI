@@ -3,11 +3,35 @@ import { cn } from "@/lib/utils";
 
 export type StatTone = "neutral" | "positive" | "warning" | "critical";
 
-const TONE: Record<StatTone, { dot: string; value: string }> = {
-  neutral: { dot: "bg-ink-muted", value: "text-ink" },
-  positive: { dot: "bg-success", value: "text-success" },
-  warning: { dot: "bg-warning", value: "text-warning" },
-  critical: { dot: "bg-danger", value: "text-danger" },
+const TONE: Record<StatTone, { dot: string; ring: string; value: string; bg: string; border: string }> = {
+  neutral: {
+    dot: "bg-gray-400",
+    ring: "ring-gray-200/60",
+    value: "text-gray-900",
+    bg: "bg-white",
+    border: "border-gray-200/80",
+  },
+  positive: {
+    dot: "bg-emerald-500",
+    ring: "ring-emerald-100",
+    value: "text-emerald-600",
+    bg: "bg-gradient-to-br from-white via-white to-emerald-50/25",
+    border: "border-emerald-100/90",
+  },
+  warning: {
+    dot: "bg-amber-500",
+    ring: "ring-amber-100",
+    value: "text-amber-600",
+    bg: "bg-gradient-to-br from-white via-white to-amber-50/25",
+    border: "border-amber-100/90",
+  },
+  critical: {
+    dot: "bg-rose-500",
+    ring: "ring-rose-100",
+    value: "text-rose-600",
+    bg: "bg-gradient-to-br from-white via-white to-rose-50/30",
+    border: "border-rose-100/90",
+  },
 };
 
 export type StatItem = {
@@ -20,17 +44,13 @@ export type StatItem = {
 
 /**
  * A figure is a count or a duration ("13", "7h 5m", "<1m", "—"). Everything
- * else is prose — a person's name, a trigger label — and prose set at display
- * size reads as a headline rather than a statistic, so it gets its own step
- * on the scale.
+ * else is prose — a person's name, a trigger label.
  */
 function isFigure(value: string): boolean {
   return /^[<>~]?\d/.test(value) || value === "—";
 }
 
-/** Header KPI cards. Sized to be read at a glance without costing the table its
- *  fold: roughly half the height of a full dashboard card, but not the cramped
- *  single-line strip that replaced them briefly. */
+/** Header KPI cards. Sized to be read at a glance without costing the table its fold */
 export function StatCards({ items }: { items: StatItem[] }) {
   return (
     <div className="flex flex-1 flex-wrap gap-2.5">
@@ -40,21 +60,26 @@ export function StatCards({ items }: { items: StatItem[] }) {
         return (
           <div
             key={item.label}
-            className="min-w-[150px] flex-1 rounded-xl border border-border bg-surface px-4 py-3 shadow-sm"
+            className={cn(
+              "min-w-[145px] flex-1 rounded-2xl border p-3 shadow-xs hover:shadow-sm transition-all",
+              tone.bg,
+              tone.border
+            )}
           >
-            <p className="flex items-center gap-1.5 font-heading text-[10px] font-semibold uppercase tracking-[0.09em] text-ink-muted">
-              <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", tone.dot)} aria-hidden />
-              <span className="truncate">{item.label}</span>
-            </p>
-            {/* Fixed band so a 24px figure and a 15px name still leave their
-                detail lines on the same baseline across the row. */}
-            <div className="mt-2 flex h-[26px] items-center">
+            <div className="flex items-center justify-between gap-1.5">
+              <span className="truncate font-label text-[11px] font-bold uppercase tracking-wider text-gray-500">
+                {item.label}
+              </span>
+              <span className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full ring-4", tone.ring, tone.dot)} aria-hidden />
+            </div>
+
+            <div className="mt-1.5 flex h-[26px] items-center">
               <p
                 className={cn(
-                  "truncate font-heading font-semibold",
+                  "truncate font-display font-bold tracking-tight",
                   figure
-                    ? "text-[24px] leading-none tracking-[-0.03em] tabular-nums"
-                    : "text-[15px] leading-tight tracking-[-0.005em]",
+                    ? "text-[22px] leading-none tabular-nums"
+                    : "text-sm leading-tight",
                   tone.value
                 )}
                 title={item.value}
@@ -62,8 +87,9 @@ export function StatCards({ items }: { items: StatItem[] }) {
                 {item.value}
               </p>
             </div>
+
             {item.detail && (
-              <p className="mt-1.5 truncate font-body text-[11px] font-medium text-ink-secondary" title={item.detail}>
+              <p className="mt-1 truncate font-body text-[11px] font-medium text-gray-400" title={item.detail}>
                 {item.detail}
               </p>
             )}

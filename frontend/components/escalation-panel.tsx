@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, MessageSquare, Search, UserCog, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MessageSquare, Search, UserCog, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn, formatDuration, secondsSince } from "@/lib/utils";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
@@ -282,70 +282,75 @@ export function EscalationPanel({
     <div className="flex flex-1 flex-col overflow-hidden bg-background">
       {/* ── header + tabs ── */}
       <div className="flex-shrink-0 px-6 pt-6">
-        <div className="flex flex-wrap items-start gap-x-8 gap-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
           <div className="min-w-0 flex-shrink-0">
-            <h2 className="font-heading text-[23px] font-bold tracking-[-0.028em] text-ink">Escalations</h2>
-            <p className="mt-1 font-body text-[12.5px] font-medium text-ink-secondary">
-              Conversations the AI handed to a human.
-            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 border border-purple-200/60 shadow-xs">
+                <AlertTriangle size={18} className="text-[#5b21b6]" />
+              </div>
+              <div>
+                <h2 className="font-display text-xl font-bold tracking-tight text-gray-900">Escalations</h2>
+                <p className="font-body text-xs font-medium text-gray-500 mt-0.5">
+                  Conversations the AI handed to a human.
+                </p>
+              </div>
+            </div>
           </div>
           {!loading && <StatCards items={tab === "active" ? activeStats : historyCards} />}
         </div>
 
-        <div className="-mx-6 mt-5 flex flex-wrap items-end justify-between gap-x-8 gap-y-2 border-b border-border px-6">
-          <div className="flex items-end" role="tablist" aria-label="Escalation views">
-          {([
-            { key: "active", label: "Active", count: visibleHandovers.length, critical: true },
-            { key: "history", label: "History", count: null, critical: false },
-          ] as const).map((t, i) => (
-            <button
-              key={t.key}
-              role="tab"
-              aria-selected={tab === t.key}
-              onClick={() => switchTab(t.key)}
-              className={cn(
-                "-mb-px flex h-9 items-center gap-[7px] border-b-2 px-1 pb-2.5 font-heading text-[13px] font-bold tracking-[-0.01em] transition-colors",
-                i > 0 && "ml-[18px]",
-                tab === t.key
-                  ? "border-primary text-primary"
-                  : "border-transparent text-ink-secondary hover:text-ink"
-              )}
-            >
-              {t.label}
-              {t.count !== null && t.count > 0 && (
-                <span
-                  className={cn(
-                    "rounded-full px-[7px] py-[3px] font-mono text-[10px] font-bold leading-none tabular-nums",
-                    tab === t.key ? "bg-rose-100 text-danger" : "bg-surface-mid text-ink-secondary"
-                  )}
-                >
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="-mx-6 mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-border/80 px-6 pb-2.5">
+          <div className="flex items-center p-1 rounded-xl bg-purple-50/60 border border-purple-100/80 gap-1" role="tablist" aria-label="Escalation views">
+            {([
+              { key: "active", label: "Active", count: visibleHandovers.length },
+              { key: "history", label: "History", count: null },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                role="tab"
+                aria-selected={tab === t.key}
+                onClick={() => switchTab(t.key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3.5 py-1 rounded-lg font-label text-xs font-bold transition-all",
+                  tab === t.key
+                    ? "bg-white text-[#5b21b6] shadow-xs"
+                    : "text-gray-500 hover:text-gray-900"
+                )}
+              >
+                <span>{t.label}</span>
+                {t.count !== null && t.count > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold leading-none tabular-nums",
+                      tab === t.key ? "bg-rose-500 text-white shadow-2xs" : "bg-purple-100 text-[#5b21b6]"
+                    )}
+                  >
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
 
-          {/* Search + filters sit on the tab row so the list starts directly
-              under the header rule instead of a row lower. */}
-          <div className="flex flex-wrap items-center gap-2 pb-2.5">
-            <div className="relative h-[34px] w-[240px]">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+          {/* Search + filters */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative h-8 w-[220px]">
+              <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={tab === "active" ? "Search name, phone, reason…" : "Search name or phone…"}
                 aria-label="Search escalations"
-                className="h-[34px] w-full rounded-[9px] border border-border bg-surface pl-[33px] pr-8 font-body text-[12.5px] text-ink outline-none transition-shadow placeholder:text-ink-muted focus:border-primary focus:ring-[3px] focus:ring-primary/15"
+                className="h-8 w-full rounded-xl border border-purple-100/80 bg-white pl-8 pr-7 font-body text-xs text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/20 shadow-xs"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
                   aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink-muted transition-colors hover:text-ink"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  <X size={14} />
+                  <X size={12} />
                 </button>
               )}
             </div>
@@ -357,10 +362,10 @@ export function EscalationPanel({
                   onClick={() => setQuickFilter(f.key)}
                   aria-pressed={quickFilter === f.key}
                   className={cn(
-                    "inline-flex h-[34px] items-center rounded-full border px-3.5 font-body text-[11.5px] font-semibold transition-colors",
+                    "inline-flex h-8 items-center rounded-xl border px-3 font-label text-xs font-semibold transition-all shadow-xs",
                     quickFilter === f.key
-                      ? "border-primary-muted bg-primary-light text-primary"
-                      : "border-border bg-surface text-ink-secondary hover:border-ink-muted hover:text-ink"
+                      ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white border-transparent"
+                      : "border-purple-100/80 bg-white text-gray-600 hover:border-purple-200 hover:bg-purple-50/50"
                   )}
                 >
                   {f.label}
@@ -372,7 +377,7 @@ export function EscalationPanel({
                   value={historyResolver}
                   onChange={(e) => setHistoryResolver(e.target.value)}
                   aria-label="Filter by resolver"
-                  className="h-[34px] cursor-pointer rounded-full border border-border bg-surface px-3.5 font-body text-[11.5px] font-semibold text-ink-secondary outline-none transition-colors hover:border-ink-muted focus:border-primary"
+                  className="h-8 cursor-pointer rounded-xl border border-purple-100/80 bg-white px-3 font-label text-xs font-semibold text-gray-700 outline-none transition-colors hover:border-purple-200 focus:border-[#7c3aed] shadow-xs"
                 >
                   <option value="">Anyone</option>
                   {historyStats.resolvers.map((r) => (
@@ -383,7 +388,7 @@ export function EscalationPanel({
                   value={historyReason}
                   onChange={(e) => setHistoryReason(e.target.value)}
                   aria-label="Filter by reason"
-                  className="h-[34px] cursor-pointer rounded-full border border-border bg-surface px-3.5 font-body text-[11.5px] font-semibold text-ink-secondary outline-none transition-colors hover:border-ink-muted focus:border-primary"
+                  className="h-8 cursor-pointer rounded-xl border border-purple-100/80 bg-white px-3 font-label text-xs font-semibold text-gray-700 outline-none transition-colors hover:border-purple-200 focus:border-[#7c3aed] shadow-xs"
                 >
                   <option value="">Any reason</option>
                   {historyStats.reasons.map((r) => (
