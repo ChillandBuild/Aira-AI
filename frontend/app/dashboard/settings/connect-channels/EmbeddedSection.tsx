@@ -149,7 +149,7 @@ export default function EmbeddedSection({
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div
         className={cn(
-          "grid items-center gap-6 px-6 pt-2 pb-3 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-3 sm:pb-3.5 transition-colors duration-300",
+          "grid items-center gap-6 px-6 pt-2.5 pb-3 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-3 sm:pb-3.5 transition-colors duration-300",
           isConnected
             ? "bg-gradient-to-b from-emerald-50/70 via-[#f8fdfa] to-white"
             : "bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white"
