@@ -138,13 +138,34 @@ export default function EmbeddedSection({
   const connectedCount = META_CHANNELS.filter(isConfigured).length;
 
   return (
-    <section className="overflow-hidden rounded-[20px] border border-border bg-white shadow-card">
+    <section
+      className={cn(
+        "overflow-hidden rounded-[20px] border bg-white transition-all duration-300",
+        isConnected
+          ? "border-emerald-500/25 shadow-[0_4px_24px_-4px_rgba(16,185,129,0.14),0_1px_3px_rgba(0,0,0,0.04)] ring-1 ring-emerald-500/10"
+          : "border-border shadow-card"
+      )}
+    >
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="grid items-center gap-6 bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white px-6 pt-5 pb-3.5 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-6 sm:pb-4">
+      <div
+        className={cn(
+          "grid items-center gap-6 px-6 pt-3.5 pb-3.5 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-4 sm:pb-4 transition-colors duration-300",
+          isConnected
+            ? "bg-gradient-to-b from-emerald-50/70 via-[#f8fdfa] to-white"
+            : "bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white"
+        )}
+      >
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200/90 bg-purple-50/90 px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
-              <Activity size={12} className="text-primary" />
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] shadow-sm transition-colors",
+                isConnected
+                  ? "border-emerald-200/90 bg-emerald-50/90 text-emerald-700"
+                  : "border-purple-200/90 bg-purple-50/90 text-primary"
+              )}
+            >
+              <Activity size={12} className={isConnected ? "text-emerald-600" : "text-primary"} />
               Connectivity Hub
             </span>
             {!isConnected && (
@@ -241,12 +262,18 @@ export default function EmbeddedSection({
           )}
         </div>
 
-        <div className="hidden shrink-0 self-center justify-self-end sm:block -my-4 sm:-my-6">
+        <div className="relative hidden shrink-0 self-center justify-self-end sm:block -my-3 sm:-my-5">
+          {isConnected && (
+            <div className="pointer-events-none absolute -inset-6 rounded-full bg-emerald-400/20 blur-2xl -z-10" />
+          )}
           <ZephyrCourier
             variant="embedded"
             compact
             className="!h-48 !w-48 sm:!h-52 sm:!w-52 lg:!h-56 lg:!w-56"
-            imageClassName="scale-[1.12] sm:scale-[1.15] origin-center"
+            imageClassName={cn(
+              "scale-[1.12] sm:scale-[1.15] origin-center transition-all duration-300",
+              isConnected && "drop-shadow-[0_6px_20px_rgba(16,185,129,0.22)]"
+            )}
           />
         </div>
       </div>
