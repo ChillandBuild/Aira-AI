@@ -149,7 +149,7 @@ export default function EmbeddedSection({
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div
         className={cn(
-          "grid items-center gap-6 px-6 pt-3.5 pb-3.5 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-4 sm:pb-4 transition-colors duration-300",
+          "grid items-center gap-6 px-6 pt-2.5 pb-3 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:pt-3 sm:pb-3.5 transition-colors duration-300",
           isConnected
             ? "bg-gradient-to-b from-emerald-50/70 via-[#f8fdfa] to-white"
             : "bg-gradient-to-b from-[#f8f5ff]/70 via-[#fcfbff] to-white"
@@ -262,7 +262,7 @@ export default function EmbeddedSection({
           )}
         </div>
 
-        <div className="relative hidden shrink-0 self-center justify-self-end sm:block -my-3 sm:-my-5">
+        <div className="relative hidden shrink-0 self-center justify-self-end sm:block -my-2.5 sm:-my-4">
           {isConnected && (
             <div className="pointer-events-none absolute -inset-6 rounded-full bg-emerald-400/20 blur-2xl -z-10" />
           )}

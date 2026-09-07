@@ -266,7 +266,7 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const metaConnected = META_CHANNELS.some(c => isChannelConfigured(c));
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] space-y-8">
+    <div className="mx-auto w-full max-w-[1440px] space-y-6 -mt-1 sm:-mt-2">
       {/* A per-card signup can fail before its picker exists — Meta granted nothing,
           or the code exchange was rejected — so that error needs a home up here. */}
       {(error || (channelSignup.error && !channelSignup.assets)) && (
