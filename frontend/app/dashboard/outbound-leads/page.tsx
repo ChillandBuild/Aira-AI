@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw, Info } from "lucide-react";
+import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, Palette, RefreshCw, Info, Sparkles } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -523,30 +523,31 @@ function ExportAllDropdown({ tagCount }: { tagCount: number }) {
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-surface-mid text-on-surface hover:border-violet-300 font-label text-sm font-semibold transition-colors"
+        className="flex h-9 items-center gap-1.5 px-3 rounded-xl bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors"
       >
-        <Download size={14} /> Export All
-        <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
+        <Download size={13} className="text-[#5b21b6]" />
+        <span>Export All</span>
+        <ChevronDown size={12} className={cn("text-gray-400 transition-transform", open && "rotate-180")} />
       </button>
       {open && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed w-56 bg-white rounded-xl shadow-xl border border-surface-mid z-[9999] overflow-hidden"
+          className="fixed w-60 bg-white rounded-2xl shadow-xl border border-purple-100 z-[9999] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
           style={{ top: position.top, right: position.right }}
         >
           <button
             onClick={() => download("all")}
-            className="w-full text-left text-xs px-4 py-3 font-label transition-colors border-b border-surface-mid/30 hover:bg-violet-50"
+            className="w-full text-left text-xs px-4 py-3 font-label transition-colors border-b border-purple-100/60 hover:bg-purple-50/60 group"
           >
-            <p className="font-semibold text-on-surface">All Tags</p>
-            <p className="text-on-surface-muted mt-0.5">Combine all {tagCount} tags — no dedup</p>
+            <p className="font-semibold text-gray-900 group-hover:text-[#5b21b6] transition-colors">All Tags (Combined)</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Combine all {tagCount} tags without deduplication</p>
           </button>
           <button
             onClick={() => download("cross")}
-            className="w-full text-left text-xs px-4 py-3 font-label transition-colors hover:bg-violet-50"
+            className="w-full text-left text-xs px-4 py-3 font-label transition-colors hover:bg-purple-50/60 group"
           >
-            <p className="font-semibold text-on-surface">Cross-Tag</p>
-            <p className="text-on-surface-muted mt-0.5">Best segment per lead across all tags</p>
+            <p className="font-semibold text-gray-900 group-hover:text-[#5b21b6] transition-colors">Cross-Tag Ranked</p>
+            <p className="text-gray-500 text-[11px] mt-0.5">Best segment per lead across all tags</p>
           </button>
         </div>,
         document.body
@@ -2476,102 +2477,253 @@ export default function OutboundLeadsPage() {
       {/* Broadcast History */}
       {/* Tags Tab */}
       {activeTab === "tags" && (
-        <div className="space-y-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="font-display text-xl font-bold text-on-surface">Tags</h2>
-              <p className="font-body text-sm text-on-surface-muted mt-0.5">Tag each broadcast by product to track interest per audience segment.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search tags…"
-                  value={tagsSearch}
-                  onChange={(e) => setTagsSearch(e.target.value)}
-                  className="w-40 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-surface-mid rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-300 transition-all"
-                />
+        <div className="overflow-hidden rounded-2xl border border-purple-100/70 bg-white shadow-lg">
+          {/* Header Card Bar */}
+          <div className="border-b border-purple-100/70 bg-gradient-to-r from-purple-50/80 via-violet-50/30 to-white px-4 py-5 md:px-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              {/* Title with Icon Badge */}
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 border border-purple-200/60 shadow-xs">
+                  <Tag size={20} className="text-[#5b21b6]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="font-display text-xl font-bold text-gray-900">Broadcast Tags</h2>
+                    {tagsList.length > 0 && (
+                      <span className="rounded-full bg-purple-100/80 border border-purple-200/60 px-2.5 py-0.5 font-label text-[11px] font-bold text-[#5b21b6]">
+                        {tagsList.length} {tagsList.length === 1 ? "tag" : "tags"}
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-body text-xs md:text-sm text-gray-500 mt-0.5">
+                    Tag and label outbound broadcasts by product to track interest per audience segment.
+                  </p>
+                </div>
               </div>
-              <ExportAllDropdown tagCount={tagsList.length} />
-              <button
-                onClick={loadTags}
-                disabled={tagsListLoading}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-surface border border-surface-mid text-on-surface hover:border-violet-300 font-label text-sm font-semibold transition-colors disabled:opacity-50"
-              >
-                <RefreshCw size={14} className={cn("transition-transform", tagsListLoading && "animate-spin")} />
-                Refresh
-              </button>
-              <button
-                onClick={() => setShowCreateTag((p) => !p)}
-                className={cn(
-                  "flex items-center gap-2 px-4 py-2.5 rounded-xl font-label text-sm font-semibold transition-colors border",
-                  showCreateTag ? "bg-violet-50 border-violet-200 text-violet-700" : "bg-surface border-surface-mid text-on-surface hover:border-violet-300"
-                )}
-              >
-                <Plus size={16} />{showCreateTag ? "Cancel" : "New Tag"}
-              </button>
+
+              {/* Action Controls */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Search */}
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search tags…"
+                    value={tagsSearch}
+                    onChange={(e) => setTagsSearch(e.target.value)}
+                    className="h-9 w-36 sm:w-44 pl-8 pr-7 text-xs bg-white/90 border border-purple-100/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all placeholder:text-gray-400 text-gray-800 shadow-xs"
+                  />
+                  {tagsSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTagsSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs px-1"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Export All */}
+                <ExportAllDropdown tagCount={tagsList.length} />
+
+                {/* Refresh */}
+                <button
+                  onClick={loadTags}
+                  disabled={tagsListLoading}
+                  className="flex h-9 items-center gap-1.5 px-3 rounded-xl bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                  title="Refresh tags"
+                >
+                  <RefreshCw size={13} className={cn("text-[#5b21b6] transition-transform", tagsListLoading && "animate-spin")} />
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+
+                {/* Standout Primary New Tag CTA with signature brand gradient */}
+                <button
+                  onClick={() => setShowCreateTag((p) => !p)}
+                  className={cn(
+                    "flex h-9 items-center gap-1.5 px-3.5 rounded-xl font-label text-xs font-bold transition-all",
+                    showCreateTag
+                      ? "bg-purple-100 border border-purple-200 text-[#5b21b6] hover:bg-purple-200/70"
+                      : "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95"
+                  )}
+                >
+                  {showCreateTag ? (
+                    <span>Cancel</span>
+                  ) : (
+                    <>
+                      <Plus size={15} />
+                      <span>New Tag</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
+          {/* Create Tag Panel */}
           {showCreateTag && (
-            <div className="bg-surface rounded-2xl p-4 shadow-card ring-1 ring-[#c4c7c7]/15">
-              <p className="font-label text-sm font-semibold text-on-surface mb-3">Create Tag</p>
-              <div className="flex flex-col sm:flex-row gap-3 items-end">
-                <div className="flex-1">
-                  <label className="font-label text-xs text-on-surface-muted mb-1 block">Name</label>
-                  <input
-                    type="text"
-                    value={newTagName}
-                    onChange={(e) => setNewTagName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && canManageOutbound && handleCreateTag()}
-                    placeholder="e.g. Biscuits, Ice Cream"
-                    className="w-full px-3 py-2 rounded-lg border border-surface-mid bg-surface-low font-label text-sm text-on-surface placeholder:text-on-surface-muted/50 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                  />
+            <div className="border-b border-purple-100/80 bg-gradient-to-br from-purple-50/50 via-white to-violet-50/30 p-5 md:px-8 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="max-w-2xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-1.5 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed]" />
+                  <p className="font-label text-xs font-bold uppercase tracking-wider text-[#5b21b6]">Create New Tag</p>
                 </div>
-                <div>
-                  <label className="font-label text-xs text-on-surface-muted mb-1 block">Color</label>
-                  <div className="flex max-w-full flex-wrap items-center gap-1.5 sm:max-w-[420px]">
-                    {PRESET_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() => { setCustomTagColor(""); setNewTagColor(c); }}
-                        className={cn("w-6 h-6 rounded-full transition-transform border border-surface-mid shrink-0", newTagColor === c && !customTagColor ? "ring-2 ring-offset-1 ring-violet-500 scale-110" : "hover:scale-110")}
-                        style={{ backgroundColor: c }}
-                      />
-                    ))}
-                    <div className="w-px h-6 bg-surface-mid mx-1 shrink-0" />
-                    <Palette size={12} className="text-on-surface-muted shrink-0" />
+                <div className="flex flex-col sm:flex-row gap-3 items-end">
+                  <div className="flex-1 w-full">
+                    <label className="font-label text-xs font-medium text-gray-600 mb-1.5 block">Tag Name</label>
                     <input
-                      type="color"
-                      value={customTagColor || newTagColor}
-                      onChange={(e) => { setCustomTagColor(e.target.value); setNewTagColor(e.target.value); }}
-                      className="w-6 h-6 rounded cursor-pointer border border-surface-mid shrink-0"
-                      title="Custom color"
+                      type="text"
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && canManageOutbound && handleCreateTag()}
+                      placeholder="e.g. VIP Customers, Flash Sale, Diapers"
+                      autoFocus
+                      className="w-full h-9 px-3.5 rounded-xl border border-purple-100/90 bg-white font-body text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] shadow-xs transition-all"
                     />
-                    <span className="font-mono text-xs text-on-surface-muted shrink-0">{customTagColor || newTagColor}</span>
+                  </div>
+                  <div className="w-full sm:w-auto">
+                    <label className="font-label text-xs font-medium text-gray-600 mb-1.5 block">Color Palette</label>
+                    <div className="flex items-center gap-1.5 p-1 bg-white border border-purple-100/90 rounded-xl shadow-xs">
+                      {PRESET_COLORS.slice(0, 8).map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => { setCustomTagColor(""); setNewTagColor(c); }}
+                          className={cn(
+                            "w-5 h-5 rounded-full transition-transform border border-black/10 shrink-0",
+                            newTagColor === c && !customTagColor ? "ring-2 ring-offset-1 ring-[#7c3aed] scale-110" : "hover:scale-110"
+                          )}
+                          style={{ backgroundColor: c }}
+                          title={c}
+                        />
+                      ))}
+                      <div className="w-px h-5 bg-purple-100 mx-1 shrink-0" />
+                      <div className="relative flex items-center shrink-0">
+                        <input
+                          type="color"
+                          value={customTagColor || newTagColor}
+                          onChange={(e) => { setCustomTagColor(e.target.value); setNewTagColor(e.target.value); }}
+                          className="w-5 h-5 rounded-full cursor-pointer border border-black/10 p-0 overflow-hidden"
+                          title="Custom color picker"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateTag(false)}
+                      className="h-9 px-3 rounded-xl border border-purple-100 text-gray-600 hover:bg-purple-50/50 font-label text-xs font-semibold transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCreateTag}
+                      disabled={creatingTag || !newTagName.trim() || !canManageOutbound}
+                      title={canManageOutbound ? "Create tag" : "Read-only role: saving is disabled"}
+                      className="h-9 px-4 rounded-xl bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95 disabled:opacity-40 flex items-center gap-1.5 transition-all shrink-0"
+                    >
+                      {creatingTag && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                      <span>Create Tag</span>
+                    </button>
                   </div>
                 </div>
-                <button onClick={handleCreateTag} disabled={creatingTag || !newTagName.trim() || !canManageOutbound} title={canManageOutbound ? "Create tag" : "Read-only role: saving is disabled"} className="px-4 py-2 rounded-xl bg-primary text-white font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:blur-[0.5px] flex items-center gap-2">
-                  {creatingTag && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}Create
-                </button>
               </div>
             </div>
           )}
 
+          {/* Body Section */}
           {tagsListLoading ? (
-            <div className="py-12 flex items-center justify-center">
-              <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+            <div className="py-20 flex flex-col items-center justify-center gap-3">
+              <div className="w-7 h-7 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+              <p className="font-label text-xs font-medium text-gray-500">Loading tags...</p>
             </div>
           ) : filteredTagsList.length === 0 ? (
-            <div className="bg-surface rounded-2xl p-12 shadow-card ring-1 ring-[#c4c7c7]/15 text-center">
-              <Tag size={32} className="text-on-surface-muted/30 mx-auto mb-3" />
-              <p className="font-display font-bold text-on-surface">No tags yet</p>
-              <p className="font-body text-sm text-on-surface-muted mt-1">Create your first tag to start tracking product-wise interest.</p>
+            /* Elevated Empty State */
+            <div className="px-6 py-16 text-center">
+              {tagsSearch ? (
+                <div className="max-w-md mx-auto">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 border border-purple-100 text-[#5b21b6]">
+                    <Search size={20} />
+                  </div>
+                  <h3 className="font-display text-base font-bold text-gray-900">No tags found</h3>
+                  <p className="font-body text-xs text-gray-500 mt-1">
+                    No tags match &ldquo;{tagsSearch}&rdquo;. Try another search term or clear the filter.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTagsSearch("")}
+                    className="mt-4 px-3.5 py-1.5 rounded-xl border border-purple-200 bg-white font-label text-xs font-semibold text-[#5b21b6] hover:bg-purple-50 transition-colors shadow-xs"
+                  >
+                    Clear Search
+                  </button>
+                </div>
+              ) : (
+                <div className="max-w-lg mx-auto">
+                  {/* Glowing Icon Container */}
+                  <div className="relative mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 via-purple-100 to-violet-50 border border-purple-200/70 shadow-[0_4px_20px_rgba(124,58,237,0.12)]">
+                    <Tag size={28} className="text-[#5b21b6]" />
+                    <Sparkles size={14} className="absolute -top-1 -right-1 text-[#7c3aed]" />
+                  </div>
+
+                  <h3 className="font-display text-lg font-bold text-gray-900">
+                    No broadcast tags created yet
+                  </h3>
+                  <p className="font-body text-xs md:text-sm text-gray-500 mt-1.5 leading-relaxed max-w-md mx-auto">
+                    Tags let you categorize outbound campaigns by product or offer so you can analyze response sentiment, audience interest, and delivery rates per segment.
+                  </p>
+
+                  {/* Primary CTA */}
+                  <div className="mt-6 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateTag(true)}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_4px_14px_rgba(91,33,182,0.3)] hover:opacity-95 transition-all hover:scale-[1.02]"
+                    >
+                      <Plus size={16} />
+                      <span>Create Your First Tag</span>
+                    </button>
+                  </div>
+
+                  {/* Quick Starter Suggestions */}
+                  <div className="mt-8 pt-6 border-t border-purple-50">
+                    <p className="font-label text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2.5">
+                      Suggested starter tags
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      {[
+                        { name: "VIP Customers", color: "#8B5CF6" },
+                        { name: "Product Launch", color: "#3B82F6" },
+                        { name: "Flash Sale", color: "#F97316" },
+                        { name: "Re-engagement", color: "#22C55E" },
+                      ].map((item) => (
+                        <button
+                          key={item.name}
+                          type="button"
+                          onClick={() => {
+                            setNewTagName(item.name);
+                            setNewTagColor(item.color);
+                            setCustomTagColor("");
+                            setShowCreateTag(true);
+                          }}
+                          className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50/70 border border-purple-100 hover:border-purple-200 hover:bg-purple-100/60 transition-all font-label text-xs font-medium text-gray-700 shadow-2xs"
+                        >
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                          <span>{item.name}</span>
+                          <span className="text-gray-400 group-hover:text-[#5b21b6] text-[10px]">＋</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
-            <div className="bg-surface rounded-2xl shadow-card ring-1 ring-[#c4c7c7]/15 overflow-hidden">
-              <div className="space-y-3 p-3 md:hidden">
+            <div>
+              {/* Mobile View */}
+              <div className="space-y-3 p-4 md:hidden">
                 {filteredTagsList.map((tag) => {
                   const s = tagStats[tag.id];
                   const style = getTagStyle(tag.color);
@@ -2612,49 +2764,53 @@ export default function OutboundLeadsPage() {
                   );
                 })}
               </div>
-              <table className="hidden w-full md:table">
-                <thead>
-                  <tr className="border-b border-surface-mid">
-                    {["Tag", "Sent", "Hot", "Warm", "Cold"].map((h) => (
-                      <th key={h} className={cn("font-label text-xs font-semibold text-on-surface-muted py-3", h === "Tag" ? "px-5" : "px-3 text-center")}>{h}</th>
-                    ))}
-                    <th className="font-label text-xs font-semibold text-red-500 text-center px-3 py-3">DQ</th>
-                    <th className="font-label text-xs font-semibold text-orange-500 text-center px-3 py-3">Opted Out</th>
-                    <th className="font-label text-xs font-semibold text-on-surface-muted text-center px-3 py-3">Failed</th>
-                    <th className="font-label text-xs font-semibold text-on-surface-muted text-right px-5 py-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-mid/50">
-                  {filteredTagsList.map((tag) => {
-                    const s = tagStats[tag.id];
-                    const style = getTagStyle(tag.color);
-                    return (
-                      <tr key={tag.id} className="hover:brightness-110 transition-all border-b border-surface-mid/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]" style={{ background: style.background }}>
-                        <td className="px-5 py-3">
-                          <span className={cn("font-label text-sm font-semibold drop-shadow-sm", style.colorClass)}>{tag.name}</span>
-                        </td>
-                        <td className={cn("px-3 py-3 text-center font-label text-sm font-medium drop-shadow-sm", style.colorClass)}>{s?.total_sent ?? 0}</td>
-                        <td className={cn("px-3 py-3 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.hot ?? 0}</td>
-                        <td className={cn("px-3 py-3 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.warm ?? 0}</td>
-                        <td className={cn("px-3 py-3 text-center font-label text-sm font-medium drop-shadow-sm", style.colorClass)}>{s?.cold ?? 0}</td>
-                        <td className={cn("px-3 py-3 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.disqualified ?? 0}</td>
-                        <td className={cn("px-3 py-3 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.opted_out ?? 0}</td>
-                        <td className={cn("px-3 py-3 text-center font-label text-sm font-medium drop-shadow-sm", style.colorClass)}>{s?.failed ?? 0}</td>
-                        <td className="px-5 py-3">
-                          <div className="flex items-center justify-end gap-2">
-                            <SegmentDropdown tagId={tag.id} dark={style.colorClass === "text-white"} />
-                            {canManageOutbound && (
-                              <button onClick={() => handleDeleteTag(tag)} disabled={deletingTagId === tag.id} className={cn("p-1.5 rounded-lg transition-colors disabled:opacity-40", style.colorClass === "text-white" ? "text-white/70 hover:text-white hover:bg-white/20" : "text-gray-500 hover:text-red-600 hover:bg-red-50")}>
-                                {deletingTagId === tag.id ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Trash2 size={14} />}
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+
+              {/* Desktop Table View */}
+              <div className="overflow-x-auto">
+                <table className="hidden w-full md:table">
+                  <thead>
+                    <tr className="border-b border-purple-100/70 bg-purple-50/40">
+                      {["Tag", "Sent", "Hot", "Warm", "Cold"].map((h) => (
+                        <th key={h} className={cn("font-label text-xs font-semibold text-gray-600 py-3", h === "Tag" ? "px-6" : "px-3 text-center")}>{h}</th>
+                      ))}
+                      <th className="font-label text-xs font-semibold text-red-600 text-center px-3 py-3">DQ</th>
+                      <th className="font-label text-xs font-semibold text-orange-600 text-center px-3 py-3">Opted Out</th>
+                      <th className="font-label text-xs font-semibold text-gray-500 text-center px-3 py-3">Failed</th>
+                      <th className="font-label text-xs font-semibold text-gray-600 text-right px-6 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-purple-100/40">
+                    {filteredTagsList.map((tag) => {
+                      const s = tagStats[tag.id];
+                      const style = getTagStyle(tag.color);
+                      return (
+                        <tr key={tag.id} className="hover:brightness-105 transition-all border-b border-surface-mid/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]" style={{ background: style.background }}>
+                          <td className="px-6 py-3.5">
+                            <span className={cn("font-label text-sm font-semibold drop-shadow-sm", style.colorClass)}>{tag.name}</span>
+                          </td>
+                          <td className={cn("px-3 py-3.5 text-center font-label text-sm font-medium drop-shadow-sm", style.colorClass)}>{s?.total_sent ?? 0}</td>
+                          <td className={cn("px-3 py-3.5 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.hot ?? 0}</td>
+                          <td className={cn("px-3 py-3.5 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.warm ?? 0}</td>
+                          <td className={cn("px-3 py-3.5 text-center font-label text-sm font-medium drop-shadow-sm", style.colorClass)}>{s?.cold ?? 0}</td>
+                          <td className={cn("px-3 py-3.5 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.disqualified ?? 0}</td>
+                          <td className={cn("px-3 py-3.5 text-center font-label text-sm font-bold drop-shadow-sm", style.colorClass)}>{s?.opted_out ?? 0}</td>
+                          <td className={cn("px-3 py-3.5 text-center font-label text-sm font-medium drop-shadow-sm", style.colorClass)}>{s?.failed ?? 0}</td>
+                          <td className="px-6 py-3.5">
+                            <div className="flex items-center justify-end gap-2">
+                              <SegmentDropdown tagId={tag.id} dark={style.colorClass === "text-white"} />
+                              {canManageOutbound && (
+                                <button onClick={() => handleDeleteTag(tag)} disabled={deletingTagId === tag.id} className={cn("p-1.5 rounded-lg transition-colors disabled:opacity-40", style.colorClass === "text-white" ? "text-white/70 hover:text-white hover:bg-white/20" : "text-gray-500 hover:text-red-600 hover:bg-red-50")}>
+                                  {deletingTagId === tag.id ? <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <Trash2 size={14} />}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -2824,17 +2980,17 @@ export default function OutboundLeadsPage() {
 
       {activeTab === "history" && (
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
-        <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-4 py-5 md:px-8">
+        <div className="border-b border-purple-100/70 bg-gradient-to-r from-purple-50/80 via-violet-50/30 to-white px-4 py-5 md:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3 md:gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 shadow-sm md:h-12 md:w-12">
-                <Clock size={22} className="text-emerald-600" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 border border-purple-200/60 shadow-xs md:h-12 md:w-12">
+                <Clock size={22} className="text-[#5b21b6]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-display text-xl font-bold text-gray-900">Broadcast History</h2>
                   {historyRefreshing && (
-                    <span className="inline-flex items-center gap-1 font-label text-[11px] font-semibold text-emerald-600">
+                    <span className="inline-flex items-center gap-1 font-label text-[11px] font-semibold text-[#5b21b6]">
                       <RefreshCw size={11} className="animate-spin" /> Updating…
                     </span>
                   )}
@@ -2851,12 +3007,12 @@ export default function OutboundLeadsPage() {
                     placeholder="Search…"
                     value={historySearch}
                     onChange={(e) => setHistorySearch(e.target.value)}
-                    className="w-full min-w-0 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300 transition-all sm:min-w-40"
+                    className="w-full min-w-0 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all sm:min-w-40"
                   />
                 </div>
                 <button
                   onClick={downloadHistoryCsv}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 text-white rounded-lg font-label text-xs font-semibold hover:bg-emerald-600 transition-all shadow-sm"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white rounded-lg font-label text-xs font-semibold hover:opacity-95 transition-all shadow-[0_2px_8px_rgba(91,33,182,0.25)]"
                 >
                   <Download size={12} />
                   Broadcast History
@@ -2869,7 +3025,7 @@ export default function OutboundLeadsPage() {
                       className={cn(
                         "px-2.5 py-1.5 font-label text-xs font-semibold transition-all",
                         historyStatusFilter === f
-                          ? "bg-emerald-500 text-white"
+                          ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-bold shadow-xs"
                           : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                       )}
                     >
@@ -2891,7 +3047,7 @@ export default function OutboundLeadsPage() {
 
         {historyLoading ? (
           <div className="py-12 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : broadcastHistory.length === 0 ? (
           <div className="py-16 flex flex-col items-center justify-center gap-3">
