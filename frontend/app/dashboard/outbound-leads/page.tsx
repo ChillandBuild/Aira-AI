@@ -2599,7 +2599,8 @@ export default function OutboundLeadsPage() {
                         />
                       ))}
                       <div className="w-px h-5 bg-purple-100 mx-1 shrink-0" />
-                      <div className="relative flex items-center shrink-0">
+                      <div className="relative flex items-center gap-1 shrink-0 pr-1">
+                        <Palette size={12} className="text-[#5b21b6] shrink-0" />
                         <input
                           type="color"
                           value={customTagColor || newTagColor}
