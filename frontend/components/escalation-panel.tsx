@@ -11,6 +11,7 @@ import {
   channelOf,
   fetchCallers,
   fetchHandovers,
+  initialsOf,
   reopenHandover,
   resolveHandover,
   severityForWait,
@@ -19,6 +20,7 @@ import {
   type Caller,
   type Handover,
   type HistoryStats,
+  type Severity,
 } from "@/lib/escalations";
 import { StatCards, type StatItem } from "@/components/escalations/stat-cards";
 import { HistoryTab } from "@/components/escalations/history-tab";
@@ -26,13 +28,18 @@ import { ChannelCell, DurationCell, LeadCell, PersonCell, TableEmpty, TableSkele
 
 type Tab = "active" | "history";
 
-/** Severity spine on the first cell. Written as explicit hex because Tailwind
- *  can't resolve a theme colour inside an arbitrary shadow at build time. */
-const SPINE = {
-  ok: "shadow-[inset_3px_0_0_#059669]",
-  warn: "shadow-[inset_3px_0_0_#d97706]",
-  bad: "shadow-[inset_3px_0_0_#e11d48]",
-} as const;
+/** Sleek rounded SLA indicator pill colors on the lead cell */
+const SLA_BAR: Record<Severity, string> = {
+  bad: "bg-rose-500",
+  warn: "bg-amber-400",
+  ok: "bg-emerald-400",
+};
+
+const SLA_TITLE: Record<Severity, string> = {
+  bad: "SLA breached: Over 24h wait",
+  warn: "Warning: Over 4h wait",
+  ok: "Within SLA (<4h)",
+};
 
 const DAY = 86_400;
 
@@ -414,7 +421,7 @@ export function EscalationPanel({
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* ── list ── */}
-          <div className="flex flex-1 flex-col overflow-y-auto">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
           {!loading && visibleHandovers.length === 0 ? (
             <TableEmpty
               icon={<CheckCircle2 size={26} className="text-success" />}
@@ -428,139 +435,162 @@ export function EscalationPanel({
               body="No open escalation matches your search or filter."
             />
           ) : (
-            <div className="flex-1 overflow-x-auto">
-              <table className="w-full min-w-[900px] border-collapse">
-                <thead>
-                  <tr>
-                    {[
-                      { label: "Lead", w: "" },
-                      { label: "Channel", w: "" },
-                      { label: "Why escalated", w: "" },
-                      { label: "Waiting", w: "w-[124px]" },
-                      { label: "Assigned", w: "w-[196px]" },
-                      { label: "Actions", w: "w-[244px]" },
-                    ].map((c) => (
-                      <th
-                        key={c.label}
-                        className={cn(
-                          "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-low px-3.5 py-2.5 text-center font-heading text-[9.5px] font-semibold uppercase tracking-[0.09em] text-ink-muted first:pl-6 last:pr-6",
-                          c.w
-                        )}
-                      >
-                        {c.label}
+            <div className="rounded-2xl border border-border/80 bg-surface shadow-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[920px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-border/70 bg-slate-50/70">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 pl-8 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500">
+                        Lead
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                {loading ? (
-                  <TableSkeleton columns={6} />
-                ) : (
-                  <tbody>
-                    {filteredHandovers.map((h) => {
-                      const waited = secondsSince(h.opened_at);
-                      const severity = severityForWait(waited);
-                      const isMine = h.assigned_to === currentCallerId;
-                      return (
-                        <tr key={h.id} className="group border-b border-border-subtle bg-surface transition-colors hover:bg-surface-low">
-                          <td className={cn("px-3.5 py-3 pl-6 text-center align-middle", SPINE[severity])}>
-                            <LeadCell lead={h.leads} />
-                          </td>
-                          <td className="px-3.5 py-3 text-center align-middle">
-                            <ChannelCell lead={h.leads} />
-                          </td>
-                          <td className="px-3.5 py-3 text-center align-middle">
-                            <TriggerChip reason={h.reason} />
-                          </td>
-                          <td className="px-3.5 py-3 text-center align-middle">
-                            <DurationCell
-                              text={formatDuration(waited)}
-                              severity={severity}
-                              sub={new Date(h.opened_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                            />
-                          </td>
-                          <td className="px-3.5 py-3 text-center align-middle">
-                            <PersonCell name={h.assigned_to ? h.caller_name ?? "Assigned" : null} empty="Unassigned" />
-                          </td>
-                          <td className="px-3.5 py-3 pr-6 text-center align-middle">
-                            <span className="inline-flex items-center justify-center gap-1.5 opacity-50 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                              {role === "owner" || isMine ? (
-                                <>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500">
+                        Channel
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500">
+                        Why Escalated
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-center font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500 w-[130px]">
+                        Waiting
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500 w-[180px]">
+                        Assigned
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 pr-8 text-right font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500 w-[240px]">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  {loading ? (
+                    <TableSkeleton columns={6} />
+                  ) : (
+                    <tbody>
+                      {filteredHandovers.map((h) => {
+                        const waited = secondsSince(h.opened_at);
+                        const severity = severityForWait(waited);
+                        const isMine = h.assigned_to === currentCallerId;
+                        return (
+                          <tr
+                            key={h.id}
+                            className="group border-b border-border-subtle/80 bg-surface transition-colors hover:bg-purple-50/20 last:border-b-0"
+                          >
+                            <td className="relative px-4 py-3 pl-8 text-left align-middle">
+                              <span
+                                className={cn(
+                                  "absolute left-3 top-1/2 -translate-y-1/2 w-1 h-8 rounded-full transition-all",
+                                  SLA_BAR[severity]
+                                )}
+                                title={SLA_TITLE[severity]}
+                              />
+                              <LeadCell lead={h.leads} />
+                            </td>
+                            <td className="px-4 py-3 text-left align-middle">
+                              <ChannelCell lead={h.leads} />
+                            </td>
+                            <td className="px-4 py-3 text-left align-middle">
+                              <TriggerChip reason={h.reason} />
+                            </td>
+                            <td className="px-4 py-3 text-center align-middle">
+                              <DurationCell
+                                text={formatDuration(waited)}
+                                severity={severity}
+                                sub={new Date(h.opened_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-left align-middle">
+                              <PersonCell name={h.assigned_to ? h.caller_name ?? "Assigned" : null} empty="Unassigned" />
+                            </td>
+                            <td className="px-4 py-3 pr-8 text-right align-middle">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {role === "owner" || isMine ? (
+                                  <>
+                                    <button
+                                      onClick={() => canReplyToConversations && onReply(h.lead_id)}
+                                      disabled={!canReplyToConversations}
+                                      title={readOnlyTitle}
+                                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-[#5b21b6] px-3 font-label text-xs font-bold text-white shadow-xs transition-all hover:bg-[#4c1d95] hover:shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      <MessageSquare size={12} className="shrink-0" />
+                                      <span>Reply</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleResolve(h)}
+                                      disabled={!canReplyToConversations}
+                                      title={readOnlyTitle}
+                                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 font-label text-xs font-bold text-emerald-700 shadow-2xs transition-all hover:border-emerald-300 hover:bg-emerald-100/80 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      <CheckCircle2 size={13} className="shrink-0 text-emerald-600" />
+                                      <span>Resolve</span>
+                                    </button>
+                                  </>
+                                ) : (
                                   <button
-                                    onClick={() => canReplyToConversations && onReply(h.lead_id)}
-                                    disabled={!canReplyToConversations}
-                                    title={readOnlyTitle}
-                                    className="inline-flex h-7 w-[82px] items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary font-label text-[11px] font-bold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+                                    onClick={() => handleClaim(h)}
+                                    disabled={!canReplyToConversations || !currentCallerId}
+                                    title={
+                                      !canReplyToConversations
+                                        ? readOnlyTitle
+                                        : !currentCallerId
+                                          ? "A telecaller profile is required to pick up an escalation"
+                                          : undefined
+                                    }
+                                    className="inline-flex h-8 w-[160px] items-center justify-center gap-1.5 rounded-xl bg-[#5b21b6] font-label text-xs font-bold text-white shadow-xs transition-all hover:bg-[#4c1d95] hover:shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                                   >
-                                    <MessageSquare size={13} /> Reply
+                                    <MessageSquare size={12} className="shrink-0" />
+                                    <span>Pick up</span>
                                   </button>
-                                  <button
-                                    onClick={() => handleResolve(h)}
-                                    disabled={!canReplyToConversations}
-                                    title={readOnlyTitle}
-                                    className="inline-flex h-7 w-[92px] items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-surface font-label text-[11px] font-bold text-success transition-colors hover:border-success hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    <CheckCircle2 size={13} /> Resolve
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => handleClaim(h)}
-                                  disabled={!canReplyToConversations || !currentCallerId}
-                                  title={
-                                    !canReplyToConversations
-                                      ? readOnlyTitle
-                                      : !currentCallerId
-                                        ? "A telecaller profile is required to pick up an escalation"
-                                        : undefined
-                                  }
-                                  className="inline-flex h-7 w-[182px] items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary font-label text-[11px] font-bold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                  <MessageSquare size={13} /> Pick up
-                                </button>
-                              )}
+                                )}
 
-                              {role === "owner" && (
-                                <div className="relative" ref={assigningId === h.id ? dropdownRef : null}>
-                                  <button
-                                    onClick={() => setAssigningId(assigningId === h.id ? null : h.id)}
-                                    disabled={!canReplyToConversations}
-                                    title={canReplyToConversations ? "Assign to a telecaller" : readOnlyTitle}
-                                    aria-label="Assign to a telecaller"
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-surface text-ink transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    <UserCog size={13} />
-                                  </button>
-                                  {assigningId === h.id && (
-                                    <div className="absolute right-0 top-full z-30 mt-1.5 min-w-[180px] rounded-xl border border-border bg-surface py-1 text-left shadow-card-hover">
-                                      <p className="px-3 py-1 font-heading text-[10px] font-semibold uppercase tracking-[0.09em] text-ink-muted">
-                                        Assign to
-                                      </p>
-                                      <div className="my-0.5 border-t border-border-subtle" />
-                                      {callers.length === 0 ? (
-                                        <p className="px-3 py-2 font-body text-xs text-ink-muted">No active callers</p>
-                                      ) : (
-                                        callers.map((c) => (
-                                          <button
-                                            key={c.id}
-                                            onClick={() => handleAssign(h.id, c.id, c.name)}
-                                            className="w-full px-3 py-2 text-left font-body text-xs text-ink transition-colors hover:bg-primary-light hover:text-primary"
-                                          >
-                                            {c.name}
-                                          </button>
-                                        ))
+                                {role === "owner" && (
+                                  <div className="relative" ref={assigningId === h.id ? dropdownRef : null}>
+                                    <button
+                                      onClick={() => setAssigningId(assigningId === h.id ? null : h.id)}
+                                      disabled={!canReplyToConversations}
+                                      title={canReplyToConversations ? "Assign to a telecaller" : readOnlyTitle}
+                                      aria-label="Assign to a telecaller"
+                                      className={cn(
+                                        "inline-flex h-8 w-8 items-center justify-center rounded-xl border bg-surface shadow-2xs transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
+                                        assigningId === h.id
+                                          ? "border-[#5b21b6] bg-purple-50 text-[#5b21b6]"
+                                          : "border-border/80 text-slate-600 hover:border-purple-200 hover:bg-purple-50/50 hover:text-[#5b21b6]"
                                       )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                )}
-              </table>
+                                    >
+                                      <UserCog size={13} />
+                                    </button>
+                                    {assigningId === h.id && (
+                                      <div className="absolute right-0 top-full z-30 mt-2 min-w-[200px] rounded-2xl border border-purple-100 bg-white py-1.5 text-left shadow-card-hover">
+                                        <p className="px-3.5 py-1.5 font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-400">
+                                          Assign to team member
+                                        </p>
+                                        <div className="my-1 border-t border-purple-50" />
+                                        {callers.length === 0 ? (
+                                          <p className="px-3.5 py-2 font-body text-xs text-slate-400">No active callers</p>
+                                        ) : (
+                                          callers.map((c) => (
+                                            <button
+                                              key={c.id}
+                                              onClick={() => handleAssign(h.id, c.id, c.name)}
+                                              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-body text-xs font-medium text-slate-700 transition-colors hover:bg-purple-50 hover:text-[#5b21b6]"
+                                            >
+                                              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-100 text-[#5b21b6] font-mono text-[9px] font-bold">
+                                                {initialsOf(c.name)}
+                                              </div>
+                                              <span className="truncate">{c.name}</span>
+                                            </button>
+                                          ))
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  )}
+                </table>
+              </div>
             </div>
           )}
           </div>

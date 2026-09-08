@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, Info, MessageSquare, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
-import { cn, formatDateTime, formatDuration } from "@/lib/utils";
+import { formatDateTime, formatDuration } from "@/lib/utils";
 import {
   EMPTY_HISTORY_STATS,
   fetchHistory,
@@ -119,7 +119,7 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
     <div className="flex flex-1 flex-col overflow-hidden">
 
       {/* ── list (only this scrolls; filters stay in the header) ── */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="flex flex-1 flex-col overflow-y-auto px-6 py-4">
       {error ? (
         <TableEmpty
           icon={<Info size={24} className="text-ink-muted" />}
@@ -138,83 +138,92 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
         />
       ) : (
         <>
-          <div className="flex-1 overflow-x-auto">
-            <table className="w-full min-w-[1040px] border-collapse">
-              <thead>
-                <tr>
-                  {[
-                    { label: "Lead", w: "" },
-                    { label: "Channel", w: "" },
-                    { label: "Why escalated", w: "" },
-                    { label: "Resolved by", w: "w-[196px]" },
-                    { label: "Resolved", w: "w-[150px]" },
-                    { label: "Time to resolve", w: "w-[120px]" },
-                    { label: "Actions", w: "w-[190px]" },
-                  ].map((c) => (
-                    <th
-                      key={c.label}
-                      className={cn(
-                        "sticky top-0 z-10 whitespace-nowrap border-b border-border bg-surface-low px-3.5 py-2.5 text-center font-heading text-[9.5px] font-semibold uppercase tracking-[0.09em] text-ink-muted first:pl-6 last:pr-6",
-                        c.w
-                      )}
-                    >
-                      {c.label}
+          <div className="rounded-2xl border border-border/80 bg-surface shadow-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1040px] border-collapse">
+                <thead>
+                  <tr className="border-b border-border/70 bg-slate-50/70">
+                    <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 pl-8 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500">
+                      Lead
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              {loading ? (
-                <TableSkeleton columns={7} />
-              ) : (
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className="group border-b border-border-subtle bg-surface transition-colors hover:bg-surface-low">
-                      <td className="px-3.5 py-3 pl-6 text-center align-middle">
-                        <LeadCell lead={row.leads} />
-                      </td>
-                      <td className="px-3.5 py-3 text-center align-middle">
-                        <ChannelCell lead={row.leads} />
-                      </td>
-                      <td className="px-3.5 py-3 text-center align-middle">
-                        <TriggerChip reason={row.reason} />
-                      </td>
-                      <td className="px-3.5 py-3 text-center align-middle">
-                        <PersonCell name={row.resolved_by_name} empty="Not recorded" />
-                      </td>
-                      <td className="px-3.5 py-3 text-center align-middle">
-                        <span className="font-mono text-[11.5px] text-ink-secondary">
-                          {row.resolved_at ? formatDateTime(row.resolved_at) : "—"}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-3 text-center align-middle">
-                        <DurationCell
-                          text={formatDuration(row.duration_seconds)}
-                          severity={severityForWait(row.duration_seconds)}
-                        />
-                      </td>
-                      <td className="px-3.5 py-3 pr-6 text-center align-middle">
-                        <span className="inline-flex items-center justify-center gap-1.5 opacity-50 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                          <button
-                            onClick={() => onOpenChat(row.lead_id)}
-                            className="inline-flex h-7 w-[100px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface font-label text-[11px] font-bold text-ink transition-colors hover:border-ink-muted"
-                          >
-                            <MessageSquare size={13} /> Open chat
-                          </button>
-                          <button
-                            onClick={() => handleReopen(row)}
-                            disabled={!canReply}
-                            title={canReply ? "Put this back in the active queue" : "You have read-only access to conversations"}
-                            className="inline-flex h-7 w-[86px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface font-label text-[11px] font-bold text-ink-secondary transition-colors hover:border-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            <RotateCcw size={12} /> Reopen
-                          </button>
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              )}
-            </table>
+                    <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500">
+                      Channel
+                    </th>
+                    <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500">
+                      Why Escalated
+                    </th>
+                    <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-left font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500 w-[180px]">
+                      Resolved By
+                    </th>
+                    <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-center font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500 w-[140px]">
+                      Resolved
+                    </th>
+                    <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 text-center font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500 w-[140px]">
+                      Time to Resolve
+                    </th>
+                    <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3 pr-8 text-right font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-500 w-[210px]">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                {loading ? (
+                  <TableSkeleton columns={7} />
+                ) : (
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="group border-b border-border-subtle/80 bg-surface transition-colors hover:bg-purple-50/20 last:border-b-0"
+                      >
+                        <td className="px-4 py-3 pl-8 text-left align-middle">
+                          <LeadCell lead={row.leads} />
+                        </td>
+                        <td className="px-4 py-3 text-left align-middle">
+                          <ChannelCell lead={row.leads} />
+                        </td>
+                        <td className="px-4 py-3 text-left align-middle">
+                          <TriggerChip reason={row.reason} />
+                        </td>
+                        <td className="px-4 py-3 text-left align-middle">
+                          <PersonCell name={row.resolved_by_name} empty="Not recorded" />
+                        </td>
+                        <td className="px-4 py-3 text-center align-middle">
+                          <span className="font-mono text-xs text-slate-600 font-medium">
+                            {row.resolved_at ? formatDateTime(row.resolved_at) : "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center align-middle">
+                          <DurationCell
+                            text={formatDuration(row.duration_seconds)}
+                            severity={severityForWait(row.duration_seconds)}
+                          />
+                        </td>
+                        <td className="px-4 py-3 pr-8 text-right align-middle">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => onOpenChat(row.lead_id)}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200/80 bg-purple-50/50 px-3 font-label text-xs font-bold text-[#5b21b6] shadow-2xs transition-all hover:bg-purple-100 hover:border-purple-300 active:scale-[0.98]"
+                            >
+                              <MessageSquare size={12} className="shrink-0" />
+                              <span>Open chat</span>
+                            </button>
+                            <button
+                              onClick={() => handleReopen(row)}
+                              disabled={!canReply}
+                              title={canReply ? "Put this back in the active queue" : "You have read-only access to conversations"}
+                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-border/80 bg-surface px-3 font-label text-xs font-bold text-slate-600 shadow-2xs transition-all hover:border-purple-200 hover:bg-purple-50/50 hover:text-[#5b21b6] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              <RotateCcw size={12} className="shrink-0" />
+                              <span>Reopen</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                )}
+              </table>
+            </div>
           </div>
 
           <div className="flex items-center justify-between gap-4 px-6 py-4">
