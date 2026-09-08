@@ -59,9 +59,10 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
         {**row, "locked": row.get("status") != "archived" and row["id"] not in unlocked_ids}
         for row in rows
     ]
+    active_rows = [r for r in rows if r.get("status") != "archived"]
     return {
         "data": data,
-        "numbers_pool": {"limit": numbers_limit, "used": len(rows)},
+        "numbers_pool": {"limit": numbers_limit, "used": len(active_rows)},
     }
 
 
@@ -186,6 +187,9 @@ async def sync_all_numbers_from_meta(
                 updates["messaging_tier"] = tier
             if not row.get("meta_phone_number_id"):
                 updates["meta_phone_number_id"] = meta_pid
+            if row.get("status") == "archived":
+                updates["status"] = "active"
+                updates["paused_outbound"] = False
 
             last_reset_raw = row.get("last_reset_at")
             days_elapsed = 0
@@ -239,9 +243,10 @@ async def sync_all_numbers_from_meta(
         {**r, "locked": r.get("status") != "archived" and r["id"] not in unlocked_after}
         for r in rows
     ]
+    active_rows = [r for r in rows if r.get("status") != "archived"]
     return {
         "data": data,
-        "numbers_pool": {"limit": numbers_limit, "used": len(rows)},
+        "numbers_pool": {"limit": numbers_limit, "used": len(active_rows)},
         "synced": synced,
         "failed": failed,
     }

@@ -500,7 +500,7 @@ function NumbersPageContent() {
   const visible = useMemo(() => numbers.filter((n) => n.status !== "archived"), [numbers]);
 
   const totalPoolLimit = numbersPool?.limit ?? 5;
-  const totalPoolUsed = numbersPool?.used ?? visible.length;
+  const totalPoolUsed = visible.length;
   const primaryNumber = visible.find((n) => n.role === "primary");
   const standbyCount = visible.filter((n) => n.role === "standby").length;
   const pausedCount = visible.filter((n) => n.paused_outbound).length;

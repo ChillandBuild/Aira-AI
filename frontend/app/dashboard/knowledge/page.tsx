@@ -9,7 +9,7 @@ import {
   HardDrive, Check, Copy,
   Sparkles, LayoutGrid, List,
   FileSpreadsheet, FileCode, Image as ImageIcon,
-  Tag, Shield, BookOpen, Lock, ArrowRight, Circle
+  Tag, Shield, BookOpen, Lock, ArrowRight, Circle, Lightbulb
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, KnowledgeDocContent } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -48,6 +48,47 @@ interface FileTypeMeta {
   iconColor: string;
   category: "pdf" | "word" | "spreadsheet" | "presentation" | "text" | "image" | "other";
 }
+
+// ─── Description Guide ────────────────────────────────────────────────────────
+// Plain-language onboarding for the Description tab. Clients writing this box are
+// business owners, not prompt engineers -- the four points below are the ones that
+// actually change how Aira replies, in the order they matter.
+
+const DESCRIPTION_POINTS: { title: string; body: string; example: string }[] = [
+  {
+    title: "Who you are",
+    body: "Your business name, what line of work you are in, and where you are based.",
+    example: "We are Sunrise Interiors, a home interior studio in Coimbatore, running since 2015.",
+  },
+  {
+    title: "What you sell",
+    body: "Your main services or products — named the way your customers name them, not your internal terms.",
+    example: "We do modular kitchens, wardrobes, and full home interiors.",
+  },
+  {
+    title: "Who your customers are",
+    body: "So Aira pitches at the right level instead of guessing.",
+    example: "Mostly families moving into a new apartment for the first time.",
+  },
+  {
+    title: "Hours and languages",
+    body: "The couple of facts that come up in nearly every conversation.",
+    example: "Open Monday to Saturday, 10am to 7pm. We reply in Tamil and English.",
+  },
+];
+
+const DESCRIPTION_TEMPLATE = `We are [BUSINESS NAME], a [WHAT YOU DO] business in [CITY], running since [YEAR].
+
+We offer:
+- [SERVICE 1] - [one line about it]
+- [SERVICE 2] - [one line about it]
+- [SERVICE 3] - [one line about it]
+
+Our customers are mostly [WHO THEY ARE].
+
+We are open [DAYS], [TIMINGS]. We reply in [LANGUAGES].
+
+Speak warmly and respectfully with every customer.`;
 
 // ─── File Formatting Helpers ──────────────────────────────────────────────────
 
@@ -260,6 +301,20 @@ export default function KnowledgePage() {
 
   // RAG Guide Expandable
   const [showRagGuide, setShowRagGuide] = useState(false);
+
+  // Description Guide
+  const [showDescExample, setShowDescExample] = useState(false);
+  const [copiedTemplate, setCopiedTemplate] = useState(false);
+
+  async function copyTemplate() {
+    try {
+      await navigator.clipboard.writeText(DESCRIPTION_TEMPLATE);
+      setCopiedTemplate(true);
+      setTimeout(() => setCopiedTemplate(false), 2000);
+    } catch {
+      toast.error("Could not copy. Select the text and copy it manually.");
+    }
+  }
 
   // ─── Documents gate ────────────────────────────────────────────────────────
   // Retrieved excerpts arrive with no document name attached and can miss
@@ -1470,6 +1525,102 @@ export default function KnowledgePage() {
       ) : (
         /* ── Description Tab ─────────────────────────────────────────────── */
         <div className="space-y-6">
+          {/* ── Plain-language guide ──────────────────────────────────────── */}
+          <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <Lightbulb size={18} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-display font-bold text-sm text-on-surface">
+                  Start here — what to write on this page
+                </h4>
+                <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
+                  Aira reads this before every single reply it sends. Think of it as the
+                  note you would hand a new employee on their first day: who we are, what
+                  we sell, and how to speak to customers. Write it in plain sentences —
+                  there is nothing technical to get right here.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {DESCRIPTION_POINTS.map((point, i) => (
+                <div
+                  key={point.title}
+                  className="p-3.5 bg-white rounded-xl border border-purple-100"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
+                      {i + 1}
+                    </span>
+                    <p className="font-label text-xs font-bold text-on-surface">
+                      {point.title}
+                    </p>
+                  </div>
+                  <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
+                    {point.body}
+                  </p>
+                  <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
+                    {point.example}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
+                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                  <span className="font-semibold text-on-surface">Keep it short.</span>{" "}
+                  A paragraph or two is enough — around 150 to 300 words.
+                </p>
+              </div>
+              <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
+                <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
+                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                  <span className="font-semibold text-on-surface">Leave out</span> full price
+                  lists, package details and FAQs — those go in Documents (RAG). Aira looks
+                  them up only when a customer actually asks.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowDescExample(!showDescExample)}
+              className="mt-4 text-xs font-label font-bold text-primary hover:underline"
+            >
+              {showDescExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
+            </button>
+
+            {showDescExample && (
+              <div className="mt-3 rounded-xl border border-purple-100 bg-white overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
+                  <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
+                    Copy this and replace the words in brackets
+                  </p>
+                  <button
+                    onClick={copyTemplate}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
+                  >
+                    {copiedTemplate ? (
+                      <>
+                        <Check size={12} strokeWidth={3} /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} /> Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
+                  {DESCRIPTION_TEMPLATE}
+                </pre>
+              </div>
+            )}
+          </div>
+
           {/* Business Description Card */}
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
             <div>
