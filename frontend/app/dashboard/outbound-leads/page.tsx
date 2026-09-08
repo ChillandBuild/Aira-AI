@@ -210,7 +210,7 @@ function StepIndicator({ current }: { current: number }) {
             {i > 0 && (
               <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${step <= current ? "bg-primary" : "bg-surface-mid"}`} />
             )}
-            <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all
+            <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors
               ${done ? "bg-gradient-to-br from-[#2e1065] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[#2e1065] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
               {done ? <Check size={16} /> : step}
             </div>
@@ -1190,15 +1190,13 @@ export default function OutboundLeadsPage() {
     return new File([csv], file.name.replace(/\.(xlsx|xls)$/i, ".csv"), { type: "text/csv" });
   }
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = e.target.files?.[0] ?? null;
+  async function processFile(picked: File) {
     setCsvFile(null);
     setParsedData(null);
     setParseError(null);
     setCsvFileUrl(null);
     setCsvFilePath(null);
     setCsvFileName(null);
-    if (!picked) return;
 
     setParseLoading(true);
     try {
@@ -1219,6 +1217,30 @@ export default function OutboundLeadsPage() {
     } finally {
       setParseLoading(false);
     }
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0] ?? null;
+    if (!picked) return;
+    await processFile(picked);
+  }
+
+  async function handleDrop(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const dropped = e.dataTransfer.files?.[0];
+    if (!dropped) return;
+    const lowerName = dropped.name.toLowerCase();
+    if (lowerName.endsWith(".csv") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
+      await processFile(dropped);
+    } else {
+      setParseError("Invalid file format. Please upload a .csv, .xlsx, or .xls file.");
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   async function handleOptInSelect(value: string) {
@@ -1413,178 +1435,184 @@ export default function OutboundLeadsPage() {
     <div className="min-w-0 max-w-7xl">
       {/* Upload Wizard */}
       {activeTab === "upload" && (
-        <div className="flex min-h-[600px] flex-col rounded-2xl bg-surface p-4 shadow-lg ring-1 ring-[#c4c7c7]/20 animate-slide-up md:rounded-[2rem] md:p-8">
+        <div className="flex min-h-[600px] flex-col rounded-2xl bg-surface p-4 shadow-lg ring-1 ring-[#c4c7c7]/20 md:rounded-[2rem] md:p-8">
           <StepIndicator current={currentStep} />
 
           {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
           {currentStep === 1 && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
-              {/* Left Column: Upload Controls (7 cols) */}
-              <div className="lg:col-span-7 space-y-6">
-                <div>
-                  <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV or Excel</h2>
-                  <p className="font-body text-sm text-on-surface-muted">We&apos;ll detect column mappings automatically.</p>
-                </div>
+            <div className="flex flex-col flex-1 justify-between">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Upload Controls (7 cols) */}
+                <div className="lg:col-span-7 space-y-6">
+                  <div>
+                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV or Excel</h2>
+                    <p className="font-body text-sm text-on-surface-muted">We&apos;ll detect column mappings automatically.</p>
+                  </div>
 
-                <label className={`relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-all group
-                  ${csvFile ? "border-primary bg-primary/5" : "border-primary/30 hover:border-primary/70 hover:bg-primary/[0.04]"}`}>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all shadow-sm
-                    ${csvFile ? "bg-primary text-white" : "bg-primary/10 text-primary group-hover:bg-primary/20"}`}>
-                    {csvFile ? <Check size={28} /> : <Upload size={28} />}
-                  </div>
-                  <div className="text-center px-4">
-                    <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
-                      {csvFile ? csvFile.name : "Drop your CSV or Excel file here"}
-                    </p>
-                    <p className="font-body text-xs text-on-surface-muted mt-1.5">
-                      {csvFile
-                        ? `${(csvFile.size / 1024).toFixed(1)} KB · click to change file`
-                        : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
-                    </p>
-                  </div>
-                  {!csvFile && (
-                    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-primary/20 w-full justify-center pt-4 mt-1">
-                      <span>✓ Auto-detects columns</span>
-                      <span>✓ Deduplicates leads</span>
-                      <span>✓ Indian numbers formatted</span>
+                  <label
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    className={`relative flex flex-col items-center justify-center gap-5 py-12 rounded-2xl border-2 border-dashed cursor-pointer transition-colors group
+                    ${csvFile ? "border-primary bg-primary/5" : "border-primary/30 hover:border-primary/70 hover:bg-primary/[0.04]"}`}
+                  >
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-colors shadow-sm
+                      ${csvFile ? "bg-primary text-white" : "bg-primary/10 text-primary group-hover:bg-primary/20"}`}>
+                      {csvFile ? <Check size={28} /> : <Upload size={28} />}
+                    </div>
+                    <div className="text-center px-4">
+                      <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
+                        {csvFile ? csvFile.name : "Drop your CSV or Excel file here"}
+                      </p>
+                      <p className="font-body text-xs text-on-surface-muted mt-1.5">
+                        {csvFile
+                          ? `${(csvFile.size / 1024).toFixed(1)} KB · click to change file`
+                          : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
+                      </p>
+                    </div>
+                    {!csvFile && (
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-primary/20 w-full justify-center pt-4 mt-1">
+                        <span>✓ Auto-detects columns</span>
+                        <span>✓ Deduplicates leads</span>
+                        <span>✓ Indian numbers formatted</span>
+                      </div>
+                    )}
+                    <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
+                  </label>
+
+                  {parseLoading && (
+                    <div className="flex items-center gap-2 py-2">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <p className="font-body text-sm text-on-surface-muted">Parsing file…</p>
                     </div>
                   )}
-                  <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
-                </label>
+                  {parseError && (
+                    <div className="flex items-start gap-2 p-3.5 bg-red-50 text-red-700 rounded-xl font-body text-sm">
+                      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                      {parseError}
+                    </div>
+                  )}
 
-                {parseLoading && (
-                  <div className="flex items-center gap-2 py-2">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="font-body text-sm text-on-surface-muted">Parsing file…</p>
-                  </div>
-                )}
-                {parseError && (
-                  <div className="flex items-start gap-2 p-3.5 bg-red-50 text-red-700 rounded-xl font-body text-sm">
-                    <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                    {parseError}
-                  </div>
-                )}
-
-                {parsedData && (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl text-center">
-                      <p className="font-display text-2xl font-bold text-primary">{parsedData.total_rows.toLocaleString()}</p>
-                      <p className="font-label text-xs text-on-surface-muted mt-1">Total Rows</p>
-                    </div>
-                    <div className={`p-4 rounded-xl text-center border ${parsedData.duplicate_count > 0 ? "bg-amber-50 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
-                      <p className={`font-display text-2xl font-bold ${parsedData.duplicate_count > 0 ? "text-amber-700" : "text-on-surface-muted"}`}>{parsedData.duplicate_count}</p>
-                      <p className="font-label text-xs text-on-surface-muted mt-1">Duplicates</p>
-                    </div>
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-center">
-                      <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
-                      <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
-                    </div>
-                    <div className="rounded-xl bg-surface-low p-3 sm:col-span-3">
-                      <p className="font-label text-xs text-on-surface-muted mb-1.5">Columns detected</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {parsedData.columns.map(col => (
-                          <span key={col} className={`px-2.5 py-0.5 rounded-md text-[10px] font-semibold tracking-wide
-                            ${Object.values(parsedData.suggested_mapping).includes(col) ? "bg-primary/10 text-primary border border-primary/10" : "bg-surface-mid text-on-surface-muted"}`}>
-                            {col}
-                          </span>
-                        ))}
+                  {parsedData && (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="p-4 bg-primary/5 border border-primary/15 rounded-xl text-center">
+                        <p className="font-display text-2xl font-bold text-primary">{parsedData.total_rows.toLocaleString()}</p>
+                        <p className="font-label text-xs text-on-surface-muted mt-1">Total Rows</p>
+                      </div>
+                      <div className={`p-4 rounded-xl text-center border ${parsedData.duplicate_count > 0 ? "bg-amber-50 border-amber-200" : "bg-surface-low border-surface-mid"}`}>
+                        <p className={`font-display text-2xl font-bold ${parsedData.duplicate_count > 0 ? "text-amber-700" : "text-on-surface-muted"}`}>{parsedData.duplicate_count}</p>
+                        <p className="font-label text-xs text-on-surface-muted mt-1">Duplicates</p>
+                      </div>
+                      <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-center">
+                        <p className="font-display text-2xl font-bold text-green-700">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
+                        <p className="font-label text-xs text-on-surface-muted mt-1">New Leads</p>
+                      </div>
+                      <div className="rounded-xl bg-surface-low p-3 sm:col-span-3">
+                        <p className="font-label text-xs text-on-surface-muted mb-1.5">Columns detected</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {parsedData.columns.map(col => (
+                            <span key={col} className={`px-2.5 py-0.5 rounded-md text-[10px] font-semibold tracking-wide
+                              ${Object.values(parsedData.suggested_mapping).includes(col) ? "bg-primary/10 text-primary border border-primary/10" : "bg-surface-mid text-on-surface-muted"}`}>
+                              {col}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                <div className="flex justify-end pt-4 border-t border-surface-mid/30">
-                  <button
-                    onClick={() => setCurrentStep(2)}
-                    disabled={!parsedData}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                  >
-                    Next <ChevronRight size={16} />
-                  </button>
+                {/* Right Column: Templates Guide & Policy (5 cols) */}
+                <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                        <FileSpreadsheet size={16} />
+                      </div>
+                      <h3 className="font-display font-bold text-on-surface text-base">CSV Template</h3>
+                    </div>
+
+                    {parsedData ? (
+                      <div className="space-y-3 text-xs">
+                        <div className="p-3 bg-surface-low rounded-xl">
+                          <p className="font-label text-[10px] text-on-surface-muted uppercase font-bold">Uploaded File</p>
+                          <p className="font-body font-semibold text-on-surface truncate mt-0.5">{csvFile?.name}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-center">
+                          <div className="p-2 bg-green-50 border border-green-100 rounded-xl">
+                            <p className="font-label text-[9px] text-green-700 uppercase font-bold">Leads</p>
+                            <p className="font-display font-bold text-green-700 mt-0.5">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
+                          </div>
+                          <div className="p-2 bg-surface-low rounded-xl">
+                            <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Headers</p>
+                            <p className="font-display font-bold text-on-surface mt-0.5">{parsedData.columns.length}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                          Make sure your CSV file includes these headers. Match additional variables with custom columns.
+                        </p>
+
+                        <div className="divide-y divide-surface-mid border-t border-b border-surface-mid">
+                          <div className="py-2 flex justify-between text-xs font-body">
+                            <span className="font-mono text-on-surface font-semibold">phone</span>
+                            <span className="text-red-700 font-bold bg-red-50 px-1.5 py-0.5 rounded text-[9px]">Required</span>
+                          </div>
+                          <div className="py-2 flex justify-between text-xs font-body">
+                            <span className="font-mono text-on-surface font-semibold">name</span>
+                            <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
+                          </div>
+                          <div className="py-2 flex justify-between text-xs font-body">
+                            <span className="font-mono text-on-surface font-semibold">course / other</span>
+                            <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={downloadSampleCSV}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-low hover:bg-surface-mid rounded-xl font-label text-xs font-bold text-on-surface transition-colors border border-surface-mid/60"
+                        >
+                          <Download size={13} />
+                          Download Sample CSV
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-surface-mid/40 pt-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
+                        <ShieldCheck size={16} />
+                      </div>
+                      <h3 className="font-display font-bold text-on-surface text-base">Policy Guide</h3>
+                    </div>
+                    <ul className="space-y-2 font-body text-xs text-on-surface-muted">
+                      <li className="flex gap-2">
+                        <span className="text-emerald-500 font-bold">✓</span>
+                        <span><strong>Opt-in rule</strong>: Only send messages to leads who explicitly agreed to receive updates.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-emerald-500 font-bold">✓</span>
+                        <span><strong>Limits</strong>: Keep dispatches below your tier limits to protect WABA quality rating.</span>
+                      </li>
+                      <li className="flex gap-2">
+                        <span className="text-emerald-500 font-bold">✓</span>
+                        <span><strong>24h rule</strong>: Users can reply to template broadcasts to open a 24h custom chat session.</span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               </div>
 
-              {/* Right Column: Templates Guide & Policy (5 cols) */}
-              <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-                      <FileSpreadsheet size={16} />
-                    </div>
-                    <h3 className="font-display font-bold text-on-surface text-base">CSV Template</h3>
-                  </div>
-
-                  {parsedData ? (
-                    <div className="space-y-3 text-xs">
-                      <div className="p-3 bg-surface-low rounded-xl">
-                        <p className="font-label text-[10px] text-on-surface-muted uppercase font-bold">Uploaded File</p>
-                        <p className="font-body font-semibold text-on-surface truncate mt-0.5">{csvFile?.name}</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-center">
-                        <div className="p-2 bg-green-50 border border-green-100 rounded-xl">
-                          <p className="font-label text-[9px] text-green-700 uppercase font-bold">Leads</p>
-                          <p className="font-display font-bold text-green-700 mt-0.5">{(parsedData.total_rows - parsedData.duplicate_count).toLocaleString()}</p>
-                        </div>
-                        <div className="p-2 bg-surface-low rounded-xl">
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Headers</p>
-                          <p className="font-display font-bold text-on-surface mt-0.5">{parsedData.columns.length}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                        Make sure your CSV file includes these headers. Match additional variables with custom columns.
-                      </p>
-
-                      <div className="divide-y divide-surface-mid border-t border-b border-surface-mid">
-                        <div className="py-2 flex justify-between text-xs font-body">
-                          <span className="font-mono text-on-surface font-semibold">phone</span>
-                          <span className="text-red-700 font-bold bg-red-50 px-1.5 py-0.5 rounded text-[9px]">Required</span>
-                        </div>
-                        <div className="py-2 flex justify-between text-xs font-body">
-                          <span className="font-mono text-on-surface font-semibold">name</span>
-                          <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
-                        </div>
-                        <div className="py-2 flex justify-between text-xs font-body">
-                          <span className="font-mono text-on-surface font-semibold">course / other</span>
-                          <span className="text-on-surface-muted bg-surface-low px-1.5 py-0.5 rounded text-[9px]">Optional</span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={downloadSampleCSV}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-surface-low hover:bg-surface-mid rounded-xl font-label text-xs font-bold text-on-surface transition-colors border border-surface-mid/60"
-                      >
-                        <Download size={13} />
-                        Download Sample CSV
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t border-surface-mid/40 pt-6">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
-                      <ShieldCheck size={16} />
-                    </div>
-                    <h3 className="font-display font-bold text-on-surface text-base">Policy Guide</h3>
-                  </div>
-                  <ul className="space-y-2 font-body text-xs text-on-surface-muted">
-                    <li className="flex gap-2">
-                      <span className="text-emerald-500 font-bold">✓</span>
-                      <span><strong>Opt-in rule</strong>: Only send messages to leads who explicitly agreed to receive updates.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-emerald-500 font-bold">✓</span>
-                      <span><strong>Limits</strong>: Keep dispatches below your tier limits to protect WABA quality rating.</span>
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-emerald-500 font-bold">✓</span>
-                      <span><strong>24h rule</strong>: Users can reply to template broadcasts to open a 24h custom chat session.</span>
-                    </li>
-                  </ul>
-                </div>
+              <div className="flex justify-end pt-6 mt-6 border-t border-surface-mid/30">
+                <button
+                  onClick={() => setCurrentStep(2)}
+                  disabled={!parsedData}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                >
+                  Next <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           )}
