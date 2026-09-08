@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     sarvam_api_key: str | None = None
     gemini_api_key: str | None = None
     jina_api_key: str | None = None
+    telecmi_app_id: str | None = None
     telecmi_user_id: str | None = None
     telecmi_secret: str | None = None
     telecmi_agent_password: str | None = None

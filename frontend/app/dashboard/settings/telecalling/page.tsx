@@ -17,11 +17,12 @@ const VOICE_SECTION = {
   id: "voice",
   label: "Voice Calling (Cloud Telephony)",
   icon: Phone,
-  description: "Cloud Telephony credentials for click-to-call telecalling. Per-caller Agent IDs are set on the Team page.",
+  description: "Cloud Telephony (TeleCMI) credentials for click-to-call telecalling. Per-caller Agent IDs are set on the Team / Roles page.",
   fields: [
-    { key: "telecmi_secret", label: "App Secret", secret: true, required: true },
-    { key: "telecmi_callerid", label: "Caller ID (DID shown to leads)", secret: false, required: false, hint: "The outbound number leads see when you call them" },
-    { key: "telecmi_webhook_secret", label: "Webhook Secret", secret: true, required: false, hint: "Appended as ?webhook_secret= to your Cloud Telephony CDR webhook URL" },
+    { key: "telecmi_app_id", label: "App ID", placeholder: "e.g. 1111113", secret: false, required: true, hint: "Found in TeleCMI Dashboard → Developer → App Secret" },
+    { key: "telecmi_secret", label: "App Secret", placeholder: "Paste your App Secret", secret: true, required: true, hint: "Found in TeleCMI Dashboard → Developer → App Secret" },
+    { key: "telecmi_callerid", label: "Caller ID (DID shown to leads)", placeholder: "e.g. 919876543210", secret: false, required: true, hint: "The outbound business number provisioned in your TeleCMI account" },
+    { key: "telecmi_webhook_secret", label: "Webhook Secret", secret: true, required: false, hint: "Optional: Appended as ?webhook_secret= to your Cloud Telephony CDR webhook URL" },
   ] as FieldDef[],
 };
 
@@ -171,17 +172,19 @@ export default function TelecallingSettingsPage() {
             : null;
           return (
             <div className="mt-5 space-y-2 rounded-2xl border border-border bg-surface-subtle p-4 font-body text-xs">
-              <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-secondary">Setup Guide</p>
-              <ol className="list-inside list-decimal space-y-1 text-ink-secondary">
-                <li>Log in to your <span className="font-semibold">Cloud Telephony dashboard</span> → Settings → Webhook</li>
-                <li>Set CDR Webhook URL to:<br />
+              <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-secondary">TeleCMI CHUB Setup Guide</p>
+              <ol className="list-inside list-decimal space-y-1.5 text-ink-secondary">
+                <li>Log in to your <a href="https://connle.telecmi.com/login" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline">TeleCMI Dashboard</a> and click on your business number.</li>
+                <li>Go to the <span className="font-semibold">DEVELOPER</span> tab on the top menu, then select <span className="font-semibold">APP SECRET</span> in the sub-menu.</li>
+                <li>Copy your <span className="font-semibold">App ID</span> and <span className="font-semibold">App Secret</span>, and paste them into the fields above.</li>
+                <li>Ensure your <span className="font-semibold">Caller ID</span> matches your TeleCMI virtual/business number (with country code, e.g. 91...).</li>
+                <li>Go to <span className="font-semibold">SETTINGS → WEBHOOKS</span>, click <span className="font-semibold">Add</span>, choose Type as <span className="font-semibold">Call report</span>, Method as <span className="font-semibold">POST</span>, and paste your CDR Webhook URL:<br />
                   <code className="mt-1 inline-block select-all break-all rounded border border-border bg-white px-2 py-1 font-mono text-[11px] text-ink">
                     {cdrUrl ?? "Retrieving webhook URL…"}
                   </code>
                 </li>
-                <li>If using a Webhook Secret, append it: <code className="rounded border border-border bg-white px-1 py-0.5 font-mono text-[10px]">?webhook_secret=YOUR_SECRET</code></li>
-                <li>Set your <span className="font-semibold">App Secret</span> above (from Cloud Telephony dashboard → API Keys)</li>
-                <li>Per-caller <span className="font-semibold">Agent IDs</span> are configured on the <span className="font-semibold">Team page</span></li>
+                <li>If using a Webhook Secret, append it to your Webhook URL: <code className="rounded border border-border bg-white px-1 py-0.5 font-mono text-[10px]">?webhook_secret=YOUR_SECRET</code></li>
+                <li>Configure each telecaller&apos;s TeleCMI <span className="font-semibold">Agent ID</span> on the <span className="font-semibold">Team / Roles page</span>.</li>
               </ol>
             </div>
           );

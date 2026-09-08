@@ -223,8 +223,10 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             detail="Call minute quota reached. Request more from Settings → Subscription.",
         )
 
-    # App secret is only used for recording playback, not for India click-to-call.
+    # App secret is required for Cloud Telephony click-to-call and recording playback.
     telecmi_secret = get_setting("telecmi_secret", tenant_id=tenant_id)
+    if calling_provider == "telecmi" and not telecmi_secret:
+        raise HTTPException(status_code=400, detail="Cloud Telephony App Secret not configured. Set it in Settings → Telecalling.")
 
     if not payload.lead_id and not payload.phone:
         raise HTTPException(status_code=400, detail="Provide either lead_id or phone")
@@ -315,34 +317,37 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         }
 
     try:
-        # Resolve TeleCMI agent credentials: caller's own → owner's → global setting.
-        # India agentConnect rings the agent's registered mobile, so each caller
-        # needs their own id+password (the lead sees the agent's provisioned number).
+        # Resolve TeleCMI Agent ID: caller's own → owner's → global setting.
+        # CHUB Admin API connects the agent's user_id first (via followme mobile),
+        # then bridges the customer number.
         effective_agent_id = caller_telecmi_agent_id
-        effective_agent_password = caller_telecmi_agent_password
         if not effective_agent_id:
             owner_member = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
             if owner_member.data:
-                owner_caller = db.table("callers").select("telecmi_agent_id,telecmi_agent_password").eq("user_id", owner_member.data["user_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
+                owner_caller = db.table("callers").select("telecmi_agent_id").eq("user_id", owner_member.data["user_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
                 if owner_caller.data:
                     effective_agent_id = owner_caller.data.get("telecmi_agent_id")
-                    effective_agent_password = owner_caller.data.get("telecmi_agent_password")
         if not effective_agent_id:
             effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
-            effective_agent_password = get_setting("telecmi_agent_password", tenant_id=tenant_id)
-        if not effective_agent_id or not effective_agent_password:
-            raise HTTPException(status_code=400, detail="No Cloud Telephony agent id + password found. Set them on the caller in the Team page.")
+        if not effective_agent_id:
+            raise HTTPException(status_code=400, detail="No Cloud Telephony Agent ID found. Set Agent ID on the caller in the Team page.")
+
+        telecmi_callerid = get_setting("telecmi_callerid", tenant_id=tenant_id) or caller_phone
+        if not telecmi_callerid:
+            raise HTTPException(status_code=400, detail="No Caller ID configured. Set Caller ID in Settings → Telecalling.")
 
         result = await initiate_click2call(
-            tenant_id=tenant_id,
             agent_id=effective_agent_id,
-            password=effective_agent_password,
+            secret=telecmi_secret,
             to=lead_phone,
+            callerid=telecmi_callerid,
             custom=str(call_log_id),
+            followme=True,
+            webrtc=False,
         )
         request_id = result.get("request_id", "")
     except Exception as e:
-        err_msg = str(e).replace(effective_agent_password, "***") if effective_agent_password else str(e)
+        err_msg = str(e).replace(telecmi_secret, "***") if telecmi_secret else str(e)
         logger.error(f"TeleCMI call failed: {err_msg}")
         db.table("call_logs").update({"status": "failed"}).eq("id", call_log_id).execute()
         raise HTTPException(status_code=502, detail=f"Cloud Telephony call failed: {err_msg}")
@@ -495,22 +500,23 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
         updates["status"] = "failed"
 
     # Handle recording if present
-    # TeleCMI recording URL: https://piopiy.telecmi.com/v1/play?appid=<appid>&token=<secret>&file=<filename>
-    recording_filename = cdr.get("filename")
-    if recording_filename:
-        appid = cdr.get("appid")
-        secret = get_setting("telecmi_secret", tenant_id=log_row.data.get("tenant_id"))
-        if appid and secret:
-            # This play URL embeds the TeleCMI secret token, so it must NOT be
-            # persisted. Pass it only to the background task, which downloads the
-            # file and re-stores it in Supabase Storage, then writes the Supabase
-            # URL to recording_url. On failure recording_url stays null rather
-            # than leaking the secret into the DB / frontend.
-            full_url = (
-                f"https://piopiy.telecmi.com/v1/play"
-                f"?appid={appid}&token={secret}&file={recording_filename}"
-            )
-            background_tasks.add_task(_process_telecmi_recording, call_log_id, full_url)
+    # CHUB may send direct record_url/recording_url or filename with appid/secret
+    record_url = cdr.get("record_url") or cdr.get("recording_url")
+    if record_url:
+        background_tasks.add_task(_process_telecmi_recording, call_log_id, record_url)
+    else:
+        recording_filename = cdr.get("filename")
+        if recording_filename:
+            tenant_id_for_rec = log_row.data.get("tenant_id")
+            appid = cdr.get("appid") or cdr.get("app_id") or get_setting("telecmi_app_id", tenant_id=tenant_id_for_rec)
+            secret = get_setting("telecmi_secret", tenant_id=tenant_id_for_rec)
+            if appid and secret:
+                base_url = get_setting("telecmi_recording_base_url", tenant_id=tenant_id_for_rec) or "https://piopiy.telecmi.com/v1/play"
+                full_url = (
+                    f"{base_url}"
+                    f"?appid={appid}&token={secret}&file={recording_filename}"
+                )
+                background_tasks.add_task(_process_telecmi_recording, call_log_id, full_url)
 
     if updates:
         db.table("call_logs").update(updates).eq("id", call_log_id).execute()

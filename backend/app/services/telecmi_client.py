@@ -1,85 +1,80 @@
 """
-TeleCMI CHUB India (PIOPIY) click-to-call client.
-
-India model: mint a per-agent login token (agentLogin, 30-day expiry), then
-connect via agentConnect — TeleCMI rings the agent's registered mobile first,
-then dials the lead. No app secret / user_id / callerid / webrtc here; those
-belong to the global CHUB endpoint, which this account is NOT on.
+TeleCMI CHUB Click-to-Call client.
 
 Docs:
-  https://doc.telecmi.com/chub-india/docs/login-token/
-  https://doc.telecmi.com/chub-india/docs/click-to-call/
+  https://doc.telecmi.com/chub/docs/app-auth
+  https://doc.telecmi.com/chub/docs/click-to-call-admin
 """
 import logging
-import time
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-AGENT_LOGIN_URL = "https://piopiy.telecmi.com/v1/agentLogin"
-AGENT_CONNECT_URL = "https://piopiy.telecmi.com/v1/agentConnect"
-
-# Tokens expire after 30 days; refresh a day early. In-process cache keyed by
-# (tenant_id, agent_id) so one tenant can never be served another tenant's token.
-_TOKEN_TTL_SECONDS = 29 * 24 * 3600
-_token_cache: dict[tuple[str, str], tuple[str, float]] = {}
+TELECMI_BASE_URL = "https://rest.telecmi.com/v2/webrtc/click2call"
 
 
-async def _agent_login(agent_id: str, password: str) -> str:
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(AGENT_LOGIN_URL, json={"id": agent_id, "password": password})
-        data = resp.json()
-    if data.get("code") != 200 or not data.get("token"):
-        logger.error(f"TeleCMI agentLogin rejected: {data}")
-        raise RuntimeError(f"TeleCMI login failed: {data.get('msg', 'unknown error')}")
-    return data["token"]
-
-
-async def _get_token(tenant_id: str, agent_id: str, password: str, *, force: bool = False) -> str:
-    now = time.time()
-    key = (tenant_id, agent_id)
-    if not force:
-        cached = _token_cache.get(key)
-        if cached and cached[1] > now:
-            return cached[0]
-    token = await _agent_login(agent_id, password)
-    _token_cache[key] = (token, now + _TOKEN_TTL_SECONDS)
-    return token
-
-
-async def _connect(token: str, to: str, custom: str | None) -> dict[str, Any]:
-    payload: dict[str, Any] = {"token": token, "to": _normalize_phone(to)}
-    if custom:
-        payload["extra_params"] = {"call_log_id": custom}
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(AGENT_CONNECT_URL, json=payload)
-        return resp.json()
+def _normalize_phone(phone: str) -> str:
+    cleaned = phone.replace(" ", "").replace("-", "").replace("+", "")
+    if len(cleaned) == 10:
+        cleaned = f"91{cleaned}"
+    return cleaned
 
 
 async def initiate_click2call(
-    tenant_id: str,
     agent_id: str,
-    password: str,
+    secret: str,
     to: str,
+    callerid: str,
     *,
     custom: str | None = None,
+    followme: bool = True,
+    webrtc: bool = False,
 ) -> dict[str, Any]:
-    logger.info(f"TeleCMI agentConnect: tenant={tenant_id}, agent_id={agent_id}, to={to}")
-    token = await _get_token(tenant_id, agent_id, password)
-    data = await _connect(token, to, custom)
+    """Initiate click-to-call via TeleCMI CHUB Admin API.
 
-    # 404 = invalid number OR stale token. Re-login once and retry to rule out the token.
-    if data.get("code") == 404:
-        logger.info("TeleCMI agentConnect 404 — refreshing token and retrying once")
-        token = await _get_token(tenant_id, agent_id, password, force=True)
-        data = await _connect(token, to, custom)
+    Connects to the agent's phone (via followme mobile by default, or webrtc softphone)
+    first, and once answered, connects to the customer number.
+    """
+    normalized_to = _normalize_phone(to)
+    normalized_callerid = _normalize_phone(callerid)
 
-    if data.get("code") != 200:
-        logger.error(f"TeleCMI rejected: {data}")
-        raise RuntimeError(f"TeleCMI error: {data.get('msg', 'Unknown TeleCMI error')}")
-    logger.info(f"TeleCMI success: request_id={data.get('request_id')}")
+    payload: dict[str, Any] = {
+        "user_id": agent_id,
+        "secret": secret,
+        "to": int(normalized_to) if normalized_to.isdigit() else normalized_to,
+        "callerid": int(normalized_callerid) if normalized_callerid.isdigit() else normalized_callerid,
+        "webrtc": webrtc,
+        "followme": followme,
+    }
+    if custom:
+        payload["extra_params"] = {"call_log_id": custom}
+
+    logger.info(f"TeleCMI CHUB click2call: user_id={agent_id}, callerid={normalized_callerid}, to={normalized_to}")
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.post(TELECMI_BASE_URL, json=payload)
+        try:
+            data = resp.json()
+        except Exception:
+            resp.raise_for_status()
+            raise RuntimeError(f"TeleCMI returned unexpected non-JSON response ({resp.status_code})")
+
+    code = data.get("code")
+    if code != 200:
+        msg = data.get("msg") or data.get("message") or f"HTTP {resp.status_code}"
+        logger.error(f"TeleCMI click2call rejected: code={code}, msg={msg}, response={data}")
+        if code == 407:
+            raise RuntimeError("Invalid TeleCMI App Secret. Please verify App Secret in Settings → Telecalling.")
+        elif code == 404:
+            raise RuntimeError(f"Invalid TeleCMI User ID '{agent_id}'. Please check caller's Agent ID in Team / Roles.")
+        elif code == 400:
+            raise RuntimeError(f"TeleCMI validation error: {msg}")
+        raise RuntimeError(f"TeleCMI error ({code}): {msg}")
+
+    request_id = data.get("request_id")
+    logger.info(f"TeleCMI click2call success: request_id={request_id}")
     return data
 
 

@@ -1244,4 +1244,9 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Files**: `frontend/components/sidebar.tsx`, `frontend/app/dashboard/outbound-leads/page.tsx`, `frontend/components/escalation-panel.tsx`, `frontend/components/escalations/stat-cards.tsx`.
 - **Verification**: `npm run typecheck` (0 errors), `npm run lint` (0 errors).
 
+**2026-09-07 — TeleCMI CHUB App Authentication & Admin Click-to-Call Migration**
+- **Decision**: Migrated TeleCMI cloud telephony setup to TeleCMI CHUB's official App Authentication flow (`https://doc.telecmi.com/chub/docs/app-auth`). Replaced the legacy PIOPIY agent login/connect session (`piopiy.telecmi.com/v1/agentLogin`) with the CHUB Admin Click-to-Call endpoint (`POST https://rest.telecmi.com/v2/webrtc/click2call`).
+- **Call Delivery & Authentication**: Click-to-call is authenticated using tenant App Secret (`secret`) directly; calls are routed with `followme: True` (direct to agent's mobile phone) and `webrtc: False` (no browser softphone required). Agent user password requirement is removed from UI workflows; tenant requires only `telecmi_app_id`, `telecmi_secret`, and `telecmi_callerid`, while telecallers map to TeleCMI via their Agent User ID (`telecmi_agent_id`).
+- **Webhooks & Playback**: Maintained existing webhook endpoints (`/api/v1/calls/telecmi-cdr/{tenant_id}`, `/api/v1/calls/telecmi-events`). Webhook CDR handler updated to support direct `record_url`/`recording_url` as well as `appid` + `telecmi_secret` fallback for audio playback.
+- **Files**: `backend/app/config.py`, `backend/app/routes/operator.py`, `backend/app/routes/calls.py`, `backend/app/services/telecmi_client.py`, `backend/tests/test_telecmi_chub.py`, `frontend/app/dashboard/settings/telecalling/page.tsx`.
 
