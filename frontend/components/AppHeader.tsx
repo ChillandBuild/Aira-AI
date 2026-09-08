@@ -125,8 +125,10 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     };
   }
   if (pathname === "/dashboard/numbers") {
-    let tabLabel = "Numbers Pool";
-    if (tab === "activity") tabLabel = "Incident Log";
+    // Mirror the header's own tab pills exactly -- the "WhatsApp Numbers /"
+    // prefix already carries the module name, so this segment names the tab.
+    let tabLabel = "Active Pool";
+    if (tab === "activity") tabLabel = "Activity Log";
     return {
       title: `WhatsApp Numbers / ${tabLabel}`,
       description: "Manage sender numbers and outbound routing.",
@@ -337,6 +339,31 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 )}
               >
                 {t === "upload" ? "Broadcast Message" : t === "history" ? "Broadcast History" : t === "tags" ? "Tags" : "Opted-Out"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {pathname === "/dashboard/numbers" && (
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            {(["pool", "activity"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  if (t === "pool") params.delete("tab");
+                  else params.set("tab", t);
+                  const qs = params.toString();
+                  router.replace(`/dashboard/numbers${qs ? `?${qs}` : ""}`, { scroll: false });
+                }}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                  (tab === t || (t === "pool" && tab !== "activity"))
+                    ? "bg-white text-primary shadow-sm"
+                    : "text-[#78716c] hover:text-[#292524]"
+                )}
+              >
+                {t === "pool" ? "Active Pool" : "Activity Log"}
               </button>
             ))}
           </div>

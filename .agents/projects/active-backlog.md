@@ -311,3 +311,14 @@ anyone clicks Submit:
 `ads_management` and `pages_manage_ads`, neither of which is in the submission or called by any
 code. Uncheck them so the config matches what Meta approves. See
 [subsystem-notes](../context/subsystem-notes.md#login-config-asset-scope-is-not-permission-scope--nira-shipped-without-pages_manage_metadata-2026-09-04).
+
+## `POST /api/v1/numbers/` is now an orphaned route (2026-09-08)
+- The Numbers page's "Add Number" UI was removed this session, but `numbers.py::create_phone_number`
+  is still mounted and still enforces the `numbers_pool` quota. Nothing in the frontend calls it —
+  it is reachable only by anyone holding a token with `numbers.manage`.
+- Harmless as-is (it inserts a `standby`/`warming` row like any other), and its quota-block
+  behaviour differs from `sync-from-meta`, which deliberately lets over-quota numbers land locked
+  rather than rejecting them. Decide whether "manual add shouldn't be possible at all" means the
+  route goes too; if it stays, it's the only writer left that can create a number Meta doesn't
+  know about.
+

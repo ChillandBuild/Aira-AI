@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Plus, X, Pencil, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw, Info, ChevronDown, ChevronUp, ChevronRight, Lock } from "lucide-react";
+import { X, Pencil, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw, Info, ChevronDown, ChevronUp, ChevronRight, Lock } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
 import { cn } from "@/lib/utils";
@@ -293,12 +293,6 @@ function NumbersPageContent() {
   const [numbersPool, setNumbersPool] = useState<{ limit: number; used: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addNumber, setAddNumber] = useState("");
-  const [addDisplayName, setAddDisplayName] = useState("");
-  const [addMetaId, setAddMetaId] = useState("");
-  const [adding, setAdding] = useState(false);
-
   // Inline rename state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -336,7 +330,6 @@ function NumbersPageContent() {
     }).catch(() => setLoading(false));
   }, []);
 
-  const atNumberLimit = !!numbersPool && numbersPool.used >= numbersPool.limit;
 
   const fetchIncidents = useCallback(async (currentOffset: number, append: boolean) => {
     try {
@@ -421,29 +414,6 @@ function NumbersPageContent() {
     }
   }
 
-  async function handleAdd() {
-    if (!canManageNumbers) return;
-    if (!addNumber.trim() || !addDisplayName.trim()) return;
-    setAdding(true);
-    try {
-      await numbersApi.create({
-        provider: "meta_cloud",
-        number: addNumber.trim(),
-        display_name: addDisplayName.trim(),
-        ...(addMetaId.trim() ? { meta_phone_number_id: addMetaId.trim() } : {}),
-      });
-      await reload();
-      setShowAddModal(false);
-      setAddNumber("");
-      setAddDisplayName("");
-      setAddMetaId("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add number");
-    } finally {
-      setAdding(false);
-    }
-  }
-
   async function handleSetPrimary(id: string) {
     if (!canManageNumbers) return;
     try {
@@ -520,8 +490,9 @@ function NumbersPageContent() {
 
   return (
     <div>
-      {/* Tab Navigation */}
-      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start mb-6 w-fit">
+      {/* Tab navigation lives in AppHeader on desktop (matching outbound-leads);
+          this strip is the mobile fallback, since the header's is md:flex only. */}
+      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start mb-6 w-fit md:hidden">
         <button
           onClick={() => handleTabChange("pool")}
           className={cn(
@@ -554,7 +525,7 @@ function NumbersPageContent() {
           <div className="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 md:rounded-card md:p-8">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
-                <h2 className="font-display text-lg font-bold text-primary">Number Pool</h2>
+                <h2 className="font-display text-lg font-bold text-primary">Active Pool</h2>
                 {numbersPool && (
                   <span className="font-label text-[10px] font-bold text-on-surface-muted bg-surface-mid px-2 py-0.5 rounded-full">
                     {numbersPool.used}/{numbersPool.limit} used
@@ -573,17 +544,6 @@ function NumbersPageContent() {
                     {syncingAll ? "Syncing all…" : "Sync from Meta"}
                   </button>
                 )}
-                {canManageNumbers && (
-                  <button
-                    onClick={() => !atNumberLimit && setShowAddModal(true)}
-                    disabled={atNumberLimit}
-                    title={atNumberLimit ? `Phone number limit reached (${numbersPool!.used}/${numbersPool!.limit}). Delete a number or request more from Subscriptions.` : undefined}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white rounded-lg font-label text-xs font-semibold hover:bg-primary/90 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary"
-                  >
-                    <Plus size={13} />
-                    Add Number
-                  </button>
-                )}
               </div>
             </div>
 
@@ -591,7 +551,7 @@ function NumbersPageContent() {
               <p className="font-body text-sm text-on-surface-muted">Loading…</p>
             ) : visible.length === 0 ? (
               <p className="font-body text-sm text-on-surface-muted">
-                No numbers yet. Click &quot;Add Number&quot; to get started.
+                No numbers yet. Connect WhatsApp in Settings, then click &quot;Sync from Meta&quot; to pull in your numbers.
               </p>
             ) : (
               <div className="space-y-3">
@@ -785,92 +745,11 @@ function NumbersPageContent() {
               </div>
             )}
           </div>
-
-          {/* Add Number Modal */}
-          {showAddModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-              <div className="bg-surface rounded-card p-8 shadow-card w-full max-w-md ring-1 ring-[#c4c7c7]/20">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-display text-lg font-bold text-primary">Add Number</h2>
-                  <button
-                    onClick={() => setShowAddModal(false)}
-                    className="p-1.5 rounded-lg hover:bg-surface-low transition-colors text-on-surface-muted"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                {/* What happens after you add */}
-                <div className="mb-5 p-3.5 rounded-xl bg-amber-50 border border-amber-100">
-                  <p className="font-label text-xs font-bold text-amber-800 mb-2">⚡ After registering, your number starts at 250 msgs/day</p>
-                  <ol className="space-y-1">
-                    {[
-                      "Complete Meta Business Verification → instantly unlocks 2,000/day",
-                      "Send quality messages to warm, opted-in contacts only",
-                      "Maintain High/Medium quality rating (avoid spam reports)",
-                      "Usage ≥ 50% of limit over 7 days → Meta auto-upgrades to 10,000/day",
-                    ].map((step, i) => (
-                      <li key={i} className="flex items-start gap-1.5">
-                        <span className="font-label text-[10px] font-bold text-amber-600 mt-0.5 shrink-0">{i + 1}.</span>
-                        <span className="font-body text-[11px] text-amber-700">{step}</span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5">Provider</label>
-                    <div className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm text-on-surface-muted">
-                      Meta Cloud API
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5">Phone Number</label>
-                    <input
-                      type="tel"
-                      placeholder="+919876543210"
-                      value={addNumber}
-                      onChange={(e) => setAddNumber(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5">Display Name</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Aira Main"
-                      value={addDisplayName}
-                      onChange={(e) => setAddDisplayName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-label text-xs font-semibold text-on-surface-muted mb-1.5">Meta Phone Number ID</label>
-                    <input
-                      type="text"
-                      placeholder="From Meta Business Manager"
-                      value={addMetaId}
-                      onChange={(e) => setAddMetaId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-surface-low border border-surface-mid font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    />
-                  </div>
-                  <button
-                    onClick={handleAdd}
-                    disabled={adding || !addNumber.trim() || !addDisplayName.trim()}
-                    className="w-full py-2.5 bg-primary text-white rounded-lg font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {adding ? "Adding…" : "Add Number"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </>
       ) : (
         <div className="bg-surface rounded-card p-8 shadow-card ring-1 ring-[#c4c7c7]/15">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-display text-lg font-bold text-primary">Timeline</h2>
+            <h2 className="font-display text-lg font-bold text-primary">Activity Log</h2>
             <div className="flex items-center gap-3">
               {canManageNumbers && (
                 <button
