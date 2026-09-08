@@ -11,7 +11,6 @@ import {
   channelOf,
   fetchCallers,
   fetchHandovers,
-  initialsOf,
   reopenHandover,
   resolveHandover,
   severityForWait,
@@ -507,19 +506,17 @@ export function EscalationPanel({
                                       onClick={() => canReplyToConversations && onReply(h.lead_id)}
                                       disabled={!canReplyToConversations}
                                       title={readOnlyTitle}
-                                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl bg-[#5b21b6] px-3 font-label text-xs font-bold text-white shadow-xs transition-all hover:bg-[#4c1d95] hover:shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                      className="inline-flex h-7 w-[82px] items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary font-label text-[11px] font-bold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
                                     >
-                                      <MessageSquare size={12} className="shrink-0" />
-                                      <span>Reply</span>
+                                      <MessageSquare size={13} /> Reply
                                     </button>
                                     <button
                                       onClick={() => handleResolve(h)}
                                       disabled={!canReplyToConversations}
                                       title={readOnlyTitle}
-                                      className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 font-label text-xs font-bold text-emerald-700 shadow-2xs transition-all hover:border-emerald-300 hover:bg-emerald-100/80 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                      className="inline-flex h-7 w-[92px] items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-surface font-label text-[11px] font-bold text-success transition-colors hover:border-success hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
                                     >
-                                      <CheckCircle2 size={13} className="shrink-0 text-emerald-600" />
-                                      <span>Resolve</span>
+                                      <CheckCircle2 size={13} /> Resolve
                                     </button>
                                   </>
                                 ) : (
@@ -533,10 +530,9 @@ export function EscalationPanel({
                                           ? "A telecaller profile is required to pick up an escalation"
                                           : undefined
                                     }
-                                    className="inline-flex h-8 w-[160px] items-center justify-center gap-1.5 rounded-xl bg-[#5b21b6] font-label text-xs font-bold text-white shadow-xs transition-all hover:bg-[#4c1d95] hover:shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                                    className="inline-flex h-7 w-[182px] items-center justify-center gap-1.5 rounded-lg border border-primary bg-primary font-label text-[11px] font-bold text-white transition-colors hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
                                   >
-                                    <MessageSquare size={12} className="shrink-0" />
-                                    <span>Pick up</span>
+                                    <MessageSquare size={13} /> Pick up
                                   </button>
                                 )}
 
@@ -547,34 +543,26 @@ export function EscalationPanel({
                                       disabled={!canReplyToConversations}
                                       title={canReplyToConversations ? "Assign to a telecaller" : readOnlyTitle}
                                       aria-label="Assign to a telecaller"
-                                      className={cn(
-                                        "inline-flex h-8 w-8 items-center justify-center rounded-xl border bg-surface shadow-2xs transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
-                                        assigningId === h.id
-                                          ? "border-[#5b21b6] bg-purple-50 text-[#5b21b6]"
-                                          : "border-border/80 text-slate-600 hover:border-purple-200 hover:bg-purple-50/50 hover:text-[#5b21b6]"
-                                      )}
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-surface text-ink transition-colors hover:border-ink-muted disabled:cursor-not-allowed disabled:opacity-40"
                                     >
                                       <UserCog size={13} />
                                     </button>
                                     {assigningId === h.id && (
-                                      <div className="absolute right-0 top-full z-30 mt-2 min-w-[200px] rounded-2xl border border-purple-100 bg-white py-1.5 text-left shadow-card-hover">
-                                        <p className="px-3.5 py-1.5 font-heading text-[10px] font-bold uppercase tracking-[0.09em] text-slate-400">
-                                          Assign to team member
+                                      <div className="absolute right-0 top-full z-30 mt-1.5 min-w-[180px] rounded-xl border border-border bg-surface py-1 text-left shadow-card-hover">
+                                        <p className="px-3 py-1 font-heading text-[10px] font-semibold uppercase tracking-[0.09em] text-ink-muted">
+                                          Assign to
                                         </p>
-                                        <div className="my-1 border-t border-purple-50" />
+                                        <div className="my-0.5 border-t border-border-subtle" />
                                         {callers.length === 0 ? (
-                                          <p className="px-3.5 py-2 font-body text-xs text-slate-400">No active callers</p>
+                                          <p className="px-3 py-2 font-body text-xs text-ink-muted">No active callers</p>
                                         ) : (
                                           callers.map((c) => (
                                             <button
                                               key={c.id}
                                               onClick={() => handleAssign(h.id, c.id, c.name)}
-                                              className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-body text-xs font-medium text-slate-700 transition-colors hover:bg-purple-50 hover:text-[#5b21b6]"
+                                              className="w-full px-3 py-2 text-left font-body text-xs text-ink transition-colors hover:bg-primary-light hover:text-primary"
                                             >
-                                              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-100 text-[#5b21b6] font-mono text-[9px] font-bold">
-                                                {initialsOf(c.name)}
-                                              </div>
-                                              <span className="truncate">{c.name}</span>
+                                              {c.name}
                                             </button>
                                           ))
                                         )}

@@ -202,19 +202,17 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => onOpenChat(row.lead_id)}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-purple-200/80 bg-purple-50/50 px-3 font-label text-xs font-bold text-[#5b21b6] shadow-2xs transition-all hover:bg-purple-100 hover:border-purple-300 active:scale-[0.98]"
+                              className="inline-flex h-7 w-[100px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface font-label text-[11px] font-bold text-ink transition-colors hover:border-ink-muted"
                             >
-                              <MessageSquare size={12} className="shrink-0" />
-                              <span>Open chat</span>
+                              <MessageSquare size={13} /> Open chat
                             </button>
                             <button
                               onClick={() => handleReopen(row)}
                               disabled={!canReply}
                               title={canReply ? "Put this back in the active queue" : "You have read-only access to conversations"}
-                              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-border/80 bg-surface px-3 font-label text-xs font-bold text-slate-600 shadow-2xs transition-all hover:border-purple-200 hover:bg-purple-50/50 hover:text-[#5b21b6] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                              className="inline-flex h-7 w-[86px] items-center justify-center gap-1.5 rounded-lg border border-border bg-surface font-label text-[11px] font-bold text-ink-secondary transition-colors hover:border-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
                             >
-                              <RotateCcw size={12} className="shrink-0" />
-                              <span>Reopen</span>
+                              <RotateCcw size={12} /> Reopen
                             </button>
                           </div>
                         </td>
