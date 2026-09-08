@@ -44,7 +44,7 @@ export interface LeadDetailPanelProps {
   selectedLeadCallLogs: CallLog[];
   selectedLeadBrief: { brief: string; opener: string } | null;
   briefLoading: boolean;
-  generatePreCallBrief: (leadId: string) => void;
+  generatePreCallBrief: (leadId: string, force?: boolean) => void;
   selectedLeadLoading: boolean;
   activeProfileTab: "overview" | "notes" | "attribution" | "script";
   setActiveProfileTab: (tab: "overview" | "notes" | "attribution" | "script") => void;
@@ -505,7 +505,7 @@ export default function LeadDetailPanel({
                   <Sparkles size={11} className="text-orange-500" /> AI Pre-Call Brief
                 </p>
                 <button
-                  onClick={() => generatePreCallBrief(selectedLead.id)}
+                  onClick={() => generatePreCallBrief(selectedLead.id, true)}
                   disabled={readOnly || briefLoading}
                   className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-label text-[10px] font-extrabold disabled:opacity-60 transition-all flex items-center gap-1.5 shadow-sm"
                 >

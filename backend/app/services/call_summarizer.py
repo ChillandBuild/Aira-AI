@@ -52,6 +52,9 @@ _ANALYZE_USER = (
     "- next_action: recommended next action\n"
     "- sentiment: one of 'positive', 'neutral', 'negative'\n"
     "- brief: a 2-3 sentence overview/summary of what was discussed on the call (e.g. key topics discussed, lead's reaction, customer concerns)\n"
+    "- objections: what the lead pushed back on or raised doubts about, or null if none\n"
+    "- commitments: what the caller explicitly promised to do or send (e.g. 'send pricing sheet by Friday'), or null if nothing was promised\n"
+    "- open_questions: what the lead asked that the caller could NOT answer on the call, or null if everything was answered\n"
     "Evaluation fields — score each 1-10 and give a one-sentence reason:\n"
     "- greeting_quality / greeting_quality_reason: did the caller introduce themselves and the company clearly?\n"
     "- communication_clarity / communication_clarity_reason: was the caller's speech clear and understandable?\n"
@@ -72,7 +75,10 @@ _ANALYZE_USER = (
     "- coaching_tip: one specific actionable improvement for the caller (max 50 words)"
 )
 
-_SUMMARY_KEYS = {"course", "product", "budget", "timeline", "next_action", "sentiment", "brief"}
+_SUMMARY_KEYS = {
+    "course", "product", "budget", "timeline", "next_action", "sentiment", "brief",
+    "objections", "commitments", "open_questions",
+}
 _EVAL_KEYS = {
     "greeting_quality", "greeting_quality_reason",
     "communication_clarity", "communication_clarity_reason",

@@ -152,6 +152,78 @@ def _fetch_conversation_summary(db, lead_id: str) -> str | None:
         logger.warning(f"Conversation summary fetch failed for lead {lead_id}: {e}")
     return None
 
+def _fetch_call_context(db, lead_id: str, tenant_id: str) -> list[dict]:
+    """Fetch recent call_logs with a populated ai_summary for this lead, newest
+    first. Returns [] for a lead with no analyzed calls -- which today is every
+    lead, since the SIM Basic path (100% of live calls) never produces a
+    transcript. Silent no-op by design until a TeleCMI call actually completes."""
+    try:
+        rows = (
+            db.table("call_logs")
+            .select("outcome,created_at,ai_summary")
+            .eq("lead_id", str(lead_id))
+            .eq("tenant_id", tenant_id)
+            .order("created_at", desc=True)
+            .limit(5)
+            .execute()
+        )
+        return [r for r in (rows.data or []) if r.get("ai_summary")]
+    except Exception as e:
+        logger.warning(f"Call context fetch failed for lead {lead_id}: {e}")
+        return []
+
+
+def _call_context_block(calls: list[dict]) -> str:
+    """Render recent call summaries for the reply prompt: the newest call in
+    full, older calls collapsed to one line each. Returns "" if there is
+    nothing to show, so it's a pure no-op when calls is empty.
+
+    Shared with the telecaller-facing pre-call brief (routes/leads.py) so both
+    surfaces describe the same call the same way."""
+    if not calls:
+        return ""
+
+    def _date(c: dict) -> str:
+        return (c.get("created_at") or "")[:10]
+
+    latest = calls[0]
+    s = latest.get("ai_summary") or {}
+    lines = [f"Most recent call ({_date(latest)}, outcome: {latest.get('outcome') or 'unknown'}):"]
+    if s.get("brief"):
+        lines.append(f"- What was discussed: {s['brief']}")
+    if s.get("budget"):
+        lines.append(f"- Budget mentioned: {s['budget']}")
+    if s.get("timeline"):
+        lines.append(f"- Timeline mentioned: {s['timeline']}")
+    if s.get("objections"):
+        lines.append(f"- Objections raised: {s['objections']}")
+    if s.get("commitments"):
+        lines.append(f"- We committed to: {s['commitments']}")
+    if s.get("open_questions"):
+        lines.append(f"- Left unanswered on the call: {s['open_questions']}")
+    if s.get("next_action"):
+        lines.append(f"- Agreed next step: {s['next_action']}")
+
+    older = calls[1:]
+    if older:
+        lines.append("\nEarlier calls:")
+        for c in older:
+            os_ = (c.get("ai_summary") or {}).get("next_action") or "no next step recorded"
+            lines.append(f"- {_date(c)} — {c.get('outcome') or 'unknown'} — {os_}")
+
+    return (
+        "\n\nPHONE CALL HISTORY:\n"
+        + "\n".join(lines)
+        + "\nUse this to inform your answer and honour anything the caller "
+        "already committed to — do not re-ask something already answered on "
+        "the call. Rules:\n"
+        "- NEVER tell the customer you know about, heard, or read their phone "
+        "call. Do not say things like \"on our call\" or \"you mentioned when "
+        "we spoke\" — the customer does not know you have this information.\n"
+        "- Use it silently to shape a more informed, consistent answer.\n"
+    )
+
+
 FALLBACK_PROMPT = """You are a helpful AI assistant for a business. Answer customer queries warmly and accurately.
 Keep replies concise (2-3 sentences max).
 Always guide the customer toward the next step: getting more information, making a purchase, or speaking with the team.
@@ -1338,6 +1410,15 @@ def build_reply_system_prompt(
     if summary:
         lead_facts.append(f"Earlier conversation summary:\n{summary}")
     system_prompt += "\n\nLEAD CONTEXT:\n" + "\n".join(lead_facts)
+
+    try:
+        call_context = _fetch_call_context(db, lead_id, tenant_id)
+        system_prompt += _call_context_block(call_context)
+    except Exception:
+        logger.exception(
+            "Call context block failed for lead %s — replying without it",
+            lead_id,
+        )
 
     reply_language_mode = _resolve_reply_language_mode(tenant_id)
     if reply_language_mode == "tanglish_escalate_tamil":
