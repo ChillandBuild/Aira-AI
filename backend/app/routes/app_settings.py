@@ -231,6 +231,36 @@ def _stamp_connection_source(db, tenant_id: str, channel: str, source: str) -> N
     _save_tenant_setting(db, tenant_id, f"{channel}_connection_source", source)
 
 
+def _upsert_primary_phone_number(
+    db,
+    tenant_id: str,
+    *,
+    number: str,
+    display_name: str,
+    meta_phone_number_id: str,
+) -> None:
+    """Record a freshly-onboarded Cloud API number as the tenant's primary sender.
+
+    Primary is exclusive: PATCH /numbers/{id} demotes every other primary before
+    promoting one, and numbers_pool picks the *first* row with role="primary", so
+    two primaries make the pool's choice arbitrary. The signup flows used to skip
+    that demotion, which meant onboarding a second number onto an existing WABA
+    left two rows claiming the slot. Demote first, then promote.
+    """
+    db.table("phone_numbers").update({"role": "standby"})         .eq("tenant_id", tenant_id).eq("role", "primary").execute()
+    db.table("phone_numbers").upsert({
+        "provider": "meta_cloud",
+        "number": number.strip(),
+        "display_name": display_name,
+        "meta_phone_number_id": meta_phone_number_id,
+        "role": "primary",
+        "status": "active",
+        "warm_up_day": 14,
+        "paused_outbound": False,
+        "tenant_id": tenant_id,
+    }, on_conflict="number").execute()
+
+
 async def setup_telegram_webhook(bot_token: str, tenant_id: str) -> tuple[bool, str | None, str | None]:
     """Register Telegram webhook + return (success, secret_token, error_detail)."""
     from app.config_dynamic import get_setting
@@ -701,17 +731,13 @@ async def activate_channel(
         try:
             display_phone = data.get("display_phone_number")
             if display_phone:
-                db.table("phone_numbers").upsert({
-                    "provider": "meta_cloud",
-                    "number": display_phone.strip(),
-                    "display_name": data.get("verified_name") or "WhatsApp Primary",
-                    "meta_phone_number_id": phone_id,
-                    "role": "primary",
-                    "status": "active",
-                    "warm_up_day": 14,
-                    "paused_outbound": False,
-                    "tenant_id": tenant_id,
-                }, on_conflict="number").execute()
+                _upsert_primary_phone_number(
+                    db,
+                    tenant_id,
+                    number=display_phone,
+                    display_name=data.get("verified_name") or "WhatsApp Primary",
+                    meta_phone_number_id=phone_id,
+                )
                 logger.info(f"Automatically registered active primary number {display_phone} for tenant {tenant_id}")
                 # Mirror the human-readable identity onto app_settings so the
                 # Connectivity Hub can name the account without a second fetch.
@@ -919,17 +945,13 @@ async def whatsapp_embedded_signup(
     _stamp_connection_source(db, tenant_id, "whatsapp", "embedded")
 
     if display_phone:
-        db.table("phone_numbers").upsert({
-            "provider": "meta_cloud",
-            "number": display_phone.strip(),
-            "display_name": info_data.get("verified_name") or "WhatsApp Primary",
-            "meta_phone_number_id": payload.phone_number_id,
-            "role": "primary",
-            "status": "active",
-            "warm_up_day": 14,
-            "paused_outbound": False,
-            "tenant_id": tenant_id,
-        }, on_conflict="number").execute()
+        _upsert_primary_phone_number(
+            db,
+            tenant_id,
+            number=display_phone,
+            display_name=info_data.get("verified_name") or "WhatsApp Primary",
+            meta_phone_number_id=payload.phone_number_id,
+        )
 
     if display_phone:
         _save_tenant_setting(db, tenant_id, "meta_phone_display", display_phone.strip())
@@ -1541,17 +1563,13 @@ async def complete_unified_meta_signup(
         _save_tenant_setting(db, tenant_id, "meta_verified_name", business_name)
     _save_tenant_setting(db, tenant_id, "meta_connected_at", datetime.now(timezone.utc).isoformat())
     if display_phone:
-        db.table("phone_numbers").upsert({
-            "provider": "meta_cloud",
-            "number": display_phone.strip(),
-            "display_name": business_name or "WhatsApp Primary",
-            "meta_phone_number_id": phone_number_id,
-            "role": "primary",
-            "status": "active",
-            "warm_up_day": 14,
-            "paused_outbound": False,
-            "tenant_id": tenant_id,
-        }, on_conflict="number").execute()
+        _upsert_primary_phone_number(
+            db,
+            tenant_id,
+            number=display_phone,
+            display_name=business_name or "WhatsApp Primary",
+            meta_phone_number_id=phone_number_id,
+        )
     db.table("app_settings").delete().eq("tenant_id", tenant_id).in_("key", list(_META_BUSINESS_ONBOARDING_KEYS)).execute()
 
     from app.config_dynamic import invalidate_cache
