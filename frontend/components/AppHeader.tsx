@@ -99,8 +99,10 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     };
   }
   if (pathname === "/dashboard/knowledge") {
-    let tabLabel = "Documents (RAG)";
-    if (tab === "description" || tab === "ai-tune") tabLabel = "Description";
+    // Description is the default landing tab -- it is the prerequisite for
+    // uploading RAG documents, so the header must name it when no tab is set.
+    let tabLabel = "Description";
+    if (tab === "documents") tabLabel = "Documents (RAG)";
     return {
       title: `Knowledge Base / ${tabLabel}`,
       description: "Upload documents and tune AI prompts to answer lead queries accurately.",
@@ -371,16 +373,18 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/knowledge" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
-            {(["documents", "description"] as const).map((t) => {
-              const isDescription = tab === "description" || tab === "ai-tune";
-              const isActive = t === "description" ? isDescription : !isDescription;
+            {(["description", "documents"] as const).map((t) => {
+              const isDocuments = tab === "documents";
+              const isActive = t === "documents" ? isDocuments : !isDocuments;
               return (
                 <button
                   key={t}
                   onClick={() => {
                     const params = new URLSearchParams(searchParams.toString());
-                    params.set("tab", t);
-                    router.replace(`/dashboard/knowledge?${params.toString()}`, { scroll: false });
+                    if (t === "description") params.delete("tab");
+                    else params.set("tab", t);
+                    const qs = params.toString();
+                    router.replace(`/dashboard/knowledge${qs ? `?${qs}` : ""}`, { scroll: false });
                   }}
                   className={cn(
                     "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",

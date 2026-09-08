@@ -80,8 +80,48 @@ async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
 
 // ── Tier Guide Banner ─────────────────────────────────────────────────────────
 
-function TierGuide() {
-  const [open, setOpen] = useState(false);
+function TierGuide({
+  isOpen,
+  onToggleOpen,
+  visible = true,
+  onDismiss,
+}: {
+  isOpen?: boolean;
+  onToggleOpen?: () => void;
+  visible?: boolean;
+  onDismiss?: () => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+
+  const open = isOpen !== undefined ? isOpen : internalOpen;
+  const toggleOpen = onToggleOpen ?? (() => setInternalOpen((v) => !v));
+
+  useEffect(() => {
+    // If the guide is open to read, don't dismiss
+    if (open) return;
+
+    // Disappear after 15 seconds
+    const timer = setTimeout(() => {
+      setIsFading(true);
+      const hideTimer = setTimeout(() => {
+        onDismiss?.();
+      }, 500);
+      return () => clearTimeout(hideTimer);
+    }, 15000);
+
+    return () => clearTimeout(timer);
+  }, [open, onDismiss]);
+
+  const handleManualDismiss = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsFading(true);
+    setTimeout(() => {
+      onDismiss?.();
+    }, 400);
+  };
+
+  if (!visible && !isFading) return null;
 
   const tiers = [
     { limit: "250 / day", label: "Unverified", color: "bg-red-50 text-red-700 border-red-200", trigger: "Default on registration" },
@@ -92,10 +132,17 @@ function TierGuide() {
   ];
 
   return (
-    <div className="mb-6 rounded-2xl border border-purple-200/70 bg-gradient-to-br from-purple-50/40 via-white to-blue-50/30 overflow-hidden shadow-xs">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-purple-50/50 transition-colors"
+    <div
+      className={cn(
+        "rounded-2xl border border-purple-200/70 bg-gradient-to-br from-purple-50/40 via-white to-blue-50/30 overflow-hidden shadow-xs transition-all duration-500",
+        isFading
+          ? "opacity-0 -translate-y-2 max-h-0 mb-0 pointer-events-none border-transparent py-0"
+          : "opacity-100 max-h-[1000px] mb-6"
+      )}
+    >
+      <div
+        onClick={toggleOpen}
+        className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-purple-50/50 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -111,14 +158,24 @@ function TierGuide() {
           </div>
         </div>
         <div className="flex items-center gap-2 text-primary font-label text-xs font-semibold">
-          <span>{open ? "Hide guide" : "View guide"}</span>
-          {open ? (
-            <ChevronUp size={15} className="text-primary shrink-0" />
-          ) : (
-            <ChevronDown size={15} className="text-primary shrink-0" />
-          )}
+          <span className="hover:underline flex items-center gap-1">
+            {open ? "Hide guide" : "View guide"}
+            {open ? (
+              <ChevronUp size={15} className="text-primary shrink-0" />
+            ) : (
+              <ChevronDown size={15} className="text-primary shrink-0" />
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={handleManualDismiss}
+            className="p-1 rounded-lg hover:bg-purple-100 text-on-surface-muted hover:text-on-surface transition-colors ml-1"
+            title="Dismiss notice"
+          >
+            <X size={14} />
+          </button>
         </div>
-      </button>
+      </div>
 
       {open && (
         <div className="px-5 pb-5 pt-1 border-t border-purple-100/80 space-y-4">
@@ -344,6 +401,10 @@ function NumbersPageContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "primary" | "standby" | "paused">("all");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Tier guide banner state (auto-dismisses after 15s)
+  const [showTierGuide, setShowTierGuide] = useState(true);
+  const [tierGuideOpen, setTierGuideOpen] = useState(false);
 
   // Inline rename state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -718,7 +779,12 @@ function NumbersPageContent() {
           </div>
 
           {/* ── Messaging Tier Guide Banner ──────────────────────────────────── */}
-          <TierGuide />
+          <TierGuide
+            visible={showTierGuide}
+            onDismiss={() => setShowTierGuide(false)}
+            isOpen={tierGuideOpen}
+            onToggleOpen={() => setTierGuideOpen((v) => !v)}
+          />
 
           {/* ── Main Numbers Card ───────────────────────────────────────────── */}
           <div className="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 md:rounded-card md:p-8 space-y-6">
@@ -729,6 +795,19 @@ function NumbersPageContent() {
                 <span className="font-label text-xs font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
                   {visible.length} total
                 </span>
+                {!showTierGuide && (
+                  <button
+                    onClick={() => {
+                      setShowTierGuide(true);
+                      setTierGuideOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-label font-bold text-primary bg-purple-50 hover:bg-purple-100 border border-purple-200/80 transition-colors"
+                    title="Re-open WhatsApp messaging limits and tier guide"
+                  >
+                    <Info size={12} />
+                    <span>Limits Guide</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-3">

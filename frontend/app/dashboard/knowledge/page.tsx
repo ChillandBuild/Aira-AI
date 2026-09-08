@@ -9,13 +9,14 @@ import {
   HardDrive, Check, Copy,
   Sparkles, LayoutGrid, List,
   FileSpreadsheet, FileCode, Image as ImageIcon,
-  Tag, Shield, BookOpen
+  Tag, Shield, BookOpen, Lock, ArrowRight, Circle
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, KnowledgeDocContent } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { SwitchPill } from "@/components/ui/controls";
 
 // ─── Interfaces & Types ───────────────────────────────────────────────────────
 
@@ -210,9 +211,13 @@ export default function KnowledgePage() {
   const [campaignFilter, setCampaignFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
-  const tab = (rawTab === "description" || rawTab === "ai-tune" ? "description" : "documents") as
+  // Description is the default: the AI's identity and the scoring rubric are the
+  // prerequisites for RAG documents to be worth anything, so that is where a
+  // client lands. Only an explicit ?tab=documents opens the document library.
+  const tab = (rawTab === "documents" ? "documents" : "description") as
     | "documents"
     | "description";
 
@@ -238,6 +243,9 @@ export default function KnowledgePage() {
   const [rubricSaving, setRubricSaving] = useState(false);
   const [rubricAutoUpdate, setRubricAutoUpdate] = useState(false);
   const [rubricToggleSaving, setRubricToggleSaving] = useState(false);
+  // Description + rubric drive the upload gate on the Documents tab, so they are
+  // fetched on mount rather than lazily when the Description tab opens.
+  const [setupLoaded, setSetupLoaded] = useState(false);
 
   // Document Viewer Modal
   const [viewingDoc, setViewingDoc] = useState<KnowledgeDocContent | null>(null);
@@ -253,27 +261,42 @@ export default function KnowledgePage() {
   // RAG Guide Expandable
   const [showRagGuide, setShowRagGuide] = useState(false);
 
+  // ─── Documents gate ────────────────────────────────────────────────────────
+  // Retrieved excerpts arrive with no document name attached and can miss
+  // entirely, so they are only useful on top of an assistant that already knows
+  // who it is (description) and how to score what it hears (rubric). Uploading
+  // before both exist produces a knowledge base the AI cannot actually use, so
+  // the upload surface stays locked until they are saved.
+  const hasDescription = savedDescription.trim().length > 0;
+  const hasRubric = savedRubric.trim().length > 0;
+  const setupComplete = hasDescription && hasRubric;
+  const uploadLocked = setupLoaded && !setupComplete;
+  const canUpload = canManageKnowledge && setupLoaded && setupComplete;
+
+  function goToDescription() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    const qs = params.toString();
+    router.replace(`/dashboard/knowledge${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
   useEffect(() => {
     loadData();
     api.knowledge
       .listCampaignTags()
       .then(setCampaignTags)
       .catch(() => {});
-  }, []);
+    // Both tabs need these: Description renders them, Documents gates uploading on them.
+    Promise.all([loadDescription(), loadAppLink(), loadAiTuneSettings()]).finally(() =>
+      setSetupLoaded(true)
+    );
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasProcessing = useMemo(
     () => documents.some((d) => d.status === "processing"),
     [documents]
   );
   usePolling(loadDocuments, 5000, hasProcessing);
-
-  useEffect(() => {
-    if (tab === "description") {
-      loadDescription();
-      loadAppLink();
-      loadAiTuneSettings();
-    }
-  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Map campaign tags for fast lookup
   const tagMap = useMemo(() => {
@@ -409,6 +432,12 @@ export default function KnowledgePage() {
       setUploadError("Read-only role: document upload is disabled.");
       return;
     }
+    if (!setupComplete) {
+      setUploadError(
+        "Save your business description and lead scoring rubric before uploading documents."
+      );
+      return;
+    }
     setUploading(true);
     setUploadError(null);
     try {
@@ -436,7 +465,7 @@ export default function KnowledgePage() {
   function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
-    if (!uploading && canManageKnowledge) {
+    if (!uploading && canUpload) {
       setIsDragging(true);
     }
   }
@@ -451,7 +480,7 @@ export default function KnowledgePage() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (uploading || !canManageKnowledge) return;
+    if (uploading || !canUpload) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       processUpload(file);
@@ -558,8 +587,7 @@ export default function KnowledgePage() {
     }
   }
 
-  async function toggleRubricAutoUpdate() {
-    const next = !rubricAutoUpdate;
+  async function toggleRubricAutoUpdate(next: boolean) {
     setRubricToggleSaving(true);
     try {
       const auth = await getAuthHeaders();
@@ -681,7 +709,7 @@ export default function KnowledgePage() {
                 </p>
               </div>
 
-              {campaignTags.length > 0 && (
+              {campaignTags.length > 0 && !uploadLocked && (
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="font-label text-xs font-semibold text-on-surface-muted">
                     Campaign Scope:
@@ -703,8 +731,69 @@ export default function KnowledgePage() {
               )}
             </div>
 
-            {/* Drag & Drop Area */}
+            {/* Drag & Drop Area — locked until description + rubric are saved */}
             <div className="p-4 sm:p-6">
+              {uploadLocked ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-8 flex flex-col items-center text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shadow-xs mb-3">
+                    <Lock size={24} />
+                  </div>
+
+                  <p className="font-display text-base font-bold text-on-surface">
+                    Finish your Description first
+                  </p>
+                  <p className="font-body text-xs text-on-surface-muted mt-1 max-w-md leading-relaxed">
+                    Documents are searched per message and can come back empty. Your
+                    business description and scoring rubric are read on every reply — so
+                    they have to be in place before uploads add anything.
+                  </p>
+
+                  <div className="mt-5 w-full max-w-sm space-y-2">
+                    {[
+                      { done: hasDescription, label: "Business description saved" },
+                      { done: hasRubric, label: "Lead scoring rubric saved" },
+                    ].map((step) => (
+                      <div
+                        key={step.label}
+                        className="flex items-center gap-2.5 rounded-xl border border-surface-mid bg-white px-3.5 py-2.5 text-left"
+                      >
+                        {step.done ? (
+                          <span className="w-5 h-5 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                            <Check size={12} strokeWidth={3} />
+                          </span>
+                        ) : (
+                          <Circle size={20} className="shrink-0 text-on-surface-muted/50" />
+                        )}
+                        <span
+                          className={cn(
+                            "font-label text-xs font-semibold",
+                            step.done ? "text-on-surface-muted line-through" : "text-on-surface"
+                          )}
+                        >
+                          {step.label}
+                        </span>
+                        <span className="ml-auto font-body text-[11px] font-semibold text-on-surface-muted">
+                          {step.done ? "Done" : "Pending"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {canManageKnowledge ? (
+                    <button
+                      type="button"
+                      onClick={goToDescription}
+                      className="mt-5 flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 transition-colors shadow-xs"
+                    >
+                      Go to Description <ArrowRight size={15} />
+                    </button>
+                  ) : (
+                    <p className="mt-5 font-body text-xs text-on-surface-muted">
+                      Ask an account owner to complete these before uploading documents.
+                    </p>
+                  )}
+                </div>
+              ) : (
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -769,7 +858,7 @@ export default function KnowledgePage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading || !canManageKnowledge}
+                    disabled={uploading || !canUpload}
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
                   >
                     <Plus size={16} />
@@ -784,6 +873,7 @@ export default function KnowledgePage() {
                   />
                 </div>
               </div>
+              )}
 
               {uploadError && (
                 <div className="mt-3 flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-xl text-xs font-semibold border border-red-200">
@@ -973,15 +1063,29 @@ export default function KnowledgePage() {
                       No documents in your knowledge base yet
                     </h3>
                     <p className="font-body text-xs text-on-surface-muted mt-1 max-w-sm mx-auto">
-                      Upload company FAQs, product catalogs, service brochures, or pricing sheets above so your AI assistant can accurately answer lead questions.
+                      {uploadLocked
+                        ? "Save your business description and lead scoring rubric first — documents build on top of them."
+                        : "Upload company FAQs, product catalogs, service brochures, or pricing sheets above so your AI assistant can accurately answer lead questions."}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
-                    >
-                      <Upload size={14} /> Upload First Document
-                    </button>
+                    {uploadLocked ? (
+                      <button
+                        type="button"
+                        onClick={goToDescription}
+                        disabled={!canManageKnowledge}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
+                      >
+                        Go to Description <ArrowRight size={14} />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!canUpload}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
+                      >
+                        <Upload size={14} /> Upload First Document
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>
@@ -1370,7 +1474,7 @@ export default function KnowledgePage() {
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
             <div>
               <h2 className="font-display text-lg font-bold text-primary">
-                Business Description & Identity
+                Lead Segment Description
               </h2>
               <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
                 Describe your business, products, services, and the role your AI assistant plays. Write it in clear, natural language — as you would brief a new team member. Your assistant uses this core context to formulate responses and understand brand tone.
@@ -1454,24 +1558,15 @@ export default function KnowledgePage() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                role="switch"
-                aria-checked={rubricAutoUpdate}
-                onClick={toggleRubricAutoUpdate}
-                disabled={rubricToggleSaving || !canManageKnowledge}
-                className={cn(
-                  "relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50",
-                  rubricAutoUpdate ? "bg-primary" : "bg-surface-mid"
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
-                    rubricAutoUpdate ? "translate-x-[22px]" : "translate-x-0.5"
-                  )}
+              <div className="mt-0.5">
+                <SwitchPill
+                  on={rubricAutoUpdate}
+                  onChange={toggleRubricAutoUpdate}
+                  loading={rubricToggleSaving}
+                  disabled={!canManageKnowledge}
+                  aria-label="Auto-generate rubric from business description"
                 />
-              </button>
+              </div>
             </div>
 
             <textarea
