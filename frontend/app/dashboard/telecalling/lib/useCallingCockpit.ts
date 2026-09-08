@@ -162,10 +162,10 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     return () => clearInterval(id);
   }, [blockingWrapups, loadPendingWrapups]);
 
-  async function generatePreCallBrief(leadId: string) {
+  async function generatePreCallBrief(leadId: string, force = false) {
     setBriefLoading(true);
     try {
-      setSelectedLeadBrief(await api.leads.preCallBrief(leadId));
+      setSelectedLeadBrief(await api.leads.preCallBrief(leadId, force));
     } catch {
       toast.error("Failed to generate brief");
     } finally {

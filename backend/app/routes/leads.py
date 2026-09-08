@@ -6,13 +6,15 @@ from datetime import date, datetime, timezone, timedelta
 from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from groq import Groq
 from pydantic import BaseModel
 from app.config import settings
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, get_owner_tenant_id, require_permission
 from app.models.schemas import Lead, LeadUpdate, LeadWithMessages, Message, PaginatedResponse
-from app.services.ai_reply import send_whatsapp, send_instagram, send_facebook, get_last_send_error
+from app.services.ai_reply import (
+    send_whatsapp, send_instagram, send_facebook, get_last_send_error,
+    _call_context_block, _fetch_conversation_summary,
+)
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.assignment import record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
@@ -24,9 +26,7 @@ require_conversations_reply = require_permission("conversations.reply")
 router = APIRouter()
 
 
-from app.services.groq_client import get_groq_client
-from app.services.token_meter import record_groq_sdk
-_BRIEF_MODEL = "llama-3.3-70b-versatile"
+from app.services.gemini_client import gemini_chat_completion_json
 
 
 class PreCallBriefResponse(BaseModel):
@@ -1023,7 +1023,11 @@ async def delete_lead(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
     return {"success": True, "message": "Lead deleted"}
 
 @router.post("/{lead_id}/pre-call-brief", response_model=PreCallBriefResponse)
-async def pre_call_brief(lead_id: UUID, ctx: dict = Depends(get_tenant_and_role)):
+async def pre_call_brief(
+    lead_id: UUID,
+    ctx: dict = Depends(get_tenant_and_role),
+    force: bool = Query(False, description="Skip the cache and regenerate."),
+):
     role = ctx.get("role")
     if role not in ("caller", "owner"):
         raise HTTPException(status_code=403, detail="Caller or owner role required")
@@ -1033,7 +1037,10 @@ async def pre_call_brief(lead_id: UUID, ctx: dict = Depends(get_tenant_and_role)
 
     lead_res = (
         db.table("leads")
-        .select("name,score,segment,source,ad_campaign_id,assigned_at")
+        .select(
+            "name,score,segment,source,ad_campaign_id,assigned_at,"
+            "needs_human_attention,precall_brief,precall_brief_fingerprint"
+        )
         .eq("id", str(lead_id))
         .eq("tenant_id", tenant_id)
         .maybe_single()
@@ -1056,27 +1063,44 @@ async def pre_call_brief(lead_id: UUID, ctx: dict = Depends(get_tenant_and_role)
         if camp_res.data:
             campaign_name = camp_res.data.get("campaign_name")
 
+    # Newest-first for the fingerprint; a wider window than the old cap of 5 so a
+    # telecaller opening a long-running lead sees more than the last exchange.
     msgs_res = (
         db.table("messages")
         .select("content,direction,created_at")
         .eq("lead_id", str(lead_id))
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
-        .limit(5)
+        .limit(20)
         .execute()
     )
-    messages = list(reversed(msgs_res.data or []))
+    messages_desc = msgs_res.data or []
+    messages = list(reversed(messages_desc))
 
     calls_res = (
         db.table("call_logs")
-        .select("outcome,duration_seconds,created_at")
+        .select("outcome,duration_seconds,created_at,ai_summary")
         .eq("lead_id", str(lead_id))
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
-        .limit(3)
+        .limit(5)
         .execute()
     )
     call_logs = calls_res.data or []
+
+    # Cache: a lead with no new messages and no new calls since the last brief
+    # gets the stored copy back with no LLM call at all. `force` (the UI's
+    # "Refresh" button) always bypasses this.
+    latest_msg_at = messages_desc[0]["created_at"] if messages_desc else ""
+    latest_call_at = call_logs[0]["created_at"] if call_logs else ""
+    fingerprint = f"{latest_msg_at}|{latest_call_at}"
+    if (
+        not force
+        and lead.get("precall_brief")
+        and lead.get("precall_brief_fingerprint") == fingerprint
+    ):
+        cached = lead["precall_brief"]
+        return PreCallBriefResponse(brief=cached["brief"], opener=cached["opener"])
 
     if messages:
         messages_text = "\n".join(
@@ -1085,13 +1109,17 @@ async def pre_call_brief(lead_id: UUID, ctx: dict = Depends(get_tenant_and_role)
     else:
         messages_text = None
 
-    if call_logs:
-        call_history_text = "\n".join(
-            f"- {c['outcome']} ({c['duration_seconds']}s) on {c['created_at'][:10]}"
-            for c in call_logs
-        )
-    else:
-        call_history_text = None
+    conversation_summary = _fetch_conversation_summary(db, str(lead_id))
+
+    # Reuses the exact block the AI reply prompt builds (ai_reply.py) so the
+    # telecaller and the AI describe the same call the same way.
+    call_context_block = _call_context_block(call_logs) or None
+
+    open_handover_line = (
+        "Yes — this lead is currently escalated to a human and waiting on a reply.\n"
+        if lead.get("needs_human_attention")
+        else "No.\n"
+    )
 
     name = lead.get("name") or "Unknown"
     score = lead.get("score") or 5
@@ -1108,35 +1136,41 @@ Lead profile:
 - Source: {channel} — {campaign}
 - Assigned: {assigned_at}
 
+Earlier conversation summary (before the messages below):
+{conversation_summary or "None"}
+
 Recent WhatsApp messages (newest last):
 {messages_text or "No WhatsApp activity"}
 
-Recent call history:
-{call_history_text or "No calls yet"}
+{call_context_block or "No call history."}
 
+Currently escalated to a human, waiting unresolved: {open_handover_line}
 Write EXACTLY this JSON (no markdown, no explanation):
-{{"brief": "2-3 sentence summary of who this lead is, where they came from, and what context the caller should know", "opener": "one natural opening line the caller can use to start the conversation"}}"""
+{{"brief": "2-3 sentence summary of who this lead is, where they came from, what happened on WhatsApp and any past calls, and — if the AI could not resolve something — what that is", "opener": "one natural opening line the caller can use to start the conversation"}}"""
 
     try:
-        client = get_groq_client(tenant_id, is_async=False)
-    except Exception as e:
-        logger.error(f"Failed to configure Groq API Key for tenant {tenant_id}: {e}")
-        raise HTTPException(status_code=500, detail="Brief generation failed")
-
-    try:
-        response = client.chat.completions.create(
-            model=_BRIEF_MODEL,
-            messages=[{"role": "user", "content": prompt}],
+        parsed = await gemini_chat_completion_json(
+            system_prompt="You are a sales coach briefing a telecaller before they dial.",
+            user_prompt=prompt,
             temperature=0.3,
-            max_tokens=300,
+            max_tokens=400,
+            tenant_id=tenant_id,
+            purpose="pre_call_brief",
         )
-        record_groq_sdk(tenant_id, "pre_call_brief", _BRIEF_MODEL, response)
-        raw = response.choices[0].message.content.strip()
-        parsed = json.loads(raw)
-        return PreCallBriefResponse(brief=parsed["brief"], opener=parsed["opener"])
+        brief_data = {"brief": parsed["brief"], "opener": parsed["opener"]}
     except Exception as e:
         logger.error(f"Pre-call brief generation failed for lead {lead_id}: {e}")
         raise HTTPException(status_code=500, detail="Brief generation failed")
+
+    try:
+        db.table("leads").update({
+            "precall_brief": brief_data,
+            "precall_brief_fingerprint": fingerprint,
+        }).eq("id", str(lead_id)).eq("tenant_id", tenant_id).execute()
+    except Exception:
+        logger.exception("Failed to cache pre-call brief for lead %s", lead_id)
+
+    return PreCallBriefResponse(brief=brief_data["brief"], opener=brief_data["opener"])
 
 
 @router.get("/{lead_id}/call-logs")
