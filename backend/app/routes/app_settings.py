@@ -291,7 +291,9 @@ def _upsert_onboarded_phone_number(
     }
     if takes_primary:
         if incumbent is not None and not is_incumbent:
-            db.table("phone_numbers").update({"role": "standby"})                 .eq("tenant_id", tenant_id).eq("role", "primary").execute()
+            db.table("phone_numbers").update({"role": "standby"}).eq(
+                "tenant_id", tenant_id
+            ).eq("role", "primary").execute()
         fields.update({"role": "primary", "status": "active", "warm_up_day": 14, "paused_outbound": False})
     elif row is None:
         # New arrival that isn't claiming the slot starts cold, like any other
