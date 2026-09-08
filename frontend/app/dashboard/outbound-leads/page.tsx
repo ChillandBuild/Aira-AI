@@ -1440,9 +1440,8 @@ export default function OutboundLeadsPage() {
 
           {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
           {currentStep === 1 && (
-            <div className="flex flex-col flex-1 justify-between">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Upload Controls (7 cols) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
+              {/* Left Column: Upload Controls (7 cols) */}
                 <div className="lg:col-span-7 space-y-6">
                   <div>
                     <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV or Excel</h2>
@@ -1519,6 +1518,15 @@ export default function OutboundLeadsPage() {
                       </div>
                     </div>
                   )}
+                  <div className="flex justify-end pt-2">
+                    <button
+                      onClick={() => setCurrentStep(2)}
+                      disabled={!parsedData}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                    >
+                      Next <ChevronRight size={16} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Right Column: Templates Guide & Policy (5 cols) */}
@@ -1604,17 +1612,6 @@ export default function OutboundLeadsPage() {
                   </div>
                 </div>
               </div>
-
-              <div className="flex justify-end pt-6 mt-6 border-t border-surface-mid/30">
-                <button
-                  onClick={() => setCurrentStep(2)}
-                  disabled={!parsedData}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-                >
-                  Next <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
           )}
 
           {/* ── Step 2: Opt-in Source ──────────────────────────────────────── */}
