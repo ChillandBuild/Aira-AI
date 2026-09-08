@@ -1619,55 +1619,53 @@ export default function OutboundLeadsPage() {
 
           {/* ── Step 2: Opt-in Source ──────────────────────────────────────── */}
           {currentStep === 2 && (
-            <div className="flex flex-col flex-1 justify-between">
-              <div className="space-y-6">
-                <div>
-                  <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Opt-in Source</h2>
-                  <p className="font-body text-sm text-on-surface-muted">How did these leads consent to be contacted?</p>
-                </div>
-
-                <div className="space-y-2">
-                  {OPT_IN_OPTIONS.map((opt) => (
-                    <label
-                      key={opt.value}
-                      className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors
-                        ${optInSource === opt.value ? "border-primary bg-primary/5" : "border-surface-mid bg-surface-low hover:border-primary/40"}`}
-                    >
-                      <input
-                        type="radio"
-                        name="opt_in_source"
-                        value={opt.value}
-                        checked={optInSource === opt.value}
-                        onChange={() => handleOptInSelect(opt.value)}
-                        className="mt-0.5 accent-[var(--color-primary)]"
-                      />
-                      <div>
-                        <p className="font-label text-sm font-semibold text-on-surface">{opt.label}</p>
-                        <p className="font-body text-xs text-on-surface-muted mt-0.5">{opt.description}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-
-                {optInLoading && (
-                  <div className="flex items-center gap-2 py-2">
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="font-body text-sm text-on-surface-muted">Validating consent rule…</p>
-                  </div>
-                )}
-
-                {optInValidation && (
-                  <div className={`flex items-start gap-2.5 p-3.5 rounded-xl font-body text-sm border
-                    ${optInValidation.allowed ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"}`}>
-                    {optInValidation.allowed ? <Check size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
-                    <span>
-                      <strong className="capitalize">{optInValidation.template_type}</strong> — {optInValidation.message}
-                    </span>
-                  </div>
-                )}
+            <div className="space-y-6 flex-1">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Opt-in Source</h2>
+                <p className="font-body text-sm text-on-surface-muted">How did these leads consent to be contacted?</p>
               </div>
 
-              <div className="flex items-center justify-between pt-6 mt-6 border-t border-surface-mid/30">
+              <div className="space-y-2">
+                {OPT_IN_OPTIONS.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors
+                      ${optInSource === opt.value ? "border-primary bg-primary/5" : "border-surface-mid bg-surface-low hover:border-primary/40"}`}
+                  >
+                    <input
+                      type="radio"
+                      name="opt_in_source"
+                      value={opt.value}
+                      checked={optInSource === opt.value}
+                      onChange={() => handleOptInSelect(opt.value)}
+                      className="mt-0.5 accent-[var(--color-primary)]"
+                    />
+                    <div>
+                      <p className="font-label text-sm font-semibold text-on-surface">{opt.label}</p>
+                      <p className="font-body text-xs text-on-surface-muted mt-0.5">{opt.description}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {optInLoading && (
+                <div className="flex items-center gap-2 py-2">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <p className="font-body text-sm text-on-surface-muted">Validating consent rule…</p>
+                </div>
+              )}
+
+              {optInValidation && (
+                <div className={`flex items-start gap-2.5 p-3.5 rounded-xl font-body text-sm border
+                  ${optInValidation.allowed ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"}`}>
+                  {optInValidation.allowed ? <Check size={16} className="mt-0.5 shrink-0" /> : <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
+                  <span>
+                    <strong className="capitalize">{optInValidation.template_type}</strong> — {optInValidation.message}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
                 <button
                   onClick={() => setCurrentStep(1)}
                   className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
@@ -1687,42 +1685,40 @@ export default function OutboundLeadsPage() {
 
           {/* ── Step 3: Preview ───────────────────────────────────────────── */}
           {currentStep === 3 && parsedData && (
-            <div className="flex flex-col flex-1 justify-between">
-              <div className="space-y-6">
-                <div>
-                  <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Preview Data</h2>
-                  <p className="font-body text-sm text-on-surface-muted">
-                    Showing first {parsedData.preview.length} of {parsedData.total_rows.toLocaleString()} rows.
-                  </p>
-                </div>
-
-                <div className="overflow-x-auto rounded-xl ring-1 ring-[#c4c7c7]/20 bg-white max-h-[350px]">
-                  <table className="w-full text-left text-xs">
-                    <thead className="sticky top-0 z-20">
-                      <tr className="bg-surface-low border-b border-surface-mid">
-                        {parsedData.columns.map((col) => (
-                          <th key={col} className="px-3.5 py-3 font-label font-bold text-on-surface-muted whitespace-nowrap bg-surface-low">
-                            {col}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {parsedData.preview.map((row, ri) => (
-                        <tr key={ri} className="border-b border-surface-mid/50 hover:bg-surface-low transition-colors">
-                          {parsedData.columns.map((col) => (
-                            <td key={col} className="px-3.5 py-3 font-body text-on-surface whitespace-nowrap">
-                              {row[col] ?? "—"}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            <div className="space-y-6 flex-1">
+              <div>
+                <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Preview Data</h2>
+                <p className="font-body text-sm text-on-surface-muted">
+                  Showing first {parsedData.preview.length} of {parsedData.total_rows.toLocaleString()} rows.
+                </p>
               </div>
 
-              <div className="flex items-center justify-between pt-6 mt-6 border-t border-surface-mid/30">
+              <div className="overflow-x-auto rounded-xl ring-1 ring-[#c4c7c7]/20 bg-white max-h-[350px]">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 z-20">
+                    <tr className="bg-surface-low border-b border-surface-mid">
+                      {parsedData.columns.map((col) => (
+                        <th key={col} className="px-3.5 py-3 font-label font-bold text-on-surface-muted whitespace-nowrap bg-surface-low">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedData.preview.map((row, ri) => (
+                      <tr key={ri} className="border-b border-surface-mid/50 hover:bg-surface-low transition-colors">
+                        {parsedData.columns.map((col) => (
+                          <td key={col} className="px-3.5 py-3 font-body text-on-surface whitespace-nowrap">
+                            {row[col] ?? "—"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
                 <button
                   onClick={() => setCurrentStep(2)}
                   className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
@@ -1741,8 +1737,7 @@ export default function OutboundLeadsPage() {
 
           {/* ── Step 4: Template & Schedule ───────────────────────────────── */}
           {currentStep === 4 && (
-            <div className="flex flex-col flex-1 justify-between">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
               {/* Left Column: Template Selection & Settings (7 cols) */}
               <div className="lg:col-span-7 space-y-6">
                 <div>
@@ -1944,6 +1939,22 @@ export default function OutboundLeadsPage() {
                     </div>
                   </div>
                 )}
+
+                <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
+                  <button
+                    onClick={() => setCurrentStep(3)}
+                    className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={async () => { setCurrentStep(5); await fetchRiskAudit(); }}
+                    disabled={!templateName.trim()}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
 
               {/* Right Column: Previews & Sender Info (5 cols) */}
@@ -2104,24 +2115,7 @@ export default function OutboundLeadsPage() {
                 </div>
               </div>
             </div>
-
-            <div className="flex items-center justify-between pt-6 mt-6 border-t border-surface-mid/30">
-              <button
-                onClick={() => setCurrentStep(3)}
-                className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
-              >
-                Back
-              </button>
-              <button
-                onClick={async () => { setCurrentStep(5); await fetchRiskAudit(); }}
-                disabled={!templateName.trim()}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-              >
-                Next <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
+          )}
 
           {/* ── Step 5: Confirm & Send ────────────────────────────────────── */}
           {currentStep === 5 && parsedData && sendLoading && scheduleType === "now" && (
@@ -2144,8 +2138,7 @@ export default function OutboundLeadsPage() {
             </div>
           )}
           {currentStep === 5 && parsedData && !(sendLoading && scheduleType === "now") && (
-            <div className="flex flex-col flex-1 justify-between">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1">
               {/* Left Column: Confirm details (7 cols) */}
               <div className="lg:col-span-7 space-y-6">
                 <div>
@@ -2269,6 +2262,44 @@ export default function OutboundLeadsPage() {
                     {sendError}
                   </div>
                 )}
+
+                <div className="flex items-center justify-between pt-4 border-t border-surface-mid/30">
+                  <button
+                    onClick={() => setCurrentStep(4)}
+                    className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleSend}
+                    disabled={sendLoading || !canManageOutbound}
+                    title={canManageOutbound ? "Dispatch campaign" : "Read-only role: dispatch is disabled"}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:blur-[0.5px] disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    <Upload size={14} />
+                    {sendLoading ? "Sending…" : "Confirm & Dispatch"}
+                  </button>
+                </div>
+
+                {canManageOutbound && (
+                  <div className="flex items-center gap-2 pt-2">
+                    <input
+                      type="tel"
+                      value={testSendPhone}
+                      onChange={(e) => setTestSendPhone(e.target.value)}
+                      placeholder="Your WhatsApp number, e.g. 91987654XXXX"
+                      className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-surface-mid font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
+                    />
+                    <button
+                      onClick={handleTestSend}
+                      disabled={testSendLoading || !testSendPhone.trim() || !templateName}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-surface-low hover:bg-surface-mid text-on-surface rounded-lg font-label text-xs font-semibold border border-surface-mid disabled:opacity-50 transition-colors"
+                    >
+                      <Send size={12} />
+                      {testSendLoading ? "Sending…" : "Send test"}
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Template preview (5 cols) */}
@@ -2377,48 +2408,7 @@ export default function OutboundLeadsPage() {
                 </div>
               </div>
             </div>
-
-            <div className="pt-6 mt-6 border-t border-surface-mid/30 space-y-3">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => setCurrentStep(4)}
-                  className="px-4 py-2.5 rounded-xl font-label text-sm text-on-surface-muted hover:bg-surface-low transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={handleSend}
-                  disabled={sendLoading || !canManageOutbound}
-                  title={canManageOutbound ? "Dispatch campaign" : "Read-only role: dispatch is disabled"}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:blur-[0.5px] disabled:cursor-not-allowed transition-colors shadow-sm"
-                >
-                  <Upload size={14} />
-                  {sendLoading ? "Sending…" : "Confirm & Dispatch"}
-                </button>
-              </div>
-
-              {canManageOutbound && (
-                <div className="flex items-center gap-2 max-w-md">
-                  <input
-                    type="tel"
-                    value={testSendPhone}
-                    onChange={(e) => setTestSendPhone(e.target.value)}
-                    placeholder="Your WhatsApp number, e.g. 91987654XXXX"
-                    className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-surface-mid font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
-                  />
-                  <button
-                    onClick={handleTestSend}
-                    disabled={testSendLoading || !testSendPhone.trim() || !templateName}
-                    className="shrink-0 flex items-center gap-1.5 px-3 py-2 bg-surface-low hover:bg-surface-mid text-on-surface rounded-lg font-label text-xs font-semibold border border-surface-mid disabled:opacity-50 transition-colors"
-                  >
-                    <Send size={12} />
-                    {testSendLoading ? "Sending…" : "Send test"}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
           {/* ── Step 6: Done ──────────────────────────────────────────────── */}
           {currentStep === 6 && sendResult && "status" in sendResult && (

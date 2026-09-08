@@ -483,7 +483,7 @@ function UploadTab() {
   }
 
   return (
-    <div className="bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 min-h-[500px] flex flex-col">
+    <div className="animate-slide-up bg-surface rounded-[2rem] p-8 shadow-lg ring-1 ring-[#c4c7c7]/20 min-h-[500px] flex flex-col">
       <StepIndicator current={currentStep} />
 
       {/* ── Step 1: Upload CSV ─────────────────────────────────────────── */}
