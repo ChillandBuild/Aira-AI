@@ -644,7 +644,7 @@ function NumbersPageContent() {
   }
 
   return (
-    <div className="-mt-3 md:-mt-5">
+    <div>
       {/* Mobile Tab Fallback */}
       <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start w-fit md:hidden mb-4">
         <button
@@ -1258,7 +1258,7 @@ function NumbersPageContent() {
 export default function NumbersPage() {
   return (
     <Suspense fallback={
-      <div className="-mt-3 md:-mt-5 space-y-3.5">
+      <div className="space-y-3.5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-28 bg-surface-mid/60 rounded-2xl"></div>
