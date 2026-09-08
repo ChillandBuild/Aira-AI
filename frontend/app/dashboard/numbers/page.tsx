@@ -118,10 +118,10 @@ function TierGuide({
     setIsFading(true);
     setTimeout(() => {
       onDismiss?.();
-    }, 400);
+    }, 350);
   };
 
-  if (!visible && !isFading) return null;
+  if (!visible) return null;
 
   const tiers = [
     { limit: "250 / day", label: "Unverified", color: "bg-red-50 text-red-700 border-red-200", trigger: "Default on registration" },
@@ -134,10 +134,10 @@ function TierGuide({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-purple-200/70 bg-gradient-to-br from-purple-50/40 via-white to-blue-50/30 overflow-hidden shadow-xs transition-all duration-500",
+        "rounded-2xl border border-purple-200/70 bg-gradient-to-br from-purple-50/40 via-white to-blue-50/30 overflow-hidden shadow-xs transition-all duration-300",
         isFading
-          ? "opacity-0 -translate-y-2 max-h-0 mb-0 pointer-events-none border-transparent py-0"
-          : "opacity-100 max-h-[1000px] mb-6"
+          ? "opacity-0 -translate-y-1 max-h-0 pointer-events-none border-transparent py-0"
+          : "opacity-100 max-h-[1000px]"
       )}
     >
       <div
@@ -644,9 +644,9 @@ function NumbersPageContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="-mt-3 md:-mt-5">
       {/* Mobile Tab Fallback */}
-      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start w-fit md:hidden">
+      <div className="p-1 bg-[#e8e3db]/60 rounded-2xl flex gap-1 self-start w-fit md:hidden mb-4">
         <button
           onClick={() => handleTabChange("pool")}
           className={cn(
@@ -671,8 +671,9 @@ function NumbersPageContent() {
         </button>
       </div>
 
-      {activeTab === "pool" ? (
-        <>
+      <div className="space-y-3.5">
+        {activeTab === "pool" ? (
+          <>
           {/* ── KPI Overview Grid ───────────────────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* KPI 1: Pool Utilization */}
@@ -779,12 +780,14 @@ function NumbersPageContent() {
           </div>
 
           {/* ── Messaging Tier Guide Banner ──────────────────────────────────── */}
-          <TierGuide
-            visible={showTierGuide}
-            onDismiss={() => setShowTierGuide(false)}
-            isOpen={tierGuideOpen}
-            onToggleOpen={() => setTierGuideOpen((v) => !v)}
-          />
+          {showTierGuide && (
+            <TierGuide
+              visible={showTierGuide}
+              onDismiss={() => setShowTierGuide(false)}
+              isOpen={tierGuideOpen}
+              onToggleOpen={() => setTierGuideOpen((v) => !v)}
+            />
+          )}
 
           {/* ── Main Numbers Card ───────────────────────────────────────────── */}
           <div className="rounded-2xl bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 md:rounded-card md:p-8 space-y-6">
@@ -1247,6 +1250,7 @@ function NumbersPageContent() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -1254,7 +1258,7 @@ function NumbersPageContent() {
 export default function NumbersPage() {
   return (
     <Suspense fallback={
-      <div className="space-y-6">
+      <div className="-mt-3 md:-mt-5 space-y-3.5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-28 bg-surface-mid/60 rounded-2xl"></div>
