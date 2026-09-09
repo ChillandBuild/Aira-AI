@@ -404,6 +404,7 @@ export default function KnowledgePage() {
   const [showDescGuide, setShowDescGuide] = useState(false);
   const [showDescExample, setShowDescExample] = useState(false);
   // Documents Guide
+  const [showUploadGuide, setShowUploadGuide] = useState(false);
   const [showRagExample, setShowRagExample] = useState(false);
   // Which template was last copied — "desc" | "rag" | null, so the two Copy
   // buttons confirm independently.
@@ -776,110 +777,123 @@ export default function KnowledgePage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {tab === "documents" ? (
         <div className="space-y-6">
-          {/* ── Plain-language guide ──────────────────────────────────────── */}
-          <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                <Lightbulb size={18} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-display font-bold text-sm text-on-surface">
-                  Start here — what to upload on this page
-                </h4>
-                <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
-                  Your Description page is the note Aira reads before every reply. This
-                  page is the folder it goes and looks something up in when a customer
-                  actually asks. So everything long, detailed or likely to change belongs
-                  here — prices, FAQs, policies — not in the description.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {RAG_POINTS.map((point, i) => (
-                <div
-                  key={point.title}
-                  className={cn(
-                    "p-3.5 bg-white rounded-xl border border-purple-100",
-                    RAG_POINTS.length % 2 === 1 &&
-                      i === RAG_POINTS.length - 1 &&
-                      "md:col-span-2"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                    <p className="font-label text-xs font-bold text-on-surface">
-                      {point.title}
-                    </p>
-                  </div>
-                  <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
-                    {point.body}
-                  </p>
-                  <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
-                    {point.example}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
-                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                  <span className="font-semibold text-on-surface">Plain beats pretty.</span>{" "}
-                  A simple Word or PDF with clear headings and short paragraphs gets
-                  searched far better than a designed brochure. One topic per file, and
-                  re-upload the file when the prices change.
-                </p>
-              </div>
-              <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
-                <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
-                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                  <span className="font-semibold text-on-surface">Leave out</span> your
-                  business intro and tone — those belong on the Description page. And never
-                  let prices sit inside a screenshot: a fully scanned file is read, but a
-                  PDF that mixes real text with a picture silently drops whatever is in
-                  the picture.
-                </p>
-              </div>
-            </div>
-
+          {/* ── Plain-language guide (Collapsed by default) ────────────────── */}
+          <div className="flex flex-wrap items-center gap-4">
             <button
-              onClick={() => setShowRagExample(!showRagExample)}
-              className="mt-4 text-xs font-label font-bold text-primary hover:underline"
+              type="button"
+              onClick={() => setShowUploadGuide((prev) => !prev)}
+              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
+            >
+              {showUploadGuide ? "Hide guide — what to upload on this page" : "Start here — what to upload on this page →"}
+            </button>
+            <span className="text-surface-mid select-none">•</span>
+            <button
+              type="button"
+              onClick={() => setShowRagExample((prev) => !prev)}
+              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
             >
               {showRagExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
             </button>
-
-            {showRagExample && (
-              <div className="mt-3 rounded-xl border border-purple-100 bg-white overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
-                  <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
-                    Paste this into a document and replace the words in brackets
-                  </p>
-                  <button
-                    onClick={() => copyTemplate("rag")}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
-                  >
-                    {copiedTemplate === "rag" ? (
-                      <>
-                        <Check size={12} strokeWidth={3} /> Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} /> Copy
-                      </>
-                    )}
-                  </button>
-                </div>
-                <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
-                  {RAG_TEMPLATE}
-                </pre>
-              </div>
-            )}
           </div>
+
+          {showUploadGuide && (
+            <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                  <Lightbulb size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-display font-bold text-sm text-on-surface">
+                    Start here — what to upload on this page
+                  </h4>
+                  <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
+                    Your Description page is the note Aira reads before every reply. This
+                    page is the folder it goes and looks something up in when a customer
+                    actually asks. So everything long, detailed or likely to change belongs
+                    here — prices, FAQs, policies — not in the description.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {RAG_POINTS.map((point, i) => (
+                  <div
+                    key={point.title}
+                    className={cn(
+                      "p-3.5 bg-white rounded-xl border border-purple-100",
+                      RAG_POINTS.length % 2 === 1 &&
+                        i === RAG_POINTS.length - 1 &&
+                        "md:col-span-2"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <p className="font-label text-xs font-bold text-on-surface">
+                        {point.title}
+                      </p>
+                    </div>
+                    <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
+                      {point.body}
+                    </p>
+                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
+                      {point.example}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                  <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
+                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                    <span className="font-semibold text-on-surface">Plain beats pretty.</span>{" "}
+                    A simple Word or PDF with clear headings and short paragraphs gets
+                    searched far better than a designed brochure. One topic per file, and
+                    re-upload the file when the prices change.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
+                  <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
+                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                    <span className="font-semibold text-on-surface">Leave out</span> your
+                    business intro and tone — those belong on the Description page. And never
+                    let prices sit inside a screenshot: a fully scanned file is read, but a
+                    PDF that mixes real text with a picture silently drops whatever is in
+                    the picture.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showRagExample && (
+            <div className="rounded-xl border border-purple-100 bg-white overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
+                <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
+                  Paste this into a document and replace the words in brackets
+                </p>
+                <button
+                  onClick={() => copyTemplate("rag")}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
+                >
+                  {copiedTemplate === "rag" ? (
+                    <>
+                      <Check size={12} strokeWidth={3} /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} /> Copy
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
+                {RAG_TEMPLATE}
+              </pre>
+            </div>
+          )}
 
           {/* ── Top Overview Stats ────────────────────────────────────────── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
