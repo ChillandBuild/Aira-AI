@@ -51,14 +51,19 @@ interface FileTypeMeta {
 
 // ─── Description Guide ────────────────────────────────────────────────────────
 // Plain-language onboarding for the Description tab. Clients writing this box are
-// business owners, not prompt engineers -- the four points below are the ones that
+// business owners, not prompt engineers -- the points below are the ones that
 // actually change how Aira replies, in the order they matter.
+//
+// Deliberately NOT asked for here: opening hours and reply language. Both are
+// structured settings (app_settings.business_hours, the reply-language mode) that
+// ai_reply injects live, with real open/closed state -- a hand-typed line here
+// only goes stale and then contradicts them mid-conversation.
 
 const DESCRIPTION_POINTS: { title: string; body: string; example: string }[] = [
   {
     title: "Who you are",
-    body: "Your business name, what line of work you are in, and where you are based.",
-    example: "We are Sunrise Interiors, a home interior studio in Coimbatore, running since 2015.",
+    body: "Your business name, what line of work you are in, and the area you actually serve.",
+    example: "We are Sunrise Interiors, a home interior studio running since 2015. We take up work across Coimbatore and Tiruppur.",
   },
   {
     title: "What you sell",
@@ -67,33 +72,59 @@ const DESCRIPTION_POINTS: { title: string; body: string; example: string }[] = [
   },
   {
     title: "Who your customers are",
-    body: "So Aira pitches at the right level instead of guessing.",
-    example: "Mostly families moving into a new apartment for the first time.",
+    body: "Who usually contacts you, and what they normally want — so Aira pitches at the right level instead of guessing.",
+    example: "Mostly families moving into a new apartment. They usually want a rough price and a site visit.",
   },
   {
-    title: "Hours and languages",
-    body: "The couple of facts that come up in nearly every conversation.",
-    example: "Open Monday to Saturday, 10am to 7pm. We reply in Tamil and English.",
+    title: "What you want Aira to do",
+    body: "The point of every conversation. Without this Aira will answer politely and let the customer go.",
+    example: "Answer their question, then offer a free site visit and ask which area they live in.",
   },
   {
-    title: "Your tone",
-    body: "How you want Aira to sound. One line is enough — it sets the voice of every reply.",
-    example: "Warm and respectful. Address customers as sir or madam.",
+    title: "What Aira must never do",
+    body: "The promises that would cost you if a machine made them on your behalf.",
+    example: "Never quote a final price, promise a discount, or commit to a delivery date.",
+  },
+  {
+    title: "Tone, and when to fetch a person",
+    body: "How you want Aira to sound, and the topics it should hand straight to your team.",
+    example: "Warm and respectful, address customers as sir or madam. Hand over complaints and anything about an ongoing order.",
   },
 ];
 
-const DESCRIPTION_TEMPLATE = `We are [BUSINESS NAME], a [WHAT YOU DO] business in [CITY], running since [YEAR].
+// Headed sections rather than one prose blob: the same text is re-read on every
+// reply, and a labelled block is far harder for the model to lose than a
+// sentence buried mid-paragraph. No hours and no language line -- see above.
+const DESCRIPTION_TEMPLATE = `ABOUT US
+We are [BUSINESS NAME], a [WHAT YOU DO] business running since [YEAR].
+We serve [YOUR AREA, CITIES, OR "customers anywhere - we work online"].
 
-We offer:
-- [SERVICE 1] - [one line about it]
-- [SERVICE 2] - [one line about it]
-- [SERVICE 3] - [one line about it]
+WHAT WE OFFER
+- [SERVICE OR PRODUCT 1] - [one line, in the words customers use]
+- [SERVICE OR PRODUCT 2] - [one line, in the words customers use]
+- [SERVICE OR PRODUCT 3] - [one line, in the words customers use]
 
-Our customers are mostly [WHO THEY ARE].
+WHO WE TALK TO
+Most people who contact us are [WHO THEY ARE].
+They usually want [WHAT THEY ASK FOR MOST OFTEN].
 
-We are open [DAYS], [TIMINGS]. We reply in [LANGUAGES].
+YOUR JOB IN EVERY CONVERSATION
+Understand what the customer needs, answer it clearly, then [YOUR GOAL: book a
+visit / collect their requirement / get them onto the app / arrange a callback].
+Ask one question at a time. Never leave a customer without a next step.
 
-Speak warmly and respectfully with every customer.`;
+WHAT YOU MUST NEVER DO
+- Never [PROMISE A DISCOUNT / CONFIRM A FINAL PRICE / COMMIT TO A DATE].
+- Never invent an answer. If you do not know, say you will check with the team.
+- Never [ANYTHING ELSE THAT WOULD COST YOU: e.g. give medical or legal advice].
+
+HAND OVER TO A PERSON WHEN
+[A COMPLAINT / A REFUND OR CANCELLATION / ANYTHING ABOUT AN EXISTING ORDER /
+THE CUSTOMER IS UPSET OR ASKS FOR A HUMAN].
+
+HOW TO SOUND
+[WARM AND RESPECTFUL / CASUAL AND FRIENDLY]. [ADDRESS CUSTOMERS AS SIR OR MADAM.]
+Keep replies short — [TWO OR THREE] sentences unless they ask for detail.`;
 
 // ─── Documents (RAG) Guide ────────────────────────────────────────────────────
 // The mirror of DESCRIPTION_POINTS for the Documents tab. The split clients get
@@ -1714,8 +1745,9 @@ export default function KnowledgePage() {
                 <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
                   Aira reads this before every single reply it sends. Think of it as the
                   note you would hand a new employee on their first day: who we are, what
-                  we sell, and how to speak to customers. Write it in plain sentences —
-                  there is nothing technical to get right here.
+                  we sell, what to get out of every conversation, and where to stop and
+                  fetch a person. Write it in plain sentences — there is nothing technical
+                  to get right here.
                 </p>
               </div>
             </div>
@@ -1755,15 +1787,17 @@ export default function KnowledgePage() {
                 <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
                 <p className="font-body text-xs text-on-surface-muted leading-relaxed">
                   <span className="font-semibold text-on-surface">Keep it short.</span>{" "}
-                  A paragraph or two is enough — around 150 to 300 words.
+                  Around 200 to 350 words. Every word here is re-read on every single
+                  reply, so anything you add competes for attention with everything else.
                 </p>
               </div>
               <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
                 <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
                 <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                  <span className="font-semibold text-on-surface">Leave out</span> full price
-                  lists, package details and FAQs — those go in Documents (RAG). Aira looks
-                  them up only when a customer actually asks.
+                  <span className="font-semibold text-on-surface">Leave out</span> your
+                  opening hours, reply language and app link — Aira already gets those
+                  from Settings, live. Price lists, packages and FAQs belong in Documents
+                  (RAG), which Aira reads only when a customer actually asks.
                 </p>
               </div>
             </div>
