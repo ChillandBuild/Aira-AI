@@ -182,8 +182,9 @@
 - [2026-08-23-nested-packages-and-settings-nav-design.md](../../docs/superpowers/specs/2026-08-23-nested-packages-and-settings-nav-design.md) is still approved and unbuilt. An earlier version of the 2026-08-24 button work added a `button_label` field to `intake_config` package nodes, which would have collided with that spec's recursive node shape. **That work was reverted** — `button_label` does not exist anywhere. The nested-packages plan can be written against the current flat node shape with no coordination needed.
 - The settings-nav restructure in that same spec (splitting the Automations tab into `/dashboard/settings/auto-reply`, `/follow-ups`, etc.) now also needs to relocate the new `QuickRepliesPanel`, which currently sits in the Automations tab alongside `IntakeConfigPanel`.
 
-## Dev-environment tooling gaps blocking documented workflows (re-confirmed 2026-08-25)
+## Dev-environment tooling gaps blocking documented workflows (re-confirmed 2026-09-09)
 - **`graphify` is not on PATH and `graphify-out/` does not exist in this environment.** `make wiki-refresh` and `make wiki` both fail, and `/second-brain-close`'s "has code changed since the wiki?" check (`find ... -newer graphify-out/manifest.json`) silently returns **nothing** when the manifest is missing — i.e. it reports a false "no code changed" rather than an error. This matters because CLAUDE.md names `graphify query "<question>"` as step 1 of the lookup order for *any* task; that path is currently unavailable, so sessions fall back to targeted greps/reads. Either install graphify and build the graph once, or soften the CLAUDE.md instruction to match reality. **Demonstrated on 2026-08-25**: the `find ... -newer` check printed nothing while three frontend components had just been committed — a silent false negative, not a skip. `make` is also not on PATH in this shell, so every `make <target>` in CLAUDE.md must be run as its underlying script instead.
+- **Re-confirmed 2026-09-09**: `graphify-out/` still absent and the `graphify` Python module is not importable, so `scripts/build_wiki.py` dies on `ModuleNotFoundError` and the wiki step of `/second-brain-close` cannot run at all. The `find ... -newer` check again printed nothing while `knowledge/page.tsx` had just been committed three times — the same silent false negative.
 - **`lefthook` and `gitleaks` still not on PATH** (first logged 2026-07-23, still true). Hooks silently no-op; credential scanning falls back to 4 narrow patterns.
 
 
@@ -322,3 +323,41 @@ code. Uncheck them so the config matches what Meta approves. See
   route goes too; if it stays, it's the only writer left that can create a number Meta doesn't
   know about.
 
+
+## Astro Tamil tenant is misconfigured — description and RAG are inverted (found 2026-09-09)
+Tenant `eba3ed94-277c-430f-a992-19bbe855e2f4`. Found while answering "should this document
+live in the description or in RAG"; **nothing was changed** — needs the client's sign-off.
+- **`business_description` (2,005 chars) is a pasted AI chat reply.** It opens literally
+  *"Yes. If you want the backend trigger → WhatsApp consultation package list flow, I would use
+  a clear prompt like this:"* — assistant preamble, markdown heading and blockquote arrows
+  intact. This is injected in full on **every reply** this tenant sends.
+- **Two behavioural documents are misfiled in Documents (RAG)**, both `indexed`:
+  `AstroTamil AI Conversation Guidelines- Final (1).docx` (64dd97ae…, 12 chunks, 16,289 chars —
+  language rules, empathy rules, emoji caps, an 8-step thinking process, a tone ratio, a
+  rule-priority list) and `AstroTamil_Refined_KB_v9_Conversation_Fix- Final.docx` (48a7d93a…,
+  escalation phrasing + anti-hallucination rules). Neither answers a customer question.
+  They retrieve on real messages — see the RAG poisoning note in `context/subsystem-notes.md`.
+- **Fix is not a straight move**: 16k chars is ~8× what the description should hold, and large
+  parts restate things Aira already does natively (Tanglish/language matching is the
+  `reply_language_mode` setting + `_language_rule_block`; escalation has real machinery).
+  Needs condensing to the rules that actually change replies, then the two docs deleted from RAG.
+- Sibling tenant `82c63194-1957-4262-ae7c-a95f05effcb1` has
+  `AstroTamil_Sudharsana_Homam_Aira_Knowledge_Base.docx` — not audited, may be genuine knowledge.
+
+## Text inside images in a mixed PDF is silently dropped (found 2026-09-09)
+`extract_text_from_file` (`services/knowledge_service.py:86`) OCRs via Gemini **only** when
+`pdfplumber` returns nothing at all (`if not text.strip()`). A PDF holding real text *plus* a
+screenshot of a price table extracts the surrounding text, never triggers the fallback, and
+loses the table — with no error, because `text.strip()` is non-empty. Same for `.docx`/`.pptx`,
+which read paragraphs and shape text only and never OCR embedded images. A fully-scanned file
+and a standalone image are both fine (they hit the Gemini path).
+- Detection is cheap: pdfplumber 0.11.10 exposes `page.images` and `page.chars`, so "has an
+  image but almost no characters" is a per-page test.
+- **Not decided**: whether to auto-OCR on that signal (costs a Gemini call per upload, and a
+  logo on a cover page looks identical to a pasted table) or just warn on the document row.
+  Recommendation was warn first, gather real hit data, then decide. User has not picked.
+- The Documents guide copy now warns clients about this shape of file; the pipeline is unchanged.
+
+## `second_brain_close.py` stale-claim false positives — recurred verbatim (2026-09-09)
+Same 21 findings as the 2026-08-25 entry above, re-verified this session: still zero genuine
+stale claims. Unfixed, still ~21 lines of noise per close.
