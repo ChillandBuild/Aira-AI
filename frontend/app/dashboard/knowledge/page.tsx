@@ -75,6 +75,11 @@ const DESCRIPTION_POINTS: { title: string; body: string; example: string }[] = [
     body: "The couple of facts that come up in nearly every conversation.",
     example: "Open Monday to Saturday, 10am to 7pm. We reply in Tamil and English.",
   },
+  {
+    title: "Your tone",
+    body: "How you want Aira to sound. One line is enough — it sets the voice of every reply.",
+    example: "Warm and respectful. Address customers as sir or madam.",
+  },
 ];
 
 const DESCRIPTION_TEMPLATE = `We are [BUSINESS NAME], a [WHAT YOU DO] business in [CITY], running since [YEAR].
@@ -89,6 +94,68 @@ Our customers are mostly [WHO THEY ARE].
 We are open [DAYS], [TIMINGS]. We reply in [LANGUAGES].
 
 Speak warmly and respectfully with every customer.`;
+
+// ─── Documents (RAG) Guide ────────────────────────────────────────────────────
+// The mirror of DESCRIPTION_POINTS for the Documents tab. The split clients get
+// wrong is what belongs in each place: the description is re-read on every reply
+// and competes with the safety rules for attention, so everything long, detailed
+// or changeable has to live here instead and be looked up only when asked.
+
+const RAG_POINTS: { title: string; body: string; example: string }[] = [
+  {
+    title: "Prices and packages",
+    body: "Full rate cards, what each package includes, and what costs extra.",
+    example: "Modular kitchen — Basic ₹1.8L, Premium ₹3.2L. Chimney and hob are extra.",
+  },
+  {
+    title: "What each service actually involves",
+    body: "The detail behind the one-liners on your Description page — included, excluded, how long it takes.",
+    example: "Full home interiors: design, material, execution. Civil work is not included. 60 to 75 days.",
+  },
+  {
+    title: "Questions you answer every day",
+    body: "Refunds, cancellations, delivery times, warranty — write them as question and answer.",
+    example: "Q: Do you give a warranty? A: 10 years on modular units, 1 year on hardware.",
+  },
+  {
+    title: "Policies and terms",
+    body: "Payment terms, eligibility, cancellation rules — anything a customer might argue about later.",
+    example: "50% advance on order, 40% before installation, 10% on handover.",
+  },
+  {
+    title: "Locations and directions",
+    body: "Branch list, addresses, landmarks, parking — the things people ask right before they visit.",
+    example: "Showroom: 3rd floor, Brookefields Mall, Coimbatore. Parking in basement 2.",
+  },
+  {
+    title: "Proof of your work",
+    body: "Past projects, client names you are allowed to share, certifications, awards.",
+    example: "Completed 400+ homes since 2015. ISO 9001 certified.",
+  },
+];
+
+const RAG_TEMPLATE = `PRICING — [SERVICE NAME]
+
+[PACKAGE 1] - [PRICE]
+Includes: [WHAT IS INCLUDED]
+Not included: [WHAT COSTS EXTRA]
+
+[PACKAGE 2] - [PRICE]
+Includes: [WHAT IS INCLUDED]
+Not included: [WHAT COSTS EXTRA]
+
+COMMON QUESTIONS
+
+Q: [QUESTION A CUSTOMER ACTUALLY ASKS]
+A: [YOUR ANSWER IN ONE OR TWO SENTENCES]
+
+Q: [ANOTHER QUESTION]
+A: [YOUR ANSWER]
+
+PAYMENT AND CANCELLATION
+
+[YOUR PAYMENT TERMS]
+[YOUR CANCELLATION RULE]`;
 
 // ─── File Formatting Helpers ──────────────────────────────────────────────────
 
@@ -304,13 +371,19 @@ export default function KnowledgePage() {
 
   // Description Guide
   const [showDescExample, setShowDescExample] = useState(false);
-  const [copiedTemplate, setCopiedTemplate] = useState(false);
+  // Documents Guide
+  const [showRagExample, setShowRagExample] = useState(false);
+  // Which template was last copied — "desc" | "rag" | null, so the two Copy
+  // buttons confirm independently.
+  const [copiedTemplate, setCopiedTemplate] = useState<"desc" | "rag" | null>(null);
 
-  async function copyTemplate() {
+  async function copyTemplate(which: "desc" | "rag") {
     try {
-      await navigator.clipboard.writeText(DESCRIPTION_TEMPLATE);
-      setCopiedTemplate(true);
-      setTimeout(() => setCopiedTemplate(false), 2000);
+      await navigator.clipboard.writeText(
+        which === "desc" ? DESCRIPTION_TEMPLATE : RAG_TEMPLATE
+      );
+      setCopiedTemplate(which);
+      setTimeout(() => setCopiedTemplate(null), 2000);
     } catch {
       toast.error("Could not copy. Select the text and copy it manually.");
     }
@@ -671,6 +744,109 @@ export default function KnowledgePage() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {tab === "documents" ? (
         <div className="space-y-6">
+          {/* ── Plain-language guide ──────────────────────────────────────── */}
+          <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <Lightbulb size={18} />
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-display font-bold text-sm text-on-surface">
+                  Start here — what to upload on this page
+                </h4>
+                <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
+                  Your Description page is the note Aira reads before every reply. This
+                  page is the folder it goes and looks something up in when a customer
+                  actually asks. So everything long, detailed or likely to change belongs
+                  here — prices, FAQs, policies — not in the description.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              {RAG_POINTS.map((point, i) => (
+                <div
+                  key={point.title}
+                  className={cn(
+                    "p-3.5 bg-white rounded-xl border border-purple-100",
+                    RAG_POINTS.length % 2 === 1 &&
+                      i === RAG_POINTS.length - 1 &&
+                      "md:col-span-2"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
+                      {i + 1}
+                    </span>
+                    <p className="font-label text-xs font-bold text-on-surface">
+                      {point.title}
+                    </p>
+                  </div>
+                  <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
+                    {point.body}
+                  </p>
+                  <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
+                    {point.example}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
+                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                  <span className="font-semibold text-on-surface">Plain beats pretty.</span>{" "}
+                  A simple Word or PDF with clear headings and short paragraphs gets
+                  searched far better than a designed brochure. One topic per file, and
+                  re-upload the file when the prices change.
+                </p>
+              </div>
+              <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
+                <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
+                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                  <span className="font-semibold text-on-surface">Leave out</span> your
+                  business intro and tone — those belong on the Description page. Scans of
+                  handwriting and text inside images cannot be read at all.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowRagExample(!showRagExample)}
+              className="mt-4 text-xs font-label font-bold text-primary hover:underline"
+            >
+              {showRagExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
+            </button>
+
+            {showRagExample && (
+              <div className="mt-3 rounded-xl border border-purple-100 bg-white overflow-hidden">
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
+                  <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
+                    Paste this into a document and replace the words in brackets
+                  </p>
+                  <button
+                    onClick={() => copyTemplate("rag")}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
+                  >
+                    {copiedTemplate === "rag" ? (
+                      <>
+                        <Check size={12} strokeWidth={3} /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} /> Copy
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
+                  {RAG_TEMPLATE}
+                </pre>
+              </div>
+            )}
+          </div>
+
           {/* ── Top Overview Stats ────────────────────────────────────────── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-surface rounded-2xl p-4 border border-surface-mid shadow-sm flex items-center justify-between">
@@ -1548,7 +1724,13 @@ export default function KnowledgePage() {
               {DESCRIPTION_POINTS.map((point, i) => (
                 <div
                   key={point.title}
-                  className="p-3.5 bg-white rounded-xl border border-purple-100"
+                  className={cn(
+                    "p-3.5 bg-white rounded-xl border border-purple-100",
+                    // Odd count leaves the last card alone on its row — let it span.
+                    DESCRIPTION_POINTS.length % 2 === 1 &&
+                      i === DESCRIPTION_POINTS.length - 1 &&
+                      "md:col-span-2"
+                  )}
                 >
                   <div className="flex items-center gap-2">
                     <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
@@ -1600,10 +1782,10 @@ export default function KnowledgePage() {
                     Copy this and replace the words in brackets
                   </p>
                   <button
-                    onClick={copyTemplate}
+                    onClick={() => copyTemplate("desc")}
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
                   >
-                    {copiedTemplate ? (
+                    {copiedTemplate === "desc" ? (
                       <>
                         <Check size={12} strokeWidth={3} /> Copied
                       </>
