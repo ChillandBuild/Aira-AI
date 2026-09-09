@@ -445,6 +445,12 @@ async def update_settings(
     updated = []
     for key, value in payload.updates.items():
         is_secret = key in _SECRET_KEYS
+        if value == "":
+            # Empty string means "clear this value" — delete the row rather than
+            # storing "", which would otherwise still read back as is_set=True.
+            db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", key).execute()
+            updated.append(key)
+            continue
         result = (
             db.table("app_settings")
             .upsert({

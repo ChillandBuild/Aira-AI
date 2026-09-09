@@ -85,7 +85,7 @@ function AdminCallerCard({
         {needsSetup && (
           <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-medium">
             {isTelecmi
-              ? "Set your phone and Cloud Telephony Agent ID to enable click-to-call"
+              ? "Set your phone and Cloud Telephony User ID to enable click-to-call"
               : "Set your phone number to enable SIM calling"}
           </p>
         )}
@@ -124,7 +124,7 @@ function AdminCallerCard({
           </div>
           {isTelecmi && (
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">Agent ID</span>
+            <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">User ID</span>
             {editingAgentIdFor === caller.id ? (
               <div className="flex items-center gap-1">
                 <input
@@ -149,7 +149,7 @@ function AdminCallerCard({
                 {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
                 <button onClick={() => onEditAgentId(caller.id, caller.telecmi_agent_id || null)}
                   className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                  title="Edit Cloud Telephony agent ID">
+                  title="Edit Cloud Telephony User ID">
                   <Pencil size={9} />
                 </button>
               </span>
@@ -230,8 +230,8 @@ export default function LiveAgentStatus({
       setEditingAgentIdFor(null);
       setAgentIdInputValue("");
     } catch (err) {
-      console.error("Failed to update TeleCMI agent ID:", err);
-      toast.error("Failed to update Cloud Telephony agent ID");
+      console.error("Failed to update TeleCMI User ID:", err);
+      toast.error("Failed to update Cloud Telephony User ID");
     } finally {
       setSavingAgentId(null);
     }
@@ -539,14 +539,14 @@ export default function LiveAgentStatus({
                         onChange={(e) => setAgentIdInputValue(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
                         autoFocus
-                        placeholder="agent id"
+                        placeholder="user id"
                         className="w-20 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                       <button
                         onClick={(e) => { e.stopPropagation(); handleSaveAgentId(c.id); }}
                         disabled={savingAgentId === c.id}
                         className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                        title="Save Cloud Telephony agent ID"
+                        title="Save Cloud Telephony User ID"
                       >
                         {savingAgentId === c.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
                       </button>
@@ -565,7 +565,7 @@ export default function LiveAgentStatus({
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(c.id); setAgentIdInputValue(c.telecmi_agent_id || ""); }}
                         className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                        title="Edit Cloud Telephony agent ID"
+                        title="Edit Cloud Telephony User ID"
                       >
                         <Pencil size={9} />
                       </button>

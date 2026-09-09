@@ -603,7 +603,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       }
     : {
         title: "Switch to Cloud Telephony?",
-        description: "This client will use Cloud Telephony click-to-call. Telecallers need Cloud Telephony agent ID/password, and recordings/durations come from Cloud Telephony webhooks.",
+        description: "This client will use Cloud Telephony click-to-call. Telecallers need Cloud Telephony User ID/password, and recordings/durations come from Cloud Telephony webhooks.",
         confirm: "Switch to Cloud Telephony",
       };
 
