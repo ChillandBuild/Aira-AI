@@ -837,8 +837,10 @@ export default function KnowledgePage() {
                 <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
                 <p className="font-body text-xs text-on-surface-muted leading-relaxed">
                   <span className="font-semibold text-on-surface">Leave out</span> your
-                  business intro and tone — those belong on the Description page. Scans of
-                  handwriting and text inside images cannot be read at all.
+                  business intro and tone — those belong on the Description page. And never
+                  let prices sit inside a screenshot: a fully scanned file is read, but a
+                  PDF that mixes real text with a picture silently drops whatever is in
+                  the picture.
                 </p>
               </div>
             </div>
