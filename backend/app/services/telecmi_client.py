@@ -68,7 +68,7 @@ async def initiate_click2call(
         if code == 407:
             raise RuntimeError("Invalid TeleCMI App Secret. Please verify App Secret in Settings → Telecalling.")
         elif code == 404:
-            raise RuntimeError(f"Invalid TeleCMI User ID '{agent_id}'. Please check caller's Agent ID in Team / Roles.")
+            raise RuntimeError(f"Invalid TeleCMI User ID '{agent_id}'. Please check caller's User ID in Team / Roles.")
         elif code == 400:
             raise RuntimeError(f"TeleCMI validation error: {msg}")
         raise RuntimeError(f"TeleCMI error ({code}): {msg}")

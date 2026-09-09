@@ -330,7 +330,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         if not effective_agent_id:
             effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
         if not effective_agent_id:
-            raise HTTPException(status_code=400, detail="No Cloud Telephony Agent ID found. Set Agent ID on the caller in the Team page.")
+            raise HTTPException(status_code=400, detail="No Cloud Telephony User ID found. Set User ID on the caller in the Team page.")
 
         telecmi_callerid = get_setting("telecmi_callerid", tenant_id=tenant_id) or caller_phone
         if not telecmi_callerid:

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Phone, Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
-import { useSettingsForm } from "../SettingsFormContext";
+import { useSettingsForm, CLEAR_SECRET } from "../SettingsFormContext";
 import {
   SaveButton, SaveStatus, SectionFooter, SettingsAccordion, SettingsSection,
 } from "../SettingsSection";
@@ -17,7 +17,7 @@ const VOICE_SECTION = {
   id: "voice",
   label: "Voice Calling (Cloud Telephony)",
   icon: Phone,
-  description: "Cloud Telephony (TeleCMI) credentials for click-to-call telecalling. Per-caller Agent IDs are set on the Team / Roles page.",
+  description: "Cloud Telephony (TeleCMI) credentials for click-to-call telecalling. Per-caller User IDs are set on the Team / Roles page.",
   fields: [
     { key: "telecmi_app_id", label: "App ID", placeholder: "e.g. 1111113", secret: false, required: true, hint: "Found in TeleCMI Dashboard → Developer → App Secret" },
     { key: "telecmi_secret", label: "App Secret", placeholder: "Paste your App Secret", secret: true, required: true, hint: "Found in TeleCMI Dashboard → Developer → App Secret" },
@@ -65,22 +65,44 @@ function SecretField({
 }) {
   const [show, setShow] = useState(false);
   const [editing, setEditing] = useState(false);
-  const showInput = editing || newValue.length > 0 || !isSet;
+  const willClear = newValue === CLEAR_SECRET;
+  const showInput = editing || (newValue.length > 0 && !willClear) || !isSet;
 
   return (
     <div className="space-y-1">
-      {!showInput ? (
-        <button type="button" disabled={disabled} onClick={() => setEditing(true)} className="relative w-full text-left group disabled:cursor-not-allowed">
-          <div className="w-full px-4 pt-5 pb-2 rounded-xl bg-white border border-border font-mono text-sm text-ink-secondary cursor-text group-hover:border-primary/40 transition group-disabled:cursor-not-allowed group-disabled:bg-surface-subtle group-disabled:text-ink-muted">
-            {storedMask}
+      {willClear ? (
+        <div className="relative w-full">
+          <div className="w-full px-4 pt-5 pb-2 rounded-xl bg-red-50 border border-red-200 font-body text-sm text-red-700 flex items-center justify-between">
+            <span>Will be cleared on save</span>
+            <button type="button" onClick={() => onChange("")} className="text-[11px] font-label font-semibold text-primary underline">
+              Undo
+            </button>
           </div>
           <span className="pointer-events-none absolute left-3 -top-2 px-1.5 text-[11px] font-label font-medium text-ink-muted bg-white tracking-wide">
             {label}
           </span>
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-label font-semibold text-primary opacity-0 group-hover:opacity-100 transition">
-            Edit
+        </div>
+      ) : !showInput ? (
+        <div className="relative w-full group">
+          <button type="button" disabled={disabled} onClick={() => setEditing(true)} className="w-full text-left disabled:cursor-not-allowed">
+            <div className="w-full px-4 pt-5 pb-2 rounded-xl bg-white border border-border font-mono text-sm text-ink-secondary cursor-text group-hover:border-primary/40 transition group-disabled:cursor-not-allowed group-disabled:bg-surface-subtle group-disabled:text-ink-muted">
+              {storedMask}
+            </div>
+          </button>
+          <span className="pointer-events-none absolute left-3 -top-2 px-1.5 text-[11px] font-label font-medium text-ink-muted bg-white tracking-wide">
+            {label}
           </span>
-        </button>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-3 opacity-0 group-hover:opacity-100 transition">
+            {isSet && !disabled && (
+              <button type="button" onClick={() => onChange(CLEAR_SECRET)} className="text-[11px] font-label font-semibold text-red-600 hover:text-red-700">
+                Clear
+              </button>
+            )}
+            <button type="button" onClick={() => setEditing(true)} disabled={disabled} className="text-[11px] font-label font-semibold text-primary">
+              Edit
+            </button>
+          </div>
+        </div>
       ) : (
         <OutlinedField
           label={label}
@@ -184,7 +206,7 @@ export default function TelecallingSettingsPage() {
                   </code>
                 </li>
                 <li>If using a Webhook Secret, append it to your Webhook URL: <code className="rounded border border-border bg-white px-1 py-0.5 font-mono text-[10px]">?webhook_secret=YOUR_SECRET</code></li>
-                <li>Configure each telecaller&apos;s TeleCMI <span className="font-semibold">Agent ID</span> on the <span className="font-semibold">Team / Roles page</span>.</li>
+                <li>Configure each telecaller&apos;s TeleCMI <span className="font-semibold">User ID</span> on the <span className="font-semibold">Team / Roles page</span>.</li>
               </ol>
             </div>
           );
