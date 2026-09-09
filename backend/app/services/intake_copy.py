@@ -27,7 +27,7 @@ _THREAD_WINDOW = 6
 PURPOSES = frozenset({
     "ask_field", "reask_field", "skip_field", "greeting_reask",
     "payment_intro", "payment_delay", "payment_receipt", "package_reask", "no_packages",
-    "reply_ready",
+    "reply_ready", "offer_reask", "human_handoff", "payment_failed",
 })
 
 _TASKS = {
@@ -82,6 +82,26 @@ _TASKS = {
         "catch which one, in one short sentence. The system re-prints the option list "
         "with prices after your sentence, so do not list options or prices yourself."
     ),
+    "offer_reask": (
+        "You just offered the customer a paid consultation and their reply was not a "
+        "clear yes or no. In one short, friendly sentence, ask them to confirm whether "
+        "they'd like to go ahead -- do not restate the full offer, do not assume they "
+        "said yes or no."
+    ),
+    "human_handoff": (
+        "The customer asked to speak with a human team member. In one short, warm "
+        "sentence, tell them a team member has been notified and will get in touch. "
+        "Then tell them they can continue answering the questions any time and you'll "
+        "pick up right where they left off -- their progress so far is saved. Do not "
+        "promise a specific time or name a person."
+    ),
+    "payment_failed": (
+        "The customer's payment attempt just failed (e.g. card declined). Tell them "
+        "in one short, reassuring sentence that it didn't go through and they can try "
+        "again with the same link, which follows your sentence. Do NOT write any link, "
+        "URL or amount yourself -- the system appends the real link after your sentence. "
+        "Do not explain why it failed -- you don't know."
+    ),
     "no_packages": (
         "Tell the customer their details are noted and the team will follow up shortly "
         "with next steps. One short sentence."
@@ -99,6 +119,9 @@ _FALLBACKS = {
     "reply_ready": "Your answer is ready. Open our app and sign in with this number to read it in full:",
     "package_reask": "Sorry, I didn't catch which one —",
     "no_packages": "Thanks! Our team will follow up shortly with the next steps.",
+    "offer_reask": "Sorry, just to confirm — would you like to go ahead?",
+    "human_handoff": "Got it — a team member has been notified and will get in touch. You can carry on answering whenever you're ready; we'll pick up right where you left off.",
+    "payment_failed": "That payment didn't go through — you can try again with the same link:",
 }
 
 _WRAPPER_FALLBACKS = {

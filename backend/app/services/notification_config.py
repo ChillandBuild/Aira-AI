@@ -15,6 +15,7 @@ _NOTIFICATION_CONFIG_DEFAULT: dict = {
         "lead_assigned": True,
         "lead_replied": True,
         "handover_new": True,
+        "intake_trigger_failed": True,
     },
     "claimable_threshold_minutes": 15,
     "claimable_audience": "telecallers_and_admin",

@@ -46,6 +46,14 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
   const [config, setConfig] = useState<IntakeConfig>(DEFAULT);
   const [draft, setDraft] = useState<IntakeConfig>(DEFAULT);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  // Gates Save until the GET actually succeeds. Without this, a failed load
+  // leaves draft/config at DEFAULT (packages: []), and the panel below never
+  // touches packages anyway -- but Save was previously a blind full-object
+  // PATCH, so a load failure followed by any edit here would round-trip
+  // packages: [] into app_settings and silently wipe the tenant's real
+  // package tree (that tree lives on /dashboard/settings/packages, not here).
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -55,9 +63,13 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
         const data = await res.json();
         setConfig(data);
         setDraft(data);
+        setLoaded(true);
+        setLoadFailed(false);
+      } else {
+        setLoadFailed(true);
       }
     } catch {
-      /* non-critical */
+      setLoadFailed(true);
     }
   }, []);
 
@@ -68,14 +80,27 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
   const isDirty = JSON.stringify(draft) !== JSON.stringify(config);
 
   async function handleSave() {
-    if (!canManage) return;
+    if (!canManage || !loaded) return;
     setSaveState("saving");
     try {
       const auth = await getAuthHeaders();
+      // Deliberately NOT a full JSON.stringify(draft): packages live entirely
+      // on the separate /dashboard/settings/packages page, this panel never
+      // renders or edits them, and sending them back here is exactly the
+      // round-trip that can wipe them on a bad load. Only PATCH the fields
+      // this panel actually owns -- the backend's merge-on-top-of-current
+      // then leaves the stored package tree untouched no matter what.
+      const payload = {
+        enabled: draft.enabled,
+        trigger_description: draft.trigger_description,
+        offer_message: draft.offer_message,
+        fields: draft.fields,
+        service_noun: draft.service_noun,
+      };
       const res = await fetch(`${API_URL}/api/v1/settings/intake-config`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error("Save failed");
       const saved = await res.json();
@@ -208,8 +233,18 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
 
       </div>
 
-      <SectionFooter status={<SaveStatus state={saveState} dirty={isDirty} idleLabel={draft.enabled ? "Paid intake is live" : "Paid intake is off"} />}>
-        <SaveButton state={saveState} dirty={isDirty} disabled={!canManage} onClick={handleSave} />
+      <SectionFooter
+        status={
+          loadFailed ? (
+            <span className="font-body text-[11px] font-semibold text-red-600">
+              Couldn&apos;t load settings — reload the page before editing.
+            </span>
+          ) : (
+            <SaveStatus state={saveState} dirty={isDirty} idleLabel={draft.enabled ? "Paid intake is live" : "Paid intake is off"} />
+          )
+        }
+      >
+        <SaveButton state={saveState} dirty={isDirty} disabled={!canManage || !loaded} onClick={handleSave} />
       </SectionFooter>
     </SettingsSection>
   );
