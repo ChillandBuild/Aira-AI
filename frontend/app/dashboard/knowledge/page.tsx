@@ -401,6 +401,7 @@ export default function KnowledgePage() {
   const [showRagGuide, setShowRagGuide] = useState(false);
 
   // Description Guide
+  const [showDescGuide, setShowDescGuide] = useState(false);
   const [showDescExample, setShowDescExample] = useState(false);
   // Documents Guide
   const [showRagExample, setShowRagExample] = useState(false);
@@ -1734,110 +1735,123 @@ export default function KnowledgePage() {
       ) : (
         /* ── Description Tab ─────────────────────────────────────────────── */
         <div className="space-y-6">
-          {/* ── Plain-language guide ──────────────────────────────────────── */}
-          <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                <Lightbulb size={18} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="font-display font-bold text-sm text-on-surface">
-                  Start here — what to write on this page
-                </h4>
-                <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
-                  Aira reads this before every single reply it sends. Think of it as the
-                  note you would hand a new employee on their first day: who we are, what
-                  we sell, what to get out of every conversation, and where to stop and
-                  fetch a person. Write it in plain sentences — there is nothing technical
-                  to get right here.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {DESCRIPTION_POINTS.map((point, i) => (
-                <div
-                  key={point.title}
-                  className={cn(
-                    "p-3.5 bg-white rounded-xl border border-purple-100",
-                    // Odd count leaves the last card alone on its row — let it span.
-                    DESCRIPTION_POINTS.length % 2 === 1 &&
-                      i === DESCRIPTION_POINTS.length - 1 &&
-                      "md:col-span-2"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
-                      {i + 1}
-                    </span>
-                    <p className="font-label text-xs font-bold text-on-surface">
-                      {point.title}
-                    </p>
-                  </div>
-                  <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
-                    {point.body}
-                  </p>
-                  <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
-                    {point.example}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-                <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
-                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                  <span className="font-semibold text-on-surface">Keep it short.</span>{" "}
-                  Around 200 to 350 words. Every word here is re-read on every single
-                  reply, so anything you add competes for attention with everything else.
-                </p>
-              </div>
-              <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
-                <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
-                <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                  <span className="font-semibold text-on-surface">Leave out</span> your
-                  opening hours, reply language and app link — Aira already gets those
-                  from Settings, live. Price lists, packages and FAQs belong in Documents
-                  (RAG), which Aira reads only when a customer actually asks.
-                </p>
-              </div>
-            </div>
-
+          {/* ── Plain-language guide (Collapsed by default) ────────────────── */}
+          <div className="flex flex-wrap items-center gap-4">
             <button
-              onClick={() => setShowDescExample(!showDescExample)}
-              className="mt-4 text-xs font-label font-bold text-primary hover:underline"
+              type="button"
+              onClick={() => setShowDescGuide((prev) => !prev)}
+              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
+            >
+              {showDescGuide ? "Hide guide — what to write on this page" : "Start here — what to write on this page →"}
+            </button>
+            <span className="text-surface-mid select-none">•</span>
+            <button
+              type="button"
+              onClick={() => setShowDescExample((prev) => !prev)}
+              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
             >
               {showDescExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
             </button>
-
-            {showDescExample && (
-              <div className="mt-3 rounded-xl border border-purple-100 bg-white overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
-                  <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
-                    Copy this and replace the words in brackets
-                  </p>
-                  <button
-                    onClick={() => copyTemplate("desc")}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
-                  >
-                    {copiedTemplate === "desc" ? (
-                      <>
-                        <Check size={12} strokeWidth={3} /> Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} /> Copy
-                      </>
-                    )}
-                  </button>
-                </div>
-                <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
-                  {DESCRIPTION_TEMPLATE}
-                </pre>
-              </div>
-            )}
           </div>
+
+          {showDescGuide && (
+            <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                  <Lightbulb size={18} />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="font-display font-bold text-sm text-on-surface">
+                    Start here — what to write on this page
+                  </h4>
+                  <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
+                    Aira reads this before every single reply it sends. Think of it as the
+                    note you would hand a new employee on their first day: who we are, what
+                    we sell, what to get out of every conversation, and where to stop and
+                    fetch a person. Write it in plain sentences — there is nothing technical
+                    to get right here.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {DESCRIPTION_POINTS.map((point, i) => (
+                  <div
+                    key={point.title}
+                    className={cn(
+                      "p-3.5 bg-white rounded-xl border border-purple-100",
+                      // Odd count leaves the last card alone on its row — let it span.
+                      DESCRIPTION_POINTS.length % 2 === 1 &&
+                        i === DESCRIPTION_POINTS.length - 1 &&
+                        "md:col-span-2"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
+                        {i + 1}
+                      </span>
+                      <p className="font-label text-xs font-bold text-on-surface">
+                        {point.title}
+                      </p>
+                    </div>
+                    <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
+                      {point.body}
+                    </p>
+                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
+                      {point.example}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
+                  <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
+                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                    <span className="font-semibold text-on-surface">Keep it short.</span>{" "}
+                    Around 200 to 350 words. Every word here is re-read on every single
+                    reply, so anything you add competes for attention with everything else.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
+                  <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
+                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
+                    <span className="font-semibold text-on-surface">Leave out</span> your
+                    opening hours, reply language and app link — Aira already gets those
+                    from Settings, live. Price lists, packages and FAQs belong in Documents
+                    (RAG), which Aira reads only when a customer actually asks.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showDescExample && (
+            <div className="rounded-xl border border-purple-100 bg-white overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
+                <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
+                  Copy this and replace the words in brackets
+                </p>
+                <button
+                  onClick={() => copyTemplate("desc")}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
+                >
+                  {copiedTemplate === "desc" ? (
+                    <>
+                      <Check size={12} strokeWidth={3} /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={12} /> Copy
+                    </>
+                  )}
+                </button>
+              </div>
+              <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
+                {DESCRIPTION_TEMPLATE}
+              </pre>
+            </div>
+          )}
 
           {/* Business Description Card */}
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
