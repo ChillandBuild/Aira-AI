@@ -17,8 +17,10 @@ from app.services.intake import (
     change_session_package,
     confirm_intake_payment,
     deliver_astro_reply,
+    expire_intake_session,
     get_intake_config,
     get_session_tenant_id,
+    notify_payment_failed,
     record_astro_bridge_ids,
     resolve_intake_session,
 )
@@ -223,9 +225,14 @@ async def razorpay_webhook(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    entity = payload.get("payload", {}).get("payment_link", {}).get("entity", {})
-    notes = entity.get("notes", {})
-    session_id = notes.get("booking_id")  # payment_razorpay.py's notes key is literally "booking_id"
+    payload_data = payload.get("payload", {})
+    pl_entity = payload_data.get("payment_link", {}).get("entity", {})
+    # payment.failed carries no payment_link entity at all -- its notes live one
+    # level down, under payload.payment.entity.notes instead. Both are the same
+    # notes dict payment_razorpay.py wrote at link-creation time (booking_id key).
+    payment_entity = payload_data.get("payment", {}).get("entity", {})
+    notes = pl_entity.get("notes") or payment_entity.get("notes") or {}
+    session_id = notes.get("booking_id")
 
     if not session_id:
         logger.error("Intake webhook: no session id in notes")
@@ -245,6 +252,15 @@ async def razorpay_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     event = payload.get("event", "")
+
+    if event == "payment_link.expired":
+        expired = expire_intake_session(session_id)
+        return {"status": "ok" if expired else "ignored", "event": event}
+
+    if event == "payment.failed":
+        sent = await notify_payment_failed(session_id)
+        return {"status": "ok" if sent else "ignored", "event": event}
+
     if event != "payment_link.paid":
         return {"status": "ignored", "event": event}
 

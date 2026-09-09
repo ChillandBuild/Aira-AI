@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import logging
+import time
 from typing import Any
 
 import httpx
@@ -11,6 +12,15 @@ from app.config_dynamic import get_setting
 logger = logging.getLogger(__name__)
 
 _RAZORPAY_BASE = "https://api.razorpay.com/v1"
+
+# A link with no expire_by never dies on Razorpay's side -- only the 48h
+# intake_sessions staleness sweep (intake.py:_STALE_SESSION_HOURS) ever touched
+# the session, and it left the link itself payable forever. 24h matches
+# WhatsApp's own free-form messaging window (Hard Invariant 3): a link that
+# outlives the window is one the lead can no longer be nudged about with plain
+# text anyway, so there's no reason to keep it alive past that point. The 48h
+# session sweep stays as the backstop for a missed/unsubscribed expiry webhook.
+_LINK_EXPIRE_SECONDS = 24 * 60 * 60
 
 
 def _get_key_id(tenant_id: str | None = None) -> str:
@@ -67,8 +77,10 @@ async def create_payment_link(
             "booking_id": booking_id,
             "booking_ref": booking_ref,
         },
-        "callback_url": "",
-        "callback_method": "get",
+        # No callback_url: delivery is WhatsApp, not a browser redirect flow --
+        # there is nothing to redirect back to, and the payment receipt is
+        # already sent from the payment_link.paid webhook handler.
+        "expire_by": int(time.time()) + _LINK_EXPIRE_SECONDS,
     }
 
     async with httpx.AsyncClient(auth=(key_id, key_secret), timeout=15.0) as client:

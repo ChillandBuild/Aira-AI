@@ -67,6 +67,7 @@ export function NotificationBell() {
       case "system_error":
       case "missed_callback":
       case "sentiment_critical":
+      case "intake_trigger_failed":
         return {
           bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-rose-500",
           iconBg: "bg-rose-100 text-rose-600",

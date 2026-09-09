@@ -49,11 +49,12 @@ def test_arm_hook_passes_every_gate_argument():
     '"direction": "inbound"',
 ])
 def test_webhook_cancels_pending_nudges_at_every_inbound_site(marker):
-    """Both WhatsApp inbound insert sites (text and audio) must cancel."""
+    """All three WhatsApp inbound insert sites (text/media, audio, opt-out) must
+    cancel -- added 2026-09-09 alongside the opt-out message-logging site."""
     import app.routes.webhook as wh
     src = _source(wh)
     inbound_sites = src.count(marker)
-    assert inbound_sites == 2, f"expected 2 inbound insert sites, found {inbound_sites}"
+    assert inbound_sites == 3, f"expected 3 inbound insert sites, found {inbound_sites}"
     assert src.count("cancel_pending(") == inbound_sites
 
 
@@ -61,7 +62,7 @@ def test_webhook_cancel_is_wrapped_so_it_cannot_drop_an_inbound_message():
     import app.routes.webhook as wh
     src = _source(wh)
     start = 0
-    for _ in range(2):
+    for _ in range(3):
         idx = src.index("cancel_pending(", start)
         window = src[idx - 300:idx + 300]
         assert "try:" in window

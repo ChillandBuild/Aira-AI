@@ -14,10 +14,24 @@ from app.services.segmentation import new_lead_score_and_segment
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Exact-match opt-out phrases. Matched only on a lead's first reply after a template
-# send (see _is_first_in_broadcast) -- a "stop" later in a conversation falls through to
-# scoring, which drops the lead to segment D and out of re-engagement targeting.
+# Exact-match opt-out phrases. Checked on every inbound message, not just the first
+# reply after a template send -- until 2026-09-09 this only fired inside a broadcast
+# window, so "stop" typed mid-conversation (including mid-paid-intake) fell through
+# to intake.py's _CANCEL_WORDS instead, which cancels a session but records no
+# opted_out flag. The list stays deliberately tiny and exact-match (see
+# test_opt_out_keywords.py's documented gap on decorated forms) so a false positive
+# here -- silently killing re-engagement for a lead who typed something else -- stays
+# effectively impossible.
 _STOP_WORDS = frozenset({"stop", "unsubscribe", "ஆர்வம் இல்லை"})
+
+# Sent for an image/document/video/sticker with no caption -- there is nothing
+# to read (unlike audio, which is transcribed) and total silence was the prior
+# behaviour. Deduped per lead so a burst of uncaptioned photos gets one reply.
+_MEDIA_ACK_TEXT = (
+    "We can't read files or photos on this chat — please type your reply as a message.\n"
+    "இந்த சாட்டில் படங்கள்/கோப்புகளை படிக்க முடியாது — தயவுசெய்து உங்கள் பதிலை தட்டச்சு செய்யவும்."
+)
+_MEDIA_ACK_DEDUPE_HOURS = 6
 
 
 def _is_opt_out(body: str) -> bool:
@@ -59,6 +73,21 @@ async def _handle_opt_out(phone: str, tenant_id: str, db) -> bool:
         lead_id = lead.data["id"]
         await _record_per_broadcast_opt_out(lead_id, phone, tenant_id, db)
         logger.info(f"Lead {lead_id} hard-opted out from {phone}")
+        try:
+            # A text opt-out is a marketing opt-out, not a refund -- exclude 'paid'
+            # (and 'resolved', already outside intake.py's _ACTIVE_STATUSES) so
+            # someone who already paid still receives the consultation they bought.
+            db.table("intake_sessions").update({"status": "cancelled"}).eq(
+                "lead_id", lead_id
+            ).eq("tenant_id", tenant_id).in_(
+                "status",
+                [
+                    "offer_pending", "awaiting_package_choice", "awaiting_addon_choice",
+                    "collecting", "awaiting_confirmation", "awaiting_payment",
+                ],
+            ).execute()
+        except Exception as e:
+            logger.warning(f"Cancelling in-progress intake session on opt-out failed for lead {lead_id}: {e}")
         try:
             from app.services.meta_cloud import send_text_message
             await send_text_message(
@@ -251,6 +280,7 @@ async def _process_inbound_message_background(
     meta_phone_number_id: str = "",
     meta_message_id: str = "",
     meta_media_id: str = "",
+    interactive_id: str = "",
 ) -> None:
     from app.db.supabase import get_supabase
     db = get_supabase()
@@ -297,7 +327,7 @@ async def _process_inbound_message_background(
 
         # Update conversation state counters
         from app.services.conversation_state import get_or_create_state
-        from datetime import datetime, timezone
+        from datetime import datetime, timedelta, timezone
         conv_state = get_or_create_state(lead_id, tenant_id, db)
         new_count = (conv_state.get("message_count") or 0) + 1
 
@@ -314,8 +344,12 @@ async def _process_inbound_message_background(
             except Exception as compact_err:
                 logger.error(f"Compaction failed for lead {lead_id}: {compact_err}")
 
-        # Route text-like inbound content, including transcribed audio, into the reply engine.
-        if msg_type in ("text", "button", "interactive", "audio") and body:
+        # Route text-like inbound content, including transcribed audio, a
+        # captioned image/document/video (caption as body), and a location pin
+        # (synthesized to text in the webhook loop above) into the reply engine.
+        # Uncaptioned media and every sticker fall through to the ack branch below
+        # instead -- `body` is empty for those, so this condition already excludes them.
+        if msg_type in ("text", "button", "interactive", "audio", "image", "document", "video", "location") and body:
             if meta_message_id and meta_phone_number_id:
                 try:
                     from app.services.meta_cloud import send_typing_indicator
@@ -336,7 +370,7 @@ async def _process_inbound_message_background(
                 logger.error(f"Tamil lock check failed for lead {lead_id}: {e}")
             try:
                 from app.services.intake import route_intake
-                consumed = await route_intake(lead_id=lead_id, tenant_id=tenant_id, phone=phone, body=body, db=db)
+                consumed = await route_intake(lead_id=lead_id, tenant_id=tenant_id, phone=phone, body=body, db=db, interactive_id=interactive_id or None)
                 if consumed:
                     return
             except Exception as e:
@@ -356,6 +390,33 @@ async def _process_inbound_message_background(
                 )
             except Exception as e:
                 logger.error(f"Reply routing failed for lead {lead_id}: {e}")
+        elif msg_type in ("image", "document", "video", "sticker"):
+            # No caption to route as text and no transcript to produce (unlike
+            # audio) -- we genuinely cannot read this. One canned line beats the
+            # total silence this used to be. Deduped to once per lead per window
+            # so a lead sending ten photos in a row gets one reply, not ten.
+            try:
+                cutoff = (datetime.now(timezone.utc) - timedelta(hours=_MEDIA_ACK_DEDUPE_HOURS)).isoformat()
+                recent = (
+                    db.table("messages")
+                    .select("id")
+                    .eq("lead_id", lead_id)
+                    .eq("direction", "outbound")
+                    .eq("content", _MEDIA_ACK_TEXT)
+                    .gte("created_at", cutoff)
+                    .limit(1)
+                    .execute()
+                )
+                if not (recent and recent.data):
+                    from app.services.ai_reply import send_whatsapp
+                    mid = await send_whatsapp(phone, _MEDIA_ACK_TEXT, tenant_id=tenant_id, phone_number_id=meta_phone_number_id or None)
+                    db.table("messages").insert({
+                        "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound",
+                        "channel": "whatsapp", "content": _MEDIA_ACK_TEXT, "is_ai_generated": False,
+                        "meta_message_id": mid, "reply_source": "automation",
+                    }).execute()
+            except Exception as e:
+                logger.error(f"Media ack failed for lead {lead_id}: {e}")
     except Exception as err:
         logger.error(f"Background inbound message processing failed for lead {lead_id}: {err}")
 
@@ -534,25 +595,60 @@ async def whatsapp_webhook(
                 for msg in value.get("messages", []):
                     msg_type = msg.get("type")
                     msg_id = msg.get("id", "")
-                    if msg_type not in ("text", "button", "interactive", "audio"):
+                    # image/document/video/sticker: persisted and, if captioned,
+                    # routed through the normal text pipeline using the caption;
+                    # uncaptioned (every sticker included) gets one canned ack
+                    # instead of silence (see the media-ack block below).
+                    # location: converted to text on the spot, same shape as a
+                    # transcribed voice note, so it flows through unchanged --
+                    # including mid-intake, where it can answer a field like
+                    # "which area" with no field-name special-casing needed.
+                    if msg_type not in (
+                        "text", "button", "interactive", "audio",
+                        "image", "document", "video", "sticker", "location",
+                    ):
                         continue
                     wa_id = msg.get("from", "")
                     phone = f"+{wa_id}" if wa_id and not wa_id.startswith("+") else wa_id
                     media_id = ""
+                    media_mime_type = ""
+                    interactive_id = ""
+                    is_media_type = msg_type in ("audio", "image", "document", "video", "sticker")
                     if msg_type == "text":
                         body = msg.get("text", {}).get("body", "").strip()
                     elif msg_type == "button":
                         body = msg.get("button", {}).get("text", "").strip()
                     elif msg_type == "interactive":
                         inter = msg.get("interactive", {})
-                        body = (inter.get("button_reply") or inter.get("list_reply") or {}).get("title", "").strip()
+                        reply = inter.get("button_reply") or inter.get("list_reply") or {}
+                        body = (reply.get("title") or "").strip()
+                        # The id intake.py's menu-builders set to the package/addon's own
+                        # key -- the one value that still matches after a button_label
+                        # shortened the title, or a list row got truncated to WhatsApp's
+                        # 24-char cap. See match_package's docstring in intake.py.
+                        interactive_id = (reply.get("id") or "").strip()
                     elif msg_type == "audio":
                         media_id = (msg.get("audio") or {}).get("id", "").strip()
                         body = ""
+                    elif msg_type in ("image", "video", "document"):
+                        media_obj = msg.get(msg_type) or {}
+                        media_id = (media_obj.get("id") or "").strip()
+                        media_mime_type = media_obj.get("mime_type", "")
+                        body = (media_obj.get("caption") or "").strip()
+                    elif msg_type == "sticker":
+                        media_obj = msg.get("sticker") or {}
+                        media_id = (media_obj.get("id") or "").strip()
+                        media_mime_type = media_obj.get("mime_type", "")
+                        body = ""  # WhatsApp stickers never carry a caption
+                    elif msg_type == "location":
+                        loc = msg.get("location") or {}
+                        lat, lng = loc.get("latitude"), loc.get("longitude")
+                        label = ", ".join(p for p in (loc.get("name"), loc.get("address")) if p)
+                        body = f"Location: {label}" if label else (f"Location: {lat}, {lng}" if lat and lng else "")
                     else:
                         body = ""
 
-                    if not phone or (msg_type == "audio" and not media_id) or (msg_type != "audio" and not body):
+                    if not phone or (is_media_type and not media_id) or (not is_media_type and not body):
                         continue
 
                     logger.info(f"Inbound Meta WhatsApp from {phone}: type={msg_type} body={body!r}")
@@ -757,37 +853,49 @@ async def whatsapp_webhook(
                     is_first_message = not bool(_is_first.data)
 
                     if body and _is_opt_out(body):
-                        latest_br = (
-                            db.table("broadcast_recipients")
-                            .select("broadcast_id, created_at")
-                            .eq("tenant_id", tenant_id)
-                            .eq("lead_id", lead_id)
-                            .eq("send_status", "sent")
-                            .order("created_at", desc=True)
-                            .limit(1)
-                            .execute()
-                        )
-                        latest = (latest_br.data or [None])[0] if latest_br.data else None
-                        broadcast_sent_at = latest.get("created_at") if latest else None
-                        is_first_in_broadcast = not _has_prior_inbound_in_broadcast(
-                            lead_id, broadcast_sent_at, tenant_id, db, msg_id
-                        )
-                        if is_first_in_broadcast:
-                            await _handle_opt_out(phone, tenant_id, db)
-                            continue
+                        # Checked on every inbound turn now, not gated to the first
+                        # reply after a broadcast -- see _STOP_WORDS docstring. The
+                        # "stop" itself is still worth a compliance record even though
+                        # it never reaches route_intake/generate_reply below.
+                        try:
+                            db.table("messages").insert({
+                                "lead_id": lead_id, "direction": "inbound", "channel": "whatsapp",
+                                "content": body, "is_ai_generated": False, "meta_message_id": msg_id,
+                                "tenant_id": tenant_id,
+                            }).execute()
+                        except Exception as e:
+                            logger.warning(f"Failed to log opt-out message for lead {lead_id}: {e}")
+                        # Same as every other inbound insert site: the thread moved
+                        # on, so a pending "you've gone quiet" nudge no longer applies.
+                        try:
+                            from app.services.silence_nudge import cancel_pending
+                            if lead_id:
+                                cancel_pending(db, lead_id)
+                        except Exception:
+                            logger.exception("Silence nudge cancel failed for lead %s", lead_id)
+                        await _handle_opt_out(phone, tenant_id, db)
+                        continue
 
                     if msg_type != "audio":
+                        # A caption becomes the content (text-pipeline-eligible); an
+                        # uncaptioned image/document/video/sticker still needs a
+                        # readable row in the inbox rather than an empty string.
+                        display_content = body or (f"[{msg_type}]" if msg_type in ("image", "video", "document", "sticker") else body)
                         insert_row: dict = {
                             "lead_id": lead_id,
                             "direction": "inbound",
                             "channel": "whatsapp",
-                            "content": body,
+                            "content": display_content,
                             "is_ai_generated": False,
                             "meta_message_id": msg_id,
                             "tenant_id": tenant_id,
                             "via_ad_referral": ad_attributed,
                             "attributed_ad_creative_id": attributed_creative_id_for_message,
                         }
+                        if media_id:
+                            insert_row["media_url"] = f"meta:{media_id}"
+                            insert_row["media_type"] = msg_type
+                            insert_row["media_mime_type"] = media_mime_type
                         db.table("messages").insert(insert_row).execute()
 
                         # The thread has moved on — drop any pending silence
@@ -826,6 +934,7 @@ async def whatsapp_webhook(
                         meta_phone_number_id=meta_phone_number_id,
                         meta_message_id=msg_id,
                         meta_media_id=media_id,
+                        interactive_id=interactive_id,
                     )
 
                 # Handle message status updates (delivered, read, failed)

@@ -98,7 +98,37 @@ async def detect_intake_intent(message: str, trigger_description: str, tenant_id
         return bool(data.get("matches") is True)
     except Exception as e:
         logger.warning(f"Intake detection failed, defaulting to no-match: {e}")
+        _notify_owner_of_trigger_failure(tenant_id, str(e))
         return False
+
+
+def _notify_owner_of_trigger_failure(tenant_id: str, error: str) -> None:
+    """A dead Gemini key/quota/timeout here means every new lead silently never
+    gets offered the paid flow -- nothing else surfaces this to a human. Best
+    effort, owner-only (this is a config problem, not a telecaller task), and
+    deduped on the unread row so a broken key produces one bell notification,
+    not one per inbound message. Mirrors ai_reply.py's WhatsApp-send-failure
+    owner alert (ai_reply.py:_send_meta_message's except block)."""
+    try:
+        from app.db.supabase import get_supabase
+        from app.services.notify import notify_user
+        db = get_supabase()
+        owner = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").limit(1).execute()
+        owner_uid = (owner.data[0] if owner.data else {}).get("user_id")
+        if owner_uid:
+            notify_user(
+                tenant_id,
+                owner_uid,
+                "intake_trigger_failed",
+                "Paid intake trigger check is failing",
+                "Aira could not classify whether a lead's message should trigger the paid "
+                f"consultation offer, so no offer was made ({error}). Check the Gemini API "
+                "key and quota in Settings.",
+                db=db,
+                dedupe_lead_id="intake_trigger_failed",
+            )
+    except Exception as notify_err:
+        logger.warning(f"Failed to notify owner of intake trigger failure: {notify_err}")
 
 
 # Tenants name their own intake fields, so the key holding a person's name is
@@ -272,8 +302,27 @@ async def extract_fields(message: str, fields: list[dict], collected_data: dict,
         logger.warning(f"Intake extraction failed, keeping existing collected_data: {e}")
         return dict(collected_data)
 
-    valid_keys = {f["key"] for f in fields}
-    new_values = {k: v for k, v in data.items() if k in valid_keys and v}
+    fields_by_key = {f["key"]: f for f in fields}
+    new_values = {}
+    for k, v in data.items():
+        field = fields_by_key.get(k)
+        if field is None or not v:
+            continue
+        # A "choice" field's options are a closed set the tenant configured in
+        # Settings -- accepting anything the LLM hands back defeats the point of
+        # configuring options at all. Case-insensitive match against the configured
+        # spelling, then normalize to it so the summary/receipt always shows the
+        # tenant's own wording rather than whatever casing the customer typed.
+        # Unmatched free text is dropped, same fail-closed shape as match_package:
+        # the field stays unanswered and gets re-asked rather than silently accepting
+        # an option that doesn't exist.
+        options = field.get("options") if field.get("type") == "choice" else None
+        if options:
+            match = next((opt for opt in options if str(v).strip().lower() == opt.strip().lower()), None)
+            if match is None:
+                continue
+            v = match
+        new_values[k] = v
     return {**collected_data, **new_values}
 
 
@@ -398,12 +447,28 @@ Rules:
 - JSON only, no other text."""
 
 
-async def match_package(message: str, packages: list[dict], tenant_id: str) -> dict | None:
+async def match_package(
+    message: str, packages: list[dict], tenant_id: str, interactive_id: str | None = None,
+) -> dict | None:
     """Match a lead's free-text reply to one configured package. Exact name or key
     matches short-circuit the LLM. Fails closed: any error or unknown key returns
-    None so the caller re-asks rather than charging the wrong amount."""
+    None so the caller re-asks rather than charging the wrong amount.
+
+    interactive_id is the WhatsApp button/list row id the lead actually tapped
+    (button_reply.id / list_reply.id) -- _build_buttons/_build_list_sections set it
+    to the package's own key (intake.py's builders), so it is the one value that
+    survives a button_label shorter than the name, or a list row title truncated to
+    WhatsApp's 24-char cap, both of which break a text-only match against name/key.
+    Checked first because it's exact and free; only an id that doesn't match any
+    CURRENT option (a stale tap from an earlier/different menu) falls through to the
+    text match below rather than being trusted blindly."""
     if not packages:
         return None
+
+    if interactive_id:
+        for p in packages:
+            if interactive_id == p["key"]:
+                return dict(p)
 
     cleaned = message.strip().lower()
     for p in packages:
@@ -511,12 +576,26 @@ Rules:
 - JSON only, no other text."""
 
 
-async def match_addons(message: str, addons: list[dict], tenant_id: str) -> list[dict]:
+async def match_addons(
+    message: str, addons: list[dict], tenant_id: str, interactive_id: str | None = None,
+) -> list[dict]:
     """Match a lead's free-text reply to zero or more configured addons.
     Multi-select, unlike match_package -- an empty result is a valid, common
-    outcome (the lead declined all addons), not a failure to re-ask about."""
+    outcome (the lead declined all addons), not a failure to re-ask about.
+
+    interactive_id: see match_package's docstring -- same id-first, same reasoning.
+    A tap is always a single row, so a matching id resolves to exactly one addon (or
+    zero, for the synthetic "no thanks" decline option). A non-matching id (stale
+    tap) falls through to text matching rather than being trusted blindly."""
     if not addons:
         return []
+
+    if interactive_id:
+        if interactive_id == _NO_ADDONS_OPTION["key"]:
+            return []
+        for a in addons:
+            if interactive_id == a["key"]:
+                return [a]
 
     if message.strip().lower() in _ADDON_DECLINE_WORDS:
         return []
@@ -682,6 +761,25 @@ def _is_affirmative(message: str) -> bool:
     return bool(tokens & _AFFIRMATIVE_RE_WORDS)
 
 
+# A plain "no"/"no thanks"/"nah" is a clear refusal of the offer, but none of
+# these are withdrawal words in the mid-flow sense _CANCEL_WORDS covers (that
+# set is "vendaam"/"stop"/"later" -- words for backing out of something already
+# started, not this-specific-yes/no-question negatives). Kept separate and
+# equally small/exact-match for the same reason _AFFIRMATIVE_RE_WORDS is: a
+# false positive here silently loses a sale, so only unambiguous "no" tokens
+# belong in it.
+_NEGATIVE_RE_WORDS = frozenset({
+    "no", "nah", "nope", "never",
+    "illa", "venda", "இல்லை", "नहीं", "nahi",
+})
+
+
+def _is_explicit_negative(message: str) -> bool:
+    import re
+    tokens = set(re.findall(r"[\w஀-௿ऀ-ॿ]+", message.strip().lower()))
+    return bool(tokens & _NEGATIVE_RE_WORDS)
+
+
 def _summary_block(fields: list[dict], collected_data: dict, skipped=()) -> str:
     """The collected values, rendered in Python. Never LLM-written -- these are the
     details the expert works from, and a rewritten value is a wrong reading. A field
@@ -696,9 +794,15 @@ def _summary_block(fields: list[dict], collected_data: dict, skipped=()) -> str:
     return "\n".join(lines)
 
 
-async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=None) -> bool:
+async def route_intake(
+    lead_id: str, tenant_id: str, phone: str, body: str, db=None, interactive_id: str | None = None,
+) -> bool:
     """Webhook-level routing for the intake session. Returns True if the
-    inbound message was consumed (caller must skip generate_reply for this turn)."""
+    inbound message was consumed (caller must skip generate_reply for this turn).
+
+    interactive_id is the button/list row id from a WhatsApp button tap
+    (button_reply.id / list_reply.id), when the inbound message was a tap rather
+    than typed text. See match_package's docstring for why this matters."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
@@ -764,12 +868,26 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 purpose, tenant_id=tenant_id, language_mode=language_mode,
                 customer_message=body, block=block, thread=thread,
             )
-            if mode == "buttons":
-                await _send_buttons_and_log(phone, text, _build_buttons(tap_level), tenant_id, lead_id, db)
-            elif mode == "list":
-                await _send_list_and_log(phone, text, "Choose", _build_list_sections(tap_level), tenant_id, lead_id, db)
-            else:
-                await _send_and_log(phone, text, tenant_id, lead_id, db)
+            try:
+                if mode == "buttons":
+                    await _send_buttons_and_log(phone, text, _build_buttons(tap_level), tenant_id, lead_id, db)
+                elif mode == "list":
+                    await _send_list_and_log(phone, text, "Choose", _build_list_sections(tap_level), tenant_id, lead_id, db)
+                else:
+                    await _send_and_log(phone, text, tenant_id, lead_id, db)
+            except Exception:
+                # Never lose the turn over a WhatsApp API failure on the tappable
+                # send -- same reasoning as ai_reply.py's quick-reply-block fallback
+                # (ai_reply.py:1952-1961). Without this, the caller's _update_session
+                # write that already committed the new status/path leaves the session
+                # one step ahead of what the customer actually received, and the
+                # customer gets nothing at all for this turn. Fall back to the same
+                # options as plain text, which _send_and_log's own contract guarantees
+                # won't raise a second time into route_intake.
+                logger.exception(
+                    "Intake menu send (%s) failed for lead %s -- falling back to plain text", mode, lead_id,
+                )
+                await _send_and_log(phone, f"{text}\n\n{block}", tenant_id, lead_id, db)
 
         async def _finalize_leaf(leaf: dict, path: list[dict]) -> None:
             active_addons = _active_children(leaf.get("addons") or [])
@@ -789,6 +907,38 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 _update_session(session["id"], patch | {"status": "awaiting_confirmation"}, db)
                 await _say_summary(collected)
 
+        # An explicit "let me talk to a human" mid-intake used to be unreachable:
+        # a consumed turn returns before generate_reply() ever runs, and that's
+        # the only place escalation-trigger detection lived. classify_non_answer
+        # still gets first say so an explicit withdrawal ("stop", "cancel") is
+        # never misread as a handoff request. The intake session itself is left
+        # completely untouched -- status, collected_data, ask_attempts all
+        # unchanged -- so the next inbound resumes exactly where it stopped;
+        # this is "paused" without a new status value or a migration. Excludes
+        # 'paid': that status already returns False further down and reaches
+        # generate_reply(), whose own Trigger C (ai_reply.py:1549) covers it.
+        if session is not None and session["status"] != "paid" and classify_non_answer(body) != "cancel":
+            from app.services.ai_reply import _HUMAN_REQUEST_RE
+            if _HUMAN_REQUEST_RE.search(body):
+                existing_handover = (
+                    db.table("chat_handovers")
+                    .select("id")
+                    .eq("lead_id", lead_id)
+                    .eq("status", "pending")
+                    .limit(1)
+                    .execute()
+                )
+                if not (existing_handover and existing_handover.data):
+                    from app.services.ai_reply import _trigger_chat_escalation
+                    lead_row = db.table("leads").select("assigned_to").eq("id", lead_id).maybe_single().execute()
+                    assigned_to = (lead_row.data or {}).get("assigned_to") if lead_row else None
+                    _trigger_chat_escalation(lead_id, "User requested a human agent", tenant_id, assigned_to, db)
+                    await _say("human_handoff")
+                    return True
+                # A pending handover already exists -- don't send a second
+                # reassurance, let the normal status dispatch below continue so
+                # an already-escalated lead can still finish paying.
+
         if session is None:
             matched = await detect_intake_intent(body, config["trigger_description"], tenant_id)
             if not matched:
@@ -802,8 +952,18 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
 
         if status == "offer_pending":
             if not _is_affirmative(body):
-                _update_session(session["id"], {"status": "cancelled"}, db)
-                return False
+                # An explicit withdrawal ("stop", "vendaam", "cancel") ends the offer.
+                # Anything else -- "interested", "how much", a stray question -- is not
+                # a refusal, so re-ask instead of killing the session on one ambiguous
+                # reply. Every later stage of the flow re-asks on a miss; this is the
+                # only one that used to cancel outright. Live evidence 2026-09-09: a
+                # lead replying "interested, tell me more" to the offer had their
+                # session silently cancelled and got a generic AI reply instead.
+                if classify_non_answer(body) == "cancel" or _is_explicit_negative(body):
+                    _update_session(session["id"], {"status": "cancelled"}, db)
+                    return False
+                await _say("offer_reask")
+                return True
             packages = normalize_packages(config)
             outcome, result, path = _resolve_choice(packages, [])
             if outcome == "empty":
@@ -826,7 +986,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 _update_session(session["id"], {"status": "cancelled"}, db)
                 logger.info(f"Intake session {session['id']} cancelled by lead during package choice")
                 return False
-            chosen = await match_package(body, active_here, tenant_id)
+            chosen = await match_package(body, active_here, tenant_id, interactive_id=interactive_id)
             if chosen is None:
                 intro = await compose_line(
                     "package_reask",
@@ -866,7 +1026,7 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 logger.info(f"Intake session {session['id']} cancelled by lead during addon choice")
                 return False
 
-            chosen_addons = [] if is_decline else await match_addons(body, active_addons, tenant_id)
+            chosen_addons = [] if is_decline else await match_addons(body, active_addons, tenant_id, interactive_id=interactive_id)
             if not is_decline and not chosen_addons:
                 # An empty match_addons result is ambiguous -- explicit decline or
                 # simply no match -- so is_decline above is what actually decides
@@ -1022,6 +1182,17 @@ async def route_intake(lead_id: str, tenant_id: str, phone: str, body: str, db=N
                 logger.error(f"Intake payment link creation failed for session {session['id']}: {e}")
                 await _say("payment_delay")
             return True
+
+        if status == "paid":
+            # Already paid, not yet resolved by staff -- do NOT start a second paid
+            # session for the same unresolved one (risk of a double charge). The lead
+            # gets reassured on this same turn anyway: ai_reply.py's
+            # _intake_paid_prompt_block fires from generate_reply() right after this
+            # returns False. This branch used to be an implicit fallthrough with no
+            # log line, making it indistinguishable from a bug when it fired -- it's
+            # intentional, so make it explicit and visible.
+            logger.info(f"Intake session {session['id']} already paid and unresolved -- suppressing new offer for lead {lead_id}")
+            return False
 
         # awaiting_payment: nothing to do here, wait for the Razorpay webhook.
         return False
@@ -1242,6 +1413,87 @@ def confirm_intake_payment(
     }
 
 
+def expire_intake_session(session_id: str, db=None) -> bool:
+    """A Razorpay payment link expired (payment_razorpay._LINK_EXPIRE_SECONDS,
+    24h -- matches WhatsApp's own free-form messaging window, Hard Invariant 3).
+    Cancel the session so the lead's next inbound is free to trigger a fresh
+    offer instead of being stuck behind a dead link. Filtered to
+    'awaiting_payment' so this can never touch a session that raced to 'paid'
+    just before the expiry webhook arrived, and is naturally idempotent on a
+    retried webhook. No message to the lead -- expiry lands at or past the 24h
+    window, so nothing could be sent without burning an approved template, and
+    that isn't worth it for an abandoned session."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    result = (
+        db.table("intake_sessions")
+        .update({"status": "cancelled", "payment_link": None})
+        .eq("id", session_id)
+        .eq("status", "awaiting_payment")
+        .execute()
+    )
+    return bool(result and result.data)
+
+
+_PAYMENT_FAILED_RENUDGE_MINUTES = 10
+
+
+async def notify_payment_failed(session_id: str, db=None) -> bool:
+    """A card was declined etc -- Razorpay allows a retry on the same link, so
+    session status is deliberately left untouched (unlike expire_intake_session).
+    Re-paste the existing link so the lead isn't left guessing what happened.
+    Guarded against decline-retry spam: skips if an expert_handoff outbound
+    already went to this lead in the last _PAYMENT_FAILED_RENUDGE_MINUTES."""
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+    session = (
+        db.table("intake_sessions")
+        .select("id,status,lead_id,tenant_id,payment_link")
+        .eq("id", session_id)
+        .maybe_single()
+        .execute()
+    )
+    if not session or not session.data:
+        return False
+    row = session.data
+    if row.get("status") != "awaiting_payment" or not row.get("payment_link"):
+        return False
+    lead_id = row["lead_id"]
+    tenant_id = row["tenant_id"]
+
+    from datetime import datetime, timedelta, timezone
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=_PAYMENT_FAILED_RENUDGE_MINUTES)).isoformat()
+    recent = (
+        db.table("messages")
+        .select("id")
+        .eq("lead_id", lead_id)
+        .eq("direction", "outbound")
+        .eq("reply_source", "expert_handoff")
+        .gte("created_at", cutoff)
+        .limit(1)
+        .execute()
+    )
+    if recent and recent.data:
+        return False
+
+    lead_row = db.table("leads").select("phone").eq("id", lead_id).maybe_single().execute()
+    phone = (lead_row.data or {}).get("phone") if lead_row else None
+    if not phone:
+        return False
+
+    language_mode = resolve_language_mode(lead_id, tenant_id, db)
+    text = await compose_line(
+        "payment_failed",
+        tenant_id=tenant_id,
+        language_mode=language_mode,
+        customer_message="",
+    )
+    await _send_and_log(phone, f"{text}\n{row['payment_link']}", tenant_id, lead_id, db)
+    return True
+
+
 def get_paid_unresolved_session(lead_id: str, tenant_id: str, db=None) -> dict | None:
     """The lead's most recent paid-but-not-yet-resolved session, if any. Used by
     ai_reply.py to keep the AI reassuring the lead instead of going silent, and
@@ -1265,7 +1517,7 @@ def get_paid_unresolved_session(lead_id: str, tenant_id: str, db=None) -> dict |
 
 
 _IN_PROGRESS_STATUSES = frozenset({
-    "awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
+    "awaiting_package_choice", "awaiting_addon_choice", "collecting", "awaiting_confirmation", "awaiting_payment",
 })
 
 
@@ -1326,8 +1578,10 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
     a fresh offer and the AI stops treating a dead flow as still in progress.
 
     - awaiting_payment older than 48h (by created_at) -> cancelled. Razorpay
-      links created here carry no expire_by (see payment_razorpay.create_payment_link),
-      so nothing but this sweep ever ends one. Safe to cancel: confirm_intake_payment()
+      links now carry a 24h expire_by (payment_razorpay._LINK_EXPIRE_SECONDS) and
+      the payment_link.expired webhook (routes/intake.py) normally cancels the
+      session well before this sweep runs -- this stays as the backstop for a
+      missed/unsubscribed expiry webhook, not the primary mechanism. Safe to cancel: confirm_intake_payment()
       updates with `.neq(status, "paid")`, not `.eq("awaiting_payment")`, so a lead
       who pays a cancelled link days later still gets confirmed and surfaced to
       staff -- this only stops the AI's "reply so payment can continue" nagging
