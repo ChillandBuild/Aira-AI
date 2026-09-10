@@ -458,7 +458,7 @@ async def ad_performance_export(
         date_from=date_from, date_to=date_to,
     )
     fieldnames = [
-        "campaign_name", "campaign_status", "adset_name", "creative_label",
+        "campaign_name", "delivery_status", "adset_name", "creative_label",
         "daily_budget", "lifetime_budget", "budget_level",
         "impressions", "reach", "frequency", "inline_link_clicks", "clicks_all",
         "messages", "meta_conversations", "conversation_rate",

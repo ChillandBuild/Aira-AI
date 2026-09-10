@@ -86,7 +86,17 @@ def get_or_create_campaign(
             .limit(1)
             .execute()
         )
-        existing = (result.data or [None])[0]
+        candidate = (result.data or [None])[0]
+        # Names are not identity. Two different Meta campaigns can share one, and
+        # adopting a row that already belongs to a *different* external id used to
+        # silently merge them -- which is how a deleted ad ended up inheriting a
+        # live campaign's ACTIVE status on the Meta Ads dashboard. Only adopt a
+        # name match that is unclaimed, or already claimed by this same id.
+        # (CSV upload still relies on this path: it supplies a name and no id.)
+        if candidate is not None:
+            candidate_external_id = (candidate.get("external_campaign_id") or "").strip() or None
+            if candidate_external_id in (None, normalized_external_id):
+                existing = candidate
 
     updates: dict[str, Any] = {}
     if normalized_name:

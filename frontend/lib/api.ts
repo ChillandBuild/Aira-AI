@@ -2117,7 +2117,9 @@ export interface AdPerformanceRow {
   adset_name: string | null;
   campaign_id: string | null;
   campaign_name: string;
-  campaign_status: string | null;
+  /** The ad's own Meta effective_status (ACTIVE / PAUSED / DELETED / ...), falling
+   * back to the campaign's or ad set's for rows synced before it was tracked. */
+  delivery_status: string | null;
   daily_budget: number | null;
   lifetime_budget: number | null;
   budget_level: "campaign" | "ad_set" | null;

@@ -25,6 +25,21 @@ _ADSET_FIELDS = (
     "id,name,campaign_id,optimization_goal,effective_status,destination_type,"
     "daily_budget,lifetime_budget"
 )
+_AD_FIELDS = "id,name,adset_id,campaign_id,effective_status"
+
+# Meta's ads/adsets edges hide DELETED and ARCHIVED objects unless the request
+# asks for them by name. Without this, an ad deleted in Ads Manager simply stops
+# appearing and its last-known status ("ACTIVE") sticks in our table forever.
+_ALL_AD_STATUSES = [
+    "ACTIVE", "PAUSED", "DELETED", "ARCHIVED", "PENDING_REVIEW", "DISAPPROVED",
+    "PREAPPROVED", "PENDING_BILLING_INFO", "CAMPAIGN_PAUSED", "ADSET_PAUSED",
+    "IN_PROCESS", "WITH_ISSUES",
+]
+_ALL_ADSET_STATUSES = [
+    "ACTIVE", "PAUSED", "DELETED", "ARCHIVED", "PENDING_REVIEW", "DISAPPROVED",
+    "PREAPPROVED", "PENDING_BILLING_INFO", "CAMPAIGN_PAUSED", "IN_PROCESS",
+    "WITH_ISSUES",
+]
 
 # Meta action_type sets mapped to a human "Results" label, checked in order.
 _RESULT_RULES: list[tuple[str, str, set[str]]] = [
@@ -358,9 +373,8 @@ def fetch_unique_reach_by_ad(
     }
 
 
-def _fetch_adsets(token: str, account: str) -> list[dict]:
-    url = f"{_GRAPH_BASE}/{account}/adsets"
-    params = {"fields": _ADSET_FIELDS, "limit": "200", "access_token": token}
+def _fetch_paged(url: str, params: dict) -> list[dict]:
+    """GET an edge and follow paging.next. Hard cap of 20 pages, as elsewhere."""
     out: list[dict] = []
     with httpx.Client(timeout=30) as client:
         next_url, next_params = url, params
@@ -372,8 +386,59 @@ def _fetch_adsets(token: str, account: str) -> list[dict]:
             nxt = (body.get("paging") or {}).get("next")
             if not nxt:
                 break
-            next_url, next_params = nxt, None
+            next_url, next_params = nxt, None  # next already carries all params
     return out
+
+
+def _fetch_paged_all_statuses(
+    url: str, params: dict, *, status_field: str, statuses: list[str]
+) -> list[dict]:
+    """Same as _fetch_paged, but asks Meta to include DELETED/ARCHIVED objects.
+
+    The filtering syntax is version-sensitive, so a rejected filter falls back to
+    an unfiltered fetch rather than failing the whole sync -- the caller's
+    last_seen_at reconciliation still catches deletions in that case, it just
+    can't tell DELETED from ARCHIVED.
+    """
+    filtered = dict(params)
+    filtered["filtering"] = json.dumps(
+        [{"field": status_field, "operator": "IN", "value": statuses}]
+    )
+    try:
+        return _fetch_paged(url, filtered)
+    except httpx.HTTPStatusError as e:
+        if e.response is not None and e.response.status_code == 400:
+            logger.warning(
+                f"Meta rejected {status_field} filtering ({e.response.text[:200]}); "
+                "refetching without it"
+            )
+            return _fetch_paged(url, params)
+        raise
+
+
+def _fetch_adsets(token: str, account: str) -> list[dict]:
+    """Includes deleted/archived ad sets so a deleted ad's insight rows can still
+    be classified as Click-to-WhatsApp by _whatsapp_rows."""
+    return _fetch_paged_all_statuses(
+        f"{_GRAPH_BASE}/{account}/adsets",
+        {"fields": _ADSET_FIELDS, "limit": "200", "access_token": token},
+        status_field="adset.effective_status",
+        statuses=_ALL_ADSET_STATUSES,
+    )
+
+
+def _fetch_ads(token: str, account: str) -> list[dict]:
+    """Every ad in the account with its own effective_status, deleted ones included.
+
+    This is the only place ad-level status enters the system -- insights carry no
+    status, and the adset/campaign edges describe their own level, not the ad's.
+    """
+    return _fetch_paged_all_statuses(
+        f"{_GRAPH_BASE}/{account}/ads",
+        {"fields": _AD_FIELDS, "limit": "200", "access_token": token},
+        status_field="ad.effective_status",
+        statuses=_ALL_AD_STATUSES,
+    )
 
 
 def sync_campaign_meta(
@@ -410,6 +475,91 @@ def sync_campaign_meta(
         if res.data:
             updated += 1
     return updated
+
+
+def _chunks(items: list[str], size: int = 100):
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
+def sync_ad_delivery_status(
+    db,
+    tenant_id: str,
+    token: str,
+    account: str,
+    *,
+    ads: list[dict] | None = None,
+) -> dict:
+    """Write each ad's own effective_status onto ad_creatives, and mark the ads
+    Meta no longer returns as DELETED.
+
+    This is the fix for stale "Active" badges. The rest of the sync is
+    update-only -- it walks what Meta returns and updates matching rows -- so an
+    ad deleted in Ads Manager just stopped being touched and kept whatever status
+    it last had. Two passes close that:
+
+      1. Every ad the /ads edge returns (deleted ones included, see _fetch_ads)
+         gets its real status written and last_seen_at stamped.
+      2. Any ad_creatives row for this account that pass 1 did not touch is gone
+         from Ads Manager entirely -- mark it DELETED.
+
+    An empty `ads` list means a failed or permission-denied fetch far more often
+    than a genuinely empty ad account, so pass 2 is skipped in that case rather
+    than marking the tenant's whole table deleted. Returns a diagnostic dict.
+    """
+    if ads is None:
+        ads = _fetch_ads(token, account)
+    if not ads:
+        logger.warning(
+            f"Ads edge returned nothing for tenant {tenant_id} account {account}; "
+            "skipping delivery-status reconciliation"
+        )
+        return {"updated": 0, "marked_deleted": 0, "reconciled": False}
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    by_status: dict[str, list[str]] = {}
+    for ad in ads:
+        ad_id = (ad.get("id") or "").strip()
+        if not ad_id:
+            continue
+        by_status.setdefault(ad.get("effective_status") or "UNKNOWN", []).append(ad_id)
+
+    updated = 0
+    for status, ad_ids in by_status.items():
+        for chunk in _chunks(ad_ids):
+            res = (
+                db.table("ad_creatives")
+                .update({"ad_effective_status": status, "last_seen_at": now_iso})
+                .eq("tenant_id", tenant_id)
+                .eq("meta_ad_account_id", account)
+                .in_("meta_ad_id", chunk)
+                .execute()
+            )
+            updated += len(res.data or [])
+
+    seen_ad_ids = {ad_id for ids in by_status.values() for ad_id in ids}
+    existing = (
+        db.table("ad_creatives").select("id,meta_ad_id,ad_effective_status")
+        .eq("tenant_id", tenant_id)
+        .eq("meta_ad_account_id", account)
+        .execute().data
+    ) or []
+    gone = [
+        r["id"] for r in existing
+        if (r.get("meta_ad_id") or "").strip() not in seen_ad_ids
+        and r.get("ad_effective_status") != "DELETED"
+    ]
+    for chunk in _chunks(gone):
+        db.table("ad_creatives").update(
+            {"ad_effective_status": "DELETED", "last_seen_at": now_iso}
+        ).eq("tenant_id", tenant_id).in_("id", chunk).execute()
+
+    if gone:
+        logger.info(
+            f"Ads delivery sync: tenant {tenant_id} marked {len(gone)} creative(s) "
+            "DELETED (no longer returned by Meta)"
+        )
+    return {"updated": updated, "marked_deleted": len(gone), "reconciled": True}
 
 
 def _write_insight_row(
@@ -511,6 +661,11 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
         )
     except Exception as e:
         logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
+    # After the creative upserts, so ads imported in this run get a status too.
+    try:
+        sync_ad_delivery_status(db, tenant_id, token, account)
+    except Exception as e:
+        logger.warning(f"ad delivery status sync failed (tenant {tenant_id}): {e}")
     _record_sync_metadata(db, tenant_id, account, written)
     logger.info(f"Ads insights sync: tenant {tenant_id} wrote {written} daily rows")
     return written
@@ -583,10 +738,17 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
         )
     except Exception as e:
         logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
+    delivery = {"updated": 0, "marked_deleted": 0, "reconciled": False}
+    try:
+        delivery = sync_ad_delivery_status(db, tenant_id, token, account)
+    except Exception as e:
+        logger.warning(f"ad delivery status sync failed (tenant {tenant_id}): {e}")
     _record_sync_metadata(db, tenant_id, account, written)
 
     return {
         "ok": not row_errors,
+        "delivery_status_updated": delivery["updated"],
+        "marked_deleted": delivery["marked_deleted"],
         "error": "; ".join(row_errors[:3]) if row_errors else None,
         "rows_fetched": len(rows),
         "whatsapp_rows": len(whatsapp_rows),
