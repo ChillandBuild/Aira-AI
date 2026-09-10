@@ -1,5 +1,6 @@
 import asyncio
 import hmac
+import json
 import logging
 import math
 import re
@@ -383,23 +384,54 @@ def _verify_telecmi_webhook_secret(request: Request, tenant_id: str | None = Non
 
 
 def _extract_call_log_id(cdr: dict) -> str | None:
-    """Pull a usable call_log_id from a TeleCMI CDR `custom` field.
+    """Pull a usable call_log_id out of a TeleCMI CDR.
 
-    TeleCMI sends the literal string `"none"` (lowercase) when no custom value
-    was attached at dial time — treat that like a missing field. Also reject
-    our own marker `"aira_ai_call"` and anything that isn't a UUID, to avoid
-    sending invalid UUIDs to PostgREST (which returns 400 and crashes the
-    handler via maybe_single).
+    click2call metadata is echoed back under `extra_params` as a JSON *string*
+    (`'{"call_log_id":"<uuid>"}'`), not as the bare value, and `custom` is a
+    separate field entirely. Both are checked, in either string-JSON, dict or
+    bare-UUID form. Anything that isn't a UUID is rejected so PostgREST never
+    receives a malformed id (it 400s, which crashes maybe_single).
     """
-    raw = cdr.get("custom")
-    if not raw or not isinstance(raw, str):
+    for key in ("extra_params", "custom"):
+        raw = cdr.get(key)
+        if not raw:
+            continue
+        candidates: list[object] = []
+        if isinstance(raw, dict):
+            candidates.append(raw.get("call_log_id"))
+        elif isinstance(raw, str):
+            val = raw.strip()
+            if val.lower() in {"", "none", "null", "aira_ai_call"}:
+                continue
+            if val.startswith("{"):
+                try:
+                    parsed = json.loads(val)
+                except ValueError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    candidates.append(parsed.get("call_log_id"))
+            else:
+                candidates.append(val)
+        for candidate in candidates:
+            if isinstance(candidate, str) and _UUID_RE.match(candidate.strip()):
+                return candidate.strip()
+    return None
+
+
+def _match_call_log_by_request_id(cdr: dict) -> str | None:
+    """Fall back to the click2call request_id, stored on the log as call_sid."""
+    request_id = cdr.get("request_id")
+    if not request_id or not isinstance(request_id, str):
         return None
-    val = raw.strip()
-    if val.lower() in {"", "none", "null", "aira_ai_call"}:
-        return None
-    if not _UUID_RE.match(val):
-        return None
-    return val
+    row = (
+        get_supabase()
+        .table("call_logs")
+        .select("id")
+        .eq("call_sid", request_id.strip())
+        .maybe_single()
+        .execute()
+    )
+    return row.data["id"] if row and row.data else None
 
 
 @public_router.post("/telecmi-cdr/{path_tenant_id}")
@@ -424,10 +456,10 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
     logger.info(f"TeleCMI CDR received: {cdr}")
 
     status = cdr.get("status")
-    call_log_id = _extract_call_log_id(cdr)
+    call_log_id = _extract_call_log_id(cdr) or _match_call_log_by_request_id(cdr)
 
     # TeleCMI sends separate CDRs for user_missed / user_answered (agent leg).
-    # We only process outbound CDRs with a call_log_id embedded in custom.
+    # We only process outbound CDRs we can tie back to a call_log.
     if status == "user_missed":
         logger.info("TeleCMI CDR: agent missed the call, updating call log")
         if call_log_id:
