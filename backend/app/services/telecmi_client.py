@@ -69,6 +69,8 @@ async def initiate_click2call(
             raise RuntimeError("Invalid TeleCMI App Secret. Please verify App Secret in Settings → Telecalling.")
         elif code == 404:
             raise RuntimeError(f"Invalid TeleCMI User ID '{agent_id}'. Please check caller's User ID in Team / Roles.")
+        elif code == 420:
+            raise RuntimeError(f"TeleCMI error (420): {msg}. Follow-me calls to mobile numbers are disabled on this TeleCMI account. Please contact TeleCMI support to enable Follow-Me on your App.")
         elif code == 400:
             raise RuntimeError(f"TeleCMI validation error: {msg}")
         raise RuntimeError(f"TeleCMI error ({code}): {msg}")
@@ -76,10 +78,3 @@ async def initiate_click2call(
     request_id = data.get("request_id")
     logger.info(f"TeleCMI click2call success: request_id={request_id}")
     return data
-
-
-def _normalize_phone(phone: str) -> str:
-    cleaned = phone.replace(" ", "").replace("-", "").replace("+", "")
-    if len(cleaned) == 10:
-        cleaned = f"91{cleaned}"
-    return cleaned

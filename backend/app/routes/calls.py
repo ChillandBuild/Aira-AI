@@ -317,26 +317,26 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             "phone": lead_phone,
         }
 
+    # Resolve TeleCMI Agent ID: caller's own → owner's → global setting.
+    # CHUB Admin API connects the agent's user_id first (via followme mobile),
+    # then bridges the customer number.
+    effective_agent_id = caller_telecmi_agent_id
+    if not effective_agent_id:
+        owner_member = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
+        if owner_member.data:
+            owner_caller = db.table("callers").select("telecmi_agent_id").eq("user_id", owner_member.data["user_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
+            if owner_caller.data:
+                effective_agent_id = owner_caller.data.get("telecmi_agent_id")
+    if not effective_agent_id:
+        effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
+    if not effective_agent_id:
+        raise HTTPException(status_code=400, detail="No Cloud Telephony User ID found. Set User ID on the caller in the Team page.")
+
+    telecmi_callerid = get_setting("telecmi_callerid", tenant_id=tenant_id) or caller_phone
+    if not telecmi_callerid:
+        raise HTTPException(status_code=400, detail="No Caller ID configured. Set Caller ID in Settings → Telecalling.")
+
     try:
-        # Resolve TeleCMI Agent ID: caller's own → owner's → global setting.
-        # CHUB Admin API connects the agent's user_id first (via followme mobile),
-        # then bridges the customer number.
-        effective_agent_id = caller_telecmi_agent_id
-        if not effective_agent_id:
-            owner_member = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
-            if owner_member.data:
-                owner_caller = db.table("callers").select("telecmi_agent_id").eq("user_id", owner_member.data["user_id"]).eq("tenant_id", tenant_id).maybe_single().execute()
-                if owner_caller.data:
-                    effective_agent_id = owner_caller.data.get("telecmi_agent_id")
-        if not effective_agent_id:
-            effective_agent_id = get_setting("telecmi_user_id", tenant_id=tenant_id)
-        if not effective_agent_id:
-            raise HTTPException(status_code=400, detail="No Cloud Telephony User ID found. Set User ID on the caller in the Team page.")
-
-        telecmi_callerid = get_setting("telecmi_callerid", tenant_id=tenant_id) or caller_phone
-        if not telecmi_callerid:
-            raise HTTPException(status_code=400, detail="No Caller ID configured. Set Caller ID in Settings → Telecalling.")
-
         result = await initiate_click2call(
             agent_id=effective_agent_id,
             secret=telecmi_secret,
@@ -347,6 +347,8 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
             webrtc=False,
         )
         request_id = result.get("request_id", "")
+    except HTTPException:
+        raise
     except Exception as e:
         err_msg = str(e).replace(telecmi_secret, "***") if telecmi_secret else str(e)
         logger.error(f"TeleCMI call failed: {err_msg}")
