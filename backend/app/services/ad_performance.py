@@ -66,7 +66,7 @@ def build_creative_performance(
 
     q = db.table("ad_creatives").select(
         "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,"
-        "campaign_id,effective_status"
+        "campaign_id,effective_status,ad_effective_status"
     ).eq("tenant_id", tenant_id).eq(
         "meta_ad_account_id", account
     ).eq("is_click_to_whatsapp", True)
@@ -232,7 +232,14 @@ def build_creative_performance(
             "adset_name": c.get("meta_adset_name"),
             "campaign_id": c.get("campaign_id"),
             "campaign_name": campaign.get("campaign_name") or "—",
-            "campaign_status": campaign.get("effective_status") or c.get("effective_status"),
+            # The ad's own status first -- it is the only one that reflects an ad
+            # deleted or paused on its own. The campaign/ad-set statuses are
+            # fallbacks for rows synced before ad_effective_status existed.
+            "delivery_status": (
+                c.get("ad_effective_status")
+                or campaign.get("effective_status")
+                or c.get("effective_status")
+            ),
             "daily_budget": (
                 adset.get("daily_budget") if uses_adset_budget
                 else campaign.get("daily_budget")

@@ -95,10 +95,14 @@ class FakeTable:
             class R: data = [row]
             return R()
         if self._op == "update":
+            touched = []
             for r in rows:
                 if self._matches(r):
                     r.update(self._payload)
-            class R: data = []
+                    touched.append(r)
+            # PostgREST returns the updated rows (supabase-py sends
+            # Prefer: return=representation), so the fake does too.
+            class R: data = touched
             return R()
         if self._op == "upsert":
             key_cols = (self._on_conflict or "id").split(",")
@@ -281,3 +285,145 @@ def test_verbose_sync_skips_non_whatsapp_ads(monkeypatch):
     assert result["skipped_non_whatsapp"] == 1
     assert result["written"] == 0
     assert db.store.get("ad_creatives", []) == []
+
+
+# --- Ad-level delivery status (fix for stale "Active" on deleted ads) ---------
+#
+# The dashboard's Delivery column used to render the *campaign's* status. An ad
+# deleted in Ads Manager stopped coming back from Meta, the update-only sync
+# never touched its row again, and it kept showing Active indefinitely.
+
+
+def _creative(cid, ad_id, status="ACTIVE", tenant="t1", account="act_1"):
+    return {
+        "id": cid, "tenant_id": tenant, "meta_ad_id": ad_id,
+        "meta_ad_account_id": account, "ad_effective_status": status,
+    }
+
+
+def test_fetch_ads_asks_meta_for_deleted_and_archived():
+    """Meta's /ads edge hides DELETED/ARCHIVED unless the request names them."""
+    import app.services.meta_ads_insights_sync as mod
+    import json as _json
+
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self): pass
+        def json(self): return {"data": [{"id": "A1", "effective_status": "DELETED"}]}
+
+    class FakeClient:
+        def __init__(self, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def get(self, url, params):
+            captured["url"], captured["params"] = url, params
+            return FakeResponse()
+
+    import unittest.mock as _mock
+    with _mock.patch.object(mod.httpx, "Client", FakeClient):
+        ads = mod._fetch_ads("token", "act_1")
+
+    assert ads == [{"id": "A1", "effective_status": "DELETED"}]
+    assert captured["url"].endswith("/act_1/ads")
+    clause = _json.loads(captured["params"]["filtering"])[0]
+    assert clause["field"] == "ad.effective_status"
+    assert "DELETED" in clause["value"] and "ARCHIVED" in clause["value"]
+
+
+def test_fetch_all_statuses_falls_back_when_meta_rejects_the_filter():
+    """A rejected filter must not take the whole sync down with it."""
+    import app.services.meta_ads_insights_sync as mod
+    import httpx as _httpx
+
+    calls = []
+
+    def fake_paged(url, params):
+        calls.append(params)
+        if "filtering" in params:
+            request = _httpx.Request("GET", url)
+            response = _httpx.Response(400, text="unsupported filter", request=request)
+            raise _httpx.HTTPStatusError("400", request=request, response=response)
+        return [{"id": "A1"}]
+
+    import unittest.mock as _mock
+    with _mock.patch.object(mod, "_fetch_paged", fake_paged):
+        out = mod._fetch_paged_all_statuses(
+            "http://x/ads", {"fields": "id"},
+            status_field="ad.effective_status", statuses=["ACTIVE", "DELETED"],
+        )
+
+    assert out == [{"id": "A1"}]
+    assert len(calls) == 2 and "filtering" not in calls[1]
+
+
+def test_delivery_status_writes_each_ads_own_status():
+    import app.services.meta_ads_insights_sync as mod
+    db = FakeDB()
+    db.store["ad_creatives"] = [
+        _creative("cr-1", "A1"), _creative("cr-2", "A2"), _creative("cr-3", "A3"),
+    ]
+
+    result = mod.sync_ad_delivery_status(
+        db, "t1", "token", "act_1",
+        ads=[
+            {"id": "A1", "effective_status": "ACTIVE"},
+            {"id": "A2", "effective_status": "PAUSED"},
+            {"id": "A3", "effective_status": "DELETED"},
+        ],
+    )
+
+    by_id = {r["id"]: r for r in db.store["ad_creatives"]}
+    assert by_id["cr-1"]["ad_effective_status"] == "ACTIVE"
+    assert by_id["cr-2"]["ad_effective_status"] == "PAUSED"
+    assert by_id["cr-3"]["ad_effective_status"] == "DELETED"
+    assert all(r.get("last_seen_at") for r in db.store["ad_creatives"])
+    assert result["reconciled"] is True and result["marked_deleted"] == 0
+
+
+def test_ad_missing_from_meta_is_marked_deleted():
+    """The reported bug: the ad is gone from Ads Manager, so Meta stops
+    returning it entirely -- not even with DELETED in the status filter."""
+    import app.services.meta_ads_insights_sync as mod
+    db = FakeDB()
+    db.store["ad_creatives"] = [_creative("cr-1", "A1"), _creative("cr-2", "GONE")]
+
+    result = mod.sync_ad_delivery_status(
+        db, "t1", "token", "act_1",
+        ads=[{"id": "A1", "effective_status": "ACTIVE"}],
+    )
+
+    by_id = {r["id"]: r for r in db.store["ad_creatives"]}
+    assert by_id["cr-1"]["ad_effective_status"] == "ACTIVE"
+    assert by_id["cr-2"]["ad_effective_status"] == "DELETED"
+    assert result["marked_deleted"] == 1
+
+
+def test_empty_ads_response_does_not_mark_everything_deleted():
+    """An empty edge is a failed/denied fetch far more often than an empty
+    account. Marking the tenant's whole table DELETED on that would be worse
+    than the stale status this fix replaces."""
+    import app.services.meta_ads_insights_sync as mod
+    db = FakeDB()
+    db.store["ad_creatives"] = [_creative("cr-1", "A1")]
+
+    result = mod.sync_ad_delivery_status(db, "t1", "token", "act_1", ads=[])
+
+    assert db.store["ad_creatives"][0]["ad_effective_status"] == "ACTIVE"
+    assert result["reconciled"] is False and result["marked_deleted"] == 0
+
+
+def test_other_tenants_creatives_are_untouched():
+    import app.services.meta_ads_insights_sync as mod
+    db = FakeDB()
+    db.store["ad_creatives"] = [
+        _creative("cr-1", "A1"),
+        _creative("cr-2", "B1", tenant="t2"),
+    ]
+
+    mod.sync_ad_delivery_status(db, "t1", "token", "act_1", ads=[{"id": "A1", "effective_status": "PAUSED"}])
+
+    by_id = {r["id"]: r for r in db.store["ad_creatives"]}
+    assert by_id["cr-1"]["ad_effective_status"] == "PAUSED"
+    assert by_id["cr-2"]["ad_effective_status"] == "ACTIVE"
+    assert by_id["cr-2"].get("last_seen_at") is None

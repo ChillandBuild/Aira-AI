@@ -1290,3 +1290,20 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Correction shipped same day**: the Documents callout first claimed "scans of handwriting and text inside images cannot be read at all". That was asserted without reading the pipeline and is **false** — `extract_text_from_file` OCRs fully-scanned PDFs and standalone images via Gemini. The real failure is narrower and silent: a PDF mixing real text with an image never triggers the fallback. Copy corrected to describe that case. See the backlog entry for the unfixed pipeline gap.
 - **Files**: `frontend/app/dashboard/knowledge/page.tsx` (commits `1b509000`, `f6d78bf8`, `bd374303`).
 - **Verification**: `tsc --noEmit` clean, `next lint` clean on the file. Both panels rendered in Chrome at 1440px through a temporary unguarded preview route and screenshotted (the real route needs a Supabase session this harness lacks); fonts fell back to system faces because the box has no network.
+
+## 2026-09-10 — Meta Ads "Delivery" column showed Active for ads deleted in Ads Manager (migration 189)
+
+- **Symptom**: Two ads deleted in Ads Manager kept rendering as `Active` on the Meta Ads dashboard. Live evidence: their `ad_creatives` rows were last touched 2026-08-14 while sibling rows synced the same morning.
+- **Root cause (three compounding)**:
+  1. **No ad-level status existed anywhere.** `ad_creatives.effective_status` is written from `adset_meta` (the *ad set's* status), and `ad_performance.py` rendered `ad_campaigns.effective_status` (the *campaign's*). The sync never called the `/ads` edge at all.
+  2. **The sync is update-only.** `sync_campaign_meta` / `upsert_creative_from_insight` walk what Meta *returns* and update matches. Meta hides DELETED/ARCHIVED objects unless a request names them, so a deleted ad simply stopped appearing and its last-known `ACTIVE` stuck forever. Nothing reconciled disappearances.
+  3. **Campaigns were de-duplicated by name.** `get_or_create_campaign`'s name fallback adopted *any* same-named row and then overwrote its `external_campaign_id`, collapsing two distinct Meta campaigns named "Astro Whatsapp-WB" into one row — so the deleted ad inherited the still-live campaign's `ACTIVE`.
+- **Decision**:
+  - **Migration 189**: `ad_creatives.ad_effective_status` (the ad's own status) + `last_seen_at`. NULL on existing rows falls back to the old campaign/ad-set behaviour, so no backfill.
+  - New `sync_ad_delivery_status()` runs after the creative upserts: pass 1 writes each ad's real status from the `/ads` edge (requested with an explicit `ad.effective_status IN [...]` filter so DELETED/ARCHIVED come back); pass 2 marks any row for that `(tenant, account)` which pass 1 did not touch as `DELETED`. **An empty `/ads` response skips pass 2** — an empty edge means a failed or permission-denied fetch far more often than an empty account, and mass-marking a tenant's table would be worse than the stale status being fixed.
+  - `_fetch_adsets` now also requests deleted/archived, so a deleted ad's insight rows still classify as Click-to-WhatsApp in `_whatsapp_rows`.
+  - The filtering syntax is version-sensitive, so a 400 falls back to an unfiltered fetch; pass 2 still catches the deletion, it just can't tell DELETED from ARCHIVED.
+  - `get_or_create_campaign` now refuses a name match on a row already claimed by a *different* `external_campaign_id`. The name fallback itself stays — CSV upload supplies a name and no id and depends on it.
+  - API/CSV field `campaign_status` renamed to **`delivery_status`** (it is no longer the campaign's), preferring `ad_effective_status` → campaign → ad set.
+  - Frontend: `DELETED`/`ARCHIVED` render as a grey "Deleted" badge with a ban icon; the row dims to 55% with the creative name struck through, and restores to full opacity on hover. Deleted rows stay in the table and still count toward the Total — their spend is real.
+- **Not verified**: the `/ads` edge `filtering` syntax was not exercised against the live Graph API (no network from the dev shell). The `last_seen_at` reconciliation is deliberately independent of it, so deletions are caught either way.

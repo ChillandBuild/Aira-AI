@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Ban,
   Check,
   ChevronDown,
   Columns3,
@@ -29,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { TickMark } from "@/components/ui/controls";
 
 type MetricKey =
-  | "campaign_status"
+  | "delivery_status"
   | "budget"
   | "impressions"
   | "reach"
@@ -53,7 +54,7 @@ type MetricKey =
   | "cost_per_hot";
 
 const METRICS: { key: MetricKey; label: string; defaultVisible: boolean; help: string }[] = [
-  { key: "campaign_status", label: "Delivery", defaultVisible: true, help: "Current campaign delivery status from Meta" },
+  { key: "delivery_status", label: "Delivery", defaultVisible: true, help: "The ad's own delivery status in Meta. Ads removed in Ads Manager show as Deleted." },
   { key: "budget", label: "Budget", defaultVisible: false, help: "Daily or lifetime budget from the campaign or ad set in Meta" },
   { key: "impressions", label: "Impressions", defaultVisible: true, help: "Times the ad was shown" },
   { key: "reach", label: "Reach", defaultVisible: true, help: "Unique people reached in Meta for the selected period" },
@@ -154,29 +155,49 @@ function statusLabel(status: string | null | undefined) {
   return (status || "UNKNOWN").replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+/** Meta statuses meaning the ad no longer exists in Ads Manager, as opposed to
+ * merely not delivering. Rows in these states are kept for their spend history
+ * but rendered as struck-through and dimmed. */
+const REMOVED_STATUSES = new Set(["DELETED", "ARCHIVED"]);
+
+function isRemoved(status: string | null | undefined) {
+  return REMOVED_STATUSES.has((status || "").toUpperCase());
+}
+
 function StatusBadge({ status }: { status: string | null | undefined }) {
   const normalized = (status || "").toUpperCase();
+  const removed = isRemoved(normalized);
+  const isError = normalized.includes("DISAPPROVED") || normalized.includes("ERROR");
   return (
-    <span className={cn(
-      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-label text-[10px] font-bold",
-      normalized === "ACTIVE"
-        ? "bg-emerald-50 text-emerald-700"
-        : normalized === "PAUSED"
-          ? "bg-amber-50 text-amber-700"
-          : normalized.includes("DISAPPROVED") || normalized.includes("ERROR")
-            ? "bg-red-50 text-red-700"
-            : "bg-stone-100 text-stone-600",
-    )}>
-      <span className={cn(
-        "h-1.5 w-1.5 rounded-full",
-        normalized === "ACTIVE"
-          ? "bg-emerald-500"
-          : normalized === "PAUSED"
-            ? "bg-amber-500"
-            : normalized.includes("DISAPPROVED") || normalized.includes("ERROR")
-              ? "bg-red-500"
-              : "bg-stone-400",
-      )} />
+    <span
+      title={removed ? "Removed in Meta Ads Manager. Kept here for its spend history." : undefined}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-label text-[10px] font-bold",
+        removed
+          ? "bg-stone-200/60 text-stone-500 ring-1 ring-inset ring-stone-300/70"
+          : normalized === "ACTIVE"
+            ? "bg-emerald-50 text-emerald-700"
+            : normalized === "PAUSED"
+              ? "bg-amber-50 text-amber-700"
+              : isError
+                ? "bg-red-50 text-red-700"
+                : "bg-stone-100 text-stone-600",
+      )}
+    >
+      {removed ? (
+        <Ban className="h-2.5 w-2.5 shrink-0" strokeWidth={3} aria-hidden />
+      ) : (
+        <span className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          normalized === "ACTIVE"
+            ? "bg-emerald-500"
+            : normalized === "PAUSED"
+              ? "bg-amber-500"
+              : isError
+                ? "bg-red-500"
+                : "bg-stone-400",
+        )} />
+      )}
       {statusLabel(status)}
     </span>
   );
@@ -215,7 +236,7 @@ function aggregateRows(rows: AdPerformanceRow[]): AdPerformanceRow {
     adset_name: null,
     campaign_id: null,
     campaign_name: "Total",
-    campaign_status: null,
+    delivery_status: null,
     daily_budget: null,
     lifetime_budget: null,
     budget_level: null,
@@ -236,8 +257,8 @@ function aggregateRows(rows: AdPerformanceRow[]): AdPerformanceRow {
 
 function metricValue(metric: MetricKey, row: AdPerformanceRow) {
   switch (metric) {
-    case "campaign_status":
-      return <StatusBadge status={row.campaign_status} />;
+    case "delivery_status":
+      return <StatusBadge status={row.delivery_status} />;
     case "budget":
       return budgetLabel(row);
     case "impressions":
@@ -653,23 +674,40 @@ export function AdPerformanceTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-mid/50">
-                {rows.map((row) => (
-                  <tr key={row.ad_creative_id} className="transition-colors hover:bg-surface-low/60">
-                    <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">{row.campaign_name}</td>
-                    <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
-                    <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">{row.creative_label}</td>
-                    {selectedMetrics.map((metric) => (
-                      <td key={metric.key} className={cn(
-                        "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
-                        metric.key === "messages" && "font-bold text-on-surface",
-                        metric.key === "inline_link_clicks" && "font-semibold text-violet-700",
-                        metric.key === "hot" && "font-semibold text-rose-600",
+                {rows.map((row) => {
+                  // Ads removed in Ads Manager stay in the table -- their spend is
+                  // real and still counts toward the totals -- but recede visually.
+                  // Hovering restores full opacity so the numbers stay readable.
+                  const removed = isRemoved(row.delivery_status);
+                  return (
+                    <tr
+                      key={row.ad_creative_id}
+                      className={cn(
+                        "transition-all hover:bg-surface-low/60",
+                        removed && "bg-surface-low/25 opacity-55 hover:opacity-100",
+                      )}
+                    >
+                      <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">{row.campaign_name}</td>
+                      <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
+                      <td className={cn(
+                        "px-4 py-3 text-center font-label text-xs font-semibold text-on-surface",
+                        removed && "line-through decoration-stone-400",
                       )}>
-                        {metricValue(metric.key, row)}
+                        {row.creative_label}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                      {selectedMetrics.map((metric) => (
+                        <td key={metric.key} className={cn(
+                          "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
+                          metric.key === "messages" && "font-bold text-on-surface",
+                          metric.key === "inline_link_clicks" && "font-semibold text-violet-700",
+                          metric.key === "hot" && "font-semibold text-rose-600",
+                        )}>
+                          {metricValue(metric.key, row)}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-surface-mid bg-surface-low/50 font-bold">
@@ -678,7 +716,7 @@ export function AdPerformanceTab() {
                   <td className="text-center" />
                   {selectedMetrics.map((metric) => (
                     <td key={metric.key} className="whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums">
-                      {metric.key === "campaign_status" ? "—" : metricValue(metric.key, totals)}
+                      {metric.key === "delivery_status" ? "—" : metricValue(metric.key, totals)}
                     </td>
                   ))}
                 </tr>
