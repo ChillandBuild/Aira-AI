@@ -427,6 +427,7 @@ async def ad_performance(
     ad_creative_id: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    delivery_status: str | None = Query(None),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """Per-creative performance rows for the Ad Performance tab."""
@@ -435,7 +436,7 @@ async def ad_performance(
     rows = build_creative_performance(
         db, tenant_id,
         campaign_id=campaign_id, adset_id=adset_id, ad_creative_id=ad_creative_id,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, delivery_status=delivery_status,
     )
     return {"data": rows}
 
@@ -447,6 +448,7 @@ async def ad_performance_export(
     ad_creative_id: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    delivery_status: str | None = Query(None),
     tenant_id: str = Depends(get_tenant_id),
 ):
     """CSV of the per-creative performance table, honoring the same filters."""
@@ -455,7 +457,7 @@ async def ad_performance_export(
     rows = build_creative_performance(
         db, tenant_id,
         campaign_id=campaign_id, adset_id=adset_id, ad_creative_id=ad_creative_id,
-        date_from=date_from, date_to=date_to,
+        date_from=date_from, date_to=date_to, delivery_status=delivery_status,
     )
     fieldnames = [
         "campaign_name", "delivery_status", "adset_name", "creative_label",

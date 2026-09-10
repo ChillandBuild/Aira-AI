@@ -164,6 +164,22 @@ function isRemoved(status: string | null | undefined) {
   return REMOVED_STATUSES.has((status || "").toUpperCase());
 }
 
+/** Mirrors DELIVERY_GROUPS in backend/app/services/ad_performance.py -- the CSV
+ * export filters server-side with these same keys, so the download matches what
+ * is on screen. Ordered as they appear in the dropdown. */
+const DELIVERY_FILTERS: { key: string; label: string; statuses: Set<string> }[] = [
+  { key: "active", label: "Active", statuses: new Set(["ACTIVE"]) },
+  { key: "paused", label: "Paused", statuses: new Set(["PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED"]) },
+  { key: "archived", label: "Archived", statuses: new Set(["ARCHIVED"]) },
+  { key: "deleted", label: "Deleted", statuses: new Set(["DELETED"]) },
+  { key: "issues", label: "Needs attention", statuses: new Set(["DISAPPROVED", "WITH_ISSUES", "PENDING_REVIEW", "PENDING_BILLING_INFO"]) },
+];
+
+function matchesDelivery(row: AdPerformanceRow, key: string) {
+  const group = DELIVERY_FILTERS.find((filter) => filter.key === key);
+  return group ? group.statuses.has((row.delivery_status || "").toUpperCase()) : true;
+}
+
 function StatusBadge({ status }: { status: string | null | undefined }) {
   const normalized = (status || "").toUpperCase();
   const removed = isRemoved(normalized);
@@ -306,6 +322,7 @@ export function AdPerformanceTab() {
   const [generatingTrackingCode, setGeneratingTrackingCode] = useState(false);
   const [copiedTrackingMessage, setCopiedTrackingMessage] = useState(false);
   const [showReportingNotice, setShowReportingNotice] = useState(true);
+  const [deliveryStatus, setDeliveryStatus] = useState("");
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(() => new Set(DEFAULT_METRICS));
 
   useEffect(() => {
@@ -322,8 +339,23 @@ export function AdPerformanceTab() {
     date_to: dateTo || undefined,
   };
   const { data, isValidating, mutate } = useAdPerformance(params);
-  const rows = useMemo(() => data?.data ?? [], [data]);
+  const allRows = useMemo(() => data?.data ?? [], [data]);
+  const rows = useMemo(
+    () => (deliveryStatus ? allRows.filter((row) => matchesDelivery(row, deliveryStatus)) : allRows),
+    [allRows, deliveryStatus],
+  );
+  // The table's Total counts every visible row -- archived ads cost real money
+  // and hiding that spend would under-report it.
   const totals = useMemo(() => aggregateRows(rows), [rows]);
+  // The KPI cards answer "how are my live ads doing", so they drop archived and
+  // deleted ads. Picking a Delivery status explicitly overrides that: if you
+  // asked to see archived ads, the cards should describe archived ads.
+  const cardRows = useMemo(
+    () => (deliveryStatus ? rows : rows.filter((row) => !isRemoved(row.delivery_status))),
+    [rows, deliveryStatus],
+  );
+  const cardTotals = useMemo(() => aggregateRows(cardRows), [cardRows]);
+  const excludedFromCards = rows.length - cardRows.length;
   const selectedMetrics = useMemo(
     () => METRICS.filter((metric) => visibleMetrics.has(metric.key)),
     [visibleMetrics],
@@ -339,7 +371,8 @@ export function AdPerformanceTab() {
     ),
     [filters, campaignId, adsetId],
   );
-  const activeDimensionFilters = Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId));
+  const activeDimensionFilters =
+    Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId)) + Number(Boolean(deliveryStatus));
   const campaignNames = useMemo(
     () => new Map((filters?.campaigns ?? []).map((campaign) => [campaign.id, campaign.name])),
     [filters],
@@ -362,6 +395,7 @@ export function AdPerformanceTab() {
     setCampaignId("");
     setAdsetId("");
     setCreativeId("");
+    setDeliveryStatus("");
     setDateFrom(localDate(29));
     setDateTo(localDate());
   }
@@ -392,7 +426,12 @@ export function AdPerformanceTab() {
   async function handleExport() {
     setExporting(true);
     try {
-      await api.inboundLeads.adPerformanceExportCsv(params);
+      // The table filters delivery client-side for instant feedback; the CSV is
+      // built server-side, so the choice has to travel with the request.
+      await api.inboundLeads.adPerformanceExportCsv({
+        ...params,
+        delivery_status: deliveryStatus || undefined,
+      });
       toast.success("Downloaded: ad_performance.csv");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Export failed");
@@ -450,32 +489,40 @@ export function AdPerformanceTab() {
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               <PerformanceKpiCard
                 label="WhatsApp Clicks"
-                value={count(totals.inline_link_clicks)}
+                value={count(cardTotals.inline_link_clicks)}
                 description="Clicked the ad and opened WhatsApp"
                 icon={MousePointerClick}
                 gradient="bg-gradient-to-br from-violet-500 to-primary"
               />
               <PerformanceKpiCard
                 label="Messages Sent"
-                value={count(totals.messages)}
+                value={count(cardTotals.messages)}
                 description="Clicked and sent the WhatsApp message"
                 icon={MessageCircle}
                 gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
               />
               <PerformanceKpiCard
                 label="No Message"
-                value={count(totals.clicked_no_message)}
+                value={count(cardTotals.clicked_no_message)}
                 description="Clicked but did not send the message"
                 icon={MessageSquareOff}
                 gradient="bg-gradient-to-br from-amber-500 to-orange-500"
               />
               <PerformanceKpiCard
                 label="Message Rate"
-                value={percent(totals.conversation_rate)}
+                value={percent(cardTotals.conversation_rate)}
                 description="Messages sent out of WhatsApp clicks"
                 icon={Percent}
                 gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
               />
+          {excludedFromCards > 0 && (
+            <p className="col-span-2 -mt-1 font-body text-[10px] text-on-surface-muted xl:col-span-4">
+              Live ads only — {excludedFromCards} archived or deleted{" "}
+              {excludedFromCards === 1 ? "ad is" : "ads are"} left out of these four numbers.
+              The table below still lists {excludedFromCards === 1 ? "it" : "them"}, and its Total
+              still counts {excludedFromCards === 1 ? "its" : "their"} spend.
+            </p>
+          )}
         </div>
 
         <div className="grid h-fit grid-cols-2 gap-2 self-start p-1">
@@ -569,7 +616,7 @@ export function AdPerformanceTab() {
               </span>
               <div>
                 <p className="font-label text-[13px] font-bold text-on-surface">Filter ad performance</p>
-                <p className="font-body text-[10px] text-on-surface-muted">Set a date range, then narrow by campaign, ad set, or creative.</p>
+                <p className="font-body text-[10px] text-on-surface-muted">Set a date range, then narrow by campaign, ad set, creative, or delivery status.</p>
               </div>
             </div>
             <button type="button" onClick={clearFilters}
@@ -577,7 +624,7 @@ export function AdPerformanceTab() {
               <X size={11} /> Clear filters
             </button>
           </div>
-          <div className="grid gap-2.5 items-end grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-2.5 items-end grid-cols-1 sm:grid-cols-2 xl:grid-cols-6">
             <div>
               <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
               <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
@@ -616,6 +663,23 @@ export function AdPerformanceTab() {
                 <select id="ad-performance-creative" className={selectClass} value={creativeId} onChange={(event) => setCreativeId(event.target.value)}>
                   <option value="">All creatives</option>
                   {creativeOptions.map((creative) => <option key={creative.id} value={creative.id}>{creative.name}</option>)}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="ad-performance-delivery" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Delivery</label>
+              <div className="relative">
+                <select id="ad-performance-delivery" className={selectClass} value={deliveryStatus}
+                  onChange={(event) => setDeliveryStatus(event.target.value)}>
+                  <option value="">All statuses</option>
+                  {/* Only statuses actually present, so the list never offers a
+                      choice that would empty the table. */}
+                  {DELIVERY_FILTERS.filter(
+                    (filter) => allRows.some((row) => filter.statuses.has((row.delivery_status || "").toUpperCase())),
+                  ).map((filter) => (
+                    <option key={filter.key} value={filter.key}>{filter.label}</option>
+                  ))}
                 </select>
                 <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
               </div>

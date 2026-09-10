@@ -1988,6 +1988,7 @@ export const api = {
       if (params?.ad_creative_id) qs.set("ad_creative_id", params.ad_creative_id);
       if (params?.date_from) qs.set("date_from", params.date_from);
       if (params?.date_to) qs.set("date_to", params.date_to);
+      if (params?.delivery_status) qs.set("delivery_status", params.delivery_status);
       const headers = await getAuthHeaders();
       const res = await fetch(`${API_URL}/api/v1/inbound-leads/ad-performance/export?${qs}`, { headers });
       if (!res.ok) throw new Error(`Export failed: ${res.status}`);
@@ -2173,6 +2174,9 @@ export interface AdPerformanceParams {
   ad_creative_id?: string;
   date_from?: string;
   date_to?: string;
+  /** One of the DELIVERY_GROUPS keys in ad_performance.py: active, paused,
+   * archived, deleted, removed, issues. Omit for all statuses. */
+  delivery_status?: string;
 }
 
 export { API_URL };

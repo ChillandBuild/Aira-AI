@@ -9,6 +9,32 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# Meta reports many delivery states; these are the buckets worth filtering by.
+# CAMPAIGN_PAUSED / ADSET_PAUSED mean the ad itself is fine but something above
+# it is off -- still "paused" as far as anyone reading the dashboard cares.
+DELIVERY_GROUPS: dict[str, set[str]] = {
+    "active": {"ACTIVE"},
+    "paused": {"PAUSED", "CAMPAIGN_PAUSED", "ADSET_PAUSED"},
+    "archived": {"ARCHIVED"},
+    "deleted": {"DELETED"},
+    "removed": {"ARCHIVED", "DELETED"},
+    "issues": {"DISAPPROVED", "WITH_ISSUES", "PENDING_REVIEW", "PENDING_BILLING_INFO"},
+}
+
+
+def filter_by_delivery(rows: list[dict], delivery_status: str | None) -> list[dict]:
+    """Narrow rows to one DELIVERY_GROUPS bucket. An unknown key is ignored
+    rather than returning nothing -- a stale bookmark or a typo'd query param
+    should show the unfiltered table, not an empty one.
+    """
+    if not delivery_status:
+        return rows
+    wanted = DELIVERY_GROUPS.get(delivery_status.strip().lower())
+    if wanted is None:
+        return rows
+    return [r for r in rows if (r.get("delivery_status") or "").upper() in wanted]
+
+
 def _safe_div(numer: float, denom: float):
     if not denom:
         return None
@@ -44,6 +70,7 @@ def build_creative_performance(
     ad_creative_id: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    delivery_status: str | None = None,
 ) -> list[dict]:
     """One row per creative with volume/quality/money metrics.
 
@@ -52,6 +79,9 @@ def build_creative_performance(
       adset_id        -> ad_creatives.meta_adset_id
       ad_creative_id  -> ad_creatives.id
       date_from/to    -> bound insights and first lead/ad attribution date
+      delivery_status -> the computed delivery_status (see DELIVERY_GROUPS);
+                         applied after rows are built, since the value is a
+                         coalesce across three tables rather than one column
     """
     from app.services.meta_ads_insights_sync import (
         _get_ads_credentials,
@@ -284,6 +314,7 @@ def build_creative_performance(
         compute_cost_metrics(row)
         out.append(row)
 
+    out = filter_by_delivery(out, delivery_status)
     out.sort(key=lambda r: r["inline_link_clicks"], reverse=True)
     return out
 
