@@ -344,18 +344,11 @@ export function AdPerformanceTab() {
     () => (deliveryStatus ? allRows.filter((row) => matchesDelivery(row, deliveryStatus)) : allRows),
     [allRows, deliveryStatus],
   );
-  // The table's Total counts every visible row -- archived ads cost real money
-  // and hiding that spend would under-report it.
+  // Cards, Total and rows all describe the same set: whatever the Delivery
+  // filter currently selects. Cards that quietly excluded archived ads while the
+  // filter read "All statuses" contradicted the control right next to them --
+  // to see live-only numbers, pick Active in the Delivery filter.
   const totals = useMemo(() => aggregateRows(rows), [rows]);
-  // The KPI cards answer "how are my live ads doing", so they drop archived and
-  // deleted ads. Picking a Delivery status explicitly overrides that: if you
-  // asked to see archived ads, the cards should describe archived ads.
-  const cardRows = useMemo(
-    () => (deliveryStatus ? rows : rows.filter((row) => !isRemoved(row.delivery_status))),
-    [rows, deliveryStatus],
-  );
-  const cardTotals = useMemo(() => aggregateRows(cardRows), [cardRows]);
-  const excludedFromCards = rows.length - cardRows.length;
   const selectedMetrics = useMemo(
     () => METRICS.filter((metric) => visibleMetrics.has(metric.key)),
     [visibleMetrics],
@@ -489,40 +482,32 @@ export function AdPerformanceTab() {
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               <PerformanceKpiCard
                 label="WhatsApp Clicks"
-                value={count(cardTotals.inline_link_clicks)}
+                value={count(totals.inline_link_clicks)}
                 description="Clicked the ad and opened WhatsApp"
                 icon={MousePointerClick}
                 gradient="bg-gradient-to-br from-violet-500 to-primary"
               />
               <PerformanceKpiCard
                 label="Messages Sent"
-                value={count(cardTotals.messages)}
+                value={count(totals.messages)}
                 description="Clicked and sent the WhatsApp message"
                 icon={MessageCircle}
                 gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
               />
               <PerformanceKpiCard
                 label="No Message"
-                value={count(cardTotals.clicked_no_message)}
+                value={count(totals.clicked_no_message)}
                 description="Clicked but did not send the message"
                 icon={MessageSquareOff}
                 gradient="bg-gradient-to-br from-amber-500 to-orange-500"
               />
               <PerformanceKpiCard
                 label="Message Rate"
-                value={percent(cardTotals.conversation_rate)}
+                value={percent(totals.conversation_rate)}
                 description="Messages sent out of WhatsApp clicks"
                 icon={Percent}
                 gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
               />
-          {excludedFromCards > 0 && (
-            <p className="col-span-2 -mt-1 font-body text-[10px] text-on-surface-muted xl:col-span-4">
-              Live ads only — {excludedFromCards} archived or deleted{" "}
-              {excludedFromCards === 1 ? "ad is" : "ads are"} left out of these four numbers.
-              The table below still lists {excludedFromCards === 1 ? "it" : "them"}, and its Total
-              still counts {excludedFromCards === 1 ? "its" : "their"} spend.
-            </p>
-          )}
         </div>
 
         <div className="grid h-fit grid-cols-2 gap-2 self-start p-1">

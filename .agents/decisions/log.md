@@ -1317,3 +1317,10 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Delivery filter**: `DELIVERY_GROUPS` in `ad_performance.py` (active / paused / archived / deleted / removed / issues) with `filter_by_delivery()`. `paused` deliberately absorbs `CAMPAIGN_PAUSED` and `ADSET_PAUSED` — a dashboard reader doesn't care which level the pause came from. An unknown key returns rows unfiltered, so a stale bookmark shows the table rather than an empty one.
 - **Split filtering**: the table filters client-side (instant, and the unfiltered set is needed both to build the dropdown's options and to count what the cards excluded); the CSV export passes `delivery_status` to the server so downloads match the screen. `DELIVERY_FILTERS` in `AdPerformanceTab.tsx` mirrors `DELIVERY_GROUPS` — a test asserts every frontend key exists server-side, since a mismatch would silently return an unfiltered CSV.
 - The dropdown lists only statuses actually present in the data, so it can never offer a choice that empties the table.
+
+## 2026-09-11 — KPI cards reverted to mirroring the Delivery filter
+
+- **Reverses the card-scoping half of the entry above** (same day). The cards excluded ARCHIVED/DELETED while the Delivery filter sitting directly beneath them read "All statuses" — the control and the numbers contradicted each other on screen.
+- **Decision**: cards, table rows and the Total all describe exactly one set: whatever the Delivery filter selects. No special-casing. Live-only numbers are now reached by choosing **Active** in the Delivery filter, which is explicit and self-describing.
+- The filter still defaults to "All statuses", so the landing view counts archived ads. Deliberately not changed to default "Active" — that was not asked for, and it would silently hide rows the tenant has been looking at. Revisit if the ask comes.
+- The "Live ads only — N archived ads left out" note under the cards is gone with the behaviour it explained.
