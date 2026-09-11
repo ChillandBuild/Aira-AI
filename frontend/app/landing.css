@@ -3,7 +3,7 @@
    Design: "Warm Light Luxury" — matches the dashboard
    Palette: cream surfaces, violet (#5b21b6) accent, warm ink
    Tokens are remapped onto the global dashboard tokens
-   (globals.css :root) so the landing and app share one identity.
+   (globals.css :root) so, the landing and app share one identity.
    ============================================ */
 
 /* === Base === */
