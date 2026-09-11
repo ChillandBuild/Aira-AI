@@ -1324,3 +1324,33 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Decision**: cards, table rows and the Total all describe exactly one set: whatever the Delivery filter selects. No special-casing. Live-only numbers are now reached by choosing **Active** in the Delivery filter, which is explicit and self-describing.
 - The filter still defaults to "All statuses", so the landing view counts archived ads. Deliberately not changed to default "Active" — that was not asked for, and it would silently hide rows the tenant has been looking at. Revisit if the ask comes.
 - The "Live ads only — N archived ads left out" note under the cards is gone with the behaviour it explained.
+
+## 2026-09-11 — `second_brain_close.py` stale-claim check fixed (21 false positives → 0)
+
+- **Context**: The stale-claims check reported 21 findings on three consecutive session closes
+  (2026-08-15, 2026-08-25, 2026-09-09) and **every one was a false positive** each time. It had
+  started training readers to skip the section — the failure mode a health check can least afford.
+- **Root cause**: the check flagged any backticked `path/like/this.py` not present on disk. But
+  `.agents/` legitimately names absent files for five structural reasons, and the check could not
+  tell any of them from a genuine stale claim.
+- **Decision** — five exemptions added to `check_stale_claims()`:
+  1. **A line documenting its own removal/rename.** `_REMOVAL_MARKERS` matches removed / renamed /
+     deleted / dropped / parked / stripped / retired / replaced / superseded / reverted / gone /
+     no longer / used to / formerly / gitignored, plus `→`, against the line the reference sits on.
+     These sentences are the most valuable in the brain; flagging them inverted the test.
+  2. **Self-declared append-only docs** are skipped wholesale (`"append-only"` in the first 600
+     chars — `decisions/log.md` says so in its own header). A July entry naming a file deleted in
+     August was true when written. Current-state docs (`context/*`) are still checked.
+  3. **Leading-slash tokens** are URL routes (`/intake/sessions.csv`), not repo paths — repo paths
+     in these notes are written without one. The old code `lstrip("/")`-ed them into false hits.
+  4. **Elided paths** containing `...` (`frontend/.../performance-view.tsx`).
+  5. **Never-committed artifacts** by extension (`.jks`, `.keystore`, `.p12`, `.apk`, `.aab`,
+     `.env`) and **third-party module paths** whose first segment matches a dependency name read
+     from `backend/requirements.txt` / `frontend/package.json` (caught `slowapi/middleware.py`).
+- **Verified not over-suppressed**: dropped a throwaway `.agents/context/_tmp_probe.md` naming a
+  fabricated `services/totally_made_up_module.py` — still reported. Probe deleted.
+- The three duplicate backlog entries tracking this are marked FIXED rather than left live. The
+  2026-08-15 entry had already proposed almost exactly this fix; it just never got built.
+- **Still open, environment-level (not fixed, flagged again)**: `lefthook` is not on PATH so git
+  hooks silently no-op, and `gitleaks` is not installed so the close-out credential scan falls back
+  to four narrow patterns. Both are long-standing on this Windows workspace — see active-backlog.

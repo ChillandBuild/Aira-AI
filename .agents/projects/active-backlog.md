@@ -129,7 +129,7 @@
 - **`npm run dev` (and any npm script with inline `VAR=value` syntax) fails under this Bash tool on Windows (found 2026-08-01)**: `frontend/package.json`'s `dev` script is `NODE_OPTIONS=--no-experimental-vm-modules next dev` — POSIX inline env-var-prefix syntax. npm always executes package.json scripts through the OS default shell regardless of what invoked `npm run ...`, and on Windows that's `cmd.exe`, which doesn't understand `VAR=value cmd` and fails with `'NODE_OPTIONS' is not recognized...`. This happens even when `npm run dev` itself was invoked from Git Bash (a real POSIX shell) — the outer shell doesn't matter, only npm's internal script-runner does. Workaround: bypass `npm run` for this script and invoke the underlying command directly from Git Bash, which *does* handle the prefix natively: `NODE_OPTIONS=--no-experimental-vm-modules npx next dev`. Also note: locally the app is proxied under `/aira` (see subsystem-notes.md basePath entry) — hitting `http://localhost:3000/dashboard/roles` 404s; use `http://localhost:3000/aira/dashboard/roles`.
 - **Backend Python environments on this machine are corrupted beyond individual packages (found 2026-07-31)**: both the global Python 3.13 install (`AppData\Local\Programs\Python\Python313`) and `backend/venv` have site-packages with files silently missing (not version mismatches — the package directories are missing individual submodule files, e.g. `httpx/_client.py`, `groq/_base_client.py`, `pydantic_core/_pydantic_core`, `pip/_vendor/rich/console.py` were each absent on one or the other environment this session). Global `pip` still worked even when the packages it manages were broken; used `python -m pip --python ./venv/Scripts/python.exe install --force-reinstall --no-deps --no-cache-dir <pkg>` to patch the venv package-by-package as each import error surfaced. Pattern (likely cause, unconfirmed): looks like incomplete/corrupted installs rather than a version issue — possibly antivirus quarantine or an interrupted OneDrive sync on this Desktop-located repo path. If `pytest` fails to even collect with a `ModuleNotFoundError` on a submodule (not the top-level package) of a dependency that's clearly installed, suspect this before debugging the test itself — try the other environment (global vs venv) or a targeted `--force-reinstall --no-deps` first.
 - **RESOLVED 2026-07-29**: `backend/supabase/migrations/151_conversation_leads_search.sql` appeared to be missing from the repo (existed in live `list_migrations` but no local file) — turned out it existed on `origin/main` in a separate, not-yet-merged session's commit, not actually missing. Arrived via merge later the same day. No longer an issue; see decisions/log.md for the merge/renumbering note (this fix's own migration got bumped to 152 to avoid the number collision).
-- **`second_brain_close.py`'s stale-claims check can't tell a record of a deletion from a stale claim (found 2026-08-15)** — it reports "no longer found in the repo" for any `path/like/this.py` mentioned in `.agents/`, so all 13 hits this session were false positives: `decisions/log.md` correctly recording that `broadcast_retry.py` was deleted and that `expert_handoff.py` → `intake.py` was renamed, `subsystem-notes.md` documenting the same, and `android/keystore/aira-sync-release.jks` which the note itself says is gitignored. A decision log is append-only history — it will always reference files that later disappeared, so this check fires every session and trains readers to skip it. Fix: skip lines whose surrounding text contains removal/rename/gitignore markers (`deleted`, `removed`, `renamed`, `→`, `gitignored`), or exclude `decisions/log.md` from the path check entirely.
+- **~~`second_brain_close.py`'s stale-claims check can't tell a record of a deletion from a stale claim (found 2026-08-15)~~ — FIXED 2026-09-11, along the exact lines proposed here** — it reports "no longer found in the repo" for any `path/like/this.py` mentioned in `.agents/`, so all 13 hits this session were false positives: `decisions/log.md` correctly recording that `broadcast_retry.py` was deleted and that `expert_handoff.py` → `intake.py` was renamed, `subsystem-notes.md` documenting the same, and `android/keystore/aira-sync-release.jks` which the note itself says is gitignored. A decision log is append-only history — it will always reference files that later disappeared, so this check fires every session and trains readers to skip it. Fix: skip lines whose surrounding text contains removal/rename/gitignore markers (`deleted`, `removed`, `renamed`, `→`, `gitignored`), or exclude `decisions/log.md` from the path check entirely.
 - **`calls.py:245-268` inserts `payload.phone` with zero normalization** (the SIM-basic manual-call auto-create-lead path) — every other lead-creation path (`webhook.py`, `upload.py`, `telecalling_upload.py`) normalizes to `+91XXXXXXXXXX` before insert/lookup. Ruled out as the cause of the 2026-07-29 Shared Inbox duplicate-lead report (see decisions/log.md — that bug was a different, RPC-level issue), but this path is still a live latent risk: a telecaller manually dialing a number in a different format than an existing WhatsApp-created lead's stored phone would both miss the lookup and insert a second, differently-formatted row for the same real number. Fix: normalize `payload.phone` the same way `upload.py`'s `_normalize_phone` does before using it for lookup or insert.
 
 ## Session Follow-ups
@@ -192,7 +192,7 @@
 - `tailwindcss-animate` was never installed, so every `animate-in` / `fade-in` / `zoom-in-95` / `slide-in-from-*` class in the repo is inert (see the `subsystem-notes.md` entry under Frontend styling conventions for the verification command). 10 files affected: `dashboard/ClientLayout.tsx`, `dashboard/knowledge/page.tsx`, `telecalling/components/CockpitModals.tsx`, `operator/.../alert-bell.tsx`, `operator/.../command-palette.tsx`, `operator/(console)/page.tsx`, `AiraLoader.tsx`, `conversation-list.tsx`, `MoreMenu.tsx`, `NotificationBell.tsx`.
 - Nothing is broken — these elements just appear instantly instead of animating in, which is why it went unnoticed. Two ways to close it: add the plugin (`npm i -D tailwindcss-animate` + register it in `tailwind.config.ts`, which makes all 26 start animating at once — worth eyeballing before shipping), or delete the dead classes and hand-roll the few that actually want motion. Not urgent; the cost of leaving it is that the next person also writes `animate-in` expecting it to work.
 
-## `second_brain_close.py` stale-claim check is ~100% false positives (2026-08-25)
+## ~~`second_brain_close.py` stale-claim check is ~100% false positives (2026-08-25)~~ — FIXED 2026-09-11, see below
 - It reported **21 stale claims**; every one was verified and **none was stale**. It flags any
   `path/like/this.py` string that is not on disk, but `.agents/` legitimately references:
   **deliberately removed** modules (`broadcast_retry.py` — the note says "service deleted"),
@@ -358,6 +358,35 @@ and a standalone image are both fine (they hit the Gemini path).
   Recommendation was warn first, gather real hit data, then decide. User has not picked.
 - The Documents guide copy now warns clients about this shape of file; the pipeline is unchanged.
 
-## `second_brain_close.py` stale-claim false positives — recurred verbatim (2026-09-09)
-Same 21 findings as the 2026-08-25 entry above, re-verified this session: still zero genuine
-stale claims. Unfixed, still ~21 lines of noise per close.
+## ~~`second_brain_close.py` stale-claim false positives~~ — FIXED 2026-09-11
+Fixed in `scripts/second_brain_close.py`; the check now reports 0 and still catches a genuine
+stale reference (verified with a throwaway probe file). See `decisions/log.md` 2026-09-11.
+Superseded the three duplicate entries that tracked this (2026-08-15, 2026-08-25, 2026-09-09).
+
+## Vercel production deploy failing — cause not yet known (open, 2026-09-11)
+The user reported the Vercel deployment "blocked"; they confirmed it shows as a **failed build
+(red ✗)**, not a protection wall or a paused project. Not resolved this session — the build log
+was never retrieved, and this machine has no Vercel credentials (`vercel whoami` → "No existing
+credentials found") and no Vercel MCP connector, so the deployment cannot be inspected or
+retriggered from here. **Ask for the build log first; do not re-derive the list below.**
+
+Already ruled out this session, with evidence:
+- **Not unpushed code.** `main` == `origin/main` == `ce1e58cb`, verified with `git ls-remote`
+  against GitHub (git itself DOES have network here, unlike the general no-network rule).
+- **Not a code-level build break.** Full `npm run build` in `frontend/` compiles clean, all
+  routes generated, zero errors.
+- **Not case-sensitive imports** (the usual Windows-passes/Linux-fails trap). Scanned all 657
+  local imports across `app/`, `components/`, `lib/`, `hooks/` resolving each against the real
+  on-disk casing: zero mismatches, zero unresolved.
+- **Not a teammate's commits.** `191e89c3` and `0b618416` touched only backend files and a stray
+  `_atest_temp.txt`; nothing under `frontend/`.
+
+Prime remaining suspect: **missing environment variables in the Vercel project.** The frontend
+reads eight at build time — `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and four `NEXT_PUBLIC_META_*_CONFIG_ID`/`NEXT_PUBLIC_META_APP_ID`.
+The local build only passes because an untracked `frontend/.env.local` supplies them. Reading that
+file was permission-denied (correctly — it holds secrets), so the hypothesis was never confirmed.
+Second suspect: Node version (no `engines` field in `frontend/package.json`, so Vercel picks its
+own default). `frontend/package-lock.json` is committed but dates from 2026-07-19.
+
+Unrelated cleanup while there: `_atest_temp.txt` was committed to the repo root by `0b618416`.

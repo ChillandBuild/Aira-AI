@@ -163,6 +163,40 @@ def check_credential_patterns():
     return issues
 
 
+# A note that says a file was removed or renamed is SUPPOSED to name something that
+# no longer exists -- those sentences are the most valuable ones in the brain, and
+# flagging them inverts the test. Checked against the line the reference sits on.
+_REMOVAL_MARKERS = re.compile(
+    r"\b(removed?|renamed?|deleted?|dropped?|parked|stripped|retired|replaced|"
+    r"superseded|reverted|gone|no longer|used to|formerly|gitignored)\b|\u2192",
+    re.I,
+)
+
+# Never committed by policy, so "not in the repo" says nothing about staleness.
+_NEVER_COMMITTED_EXT = {".jks", ".keystore", ".p12", ".apk", ".aab", ".env"}
+
+
+def _dependency_names():
+    """The first path segment of a third-party module path (`slowapi/middleware.py`)
+    is a dependency name, not a directory in this repo."""
+    names = set()
+    req = ROOT / "backend" / "requirements.txt"
+    if req.exists():
+        for line in req.read_text(errors="ignore").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                names.add(re.split(r"[=<>~!\[\s;]", line)[0].strip().lower().replace("-", "_"))
+    pkg = ROOT / "frontend" / "package.json"
+    if pkg.exists():
+        try:
+            data = json.loads(pkg.read_text(errors="ignore"))
+            for key in ("dependencies", "devDependencies"):
+                names.update(n.lower() for n in (data.get(key) or {}))
+        except Exception:
+            pass
+    return names
+
+
 def check_stale_claims():
     """Best-effort: file paths quoted in .agents/ notes that no longer exist anywhere.
     Notes commonly abbreviate paths with an implied prefix (e.g. `services/x.py` for
@@ -176,16 +210,36 @@ def check_stale_claims():
     if not agents_dir.is_dir():
         return issues
     tracked = run(["git", "ls-files"]).strip().splitlines()
+    deps = _dependency_names()
     for md in agents_dir.rglob("*.md"):
         if "backlog" in md.name.lower():
             continue
         source = str(md.relative_to(ROOT))
         text = md.read_text(errors="ignore")
+        # A doc that declares itself append-only is a historical record: an entry
+        # written in July naming a file deleted in August was true when written and
+        # is not a stale claim. Current-state docs (context/*) still get checked.
+        if "append-only" in text[:600].lower():
+            continue
         for m in re.finditer(r"`([\w./\-]+\.\w{2,4})`", text):
-            ref = m.group(1).lstrip("/")
+            raw = m.group(1)
+            # A leading slash means a URL route (`/intake/sessions.csv`); repo paths in
+            # these notes are written without one. "..." is an elision in prose.
+            if raw.startswith("/") or "..." in raw:
+                continue
+            ref = raw.lstrip("/")
             if "/" not in ref or (ROOT / ref).exists():
                 continue
             if any(t == ref or t.endswith("/" + ref) for t in tracked):
+                continue
+            if Path(ref).suffix.lower() in _NEVER_COMMITTED_EXT:
+                continue
+            if ref.split("/")[0].lower().replace("-", "_") in deps:
+                continue
+            line_start = text.rfind("\n", 0, m.start()) + 1
+            line_end = text.find("\n", m.end())
+            line = text[line_start:line_end if line_end != -1 else len(text)]
+            if _REMOVAL_MARKERS.search(line):
                 continue
             issues.append(f"{source}: references `{ref}` — no longer found in the repo")
     return issues
