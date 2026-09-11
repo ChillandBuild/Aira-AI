@@ -441,6 +441,48 @@ async def ad_performance(
     return {"data": rows}
 
 
+# (row key, header) in on-screen order. Headers mirror the table's column labels
+# (METRICS in frontend/app/dashboard/meta-ads/AdPerformanceTab.tsx) so the
+# download reads the same as the page.
+AD_PERFORMANCE_EXPORT_COLUMNS = [
+    ("campaign_name", "Campaign"),
+    ("adset_name", "Ad set"),
+    ("creative_label", "Creative"),
+    ("delivery_status", "Delivery"),
+    ("budget", "Budget"),
+    ("impressions", "Impressions"),
+    ("reach", "Reach"),
+    ("frequency", "Frequency"),
+    ("inline_link_clicks", "WhatsApp clicks"),
+    ("clicks_all", "Clicks (all)"),
+    ("messages", "Messages sent (Aira confirmed)"),
+    ("meta_conversations", "Meta-reported conversations"),
+    ("conversation_rate", "Message rate"),
+    ("meta_conversation_rate", "Meta-reported message rate"),
+    ("attribution_gap", "Tracking difference"),
+    ("clicked_no_message", "No message"),
+    ("no_message_rate", "No-message rate"),
+    ("spend", "Spend"),
+    ("cpc", "CPC"),
+    ("cost_per_message", "Cost / sent message"),
+    ("ctr", "CTR"),
+    ("cpm", "CPM"),
+    ("hot", "Hot"),
+    ("hot_rate", "Hot lead rate"),
+    ("cost_per_hot", "Cost / hot lead"),
+]
+
+
+def _budget_label(row: dict) -> str:
+    """The table's single Budget cell: '₹500/day · Ad set', '₹20000 lifetime · Campaign'."""
+    suffix = {"ad_set": " · Ad set", "campaign": " · Campaign"}.get(row.get("budget_level"), "")
+    if row.get("daily_budget") is not None:
+        return f"₹{round(row['daily_budget'])}/day{suffix}"
+    if row.get("lifetime_budget") is not None:
+        return f"₹{round(row['lifetime_budget'])} lifetime{suffix}"
+    return ""
+
+
 @router.get("/ad-performance/export")
 async def ad_performance_export(
     campaign_id: str | None = Query(None),
@@ -459,20 +501,14 @@ async def ad_performance_export(
         campaign_id=campaign_id, adset_id=adset_id, ad_creative_id=ad_creative_id,
         date_from=date_from, date_to=date_to, delivery_status=delivery_status,
     )
-    fieldnames = [
-        "campaign_name", "delivery_status", "adset_name", "creative_label",
-        "daily_budget", "lifetime_budget", "budget_level",
-        "impressions", "reach", "frequency", "inline_link_clicks", "clicks_all",
-        "messages", "meta_conversations", "conversation_rate",
-        "meta_conversation_rate", "attribution_gap",
-        "clicked_no_message", "no_message_rate", "hot", "hot_rate", "spend", "cpc",
-        "cost_per_message", "ctr", "cpm", "cost_per_hot",
-    ]
     output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
-    writer.writeheader()
+    writer = csv.writer(output)
+    writer.writerow([label for _, label in AD_PERFORMANCE_EXPORT_COLUMNS])
     for r in rows:
-        writer.writerow({k: ("" if r.get(k) is None else r.get(k)) for k in fieldnames})
+        writer.writerow([
+            _budget_label(r) if key == "budget" else ("" if r.get(key) is None else r.get(key))
+            for key, _ in AD_PERFORMANCE_EXPORT_COLUMNS
+        ])
     filename = f"ad_performance_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode("utf-8-sig")),

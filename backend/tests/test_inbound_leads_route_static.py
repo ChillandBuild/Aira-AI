@@ -25,6 +25,20 @@ def test_inbound_route_filters_to_messaging_channels_and_origin():
     assert "filename=inbound_leads.csv" in src
 
 
+def test_ad_performance_export_headers_match_table_labels():
+    import re
+
+    src = read("app/routes/inbound_leads.py")
+    block = src.split("AD_PERFORMANCE_EXPORT_COLUMNS = [", 1)[1].split("]", 1)[0]
+    export_labels = re.findall(r'\("\w+", "([^"]+)"\)', block)
+
+    tab = (ROOT.parent / "frontend/app/dashboard/meta-ads/AdPerformanceTab.tsx").read_text(encoding="utf-8")
+    metrics_block = tab.split("const METRICS", 1)[1].split("];", 1)[0]
+    table_labels = ["Campaign", "Ad set", "Creative"] + re.findall(r'label: "([^"]+)"', metrics_block)
+
+    assert export_labels == table_labels
+
+
 def test_main_registers_inbound_leads_prefix_not_ctwa():
     main = read("app/main.py")
     assert "/api/v1/inbound-leads" in main
