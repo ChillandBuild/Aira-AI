@@ -343,6 +343,23 @@ live in the description or in RAG"; **nothing was changed** — needs the client
   Needs condensing to the rules that actually change replies, then the two docs deleted from RAG.
 - Sibling tenant `82c63194-1957-4262-ae7c-a95f05effcb1` has
   `AstroTamil_Sudharsana_Homam_Aira_Knowledge_Base.docx` — not audited, may be genuine knowledge.
+- **Re-checked live 2026-09-11 — the picture above was incomplete:**
+  - Sizes corrected: `Refined_KB_v9` is **46,501 chars / 44 chunks** (not 16k); `Guidelines` is 14,114 / 12.
+  - The tenant **already has its own `ai_prompts` `master` row** (13,518 chars, updated 2026-08-22)
+    that is a condensed rewrite of almost all of both docs (rule priority, length, Tanglish
+    dictionary, empathy, anti-hallucination, greetings, privacy split, pricing, CTA frequency).
+    So the rules do **not** need to move into the description — they are already in the prompt.
+  - What exists **only** in `Refined_KB_v9` and would be lost by deleting it: app features list,
+    free-question policy (1 per 7 days, 25 users/day), reward points, confidential-consultation
+    detail. Those are facts → belong in a short clean Documents file, not the description.
+  - **Contradictions to resolve with the client before any rewrite:** starting price is **₹49** in
+    the master prompt vs **₹29** in the doc; master says "at least two follow-up questions" before
+    the consultation, doc says one.
+  - The description's pasted "backend trigger → package list" text names a
+    `whatsapp_consultation_enabled` flag that exists nowhere; the real mechanism is `intake_config`,
+    which is **already enabled** for this tenant. The description text is redundant.
+  - Sibling `82c63194`: empty `business_description`, no `jina_api_key`, and its one doc is
+    `indexed` with **0 chunks** (so only the full-text fallback ever serves it).
 
 ## Text inside images in a mixed PDF is silently dropped (found 2026-09-09)
 `extract_text_from_file` (`services/knowledge_service.py:86`) OCRs via Gemini **only** when
