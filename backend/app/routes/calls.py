@@ -20,7 +20,7 @@ from app.services.call_summarizer import transcribe_recording, analyze_call
 from app.services.entitlements import meter, check_quota
 from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
-from app.services.telecmi_client import initiate_click2call
+from app.services.telecmi_client import initiate_click2call, build_recording_url
 from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
 from app.services.attendance import mark_activity_today
@@ -460,17 +460,18 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
     status = cdr.get("status")
     call_log_id = _extract_call_log_id(cdr) or _match_call_log_by_request_id(cdr)
 
-    # TeleCMI sends separate CDRs for user_missed / user_answered (agent leg).
-    # We only process outbound CDRs we can tie back to a call_log.
-    if status == "user_missed":
-        logger.info("TeleCMI CDR: agent missed the call, updating call log")
-        if call_log_id:
-            db = get_supabase()
-            db.table("call_logs").update({
-                "status": "missed",
-                "outcome": "no_answer",
-            }).eq("id", call_log_id).execute()
-        return {"ok": True}
+    # CHUB sends TWO CDRs per outbound click2call, both carrying the same
+    # request_id/extra_params (docs: outgoing-answered, outgoing-missed):
+    #   leg 'a' = the agent leg  (`to` is the AGENT's number, `answeredsec`
+    #             counts from when the agent picked up, so it includes the
+    #             customer's ring time — it is NOT the talk time)
+    #   leg 'b' = the customer leg (authoritative for status/duration, and the
+    #             only leg that carries `record`/`filename`)
+    # Treating both as the whole call made the final status depend on arrival
+    # order and metered every call twice. Leg B (or a CDR with no leg at all,
+    # e.g. inbound) is authoritative; leg A is only used to detect that the
+    # agent never answered.
+    leg = str(cdr.get("leg") or "").strip().lower()
 
     if not call_log_id:
         logger.warning(f"TeleCMI CDR missing/invalid call_log_id, ignoring: {cdr}")
@@ -480,7 +481,7 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
 
     log_row = (
         db.table("call_logs")
-        .select("id,caller_id,lead_id,tenant_id")
+        .select("id,caller_id,lead_id,tenant_id,status,duration_seconds")
         .eq("id", call_log_id)
         .maybe_single()
         .execute()
@@ -490,10 +491,32 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
         return {"ok": True}
 
     call_log_id = log_row.data["id"]
+    current_status = log_row.data.get("status")
 
-    # If call_log has no lead linked, try to match/create one from the dialed number
+    # Leg A: the agent leg. A 'missed' here means the agent never picked up, so
+    # the customer was never dialled — this is the real "user missed" signal
+    # (CHUB has no `user_missed` status). Anything else on leg A is progress
+    # information only: recording the agent's own answer as the call outcome
+    # would mark calls completed that the customer never took.
+    if leg == "a":
+        if status == "missed" and current_status != "completed":
+            logger.info(f"TeleCMI CDR leg A missed: agent never answered call {call_log_id}")
+            db.table("call_logs").update({
+                "status": "no_answer",
+                "outcome": "no_answer",
+            }).eq("id", call_log_id).execute()
+        else:
+            logger.info(f"TeleCMI CDR leg A ignored (status={status}) for call {call_log_id}")
+        return {"ok": True}
+
+    # If call_log has no lead linked, try to match/create one from the dialed
+    # number. Only safe on leg B — on leg A `to` is the agent's own number.
+    # `leads.phone` is stored as '+91XXXXXXXXXX', so the raw CDR number
+    # ('919342012824') must be normalized or it never matches and every CDR
+    # silently creates a duplicate lead.
     if not log_row.data.get("lead_id"):
-        dialed = cdr.get("to") or cdr.get("customer_number") or cdr.get("did")
+        raw_dialed = cdr.get("to") or cdr.get("customer_number") or cdr.get("did")
+        dialed = _normalize_sim_phone(str(raw_dialed)) if raw_dialed else None
         tenant_id = log_row.data.get("tenant_id")
         if dialed and tenant_id:
             match = db.table("leads").select("id").eq("phone", dialed).eq("tenant_id", tenant_id).maybe_single().execute()
@@ -518,10 +541,15 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
 
     updates: dict = {}
 
-    # TeleCMI final CDR statuses: "answered", "missed", "user_missed"
+    # Documented CHUB CDR statuses are "answered" and "missed" only (there is no
+    # `user_missed` — the agent-never-answered case is leg A 'missed', handled above).
     if status == "answered":
         updates["status"] = "completed"
-        answered_sec = cdr.get("answeredsec") or cdr.get("bilsec")
+        # `answeredsec` is the webhook CDR field; `billedsec` is its name in the
+        # pull-report APIs. (There is no `bilsec` — that was a typo'd fallback.)
+        answered_sec = cdr.get("answeredsec")
+        if answered_sec is None:
+            answered_sec = cdr.get("billedsec")
         if answered_sec is not None:
             try:
                 updates["duration_seconds"] = int(answered_sec)
@@ -533,24 +561,26 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
     else:
         updates["status"] = "failed"
 
-    # Handle recording if present
-    # CHUB may send direct record_url/recording_url or filename with appid/secret
-    record_url = cdr.get("record_url") or cdr.get("recording_url")
-    if record_url:
-        background_tasks.add_task(_process_telecmi_recording, call_log_id, record_url)
-    else:
-        recording_filename = cdr.get("filename")
-        if recording_filename:
-            tenant_id_for_rec = log_row.data.get("tenant_id")
-            appid = cdr.get("appid") or cdr.get("app_id") or get_setting("telecmi_app_id", tenant_id=tenant_id_for_rec)
-            secret = get_setting("telecmi_secret", tenant_id=tenant_id_for_rec)
-            if appid and secret:
-                base_url = get_setting("telecmi_recording_base_url", tenant_id=tenant_id_for_rec) or "https://piopiy.telecmi.com/v1/play"
-                full_url = (
-                    f"{base_url}"
-                    f"?appid={appid}&token={secret}&file={recording_filename}"
-                )
-                background_tasks.add_task(_process_telecmi_recording, call_log_id, full_url)
+    # Handle recording if present. CHUB only ever sends `filename` (+ `record`)
+    # on the leg B CDR — there is no record_url/recording_url field in the API.
+    recording_filename = cdr.get("filename")
+    if recording_filename:
+        tenant_id_for_rec = log_row.data.get("tenant_id")
+        appid = cdr.get("appid") or cdr.get("app_id") or get_setting("telecmi_app_id", tenant_id=tenant_id_for_rec)
+        secret = get_setting("telecmi_secret", tenant_id=tenant_id_for_rec)
+        if appid and secret:
+            full_url = build_recording_url(
+                appid=str(appid),
+                secret=secret,
+                filename=recording_filename,
+                base_url=get_setting("telecmi_recording_base_url", tenant_id=tenant_id_for_rec),
+            )
+            background_tasks.add_task(_process_telecmi_recording, call_log_id, full_url)
+        else:
+            logger.warning(
+                f"TeleCMI CDR carried recording {recording_filename} but appid/secret "
+                f"are not configured — skipping download for call {call_log_id}"
+            )
 
     if updates:
         db.table("call_logs").update(updates).eq("id", call_log_id).execute()
@@ -558,7 +588,10 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
     # Track-only usage metering: TeleCMI-provider calls only (never the SIM path,
     # which uses the client's own SIM and isn't billed per-minute). Best-effort —
     # never blocks/caps the webhook response.
-    if updates.get("status") == "completed" and updates.get("duration_seconds"):
+    # `duration_seconds` already being set means this call was metered by an
+    # earlier delivery of this same CDR (TeleCMI retries), so skip it.
+    already_metered = bool(log_row.data.get("duration_seconds"))
+    if not already_metered and updates.get("status") == "completed" and updates.get("duration_seconds"):
         _tenant_id_for_meter = log_row.data.get("tenant_id")
         if _tenant_id_for_meter:
             meter(db, _tenant_id_for_meter, "call_minute", math.ceil(updates["duration_seconds"] / 60))
@@ -889,21 +922,36 @@ async def telecmi_live_events(request: Request):
     _verify_telecmi_webhook_secret(request, tenant_id=tenant_id)
     status = event.get("status")
     request_id = event.get("request_id")
-    logger.info(f"TeleCMI event: status={status}, request_id={request_id}")
-    
+    leg = str(event.get("leg") or "").strip().lower()
+    logger.info(f"TeleCMI event: status={status}, leg={leg or '-'}, request_id={request_id}")
+
+    # Live events also fire per leg (docs: live-outgoing-out-*), so leg A's
+    # 'hangup' arrives while the customer leg may still be up — and previously
+    # flipped the log to "completed". Only the customer leg drives UI state.
+    if leg == "a":
+        return {"ok": True}
+
     if request_id:
         db = get_supabase()
+        # Documented live-event statuses: started, ringing, answered, hangup,
+        # waiting. These are progress signals only — the terminal status comes
+        # from the CDR, which knows the real duration and recording. Never write
+        # a terminal status here or a late 'hangup' overwrites a CDR's no_answer.
         log_status = None
-        if status in ("dial", "started", "initiated"):
+        if status in ("started", "ringing"):
             log_status = "initiated"
-        elif status in ("answered", "in_progress"):
+        elif status == "answered":
             log_status = "in_progress"
-        elif status in ("hangup", "ended", "completed"):
-            log_status = "completed"
-            
+
         if log_status:
-            db.table("call_logs").update({"status": log_status}).eq("call_sid", request_id).execute()
-            
+            (
+                db.table("call_logs")
+                .update({"status": log_status})
+                .eq("call_sid", request_id)
+                .in_("status", ["initiated", "in_progress"])
+                .execute()
+            )
+
     return {"ok": True}
 
 
@@ -912,6 +960,26 @@ async def telecmi_live_events(request: Request):
 # Max concurrent call-AI requests — prevents provider rate-limit failures
 # when many calls end at the same time (shift end, break, etc.)
 _CALL_AI_SEMAPHORE = asyncio.Semaphore(5)
+
+
+_MIN_AUDIO_BYTES = 1024
+
+
+def _is_audio_payload(resp: httpx.Response, body: bytes) -> bool:
+    """True when a /v2/play response body is plausibly an audio file.
+
+    TeleCMI returns HTTP 200 with a JSON error body on auth/lookup failure, so
+    the response has to be inspected rather than trusted. Recordings may be mp3
+    or wav, so this rejects what is clearly *not* audio instead of whitelisting
+    magic bytes for every possible container.
+    """
+    content_type = (resp.headers.get("content-type") or "").lower()
+    if "json" in content_type or "html" in content_type or "text/" in content_type:
+        return False
+    stripped = body.lstrip()[:1]
+    if stripped in (b"{", b"["):
+        return False
+    return len(body) >= _MIN_AUDIO_BYTES
 
 
 async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> None:
@@ -931,6 +999,18 @@ async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> No
                         continue
                     resp.raise_for_status()
                     audio_bytes = resp.content
+
+                # TeleCMI answers a failed playback with HTTP 200 and a JSON error
+                # body (e.g. {"code":407,"msg":"Authentication Failed"}), so a
+                # status check alone is not enough — without this, the error blob
+                # gets stored as the call's .mp3 and handed to transcription.
+                if not _is_audio_payload(resp, audio_bytes):
+                    logger.warning(
+                        f"Recording download returned non-audio (attempt {attempt}) for call "
+                        f"{call_log_id}: content_type={resp.headers.get('content-type')!r} "
+                        f"body={audio_bytes[:200]!r}"
+                    )
+                    continue
 
                 storage_path = f"{call_log_id}.mp3"
                 db.storage.from_("call-recordings").upload(

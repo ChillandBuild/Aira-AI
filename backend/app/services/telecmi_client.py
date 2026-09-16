@@ -4,9 +4,11 @@ TeleCMI CHUB Click-to-Call client.
 Docs:
   https://doc.telecmi.com/chub/docs/app-auth
   https://doc.telecmi.com/chub/docs/click-to-call-admin
+  https://doc.telecmi.com/chub/docs/play-record
 """
 import logging
 from typing import Any
+from urllib.parse import urlencode
 
 import httpx
 
@@ -14,12 +16,48 @@ logger = logging.getLogger(__name__)
 
 TELECMI_BASE_URL = "https://rest.telecmi.com/v2/webrtc/click2call"
 
+# Recording/voicemail playback. The CHUB docs specify `rest.telecmi.com/v2/play`
+# with an `appid`/`secret`/`file` query — NOT piopiy.telecmi.com/v1/play, which
+# belongs to the separate PIOPIY product and takes `token` instead of `secret`.
+TELECMI_RECORDING_BASE_URL = "https://rest.telecmi.com/v2/play"
+
+# An Indian number is 12 digits once the 91 country code is attached. A mistyped
+# setting (a dropped digit in a configured caller ID) is accepted by TeleCMI and
+# only fails at dial time, so warn while the bad value is still traceable.
+_IN_MSISDN_DIGITS = 12
+_MIN_MSISDN_DIGITS = 10
+_MAX_MSISDN_DIGITS = 15
+
+
+def _implausible_reason(digits: str) -> str | None:
+    """Describe why `digits` cannot be a valid MSISDN, or None if it looks fine."""
+    if not (_MIN_MSISDN_DIGITS <= len(digits) <= _MAX_MSISDN_DIGITS):
+        return f"{len(digits)} digits is outside the {_MIN_MSISDN_DIGITS}-{_MAX_MSISDN_DIGITS} range"
+    if digits.startswith("91") and len(digits) != _IN_MSISDN_DIGITS:
+        return f"an Indian (+91) number must be {_IN_MSISDN_DIGITS} digits, got {len(digits)}"
+    return None
+
 
 def _normalize_phone(phone: str) -> str:
     cleaned = phone.replace(" ", "").replace("-", "").replace("+", "")
     if len(cleaned) == 10:
         cleaned = f"91{cleaned}"
+    if cleaned.isdigit() and (reason := _implausible_reason(cleaned)):
+        logger.warning(
+            f"TeleCMI phone number looks malformed ({cleaned}): {reason} "
+            f"— check the configured value for a typo"
+        )
     return cleaned
+
+
+def build_recording_url(appid: str, secret: str, filename: str, base_url: str | None = None) -> str:
+    """Build a CHUB recording/voicemail download URL for a CDR `filename`.
+
+    Per the play-record docs the parameter is `secret`, not `token`.
+    """
+    return f"{base_url or TELECMI_RECORDING_BASE_URL}?" + urlencode(
+        {"appid": appid, "secret": secret, "file": filename}
+    )
 
 
 async def initiate_click2call(

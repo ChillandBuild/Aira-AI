@@ -1,0 +1,18 @@
+# Development/test dependencies.
+#
+# Install on top of the runtime deps:
+#   python3 -m venv venv
+#   venv/bin/pip install -r requirements.txt -r requirements-dev.txt
+#   venv/bin/pytest
+#
+# These are NOT installed on Render — production uses requirements.txt only.
+
+-r requirements.txt
+
+# Test runner. The suite uses unittest.TestCase classes and plain functions,
+# both of which pytest collects.
+pytest>=9.1.0
+
+# Required by the @pytest.mark.asyncio tests in test_telecmi_chub.py — without
+# it those tests are silently skipped rather than failing loudly.
+pytest-asyncio>=1.4.0
