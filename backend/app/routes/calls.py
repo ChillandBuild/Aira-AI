@@ -21,6 +21,7 @@ from app.services.entitlements import meter, check_quota
 from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.telecmi_client import initiate_click2call, build_recording_url
+from app.services.audio_format import detect_audio_format
 from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
 from app.services.attendance import mark_activity_today
@@ -1012,11 +1013,15 @@ async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> No
                     )
                     continue
 
-                storage_path = f"{call_log_id}.mp3"
+                # CHUB serves .wav as well as .mp3 (real CDRs carry .wav), and
+                # both the stored object and Gemini's transcription need the
+                # true type — so detect it instead of assuming mp3.
+                extension, content_type = detect_audio_format(audio_bytes, recording_url)
+                storage_path = f"{call_log_id}.{extension}"
                 db.storage.from_("call-recordings").upload(
                     storage_path,
                     audio_bytes,
-                    {"content-type": "audio/mpeg", "upsert": "true"},
+                    {"content-type": content_type, "upsert": "true"},
                 )
                 public_url = db.storage.from_("call-recordings").get_public_url(storage_path)
                 db.table("call_logs").update({"recording_url": public_url}).eq("id", call_log_id).execute()

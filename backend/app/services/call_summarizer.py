@@ -6,6 +6,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 from app.services.gemini_client import gemini_chat_completion_json, gemini_speech_to_text
+from app.services.audio_format import detect_gemini_audio_mime
 
 
 async def transcribe_recording(recording_url: str, tenant_id: str | None = None) -> str:
@@ -19,8 +20,12 @@ async def transcribe_recording(recording_url: str, tenant_id: str | None = None)
         return ""
 
     try:
-        logger.info(f"Sending {len(audio_bytes)} bytes to Gemini for transcription")
-        transcript = await gemini_speech_to_text(audio_bytes, "audio/mp3", tenant_id=tenant_id)
+        # Gemini takes the mime type as an argument and trusts it, so it has to
+        # match the actual container. Call recordings arrive as .wav as well as
+        # .mp3, and this also runs over recordings stored before that was known.
+        mime_type = detect_gemini_audio_mime(audio_bytes, recording_url)
+        logger.info(f"Sending {len(audio_bytes)} bytes ({mime_type}) to Gemini for transcription")
+        transcript = await gemini_speech_to_text(audio_bytes, mime_type, tenant_id=tenant_id)
         logger.info(f"Transcription complete: {len(transcript)} chars")
         return transcript
     except Exception as e:
