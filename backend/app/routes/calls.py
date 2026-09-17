@@ -354,7 +354,9 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
         err_msg = str(e).replace(telecmi_secret, "***") if telecmi_secret else str(e)
         logger.error(f"TeleCMI call failed: {err_msg}")
         db.table("call_logs").update({"status": "failed"}).eq("id", call_log_id).execute()
-        raise HTTPException(status_code=502, detail=f"Cloud Telephony call failed: {err_msg}")
+        # 424, not 502: the frontend treats 502/503/504 as "our server is down"
+        # and replaces this detail with a generic restart message.
+        raise HTTPException(status_code=424, detail=f"Cloud Telephony call failed: {err_msg}")
 
     db.table("call_logs").update({"call_sid": request_id}).eq("id", call_log_id).execute()
     return {

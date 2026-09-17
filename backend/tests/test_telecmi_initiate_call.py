@@ -279,7 +279,7 @@ class InitiateCallTests(unittest.TestCase):
             {"lead_id": LEAD_ID, "caller_id": CALLER_ID},
             click_error=RuntimeError("TeleCMI error (420): Follow-me calls are not allowed for this app"),
         )
-        self.assertEqual(res.status_code, 502)
+        self.assertEqual(res.status_code, 424)
         self.assertIn({"status": "failed"}, db.updates_to("call_logs"))
         # The real provider message must reach the operator, not be swallowed.
         self.assertIn("Follow-me calls are not allowed", res.json()["detail"])
@@ -297,7 +297,7 @@ class InitiateCallTests(unittest.TestCase):
             {"lead_id": LEAD_ID, "caller_id": CALLER_ID},
             click_error=RuntimeError(f"upstream rejected secret={APP_SECRET}"),
         )
-        self.assertEqual(res.status_code, 502)
+        self.assertEqual(res.status_code, 424)
         self.assertNotIn(APP_SECRET, res.text)
         self.assertIn("***", res.json()["detail"])
 
