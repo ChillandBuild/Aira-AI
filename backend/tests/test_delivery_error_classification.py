@@ -93,3 +93,13 @@ def test_empty_and_malformed_errors_yield_empty_string():
 def test_detail_is_capped_at_300_chars():
     err = {"code": 1, "error_data": {"details": "x" * 500}}
     assert len(_delivery_fail_detail(err)) == 300
+
+
+def test_webhook_does_not_relabel_broadcast_recipient_send_status():
+    # Many readers treat send_status='sent' as "this lead was messaged" (leads
+    # list, re-engagement, template_performance). Relabelling a row on a delivery
+    # failure would silently drop healthy leads over account-level errors like
+    # 131042, and the DB CHECK constraint (migration 166) rejects the value anyway.
+    src = (Path(__file__).resolve().parents[1] / "app" / "routes" / "webhook.py").read_text(encoding="utf-8")
+    assert '"send_status": "delivery_failed"' not in src
+    assert '.update({"fail_detail": err_detail})' in src

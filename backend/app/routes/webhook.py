@@ -1003,14 +1003,20 @@ async def whatsapp_webhook(
                                 else:
                                     raise
                             logger.info(f"Message {message_id} status updated to {status}")
-                            # Mark lead as undeliverable so it's hidden from active views
-                            # Also flip broadcast_recipients row so failed leads are excluded
-                            # from Segment CSVs, scoring, and all dashboard analytics.
+                            # Mark lead as undeliverable so it's hidden from active views.
                             # Only flag the LEAD for error codes that specifically mean this
                             # recipient's number is the problem (e.g. 131026 wrong number).
                             # Everything else — transient throttles AND account-level failures
                             # like 131031 "Business Account locked" — is not evidence this
                             # number is bad, and must not permanently blacklist the lead.
+                            #
+                            # broadcast_recipients.send_status is deliberately NOT changed here.
+                            # The row stays 'sent'; delivery failures are derived from
+                            # messages.delivery_status (failed CSV, tag counts, segment CSV).
+                            # Many readers treat send_status='sent' as "this lead was messaged"
+                            # (leads list, re-engagement, template_performance), so relabelling
+                            # a row would silently drop healthy leads over account-level
+                            # failures like 131042 payment issues.
                             if status == "failed" and updated.data:
                                 failed_lead_id = updated.data[0].get("lead_id")
                                 if failed_lead_id:
@@ -1019,31 +1025,18 @@ async def whatsapp_webhook(
                                             .eq("id", failed_lead_id).eq("tenant_id", tenant_id).execute()
                                     else:
                                         logger.info(f"Delivery error {err_code} for lead {failed_lead_id} is not recipient-specific — not flagging undeliverable")
-                                    # Stamp Meta's own explanation alongside the status so the
-                                    # failed CSV's fail_detail column is populated for webhook
-                                    # failures too, not just synchronous send rejections.
-                                    br_payload: dict = {"send_status": "delivery_failed"}
-                                    if err_detail:
-                                        br_payload["fail_detail"] = err_detail
+                                # Stamp Meta's own explanation so the failed CSV's fail_detail
+                                # column is populated for webhook failures too, not just
+                                # synchronous send rejections.
+                                if err_detail:
                                     try:
-                                        try:
-                                            db.table("broadcast_recipients") \
-                                                .update(br_payload) \
-                                                .eq("meta_message_id", message_id) \
-                                                .eq("tenant_id", tenant_id) \
-                                                .execute()
-                                        except Exception as _fd_err:
-                                            # Migration 105 may not be applied yet — retry without fail_detail
-                                            if "fail_detail" not in br_payload or "fail_detail" not in str(_fd_err):
-                                                raise
-                                            logger.warning(f"Migration 105 not applied — saving send_status only: {_fd_err}")
-                                            db.table("broadcast_recipients") \
-                                                .update({"send_status": "delivery_failed"}) \
-                                                .eq("meta_message_id", message_id) \
-                                                .eq("tenant_id", tenant_id) \
-                                                .execute()
-                                    except Exception as _br_err:
-                                        logger.warning(f"broadcast_recipients delivery_failed update failed: {_br_err}")
+                                        db.table("broadcast_recipients") \
+                                            .update({"fail_detail": err_detail}) \
+                                            .eq("meta_message_id", message_id) \
+                                            .eq("tenant_id", tenant_id) \
+                                            .execute()
+                                    except Exception as _fd_err:
+                                        logger.warning(f"broadcast_recipients fail_detail update failed: {_fd_err}")
                             # Lead proved reachable again — clear any stale undeliverable flag.
                             if status in ("delivered", "read") and updated.data:
                                 reachable_lead_id = updated.data[0].get("lead_id")
