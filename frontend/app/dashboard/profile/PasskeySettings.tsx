@@ -33,7 +33,10 @@ export function PasskeySettings() {
     const supabase = createClient();
     const { error } = await supabase.auth.registerPasskey();
     if (error) {
-      toast.error(error.message);
+      // User cancelled the OS passkey prompt or it timed out — not a real error, stay quiet.
+      if (error.name !== "NotAllowedError") {
+        toast.error(error.message);
+      }
     } else {
       toast.success("Passkey registered");
       await loadPasskeys();

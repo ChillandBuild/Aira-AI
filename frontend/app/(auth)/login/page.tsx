@@ -42,8 +42,11 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPasskey();
     if (error) {
-      setError(error.message);
       setPasskeyLoading(false);
+      // User cancelled the OS passkey prompt or it timed out — not a real error, stay quiet.
+      if (error.name !== "NotAllowedError") {
+        setError(error.message);
+      }
       return;
     }
     router.push("/dashboard");
