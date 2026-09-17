@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { LogOut, MessageSquarePlus } from "lucide-react";
+import Link from "next/link";
+import { LogOut, MessageSquarePlus, UserCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useLogout } from "@/hooks/useLogout";
@@ -69,6 +70,14 @@ export function ProfileMenu() {
             </div>
 
             <div className="py-1">
+              <Link
+                href="/dashboard/profile"
+                onClick={() => setOpen(false)}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
+              >
+                <UserCircle size={16} className="text-[#78716c]" />
+                <span>My Profile</span>
+              </Link>
               <button
                 onClick={() => {
                   setOpen(false);
