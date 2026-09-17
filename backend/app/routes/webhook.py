@@ -57,6 +57,28 @@ def _is_recipient_undeliverable_error(code) -> bool:
         return False
 
 
+def _delivery_fail_detail(err: dict) -> str:
+    """Human-readable detail from a Meta status-webhook error object.
+
+    Mirrors _meta_error_detail() on the send path so broadcast_recipients.fail_detail
+    reads the same whether Meta rejected the send synchronously or reported the
+    failure later via webhook. error_data.details carries Meta's richest text
+    ("Failed to send message because there were one or more errors related to your
+    payment method."); title/message are the terse fallbacks.
+    """
+    if not err:
+        return ""
+    error_data = err.get("error_data")
+    detail = (error_data or {}).get("details") if isinstance(error_data, dict) else None
+    detail = (detail or err.get("message") or err.get("title") or "").strip()
+    if not detail:
+        return ""
+    code = err.get("code")
+    if code is not None and f"#{code}" not in detail:
+        detail = f"(#{code}) {detail}"
+    return detail[:300]
+
+
 def _get_tenant_id_for_meta_number(phone_number_id: str, db) -> str | None:
     try:
         result = db.table("phone_numbers").select("tenant_id").eq("meta_phone_number_id", phone_number_id).maybe_single().execute()
@@ -946,6 +968,7 @@ async def whatsapp_webhook(
                         try:
                             update_payload: dict = {"delivery_status": status}
                             err_code = None
+                            err_detail = ""
                             # Capture Meta error code + title on failed status — surfaced in failed CSV
                             if status == "failed":
                                 errs = status_update.get("errors") or []
@@ -953,12 +976,14 @@ async def whatsapp_webhook(
                                     first = errs[0] or {}
                                     err_code = first.get("code")
                                     err_title = first.get("title") or first.get("message")
+                                    err_detail = _delivery_fail_detail(first)
                                     if err_code is not None:
                                         update_payload["delivery_error_code"] = err_code
                                     if err_title:
                                         update_payload["delivery_error_title"] = err_title[:200]
                                     logger.warning(
-                                        f"Meta delivery failure msg={message_id} code={err_code} title={err_title!r}"
+                                        f"Meta delivery failure msg={message_id} code={err_code} "
+                                        f"title={err_title!r} detail={err_detail!r}"
                                     )
                             try:
                                 updated = db.table("messages") \
@@ -994,12 +1019,29 @@ async def whatsapp_webhook(
                                             .eq("id", failed_lead_id).eq("tenant_id", tenant_id).execute()
                                     else:
                                         logger.info(f"Delivery error {err_code} for lead {failed_lead_id} is not recipient-specific — not flagging undeliverable")
+                                    # Stamp Meta's own explanation alongside the status so the
+                                    # failed CSV's fail_detail column is populated for webhook
+                                    # failures too, not just synchronous send rejections.
+                                    br_payload: dict = {"send_status": "delivery_failed"}
+                                    if err_detail:
+                                        br_payload["fail_detail"] = err_detail
                                     try:
-                                        db.table("broadcast_recipients") \
-                                            .update({"send_status": "delivery_failed"}) \
-                                            .eq("meta_message_id", message_id) \
-                                            .eq("tenant_id", tenant_id) \
-                                            .execute()
+                                        try:
+                                            db.table("broadcast_recipients") \
+                                                .update(br_payload) \
+                                                .eq("meta_message_id", message_id) \
+                                                .eq("tenant_id", tenant_id) \
+                                                .execute()
+                                        except Exception as _fd_err:
+                                            # Migration 105 may not be applied yet — retry without fail_detail
+                                            if "fail_detail" not in br_payload or "fail_detail" not in str(_fd_err):
+                                                raise
+                                            logger.warning(f"Migration 105 not applied — saving send_status only: {_fd_err}")
+                                            db.table("broadcast_recipients") \
+                                                .update({"send_status": "delivery_failed"}) \
+                                                .eq("meta_message_id", message_id) \
+                                                .eq("tenant_id", tenant_id) \
+                                                .execute()
                                     except Exception as _br_err:
                                         logger.warning(f"broadcast_recipients delivery_failed update failed: {_br_err}")
                             # Lead proved reachable again — clear any stale undeliverable flag.
