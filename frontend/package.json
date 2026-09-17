@@ -16,7 +16,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@sentry/nextjs": "^10.56.0",
     "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.103.3",
+    "@supabase/supabase-js": "^2.116.0",
     "@vercel/speed-insights": "^2.0.0",
     "@xyflow/react": "^12.11.0",
     "clsx": "^2.1.1",

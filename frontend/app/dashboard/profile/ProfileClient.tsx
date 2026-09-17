@@ -24,6 +24,7 @@ import { useMyStats, useMyPerformance, useCallerLogs } from "@/hooks/useApi";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import AttendanceMini from "../team/AttendanceMini";
 import { CoachingDigest } from "@/components/CoachingDigest";
+import { PasskeySettings } from "./PasskeySettings";
 
 export interface ProfileClientProps {
   fallbackStats: CallerStats | null;
@@ -198,6 +199,10 @@ export function ProfileClient({
               <p className="font-body text-xs text-on-surface-muted mt-0.5">{link.desc}</p>
             </Link>
           ))}
+        </div>
+
+        <div className="mt-8">
+          <PasskeySettings />
         </div>
       </div>
     );
@@ -422,6 +427,10 @@ export function ProfileClient({
         <AttendanceMini callerId={stats.caller_id} readOnly={true} />
       </div>
 
+      {/* Passkeys */}
+      <div className="mb-8">
+        <PasskeySettings />
+      </div>
 
       {/* Call History */}
       <div className="bg-surface rounded-card p-6 shadow-card ring-1 ring-[#c4c7c7]/15">

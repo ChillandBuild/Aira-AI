@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { Eye, EyeOff, Bot, Target, TrendingUp } from "lucide-react";
+import { Eye, EyeOff, Bot, Target, TrendingUp, Fingerprint } from "lucide-react";
 import { AiraLogo } from "@/components/logo";
 import BackgroundAnimation from "@/components/BackgroundAnimation";
 
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("reason") === "removed") {
@@ -29,6 +30,20 @@ export default function LoginPage() {
     if (error) {
       setError(error.message);
       setLoading(false);
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh();
+  }
+
+  async function handlePasskeyLogin() {
+    setPasskeyLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPasskey();
+    if (error) {
+      setError(error.message);
+      setPasskeyLoading(false);
       return;
     }
     router.push("/dashboard");
@@ -167,6 +182,22 @@ export default function LoginPage() {
                 {loading ? "Signing in…" : "Sign in"}
               </button>
             </form>
+
+            <div className="flex items-center gap-3 my-5">
+              <div className="h-px flex-1 bg-stone-200" />
+              <span className="font-label text-xs text-ink-muted uppercase tracking-wider">or</span>
+              <div className="h-px flex-1 bg-stone-200" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePasskeyLogin}
+              disabled={passkeyLoading}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-stone-200 py-2.5 font-body text-sm font-medium text-ink hover:bg-stone-50 transition-colors disabled:opacity-60"
+            >
+              <Fingerprint size={16} />
+              {passkeyLoading ? "Verifying…" : "Sign in with a passkey"}
+            </button>
           </div>
         </div>
       </div>
