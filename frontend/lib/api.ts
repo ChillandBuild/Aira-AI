@@ -325,9 +325,107 @@ export interface KnowledgeDocContent {
   size_bytes: number;
   status: string;
   created_at: string;
+  /** What Aira looks up from this file: its facts once sorted, the whole text before. */
   full_text: string;
   /** False for documents uploaded before the original file was kept — text only. */
   downloadable: boolean;
+  /** False for legacy files that were never sorted (Aira still reads all of them). */
+  sorted: boolean;
+  sort_state: "sorting" | "review" | "failed" | null;
+}
+
+// ─── Knowledge Auto-Sort ─────────────────────────────────────────────────────
+
+export interface KnowledgeHunk {
+  id: string;
+  kind: "add" | "change" | "remove";
+  /** Index into splitLines(base_description) where old_lines begin. */
+  start: number;
+  old_lines: string[];
+  new_lines: string[];
+  /** The hunk edits a line the client wrote — unticked by default. */
+  touches_client_lines: boolean;
+}
+
+export interface KnowledgeConflict {
+  id: string;
+  topic: string;
+  heading: string;
+  option_a: string;
+  source_a: string;
+  option_b: string;
+  source_b: string;
+}
+
+export interface KnowledgeFactDisagreement {
+  id: string;
+  where: "description" | "file";
+  topic: string;
+  new_value: string;
+  existing_value: string;
+  document_name: string | null;
+  existing_line: string | null;
+  proposed_line: string | null;
+  client_line: boolean;
+}
+
+export interface KnowledgeReview {
+  review_id: string;
+  document_id: string;
+  document_name: string;
+  origin: "upload" | "resort";
+  stale: boolean;
+  base_version_id: string;
+  base_description: string;
+  proposed_description: string;
+  hunks: KnowledgeHunk[];
+  conflicts: KnowledgeConflict[];
+  fact_disagreements: KnowledgeFactDisagreement[];
+  facts: string;
+  unverified: string[];
+  left_out: { text: string; note: string }[];
+  left_out_rules: string[];
+  truncated: boolean;
+  replaces_document: { id: string; name: string } | null;
+  word_count: number;
+  soft_word_limit: number;
+}
+
+export type KnowledgeConflictChoice = "a" | "b" | "none";
+
+export interface KnowledgeApplyChoices {
+  base_version_id: string;
+  accepted_hunk_ids: string[];
+  conflict_choices: Record<string, KnowledgeConflictChoice>;
+  accepted_update_ids: string[];
+}
+
+export type KnowledgeVersionReason =
+  | "baseline"
+  | "edit"
+  | "upload"
+  | "delete_document"
+  | "resort"
+  | "restore";
+
+export interface KnowledgeVersion {
+  id: string;
+  kind: "description" | "facts";
+  document_id: string | null;
+  content: string;
+  reason: KnowledgeVersionReason;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface KnowledgeDeletePreview {
+  base_version_id: string;
+  document_name: string;
+  chunk_count: number;
+  has_facts: boolean;
+  remove_lines: string[];
+  edited_lines: { original: string; current: string }[];
+  description_will_change: boolean;
 }
 
 export interface SystemStatus {
@@ -1443,26 +1541,83 @@ export const api = {
   },
   knowledge: {
     listDocuments: async () => {
-      const res = await apiFetch<{ data: Array<{id:string;name:string;size_bytes:number;file_type:string;status:string;created_at:string;chunk_count?:number}> }>(`/api/v1/knowledge/documents`);
+      const res = await apiFetch<{ data: Array<{
+        id: string;
+        name: string;
+        size_bytes: number;
+        file_type: string;
+        status: string;
+        created_at: string;
+        chunk_count?: number;
+        error_message?: string | null;
+        campaign_tag_id?: string | null;
+        sorted_at?: string | null;
+        sort_state?: "sorting" | "review" | "failed" | null;
+        has_pending_review?: boolean;
+      }> }>(`/api/v1/knowledge/documents`);
       return res.data || [];
     },
-    uploadDocument: async (file: File, campaignTagId?: string | null) => {
+    uploadDocument: async (
+      file: File,
+      campaignTagId?: string | null,
+      replacesDocumentId?: string | null,
+    ) => {
       const authHeaders = await getAuthHeaders();
       const fd = new FormData();
       fd.append("file", file);
       if (campaignTagId) fd.append("campaign_tag_id", campaignTagId);
+      if (replacesDocumentId) fd.append("replaces_document_id", replacesDocumentId);
       const res = await fetch(`${API_URL}/api/v1/knowledge/upload-document`, {
         method: "POST",
         body: fd,
         headers: { ...authHeaders },
       });
-      if (!res.ok) throw new Error("Upload failed");
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(typeof err?.detail === "string" ? err.detail : "Upload failed");
+      }
       return res.json();
     },
-    deleteDocument: (id: string) =>
-      apiFetch<{ success: boolean }>(`/api/v1/knowledge/documents/${id}`, {
+    /** With a body, lines the client edited are only removed when listed in remove_edited,
+     *  and a Description that changed since the preview is refused (409). */
+    deleteDocument: (id: string, body?: { base_version_id: string; remove_edited: string[] }) =>
+      apiFetch<{ success: boolean; description_changed: boolean }>(`/api/v1/knowledge/documents/${id}`, {
         method: "DELETE",
+        ...(body ? { body: JSON.stringify(body) } : {}),
       }),
+    deletePreview: (id: string) =>
+      apiFetch<KnowledgeDeletePreview>(`/api/v1/knowledge/documents/${id}/delete-preview`),
+    getReview: (id: string) =>
+      apiFetch<KnowledgeReview>(`/api/v1/knowledge/documents/${id}/review`),
+    applyReview: (id: string, choices: KnowledgeApplyChoices) =>
+      apiFetch<{ success: boolean; description_changed: boolean; rubric_queued: boolean }>(
+        `/api/v1/knowledge/documents/${id}/review/apply`,
+        { method: "POST", body: JSON.stringify(choices) },
+      ),
+    discardReview: (id: string) =>
+      apiFetch<{ success: boolean }>(`/api/v1/knowledge/documents/${id}/review/discard`, {
+        method: "POST",
+      }),
+    resort: (id: string) =>
+      apiFetch<{ success: boolean }>(`/api/v1/knowledge/documents/${id}/resort`, {
+        method: "POST",
+      }),
+    updateFacts: (id: string, text: string) =>
+      apiFetch<{ success: boolean; full_text: string }>(`/api/v1/knowledge/documents/${id}/facts`, {
+        method: "PUT",
+        body: JSON.stringify({ text }),
+      }),
+    listVersions: async (kind: "description" | "facts", documentId?: string) => {
+      const qs = new URLSearchParams({ kind });
+      if (documentId) qs.set("document_id", documentId);
+      const res = await apiFetch<{ data: KnowledgeVersion[] }>(`/api/v1/knowledge/versions?${qs.toString()}`);
+      return res.data || [];
+    },
+    restoreVersion: (versionId: string) =>
+      apiFetch<{ success: boolean; kind: "description" | "facts" }>(
+        `/api/v1/knowledge/versions/${versionId}/restore`,
+        { method: "POST" },
+      ),
     documentContent: (id: string) =>
       apiFetch<KnowledgeDocContent>(`/api/v1/knowledge/documents/${id}/content`),
     documentDownloadUrl: (id: string) =>
