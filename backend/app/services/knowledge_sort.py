@@ -701,7 +701,7 @@ def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *,
     versions.save_facts_version(db, tenant_id, str(document_id), facts, reason, user_id)
     # A legacy document's old chunks are the raw rulebook -- they must stop serving now.
     db.table("knowledge_chunks").delete().eq("document_id", str(document_id)).eq("tenant_id", tenant_id).execute()
-    db.table("knowledge_reviews").update({"status": "applied"}).eq("id", review["id"]).execute()
+    db.table("knowledge_reviews").update({"status": "applied"}).eq("id", review["id"]).eq("tenant_id", tenant_id).execute()
     if replaces:
         delete_document_row(db, tenant_id, replaces)
 
@@ -720,7 +720,7 @@ def discard_review(db, tenant_id: str, document_id: str) -> None:
     review = _pending_review(db, tenant_id, document_id)
     if not review:
         raise NotFoundError("There's no review waiting for this file.")
-    db.table("knowledge_reviews").update({"status": "discarded"}).eq("id", review["id"]).execute()
+    db.table("knowledge_reviews").update({"status": "discarded"}).eq("id", review["id"]).eq("tenant_id", tenant_id).execute()
     doc = _get_doc(db, tenant_id, document_id, "id,status")
     if not doc:
         return
