@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 _MAX_TEXT_CHARS = 50_000
 
+# Private Supabase Storage bucket holding each document's original upload.
+DOCS_BUCKET = "knowledge-documents"
+
 # Chunking: ~1500 chars (~400-450 tokens) stays under Jina's per-input limit and
 # keeps each chunk semantically tight. 200-char overlap preserves cross-boundary context.
 _CHUNK_CHARS = 1500
@@ -141,35 +144,37 @@ async def process_document(
     filename: str,
     mime_type: str,
     campaign_tag_id: str | None = None,
+    replaces_document_id: str | None = None,
+    user_id: str | None = None,
 ):
+    """Extract the text, then hand off to Knowledge Auto-Sort. Nothing is indexed here
+    any more: the document waits as 'review_pending' until the client approves the
+    sort, and only its FACTS are ever chunked (see knowledge_sort.py for why)."""
     db = get_supabase()
     try:
         text = await asyncio.to_thread(extract_text_from_file, file_content, filename, mime_type, tenant_id)
         if not text:
             raise ValueError("No text could be extracted from the file.")
-
-        # full_text is retained as the embedding-failure fallback for retrieval.
         db.table("knowledge_documents").update({
-            "status": "indexed",
-            "full_text": text[:_MAX_TEXT_CHARS],
+            "source_text": text[:_MAX_TEXT_CHARS],
+            "sort_state": "sorting",
         }).eq("id", str(document_id)).execute()
-
-        try:
-            chunk_count = await _index_chunks(
-                document_id, tenant_id, text[:_MAX_TEXT_CHARS], db, campaign_tag_id=campaign_tag_id
-            )
-            logger.info(f"Document {document_id} indexed — {len(text)} chars, {chunk_count} chunks embedded")
-        except Exception as embed_err:
-            # Indexing succeeded for full-text fallback; embeddings failed. Don't fail the
-            # whole upload — retrieval falls back to full_text injection until re-indexed.
-            logger.error(f"Chunk embedding failed for {document_id}: {embed_err}. Full-text fallback active.")
-
     except Exception as e:
         logger.error(f"Document processing failed for {document_id}: {e}")
         db.table("knowledge_documents").update({
             "status": "failed",
             "error_message": str(e),
         }).eq("id", str(document_id)).execute()
+        return
+
+    from app.services.knowledge_sort import sort_document
+
+    await sort_document(
+        tenant_id=tenant_id,
+        document_id=str(document_id),
+        user_id=user_id,
+        replaces_document_id=replaces_document_id,
+    )
 
 
 def _full_text_context(tenant_id: str, db, campaign_tag_id: str | None = None) -> str:

@@ -513,3 +513,247 @@ async def run_sort(
         "status": "pending",
         "created_by": user_id,
     }).execute().data[0]
+
+
+async def sort_document(*, tenant_id: str, document_id: str, user_id: str | None, replaces_document_id: str | None = None) -> None:
+    """Background entry point for uploads and re-sorts. Never raises: a failure is
+    written to the document as a plain-language message the client can act on.
+
+    A document that is already live (status 'indexed', e.g. a legacy file being sorted
+    for the first time) keeps serving replies throughout -- only sort_state changes."""
+    from app.services.knowledge_service import _MAX_TEXT_CHARS
+
+    db = get_supabase()
+    doc = _get_doc(db, tenant_id, document_id, "id,status,source_text,campaign_tag_id")
+    if not doc:
+        return
+    was_indexed = doc.get("status") == "indexed"
+    if replaces_document_id is None and not was_indexed:
+        # A re-sort of a not-yet-applied upload keeps the file it was replacing.
+        replaces_document_id = (_latest_review(db, tenant_id, document_id) or {}).get("replaces_document_id")
+    source = doc.get("source_text") or ""
+    try:
+        await run_sort(
+            db,
+            tenant_id=tenant_id,
+            document_id=document_id,
+            source_text=source,
+            truncated=len(source) >= _MAX_TEXT_CHARS,
+            campaign_tag_id=doc.get("campaign_tag_id"),
+            replaces_document_id=replaces_document_id,
+            origin="resort" if was_indexed else "upload",
+            user_id=user_id,
+        )
+        updates = {"sort_state": "review", "error_message": None}
+        if not was_indexed:
+            updates["status"] = "review_pending"
+    except Exception as e:
+        if isinstance(e, SortError):
+            message = str(e)
+        else:
+            logger.exception(f"knowledge_sort: sorting failed for document {document_id}")
+            message = SortError.message
+        updates = {"sort_state": "failed", "error_message": message}
+        if not was_indexed:
+            updates["status"] = "failed"
+    db.table("knowledge_documents").update(updates).eq("id", document_id).eq("tenant_id", tenant_id).execute()
+
+
+def prepare_resort(db, tenant_id: str, document_id: str) -> None:
+    """Validate a re-sort request and mark the document as sorting. For a legacy
+    document the raw text still lives in full_text, so it's copied to source_text."""
+    doc = _get_doc(db, tenant_id, document_id, "id,status,sort_state,sorted_at,source_text,full_text")
+    if not doc:
+        raise NotFoundError("Document not found.")
+    if doc.get("status") == "processing" or doc.get("sort_state") == "sorting":
+        raise SortError("This file is already being sorted.")
+    source = doc.get("source_text") or ("" if doc.get("sorted_at") else (doc.get("full_text") or ""))
+    if not source.strip():
+        raise SortError("There's no text to sort in this file. Upload it again.")
+    updates = {"sort_state": "sorting", "error_message": None}
+    if not doc.get("source_text"):
+        updates["source_text"] = source
+    if doc.get("status") != "indexed":
+        updates["status"] = "processing"
+    db.table("knowledge_documents").update(updates).eq("id", document_id).eq("tenant_id", tenant_id).execute()
+
+
+# ─── Review ───────────────────────────────────────────────────────────────────
+
+@dataclass
+class ApplyChoices:
+    base_version_id: str
+    accepted_hunk_ids: list[str] = field(default_factory=list)
+    conflict_choices: dict[str, str] = field(default_factory=dict)  # conflict id -> "a" | "b" | "none"
+    accepted_update_ids: list[str] = field(default_factory=list)  # description disagreements to apply
+
+
+def build_review_payload(db, tenant_id: str, document_id: str) -> dict:
+    review = _pending_review(db, tenant_id, document_id)
+    if not review:
+        raise NotFoundError("There's no review waiting for this file.")
+    doc = _get_doc(db, tenant_id, document_id, "id,name") or {}
+    latest = versions.current_description_version(db, tenant_id)
+    base = versions.get_version(db, tenant_id, review["base_version_id"]) if review.get("base_version_id") else None
+    base_text = (base or {}).get("content") or ""
+    proposed = review.get("proposed_description") or ""
+    hunks = diff_hunks(base_text, proposed, machine_lines(db, tenant_id))
+    replaces = None
+    if review.get("replaces_document_id"):
+        old = _get_doc(db, tenant_id, review["replaces_document_id"], "id,name")
+        replaces = {"id": old["id"], "name": old["name"]} if old else None
+    return {
+        "review_id": review["id"],
+        "document_id": str(document_id),
+        "document_name": doc.get("name") or "",
+        "origin": review.get("origin") or "upload",
+        "stale": base is None or latest["id"] != review.get("base_version_id"),
+        "base_version_id": review.get("base_version_id"),
+        "base_description": base_text,
+        "proposed_description": proposed,
+        "hunks": [h.to_dict() for h in hunks],
+        "conflicts": review.get("conflicts") or [],
+        "fact_disagreements": review.get("fact_disagreements") or [],
+        "facts": review.get("proposed_facts") or "",
+        "unverified": review.get("unverified") or [],
+        "left_out": review.get("left_out") or [],
+        "left_out_rules": review.get("left_out_rules") or [],
+        "truncated": bool(review.get("truncated")),
+        "replaces_document": replaces,
+        "word_count": len(proposed.split()),
+        "soft_word_limit": SOFT_WORD_LIMIT,
+    }
+
+
+def compute_final_description(review: dict, base_text: str, machine: set[str], choices: ApplyChoices) -> tuple[str, list[str]]:
+    """The Description the client approved, plus the normalised lines this document
+    contributed to it. Pure -- the frontend mirrors it for its live preview."""
+    hunks = diff_hunks(base_text, review.get("proposed_description") or "", machine)
+    accepted = set(choices.accepted_hunk_ids)
+    final = apply_hunks(base_text, hunks, accepted)
+    new_lines = [normalize(line) for h in hunks if h.id in accepted for line in h.new_lines if normalize(line)]
+
+    for conflict in review.get("conflicts") or []:
+        pick = choices.conflict_choices.get(conflict.get("id"), "none")
+        if pick in ("a", "b"):
+            line = conflict["option_a" if pick == "a" else "option_b"]
+            final = insert_under_heading(final, conflict.get("heading") or "", line)
+            new_lines.append(normalize(line))
+
+    accepted_updates = set(choices.accepted_update_ids)
+    for d in review.get("fact_disagreements") or []:
+        if d.get("where") == "description" and d.get("id") in accepted_updates:
+            replaced = replace_exact_line(final, d.get("existing_line") or "", d.get("proposed_line") or "")
+            if replaced is not None:  # the line was changed by an accepted hunk: skip
+                final = replaced
+                new_lines.append(normalize(d["proposed_line"]))
+
+    return final.strip(), list(dict.fromkeys(new_lines))
+
+
+def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *, user_id: str | None, is_owner: bool) -> dict:
+    """Commit an approved review. Database writes only -- the caller schedules
+    index_facts() so chunking/embedding never holds up the response; until the chunks
+    exist the full-text fallback serves the new facts."""
+    review = _pending_review(db, tenant_id, document_id)
+    if not review:
+        raise NotFoundError("There's no review waiting for this file.")
+    latest = versions.current_description_version(db, tenant_id)
+    if latest["id"] != review.get("base_version_id") or choices.base_version_id != review.get("base_version_id"):
+        raise StaleError()
+
+    base_text = latest.get("content") or ""
+    final, new_lines = compute_final_description(review, base_text, machine_lines(db, tenant_id), choices)
+    if not final:
+        raise EmptyDescriptionError()
+    changed = normalize_text(final) != normalize_text(base_text)
+    if changed and not is_owner:
+        raise OwnerRequiredError(
+            "Only an account owner can apply changes to the Description. Ask an owner to review this file."
+        )
+
+    replaces = review.get("replaces_document_id")
+    if replaces:
+        final_norm = {normalize(line) for line in lines_of(final)}
+        new_lines += [line for line in _doc_rule_lines(db, tenant_id, replaces) if line in final_norm]
+    rule_lines = list(dict.fromkeys(new_lines))
+
+    reason = "resort" if review.get("origin") == "resort" else "upload"
+    if changed:
+        versions.save_description(db, tenant_id, final, reason, user_id)
+
+    facts = review.get("proposed_facts") or ""
+    doc = _get_doc(db, tenant_id, document_id, "id,campaign_tag_id") or {}
+    (
+        db.table("knowledge_documents")
+        .update({
+            "full_text": facts,
+            "rule_lines": rule_lines,
+            "sorted_at": _now(),
+            "status": "indexed",
+            "sort_state": None,
+            "error_message": None,
+        })
+        .eq("id", str(document_id))
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+    versions.save_facts_version(db, tenant_id, str(document_id), facts, reason, user_id)
+    # A legacy document's old chunks are the raw rulebook -- they must stop serving now.
+    db.table("knowledge_chunks").delete().eq("document_id", str(document_id)).eq("tenant_id", tenant_id).execute()
+    db.table("knowledge_reviews").update({"status": "applied"}).eq("id", review["id"]).execute()
+    if replaces:
+        delete_document_row(db, tenant_id, replaces)
+
+    return {
+        "description_changed": changed,
+        "base_was_empty": not base_text.strip(),
+        "final_description": final,
+        "facts": facts,
+        "campaign_tag_id": doc.get("campaign_tag_id"),
+    }
+
+
+def discard_review(db, tenant_id: str, document_id: str) -> None:
+    """A new upload that was never applied is deleted outright; a live document just
+    drops the proposal and keeps working as before."""
+    review = _pending_review(db, tenant_id, document_id)
+    if not review:
+        raise NotFoundError("There's no review waiting for this file.")
+    db.table("knowledge_reviews").update({"status": "discarded"}).eq("id", review["id"]).execute()
+    doc = _get_doc(db, tenant_id, document_id, "id,status")
+    if not doc:
+        return
+    if doc.get("status") != "indexed":
+        delete_document_row(db, tenant_id, document_id)
+    else:
+        db.table("knowledge_documents").update({"sort_state": None}).eq("id", str(document_id)).eq("tenant_id", tenant_id).execute()
+
+
+async def index_facts(tenant_id: str, document_id: str, facts: str, campaign_tag_id: str | None) -> None:
+    """Chunk and embed a document's facts. Best-effort: on failure the full-text
+    fallback still serves full_text, exactly as process_document always behaved."""
+    from app.services.knowledge_service import _index_chunks
+
+    if not (facts or "").strip():
+        return
+    try:
+        await _index_chunks(document_id, tenant_id, facts, get_supabase(), campaign_tag_id=campaign_tag_id)
+    except Exception as e:
+        logger.error(f"knowledge_sort: embedding failed for {document_id}: {e}. Full-text fallback active.")
+
+
+def delete_document_row(db, tenant_id: str, document_id: str) -> None:
+    """Delete a document and its stored original. Chunks, reviews and facts versions go
+    with it via ON DELETE CASCADE."""
+    from app.services.knowledge_service import DOCS_BUCKET
+
+    row = _get_doc(db, tenant_id, document_id, "id,storage_path")
+    if not row:
+        raise NotFoundError("Document not found.")
+    if row.get("storage_path"):
+        try:
+            db.storage.from_(DOCS_BUCKET).remove([row["storage_path"]])
+        except Exception as e:
+            logger.warning(f"Knowledge document storage delete failed for {row['storage_path']}: {e}")
+    db.table("knowledge_documents").delete().eq("id", str(document_id)).eq("tenant_id", tenant_id).execute()
