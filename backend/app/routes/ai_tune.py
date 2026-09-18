@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.config_dynamic import get_setting, save_setting, invalidate_cache
+from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.groq_client import get_groq_client
+from app.services.knowledge_versions import save_description
 from app.services.token_meter import record_groq_sdk
 
 logger = logging.getLogger(__name__)
@@ -91,20 +93,35 @@ def _rubric_auto_update_enabled(tenant_id: str) -> bool:
     return get_setting("rubric_auto_update", fallback="false", tenant_id=tenant_id) == "true"
 
 
+def queue_rubric_for_description(tenant_id: str, description: str, *, base_was_empty: bool = False) -> bool:
+    """Rubric follow-up for every Description write path (manual save, knowledge
+    review apply, restore, document delete). Regenerates when the client opted in to
+    auto-update; otherwise fills a missing rubric only when the Description has just
+    gone from empty to filled (knowledge auto-sort spec §6.6). Best-effort, never
+    blocks the save."""
+    if not description:
+        return False
+    if _rubric_auto_update_enabled(tenant_id):
+        force = True
+    elif base_was_empty:
+        force = False
+    else:
+        return False
+    task = asyncio.create_task(_auto_generate_rubric(description, tenant_id, force=force))
+    task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+    return True
+
+
 @router.put("/description")
 async def update_description(
-    payload: DescriptionUpdate, tenant_id: str = Depends(get_tenant_id)
+    payload: DescriptionUpdate,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_owner),
 ):
     description = payload.description.strip()
-    save_setting("business_description", description, tenant_id=tenant_id)
-    invalidate_cache("business_description")
-
-    rubric_queued = False
-    if description and _rubric_auto_update_enabled(tenant_id):
-        _task = asyncio.create_task(_auto_generate_rubric(description, tenant_id, force=True))
-        _task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
-        rubric_queued = True
-
+    # Versioned write (knowledge auto-sort spec §7) -- every Description save can be undone.
+    save_description(get_supabase(), tenant_id, description, "edit", ctx.get("user_id"))
+    rubric_queued = queue_rubric_for_description(tenant_id, description)
     return {"description": description, "rubric_queued": rubric_queued}
 
 
