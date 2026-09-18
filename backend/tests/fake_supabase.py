@@ -44,8 +44,8 @@ class FakeSupabase:
     def rows(self, name: str) -> list[dict]:
         return self.tables.setdefault(name, [])
 
-    def add(self, name: str, **row) -> dict:
-        return _Query(self, name).insert(row).execute().data[0]
+    def add(self, _table: str, **row) -> dict:
+        return _Query(self, _table).insert(row).execute().data[0]
 
     def _stamp(self) -> str:
         return f"2026-01-01T00:00:{next(self._clock):012d}"
