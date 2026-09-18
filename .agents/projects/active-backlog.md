@@ -415,3 +415,43 @@ Second suspect: Node version (no `engines` field in `frontend/package.json`, so 
 own default). `frontend/package-lock.json` is committed but dates from 2026-07-19.
 
 Unrelated cleanup while there: `_atest_temp.txt` was committed to the repo root by `0b618416`.
+
+## Knowledge Auto-Sort — follow-ups after the first live sort (open, 2026-09-18)
+Shipped and merged to local `main` (not pushed); migration 190 applied live. See
+`decisions/log.md` 2026-09-18 and `docs/superpowers/specs/2026-09-18-knowledge-auto-sort-design.md`.
+
+- **Never live-tested — the sandbox has no network, so no real model call was ever made.**
+  The first real sort (Astro Tamil's two files) is the actual test of labelling and compile
+  quality. `_LABEL_BATCH_CHARS = 12_000` and `_COMPILE_BATCH_CHARS = 16_000` in
+  `services/knowledge_sort.py` are untuned guesses — check them against each provider's
+  per-request limit (Groq free-tier TPM is the tight one) before assuming a 46k-char file sorts.
+- **Astro Tamil data fix pending, needs the user's go-ahead.** Their `business_description`
+  is 2,005 chars of a pasted ChatGPT reply. Paste the drafted ~820-word Description FIRST
+  (every current line counts as client-authored, so the sorter would protect the transcript),
+  then "Sort this file" on both documents and review.
+- **Deferred LOWs from the 2026-09-18 security review** (none exploitable on their own):
+  `knowledge.view` can read Description history via `/versions?kind=description` (the live text
+  was already member-readable through `app_settings`); change/remove hunks on lines owned by
+  *other* documents are pre-ticked, so a crafted upload can land pre-ticked edits an owner may
+  click past; no `max_length` on `PUT /ai-tune/description` (every save now also writes a
+  version row); no rate limit on `/resort` or `upload-document`.
+- **Spec follow-ups not built**: rename the tabs to "How Aira behaves" / "What Aira looks up";
+  warn when a pasted AI transcript is saved as the Description; undo a document delete (needs
+  soft delete + a `deleted_at` filter in the retrieval RPCs); a per-campaign Description add-on
+  for campaign-scoped rules (currently left out and shown to the client).
+
+## Local dev environment gaps surfaced by `/second-brain-close` (open, 2026-09-18)
+Both need network + an install, so they could not be fixed from the agent sandbox.
+- **Git hooks are silently no-op'ing.** `lefthook` is a root `package.json` devDependency but the
+  repo root has **no `node_modules` at all**, and `.git/hooks/` contains only `.sample` files.
+  Fix: `npm install` at the repo root, then `npx lefthook install`.
+- **`gitleaks` not installed**, so the session-close credential scan only runs 4 narrow fallback
+  patterns, not full coverage.
+- **`graphify` not installed and `graphify-out/` does not exist locally**, so `make wiki-refresh`
+  cannot run and the architecture wiki can't be rebuilt from this machine. (`make` itself is also
+  absent — run `python scripts/second_brain_close.py` directly.)
+- **`frontend/node_modules` is stale**: `@supabase/supabase-js` 2.103.3 installed vs 2.116.0
+  pinned in `package-lock.json`, which is the whole reason `npx tsc --noEmit` reports one error in
+  `lib/supabase/client.ts` (passkey option didn't exist in 2.103.3). A plain `npm install` in
+  `frontend/` clears it; CI installs from the lock file and is unaffected.
+
