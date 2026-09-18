@@ -1,18 +1,64 @@
 import logging
-from typing import Optional
+from typing import Literal, Optional
 from uuid import UUID, uuid4
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from pydantic import BaseModel, Field
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
-from app.services.knowledge_service import process_document, reindex_tenant
+from app.services import knowledge_sort as ks
+from app.services import knowledge_versions as kv
+from app.services.knowledge_service import DOCS_BUCKET, process_document, reindex_tenant
 
 logger = logging.getLogger(__name__)
 require_knowledge_read = require_permission("knowledge.view")
 require_knowledge_manage = require_permission("knowledge.manage")
 
-_DOCS_BUCKET = "knowledge-documents"
+_DOCS_BUCKET = DOCS_BUCKET
+
+# The list view never needs the large text columns (full_text / source_text can each
+# be ~50,000 characters per document).
+_DOC_LIST_COLUMNS = (
+    "id,tenant_id,name,file_type,size_bytes,status,error_message,created_at,"
+    "campaign_tag_id,storage_path,sorted_at,sort_state"
+)
 
 router = APIRouter(dependencies=[Depends(require_knowledge_read)])
+
+
+def _http(e: ks.KnowledgeError) -> HTTPException:
+    """Auto-sort errors carry their own status; detail is always a plain string because
+    the frontend's apiFetch surfaces it with new Error(detail)."""
+    return HTTPException(status_code=e.status, detail=str(e))
+
+
+def _is_owner(ctx: dict) -> bool:
+    return ctx.get("role") == "owner"
+
+
+def _queue_rubric(tenant_id: str, result: dict) -> bool:
+    if not result.get("description_changed"):
+        return False
+    from app.routes.ai_tune import queue_rubric_for_description
+
+    return queue_rubric_for_description(
+        tenant_id, result.get("final_description") or "", base_was_empty=bool(result.get("base_was_empty"))
+    )
+
+
+class ApplyReviewBody(BaseModel):
+    base_version_id: str
+    accepted_hunk_ids: list[str] = Field(default_factory=list)
+    conflict_choices: dict[str, Literal["a", "b", "none"]] = Field(default_factory=dict)
+    accepted_update_ids: list[str] = Field(default_factory=list)
+
+
+class FactsBody(BaseModel):
+    text: str = Field(max_length=100_000)
+
+
+class DeleteDocumentBody(BaseModel):
+    base_version_id: Optional[str] = None
+    remove_edited: list[str] = Field(default_factory=list)
 
 
 def _doc_signed_url(db, path: str, expires_in: int = 300) -> str | None:
@@ -33,8 +79,19 @@ def _doc_signed_url(db, path: str, expires_in: int = 300) -> str | None:
 @router.get("/documents")
 async def list_documents(tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
-    res = db.table("knowledge_documents").select("*").eq("tenant_id", tenant_id).order("created_at", desc=True).execute()
-    return {"data": res.data or []}
+    res = db.table("knowledge_documents").select(_DOC_LIST_COLUMNS).eq("tenant_id", tenant_id).order("created_at", desc=True).execute()
+    docs = res.data or []
+    pending = (
+        db.table("knowledge_reviews")
+        .select("document_id")
+        .eq("tenant_id", tenant_id)
+        .eq("status", "pending")
+        .execute()
+    )
+    pending_ids = {r["document_id"] for r in (pending.data or [])}
+    for doc in docs:
+        doc["has_pending_review"] = doc["id"] in pending_ids
+    return {"data": docs}
 
 
 @router.post("/upload-document")
@@ -42,6 +99,7 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     campaign_tag_id: Optional[str] = Form(None),
+    replaces_document_id: Optional[str] = Form(None),
     tenant_id: str = Depends(get_tenant_id),
     _ctx: dict = Depends(require_knowledge_manage),
 ):
@@ -50,6 +108,25 @@ async def upload_document(
 
     # Empty-string from a multipart form means "All campaigns" → store as NULL.
     campaign_tag_id = campaign_tag_id or None
+
+    # "Does this replace an existing file?" (auto-sort spec §6.4). The old file is only
+    # removed when the new one's review is applied.
+    replaces_document_id = replaces_document_id or None
+    if replaces_document_id:
+        try:
+            replaces_document_id = str(UUID(replaces_document_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="The file you chose to replace wasn't found.")
+        exists = (
+            db.table("knowledge_documents")
+            .select("id")
+            .eq("id", replaces_document_id)
+            .eq("tenant_id", tenant_id)
+            .limit(1)
+            .execute()
+        )
+        if not exists.data:
+            raise HTTPException(status_code=400, detail="The file you chose to replace wasn't found.")
 
     # Keep the original file so the client can download it later. Best-effort: a storage
     # failure must not block indexing -- the document still works for RAG without its
@@ -89,8 +166,10 @@ async def upload_document(
         filename=file.filename,
         mime_type=file.content_type,
         campaign_tag_id=campaign_tag_id,
+        replaces_document_id=replaces_document_id,
+        user_id=_ctx.get("user_id"),
     )
-    
+
     return res.data[0]
 
 
@@ -110,13 +189,15 @@ async def document_content(
     doc_id: UUID,
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """The extracted text the AI actually reads for this document -- not the original
-    file. `downloadable` tells the UI whether to offer a download button: documents
-    uploaded before migration 144 have no stored original."""
+    """The text the AI actually looks up for this document -- not the original file.
+    For a sorted document that is its FACTS only; for a legacy (never sorted) document
+    it is still the whole extracted text, and `sorted` is False so the UI can say so.
+    `downloadable` tells the UI whether to offer a download button: documents uploaded
+    before migration 144 have no stored original."""
     db = get_supabase()
     res = (
         db.table("knowledge_documents")
-        .select("id,name,file_type,size_bytes,status,full_text,storage_path,created_at")
+        .select("id,name,file_type,size_bytes,status,full_text,storage_path,created_at,sorted_at,sort_state")
         .eq("id", str(doc_id))
         .eq("tenant_id", tenant_id)
         .limit(1)
@@ -135,6 +216,8 @@ async def document_content(
         "created_at": row["created_at"],
         "full_text": row.get("full_text") or "",
         "downloadable": bool(row.get("storage_path")),
+        "sorted": bool(row.get("sorted_at")),
+        "sort_state": row.get("sort_state"),
     }
 
 
@@ -175,31 +258,155 @@ async def document_download(
     return {"url": url, "name": res.data[0].get("name")}
 
 
+@router.get("/documents/{doc_id}/delete-preview")
+async def delete_preview(doc_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+    """What deleting this file removes: its facts, and the Description lines only it
+    added. Lines the client has since edited are listed separately (spec §6.3)."""
+    try:
+        return ks.build_delete_preview(get_supabase(), tenant_id, str(doc_id))
+    except ks.KnowledgeError as e:
+        raise _http(e)
+
+
 @router.delete("/documents/{doc_id}")
 async def delete_document(
+    doc_id: UUID,
+    body: Optional[DeleteDocumentBody] = Body(default=None),
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_knowledge_manage),
+):
+    """Delete a file, its stored original and its chunks, and take the Description
+    lines only it added out of the Description. With no body, edited lines are kept and
+    the staleness check is skipped."""
+    body = body or DeleteDocumentBody()
+    try:
+        result = ks.delete_document(
+            get_supabase(),
+            tenant_id,
+            str(doc_id),
+            base_version_id=body.base_version_id,
+            remove_edited=body.remove_edited,
+            user_id=ctx.get("user_id"),
+            is_owner=_is_owner(ctx),
+        )
+    except ks.KnowledgeError as e:
+        raise _http(e)
+    _queue_rubric(tenant_id, result)
+    return {"success": True, "description_changed": result["description_changed"]}
+
+
+# ─── Knowledge Auto-Sort: review, re-sort, facts, history ─────────────────────
+
+@router.get("/documents/{doc_id}/review")
+async def get_review(doc_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+    try:
+        return ks.build_review_payload(get_supabase(), tenant_id, str(doc_id))
+    except ks.KnowledgeError as e:
+        raise _http(e)
+
+
+@router.post("/documents/{doc_id}/review/apply")
+async def apply_review(
+    doc_id: UUID,
+    body: ApplyReviewBody,
+    background_tasks: BackgroundTasks,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_knowledge_manage),
+):
+    try:
+        result = ks.apply_review(
+            get_supabase(),
+            tenant_id,
+            str(doc_id),
+            ks.ApplyChoices(**body.model_dump()),
+            user_id=ctx.get("user_id"),
+            is_owner=_is_owner(ctx),
+        )
+    except ks.KnowledgeError as e:
+        raise _http(e)
+    # Embedding runs after the response; the full-text fallback serves the facts meanwhile.
+    background_tasks.add_task(ks.index_facts, tenant_id, str(doc_id), result["facts"], result["campaign_tag_id"])
+    rubric_queued = _queue_rubric(tenant_id, result)
+    return {"success": True, "description_changed": result["description_changed"], "rubric_queued": rubric_queued}
+
+
+@router.post("/documents/{doc_id}/review/discard")
+async def discard_review(
     doc_id: UUID,
     tenant_id: str = Depends(get_tenant_id),
     _ctx: dict = Depends(require_knowledge_manage),
 ):
-    db = get_supabase()
-
-    # Remove the stored original first so deleting a document doesn't orphan its file in
-    # the bucket. Best-effort -- a storage failure must not block the row delete.
-    existing = (
-        db.table("knowledge_documents")
-        .select("storage_path")
-        .eq("id", str(doc_id))
-        .eq("tenant_id", tenant_id)
-        .limit(1)
-        .execute()
-    )
-    storage_path = (existing.data[0].get("storage_path") if existing.data else None)
-    if storage_path:
-        try:
-            db.storage.from_(_DOCS_BUCKET).remove([storage_path])
-        except Exception as e:
-            logger.warning(f"Knowledge document storage delete failed for {storage_path}: {e}")
-
-    # Chunks are deleted via CASCADE
-    db.table("knowledge_documents").delete().eq("id", str(doc_id)).eq("tenant_id", tenant_id).execute()
+    try:
+        ks.discard_review(get_supabase(), tenant_id, str(doc_id))
+    except ks.KnowledgeError as e:
+        raise _http(e)
     return {"success": True}
+
+
+@router.post("/documents/{doc_id}/resort")
+async def resort_document(
+    doc_id: UUID,
+    background_tasks: BackgroundTasks,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_knowledge_manage),
+):
+    """Sort a legacy file for the first time, retry a failed sort, or rebuild a review
+    that went stale. The file keeps serving replies while it's sorted."""
+    try:
+        ks.prepare_resort(get_supabase(), tenant_id, str(doc_id))
+    except ks.KnowledgeError as e:
+        raise _http(e)
+    background_tasks.add_task(ks.sort_document, tenant_id=tenant_id, document_id=str(doc_id), user_id=ctx.get("user_id"))
+    return {"success": True}
+
+
+@router.put("/documents/{doc_id}/facts")
+async def update_facts(
+    doc_id: UUID,
+    body: FactsBody,
+    background_tasks: BackgroundTasks,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_knowledge_manage),
+):
+    try:
+        result = ks.update_facts(get_supabase(), tenant_id, str(doc_id), body.text, ctx.get("user_id"))
+    except ks.KnowledgeError as e:
+        raise _http(e)
+    background_tasks.add_task(ks.index_facts, tenant_id, str(doc_id), result["facts"], result["campaign_tag_id"])
+    return {"success": True, "full_text": result["facts"]}
+
+
+@router.get("/versions")
+async def list_versions(
+    kind: Literal["description", "facts"],
+    document_id: Optional[UUID] = None,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    db = get_supabase()
+    if kind == "facts":
+        if not document_id:
+            raise HTTPException(status_code=400, detail="Choose a file to see its history.")
+        return {"data": kv.list_versions(db, tenant_id, "facts", str(document_id))}
+    # Make sure the Description in force right now appears in its own history.
+    kv.current_description_version(db, tenant_id)
+    return {"data": kv.list_versions(db, tenant_id, "description")}
+
+
+@router.post("/versions/{version_id}/restore")
+async def restore_version(
+    version_id: UUID,
+    background_tasks: BackgroundTasks,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_knowledge_manage),
+):
+    try:
+        result = ks.restore_version(
+            get_supabase(), tenant_id, str(version_id), user_id=ctx.get("user_id"), is_owner=_is_owner(ctx)
+        )
+    except ks.KnowledgeError as e:
+        raise _http(e)
+    if result["kind"] == "facts":
+        background_tasks.add_task(ks.index_facts, tenant_id, result["document_id"], result["facts"], result["campaign_tag_id"])
+    else:
+        _queue_rubric(tenant_id, result)
+    return {"success": True, "kind": result["kind"]}
