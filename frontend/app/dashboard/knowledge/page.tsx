@@ -9,7 +9,8 @@ import {
   HardDrive, Check, Copy,
   Sparkles, LayoutGrid, List,
   FileSpreadsheet, FileCode, Image as ImageIcon,
-  Tag, Shield, BookOpen, Lock, ArrowRight, Circle, Lightbulb
+  Tag, Shield, BookOpen, ArrowRight, Circle, Lightbulb,
+  ClipboardCheck, History, RefreshCw, Pencil
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, KnowledgeDocContent } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,10 @@ import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SwitchPill } from "@/components/ui/controls";
+import KnowledgeReviewModal from "./KnowledgeReviewModal";
+import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
+import DeleteDocumentModal from "./DeleteDocumentModal";
+import { wordCount } from "./descriptionDiff";
 
 // ─── Interfaces & Types ───────────────────────────────────────────────────────
 
@@ -28,14 +33,76 @@ interface KnowledgeDoc {
   status: string;
   created_at: string;
   chunk_count?: number;
-  error_message?: string;
+  error_message?: string | null;
   campaign_tag_id?: string | null;
+  /** null = uploaded before auto-sort; Aira still reads the whole file. */
+  sorted_at?: string | null;
+  sort_state?: "sorting" | "review" | "failed" | null;
+  has_pending_review?: boolean;
 }
 
 interface CampaignTag {
   id: string;
   name: string;
   color?: string;
+}
+
+// ─── Document status (Knowledge Auto-Sort) ────────────────────────────────────
+// A file is "live" once its sort was applied; "not sorted" files predate auto-sort
+// and keep working, but Aira reads all of their text, rules included.
+
+type DocStatus = "sorting" | "review" | "live" | "unsorted" | "sort_failed" | "failed";
+
+function docStatus(doc: KnowledgeDoc): DocStatus {
+  if (doc.status === "processing" || doc.sort_state === "sorting") return "sorting";
+  if (doc.status === "review_pending" || doc.has_pending_review) return "review";
+  if (doc.status === "failed") return "failed";
+  if (doc.sort_state === "failed") return "sort_failed";
+  return doc.sorted_at ? "live" : "unsorted";
+}
+
+const DOC_STATUS_STYLE: Record<DocStatus, { label: string; className: string; title?: string }> = {
+  sorting: { label: "Sorting", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  review: { label: "Review ready", className: "bg-purple-50 text-purple-700 border-purple-200" },
+  live: { label: "Live", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  unsorted: {
+    label: "Not sorted",
+    className: "bg-slate-50 text-slate-600 border-slate-200",
+    title: "Uploaded before auto-sort. Aira reads the whole file, rules included. Sort it to split out the rules.",
+  },
+  sort_failed: { label: "Sort failed", className: "bg-red-50 text-red-700 border-red-200" },
+  failed: { label: "Failed", className: "bg-red-50 text-red-700 border-red-200" },
+};
+
+function DocStatusBadge({ doc, className }: { doc: KnowledgeDoc; className?: string }) {
+  const status = docStatus(doc);
+  const style = DOC_STATUS_STYLE[status];
+  return (
+    <div
+      title={style.title}
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-label font-bold uppercase border",
+        style.className,
+        className
+      )}
+    >
+      {status === "sorting" ? (
+        <Loader2 size={11} className="animate-spin" />
+      ) : status === "review" ? (
+        <ClipboardCheck size={11} />
+      ) : status === "failed" || status === "sort_failed" ? (
+        <XCircle size={11} />
+      ) : (
+        <span
+          className={cn(
+            "w-1.5 h-1.5 rounded-full",
+            status === "live" ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+          )}
+        />
+      )}
+      <span>{style.label}</span>
+    </div>
+  );
 }
 
 interface FileTypeMeta {
@@ -341,6 +408,9 @@ export default function KnowledgePage() {
     permissions.includes("knowledge.manage");
   const canManageKnowledge =
     role === "owner" || permissions.includes("knowledge.manage");
+  // Only an owner can change the Description (ai_tune is owner-only); the review,
+  // delete and history screens use this to explain why Apply is disabled.
+  const isOwner = role === "owner";
 
   const [documents, setDocuments] = useState<KnowledgeDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -393,9 +463,22 @@ export default function KnowledgePage() {
   const [viewerSearch, setViewerSearch] = useState("");
   const [copiedText, setCopiedText] = useState(false);
 
-  // Delete Confirmation Modal
+  // Delete (with a preview of what leaves the Description)
   const [deletingDoc, setDeletingDoc] = useState<KnowledgeDoc | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Knowledge Auto-Sort
+  const [reviewingDocId, setReviewingDocId] = useState<string | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<{
+    kind: "description" | "facts";
+    documentId?: string;
+    title: string;
+  } | null>(null);
+  // "Does this replace an existing file?" -- "" means it's a new file.
+  const [replaceTarget, setReplaceTarget] = useState<string>("");
+  const [sameNamePrompt, setSameNamePrompt] = useState<{ file: File; existing: KnowledgeDoc } | null>(null);
+  const [factsEditing, setFactsEditing] = useState(false);
+  const [factsDraft, setFactsDraft] = useState("");
+  const [factsSaving, setFactsSaving] = useState(false);
 
   // RAG Guide Expandable
   const [showRagGuide, setShowRagGuide] = useState(false);
@@ -422,17 +505,15 @@ export default function KnowledgePage() {
     }
   }
 
-  // ─── Documents gate ────────────────────────────────────────────────────────
-  // Retrieved excerpts arrive with no document name attached and can miss
-  // entirely, so they are only useful on top of an assistant that already knows
-  // who it is (description) and how to score what it hears (rubric). Uploading
-  // before both exist produces a knowledge base the AI cannot actually use, so
-  // the upload surface stays locked until they are saved.
+  // ─── Start-here hint (was the upload lock until 2026-09-18) ─────────────────
+  // Auto-sort can build the Description from an uploaded file, so uploading is no
+  // longer blocked on it (spec §6.6). What stays enforced lives in the review
+  // screen: an upload can't be applied while the Description would be empty. The
+  // rubric only scores leads and is generated from the Description when missing.
   const hasDescription = savedDescription.trim().length > 0;
   const hasRubric = savedRubric.trim().length > 0;
-  const setupComplete = hasDescription && hasRubric;
-  const uploadLocked = setupLoaded && !setupComplete;
-  const canUpload = canManageKnowledge && setupLoaded && setupComplete;
+  const showStartHint = setupLoaded && canManageKnowledge && (!hasDescription || !hasRubric);
+  const canUpload = canManageKnowledge && setupLoaded;
 
   function goToDescription() {
     const params = new URLSearchParams(searchParams.toString());
@@ -454,7 +535,7 @@ export default function KnowledgePage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasProcessing = useMemo(
-    () => documents.some((d) => d.status === "processing"),
+    () => documents.some((d) => docStatus(d) === "sorting"),
     [documents]
   );
   usePolling(loadDocuments, 5000, hasProcessing);
@@ -470,11 +551,12 @@ export default function KnowledgePage() {
   const stats = useMemo(() => {
     const total = documents.length;
     const indexed = documents.filter((d) => d.status === "indexed").length;
-    const processing = documents.filter((d) => d.status === "processing").length;
-    const failed = documents.filter((d) => d.status === "failed").length;
+    const processing = documents.filter((d) => docStatus(d) === "sorting").length;
+    const review = documents.filter((d) => docStatus(d) === "review").length;
+    const failed = documents.filter((d) => ["failed", "sort_failed"].includes(docStatus(d))).length;
     const totalBytes = documents.reduce((sum, d) => sum + (d.size_bytes || 0), 0);
     const scopedCount = documents.filter((d) => Boolean(d.campaign_tag_id)).length;
-    return { total, indexed, processing, failed, totalBytes, scopedCount };
+    return { total, indexed, processing, review, failed, totalBytes, scopedCount };
   }, [documents]);
 
   // Filtered documents
@@ -488,9 +570,11 @@ export default function KnowledgePage() {
         if (!matchesName && !tag?.includes(q)) return false;
       }
 
-      // Status filter
-      if (statusFilter !== "all" && doc.status !== statusFilter) {
-        return false;
+      // Status filter ("failed" covers both a failed upload and a failed sort)
+      if (statusFilter !== "all") {
+        const status = docStatus(doc);
+        const matches = statusFilter === "failed" ? status === "failed" || status === "sort_failed" : status === statusFilter;
+        if (!matches) return false;
       }
 
       // Campaign filter
@@ -588,31 +672,41 @@ export default function KnowledgePage() {
 
   // ─── Upload Handlers ───────────────────────────────────────────────────────
 
-  async function processUpload(file: File) {
+  // replacesId: undefined = use the picker; null = explicitly a new file.
+  async function processUpload(file: File, replacesId?: string | null) {
     if (!canManageKnowledge) {
       setUploadError("Read-only role: document upload is disabled.");
       return;
     }
-    if (!setupComplete) {
-      setUploadError(
-        "Save your business description and lead scoring rubric before uploading documents."
-      );
-      return;
+    const target = replacesId === undefined ? replaceTarget || null : replacesId;
+    // Same name, no replacement chosen: ask rather than silently keeping both
+    // (spec §6.4 -- two versions of a price list would both be looked up).
+    if (replacesId === undefined && !target) {
+      const existing = documents.find((d) => d.name === file.name);
+      if (existing) {
+        setSameNamePrompt({ file, existing });
+        return;
+      }
     }
     setUploading(true);
     setUploadError(null);
     try {
-      await api.knowledge.uploadDocument(file, selectedCampaignTag || null);
-      toast.success(`"${file.name}" uploaded. Extracting and indexing content...`);
+      await api.knowledge.uploadDocument(file, selectedCampaignTag || null, target);
+      toast.success(`"${file.name}" uploaded. Aira is sorting it — you'll review the result before anything changes.`);
+      setReplaceTarget("");
       await loadDocuments();
+    } catch (e) {
+      const message =
+        e instanceof Error && e.message && e.message !== "Upload failed"
+          ? e.message
+          : "Upload failed. Please check file format and try again.";
+      setUploadError(message);
+      toast.error(message);
+    } finally {
+      setUploading(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-    } catch {
-      setUploadError("Upload failed. Please check file format and try again.");
-      toast.error("Upload failed. Please check file format and try again.");
-    } finally {
-      setUploading(false);
     }
   }
 
@@ -650,18 +744,20 @@ export default function KnowledgePage() {
 
   // ─── Delete Handlers ───────────────────────────────────────────────────────
 
-  async function confirmDeleteDocument() {
-    if (!deletingDoc) return;
-    setDeleteLoading(true);
+  // After anything that may have rewritten the Description (apply, delete, restore):
+  // reload it, and the rubric a moment later in case it was regenerated.
+  function refreshAfterDescriptionChange() {
+    loadDescription();
+    setTimeout(loadAiTuneSettings, 4000);
+  }
+
+  async function resortDocument(docId: string) {
     try {
-      await api.knowledge.deleteDocument(deletingDoc.id);
-      toast.success(`"${deletingDoc.name}" and all indexed chunks removed.`);
-      setDeletingDoc(null);
+      await api.knowledge.resort(docId);
+      toast.success("Sorting this file. It'll be ready to review in a minute.");
       await loadDocuments();
-    } catch {
-      toast.error("Failed to delete document. Please try again.");
-    } finally {
-      setDeleteLoading(false);
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "Could not start sorting this file.");
     }
   }
 
@@ -670,6 +766,7 @@ export default function KnowledgePage() {
   async function openDocument(docId: string) {
     setViewerLoading(true);
     setViewerSearch("");
+    setFactsEditing(false);
     try {
       const content = await api.knowledge.documentContent(docId);
       setViewingDoc(content);
@@ -689,6 +786,49 @@ export default function KnowledgePage() {
       toast.error("The original file is not available for this document.");
     } finally {
       setDownloading(false);
+    }
+  }
+
+  function renderSortAction(doc: KnowledgeDoc) {
+    if (!canManageKnowledge) return null;
+    const status = docStatus(doc);
+    if (status === "review") {
+      return (
+        <button
+          onClick={() => setReviewingDocId(doc.id)}
+          className="flex items-center gap-1 px-2.5 py-1 mr-1 rounded-lg bg-primary text-white font-label text-[11px] font-bold hover:bg-primary/90 transition-colors shadow-xs"
+        >
+          <ClipboardCheck size={12} /> Review
+        </button>
+      );
+    }
+    if (status === "unsorted" || status === "sort_failed" || status === "failed") {
+      const label = status === "unsorted" ? "Sort this file" : "Sort again";
+      return (
+        <button
+          onClick={() => resortDocument(doc.id)}
+          title={label}
+          className="flex items-center gap-1 px-2 py-1 mr-1 rounded-lg border border-surface-mid bg-white text-on-surface font-label text-[11px] font-semibold hover:bg-surface-low transition-colors"
+        >
+          <RefreshCw size={12} /> {label}
+        </button>
+      );
+    }
+    return null;
+  }
+
+  async function saveFacts() {
+    if (!viewingDoc) return;
+    setFactsSaving(true);
+    try {
+      const res = await api.knowledge.updateFacts(viewingDoc.id, factsDraft);
+      setViewingDoc({ ...viewingDoc, full_text: res.full_text });
+      setFactsEditing(false);
+      toast.success("Saved. Aira will look up the updated facts.");
+    } catch (e) {
+      toast.error(e instanceof Error && e.message ? e.message : "Could not save your changes.");
+    } finally {
+      setFactsSaving(false);
     }
   }
 
@@ -984,11 +1124,35 @@ export default function KnowledgePage() {
                   Add Knowledge Document
                 </h2>
                 <p className="font-body text-xs text-on-surface-muted mt-0.5">
-                  Upload PDFs, Word docs, spreadsheets, or notes. Content is extracted and embedded for instant AI retrieval.
+                  Upload anything you have — rulebooks, price lists, FAQs. Aira sorts each file into rules for your Description and facts to look up, and you review it before anything changes.
                 </p>
               </div>
 
-              {campaignTags.length > 0 && !uploadLocked && (
+              <div className="flex flex-col sm:items-end gap-2 shrink-0">
+              {canManageKnowledge && documents.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="font-label text-xs font-semibold text-on-surface-muted">
+                    Replaces:
+                  </span>
+                  <select
+                    value={replaceTarget}
+                    onChange={(e) => setReplaceTarget(e.target.value)}
+                    disabled={uploading}
+                    title="Does this upload replace an existing file? The old file is removed only when you apply the new one."
+                    className="max-w-[14rem] px-3 py-1.5 rounded-xl border border-surface-mid bg-white font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-xs"
+                  >
+                    <option value="">Nothing — it&apos;s a new file</option>
+                    {documents
+                      .filter((d) => docStatus(d) !== "review" && docStatus(d) !== "sorting")
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+              {campaignTags.length > 0 && (
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="font-label text-xs font-semibold text-on-surface-muted">
                     Campaign Scope:
@@ -1008,71 +1172,56 @@ export default function KnowledgePage() {
                   </select>
                 </div>
               )}
+              </div>
             </div>
 
-            {/* Drag & Drop Area — locked until description + rubric are saved */}
+            {/* Drag & Drop Area (plus a start-here hint while setup is incomplete) */}
             <div className="p-4 sm:p-6">
-              {uploadLocked ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-8 flex flex-col items-center text-center">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shadow-xs mb-3">
-                    <Lock size={24} />
+              {showStartHint && (
+                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/40 p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
+                  <div className="w-10 h-10 shrink-0 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+                    <Lightbulb size={20} />
                   </div>
-
-                  <p className="font-display text-base font-bold text-on-surface">
-                    Finish your Description first
-                  </p>
-                  <p className="font-body text-xs text-on-surface-muted mt-1 max-w-md leading-relaxed">
-                    Documents are searched per message and can come back empty. Your
-                    business description and scoring rubric are read on every reply — so
-                    they have to be in place before uploads add anything.
-                  </p>
-
-                  <div className="mt-5 w-full max-w-sm space-y-2">
-                    {[
-                      { done: hasDescription, label: "Business description saved" },
-                      { done: hasRubric, label: "Lead scoring rubric saved" },
-                    ].map((step) => (
-                      <div
-                        key={step.label}
-                        className="flex items-center gap-2.5 rounded-xl border border-surface-mid bg-white px-3.5 py-2.5 text-left"
-                      >
-                        {step.done ? (
-                          <span className="w-5 h-5 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                            <Check size={12} strokeWidth={3} />
-                          </span>
-                        ) : (
-                          <Circle size={20} className="shrink-0 text-on-surface-muted/50" />
-                        )}
-                        <span
-                          className={cn(
-                            "font-label text-xs font-semibold",
-                            step.done ? "text-on-surface-muted line-through" : "text-on-surface"
-                          )}
-                        >
-                          {step.label}
-                        </span>
-                        <span className="ml-auto font-body text-[11px] font-semibold text-on-surface-muted">
-                          {step.done ? "Done" : "Pending"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {canManageKnowledge ? (
-                    <button
-                      type="button"
-                      onClick={goToDescription}
-                      className="mt-5 flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 transition-colors shadow-xs"
-                    >
-                      Go to Description <ArrowRight size={15} />
-                    </button>
-                  ) : (
-                    <p className="mt-5 font-body text-xs text-on-surface-muted">
-                      Ask an account owner to complete these before uploading documents.
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display text-sm font-bold text-on-surface">
+                      {hasDescription ? "One more step: a lead scoring rubric" : "Aira doesn\u2019t know your business yet"}
                     </p>
-                  )}
+                    <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-2xl">
+                      {hasDescription
+                        ? "The rubric scores how interested each lead is. It\u2019s created from your Description automatically, or you can write your own."
+                        : "Write a short Description, or just upload a file that describes your business \u2014 Aira builds the Description from it and you review it before it goes live."}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {[
+                        { done: hasDescription, label: "Description (needed before a file goes live)" },
+                        { done: hasRubric, label: "Lead scoring rubric (recommended)" },
+                      ].map((step) => (
+                        <span
+                          key={step.label}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-surface-mid bg-white px-2.5 py-1.5 font-label text-[11px] font-semibold text-on-surface"
+                        >
+                          {step.done ? (
+                            <span className="w-4 h-4 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                              <Check size={10} strokeWidth={3} />
+                            </span>
+                          ) : (
+                            <Circle size={16} className="shrink-0 text-on-surface-muted/50" />
+                          )}
+                          <span className={cn(step.done && "text-on-surface-muted line-through")}>{step.label}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={goToDescription}
+                    className="self-start shrink-0 flex items-center gap-2 px-4 py-2 bg-white border border-surface-mid text-primary rounded-xl font-label text-xs font-semibold hover:bg-primary/5 transition-colors shadow-xs"
+                  >
+                    Go to Description <ArrowRight size={14} />
+                  </button>
                 </div>
-              ) : (
+              )}
+
               <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -1102,7 +1251,7 @@ export default function KnowledgePage() {
 
                 <p className="font-display text-base font-bold text-on-surface">
                   {uploading
-                    ? "Processing and indexing document…"
+                    ? "Uploading…"
                     : isDragging
                     ? "Drop your file here to upload"
                     : "Drop your file here or browse from computer"}
@@ -1152,7 +1301,6 @@ export default function KnowledgePage() {
                   />
                 </div>
               </div>
-              )}
 
               {uploadError && (
                 <div className="mt-3 flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-xl text-xs font-semibold border border-red-200">
@@ -1219,8 +1367,10 @@ export default function KnowledgePage() {
                   className="px-3 py-2 rounded-xl border border-surface-mid bg-white font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-xs"
                 >
                   <option value="all">All Statuses</option>
-                  <option value="indexed">Indexed ({stats.indexed})</option>
-                  <option value="processing">Processing ({stats.processing})</option>
+                  <option value="live">Live</option>
+                  <option value="unsorted">Not sorted</option>
+                  <option value="review">Review ready ({stats.review})</option>
+                  <option value="sorting">Sorting ({stats.processing})</option>
                   <option value="failed">Failed ({stats.failed})</option>
                 </select>
 
@@ -1342,21 +1492,9 @@ export default function KnowledgePage() {
                       No documents in your knowledge base yet
                     </h3>
                     <p className="font-body text-xs text-on-surface-muted mt-1 max-w-sm mx-auto">
-                      {uploadLocked
-                        ? "Save your business description and lead scoring rubric first — documents build on top of them."
-                        : "Upload company FAQs, product catalogs, service brochures, or pricing sheets above so your AI assistant can accurately answer lead questions."}
+                      Upload rulebooks, FAQs, price lists or brochures above. Aira sorts each one and shows you the result before anything changes.
                     </p>
-                    {uploadLocked ? (
-                      <button
-                        type="button"
-                        onClick={goToDescription}
-                        disabled={!canManageKnowledge}
-                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
-                      >
-                        Go to Description <ArrowRight size={14} />
-                      </button>
-                    ) : (
-                      <button
+                    <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={!canUpload}
@@ -1364,7 +1502,6 @@ export default function KnowledgePage() {
                       >
                         <Upload size={14} /> Upload First Document
                       </button>
-                    )}
                   </>
                 ) : (
                   <>
@@ -1434,33 +1571,7 @@ export default function KnowledgePage() {
                           </div>
 
                           {/* Status Badge */}
-                          <div
-                            className={cn(
-                              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-label font-bold uppercase shrink-0 border",
-                              doc.status === "indexed"
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : doc.status === "processing"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-red-50 text-red-700 border-red-200"
-                            )}
-                          >
-                            {doc.status === "indexed" ? (
-                              <>
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                <span>Indexed</span>
-                              </>
-                            ) : doc.status === "processing" ? (
-                              <>
-                                <Loader2 size={11} className="animate-spin text-amber-600" />
-                                <span>Indexing</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle size={11} className="text-red-500" />
-                                <span>Failed</span>
-                              </>
-                            )}
-                          </div>
+                          <DocStatusBadge doc={doc} className="shrink-0" />
                         </div>
 
                         {/* Title */}
@@ -1485,7 +1596,7 @@ export default function KnowledgePage() {
                         </div>
 
                         {/* Error message if failed */}
-                        {doc.status === "failed" && (
+                        {(doc.status === "failed" || doc.sort_state === "failed") && (
                           <p className="text-xs text-red-600 mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
                             {doc.error_message || "Extraction failed. Try re-uploading file."}
                           </p>
@@ -1499,9 +1610,10 @@ export default function KnowledgePage() {
                         </span>
 
                         <div className="flex items-center gap-1">
+                          {renderSortAction(doc)}
                           <button
                             onClick={() => openDocument(doc.id)}
-                            title="View extracted text"
+                            title="What Aira looks up from this file"
                             className="p-1.5 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                           >
                             <Eye size={16} />
@@ -1582,8 +1694,8 @@ export default function KnowledgePage() {
                                 <p className="font-mono text-[11px] text-on-surface-muted mt-0.5">
                                   {formatBytes(doc.size_bytes)}
                                 </p>
-                                {doc.status === "failed" && (
-                                  <p className="text-[11px] text-red-600 truncate mt-0.5 max-w-xs">
+                                {(doc.status === "failed" || doc.sort_state === "failed") && (
+                                  <p className="text-[11px] text-red-600 truncate mt-0.5 max-w-xs" title={doc.error_message || undefined}>
                                     {doc.error_message || "Extraction error — delete & re-upload"}
                                   </p>
                                 )}
@@ -1620,33 +1732,7 @@ export default function KnowledgePage() {
 
                           {/* Status */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
-                            <div
-                              className={cn(
-                                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-label font-bold uppercase border",
-                                doc.status === "indexed"
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : doc.status === "processing"
-                                  ? "bg-amber-50 text-amber-700 border-amber-200"
-                                  : "bg-red-50 text-red-700 border-red-200"
-                              )}
-                            >
-                              {doc.status === "indexed" ? (
-                                <>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                  <span>Indexed</span>
-                                </>
-                              ) : doc.status === "processing" ? (
-                                <>
-                                  <Loader2 size={11} className="animate-spin text-amber-600" />
-                                  <span>Indexing</span>
-                                </>
-                              ) : (
-                                <>
-                                  <XCircle size={11} className="text-red-500" />
-                                  <span>Failed</span>
-                                </>
-                              )}
-                            </div>
+                            <DocStatusBadge doc={doc} />
                           </td>
 
                           {/* Created Date */}
@@ -1657,9 +1743,10 @@ export default function KnowledgePage() {
                           {/* Actions */}
                           <td className="px-5 py-3.5 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1">
+                              {renderSortAction(doc)}
                               <button
                                 onClick={() => openDocument(doc.id)}
-                                title="View extracted text"
+                                title="What Aira looks up from this file"
                                 className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                               >
                                 <Eye size={16} />
@@ -1823,7 +1910,7 @@ export default function KnowledgePage() {
                   <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
                   <p className="font-body text-xs text-on-surface-muted leading-relaxed">
                     <span className="font-semibold text-on-surface">Keep it short.</span>{" "}
-                    Around 200 to 350 words. Every word here is re-read on every single
+                    Stay under about 1,200 words. Every word here is re-read on every single
                     reply, so anything you add competes for attention with everything else.
                   </p>
                 </div>
@@ -1888,9 +1975,22 @@ export default function KnowledgePage() {
             />
 
             <div className="flex items-center justify-between pt-2">
-              <span className="font-mono text-xs text-on-surface-muted">
-                {description.length.toLocaleString()} characters
+              <span
+                className={cn(
+                  "font-mono text-xs",
+                  wordCount(description) > 1200 ? "font-semibold text-amber-700" : "text-on-surface-muted"
+                )}
+              >
+                {wordCount(description).toLocaleString()} words · {description.length.toLocaleString()} characters
+                {wordCount(description) > 1200 && " — over the 1,200-word guide"}
               </span>
+              <div className="flex items-center gap-2">
+              <button
+                onClick={() => setHistoryTarget({ kind: "description", title: "Description" })}
+                className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-surface-mid text-on-surface rounded-xl font-label text-sm font-semibold hover:bg-surface-low transition-colors shadow-xs"
+              >
+                <History size={14} /> History
+              </button>
               <button
                 onClick={saveDescription}
                 disabled={descSaving || description === savedDescription || !canManageKnowledge}
@@ -1898,6 +1998,7 @@ export default function KnowledgePage() {
               >
                 <Save size={14} /> {descSaving ? "Saving…" : "Save Description"}
               </button>
+              </div>
             </div>
           </div>
 
@@ -2032,9 +2133,12 @@ export default function KnowledgePage() {
                     {viewingDoc.name}
                   </h3>
                 </div>
-                <p className="mt-1 font-body text-xs text-on-surface-muted">
+                <p className="mt-1 font-label text-[11px] font-bold uppercase tracking-wider text-primary">
+                  {viewingDoc.sorted ? "What Aira looks up from this file" : "Not sorted yet — Aira reads all of this file"}
+                </p>
+                <p className="mt-0.5 font-body text-xs text-on-surface-muted">
                   {formatBytes(viewingDoc.size_bytes)} ·{" "}
-                  {viewingDoc.full_text?.length.toLocaleString() || 0} characters extracted ·{" "}
+                  {viewingDoc.full_text?.length.toLocaleString() || 0} characters ·{" "}
                   Uploaded {formatDate(viewingDoc.created_at)}
                 </p>
               </div>
@@ -2070,7 +2174,39 @@ export default function KnowledgePage() {
 
             {/* Content Body */}
             <div className="flex-1 overflow-y-auto px-6 py-4 bg-surface-low/30">
-              {viewingDoc.full_text ? (
+              {!viewingDoc.sorted && (
+                <div className="mb-3 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="flex-1 font-body text-xs leading-relaxed text-amber-900">
+                    This file was uploaded before auto-sort, so Aira treats all of it as facts, rules included.
+                    Sort it to move the rules into your Description and keep only the facts here.
+                  </p>
+                  {canManageKnowledge && viewingDoc.sort_state !== "sorting" && (
+                    <button
+                      onClick={() => {
+                        const id = viewingDoc.id;
+                        setViewingDoc(null);
+                        resortDocument(id);
+                      }}
+                      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white font-label text-xs font-semibold hover:bg-amber-700 transition-colors"
+                    >
+                      <RefreshCw size={12} /> Sort this file
+                    </button>
+                  )}
+                </div>
+              )}
+              {factsEditing ? (
+                <div className="space-y-2">
+                  <p className="font-body text-xs text-on-surface-muted">
+                    Edit or delete facts. If you upload this file again later, anything you deleted here comes back.
+                  </p>
+                  <textarea
+                    value={factsDraft}
+                    onChange={(e) => setFactsDraft(e.target.value)}
+                    rows={18}
+                    className="w-full rounded-xl border border-surface-mid bg-white p-4 font-mono text-xs leading-relaxed text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              ) : viewingDoc.full_text ? (
                 <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-relaxed text-on-surface bg-white p-4 rounded-xl border border-surface-mid/80 shadow-xs">
                   {viewerSearch
                     ? viewingDoc.full_text
@@ -2089,13 +2225,56 @@ export default function KnowledgePage() {
               ) : (
                 <div className="py-12 text-center font-body text-xs text-on-surface-muted">
                   <FileText size={24} className="mx-auto mb-2 opacity-40" />
-                  No text content was extracted from this file.
+                  {viewingDoc.sorted
+                    ? "Nothing to look up — this file only contained rules, which went into your Description."
+                    : "No text content was extracted from this file."}
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between gap-4 border-t border-surface-mid px-6 py-3.5 bg-surface-low/50">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-surface-mid px-6 py-3.5 bg-surface-low/50">
+              <div className="flex flex-wrap items-center gap-2">
+              {viewingDoc.sorted && canManageKnowledge && !factsEditing && (
+                <button
+                  onClick={() => {
+                    setFactsDraft(viewingDoc.full_text || "");
+                    setFactsEditing(true);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-surface-mid text-on-surface rounded-xl font-label text-xs font-semibold border border-surface-mid transition-colors shadow-xs"
+                >
+                  <Pencil size={13} /> Edit
+                </button>
+              )}
+              {factsEditing && (
+                <>
+                  <button
+                    onClick={saveFacts}
+                    disabled={factsSaving || factsDraft === viewingDoc.full_text}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary text-white rounded-xl font-label text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 transition-colors shadow-xs"
+                  >
+                    {factsSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save
+                  </button>
+                  <button
+                    onClick={() => setFactsEditing(false)}
+                    disabled={factsSaving}
+                    className="px-3 py-1.5 bg-surface hover:bg-surface-mid text-on-surface rounded-xl font-label text-xs font-semibold border border-surface-mid transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+              {viewingDoc.sorted && !factsEditing && (
+                <button
+                  onClick={() =>
+                    setHistoryTarget({ kind: "facts", documentId: viewingDoc.id, title: viewingDoc.name })
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-surface-mid text-on-surface rounded-xl font-label text-xs font-semibold border border-surface-mid transition-colors shadow-xs"
+                >
+                  <History size={13} /> History
+                </button>
+              )}
+              {!factsEditing && (
               <button
                 onClick={copyExtractedText}
                 disabled={!viewingDoc.full_text}
@@ -2113,6 +2292,8 @@ export default function KnowledgePage() {
                   </>
                 )}
               </button>
+              )}
+              </div>
 
               <div className="flex items-center gap-2">
                 {viewingDoc.downloadable && (
@@ -2137,50 +2318,104 @@ export default function KnowledgePage() {
         </div>
       )}
 
-      {/* ── Delete Confirmation Dialog ────────────────────────────────────── */}
+      {/* ── Delete (previews what leaves the Description) ─────────────────── */}
       {deletingDoc && (
+        <DeleteDocumentModal
+          doc={deletingDoc}
+          isOwner={isOwner}
+          onClose={() => setDeletingDoc(null)}
+          onDeleted={(descriptionChanged) => {
+            setDeletingDoc(null);
+            loadDocuments();
+            if (descriptionChanged) refreshAfterDescriptionChange();
+          }}
+        />
+      )}
+
+      {/* ── Review a sorted file ───────────────────────────────────────────── */}
+      {reviewingDocId && (
+        <KnowledgeReviewModal
+          documentId={reviewingDocId}
+          canManage={canManageKnowledge}
+          isOwner={isOwner}
+          onClose={() => setReviewingDocId(null)}
+          onFinished={({ descriptionChanged }) => {
+            setReviewingDocId(null);
+            loadDocuments();
+            if (descriptionChanged) refreshAfterDescriptionChange();
+          }}
+          onResorted={() => {
+            setReviewingDocId(null);
+            loadDocuments();
+          }}
+        />
+      )}
+
+      {/* ── Version history (Description or one file's facts) ──────────────── */}
+      {historyTarget && (
+        <KnowledgeHistoryModal
+          kind={historyTarget.kind}
+          documentId={historyTarget.documentId}
+          title={historyTarget.title}
+          canRestore={canManageKnowledge && (historyTarget.kind === "facts" || isOwner)}
+          onClose={() => setHistoryTarget(null)}
+          onRestored={() => {
+            const target = historyTarget;
+            setHistoryTarget(null);
+            if (target.kind === "description") {
+              refreshAfterDescriptionChange();
+            } else if (viewingDoc && viewingDoc.id === target.documentId) {
+              openDocument(viewingDoc.id);
+            }
+          }}
+        />
+      )}
+
+      {/* ── Same file name: replace or keep both ───────────────────────────── */}
+      {sameNamePrompt && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
-          onClick={() => setDeletingDoc(null)}
+          onClick={() => setSameNamePrompt(null)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
             className="w-full max-w-md rounded-2xl bg-surface p-6 shadow-2xl border border-surface-mid space-y-4 animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
-              <Trash2 size={24} />
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+              <RefreshCw size={22} />
             </div>
-
             <div>
-              <h3 className="font-display font-bold text-lg text-on-surface">
-                Delete Knowledge Document?
-              </h3>
-              <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                Are you sure you want to permanently delete{" "}
-                <strong className="text-on-surface font-semibold">{deletingDoc.name}</strong>?
+              <h3 className="font-display font-bold text-lg text-on-surface">A file with this name already exists</h3>
+              <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed break-words">
+                <strong className="text-on-surface">{sameNamePrompt.existing.name}</strong> is already uploaded. Is this
+                a newer version of it? Replacing removes the old file once you apply the new one. Keeping both means Aira
+                may quote either if they disagree.
               </p>
-              <div className="mt-2.5 p-3 rounded-xl bg-amber-50 border border-amber-100 text-amber-800 text-xs font-body">
-                All extracted text and pgvector embeddings for this document will be immediately purged from AI memory.
-              </div>
             </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-mid/60">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-surface-mid/60">
               <button
                 type="button"
-                onClick={() => setDeletingDoc(null)}
-                disabled={deleteLoading}
+                onClick={() => {
+                  const { file } = sameNamePrompt;
+                  setSameNamePrompt(null);
+                  processUpload(file, null);
+                }}
                 className="px-4 py-2 rounded-xl border border-surface-mid bg-surface font-label text-xs font-semibold text-on-surface hover:bg-surface-low transition-colors"
               >
-                Cancel
+                Keep both
               </button>
               <button
                 type="button"
-                onClick={confirmDeleteDocument}
-                disabled={deleteLoading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 text-white font-label text-xs font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors shadow-xs"
+                onClick={() => {
+                  const { file, existing } = sameNamePrompt;
+                  setSameNamePrompt(null);
+                  processUpload(file, existing.id);
+                }}
+                className="px-4 py-2 rounded-xl bg-primary text-white font-label text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
               >
-                {deleteLoading && <Loader2 size={13} className="animate-spin" />}
-                {deleteLoading ? "Deleting…" : "Yes, Delete Document"}
+                Replace it
               </button>
             </div>
           </div>
