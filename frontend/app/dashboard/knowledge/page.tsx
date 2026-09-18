@@ -1066,7 +1066,7 @@ export default function KnowledgePage() {
                   {stats.processing > 0 && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold">
                       <Loader2 size={10} className="animate-spin" />
-                      {stats.processing} indexing
+                      {stats.processing} sorting
                     </span>
                   )}
                 </div>
