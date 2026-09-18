@@ -757,3 +757,125 @@ def delete_document_row(db, tenant_id: str, document_id: str) -> None:
         except Exception as e:
             logger.warning(f"Knowledge document storage delete failed for {row['storage_path']}: {e}")
     db.table("knowledge_documents").delete().eq("id", str(document_id)).eq("tenant_id", tenant_id).execute()
+
+
+# ─── Managing sorted documents (spec §6.2, §6.3, §7) ──────────────────────────
+
+def _write_facts(db, tenant_id: str, document_id: str, text: str, reason: str, user_id: str | None) -> None:
+    db.table("knowledge_documents").update({"full_text": text}).eq("id", str(document_id)).eq("tenant_id", tenant_id).execute()
+    versions.save_facts_version(db, tenant_id, str(document_id), text, reason, user_id)
+    # Stale chunks must stop serving; the caller re-indexes in the background.
+    db.table("knowledge_chunks").delete().eq("document_id", str(document_id)).eq("tenant_id", tenant_id).execute()
+
+
+def update_facts(db, tenant_id: str, document_id: str, text: str, user_id: str | None) -> dict:
+    """Client edits or deletes facts in the lookup preview. A later re-upload of the
+    same file brings deleted facts back -- nothing remembers the deletion."""
+    doc = _get_doc(db, tenant_id, document_id, "id,sorted_at,campaign_tag_id")
+    if not doc:
+        raise NotFoundError("Document not found.")
+    if not doc.get("sorted_at"):
+        raise SortError("Sort this file before editing what Aira looks up from it.")
+    text = (text or "").strip()
+    _write_facts(db, tenant_id, document_id, text, "edit", user_id)
+    return {"facts": text, "campaign_tag_id": doc.get("campaign_tag_id")}
+
+
+def build_delete_preview(db, tenant_id: str, document_id: str) -> dict:
+    """What deleting this document would remove. Lines another document also claims
+    stay; lines the client has since edited are offered with Keep as the default."""
+    doc = _get_doc(db, tenant_id, document_id, "id,name,rule_lines,full_text")
+    if not doc:
+        raise NotFoundError("Document not found.")
+    latest = versions.current_description_version(db, tenant_id)
+    text = latest.get("content") or ""
+    lines = lines_of(text)
+
+    own = {normalize(line) for line in (doc.get("rule_lines") or []) if normalize(line)}
+    removable = own - machine_lines(db, tenant_id, exclude={str(document_id)})
+    remove = [line for line in lines if normalize(line) in removable]
+
+    present = {normalize(line) for line in lines}
+    everyone = machine_lines(db, tenant_id)
+    candidates = [line for line in lines if normalize(line) and normalize(line) not in everyone]
+    edited: list[dict] = []
+    seen: set[str] = set()
+    for original in doc.get("rule_lines") or []:
+        if normalize(original) in present:
+            continue
+        match = closest_line(original, candidates)
+        if match and match not in seen:
+            seen.add(match)
+            edited.append({"original": original, "current": match})
+
+    chunks = db.table("knowledge_chunks").select("id").eq("document_id", str(document_id)).eq("tenant_id", tenant_id).execute()
+    return {
+        "base_version_id": latest["id"],
+        "document_name": doc.get("name") or "",
+        "chunk_count": len(chunks.data or []),
+        "has_facts": bool((doc.get("full_text") or "").strip()),
+        "remove_lines": remove,
+        "edited_lines": edited,
+        "description_will_change": bool(remove),
+    }
+
+
+def delete_document(
+    db,
+    tenant_id: str,
+    document_id: str,
+    *,
+    base_version_id: str | None,
+    remove_edited: list[str],
+    user_id: str | None,
+    is_owner: bool,
+) -> dict:
+    preview = build_delete_preview(db, tenant_id, document_id)
+    if base_version_id is not None and base_version_id != preview["base_version_id"]:
+        raise StaleError("Your Description changed since this was prepared. Close this and try again.")
+
+    drop = {normalize(line) for line in preview["remove_lines"]}
+    allowed_edited = {e["current"] for e in preview["edited_lines"]}
+    drop |= {normalize(line) for line in remove_edited if line in allowed_edited}
+
+    changed = False
+    final = versions.current_description(tenant_id)
+    if drop:
+        trimmed = remove_lines(final, drop)
+        if normalize_text(trimmed) != normalize_text(final):
+            if not is_owner:
+                raise OwnerRequiredError(
+                    "Deleting this file would change the Description, and only an account owner can do that."
+                )
+            versions.save_description(db, tenant_id, trimmed, "delete_document", user_id)
+            final, changed = trimmed, True
+
+    delete_document_row(db, tenant_id, document_id)
+    return {"description_changed": changed, "final_description": final}
+
+
+def restore_version(db, tenant_id: str, version_id: str, *, user_id: str | None, is_owner: bool) -> dict:
+    """Save an older version as a new 'restore' version -- history is never rewritten,
+    so a restore can itself be undone."""
+    v = versions.get_version(db, tenant_id, version_id)
+    if not v:
+        raise NotFoundError("That version no longer exists.")
+    content = v.get("content") or ""
+
+    if v.get("kind") == "description":
+        if not content.strip():
+            raise EmptyDescriptionError("That version is empty. Restoring it would leave Aira without a Description.")
+        latest = versions.current_description_version(db, tenant_id)
+        base_text = latest.get("content") or ""
+        if normalize_text(content) == normalize_text(base_text):
+            return {"kind": "description", "description_changed": False, "final_description": base_text, "base_was_empty": False}
+        if not is_owner:
+            raise OwnerRequiredError()
+        versions.save_description(db, tenant_id, content, "restore", user_id)
+        return {"kind": "description", "description_changed": True, "final_description": content, "base_was_empty": not base_text.strip()}
+
+    doc = _get_doc(db, tenant_id, v.get("document_id"), "id,sorted_at,campaign_tag_id")
+    if not doc or not doc.get("sorted_at"):
+        raise NotFoundError("That file no longer exists.")
+    _write_facts(db, tenant_id, doc["id"], content, "restore", user_id)
+    return {"kind": "facts", "document_id": doc["id"], "facts": content, "campaign_tag_id": doc.get("campaign_tag_id")}
