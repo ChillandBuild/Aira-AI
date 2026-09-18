@@ -62,11 +62,20 @@ def _resolve_provider(tenant_id: str | None) -> tuple[str, str]:
     return provider, native_model
 
 
-async def _llm_chat(messages: list[dict], max_tokens: int = 300, tenant_id: str | None = None) -> str:
+async def _llm_chat(
+    messages: list[dict],
+    max_tokens: int = 300,
+    tenant_id: str | None = None,
+    *,
+    purpose: str = "ai_reply",
+    temperature: float = 0.4,
+) -> str:
+    # purpose/temperature are overridable for non-reply callers (knowledge auto-sort
+    # meters under "knowledge_sort" and needs near-deterministic output).
     provider, native_model = _resolve_provider(tenant_id)
     kwargs = dict(
-        messages=messages, model=native_model, temperature=0.4, max_tokens=max_tokens,
-        tenant_id=tenant_id, purpose="ai_reply",
+        messages=messages, model=native_model, temperature=temperature, max_tokens=max_tokens,
+        tenant_id=tenant_id, purpose=purpose,
     )
     if provider == "sarvam":
         return await sarvam_chat_completion(**kwargs)
