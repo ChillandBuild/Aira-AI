@@ -306,3 +306,23 @@ def test_generate_reply_uses_voice_only_for_audio_inbound_whatsapp_dispatch():
         and {a.id for a in node.args if isinstance(a, ast.Name)} >= {"_wa_phone", "reply_text"}
     ]
     assert text_sends, "generate_reply no longer sends the text reply via send_whatsapp(_wa_phone, reply_text, ...)"
+
+
+@pytest.mark.asyncio
+async def test_llm_chat_passes_purpose_and_temperature_through():
+    """Knowledge auto-sort meters under its own purpose and needs a low temperature;
+    reply generation keeps its defaults."""
+    with patch.object(ai_reply, "_resolve_provider", return_value=("groq", "m")), \
+         patch.object(ai_reply, "groq_chat_completion", new=AsyncMock(return_value="ok")) as mock_groq:
+        await ai_reply._llm_chat(
+            [{"role": "user", "content": "x"}], max_tokens=9, tenant_id="t",
+            purpose="knowledge_sort", temperature=0.1,
+        )
+        kwargs = mock_groq.call_args.kwargs
+        assert kwargs["purpose"] == "knowledge_sort"
+        assert kwargs["temperature"] == 0.1
+
+        await ai_reply._llm_chat([{"role": "user", "content": "x"}], tenant_id="t")
+        kwargs = mock_groq.call_args.kwargs
+        assert kwargs["purpose"] == "ai_reply"
+        assert kwargs["temperature"] == 0.4
