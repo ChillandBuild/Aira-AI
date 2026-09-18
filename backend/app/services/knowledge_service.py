@@ -64,7 +64,7 @@ async def _index_chunks(
     if len(embeddings) != len(chunks):
         raise ValueError(f"Embedding count {len(embeddings)} != chunk count {len(chunks)}")
 
-    db.table("knowledge_chunks").delete().eq("document_id", str(document_id)).execute()
+    db.table("knowledge_chunks").delete().eq("document_id", str(document_id)).eq("tenant_id", tenant_id).execute()
     for idx, (chunk, emb) in enumerate(zip(chunks, embeddings)):
         db.rpc(
             "insert_knowledge_chunk",
@@ -158,13 +158,13 @@ async def process_document(
         db.table("knowledge_documents").update({
             "source_text": text[:_MAX_TEXT_CHARS],
             "sort_state": "sorting",
-        }).eq("id", str(document_id)).execute()
+        }).eq("id", str(document_id)).eq("tenant_id", tenant_id).execute()
     except Exception as e:
         logger.error(f"Document processing failed for {document_id}: {e}")
         db.table("knowledge_documents").update({
             "status": "failed",
             "error_message": str(e),
-        }).eq("id", str(document_id)).execute()
+        }).eq("id", str(document_id)).eq("tenant_id", tenant_id).execute()
         return
 
     from app.services.knowledge_sort import sort_document

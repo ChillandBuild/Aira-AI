@@ -400,6 +400,19 @@ def _other_docs_facts(db, tenant_id: str, campaign_tag_id: str | None, exclude: 
     return out
 
 
+def _owned_pending_review(db, tenant_id: str, document_id: str) -> dict:
+    """The document's pending review, but only if the DOCUMENT belongs to this tenant.
+    A review row's tenant_id alone is not proof: its document_id foreign key doesn't
+    check tenancy, so a forged row could otherwise point at another tenant's file
+    (security review 2026-09-18)."""
+    if not _get_doc(db, tenant_id, document_id, "id"):
+        raise NotFoundError("Document not found.")
+    review = _pending_review(db, tenant_id, document_id)
+    if not review:
+        raise NotFoundError("There's no review waiting for this file.")
+    return review
+
+
 def _pending_review(db, tenant_id: str, document_id: str) -> dict | None:
     res = (
         db.table("knowledge_reviews")
@@ -589,9 +602,7 @@ class ApplyChoices:
 
 
 def build_review_payload(db, tenant_id: str, document_id: str) -> dict:
-    review = _pending_review(db, tenant_id, document_id)
-    if not review:
-        raise NotFoundError("There's no review waiting for this file.")
+    review = _owned_pending_review(db, tenant_id, document_id)
     doc = _get_doc(db, tenant_id, document_id, "id,name") or {}
     latest = versions.current_description_version(db, tenant_id)
     base = versions.get_version(db, tenant_id, review["base_version_id"]) if review.get("base_version_id") else None
@@ -655,9 +666,7 @@ def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *,
     """Commit an approved review. Database writes only -- the caller schedules
     index_facts() so chunking/embedding never holds up the response; until the chunks
     exist the full-text fallback serves the new facts."""
-    review = _pending_review(db, tenant_id, document_id)
-    if not review:
-        raise NotFoundError("There's no review waiting for this file.")
+    review = _owned_pending_review(db, tenant_id, document_id)
     latest = versions.current_description_version(db, tenant_id)
     if latest["id"] != review.get("base_version_id") or choices.base_version_id != review.get("base_version_id"):
         raise StaleError()
@@ -717,9 +726,7 @@ def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *,
 def discard_review(db, tenant_id: str, document_id: str) -> None:
     """A new upload that was never applied is deleted outright; a live document just
     drops the proposal and keeps working as before."""
-    review = _pending_review(db, tenant_id, document_id)
-    if not review:
-        raise NotFoundError("There's no review waiting for this file.")
+    review = _owned_pending_review(db, tenant_id, document_id)
     db.table("knowledge_reviews").update({"status": "discarded"}).eq("id", review["id"]).eq("tenant_id", tenant_id).execute()
     doc = _get_doc(db, tenant_id, document_id, "id,status")
     if not doc:

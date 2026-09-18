@@ -199,3 +199,21 @@ def test_prepare_resort_refuses_a_file_with_no_text(env):
     doc = add_doc(env.db, status="failed")
     with pytest.raises(ks.SortError, match="no text to sort"):
         ks.prepare_resort(env.db, T, doc["id"])
+
+
+def test_a_forged_review_on_another_tenants_document_is_not_found(env):
+    """Security review 2026-09-18: a review row's tenant_id is not proof of ownership --
+    the document itself must belong to the caller's tenant."""
+    victim = env.db.add("knowledge_documents", tenant_id="victim-tenant", name="theirs.pdf", status="indexed")
+    env.db.add("knowledge_chunks", tenant_id="victim-tenant", document_id=victim["id"], content="their chunk")
+    base = kv.current_description_version(env.db, T)
+    env.db.add("knowledge_reviews", tenant_id=T, document_id=victim["id"], base_version_id=base["id"],
+               proposed_description="", proposed_facts="attacker facts")
+
+    with pytest.raises(ks.NotFoundError):
+        ks.build_review_payload(env.db, T, victim["id"])
+    with pytest.raises(ks.NotFoundError):
+        ks.apply_review(env.db, T, victim["id"], ks.ApplyChoices(base_version_id=base["id"]), user_id=None, is_owner=True)
+    with pytest.raises(ks.NotFoundError):
+        ks.discard_review(env.db, T, victim["id"])
+    assert [c["content"] for c in env.db.rows("knowledge_chunks")] == ["their chunk"]

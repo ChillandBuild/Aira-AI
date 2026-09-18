@@ -46,10 +46,10 @@ def _queue_rubric(tenant_id: str, result: dict) -> bool:
 
 
 class ApplyReviewBody(BaseModel):
-    base_version_id: str
-    accepted_hunk_ids: list[str] = Field(default_factory=list)
-    conflict_choices: dict[str, Literal["a", "b", "none"]] = Field(default_factory=dict)
-    accepted_update_ids: list[str] = Field(default_factory=list)
+    base_version_id: str = Field(max_length=64)
+    accepted_hunk_ids: list[str] = Field(default_factory=list, max_length=2_000)
+    conflict_choices: dict[str, Literal["a", "b", "none"]] = Field(default_factory=dict, max_length=500)
+    accepted_update_ids: list[str] = Field(default_factory=list, max_length=500)
 
 
 class FactsBody(BaseModel):
@@ -57,8 +57,8 @@ class FactsBody(BaseModel):
 
 
 class DeleteDocumentBody(BaseModel):
-    base_version_id: Optional[str] = None
-    remove_edited: list[str] = Field(default_factory=list)
+    base_version_id: Optional[str] = Field(default=None, max_length=64)
+    remove_edited: list[str] = Field(default_factory=list, max_length=2_000)
 
 
 def _doc_signed_url(db, path: str, expires_in: int = 300) -> str | None:

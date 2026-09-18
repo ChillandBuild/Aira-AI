@@ -75,33 +75,18 @@ CREATE TABLE IF NOT EXISTS knowledge_reviews (
 CREATE INDEX IF NOT EXISTS idx_knowledge_reviews_document
   ON knowledge_reviews (tenant_id, document_id, created_at DESC);
 
--- RLS mirrors knowledge_documents: members read, owners write. The backend uses the
--- service role and filters by tenant_id itself; these policies cover direct access.
+-- RLS: members may READ; nobody writes through PostgREST. Only the backend (service
+-- role, which bypasses RLS and filters tenant_id itself) writes these tables. Owner
+-- write policies were deliberately NOT added: a document_id foreign key does not check
+-- tenancy, so a directly-inserted review/version row could point at another tenant's
+-- document (security review 2026-09-18).
 ALTER TABLE knowledge_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_reviews ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS knowledge_versions_tenant_member_select ON knowledge_versions;
 CREATE POLICY knowledge_versions_tenant_member_select ON knowledge_versions
   FOR SELECT TO authenticated USING (public.is_tenant_member(tenant_id));
-DROP POLICY IF EXISTS knowledge_versions_tenant_owner_insert ON knowledge_versions;
-CREATE POLICY knowledge_versions_tenant_owner_insert ON knowledge_versions
-  FOR INSERT TO authenticated WITH CHECK (public.is_tenant_owner(tenant_id));
-DROP POLICY IF EXISTS knowledge_versions_tenant_owner_update ON knowledge_versions;
-CREATE POLICY knowledge_versions_tenant_owner_update ON knowledge_versions
-  FOR UPDATE TO authenticated USING (public.is_tenant_owner(tenant_id)) WITH CHECK (public.is_tenant_owner(tenant_id));
-DROP POLICY IF EXISTS knowledge_versions_tenant_owner_delete ON knowledge_versions;
-CREATE POLICY knowledge_versions_tenant_owner_delete ON knowledge_versions
-  FOR DELETE TO authenticated USING (public.is_tenant_owner(tenant_id));
 
 DROP POLICY IF EXISTS knowledge_reviews_tenant_member_select ON knowledge_reviews;
 CREATE POLICY knowledge_reviews_tenant_member_select ON knowledge_reviews
   FOR SELECT TO authenticated USING (public.is_tenant_member(tenant_id));
-DROP POLICY IF EXISTS knowledge_reviews_tenant_owner_insert ON knowledge_reviews;
-CREATE POLICY knowledge_reviews_tenant_owner_insert ON knowledge_reviews
-  FOR INSERT TO authenticated WITH CHECK (public.is_tenant_owner(tenant_id));
-DROP POLICY IF EXISTS knowledge_reviews_tenant_owner_update ON knowledge_reviews;
-CREATE POLICY knowledge_reviews_tenant_owner_update ON knowledge_reviews
-  FOR UPDATE TO authenticated USING (public.is_tenant_owner(tenant_id)) WITH CHECK (public.is_tenant_owner(tenant_id));
-DROP POLICY IF EXISTS knowledge_reviews_tenant_owner_delete ON knowledge_reviews;
-CREATE POLICY knowledge_reviews_tenant_owner_delete ON knowledge_reviews
-  FOR DELETE TO authenticated USING (public.is_tenant_owner(tenant_id));
