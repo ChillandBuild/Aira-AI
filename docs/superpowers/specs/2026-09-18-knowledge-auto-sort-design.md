@@ -297,14 +297,16 @@ new values need no constraint change):
 | `source_text` | text | Raw extraction (≤ 50,000 chars). Input for re-sort. |
 | `rule_lines` | jsonb, default `'[]'` | Description lines this document contributed, as applied |
 | `sorted_at` | timestamptz null | `null` = legacy document, never sorted (§11) |
+| `sort_state` | text null | `sorting` / `review` / `failed` / null. Lets an already-indexed legacy document be re-sorted while it keeps serving replies (its `status` stays `indexed`). |
 | `status` values | — | adds `processing`, `review_pending` alongside `indexed`, `failed` |
 
 New `knowledge_reviews`:
 `id, tenant_id, document_id → knowledge_documents ON DELETE CASCADE, base_version_id,
 proposed_description, proposed_facts, proposed_rule_lines jsonb, conflicts jsonb (rule
 conflicts, §4.4), fact_disagreements jsonb (§6.5), unverified jsonb, left_out jsonb,
-left_out_rules jsonb, truncated bool, replaces_document_id null, status (pending|applied|
-discarded), created_by, created_at`.
+left_out_rules jsonb, truncated bool, replaces_document_id null, origin (upload|resort),
+status (pending|applied|discarded), created_by, created_at`. At most one `pending` review per
+document; a new sort discards the older one.
 
 New `knowledge_versions`:
 `id, tenant_id, kind (description|facts), document_id null → knowledge_documents ON DELETE
@@ -334,6 +336,22 @@ All under the existing knowledge router (`/api/v1/knowledge`). Reads need `knowl
 | `POST` | `/versions/{id}/restore` | §7 |
 
 `PUT /api/v1/ai-tune/description` keeps its contract and now routes through `save_description`.
+
+**Who can change the Description.** Today only an owner can save it (`ai_tune` router is
+`require_owner`). That stays true: apply, delete and restore need `knowledge.manage`, **plus** the
+owner role whenever the result changes the Description. A manager can still apply an FAQ-only
+upload.
+
+**Error statuses** (the frontend's `apiFetch` exposes `status` and a plain-text `detail`):
+`409` = Description changed since the review/preview was built; `422` = the result would leave the
+Description empty; `403` = owner required.
+
+**List payload.** `GET /documents` stops returning `select("*")`. It drops the large
+`full_text`/`source_text` columns and adds `has_pending_review`.
+
+**Apply speed.** Apply does the database writes and returns. Chunking and embedding the facts run
+as a background task, and until the chunks exist the full-text fallback serves the new
+`full_text`. This keeps apply inside the frontend's 15-second mutation timeout.
 
 ## 11. Existing documents
 
