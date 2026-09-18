@@ -1,6 +1,6 @@
 # Knowledge Auto-Sort — one upload, split into Description and RAG
 
-Status: design approved in chat, awaiting review of this written spec.
+Status: approved 2026-09-18 (Q1 → option A, Q2 → description-or-upload, three price gaps added). Implementing.
 Date: 2026-09-18
 
 ## 1. Problem
@@ -48,12 +48,14 @@ upload everything in one place, and Aira does the sorting.
 5. The RAG preview shows only what Aira will look up from that file, not the whole original.
 6. The Description guide's "Around 200 to 350 words" copy is updated to match the 1,200-word
    soft limit (§4.4), so the screen doesn't contradict what the sorter produces.
+7. Updated prices can't silently disagree: across files, or between a file and the Description (§6.5).
+8. The upload lock is satisfied by a Description the client writes **or** one built from their
+   upload (§6.6).
 
 **Non-goals (this spec)**
 - Renaming the tabs ("How Aira behaves" / "What Aira looks up").
 - A warning when a pasted AI transcript is saved as the Description.
 - Undoing a document delete.
-- Relaxing the 2026-09-09 upload gate (description + rubric must exist before uploading).
 These are listed in §14.
 
 ## 3. The flow
@@ -127,8 +129,8 @@ warning. It does not block.
   later, with empty `full_text` and zero chunks.
 - **Campaign-scoped upload (`campaign_tag_id` set):** facts go to RAG with that scope, as today.
   Rules are **not** merged, because the Description applies to every campaign. They are listed as
-  "These look like rules, but this file is for one campaign only" and left out. (Open question,
-  §15.)
+  "These look like rules, but this file is for one campaign only" and left out. (Decided
+  2026-09-18, option A. A per-campaign Description is a possible follow-up, §14.)
 - **Text over 50,000 characters:** truncated as today, but the review screen now says "Only the
   first 50,000 characters were read" instead of truncating silently.
 
@@ -205,11 +207,47 @@ without the removed lines as a new version with reason `delete_document`. This i
 Description changed after the preview was fetched (same version check as §5).
 
 ### 6.4 Upload a new or updated file
-This is the normal flow in §3. If a document with the **same name** already exists, the client is
-asked: **"Replace '<name>'?"** or **"Keep both"**.
-- **Replace:** the proposal also removes the old document's machine lines that the new version
-  no longer contains. On Apply, the old document's facts are replaced and the old row is deleted.
-- **Keep both:** the new file is sorted as a separate document.
+This is the normal flow in §3. The upload form asks **"Does this replace an existing file?"** with
+a picker of the tenant's documents (default: none). It does **not** rely on the file name:
+clients rename versions ("…v9…Final.docx" → "…v10…"). If a document with the exact same
+name exists, the picker pre-selects it, and the client can change that.
+- **Replaces a file:** the proposal also removes the old document's machine lines that the new
+  version no longer contains. The old document's facts are excluded from the price check
+  (§6.5), since they're being removed. On Apply, the old row and its chunks are deleted and the
+  new document takes its place.
+- **Doesn't replace anything:** the new file is sorted as a separate document.
+
+### 6.5 Price and fact disagreements
+Checked at sort time, after the facts are extracted, in one AI call. Input: the new facts, the
+current Description, and the facts of every **other sorted** document in the same scope (a
+replaced document is excluded). Sorted documents' facts are compact, and legacy (unsorted)
+documents are not included, because their raw text can be ~50,000 characters. Output: a list of
+disagreements, each tagged with where it is:
+
+| Where | Example | What the review screen does |
+|---|---|---|
+| `description` | Description says "₹29", new file says "₹49" | Shows **"Your Description still says ₹29. Update it?"** with the exact current line and a proposed replacement. Choosing *Update* swaps that one line. The server applies it only if the exact line is still present. Unticked by default when the line is the client's own (§6.1), ticked when it is a machine line. |
+| `file` | Another file "Pricing.pdf" says "₹29" | A warning: **"'Pricing.pdf' says ₹29. Aira may quote either. Replace that file or edit its facts."** Doesn't block Apply. |
+
+Every value the AI reports is checked by the same no-AI check as §4.3: the quoted "new" value
+must appear in the new facts and the quoted "existing" value must appear in the Description or
+that file. Anything that fails the check is dropped rather than shown, so a made-up conflict never
+reaches the client.
+
+### 6.6 The upload lock (changed from 2026-09-09)
+The Documents tab used to be locked until **both** a Description and a scoring rubric were saved.
+Now:
+- **Uploading is allowed with an empty Description.** The client either writes a short
+  Description first, or uploads a file and the Description is built from it.
+- **Apply requires a non-empty Description.** If the Description is empty and the review would
+  leave it empty (for example an FAQ-only first upload), Apply is disabled with: "This file
+  doesn't describe your business, so Aira still wouldn't know who it is. Write a short
+  Description first, or upload a file that describes your business." Discard still works.
+- **The rubric no longer blocks uploads.** It is used for lead scoring, never for replies or RAG.
+  When an Apply fills a previously empty Description and no rubric exists, the rubric is
+  generated from the new Description by the existing `_auto_generate_rubric(force=False)`, the
+  same best-effort path as saving a Description. The Documents checklist still shows the
+  rubric as a recommended step.
 
 ## 7. Safety net: version history
 
@@ -263,7 +301,8 @@ new values need no constraint change):
 
 New `knowledge_reviews`:
 `id, tenant_id, document_id → knowledge_documents ON DELETE CASCADE, base_version_id,
-proposed_description, proposed_facts, conflicts jsonb, unverified jsonb, left_out jsonb,
+proposed_description, proposed_facts, proposed_rule_lines jsonb, conflicts jsonb (rule
+conflicts, §4.4), fact_disagreements jsonb (§6.5), unverified jsonb, left_out jsonb,
 left_out_rules jsonb, truncated bool, replaces_document_id null, status (pending|applied|
 discarded), created_by, created_at`.
 
@@ -283,7 +322,7 @@ All under the existing knowledge router (`/api/v1/knowledge`). Reads need `knowl
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/upload-document` | Unchanged signature, plus optional `replace_document_id`. Sorting replaces direct indexing. |
+| `POST` | `/upload-document` | Unchanged signature, plus optional form field `replaces_document_id`. Sorting replaces direct indexing. |
 | `GET` | `/documents/{id}/review` | Review payload: hunks (with ids and "yours" flags), conflicts, facts, unverified, left out |
 | `POST` | `/documents/{id}/review/apply` | `{base_version_id, accepted_hunk_ids, conflict_choices}` |
 | `POST` | `/documents/{id}/review/discard` | Deletes the pending document |
@@ -331,6 +370,10 @@ Backend (`pytest`, LLM mocked):
 - delete preview: machine lines removed, edited lines kept by default
 - replace flow removes lines the new version dropped
 - legacy document is untouched until "Sort this file"
+- §6.5: a `description` disagreement swaps exactly one line; it is skipped if that line is gone;
+  a disagreement whose quoted values aren't in the source texts is dropped
+- §6.6: upload allowed with an empty Description; Apply refused when the result is still empty;
+  rubric generated only when it was missing
 - tenant isolation on every new route
 
 Frontend: `npm run typecheck` **and** `npm run lint` clean. Review screen, History, RAG preview
@@ -343,9 +386,10 @@ Description and facts match the manual analysis in §1.
 - Rename the tabs by what they do: "How Aira behaves" / "What Aira looks up".
 - Warn when a pasted AI transcript is saved as the Description.
 - Undo a document delete (soft delete; retrieval RPCs would need a `deleted_at` filter).
+- A per-campaign Description add-on for campaign-scoped rules.
 
-## 15. Open questions
-1. **Campaign-scoped rules:** v1 leaves them out (§4.5). Should campaigns eventually get their own
-   Description add-on?
-2. **Upload gate:** now that uploads can write the Description, should a brand-new client still
-   need to write a Description by hand before their first upload?
+## 15. Decisions (2026-09-18)
+1. **Campaign-scoped rules:** option A, left out and shown to the client (§4.5).
+2. **Upload lock:** a written Description **or** one built from an upload (§6.6).
+3. **Price gaps:** a replace-file picker instead of name matching (§6.4), plus the disagreement
+   checks in §6.5.
