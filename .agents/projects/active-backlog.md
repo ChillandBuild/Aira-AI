@@ -455,3 +455,29 @@ Both need network + an install, so they could not be fixed from the agent sandbo
   `lib/supabase/client.ts` (passkey option didn't exist in 2.103.3). A plain `npm install` in
   `frontend/` clears it; CI installs from the lock file and is unaffected.
 
+
+## Meta Ads — what still blocks the `ads_read` / Marketing API resubmission (open, 2026-09-19)
+The scheduler half is fixed (`0e35b2f1`, `7aa8b710`); these three are not, and two of them need the
+user, not an agent. Background in [decisions/log.md](../decisions/log.md), 2026-09-19.
+- **Both tenants point at `act_905982549234446` ("Astro Tamil Test"), which looks dormant.** Newest
+  `ad_insights_daily` row for it is 2026-08-25; stored `meta_ads_last_sync_count` is 10 and 12 rows.
+  [decisions/log.md:653](../decisions/log.md) records the *real* live-tested Astro Tamil ad account as
+  **`act_1910086849857231`** — a different id. Hourly syncing a dormant account produces well-formed
+  calls that all return empty, which may not satisfy Meta's "successfully integrate with the Ads API".
+  Confirm which account has live Click-to-WhatsApp spend and repoint before starting the 15-day clock.
+- **Unverified: which Meta app the stored System User tokens belong to.** Calls are counted against the
+  app selected when the token was created in Business Manager, *not* the app that sent the request — so
+  a token made under the wrong app means our reviewed app's counter stayed at zero while the data still
+  landed in our database. Could not be checked from the agent sandbox: the Supabase MCP refuses to
+  return the token value (auto-mode "Credential Materialization"), and the local-script route died on
+  the stale `backend/.env` (see subsystem-notes). **Manual check**: paste the token into
+  <https://developers.facebook.com/tools/debug/accesstoken> and compare the **App ID** field against
+  `2225044871604460` (production app, "AIRA" / Bloom Matrix).
+- **New `ads_read` screencast not yet recorded.** Must show the Meta login flow, the permission being
+  granted, and the Ad Performance tab populating — English UI, captions, narrated. Record the embedded
+  signup path rather than the pasted-token path, and add a submission note that ad insights are pulled
+  server-to-server with a system user token. Independent of call volume; can be resubmitted alone.
+
+**Expect after the next deploy**: a burst of `token_invalid` incidents if any stored Meta token expired
+during the week `token-health-check` was starved. The table held 4 such incidents, all dated 2026-09-12
+or earlier, so anything newer is genuine and worth acting on.
