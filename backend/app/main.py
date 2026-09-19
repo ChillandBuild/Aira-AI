@@ -418,7 +418,7 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(
         _sync_ad_insights,
         trigger="interval",
-        hours=6,
+        hours=1,
         id="ad-insights-sync",
         replace_existing=True,
     )
