@@ -369,7 +369,7 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(
         _check_token_health,
         trigger="interval",
-        hours=24,
+        hours=4,
         id="token-health-check",
         replace_existing=True,
     )
@@ -411,7 +411,7 @@ async def lifespan(app: FastAPI):
     _scheduler.add_job(
         _sync_all_number_quality,
         trigger="interval",
-        hours=24,
+        hours=4,
         id="number-quality-sync",
         replace_existing=True,
     )
