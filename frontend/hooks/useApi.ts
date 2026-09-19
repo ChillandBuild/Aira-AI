@@ -76,6 +76,7 @@ export function useLeads(
     ad_campaign_id?: string;
     date_from?: string;
     date_to?: string;
+    search?: string;
   },
   enabled = true,
   fallbackData?: Lead[],

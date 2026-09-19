@@ -1116,9 +1116,11 @@ export const api = {
       ad_campaign_id?: string;
       date_from?: string;
       date_to?: string;
+      search?: string;
     }) => {
       const qs = new URLSearchParams();
       if (params?.segment) qs.set("segment", params.segment);
+      if (params?.search) qs.set("search", params.search);
       if (params?.assigned_to) qs.set("assigned_to", params.assigned_to);
       if (params?.source_filter) qs.set("source_filter", params.source_filter);
       if (params?.broadcast_id) qs.set("broadcast_id", params.broadcast_id);

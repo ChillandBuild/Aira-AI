@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useState } from "react";
-import { Phone, ChevronDown, Sparkles, User, Inbox, Clock } from "lucide-react";
+import { Phone, ChevronDown, Sparkles, User, Inbox, Clock, Search } from "lucide-react";
 import type { Caller, Lead } from "@/lib/api";
 import { useAdminDashboard, useLeads } from "@/hooks/useApi";
 import type { AdminDashboardData } from "@/hooks/useApi";
@@ -31,9 +31,20 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
   const [queueStatus, setQueueStatus] = useState<string>("all");
   const [queueAssignedTo, setQueueAssignedTo] = useState<string>("all");
 
+  // Searching hits the API (the queue only holds one page of leads, so a lead
+  // outside it would be unreachable by filtering what is already on screen).
+  // Debounced so typing a phone number is one request, not ten.
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchTerm(searchInput.trim()), 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const { data: queueLeadsData, mutate: refreshQueueLeads } = useLeads({
     segment: queueSegment !== "all" ? queueSegment : undefined,
     assigned_to: (queueAssignedTo !== "all" && queueAssignedTo !== "unassigned") ? queueAssignedTo : undefined,
+    search: searchTerm || undefined,
     limit: 50,
   });
 
@@ -117,6 +128,20 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
               </div>
             ) : (
               <>
+                {/* Search */}
+                <div className="mb-3 shrink-0">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                    <input
+                      type="text"
+                      placeholder="Search by name or phone..."
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-[#e8e3db] rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary transition-all shadow-inner"
+                    />
+                  </div>
+                </div>
+
                 {/* Filters */}
                 <div className="grid grid-cols-3 gap-2 mb-4 shrink-0">
                   {[
@@ -146,8 +171,12 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
                     <div className="w-12 h-12 bg-[#faf8f5] rounded-full flex items-center justify-center text-[#a8a29e] border border-[#f0ece4] mb-3">
                       <Inbox size={18} />
                     </div>
-                    <p className="font-body text-sm font-semibold text-[#78716c]">No leads match the filters</p>
-                    <p className="font-label text-xs text-[#a8a29e] mt-1">Adjust segment, status, or assignment above.</p>
+                    <p className="font-body text-sm font-semibold text-[#78716c]">
+                      {searchTerm ? `No leads found for "${searchTerm}"` : "No leads match the filters"}
+                    </p>
+                    <p className="font-label text-xs text-[#a8a29e] mt-1">
+                      {searchTerm ? "Check the spelling, or clear the segment / status / assignment filters." : "Adjust segment, status, or assignment above."}
+                    </p>
                   </div>
                 ) : (
                   <div className="flex-1 overflow-y-auto space-y-2 pr-1">

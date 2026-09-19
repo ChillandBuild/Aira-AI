@@ -20,6 +20,24 @@ from app.services.assignment import record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
+
+# PostgREST's `or=(...)` filter is a string mini-language: commas separate the
+# branches, dots separate column/operator/value, and `*` is the ilike wildcard.
+# A raw search term carrying any of those would rewrite the filter rather than
+# be matched by it, so only characters a real name or phone number contains are
+# kept. Everything else is dropped rather than escaped — there is no escape
+# syntax to rely on here.
+_SEARCH_ALLOWED = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 +-_&'@")
+
+
+def _sanitize_search(term: str | None) -> str | None:
+    """Reduce a user search term to something safe to inline in an or_ filter."""
+    if not term:
+        return None
+    cleaned = "".join(c for c in term.strip() if c in _SEARCH_ALLOWED).strip()
+    return cleaned or None
+
+
 require_leads_view = require_permission("leads.view")
 require_leads_manage = require_permission("leads.manage")
 require_conversations_reply = require_permission("conversations.reply")
@@ -72,6 +90,7 @@ async def list_leads(
     ad_campaign_id: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    search: str | None = Query(None, max_length=100),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     ctx: dict = Depends(require_leads_view),
@@ -106,6 +125,12 @@ async def list_leads(
         query = query.lt("created_at", (date_to_parsed + timedelta(days=1)).isoformat())
     if segment:
         query = query.eq("segment", segment)
+    # Name or phone, substring, case-insensitive. Phones are stored with the
+    # country code (+916369781582), so a term typed without it still has to
+    # match — hence a contains match on both sides rather than a prefix one.
+    search_term = _sanitize_search(search)
+    if search_term:
+        query = query.or_(f"name.ilike.*{search_term}*,phone.ilike.*{search_term}*")
     if ctx.get("role") == "caller" and ctx.get("caller_id"):
         query = query.eq("assigned_to", ctx["caller_id"])
     elif assigned_to:
