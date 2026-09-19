@@ -204,6 +204,8 @@ export interface CallLog {
   transcript: string | null;
   created_at: string;
   leads?: { phone: string | null; name: string | null } | null;
+  callers?: { name: string | null } | null;
+  caller_id?: string | null;
 }
 
 export interface DigestEntry {
@@ -1381,6 +1383,12 @@ export const api = {
         `/api/v1/calls/initiate`,
         { method: "POST", keepalive: true, body: JSON.stringify({ lead_id: target.leadId, phone: target.phone, caller_id: callerId, callback_job_id: target.callbackJobId }) }
       ),
+    recent: async (limit = 20, callerId?: string) => {
+      const qs = new URLSearchParams({ limit: String(limit) });
+      if (callerId) qs.set("caller_id", callerId);
+      const res = await apiFetch<{ data: CallLog[] }>(`/api/v1/calls/recent?${qs.toString()}`);
+      return res.data || [];
+    },
     setOutcome: (
       callLogId: string,
       outcome: NonNullable<CallLog["outcome"]>,
@@ -1769,8 +1777,14 @@ export const api = {
       }>(`/api/v1/analytics/inbound?range=${range}`),
     callerTimeline: (callerId: string, date: string) =>
       apiFetch<{ data: TimelineEvent[] }>(`/api/v1/analytics/caller-timeline?caller_id=${encodeURIComponent(callerId)}&date=${encodeURIComponent(date)}`),
-    qaQueue: (limit: number) =>
-      apiFetch<{ data: CallLog[] }>(`/api/v1/analytics/qa-queue?limit=${limit}`),
+    qaQueue: async (limit: number) => {
+      // `queue` is the pre-2026-09-19 key; accepted so the feed keeps working
+      // against a backend that has not been redeployed yet.
+      const res = await apiFetch<{ data?: CallLog[]; queue?: CallLog[] }>(
+        `/api/v1/analytics/qa-queue?limit=${limit}`
+      );
+      return { data: res.data ?? res.queue ?? [] };
+    },
     compare: (params: CompareParams) => {
       const qs = new URLSearchParams({ preset: params.preset });
       if (params.start) qs.set("start", params.start);

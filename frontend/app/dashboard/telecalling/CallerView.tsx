@@ -6,6 +6,7 @@ import { formatPhone, timeAgo } from "@/lib/utils";
 import { toast } from "sonner";
 import NotesHistoryModal from "./components/notes-history-modal";
 import NumpadDialer from "./components/NumpadDialer";
+import RecentCallsTab from "./components/RecentCallsTab";
 import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
@@ -21,7 +22,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
   const [lastCalledMap, setLastCalledMap] = useState<Record<string, string>>({});
   const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [queueSubTab, setQueueSubTab] = useState<"new" | "callback" | "in_progress" | "closed" | "dialer">("new");
+  const [queueSubTab, setQueueSubTab] = useState<"new" | "callback" | "in_progress" | "closed" | "dialer" | "recent">("new");
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
 
   // Load my assigned leads (the cockpit owns callbacks/config/wrap-ups itself).
@@ -180,6 +181,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                 { id: "in_progress", label: `In Prog (${inProgressLeads.length})` },
                 { id: "closed", label: `Closed (${closedLeads.length})` },
                 { id: "dialer", label: "Manual Dial" },
+                { id: "recent", label: "Recent" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -194,7 +196,9 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
             </div>
 
             {/* Lead cards or numpad */}
-            {queueSubTab === "dialer" ? (
+            {queueSubTab === "recent" ? (
+              <RecentCallsTab callerId={callerId} onSelectLead={cockpit.setSelectedLeadId} />
+            ) : queueSubTab === "dialer" ? (
               <div className="flex-1 overflow-y-auto flex flex-col items-center pt-4 pb-2">
                 <NumpadDialer value={cockpit.manualPhone} onChange={cockpit.setManualPhone} onDial={cockpit.manualDialWithGuard} dialing={cockpit.manualDialing} disabled={readOnly} />
               </div>

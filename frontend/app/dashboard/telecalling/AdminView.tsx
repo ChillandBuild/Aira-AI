@@ -9,6 +9,7 @@ import NotesHistoryModal from "./components/notes-history-modal";
 import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import NumpadDialer from "./components/NumpadDialer";
+import RecentCallsTab from "./components/RecentCallsTab";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
@@ -23,7 +24,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
 
 
   // Left-panel: Queue vs Manual Dial
-  const [leftTab, setLeftTab] = useState<"queue" | "dialer">("queue");
+  const [leftTab, setLeftTab] = useState<"queue" | "dialer" | "recent">("queue");
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
 
   // Queue filters
@@ -109,6 +110,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
               {[
                 { id: "queue", label: "Queue" },
                 { id: "dialer", label: "Manual Dial" },
+                { id: "recent", label: "Recent" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -122,7 +124,9 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
               ))}
             </div>
 
-            {leftTab === "dialer" ? (
+            {leftTab === "recent" ? (
+              <RecentCallsTab callerId={selectedCallerId} onSelectLead={cockpit.setSelectedLeadId} />
+            ) : leftTab === "dialer" ? (
               <div className="flex-1 overflow-y-auto flex flex-col items-center pt-4 pb-2">
                 <NumpadDialer value={cockpit.manualPhone} onChange={cockpit.setManualPhone} onDial={cockpit.manualDialWithGuard} dialing={cockpit.manualDialing} disabled={readOnly} />
               </div>

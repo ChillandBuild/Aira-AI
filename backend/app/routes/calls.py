@@ -1431,6 +1431,35 @@ async def stats_today(ctx: dict = Depends(get_tenant_and_role)):
     }
 
 
+@router.get("/recent")
+async def recent_calls(
+    limit: int = Query(20, ge=1, le=50),
+    caller_id: str | None = Query(None),
+    ctx: dict = Depends(get_tenant_and_role),
+):
+    """Latest calls across all leads — the dialer's Recent tab.
+
+    Per-lead history already exists (`/leads/{id}/call-logs`); this answers the
+    other question a telecaller has ("what did I call today?") without leaving
+    the dialer. A caller only ever sees their own calls, whatever they ask for.
+    """
+    db = get_supabase()
+    query = (
+        db.table("call_logs")
+        .select(
+            "id,created_at,duration_seconds,status,outcome,score,evaluation,ai_summary,"
+            "recording_url,transcript,lead_id,caller_id,leads(name,phone),callers(name)"
+        )
+        .eq("tenant_id", ctx["tenant_id"])
+    )
+    if ctx.get("role") == "caller" and ctx.get("caller_id"):
+        query = query.eq("caller_id", ctx["caller_id"])
+    elif caller_id:
+        query = query.eq("caller_id", caller_id)
+    rows = query.order("created_at", desc=True).limit(limit).execute()
+    return {"data": rows.data or []}
+
+
 @router.get("/recent-by-leads")
 async def recent_by_leads(lead_ids: str = Query(..., description="Comma-separated lead UUIDs, max 50"), ctx: dict = Depends(get_tenant_and_role)):
     ids = [i.strip() for i in lead_ids.split(",") if i.strip()][:50]

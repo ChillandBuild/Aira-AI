@@ -862,7 +862,10 @@ async def qa_queue(
                 pass
                 
     valid_calls.sort(key=lambda x: x["overall_score"])
-    return {"queue": valid_calls[:limit]}
+    # `data` is the list key every other endpoint here uses, and what the QA
+    # feed reads. This returned `queue` instead, so the feed always rendered
+    # empty however many scored calls existed.
+    return {"data": valid_calls[:limit]}
 
 
 @router.get("/telecalling/export")
