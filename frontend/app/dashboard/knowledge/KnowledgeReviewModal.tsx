@@ -279,7 +279,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
   const fileWarnings = review?.fact_disagreements.filter((d) => d.where === "file") ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 backdrop-blur-xs sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

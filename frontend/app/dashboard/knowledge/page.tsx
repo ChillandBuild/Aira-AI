@@ -11,7 +11,7 @@ import {
   FileSpreadsheet, FileCode, Image as ImageIcon,
   Tag, Shield, BookOpen, ArrowRight, Lightbulb,
   ClipboardCheck, History, RefreshCw, Pencil,
-  AlertTriangle, ChevronDown, ChevronRight
+  AlertTriangle
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, KnowledgeDocContent } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -525,11 +525,10 @@ export default function KnowledgePage() {
   const showStartHint = setupLoaded && canManageKnowledge && !hasRubric;
   const canUpload = canManageKnowledge && setupLoaded;
 
-  // Inline Description box on the Documents tab. Open by default while nothing is
-  // written; once the owner toggles it by hand their choice wins.
-  const [descBoxOpen, setDescBoxOpen] = useState<boolean | null>(null);
+  // Description status row on the Documents tab: word count plus a link across.
+  // It used to hold an editable copy of the textarea; editing now happens only on
+  // the Description tab, so there is one editor rather than two.
   const showDescBox = isOwner && setupLoaded;
-  const descBoxExpanded = descBoxOpen ?? !hasDescription;
 
   function goToDescription() {
     const params = new URLSearchParams(searchParams.toString());
@@ -929,7 +928,14 @@ export default function KnowledgePage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    // No `space-y-*` on this wrapper. Both tab branches below carry their own, so it
+    // spaced nothing -- but Tailwind's `space-y-6 > :not([hidden]) ~ :not([hidden])`
+    // applied `margin-top: 24px` to EVERY later child, and the modals below are later
+    // children. A `position: fixed; inset: 0` overlay with a 24px top margin cannot
+    // reach the top of the viewport, so every modal left a 24px undimmed strip across
+    // the top of the screen with the app header showing through it. Verified in Chrome:
+    // the overlay's rect was y=24 h=776 in an 800px viewport.
+    <div className="max-w-7xl mx-auto">
       {tab === "documents" ? (
         <div className="space-y-6">
           {/* ── Plain-language guide (Collapsed by default) ────────────────── */}
@@ -1190,93 +1196,38 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            {/* ── Business description ──────────────────────────────────────
-                The same field as the Description tab: it binds to the same
-                `description` state and `saveDescription()`, so the two can never
-                drift. Owner-only, because PUT /ai-tune/description is owner-gated
-                and a manager can't even read it back. The guide, templates and
-                version history stay on the Description tab. */}
+            {/* ── Business description: status only ─────────────────────────
+                A word count and a link across to the Description tab. It used to be
+                an editable copy of the same textarea, which put two editors for one
+                field on screen and made this card look like it took two kinds of
+                input. Reading `savedDescription` is owner-only and safe here because
+                the row itself is gated on `isOwner` -- the ai_tune router is
+                require_owner, so a manager's copy of it is always "". */}
             {showDescBox && (
-              <div className="border-b border-surface-mid/60 px-4 py-3.5 sm:px-5">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-mid/60 px-4 py-3.5 sm:px-5">
+                <BookOpen size={15} className="shrink-0 text-primary" />
+                <span className="whitespace-nowrap font-display text-sm font-bold text-on-surface">
+                  Business description
+                </span>
+                {hasDescription ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-emerald-700">
+                    <Check size={10} strokeWidth={3} />
+                    {wordCount(savedDescription).toLocaleString()} words
+                  </span>
+                ) : (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-amber-700">
+                    <AlertTriangle size={10} strokeWidth={2.5} />
+                    Not written yet
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => setDescBoxOpen(!descBoxExpanded)}
-                  className="flex w-full items-center justify-between gap-3 text-left"
+                  onClick={goToDescription}
+                  className="ml-auto flex shrink-0 items-center gap-1.5 rounded-xl border border-surface-mid bg-white px-3.5 py-2 font-label text-xs font-semibold text-primary transition-colors hover:bg-primary/5"
                 >
-                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-                    <BookOpen size={15} className="shrink-0 text-primary" />
-                    <span className="whitespace-nowrap font-display text-sm font-bold text-on-surface">
-                      Business description
-                    </span>
-                    {hasDescription ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-emerald-700">
-                        <Check size={10} strokeWidth={3} />
-                        {wordCount(savedDescription).toLocaleString()} words
-                      </span>
-                    ) : (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-amber-700">
-                        <AlertTriangle size={10} strokeWidth={2.5} />
-                        Not written yet
-                      </span>
-                    )}
-                    {description !== savedDescription && (
-                      <span className="hidden shrink-0 rounded-lg border border-surface-mid bg-white px-2 py-0.5 font-label text-[10.5px] font-bold text-on-surface-muted sm:inline">
-                        Unsaved
-                      </span>
-                    )}
-                  </span>
-                  {descBoxExpanded ? (
-                    <ChevronDown size={16} className="shrink-0 text-on-surface-muted" />
-                  ) : (
-                    <ChevronRight size={16} className="shrink-0 text-on-surface-muted" />
-                  )}
+                  {hasDescription ? "Open description" : "Write description"}
+                  <ArrowRight size={13} />
                 </button>
-
-                {descBoxExpanded && (
-                  <div className="mt-3">
-                    <p className="font-body text-xs leading-relaxed text-on-surface-muted">
-                      {hasDescription
-                        ? "Aira re-reads this before every reply — who you are, what you sell, how to sound. Your uploaded files are looked up only when they're relevant."
-                        : "Aira re-reads this before every reply — who you are, what you sell, how to sound. Without it, Aira can still answer from your files but has no idea whose business it is."}
-                    </p>
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={6}
-                      placeholder={
-                        "We are Sunrise Interiors, a home interior studio in Coimbatore.\n" +
-                        "We design and fit modular kitchens, wardrobes and full-home interiors.\n" +
-                        "Reply warmly in simple English or Tamil, and never quote a price without a site visit."
-                      }
-                      className="mt-2.5 w-full resize-y rounded-xl border border-surface-mid bg-white px-3.5 py-3 font-body text-sm leading-relaxed text-on-surface placeholder:text-on-surface-muted/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <span className="font-mono text-[11px] text-on-surface-muted">
-                        {wordCount(description).toLocaleString()} words
-                      </span>
-                      <div className="flex w-full items-center gap-2 sm:w-auto">
-                        <button
-                          type="button"
-                          onClick={goToDescription}
-                          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-surface-mid bg-white px-3.5 py-2 font-label text-xs font-semibold text-primary transition-colors hover:bg-primary/5 sm:flex-none"
-                        >
-                          <span className="sm:hidden">Full editor</span>
-                          <span className="hidden sm:inline">Full editor, guide &amp; history</span>
-                          <ArrowRight size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={saveDescription}
-                          disabled={descSaving || description === savedDescription}
-                          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-4 py-2 font-label text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
-                        >
-                          {descSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                          {descSaving ? "Saving…" : "Save description"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -1403,6 +1354,14 @@ export default function KnowledgePage() {
           </div>
 
           {/* ── Filter & Search Toolbar ───────────────────────────────────── */}
+          {/* Hidden while there is nothing to filter (2026-09-20). On an empty
+              knowledge base this let you set a filter over a list that could not
+              contain anything, leaving an "Active Filters: Type: Word ✕ Reset all"
+              chip sitting above "No documents in your knowledge base yet".
+              Gated on `documents`, not `filteredDocs` — gating on the filtered list
+              would make the toolbar delete itself the moment a filter matched
+              nothing, taking away the only control that could undo it. */}
+          {documents.length > 0 && (
           <div className="bg-surface rounded-2xl p-4 border border-surface-mid shadow-sm space-y-3">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
               {/* Search Bar */}
@@ -1558,6 +1517,7 @@ export default function KnowledgePage() {
               </div>
             )}
           </div>
+          )}
 
           {/* ── Document List / Grid Section ──────────────────────────────── */}
           <div className="bg-surface rounded-2xl border border-surface-mid shadow-sm overflow-hidden">
@@ -2178,7 +2138,7 @@ export default function KnowledgePage() {
 
       {/* ── Extracted Document Viewer Loading Overlay ───────────────────────── */}
       {viewerLoading && !viewingDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-surface rounded-2xl p-5 shadow-2xl border border-surface-mid flex items-center gap-3">
             <Loader2 size={24} className="animate-spin text-primary" />
             <span className="font-body text-sm font-semibold text-on-surface">Loading document content…</span>
@@ -2189,7 +2149,7 @@ export default function KnowledgePage() {
       {/* ── Extracted Document Viewer Modal ─────────────────────────────────── */}
       {viewingDoc && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setViewingDoc(null)}
         >
           <div
@@ -2455,7 +2415,7 @@ export default function KnowledgePage() {
       {/* ── Same file name: replace or keep both ───────────────────────────── */}
       {sameNamePrompt && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setSameNamePrompt(null)}
         >
           <div
