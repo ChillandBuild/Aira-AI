@@ -399,61 +399,6 @@ function formatDate(dateStr: string): string {
   }
 }
 
-// ─── How the split works ──────────────────────────────────────────────────────
-// Sits under the guide links on BOTH tabs, always visible — not behind a toggle.
-// The Description/Documents split is the one thing clients get wrong, and a single
-// upload now feeds both halves, so the difference has to be on screen rather than
-// collapsed inside a guide nobody opens. Deliberately three short lines: what each
-// half is for, and what one upload does. Longer copy lives in the guides above it.
-function SplitGuide() {
-  const halves = [
-    {
-      icon: <BookOpen size={15} />,
-      label: "Description",
-      when: "Read before every reply",
-      body: "Who you are, what you sell, how to sound.",
-    },
-    {
-      icon: <FileText size={15} />,
-      label: "Documents (RAG)",
-      when: "Read only when a lead asks",
-      body: "Prices, packages, FAQs, policies.",
-    },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-surface-mid bg-surface p-4 shadow-xs sm:p-5">
-      <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
-        {halves.map((h) => (
-          <div key={h.label} className="flex min-w-0 gap-3">
-            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              {h.icon}
-            </span>
-            <div className="min-w-0">
-              <p className="font-display text-sm font-bold text-on-surface">{h.label}</p>
-              <p className="mt-0.5 font-label text-[11.5px] font-bold uppercase tracking-wide text-primary">
-                {h.when}
-              </p>
-              <p className="mt-1 font-body text-xs leading-relaxed text-on-surface-muted">
-                {h.body}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 flex items-start gap-2.5 border-t border-surface-mid/70 pt-3.5">
-        <Sparkles size={14} className="mt-0.5 shrink-0 text-primary" />
-        <p className="font-body text-xs leading-relaxed text-on-surface-muted">
-          <span className="font-semibold text-on-surface">Upload any file and Aira splits it
-          into both</span>{" "}
-          — the rules go to your Description, the facts stay here to look up. Nothing changes
-          until you review it.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function KnowledgePage() {
@@ -1005,8 +950,6 @@ export default function KnowledgePage() {
               {showRagExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
             </button>
           </div>
-
-          <SplitGuide />
 
           {showUploadGuide && (
             <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
@@ -1996,8 +1939,6 @@ export default function KnowledgePage() {
               {showDescExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
             </button>
           </div>
-
-          <SplitGuide />
 
           {showDescGuide && (
             <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
