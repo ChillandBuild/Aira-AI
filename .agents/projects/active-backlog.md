@@ -481,3 +481,32 @@ user, not an agent. Background in [decisions/log.md](../decisions/log.md), 2026-
 **Expect after the next deploy**: a burst of `token_invalid` incidents if any stored Meta token expired
 during the week `token-health-check` was starved. The table held 4 such incidents, all dated 2026-09-12
 or earlier, so anything newer is genuine and worth acting on.
+
+## Frontend tech debt found 2026-09-20 (knowledge UI session)
+
+- **`npm run typecheck` is RED on `main`, and has been since `721f58e4` (2026-09-17).** One error:
+  `lib/supabase/client.ts:10` passes `{ auth: { experimental: { passkey: true } } }` to
+  `createBrowserClient`, and the installed `@supabase/ssr` types have no `experimental` key. It is the
+  **only** tsc error in the repo, so "tsc count == 1" was used all session as the pass condition — if
+  that number is ever 1 again for a different reason, this is the one to rule out first. Fix is either
+  a types bump or a narrow cast; passkey sign-in itself works at runtime. Left alone because it is a
+  different subsystem from the knowledge work that surfaced it.
+- **`backdrop-blur-xs` still present at `ClientLayout.tsx:134`** (mobile sidebar scrim). Dead class on
+  Tailwind 3.4 — it emits nothing, so that scrim has never blurred. One-word fix to `backdrop-blur-sm`.
+  The four knowledge files were fixed; this one was out of scope. See subsystem-notes → Frontend.
+- **Other page roots may still break their modal backdrops the same way.** The knowledge page's
+  `space-y-6` root was putting a 24px top margin on every `fixed inset-0` overlay. Not audited
+  elsewhere: grep for page roots that carry a `space-y-*` class AND render modals as siblings of
+  content. Symptom is a thin undimmed strip at the top of the screen, easily mistaken for z-index.
+- **Knowledge filter state is not cleared when the document list empties.** Delete every document and
+  the (now hidden) toolbar keeps its filters; upload a new file and it can land behind a stale filter.
+  Recoverable — the "No documents match your filters" message names the cause — so it was left as-is.
+
+## Local tooling gaps (reported by `second-brain-close`, 2026-09-20)
+
+- **lefthook hooks are silently no-op'ing.** `lefthook.yml` exists and `lefthook` is a devDependency in
+  the ROOT `package.json`, but there is no root `node_modules/` and `.git/hooks/` holds only samples —
+  so the pre-commit `py_compile` and tenant-audit guards have not been running. Fix: `npm ci` at the
+  repo root, then `npx lefthook install`. (npm registry was reachable from the sandbox when checked.)
+- **gitleaks not installed**, so the close check falls back to 4 narrow patterns instead of full
+  credential coverage.
