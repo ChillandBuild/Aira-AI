@@ -201,6 +201,9 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
   const descChanged = review ? normalizeText(finalText) !== normalizeText(review.base_description) : false;
   const finalWords = wordCount(finalText);
   const overLimit = review ? finalWords > review.soft_word_limit : false;
+  // A file that is all look-up facts leaves the Description empty. That used to block
+  // Apply (and 422 server-side); since 2026-09-20 it only warns -- the facts go live and
+  // Aira answers from them, it just has no identity yet. Warning, not blockReason.
   const emptyResult = review !== null && !finalText.trim();
   const ownerBlocked = descChanged && !isOwner;
 
@@ -208,11 +211,9 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
     ? "You can view this review, but only someone who manages the knowledge base can apply it."
     : stale
       ? "Your Description changed since this review was prepared. Re-sort to build a fresh one."
-      : emptyResult
-        ? "This file doesn't describe your business, so Aira still wouldn't know who it is. Write a short Description first, or upload a file that describes your business."
-        : ownerBlocked
-          ? "Only an account owner can apply changes to the Description. Untick the Description changes, or ask an owner."
-          : null;
+      : ownerBlocked
+        ? "Only an account owner can apply changes to the Description. Untick the Description changes, or ask an owner."
+        : null;
 
   function toggle(set: Set<string>, id: string, update: (s: Set<string>) => void) {
     const next = new Set(set);
@@ -234,7 +235,9 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
       toast.success(
         res.description_changed
           ? "Applied. Your Description is updated and Aira now looks up this file's facts."
-          : "Applied. Aira now looks up this file's facts.",
+          : emptyResult
+            ? "Applied. Aira looks up this file's facts, but still has no Description."
+            : "Applied. Aira now looks up this file's facts.",
       );
       onFinished({ applied: true, descriptionChanged: res.description_changed });
     } catch (e) {
@@ -561,6 +564,23 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
         {/* Footer */}
         {review && (
           <div className="space-y-2.5 border-t border-surface-mid bg-surface-low/50 px-5 py-3.5 sm:px-6">
+            {emptyResult && !blockReason && (
+              <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
+                <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />
+                <div className="min-w-0 font-body text-xs leading-relaxed text-amber-900">
+                  <p className="font-display text-[13px] font-bold">
+                    Your facts will go live, but Aira won&rsquo;t know who you are.
+                  </p>
+                  <p className="mt-0.5 text-amber-800">
+                    This file was all look-up facts — nothing in it describes your business. Aira
+                    will answer questions from it, but it has no idea what company it works for.
+                    {isOwner
+                      ? " You can apply this now and add a short description in the upload box on this page whenever you’re ready."
+                      : " You can apply this now; ask an account owner to write a short description — only an owner can."}
+                  </p>
+                </div>
+              </div>
+            )}
             {blockReason && (
               <p className="flex items-start gap-1.5 font-body text-xs text-amber-800">
                 <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {blockReason}

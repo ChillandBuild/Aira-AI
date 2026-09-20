@@ -71,11 +71,22 @@ def test_a_changed_description_since_the_review_is_refused(env):
     assert ks.build_review_payload(env.db, T, doc["id"])["stale"] is True
 
 
-def test_an_empty_result_is_refused(env):
+def test_an_faq_only_first_upload_applies_and_leaves_the_description_empty(env):
+    """An empty result used to be refused (422). It is allowed now -- the facts go live
+    and the UI warns that Aira still has no identity. An empty Description is degraded,
+    not broken: _build_base_prompt() simply omits the BUSINESS DESCRIPTION block."""
     doc = add_doc(env.db)
     review = _review(env, doc, proposed="")  # FAQ-only first upload
-    with pytest.raises(ks.EmptyDescriptionError):
-        ks.apply_review(env.db, T, doc["id"], _choices(env, review), user_id=None, is_owner=True)
+
+    result = ks.apply_review(env.db, T, doc["id"], _choices(env, review), user_id=None, is_owner=True)
+
+    assert result["description_changed"] is False
+    assert env.description() == ""
+    saved = env.db.rows("knowledge_documents")[0]
+    assert saved["status"] == "indexed" and saved["full_text"] == "Price 29."
+    assert saved["rule_lines"] == []
+    # Nothing was written to Description history -- there was no change to record.
+    assert [v["reason"] for v in kv.list_versions(env.db, T, "description")] == ["baseline"]
 
 
 def test_a_manager_cannot_change_the_description_but_can_apply_facts(env):
