@@ -99,10 +99,13 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     };
   }
   if (pathname === "/dashboard/knowledge") {
-    // Description is the default landing tab -- it is the prerequisite for
-    // uploading RAG documents, so the header must name it when no tab is set.
-    let tabLabel = "Description";
-    if (tab === "documents") tabLabel = "Documents (RAG)";
+    // Documents (RAG) is the default landing tab (2026-09-20). It used to be
+    // Description, back when a Description was the prerequisite for uploading;
+    // nothing gates an upload any more, and uploading is what clients come here
+    // to do. `?tab=description` opens the Description, and `?tab=ai-tune` is an
+    // old link that still lands there.
+    let tabLabel = "Documents (RAG)";
+    if (tab === "description" || tab === "ai-tune") tabLabel = "Description";
     return {
       title: `Knowledge Base / ${tabLabel}`,
       description: "Upload documents and tune AI prompts to answer lead queries accurately.",
@@ -373,15 +376,17 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/knowledge" && (
           <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
-            {(["description", "documents"] as const).map((t) => {
-              const isDocuments = tab === "documents";
-              const isActive = t === "documents" ? isDocuments : !isDocuments;
+            {(["documents", "description"] as const).map((t) => {
+              // Documents (RAG) leads and is the canonical no-param URL; the
+              // Description follows it. `?tab=documents` stays valid for old links.
+              const isDescription = tab === "description" || tab === "ai-tune";
+              const isActive = t === "description" ? isDescription : !isDescription;
               return (
                 <button
                   key={t}
                   onClick={() => {
                     const params = new URLSearchParams(searchParams.toString());
-                    if (t === "description") params.delete("tab");
+                    if (t === "documents") params.delete("tab");
                     else params.set("tab", t);
                     const qs = params.toString();
                     router.replace(`/dashboard/knowledge${qs ? `?${qs}` : ""}`, { scroll: false });
