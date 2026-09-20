@@ -1576,17 +1576,13 @@ export default function KnowledgePage() {
                     <h3 className="font-display text-base font-bold text-on-surface">
                       No documents in your knowledge base yet
                     </h3>
+                    {/* No upload button here on purpose (2026-09-20). The drop zone
+                        card directly above is the ONE place to upload; a second CTA
+                        on the same empty screen read as two different upload routes.
+                        The copy points up at it instead. */}
                     <p className="font-body text-xs text-on-surface-muted mt-1 max-w-sm mx-auto">
-                      Upload rulebooks, FAQs, price lists or brochures above. Aira sorts each one and shows you the result before anything changes.
+                      Upload rulebooks, FAQs, price lists or brochures using the box above. Aira sorts each one and shows you the result before anything changes.
                     </p>
-                    <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={!canUpload}
-                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
-                      >
-                        <Upload size={14} /> Upload First Document
-                      </button>
                   </>
                 ) : (
                   <>
