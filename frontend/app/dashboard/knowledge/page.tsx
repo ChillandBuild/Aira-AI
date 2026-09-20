@@ -9,8 +9,9 @@ import {
   HardDrive, Check, Copy,
   Sparkles, LayoutGrid, List,
   FileSpreadsheet, FileCode, Image as ImageIcon,
-  Tag, Shield, BookOpen, ArrowRight, Circle, Lightbulb,
-  ClipboardCheck, History, RefreshCw, Pencil
+  Tag, Shield, BookOpen, ArrowRight, Lightbulb,
+  ClipboardCheck, History, RefreshCw, Pencil,
+  AlertTriangle, ChevronDown, ChevronRight
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, KnowledgeDocContent } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -505,15 +506,27 @@ export default function KnowledgePage() {
     }
   }
 
-  // ─── Start-here hint (was the upload lock until 2026-09-18) ─────────────────
-  // Auto-sort can build the Description from an uploaded file, so uploading is no
-  // longer blocked on it (spec §6.6). What stays enforced lives in the review
-  // screen: an upload can't be applied while the Description would be empty. The
-  // rubric only scores leads and is generated from the Description when missing.
+  // ─── Setup state (nothing here blocks an upload) ────────────────────────────
+  // The 2026-09-18 pass removed the upload lock; 2026-09-20 removed the last block,
+  // the review screen's refusal to apply a file that leaves the Description empty.
+  // Both are warnings now: the Description box below carries the "not written yet"
+  // pill, and the review screen warns before Apply. The rubric only scores leads and
+  // is generated from the Description when missing, so it never blocked anything.
+  //
+  // `savedDescription` is only trustworthy for an owner: the whole ai_tune router is
+  // owner-only, so `loadDescription()` swallows a 403 for a manager and leaves it "".
+  // Anything that reasons about "is the Description empty" must be owner-gated, or it
+  // tells managers their description is missing when it isn't.
   const hasDescription = savedDescription.trim().length > 0;
   const hasRubric = savedRubric.trim().length > 0;
-  const showStartHint = setupLoaded && canManageKnowledge && (!hasDescription || !hasRubric);
+  const showStartHint = setupLoaded && canManageKnowledge && !hasRubric;
   const canUpload = canManageKnowledge && setupLoaded;
+
+  // Inline Description box on the Documents tab. Open by default while nothing is
+  // written; once the owner toggles it by hand their choice wins.
+  const [descBoxOpen, setDescBoxOpen] = useState<boolean | null>(null);
+  const showDescBox = isOwner && setupLoaded;
+  const descBoxExpanded = descBoxOpen ?? !hasDescription;
 
   function goToDescription() {
     const params = new URLSearchParams(searchParams.toString());
@@ -1175,7 +1188,97 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            {/* Drag & Drop Area (plus a start-here hint while setup is incomplete) */}
+            {/* ── Business description ──────────────────────────────────────
+                The same field as the Description tab: it binds to the same
+                `description` state and `saveDescription()`, so the two can never
+                drift. Owner-only, because PUT /ai-tune/description is owner-gated
+                and a manager can't even read it back. The guide, templates and
+                version history stay on the Description tab. */}
+            {showDescBox && (
+              <div className="border-b border-surface-mid/60 px-4 py-3.5 sm:px-5">
+                <button
+                  type="button"
+                  onClick={() => setDescBoxOpen(!descBoxExpanded)}
+                  className="flex w-full items-center justify-between gap-3 text-left"
+                >
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
+                    <BookOpen size={15} className="shrink-0 text-primary" />
+                    <span className="whitespace-nowrap font-display text-sm font-bold text-on-surface">
+                      Business description
+                    </span>
+                    {hasDescription ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-emerald-700">
+                        <Check size={10} strokeWidth={3} />
+                        {wordCount(savedDescription).toLocaleString()} words
+                      </span>
+                    ) : (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-amber-700">
+                        <AlertTriangle size={10} strokeWidth={2.5} />
+                        Not written yet
+                      </span>
+                    )}
+                    {description !== savedDescription && (
+                      <span className="hidden shrink-0 rounded-lg border border-surface-mid bg-white px-2 py-0.5 font-label text-[10.5px] font-bold text-on-surface-muted sm:inline">
+                        Unsaved
+                      </span>
+                    )}
+                  </span>
+                  {descBoxExpanded ? (
+                    <ChevronDown size={16} className="shrink-0 text-on-surface-muted" />
+                  ) : (
+                    <ChevronRight size={16} className="shrink-0 text-on-surface-muted" />
+                  )}
+                </button>
+
+                {descBoxExpanded && (
+                  <div className="mt-3">
+                    <p className="font-body text-xs leading-relaxed text-on-surface-muted">
+                      {hasDescription
+                        ? "Aira re-reads this before every reply — who you are, what you sell, how to sound. Your uploaded files are looked up only when they're relevant."
+                        : "Aira re-reads this before every reply — who you are, what you sell, how to sound. Without it, Aira can still answer from your files but has no idea whose business it is."}
+                    </p>
+                    <textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={6}
+                      placeholder={
+                        "We are Sunrise Interiors, a home interior studio in Coimbatore.\n" +
+                        "We design and fit modular kitchens, wardrobes and full-home interiors.\n" +
+                        "Reply warmly in simple English or Tamil, and never quote a price without a site visit."
+                      }
+                      className="mt-2.5 w-full resize-y rounded-xl border border-surface-mid bg-white px-3.5 py-3 font-body text-sm leading-relaxed text-on-surface placeholder:text-on-surface-muted/60 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="font-mono text-[11px] text-on-surface-muted">
+                        {wordCount(description).toLocaleString()} words
+                      </span>
+                      <div className="flex w-full items-center gap-2 sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={goToDescription}
+                          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-surface-mid bg-white px-3.5 py-2 font-label text-xs font-semibold text-primary transition-colors hover:bg-primary/5 sm:flex-none"
+                        >
+                          <span className="sm:hidden">Full editor</span>
+                          <span className="hidden sm:inline">Full editor, guide &amp; history</span>
+                          <ArrowRight size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={saveDescription}
+                          disabled={descSaving || description === savedDescription}
+                          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-primary px-4 py-2 font-label text-xs font-semibold text-white shadow-xs transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40 sm:flex-none"
+                        >
+                          {descSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                          {descSaving ? "Saving…" : "Save description"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Drag & Drop Area (plus a rubric hint while one is missing) */}
             <div className="p-4 sm:p-6">
               {showStartHint && (
                 <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/40 p-4 sm:p-5 flex flex-col sm:flex-row gap-4">
@@ -1184,40 +1287,20 @@ export default function KnowledgePage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-display text-sm font-bold text-on-surface">
-                      {hasDescription ? "One more step: a lead scoring rubric" : "Aira doesn\u2019t know your business yet"}
+                      No lead scoring rubric yet
                     </p>
                     <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-2xl">
-                      {hasDescription
-                        ? "The rubric scores how interested each lead is. It\u2019s created from your Description automatically, or you can write your own."
-                        : "Write a short Description, or just upload a file that describes your business \u2014 Aira builds the Description from it and you review it before it goes live."}
+                      The rubric scores how interested each lead is. It&rsquo;s written for you from
+                      your Description the first time you save one, or you can write your own. It
+                      doesn&rsquo;t hold up uploads \u2014 nothing here does.
                     </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {[
-                        { done: hasDescription, label: "Description (needed before a file goes live)" },
-                        { done: hasRubric, label: "Lead scoring rubric (recommended)" },
-                      ].map((step) => (
-                        <span
-                          key={step.label}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-surface-mid bg-white px-2.5 py-1.5 font-label text-[11px] font-semibold text-on-surface"
-                        >
-                          {step.done ? (
-                            <span className="w-4 h-4 shrink-0 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                              <Check size={10} strokeWidth={3} />
-                            </span>
-                          ) : (
-                            <Circle size={16} className="shrink-0 text-on-surface-muted/50" />
-                          )}
-                          <span className={cn(step.done && "text-on-surface-muted line-through")}>{step.label}</span>
-                        </span>
-                      ))}
-                    </div>
                   </div>
                   <button
                     type="button"
                     onClick={goToDescription}
                     className="self-start shrink-0 flex items-center gap-2 px-4 py-2 bg-white border border-surface-mid text-primary rounded-xl font-label text-xs font-semibold hover:bg-primary/5 transition-colors shadow-xs"
                   >
-                    Go to Description <ArrowRight size={14} />
+                    Write a rubric <ArrowRight size={14} />
                   </button>
                 </div>
               )}

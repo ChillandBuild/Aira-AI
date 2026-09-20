@@ -673,8 +673,11 @@ def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *,
 
     base_text = latest.get("content") or ""
     final, new_lines = compute_final_description(review, base_text, machine_lines(db, tenant_id), choices)
-    if not final:
-        raise EmptyDescriptionError()
+    # An empty result is allowed (2026-09-20): a file that is all look-up facts gets
+    # indexed even when nothing in it describes the business. The review screen warns
+    # that Aira has no identity yet; it no longer refuses. An empty Description is
+    # degraded, not broken -- _build_base_prompt() just omits the BUSINESS DESCRIPTION
+    # block, so the developer-owned master prompt still governs the reply.
     changed = normalize_text(final) != normalize_text(base_text)
     if changed and not is_owner:
         raise OwnerRequiredError(
