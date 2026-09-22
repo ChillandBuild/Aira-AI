@@ -44,31 +44,31 @@ function AdminCallerCard({ caller, callingProvider }: {
     : !caller.phone;
 
   return (
-    <div className="max-w-sm">
-      <div className="relative p-3 bg-gradient-to-r from-primary/5 to-transparent rounded-xl border border-primary/20 text-xs">
-        <div className="flex items-center justify-between mb-2">
-          <span className="font-bold text-[#292524] text-sm">{caller.name}</span>
-          <span className="px-2 py-0.5 rounded-full border text-[10px] font-bold text-primary bg-primary/10 border-primary/20">
+    <div className="max-w-xs">
+      <div className="relative p-2.5 bg-gradient-to-r from-primary/5 to-transparent rounded-xl border border-primary/20 text-xs">
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className="font-bold text-[#292524] truncate">{caller.name}</span>
+          <span className="shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold text-primary bg-primary/10 border-primary/20">
             Owner
           </span>
         </div>
         {needsSetup && (
-          <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-medium">
+          <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-1.5 font-medium">
             {isTelecmi
               ? "Set your phone and Cloud Telephony User ID in Roles → Users to enable click-to-call"
               : "Set your phone number in Roles → Users to enable SIM calling"}
           </p>
         )}
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">Phone</span>
+            <span className="text-[10px] font-bold text-[#78716c] uppercase w-14 shrink-0">Phone</span>
             <span className="text-[#292524]">
               {caller.phone || <span className="text-[#a8a29e] italic">Not set</span>}
             </span>
           </div>
           {isTelecmi && (
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">User ID</span>
+              <span className="text-[10px] font-bold text-[#78716c] uppercase w-14 shrink-0">User ID</span>
               <span className="text-[#292524]">
                 {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
               </span>

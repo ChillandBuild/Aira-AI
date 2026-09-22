@@ -222,7 +222,7 @@ export default function FollowUpsSettingsPage() {
                       </div>
 
                       {/* Reminder Steps */}
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         {reminders.map((mins, i) => {
                           const rowValid = isValidMinutes(mins);
                           const durationDisplay = rowValid ? formatDuration(mins) : "";
@@ -230,19 +230,19 @@ export default function FollowUpsSettingsPage() {
                           return (
                             <div key={i} className="relative flex items-start gap-3">
                               {/* Step Number Badge */}
-                              <div className="z-10 mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-label text-xs font-bold text-emerald-800 shadow-sm ring-4 ring-white">
+                              <div className="z-10 mt-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-label text-xs font-bold text-emerald-800 shadow-sm ring-4 ring-white">
                                 {i + 1}
                               </div>
 
                               {/* Step Card */}
                               <div
-                                className={`flex-1 rounded-xl border p-3.5 sm:p-4 transition-all duration-200 ${
+                                className={`flex-1 rounded-xl border p-3 sm:p-3.5 transition-all duration-200 ${
                                   rowValid
                                     ? "border-border-subtle bg-surface-subtle/40 hover:bg-surface-subtle/80 hover:border-border"
                                     : "border-red-300 bg-red-50/30"
                                 }`}
                               >
-                                <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <div className="flex items-center justify-between gap-2 mb-2">
                                   <div className="flex items-center gap-2">
                                     <span className="font-display text-xs font-bold text-ink">
                                       {i === 0
@@ -252,7 +252,7 @@ export default function FollowUpsSettingsPage() {
                                         : "3rd Follow-up"}
                                     </span>
                                     {durationDisplay && (
-                                      <span className="font-label text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md">
+                                      <span className="font-label text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded">
                                         {durationDisplay}
                                       </span>
                                     )}
@@ -262,70 +262,69 @@ export default function FollowUpsSettingsPage() {
                                       type="button"
                                       onClick={() => removeReminder(i)}
                                       aria-label={`Remove reminder ${i + 1}`}
-                                      className="rounded-lg p-1 text-ink-muted transition-colors hover:bg-white hover:text-red-600 hover:shadow-xs"
+                                      className="rounded-lg p-0.5 text-ink-muted transition-colors hover:bg-white hover:text-red-600 hover:shadow-xs"
                                     >
-                                      <X className="h-4 w-4" />
+                                      <X className="h-3.5 w-3.5" />
                                     </button>
                                   )}
                                 </div>
 
-                                {/* Delay control row */}
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-body text-xs text-ink-secondary">
-                                    Wait
-                                  </span>
+                                {/* Single line: Delay input on left, presets on right */}
+                                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-body text-xs text-ink-secondary">
+                                      Wait
+                                    </span>
 
-                                  <div className="relative inline-flex items-center">
-                                    <input
-                                      type="text"
-                                      inputMode="numeric"
-                                      aria-label={`Minutes before reminder ${i + 1}`}
-                                      disabled={!canManageSettings}
-                                      value={mins}
-                                      onChange={(e) =>
-                                        setReminder(i, e.target.value.replace(/\D/g, ""))
-                                      }
-                                      className={`w-20 rounded-lg border bg-white px-2.5 py-1.5 pr-8 text-center font-display text-xs font-semibold text-ink shadow-xs transition focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
-                                        rowValid
-                                          ? "border-border focus:border-primary"
-                                          : "border-red-400 focus:ring-red-200"
-                                      }`}
-                                    />
-                                    <span className="pointer-events-none absolute right-2 font-body text-[11px] text-ink-muted">
-                                      min
+                                    <div className="relative inline-flex items-center">
+                                      <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        aria-label={`Minutes before reminder ${i + 1}`}
+                                        disabled={!canManageSettings}
+                                        value={mins}
+                                        onChange={(e) =>
+                                          setReminder(i, e.target.value.replace(/\D/g, ""))
+                                        }
+                                        className={`w-16 rounded-lg border bg-white px-2 py-1 pr-7 text-center font-display text-xs font-semibold text-ink shadow-xs transition focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
+                                          rowValid
+                                            ? "border-border focus:border-primary"
+                                            : "border-red-400 focus:ring-red-200"
+                                        }`}
+                                      />
+                                      <span className="pointer-events-none absolute right-1.5 font-body text-[10px] text-ink-muted">
+                                        min
+                                      </span>
+                                    </div>
+
+                                    <span className="font-body text-xs text-ink-secondary whitespace-nowrap">
+                                      after {i === 0 ? "the AI's reply" : `reminder ${i}`}
                                     </span>
                                   </div>
 
-                                  <span className="font-body text-xs text-ink-secondary">
-                                    after {i === 0 ? "the AI's reply" : `reminder ${i}`}
-                                  </span>
+                                  {/* Presets on the same line */}
+                                  {canManageSettings && (
+                                    <div className="flex items-center gap-1">
+                                      {DURATION_PRESETS.map((p) => (
+                                        <button
+                                          key={p.mins}
+                                          type="button"
+                                          onClick={() => setReminder(i, p.mins)}
+                                          className={`rounded px-1.5 py-0.5 font-label text-[10px] font-medium transition ${
+                                            mins === p.mins
+                                              ? "bg-emerald-600 text-white shadow-xs"
+                                              : "bg-white text-ink-secondary border border-border hover:border-emerald-300 hover:text-emerald-700"
+                                          }`}
+                                        >
+                                          {p.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
 
-                                {/* Presets */}
-                                {canManageSettings && (
-                                  <div className="mt-2.5 flex flex-wrap items-center gap-1 pt-2 border-t border-border/40">
-                                    <span className="text-[10px] font-label text-ink-muted mr-1">
-                                      Presets:
-                                    </span>
-                                    {DURATION_PRESETS.map((p) => (
-                                      <button
-                                        key={p.mins}
-                                        type="button"
-                                        onClick={() => setReminder(i, p.mins)}
-                                        className={`rounded-md px-1.5 py-0.5 font-label text-[11px] font-medium transition ${
-                                          mins === p.mins
-                                            ? "bg-emerald-600 text-white shadow-xs"
-                                            : "bg-white text-ink-secondary border border-border hover:border-emerald-300 hover:text-emerald-700"
-                                        }`}
-                                      >
-                                        {p.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
                                 {!rowValid && (
-                                  <p className="mt-2 font-body text-[11px] text-red-600">
+                                  <p className="mt-1.5 font-body text-[11px] text-red-600">
                                     Enter a whole number from 1 to 1440 (up to 24 hours).
                                   </p>
                                 )}
