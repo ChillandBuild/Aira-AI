@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, AsyncMock, patch
     ("abc", [5]),          # unparseable -> safe default
     ("0", [5]),            # below floor -> safe default
     ("2000", [5]),         # above 1440 -> safe default
-    ("60,5", [5]),         # not increasing -> safe default
-    ("5,5", [5]),          # duplicates -> safe default
+    ("60,5", [60, 5]),     # gaps are relative to the previous send; order is free
+    ("5,5", [5, 5]),
     ("5,60,120,240", [5, 60, 120]),  # capped at MAX_RUNGS
 ])
 def test_parse_delays(raw, expected):

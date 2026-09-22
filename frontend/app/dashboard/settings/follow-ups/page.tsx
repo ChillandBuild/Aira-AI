@@ -1,5 +1,5 @@
 "use client";
-import { Timer } from "lucide-react";
+import { Plus, Timer, X } from "lucide-react";
 import { useSettingsForm } from "../SettingsFormContext";
 import { parseSilenceDelays } from "../parseSilenceDelays";
 import { SaveButton, SaveStatus, SectionFooter, SettingsAccordion, SettingsSection, SwitchPill } from "../SettingsSection";
@@ -11,6 +11,10 @@ const SILENCE_NUDGE_KEYS = {
   quietStart: "silence_nudge_quiet_start",
   quietEnd: "silence_nudge_quiet_end",
 } as const;
+
+const MAX_REMINDERS = 3;
+
+const isValidMinutes = (s: string) => /^\d+$/.test(s) && +s >= 1 && +s <= 1440;
 
 const SILENCE_NUDGE_DEFAULTS: Record<string, string> = {
   [SILENCE_NUDGE_KEYS.enabled]: "false",
@@ -31,12 +35,17 @@ export default function FollowUpsSettingsPage() {
   const enabled = value(SILENCE_NUDGE_KEYS.enabled) === "true";
   const dirty = Object.values(SILENCE_NUDGE_KEYS).some(key => drafts[key] !== undefined && drafts[key] !== stored(key));
   const delaysValid = parseSilenceDelays(value(SILENCE_NUDGE_KEYS.delays)) !== null;
-  const capValid = (() => {
-    const raw = value(SILENCE_NUDGE_KEYS.cap);
-    if (!/^\d+$/.test(raw)) return false;
-    const n = parseInt(raw, 10);
-    return n >= 1 && n <= 10;
-  })();
+  const capNum = parseInt(value(SILENCE_NUDGE_KEYS.cap), 10);
+  const capValid = /^\d+$/.test(value(SILENCE_NUDGE_KEYS.cap)) && capNum >= 1 && capNum <= 10;
+
+  // Stored as "5,60"; edited as one row per reminder. Blank rows are kept (not
+  // filtered) so a half-typed row stays on screen and blocks save.
+  const reminders = value(SILENCE_NUDGE_KEYS.delays).split(",").map(s => s.trim());
+  const setReminders = (next: string[]) =>
+    setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.delays]: next.join(",") }));
+  const setReminder = (i: number, mins: string) => setReminders(reminders.map((m, j) => (j === i ? mins : m)));
+  const removeReminder = (i: number) => setReminders(reminders.filter((_, j) => j !== i));
+  const addReminder = () => setReminders([...reminders, "60"]);
 
   return (
     <SettingsAccordion>
@@ -65,22 +74,66 @@ export default function FollowUpsSettingsPage() {
 
         {enabled && (
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">Wait time (minutes)</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                disabled={!canManageSettings}
-                value={value(SILENCE_NUDGE_KEYS.delays)}
-                onChange={e => setDrafts(d => ({ ...d, [SILENCE_NUDGE_KEYS.delays]: e.target.value }))}
-                className={`mt-1.5 w-full rounded-xl border bg-white px-3 py-2 font-body text-sm text-ink transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60 ${
-                  delaysValid ? "border-border focus:border-primary" : "border-red-400 focus:ring-red-200"
-                }`}
-              />
-              <span className={`mt-1 block font-body text-[11px] ${delaysValid ? "text-ink-muted" : "text-red-600"}`}>
-                {delaysValid ? "5 sends one message after 5 minutes. 5,60 adds a second an hour later." : "Up to 3 whole numbers, 1–1440, increasing. e.g. 5 or 5,60"}
-              </span>
-            </label>
+            <div className="sm:col-span-2">
+              <span className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">Reminders</span>
+              <ol className="mt-1.5 space-y-2">
+                {reminders.map((mins, i) => {
+                  const rowValid = isValidMinutes(mins);
+                  return (
+                    <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-border-subtle bg-white px-3 py-2.5">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-50 font-label text-[11px] font-bold text-emerald-700">
+                        {i + 1}
+                      </span>
+                      <span className="font-body text-sm text-ink">Send</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        aria-label={`Minutes before reminder ${i + 1}`}
+                        disabled={!canManageSettings}
+                        value={mins}
+                        onChange={e => setReminder(i, e.target.value.replace(/\D/g, ""))}
+                        className={`w-16 rounded-lg border bg-white px-2 py-1 text-center font-body text-sm text-ink transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60 ${
+                          rowValid ? "border-border focus:border-primary" : "border-red-400 focus:ring-red-200"
+                        }`}
+                      />
+                      <span className="min-w-0 flex-1 font-body text-sm text-ink">
+                        minutes after {i === 0 ? "the AI's reply" : `reminder ${i}`}
+                      </span>
+                      {reminders.length > 1 && canManageSettings && (
+                        <button
+                          type="button"
+                          onClick={() => removeReminder(i)}
+                          aria-label={`Remove reminder ${i + 1}`}
+                          className="rounded-lg p-1 text-ink-muted transition hover:bg-surface-subtle hover:text-red-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                      {!rowValid && (
+                        <span className="basis-full font-body text-[11px] text-red-600">Enter a whole number from 1 to 1440 (24 hours).</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+              {reminders.length < MAX_REMINDERS && canManageSettings && (
+                <button
+                  type="button"
+                  onClick={addReminder}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-body text-xs font-semibold text-primary transition hover:bg-primary/5"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add another reminder
+                </button>
+              )}
+              <p className="mt-1.5 font-body text-[11px] text-ink-muted">
+                Each reminder only goes out if the lead still hasn&apos;t replied. If they reply, the rest are cancelled. Up to {MAX_REMINDERS}.
+              </p>
+              {capValid && reminders.length > capNum && (
+                <p className="mt-1 font-body text-[11px] text-amber-700">
+                  Your daily limit is {capNum}, so only {capNum} of these {reminders.length} reminders can go out to a lead in 24 hours.
+                </p>
+              )}
+            </div>
 
             <label className="block">
               <span className="font-label text-[11px] font-bold uppercase tracking-wider text-ink-muted">Daily limit per lead</span>

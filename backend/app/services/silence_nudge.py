@@ -36,6 +36,10 @@ def _now() -> datetime:
 def _parse_delays(raw: str | None) -> list[int]:
     """Comma-separated minutes, e.g. "5" or "5,60".
 
+    Each rung waits from the previous message sent (the AI reply for rung 0,
+    the prior nudge after that — see the re-arm in _process_job), so rungs are
+    independent gaps and need not increase: "60,30" is valid.
+
     The settings UI rejects bad input on save; this is the runtime backstop for
     values edited straight into the DB. Any malformed config falls back to the
     single safe default rather than guessing.
@@ -57,8 +61,7 @@ def _parse_delays(raw: str | None) -> list[int]:
             logger.warning("silence_nudge: delay %s out of range — using default", val)
             return fallback
         out.append(val)
-    if not out or out != sorted(set(out)):
-        logger.warning("silence_nudge: delays %r not strictly increasing — using default", raw)
+    if not out:
         return fallback
     return out[:MAX_RUNGS]
 

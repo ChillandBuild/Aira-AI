@@ -6,12 +6,16 @@ describe("parseSilenceDelays", () => {
     expect(parseSilenceDelays("5")).toEqual([5]);
   });
 
-  it("parses multiple strictly increasing delays", () => {
+  it("parses multiple delays", () => {
     expect(parseSilenceDelays("5,60")).toEqual([5, 60]);
   });
 
-  it("rejects non-increasing values", () => {
-    expect(parseSilenceDelays("60,5")).toBeNull();
+  it("allows any order, since each gap follows the previous send", () => {
+    expect(parseSilenceDelays("60,5")).toEqual([60, 5]);
+  });
+
+  it("rejects a blank entry", () => {
+    expect(parseSilenceDelays("5,")).toBeNull();
   });
 
   it("rejects more than 3 values", () => {
