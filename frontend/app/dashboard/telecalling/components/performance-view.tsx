@@ -213,7 +213,6 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         onStatsFromChange={setStatsFrom}
         onStatsToChange={setStatsTo}
         onCallersChange={setCallersList}
-        onRemoved={loadCallers}
         shiftConfig={shiftConfig}
         onShiftConfigSave={handleShiftConfigSave}
         callingProvider={callingProvider}

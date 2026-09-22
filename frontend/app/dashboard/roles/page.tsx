@@ -124,6 +124,12 @@ function groupModules(modules: AccessModule[]) {
   return groups;
 }
 
+function ownerCallingReady(user: RbacUser, provider: CallingProvider) {
+  const profile = user.caller_profile;
+  if (!profile?.phone) return false;
+  return provider !== "telecmi" || !!profile.telecmi_agent_id;
+}
+
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -166,6 +172,10 @@ export default function RolesPage() {
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [userDraft, setUserDraft] = useState(emptyUser);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  // The Master account is not editable through the RBAC user endpoints, but its
+  // calling profile (phone + Cloud Telephony User ID) still has to live somewhere —
+  // this mode edits the owner's `callers` row directly.
+  const [editingOwner, setEditingOwner] = useState<{ callerId: string; name: string } | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState<{ label: string; value: string } | null>(null);
   const [showDraftPassword, setShowDraftPassword] = useState(false);
   const [showIssuedPassword, setShowIssuedPassword] = useState(true);
@@ -283,6 +293,7 @@ export default function RolesPage() {
 
   function startUser(user: RbacUser) {
     setEditingUserId(user.user_id);
+    setEditingOwner(null);
     setUserDraft({
       ...emptyUser,
       full_name: user.full_name,
@@ -294,8 +305,24 @@ export default function RolesPage() {
     setActiveTab("users");
   }
 
+  function startOwnerCalling(user: RbacUser) {
+    const callerId = user.caller_profile?.id;
+    if (!callerId) return;
+    setEditingUserId(null);
+    setEditingOwner({ callerId, name: user.full_name || user.email });
+    setUserDraft({
+      ...emptyUser,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.caller_profile?.phone ?? "",
+      telecmi_agent_id: user.caller_profile?.telecmi_agent_id ?? "",
+    });
+    setActiveTab("users");
+  }
+
   function resetUser() {
     setEditingUserId(null);
+    setEditingOwner(null);
     setUserDraft({
       ...emptyUser,
       role_id: roles.find((r) => r.slug === "telecaller")?.id || roles[0]?.id || "",
@@ -304,10 +331,10 @@ export default function RolesPage() {
   }
 
   useEffect(() => {
-    if (!userDraft.temporary_password && !editingUserId) {
+    if (!userDraft.temporary_password && !editingUserId && !editingOwner) {
       setUserDraft((d) => ({ ...d, temporary_password: makePassword() }));
     }
-  }, [editingUserId, userDraft.temporary_password]);
+  }, [editingUserId, editingOwner, userDraft.temporary_password]);
 
   function setModuleAccess(module: AccessModule, access: "read" | "write", checked: boolean) {
     setRoleDraft((draft) => {
@@ -361,6 +388,16 @@ export default function RolesPage() {
     setSaving(true);
     setError(null);
     try {
+      if (editingOwner) {
+        const patch: { phone?: string; telecmi_agent_id?: string | null } = {};
+        const phone = userDraft.phone.trim();
+        if (phone) patch.phone = phone;
+        if (callingProvider === "telecmi") patch.telecmi_agent_id = userDraft.telecmi_agent_id.trim() || null;
+        if (Object.keys(patch).length > 0) await api.callers.update(editingOwner.callerId, patch);
+        resetUser();
+        await load();
+        return;
+      }
       const payload = {
         ...userDraft,
         phone: selectedRoleIsTelecaller ? userDraft.phone.trim() || null : null,
@@ -834,12 +871,20 @@ export default function RolesPage() {
           <form onSubmit={saveUser} className="card rounded-3xl space-y-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-display text-base font-bold text-ink">{editingUserId ? "Edit User" : "Create User"}</h2>
-                <p className="mt-1 font-body text-xs text-ink-muted">Assign one role. Telecaller fields adapt to {providerLabel(callingProvider)}.</p>
+                <h2 className="font-display text-base font-bold text-ink">
+                  {editingOwner ? "Admin Calling Setup" : editingUserId ? "Edit User" : "Create User"}
+                </h2>
+                <p className="mt-1 font-body text-xs text-ink-muted">
+                  {editingOwner
+                    ? `${providerLabel(callingProvider)} details for ${editingOwner.name}. Uses no telecaller seat.`
+                    : `Assign one role. Telecaller fields adapt to ${providerLabel(callingProvider)}.`}
+                </p>
               </div>
-              {editingUserId && <button type="button" onClick={resetUser} className="btn-secondary text-xs">New</button>}
+              {(editingUserId || editingOwner) && <button type="button" onClick={resetUser} className="btn-secondary text-xs">New</button>}
             </div>
             <div className="grid gap-3">
+              {!editingOwner && (
+              <>
               <div className="relative">
                 <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" size={15} />
                 <input className="input" style={{ paddingLeft: "2.25rem" }} placeholder="Full name" value={userDraft.full_name} onChange={(e) => setUserDraft((d) => ({ ...d, full_name: e.target.value }))} required />
@@ -854,7 +899,9 @@ export default function RolesPage() {
                   {roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}
                 </select>
               </div>
-              {!editingUserId && (
+              </>
+              )}
+              {!editingUserId && !editingOwner && (
                 <div className="flex gap-2">
                   <input className="input flex-1 font-mono" placeholder="Temporary password" type={showDraftPassword ? "text" : "password"} value={userDraft.temporary_password} onChange={(e) => setUserDraft((d) => ({ ...d, temporary_password: e.target.value }))} required />
                   <button type="button" className="btn-secondary px-3" onClick={() => setShowDraftPassword((value) => !value)} title={showDraftPassword ? "Hide password" : "Show password"}>
@@ -865,13 +912,14 @@ export default function RolesPage() {
                   </button>
                 </div>
               )}
-              {selectedRoleIsTelecaller && (
+              {(selectedRoleIsTelecaller || editingOwner) && (
                 <div className="grid gap-3 rounded-2xl border border-primary/15 bg-primary-light/50 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 font-label text-[10px] font-black uppercase tracking-wider text-primary">
-                      <Users size={13} /> Telecaller setup - {providerLabel(callingProvider)}
+                      {editingOwner ? <Crown size={13} /> : <Users size={13} />}
+                      <span>{editingOwner ? "Admin" : "Telecaller"} setup - {providerLabel(callingProvider)}</span>
                     </div>
-                    {telecallerSeats && (
+                    {!editingOwner && telecallerSeats && (
                       <span className={cn(
                         "rounded-full px-2 py-0.5 font-label text-[10px] font-bold",
                         atSeatLimit ? "bg-red-100 text-red-700" : "bg-white text-ink-muted",
@@ -883,6 +931,11 @@ export default function RolesPage() {
                   <input className="input bg-white" placeholder="Phone number" value={userDraft.phone} onChange={(e) => setUserDraft((d) => ({ ...d, phone: e.target.value }))} />
                   {callingProvider === "telecmi" && (
                     <input className="input bg-white" placeholder="Cloud Telephony User ID" value={userDraft.telecmi_agent_id} onChange={(e) => setUserDraft((d) => ({ ...d, telecmi_agent_id: e.target.value }))} />
+                  )}
+                  {editingOwner && (
+                    <p className="font-body text-xs text-ink-muted">
+                      This is the number and User ID used when you call as <span className="font-bold">Admin (me)</span> from the dialer. The User ID must match the one shown in your {providerLabel(callingProvider)} console.
+                    </p>
                   )}
                   {atSeatLimit && (
                     <p className="font-body text-xs text-red-700">
@@ -898,8 +951,8 @@ export default function RolesPage() {
               title={atSeatLimit ? `Telecaller seat limit reached (${telecallerSeats!.used}/${telecallerSeats!.limit})` : undefined}
               className="btn-primary w-full justify-center"
             >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : editingUserId ? <CheckCircle2 size={14} /> : <UserPlus size={14} />}
-              {editingUserId ? "Save User" : "Create User"}
+              {saving ? <Loader2 size={14} className="animate-spin" /> : (editingUserId || editingOwner) ? <CheckCircle2 size={14} /> : <UserPlus size={14} />}
+              {editingOwner ? "Save Calling Setup" : editingUserId ? "Save User" : "Create User"}
             </button>
           </form>
           )}
@@ -932,10 +985,25 @@ export default function RolesPage() {
                           <span className="rounded-full bg-primary-light px-2 py-0.5 font-label text-[10px] font-bold text-primary">{user.role === "owner" ? "Master" : user.role_name}</span>
                           {user.force_password_reset && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-label text-[10px] font-bold text-amber-700">Reset required</span>}
                           {user.role === "owner" && <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-label text-[10px] font-bold text-ink-muted">Boss account</span>}
+                          {user.role === "owner" && user.caller_profile && !ownerCallingReady(user, callingProvider) && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-label text-[10px] font-bold text-amber-700">Calling setup incomplete</span>
+                          )}
                           {user.role !== "owner" && user.caller_profile && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-label text-[10px] font-bold text-emerald-700">Team visible</span>}
                         </div>
                       </div>
                     </div>
+                    {role === "owner" && user.role === "owner" && user.caller_profile && (
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          className="btn-secondary px-3"
+                          onClick={() => startOwnerCalling(user)}
+                          title={`Edit ${providerLabel(callingProvider)} setup`}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )}
                     {canWrite && user.role !== "owner" && (
                       <div className="flex shrink-0 gap-2">
                         <button type="button" className="btn-secondary px-3" onClick={() => startUser(user)}><Pencil size={14} /></button>

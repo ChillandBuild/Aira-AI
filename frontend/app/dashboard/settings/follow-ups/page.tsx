@@ -350,142 +350,122 @@ export default function FollowUpsSettingsPage() {
                   )}
                 </div>
 
-                <div className="mt-6 rounded-xl bg-surface-subtle border border-border-subtle p-3 text-ink-secondary">
-                  <p className="font-body text-xs flex items-center gap-2">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
-                      ✓
-                    </span>
-                    <span>
-                      Each reminder is sent only if the lead has not replied. If the lead
-                      replies at any time, the remaining follow-ups are cancelled immediately.
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              {/* Delivery Guards & Boundaries Grid */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                {/* Daily Limit Card */}
-                <div className="flex flex-col justify-between rounded-2xl border border-border bg-white p-4 sm:p-5 shadow-sm">
-                  <div>
-                    <div className="flex items-center gap-2.5 mb-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
-                        <Shield className="h-4 w-4" />
-                      </div>
+                {/* Delivery Limits & Quiet Hours Section inside Follow-up Sequence */}
+                <div className="mt-6 border-t border-border-subtle pt-5">
+                  <div className="grid gap-3.5 sm:grid-cols-2">
+                    {/* Daily Limit */}
+                    <div className="flex flex-col justify-between rounded-xl border border-border-subtle bg-surface-subtle/50 p-3.5 sm:p-4">
                       <div>
-                        <h4 className="font-display text-sm font-bold text-ink">
-                          Daily Limit per Lead
-                        </h4>
-                        <p className="font-body text-xs text-ink-muted">
-                          Max follow-ups one lead can get in 24 hours
-                        </p>
-                      </div>
-                    </div>
+                        <div className="flex items-center gap-2 mb-2.5">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100/70 text-amber-700">
+                            <Shield className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <h5 className="font-display text-xs font-bold text-ink">
+                              Daily Limit per Lead
+                            </h5>
+                            <p className="font-body text-[11px] text-ink-muted">
+                              Max follow-ups allowed in 24 hours
+                            </p>
+                          </div>
+                        </div>
 
-                    <div className="mt-4 flex items-center gap-3">
-                      {/* Interactive Stepper */}
-                      <div className="inline-flex items-center rounded-xl border border-border bg-surface-subtle p-1 shadow-xs">
-                        <button
-                          type="button"
-                          disabled={!canManageSettings || capNum <= 1}
-                          onClick={() => setCap(capNum - 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-ink transition hover:bg-surface hover:text-primary disabled:opacity-40 disabled:hover:bg-white"
-                          aria-label="Decrease daily limit"
-                        >
-                          <Minus className="h-3.5 w-3.5" />
-                        </button>
-                        <div className="w-14 text-center">
-                          <span className="font-display text-base font-bold text-ink">
-                            {capValid ? capNum : value(SILENCE_NUDGE_KEYS.cap)}
+                        <div className="mt-3 flex items-center gap-2.5">
+                          {/* Stepper */}
+                          <div className="inline-flex items-center rounded-lg border border-border bg-white p-0.5 shadow-xs">
+                            <button
+                              type="button"
+                              disabled={!canManageSettings || capNum <= 1}
+                              onClick={() => setCap(capNum - 1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-ink transition hover:bg-surface-subtle hover:text-primary disabled:opacity-40"
+                              aria-label="Decrease daily limit"
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </button>
+                            <div className="w-12 text-center">
+                              <span className="font-display text-sm font-bold text-ink">
+                                {capValid ? capNum : value(SILENCE_NUDGE_KEYS.cap)}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={!canManageSettings || capNum >= 10}
+                              onClick={() => setCap(capNum + 1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-ink transition hover:bg-surface-subtle hover:text-primary disabled:opacity-40"
+                              aria-label="Increase daily limit"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+
+                          <span className="font-label text-xs font-semibold text-ink-secondary bg-white border border-border px-2 py-1 rounded-md">
+                            nudges / 24h
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          disabled={!canManageSettings || capNum >= 10}
-                          onClick={() => setCap(capNum + 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-ink transition hover:bg-surface hover:text-primary disabled:opacity-40 disabled:hover:bg-white"
-                          aria-label="Increase daily limit"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
 
-                      <span className="font-label text-xs font-semibold text-ink-secondary bg-surface-subtle border border-border-subtle px-2.5 py-1 rounded-lg">
-                        nudges / 24 hrs
-                      </span>
-                    </div>
+                        {/* Quick preset chips */}
+                        {canManageSettings && (
+                          <div className="mt-3 flex items-center gap-1.5">
+                            <span className="font-label text-[10px] text-ink-muted">Quick set:</span>
+                            {CAP_PRESETS.map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => setCap(parseInt(preset, 10))}
+                                className={`rounded px-1.5 py-0.5 font-label text-[11px] font-semibold transition ${
+                                  String(capNum) === preset
+                                    ? "bg-amber-600 text-white shadow-xs"
+                                    : "bg-white text-ink-secondary border border-border hover:border-amber-400 hover:text-amber-800"
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                        )}
 
-                    {/* Quick cap chips */}
-                    {canManageSettings && (
-                      <div className="mt-3 flex items-center gap-1.5">
-                        <span className="font-label text-[11px] text-ink-muted">
-                          Quick set:
-                        </span>
-                        {CAP_PRESETS.map((preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setCap(parseInt(preset, 10))}
-                            className={`rounded-md px-2 py-0.5 font-label text-xs font-semibold transition ${
-                              String(capNum) === preset
-                                ? "bg-amber-600 text-white shadow-xs"
-                                : "bg-surface-subtle text-ink-secondary border border-border-subtle hover:border-amber-400 hover:text-amber-800"
-                            }`}
-                          >
-                            {preset}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {!capValid && (
-                      <p className="mt-2 font-body text-[11px] text-red-600">
-                        Must be a whole number between 1 and 10.
-                      </p>
-                    )}
-                  </div>
-
-                  {capValid && reminders.length > capNum && (
-                    <div className="mt-4 rounded-xl bg-amber-50 border border-amber-200/80 p-2.5">
-                      <p className="font-body text-xs text-amber-800">
-                        ⚠️ Limit is set to <strong>{capNum}</strong>, so only {capNum} of your{" "}
-                        {reminders.length} follow-ups will send to a single lead per day.
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Quiet Hours Card */}
-                <div className="flex flex-col justify-between rounded-2xl border border-border bg-white p-4 sm:p-5 shadow-sm">
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
-                          <Moon className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <h4 className="font-display text-sm font-bold text-ink">
-                            Quiet Hours
-                          </h4>
-                          <p className="font-body text-xs text-ink-muted">
-                            Pause automated messages during rest hours
+                        {!capValid && (
+                          <p className="mt-2 font-body text-[11px] text-red-600">
+                            Must be a whole number between 1 and 10.
                           </p>
-                        </div>
+                        )}
                       </div>
-                      <span className="font-label text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full">
-                        IST (UTC+5:30)
-                      </span>
+
+                      {capValid && reminders.length > capNum && (
+                        <p className="mt-3 rounded-lg bg-amber-50 border border-amber-200/80 p-2 font-body text-[11px] text-amber-800">
+                          ⚠️ Limit is {capNum}, so only {capNum} of your {reminders.length} follow-ups will send to a single lead per day.
+                        </p>
+                      )}
                     </div>
 
-                    {/* Inline Time Range Selector */}
-                    <div className="mt-4 rounded-xl border border-border bg-surface-subtle p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        {/* Start time */}
-                        <div className="flex-1">
-                          <label className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
-                            Mute From
-                          </label>
-                          <div className="relative flex items-center">
+                    {/* Quiet Hours */}
+                    <div className="flex flex-col justify-between rounded-xl border border-border-subtle bg-surface-subtle/50 p-3.5 sm:p-4">
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100/70 text-indigo-700">
+                              <Moon className="h-3.5 w-3.5" />
+                            </div>
+                            <div>
+                              <h5 className="font-display text-xs font-bold text-ink">
+                                Quiet Hours
+                              </h5>
+                              <p className="font-body text-[11px] text-ink-muted">
+                                Pause messages during resting hours
+                              </p>
+                            </div>
+                          </div>
+                          <span className="font-label text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full">
+                            IST (UTC+5:30)
+                          </span>
+                        </div>
+
+                        {/* Inline Time Range */}
+                        <div className="mt-3 flex items-center gap-2">
+                          <div className="flex-1">
+                            <span className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
+                              Mute From
+                            </span>
                             <input
                               type="time"
                               disabled={!canManageSettings}
@@ -496,22 +476,18 @@ export default function FollowUpsSettingsPage() {
                                   [SILENCE_NUDGE_KEYS.quietStart]: e.target.value,
                                 }))
                               }
-                              className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                              className="w-full rounded-lg border border-border bg-white px-2.5 py-1 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
                             />
                           </div>
-                        </div>
 
-                        {/* Arrow separator */}
-                        <div className="flex flex-col items-center justify-center pt-3 text-ink-muted">
-                          <ArrowRight className="h-4 w-4" />
-                        </div>
+                          <div className="pt-4 text-ink-muted">
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </div>
 
-                        {/* End time */}
-                        <div className="flex-1">
-                          <label className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
-                            Resume At
-                          </label>
-                          <div className="relative flex items-center">
+                          <div className="flex-1">
+                            <span className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
+                              Resume At
+                            </span>
                             <input
                               type="time"
                               disabled={!canManageSettings}
@@ -522,27 +498,38 @@ export default function FollowUpsSettingsPage() {
                                   [SILENCE_NUDGE_KEYS.quietEnd]: e.target.value,
                                 }))
                               }
-                              className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                              className="w-full rounded-lg border border-border bg-white px-2.5 py-1 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
                             />
                           </div>
                         </div>
+
+                        {/* Summary */}
+                        <div className="mt-2.5 flex items-center gap-1.5 font-body text-[11px] text-ink-secondary">
+                          <Clock className="h-3 w-3 text-indigo-600 shrink-0" />
+                          <span>
+                            Held between <strong className="text-ink">{formatTime12h(quietStart)}</strong> and{" "}
+                            <strong className="text-ink">{formatTime12h(quietEnd)} IST</strong>
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Live 12-hour summary */}
-                      <div className="mt-2.5 flex items-center gap-1.5 font-body text-xs text-ink-secondary">
-                        <Clock className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                        <span>
-                          Messages held between{" "}
-                          <strong className="text-ink">{formatTime12h(quietStart)}</strong> and{" "}
-                          <strong className="text-ink">{formatTime12h(quietEnd)} IST</strong>
-                        </span>
-                      </div>
+                      <p className="mt-2 text-[10px] font-body text-ink-muted">
+                        ⚡ 1st follow-up always sends; later ones pause during quiet hours.
+                      </p>
                     </div>
                   </div>
+                </div>
 
-                  <p className="mt-3 font-body text-[11px] text-ink-muted leading-relaxed">
-                    ⚡ <strong>First follow-up sends immediately</strong> — quiet hours only
-                    pause and delay subsequent follow-ups until the quiet window ends.
+                {/* Footer notes */}
+                <div className="mt-4 rounded-xl bg-surface-subtle border border-border-subtle p-3 text-ink-secondary">
+                  <p className="font-body text-xs flex items-center gap-2">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
+                      ✓
+                    </span>
+                    <span>
+                      Each reminder is sent only if the lead has not replied. If the lead
+                      replies at any time, the remaining follow-ups are cancelled immediately.
+                    </span>
                   </p>
                 </div>
               </div>

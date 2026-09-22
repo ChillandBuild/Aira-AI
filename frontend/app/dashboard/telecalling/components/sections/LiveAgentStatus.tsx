@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Users, X, Check, Loader2, Trash2, Pencil, Clock } from "lucide-react";
+import { Users, Check, Loader2, Clock } from "lucide-react";
 import { api, type Caller } from "@/lib/api";
 import { timeAgo } from "@/lib/utils";
 
@@ -22,7 +22,6 @@ interface LiveAgentStatusProps {
   onStatsFromChange: (v: string) => void;
   onStatsToChange: (v: string) => void;
   onCallersChange: (updater: (prev: Caller[]) => Caller[]) => void;
-  onRemoved: () => Promise<void> | void;
   shiftConfig: ShiftConfig;
   onShiftConfigSave: (config: ShiftConfig) => Promise<void>;
   callingProvider: "telecmi" | "sim_basic";
@@ -35,39 +34,10 @@ function formatHour(h: number): string {
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-function AdminCallerCard({
-  caller, editingAgentIdFor, agentIdInputValue, savingAgentId,
-  onEditAgentId, onSaveAgentId, onCancelEditAgentId, onAgentIdInputChange,
-  callingProvider,
-}: {
+function AdminCallerCard({ caller, callingProvider }: {
   caller: Caller;
-  editingAgentIdFor: string | null;
-  agentIdInputValue: string;
-  savingAgentId: string | null;
-  onEditAgentId: (id: string, current: string | null) => void;
-  onSaveAgentId: (id: string) => Promise<void>;
-  onCancelEditAgentId: () => void;
-  onAgentIdInputChange: (v: string) => void;
   callingProvider: "telecmi" | "sim_basic";
 }) {
-  const [editingPhone, setEditingPhone] = useState(false);
-  const [phoneInput, setPhoneInput] = useState(caller.phone || "");
-  const [savingPhone, setSavingPhone] = useState(false);
-
-  const handleSavePhone = async () => {
-    setSavingPhone(true);
-    try {
-      const trimmed = phoneInput.trim() || undefined;
-      await api.callers.update(caller.id, { phone: trimmed });
-      caller.phone = trimmed ?? null;
-      setEditingPhone(false);
-    } catch {
-      toast.error("Failed to update phone");
-    } finally {
-      setSavingPhone(false);
-    }
-  };
-
   const isTelecmi = callingProvider === "telecmi";
   const needsSetup = isTelecmi
     ? !caller.phone || !caller.telecmi_agent_id
@@ -85,76 +55,24 @@ function AdminCallerCard({
         {needsSetup && (
           <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-2 font-medium">
             {isTelecmi
-              ? "Set your phone and Cloud Telephony User ID to enable click-to-call"
-              : "Set your phone number to enable SIM calling"}
+              ? "Set your phone and Cloud Telephony User ID in Roles → Users to enable click-to-call"
+              : "Set your phone number in Roles → Users to enable SIM calling"}
           </p>
         )}
         <div className="space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">Phone</span>
-            {editingPhone ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="tel"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  autoFocus
-                  placeholder="+919876543210"
-                  className="w-32 px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <button onClick={handleSavePhone} disabled={savingPhone}
-                  className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200">
-                  {savingPhone ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
-                </button>
-                <button onClick={() => { setEditingPhone(false); setPhoneInput(caller.phone || ""); }}
-                  className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]">
-                  <X size={10} />
-                </button>
-              </div>
-            ) : (
-              <span className="flex items-center gap-1 text-[#292524]">
-                {caller.phone || <span className="text-[#a8a29e] italic">Not set</span>}
-                <button onClick={() => { setEditingPhone(true); setPhoneInput(caller.phone || ""); }}
-                  className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                  title="Edit phone">
-                  <Pencil size={9} />
-                </button>
-              </span>
-            )}
+            <span className="text-[#292524]">
+              {caller.phone || <span className="text-[#a8a29e] italic">Not set</span>}
+            </span>
           </div>
           {isTelecmi && (
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">User ID</span>
-            {editingAgentIdFor === caller.id ? (
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  value={agentIdInputValue}
-                  onChange={(e) => onAgentIdInputChange(e.target.value)}
-                  autoFocus
-                  placeholder="e.g. 101_33335739"
-                  className="w-28 px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <button onClick={() => onSaveAgentId(caller.id)} disabled={savingAgentId === caller.id}
-                  className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200">
-                  {savingAgentId === caller.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
-                </button>
-                <button onClick={onCancelEditAgentId} disabled={savingAgentId === caller.id}
-                  className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]">
-                  <X size={10} />
-                </button>
-              </div>
-            ) : (
-              <span className="flex items-center gap-1 text-[#292524]">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-[#78716c] uppercase w-16 shrink-0">User ID</span>
+              <span className="text-[#292524]">
                 {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
-                <button onClick={() => onEditAgentId(caller.id, caller.telecmi_agent_id || null)}
-                  className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                  title="Edit Cloud Telephony User ID">
-                  <Pencil size={9} />
-                </button>
               </span>
-            )}
-          </div>
+            </div>
           )}
         </div>
       </div>
@@ -165,16 +83,10 @@ function AdminCallerCard({
 export default function LiveAgentStatus({
   callers, adminCaller, selectedCallerId, onSelectCaller,
   statsFrom, statsTo, onStatsFromChange, onStatsToChange,
-  onCallersChange, onRemoved,
+  onCallersChange,
   shiftConfig, onShiftConfigSave,
   callingProvider, canManageShifts,
 }: LiveAgentStatusProps) {
-  const [editingAgentIdFor, setEditingAgentIdFor] = useState<string | null>(null);
-  const [agentIdInputValue, setAgentIdInputValue] = useState<string>("");
-  const [savingAgentId, setSavingAgentId] = useState<string | null>(null);
-  const [editingPhoneFor, setEditingPhoneFor] = useState<string | null>(null);
-  const [phoneInputValue, setPhoneInputValue] = useState<string>("");
-  const [savingPhoneFor, setSavingPhoneFor] = useState<string | null>(null);
 
   // Shift config local editing state
   const [localShiftConfig, setLocalShiftConfig] = useState<ShiftConfig>(shiftConfig);
@@ -201,63 +113,6 @@ export default function LiveAgentStatus({
   const breakAgents = callers.filter((c) => c.status === "break");
   const activeAgents = callers.filter((c) => (c.status || "active") === "active");
   const offlineAgents = callers.filter((c) => c.status === "logged_out");
-
-  const handleRemoveCaller = async (callerId: string, callerName: string) => {
-    if (!confirm(`Remove ${callerName}?`)) return;
-    try {
-      await api.callers.remove(callerId);
-      toast.success(`${callerName} removed`);
-      await onRemoved();
-      if (selectedCallerId === callerId) onSelectCaller(null);
-    } catch (err) {
-      console.error("Failed to remove caller:", err);
-      toast.error("Failed to remove caller");
-    }
-  };
-
-  const handleSaveAgentId = async (callerId: string) => {
-    setSavingAgentId(callerId);
-    try {
-      const trimmedId = agentIdInputValue.trim();
-      const updated = await api.callers.update(callerId, { telecmi_agent_id: trimmedId || null });
-      onCallersChange((prev) =>
-        prev.map((c) =>
-          c.id === callerId
-            ? { ...c, telecmi_agent_id: updated.telecmi_agent_id, has_telecmi_agent_password: updated.has_telecmi_agent_password }
-            : c
-        )
-      );
-      setEditingAgentIdFor(null);
-      setAgentIdInputValue("");
-    } catch (err) {
-      console.error("Failed to update TeleCMI User ID:", err);
-      toast.error("Failed to update Cloud Telephony User ID");
-    } finally {
-      setSavingAgentId(null);
-    }
-  };
-
-  const handleSavePhone = async (callerId: string) => {
-    setSavingPhoneFor(callerId);
-    try {
-      const trimmedPhone = phoneInputValue.trim();
-      const updated = await api.callers.update(callerId, { phone: trimmedPhone || undefined });
-      onCallersChange((prev) =>
-        prev.map((c) =>
-          c.id === callerId
-            ? { ...c, phone: updated.phone }
-            : c
-        )
-      );
-      setEditingPhoneFor(null);
-      setPhoneInputValue("");
-    } catch (err) {
-      console.error("Failed to update caller phone:", err);
-      toast.error("Failed to update phone number");
-    } finally {
-      setSavingPhoneFor(null);
-    }
-  };
 
   const handleSaveShiftConfig = async () => {
     if (!canManageShifts) return;
@@ -436,17 +291,7 @@ export default function LiveAgentStatus({
         <div className="mt-4 mb-1">
           <span className="font-label text-[10px] font-bold text-[#78716c] uppercase tracking-wide">Admin</span>
           <div className="mt-1.5">
-            <AdminCallerCard
-              caller={adminCaller}
-              editingAgentIdFor={editingAgentIdFor}
-              agentIdInputValue={agentIdInputValue}
-              savingAgentId={savingAgentId}
-              onEditAgentId={(id, current) => { setEditingAgentIdFor(id); setAgentIdInputValue(current || ""); }}
-              onSaveAgentId={handleSaveAgentId}
-              onCancelEditAgentId={() => { setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
-              onAgentIdInputChange={setAgentIdInputValue}
-              callingProvider={callingProvider}
-            />
+            <AdminCallerCard caller={adminCaller} callingProvider={callingProvider} />
           </div>
         </div>
       )}
@@ -477,100 +322,19 @@ export default function LiveAgentStatus({
                 isSelected ? "ring-2 ring-primary border-primary/40 bg-primary/5" : "border-[#f0ece4] hover:border-[#e8e3db]"
               }`}
             >
-              <button
-                onClick={(e) => { e.stopPropagation(); handleRemoveCaller(c.id, c.name); }}
-                className="absolute top-1 right-1 p-1 text-[#d6cfc9] hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                title={`Remove ${c.name}`}
-              >
-                <Trash2 size={11} />
-              </button>
-              <div className="truncate pr-5">
+              <div className="truncate pr-2">
                 <span className="font-bold text-[#292524]">{c.name}</span>
                 {c.status_changed_at && (
                   <span className="block text-[10px] text-[#a8a29e] font-medium">Since {timeAgo(c.status_changed_at)}</span>
                 )}
                 <div className="flex items-center gap-1.5 text-xs text-[#78716c] mt-0.5">
-                  {editingPhoneFor === c.id ? (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="tel"
-                        value={phoneInputValue}
-                        onChange={(e) => setPhoneInputValue(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        autoFocus
-                        placeholder="+919876543210"
-                        className="w-28 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleSavePhone(c.id); }}
-                        disabled={savingPhoneFor === c.id}
-                        className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                        title="Save phone number"
-                      >
-                        {savingPhoneFor === c.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingPhoneFor(null); setPhoneInputValue(""); }}
-                        disabled={savingPhoneFor === c.id}
-                        className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]"
-                        title="Cancel"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      {c.phone || "—"}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingPhoneFor(c.id); setPhoneInputValue(c.phone || ""); }}
-                        className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                        title="Edit phone number"
-                      >
-                        <Pencil size={9} />
-                      </button>
-                    </span>
+                  <span>{c.phone || "—"}</span>
+                  {callingProvider === "telecmi" && (
+                    <>
+                      <span className="text-[#d6cfc9]">&middot;</span>
+                      <span>{c.telecmi_agent_id || "—"}</span>
+                    </>
                   )}
-                  {callingProvider === "telecmi" && <span className="text-[#d6cfc9]">&middot;</span>}
-                  {callingProvider === "telecmi" && (editingAgentIdFor === c.id ? (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="text"
-                        value={agentIdInputValue}
-                        onChange={(e) => setAgentIdInputValue(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        autoFocus
-                        placeholder="user id"
-                        className="w-20 px-1 py-0.5 rounded bg-white border border-[#e8e3db] text-[11px] text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleSaveAgentId(c.id); }}
-                        disabled={savingAgentId === c.id}
-                        className="p-0.5 text-emerald-600 hover:bg-emerald-50 rounded border border-emerald-200"
-                        title="Save Cloud Telephony User ID"
-                      >
-                        {savingAgentId === c.id ? <Loader2 className="animate-spin" size={10} /> : <Check size={10} />}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(null); setAgentIdInputValue(""); }}
-                        disabled={savingAgentId === c.id}
-                        className="p-0.5 text-[#a8a29e] hover:text-red-500 hover:bg-red-50 rounded border border-[#e8e3db]"
-                        title="Cancel"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      {c.telecmi_agent_id || "—"}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setEditingAgentIdFor(c.id); setAgentIdInputValue(c.telecmi_agent_id || ""); }}
-                        className="p-0.5 text-[#d6cfc9] hover:text-[#57534e] hover:bg-[#f0ece4] rounded"
-                        title="Edit Cloud Telephony User ID"
-                      >
-                        <Pencil size={9} />
-                      </button>
-                    </span>
-                  ))}
                 </div>
                 {/* Shift time display (read-only) */}
                 <div className="flex items-center gap-1 mt-0.5">
