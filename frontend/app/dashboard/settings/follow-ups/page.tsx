@@ -203,233 +203,234 @@ export default function FollowUpsSettingsPage() {
                   </span>
                 </div>
 
-                {/* Timeline flow */}
-                <div className="relative mt-5 pl-2 sm:pl-3">
-                  {/* Subtle vertical connection line */}
-                  <div className="absolute left-[1.125rem] sm:left-[1.375rem] top-4 bottom-8 w-[2px] bg-gradient-to-b from-emerald-400 via-emerald-200 to-border" />
+                {/* 2-Column Split: Sequence on Left, Boundaries on Right */}
+                <div className="mt-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* Left Column: Follow-up Timeline */}
+                  <div className="lg:col-span-7 xl:col-span-7">
+                    <div className="relative pl-2 sm:pl-3">
+                      {/* Subtle vertical connection line */}
+                      <div className="absolute left-[1.125rem] sm:left-[1.375rem] top-4 bottom-8 w-[2px] bg-gradient-to-b from-emerald-400 via-emerald-200 to-border" />
 
-                  {/* Initial Trigger Node */}
-                  <div className="relative mb-5 flex items-center gap-3">
-                    <div className="z-10 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm ring-4 ring-white">
-                      <Zap className="h-3 w-3" />
-                    </div>
-                    <span className="font-body text-xs font-medium text-ink-secondary">
-                      Lead goes silent after AI reply
-                    </span>
-                  </div>
-
-                  {/* Reminder Steps */}
-                  <div className="space-y-4">
-                    {reminders.map((mins, i) => {
-                      const rowValid = isValidMinutes(mins);
-                      const durationDisplay = rowValid ? formatDuration(mins) : "";
-
-                      return (
-                        <div key={i} className="relative flex items-start gap-3">
-                          {/* Step Number Badge */}
-                          <div className="z-10 mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-label text-xs font-bold text-emerald-800 shadow-sm ring-4 ring-white">
-                            {i + 1}
-                          </div>
-
-                          {/* Step Card */}
-                          <div
-                            className={`flex-1 rounded-xl border p-3.5 sm:p-4 transition-all duration-200 ${
-                              rowValid
-                                ? "border-border-subtle bg-surface-subtle/40 hover:bg-surface-subtle/80 hover:border-border"
-                                : "border-red-300 bg-red-50/30"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2 mb-2.5">
-                              <div className="flex items-center gap-2">
-                                <span className="font-display text-xs font-bold text-ink">
-                                  {i === 0
-                                    ? "1st Follow-up"
-                                    : i === 1
-                                    ? "2nd Follow-up"
-                                    : "3rd Follow-up"}
-                                </span>
-                                {durationDisplay && (
-                                  <span className="font-label text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md">
-                                    {durationDisplay}
-                                  </span>
-                                )}
-                              </div>
-                              {reminders.length > 1 && canManageSettings && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeReminder(i)}
-                                  aria-label={`Remove reminder ${i + 1}`}
-                                  className="rounded-lg p-1 text-ink-muted transition-colors hover:bg-white hover:text-red-600 hover:shadow-xs"
-                                >
-                                  <X className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Delay control row */}
-                            <div className="flex flex-wrap items-center gap-2.5">
-                              <span className="font-body text-xs text-ink-secondary">
-                                Wait
-                              </span>
-
-                              <div className="relative inline-flex items-center">
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  aria-label={`Minutes before reminder ${i + 1}`}
-                                  disabled={!canManageSettings}
-                                  value={mins}
-                                  onChange={(e) =>
-                                    setReminder(i, e.target.value.replace(/\D/g, ""))
-                                  }
-                                  className={`w-20 rounded-lg border bg-white px-2.5 py-1.5 pr-8 text-center font-display text-xs font-semibold text-ink shadow-xs transition focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
-                                    rowValid
-                                      ? "border-border focus:border-primary"
-                                      : "border-red-400 focus:ring-red-200"
-                                  }`}
-                                />
-                                <span className="pointer-events-none absolute right-2 font-body text-[11px] text-ink-muted">
-                                  min
-                                </span>
-                              </div>
-
-                              <span className="font-body text-xs text-ink-secondary">
-                                after {i === 0 ? "the AI's reply" : `reminder ${i}`}
-                              </span>
-
-                              {/* Presets */}
-                              {canManageSettings && (
-                                <div className="flex flex-wrap items-center gap-1 sm:ml-auto">
-                                  <span className="text-[10px] font-label text-ink-muted mr-0.5 hidden sm:inline">
-                                    Preset:
-                                  </span>
-                                  {DURATION_PRESETS.map((p) => (
-                                    <button
-                                      key={p.mins}
-                                      type="button"
-                                      onClick={() => setReminder(i, p.mins)}
-                                      className={`rounded-md px-1.5 py-0.5 font-label text-[11px] font-medium transition ${
-                                        mins === p.mins
-                                          ? "bg-emerald-600 text-white shadow-xs"
-                                          : "bg-white text-ink-secondary border border-border hover:border-emerald-300 hover:text-emerald-700"
-                                      }`}
-                                    >
-                                      {p.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-
-                            {!rowValid && (
-                              <p className="mt-2 font-body text-[11px] text-red-600">
-                                Enter a whole number from 1 to 1440 (up to 24 hours).
-                              </p>
-                            )}
-                          </div>
+                      {/* Initial Trigger Node */}
+                      <div className="relative mb-5 flex items-center gap-3">
+                        <div className="z-10 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm ring-4 ring-white">
+                          <Zap className="h-3 w-3" />
                         </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Add Reminder Button Node */}
-                  {reminders.length < MAX_REMINDERS && canManageSettings && (
-                    <div className="relative mt-4 flex items-center gap-3">
-                      <div className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-dashed border-emerald-400 bg-white text-emerald-600">
-                        <Plus className="h-3 w-3" />
+                        <span className="font-body text-xs font-medium text-ink-secondary">
+                          Lead goes silent after AI reply
+                        </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={addReminder}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 px-3 py-1.5 font-body text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 hover:border-emerald-400"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Add another reminder ({reminders.length + 1} of {MAX_REMINDERS})
-                      </button>
-                    </div>
-                  )}
-                </div>
 
-                {/* Delivery Limits & Quiet Hours Section inside Follow-up Sequence */}
-                <div className="mt-6 border-t border-border-subtle pt-5">
-                  <div className="grid gap-3.5 sm:grid-cols-2">
-                    {/* Daily Limit */}
-                    <div className="flex flex-col justify-between rounded-xl border border-border-subtle bg-surface-subtle/50 p-3.5 sm:p-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-2.5">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100/70 text-amber-700">
-                            <Shield className="h-3.5 w-3.5" />
-                          </div>
-                          <div>
-                            <h5 className="font-display text-xs font-bold text-ink">
-                              Daily Limit per Lead
-                            </h5>
-                            <p className="font-body text-[11px] text-ink-muted">
-                              Max follow-ups allowed in 24 hours
-                            </p>
-                          </div>
-                        </div>
+                      {/* Reminder Steps */}
+                      <div className="space-y-4">
+                        {reminders.map((mins, i) => {
+                          const rowValid = isValidMinutes(mins);
+                          const durationDisplay = rowValid ? formatDuration(mins) : "";
 
-                        <div className="mt-3 flex items-center gap-2.5">
-                          {/* Stepper */}
-                          <div className="inline-flex items-center rounded-lg border border-border bg-white p-0.5 shadow-xs">
-                            <button
-                              type="button"
-                              disabled={!canManageSettings || capNum <= 1}
-                              onClick={() => setCap(capNum - 1)}
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-ink transition hover:bg-surface-subtle hover:text-primary disabled:opacity-40"
-                              aria-label="Decrease daily limit"
-                            >
-                              <Minus className="h-3.5 w-3.5" />
-                            </button>
-                            <div className="w-12 text-center">
-                              <span className="font-display text-sm font-bold text-ink">
-                                {capValid ? capNum : value(SILENCE_NUDGE_KEYS.cap)}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              disabled={!canManageSettings || capNum >= 10}
-                              onClick={() => setCap(capNum + 1)}
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-ink transition hover:bg-surface-subtle hover:text-primary disabled:opacity-40"
-                              aria-label="Increase daily limit"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          return (
+                            <div key={i} className="relative flex items-start gap-3">
+                              {/* Step Number Badge */}
+                              <div className="z-10 mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 font-label text-xs font-bold text-emerald-800 shadow-sm ring-4 ring-white">
+                                {i + 1}
+                              </div>
 
-                          <span className="font-label text-xs font-semibold text-ink-secondary bg-white border border-border px-2 py-1 rounded-md">
-                            nudges / 24h
-                          </span>
-                        </div>
-
-                        {/* Quick preset chips */}
-                        {canManageSettings && (
-                          <div className="mt-3 flex items-center gap-1.5">
-                            <span className="font-label text-[10px] text-ink-muted">Quick set:</span>
-                            {CAP_PRESETS.map((preset) => (
-                              <button
-                                key={preset}
-                                type="button"
-                                onClick={() => setCap(parseInt(preset, 10))}
-                                className={`rounded px-1.5 py-0.5 font-label text-[11px] font-semibold transition ${
-                                  String(capNum) === preset
-                                    ? "bg-amber-600 text-white shadow-xs"
-                                    : "bg-white text-ink-secondary border border-border hover:border-amber-400 hover:text-amber-800"
+                              {/* Step Card */}
+                              <div
+                                className={`flex-1 rounded-xl border p-3.5 sm:p-4 transition-all duration-200 ${
+                                  rowValid
+                                    ? "border-border-subtle bg-surface-subtle/40 hover:bg-surface-subtle/80 hover:border-border"
+                                    : "border-red-300 bg-red-50/30"
                                 }`}
                               >
-                                {preset}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                                <div className="flex items-center justify-between gap-2 mb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-display text-xs font-bold text-ink">
+                                      {i === 0
+                                        ? "1st Follow-up"
+                                        : i === 1
+                                        ? "2nd Follow-up"
+                                        : "3rd Follow-up"}
+                                    </span>
+                                    {durationDisplay && (
+                                      <span className="font-label text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 rounded-md">
+                                        {durationDisplay}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {reminders.length > 1 && canManageSettings && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeReminder(i)}
+                                      aria-label={`Remove reminder ${i + 1}`}
+                                      className="rounded-lg p-1 text-ink-muted transition-colors hover:bg-white hover:text-red-600 hover:shadow-xs"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
 
-                        {!capValid && (
-                          <p className="mt-2 font-body text-[11px] text-red-600">
-                            Must be a whole number between 1 and 10.
-                          </p>
-                        )}
+                                {/* Delay control row */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-body text-xs text-ink-secondary">
+                                    Wait
+                                  </span>
+
+                                  <div className="relative inline-flex items-center">
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      aria-label={`Minutes before reminder ${i + 1}`}
+                                      disabled={!canManageSettings}
+                                      value={mins}
+                                      onChange={(e) =>
+                                        setReminder(i, e.target.value.replace(/\D/g, ""))
+                                      }
+                                      className={`w-20 rounded-lg border bg-white px-2.5 py-1.5 pr-8 text-center font-display text-xs font-semibold text-ink shadow-xs transition focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60 ${
+                                        rowValid
+                                          ? "border-border focus:border-primary"
+                                          : "border-red-400 focus:ring-red-200"
+                                      }`}
+                                    />
+                                    <span className="pointer-events-none absolute right-2 font-body text-[11px] text-ink-muted">
+                                      min
+                                    </span>
+                                  </div>
+
+                                  <span className="font-body text-xs text-ink-secondary">
+                                    after {i === 0 ? "the AI's reply" : `reminder ${i}`}
+                                  </span>
+                                </div>
+
+                                {/* Presets */}
+                                {canManageSettings && (
+                                  <div className="mt-2.5 flex flex-wrap items-center gap-1 pt-2 border-t border-border/40">
+                                    <span className="text-[10px] font-label text-ink-muted mr-1">
+                                      Presets:
+                                    </span>
+                                    {DURATION_PRESETS.map((p) => (
+                                      <button
+                                        key={p.mins}
+                                        type="button"
+                                        onClick={() => setReminder(i, p.mins)}
+                                        className={`rounded-md px-1.5 py-0.5 font-label text-[11px] font-medium transition ${
+                                          mins === p.mins
+                                            ? "bg-emerald-600 text-white shadow-xs"
+                                            : "bg-white text-ink-secondary border border-border hover:border-emerald-300 hover:text-emerald-700"
+                                        }`}
+                                      >
+                                        {p.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {!rowValid && (
+                                  <p className="mt-2 font-body text-[11px] text-red-600">
+                                    Enter a whole number from 1 to 1440 (up to 24 hours).
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
+
+                      {/* Add Reminder Button Node */}
+                      {reminders.length < MAX_REMINDERS && canManageSettings && (
+                        <div className="relative mt-4 flex items-center gap-3">
+                          <div className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-dashed border-emerald-400 bg-white text-emerald-600">
+                            <Plus className="h-3 w-3" />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={addReminder}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 px-3 py-1.5 font-body text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 hover:border-emerald-400"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add another reminder ({reminders.length + 1} of {MAX_REMINDERS})
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Daily Limit on Top, Quiet Hours Below */}
+                  <div className="lg:col-span-5 xl:col-span-5 space-y-4">
+                    {/* Top: Daily Limit per Lead */}
+                    <div className="rounded-xl border border-border-subtle bg-surface-subtle/60 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100/70 text-amber-700">
+                          <Shield className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <h5 className="font-display text-xs font-bold text-ink">
+                            Daily Limit per Lead
+                          </h5>
+                          <p className="font-body text-[11px] text-ink-muted">
+                            Max follow-ups allowed in 24 hours
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3.5 flex items-center gap-2.5">
+                        {/* Stepper */}
+                        <div className="inline-flex items-center rounded-lg border border-border bg-white p-0.5 shadow-xs">
+                          <button
+                            type="button"
+                            disabled={!canManageSettings || capNum <= 1}
+                            onClick={() => setCap(capNum - 1)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-ink transition hover:bg-surface-subtle hover:text-primary disabled:opacity-40"
+                            aria-label="Decrease daily limit"
+                          >
+                            <Minus className="h-3 w-3" />
+                          </button>
+                          <div className="w-12 text-center">
+                            <span className="font-display text-sm font-bold text-ink">
+                              {capValid ? capNum : value(SILENCE_NUDGE_KEYS.cap)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!canManageSettings || capNum >= 10}
+                            onClick={() => setCap(capNum + 1)}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-ink transition hover:bg-surface-subtle hover:text-primary disabled:opacity-40"
+                            aria-label="Increase daily limit"
+                          >
+                            <Plus className="h-3 w-3" />
+                          </button>
+                        </div>
+
+                        <span className="font-label text-xs font-semibold text-ink-secondary bg-white border border-border px-2 py-1 rounded-md">
+                          nudges / 24h
+                        </span>
+                      </div>
+
+                      {/* Quick preset chips */}
+                      {canManageSettings && (
+                        <div className="mt-3 flex items-center gap-1.5 pt-2 border-t border-border/40">
+                          <span className="font-label text-[10px] text-ink-muted">Quick set:</span>
+                          {CAP_PRESETS.map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => setCap(parseInt(preset, 10))}
+                              className={`rounded px-2 py-0.5 font-label text-[11px] font-semibold transition ${
+                                String(capNum) === preset
+                                  ? "bg-amber-600 text-white shadow-xs"
+                                  : "bg-white text-ink-secondary border border-border hover:border-amber-400 hover:text-amber-800"
+                              }`}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {!capValid && (
+                        <p className="mt-2 font-body text-[11px] text-red-600">
+                          Must be a whole number between 1 and 10.
+                        </p>
+                      )}
 
                       {capValid && reminders.length > capNum && (
                         <p className="mt-3 rounded-lg bg-amber-50 border border-amber-200/80 p-2 font-body text-[11px] text-amber-800">
@@ -438,79 +439,77 @@ export default function FollowUpsSettingsPage() {
                       )}
                     </div>
 
-                    {/* Quiet Hours */}
-                    <div className="flex flex-col justify-between rounded-xl border border-border-subtle bg-surface-subtle/50 p-3.5 sm:p-4">
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-2.5">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100/70 text-indigo-700">
-                              <Moon className="h-3.5 w-3.5" />
-                            </div>
-                            <div>
-                              <h5 className="font-display text-xs font-bold text-ink">
-                                Quiet Hours
-                              </h5>
-                              <p className="font-body text-[11px] text-ink-muted">
-                                Pause messages during resting hours
-                              </p>
-                            </div>
+                    {/* Bottom: Quiet Hours */}
+                    <div className="rounded-xl border border-border-subtle bg-surface-subtle/60 p-4">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100/70 text-indigo-700">
+                            <Moon className="h-3.5 w-3.5" />
                           </div>
-                          <span className="font-label text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full">
-                            IST (UTC+5:30)
+                          <div>
+                            <h5 className="font-display text-xs font-bold text-ink">
+                              Quiet Hours
+                            </h5>
+                            <p className="font-body text-[11px] text-ink-muted">
+                              Pause messages during resting hours
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-label text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full">
+                          IST (UTC+5:30)
+                        </span>
+                      </div>
+
+                      {/* Inline Time Range */}
+                      <div className="mt-3 flex items-center gap-2">
+                        <div className="flex-1">
+                          <span className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
+                            Mute From
                           </span>
+                          <input
+                            type="time"
+                            disabled={!canManageSettings}
+                            value={quietStart}
+                            onChange={(e) =>
+                              setDrafts((d) => ({
+                                ...d,
+                                [SILENCE_NUDGE_KEYS.quietStart]: e.target.value,
+                              }))
+                            }
+                            className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                          />
                         </div>
 
-                        {/* Inline Time Range */}
-                        <div className="mt-3 flex items-center gap-2">
-                          <div className="flex-1">
-                            <span className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
-                              Mute From
-                            </span>
-                            <input
-                              type="time"
-                              disabled={!canManageSettings}
-                              value={quietStart}
-                              onChange={(e) =>
-                                setDrafts((d) => ({
-                                  ...d,
-                                  [SILENCE_NUDGE_KEYS.quietStart]: e.target.value,
-                                }))
-                              }
-                              className="w-full rounded-lg border border-border bg-white px-2.5 py-1 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
-                            />
-                          </div>
-
-                          <div className="pt-4 text-ink-muted">
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </div>
-
-                          <div className="flex-1">
-                            <span className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
-                              Resume At
-                            </span>
-                            <input
-                              type="time"
-                              disabled={!canManageSettings}
-                              value={quietEnd}
-                              onChange={(e) =>
-                                setDrafts((d) => ({
-                                  ...d,
-                                  [SILENCE_NUDGE_KEYS.quietEnd]: e.target.value,
-                                }))
-                              }
-                              className="w-full rounded-lg border border-border bg-white px-2.5 py-1 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
-                            />
-                          </div>
+                        <div className="pt-4 text-ink-muted">
+                          <ArrowRight className="h-3.5 w-3.5" />
                         </div>
 
-                        {/* Summary */}
-                        <div className="mt-2.5 flex items-center gap-1.5 font-body text-[11px] text-ink-secondary">
-                          <Clock className="h-3 w-3 text-indigo-600 shrink-0" />
-                          <span>
-                            Held between <strong className="text-ink">{formatTime12h(quietStart)}</strong> and{" "}
-                            <strong className="text-ink">{formatTime12h(quietEnd)} IST</strong>
+                        <div className="flex-1">
+                          <span className="block font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted mb-1">
+                            Resume At
                           </span>
+                          <input
+                            type="time"
+                            disabled={!canManageSettings}
+                            value={quietEnd}
+                            onChange={(e) =>
+                              setDrafts((d) => ({
+                                ...d,
+                                [SILENCE_NUDGE_KEYS.quietEnd]: e.target.value,
+                              }))
+                            }
+                            className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 font-mono text-xs font-semibold text-ink shadow-xs transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-60"
+                          />
                         </div>
+                      </div>
+
+                      {/* Summary */}
+                      <div className="mt-2.5 flex items-center gap-1.5 font-body text-[11px] text-ink-secondary">
+                        <Clock className="h-3 w-3 text-indigo-600 shrink-0" />
+                        <span>
+                          Held between <strong className="text-ink">{formatTime12h(quietStart)}</strong> and{" "}
+                          <strong className="text-ink">{formatTime12h(quietEnd)} IST</strong>
+                        </span>
                       </div>
 
                       <p className="mt-2 text-[10px] font-body text-ink-muted">
@@ -521,7 +520,7 @@ export default function FollowUpsSettingsPage() {
                 </div>
 
                 {/* Footer notes */}
-                <div className="mt-4 rounded-xl bg-surface-subtle border border-border-subtle p-3 text-ink-secondary">
+                <div className="mt-6 rounded-xl bg-surface-subtle border border-border-subtle p-3 text-ink-secondary">
                   <p className="font-body text-xs flex items-center gap-2">
                     <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
                       ✓

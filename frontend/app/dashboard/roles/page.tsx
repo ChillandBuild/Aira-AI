@@ -124,6 +124,18 @@ function groupModules(modules: AccessModule[]) {
   return groups;
 }
 
+// Hides 6 characters of the account segment, keeping the agent extension (the
+// part that differs per user) readable.
+const MASKED_CHARS = 6;
+
+function maskAgentId(value: string) {
+  const separator = value.indexOf("_");
+  const prefix = separator < 0 ? "" : `${value.slice(0, separator)}_`;
+  const account = separator < 0 ? value : value.slice(separator + 1);
+  const hidden = Math.min(MASKED_CHARS, account.length);
+  return `${prefix}${"•".repeat(hidden)}${account.slice(hidden)}`;
+}
+
 function ownerCallingReady(user: RbacUser, provider: CallingProvider) {
   const profile = user.caller_profile;
   if (!profile?.phone) return false;
@@ -984,12 +996,31 @@ export default function RolesPage() {
                         <div className="mt-1 flex flex-wrap gap-2">
                           <span className="rounded-full bg-primary-light px-2 py-0.5 font-label text-[10px] font-bold text-primary">{user.role === "owner" ? "Master" : user.role_name}</span>
                           {user.force_password_reset && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-label text-[10px] font-bold text-amber-700">Reset required</span>}
-                          {user.role === "owner" && <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-label text-[10px] font-bold text-ink-muted">Boss account</span>}
+                          {user.role === "owner" && <span className="rounded-full bg-surface-subtle px-2 py-0.5 font-label text-[10px] font-bold text-ink-muted">Admin</span>}
                           {user.role === "owner" && user.caller_profile && !ownerCallingReady(user, callingProvider) && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 font-label text-[10px] font-bold text-amber-700">Calling setup incomplete</span>
                           )}
                           {user.role !== "owner" && user.caller_profile && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-label text-[10px] font-bold text-emerald-700">Team visible</span>}
                         </div>
+                        {(user.caller_profile?.phone || (callingProvider === "telecmi" && user.caller_profile?.telecmi_agent_id)) && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-body text-xs text-ink-muted">
+                            {user.caller_profile?.phone && (
+                              <span className="inline-flex items-center gap-1">
+                                <Phone size={11} className="shrink-0" />
+                                {user.caller_profile.phone}
+                              </span>
+                            )}
+                            {callingProvider === "telecmi" && user.caller_profile?.telecmi_agent_id && (
+                              <span
+                                className="inline-flex items-center gap-1"
+                                title={`${providerLabel(callingProvider)} User ID`}
+                              >
+                                <span className="font-label text-[10px] font-bold uppercase tracking-wider">ID</span>
+                                <span className="font-mono">{maskAgentId(user.caller_profile.telecmi_agent_id)}</span>
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     {role === "owner" && user.role === "owner" && user.caller_profile && (
