@@ -502,6 +502,23 @@ or earlier, so anything newer is genuine and worth acting on.
   the (now hidden) toolbar keeps its filters; upload a new file and it can land behind a stale filter.
   Recoverable — the "No documents match your filters" message names the cause — so it was left as-is.
 
+## TeleCMI: the admin's user id is still rejected (open, 2026-09-22)
+
+- **`5141_33337312` (owner Vivek T) returns `404 invalid user_id`; nothing in Aira can fix it.** Proven
+  TeleCMI-side: `5140_33337312` succeeded on the same secret/endpoint minutes apart, and the stored
+  value is byte-clean (hex-verified). **Next step, not yet run**: `POST https://rest.telecmi.com/v3/user/all`
+  with `{appid: 33337312, secret: <app secret>}` to list the ids that actually exist, then put the real
+  one on the owner's `callers` row. The user was given a `/v2/user/get` one-id-at-a-time probe from the
+  public docs before the v3 note in subsystem-notes was found — **v3 `user/all` is the better command**
+  and that correction has not yet been passed on.
+- **Follow-Me looks enabled now** (200 instead of 420 on 2026-09-22, real leg-A CDR). If that holds, the
+  "make `initiate_call` send `webrtc:true, followme:false` per tenant" item above loses its urgency and
+  the optional TeleCMI support ticket can be dropped. Needs one more confirmed call to be sure.
+- **Frontend changes from this session are uncommitted** on `main`: `roles/page.tsx`,
+  `telecalling/components/sections/LiveAgentStatus.tsx`, `telecalling/components/performance-view.tsx`.
+  A fourth file, `settings/follow-ups/page.tsx`, is the user's own parallel edit — do not include it.
+  None of it is rendered/visually verified.
+
 ## Local tooling gaps (reported by `second-brain-close`, 2026-09-20)
 
 - **lefthook hooks are silently no-op'ing.** `lefthook.yml` exists and `lefthook` is a devDependency in
@@ -510,3 +527,13 @@ or earlier, so anything newer is genuine and worth acting on.
   repo root, then `npx lefthook install`. (npm registry was reachable from the sandbox when checked.)
 - **gitleaks not installed**, so the close check falls back to 4 narrow patterns instead of full
   credential coverage.
+- **`graphify` is not installed on this machine and `graphify-out/` does not exist (found 2026-09-22).**
+  Neither the `graphify` CLI nor the Python module is importable, so `make wiki-refresh` *and* the
+  cheaper `python scripts/build_wiki.py` both fail (`ModuleNotFoundError: No module named 'graphify'`).
+  **Consequence: the "query the wiki, don't read files" workflow CLAUDE.md prescribes is unavailable** —
+  fall back to grepping `.agents/` plus targeted reads, and say so rather than pretending the wiki was
+  consulted. Note also that `second-brain-close`'s code-change probe
+  (`find … -newer graphify-out/manifest.json`) returns **empty** when that file is missing, which reads
+  as "no code changed" instead of erroring — do not trust it without checking the manifest exists.
+- **`make` is not on PATH** (Git Bash on Windows), so every `make <target>` in the docs has to be run as
+  its underlying command; `python scripts/second_brain_close.py` works.
