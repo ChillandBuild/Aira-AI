@@ -620,8 +620,11 @@ app.include_router(facebook.router, prefix="/webhook/facebook", tags=["facebook-
 app.include_router(calls_public_router, prefix="/api/v1/calls", tags=["calls-telecmi"])
 app.include_router(intake_public_router, prefix="/api/v1/intake", tags=["intake-webhook"])
 app.include_router(intake.router, prefix="/api/v1/intake", tags=["intake"], dependencies=_auth)
-app.include_router(marketplace_public_router, prefix="/api/v1/marketplace", tags=["marketplace-webhook"])
+# Authed router MUST come first: its POST /{provider}/token would otherwise be
+# swallowed by the public POST /{provider}/{ingest_token}, which reads "token"
+# as the ingest token and 401s every "Generate URL" click.
 app.include_router(marketplace_intake.router, prefix="/api/v1/marketplace", tags=["marketplace"], dependencies=_auth)
+app.include_router(marketplace_public_router, prefix="/api/v1/marketplace", tags=["marketplace-webhook"])
 # Legacy prefix. Razorpay's dashboard has /api/v1/expert-handoff/razorpay-webhook
 # registered externally; remove these two lines only after updating it there.
 app.include_router(intake_public_router, prefix="/api/v1/expert-handoff", tags=["intake-webhook-legacy"])
