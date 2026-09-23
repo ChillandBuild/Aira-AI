@@ -1155,7 +1155,6 @@ export interface IntakePage {
 export interface VerticalStarter {
   key: string;
   label: string;
-  master_prompt: string;
   business_description: string;
 }
 
@@ -1164,8 +1163,9 @@ export interface InterviewQuestion {
   question: string;
 }
 
+// Only the business description. How the assistant behaves comes from the
+// platform-wide master prompt, which onboarding never writes.
 export interface InterviewDraft {
-  master_prompt: string;
   business_description: string;
 }
 

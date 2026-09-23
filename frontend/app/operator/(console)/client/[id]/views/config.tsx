@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Image as ImageIcon, Link2, Loader2, Mic, Plus, Puzzle, RadioTower, Shield, Smartphone, Sparkles, X, XCircle } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowUpRight, CheckCircle2, Image as ImageIcon, Link2, Loader2, Lock, Mic, Plus, Puzzle, RadioTower, Shield, Smartphone, Sparkles, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
@@ -215,9 +216,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [apiKeySaving, setApiKeySaving] = useState<AiProviderKey | null>(null);
   const [replyModelSaving, setReplyModelSaving] = useState<ReplyModelId | null>(null);
   const [masterPrompt, setMasterPrompt] = useState<string>("");
-  const [savedMasterPrompt, setSavedMasterPrompt] = useState<string>("");
-  const [promptSaving, setPromptSaving] = useState(false);
-  const [promptError, setPromptError] = useState<string | null>(null);
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [newFeatureKey, setNewFeatureKey] = useState("");
   const [featureSaving, setFeatureSaving] = useState(false);
@@ -225,25 +223,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
     astro_bridge_url: "", astro_bridge_api_key: "", astro_bridge_secret: "",
   });
   const [astroBridgeSaving, setAstroBridgeSaving] = useState<AstroBridgeFieldKey | null>(null);
-
-  async function saveMasterPrompt() {
-    setPromptSaving(true);
-    setPromptError(null);
-    try {
-      const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/operator/clients/${tenantId}/config`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ master_prompt: masterPrompt }),
-      });
-      if (!res.ok) throw new Error("Save failed");
-      setSavedMasterPrompt(masterPrompt);
-    } catch {
-      setPromptError("Could not save the master prompt. Please try again.");
-    } finally {
-      setPromptSaving(false);
-    }
-  }
 
   async function updateRetrievalMode(mode: RetrievalMode) {
     if (!config || config.settings.kb_retrieval_mode === mode) return;
@@ -502,7 +481,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         setConfig(configData);
         setProvider(providerData);
         setMasterPrompt(configData.master_prompt || "");
-        setSavedMasterPrompt(configData.master_prompt || "");
         setEnabledFeatures(overviewData.tenant.enabled_features || []);
       })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load config"))
@@ -910,40 +888,39 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
-      {/* Master Prompt */}
+      {/* Master Prompt — platform-wide, not per client */}
       <div>
-        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
-          <Sparkles size={16} className="text-ink-muted" />
-          Master Prompt
-        </h3>
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+            <Sparkles size={16} className="text-ink-muted" />
+            Master Prompt
+          </h3>
+          <span className="inline-flex items-center gap-1 rounded-full bg-surface-mid px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-secondary">
+            <Lock size={10} />
+            Platform-wide
+          </span>
+        </div>
         <p className="mb-4 text-xs leading-relaxed text-ink-muted">
-          Defines how this client&apos;s assistant behaves — reply length, tone, and worked
-          examples. The client cannot edit this. They supply only the business description
-          shown below, which tells the assistant what it is talking about.
+          Every client runs on this one prompt — it is not editable per client. It defines
+          how the assistant behaves: reply length, tone, and worked examples. What makes this
+          client&apos;s replies their own is the business description below, which they write
+          themselves.
         </p>
 
-        <textarea
-          value={masterPrompt}
-          onChange={(e) => setMasterPrompt(e.target.value)}
-          rows={20}
-          spellCheck={false}
-          className="w-full rounded-card border border-border bg-white p-4 font-mono text-xs leading-relaxed shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/30 resize-y"
-        />
-
-        {promptError && (
-          <p className="mt-2 text-xs font-medium text-danger">{promptError}</p>
-        )}
+        <div className="relative rounded-card border border-border bg-surface-low shadow-sm">
+          <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-relaxed text-ink-secondary">
+            {masterPrompt || "No master prompt has been set for the platform yet."}
+          </pre>
+        </div>
 
         <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={saveMasterPrompt}
-            disabled={promptSaving || masterPrompt === savedMasterPrompt}
-            className="inline-flex items-center gap-2 rounded-card bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-default disabled:opacity-50"
+          <Link
+            href="/operator/prompt-template"
+            className="inline-flex items-center gap-1.5 rounded-card border border-border bg-white px-4 py-2 text-sm font-semibold text-ink-secondary shadow-sm transition-all hover:border-primary-muted hover:text-ink"
           >
-            {promptSaving && <Loader2 size={14} className="animate-spin" />}
-            {promptSaving ? "Saving…" : "Save Master Prompt"}
-          </button>
+            Edit for all clients
+            <ArrowUpRight size={14} />
+          </Link>
         </div>
 
         <div className="mt-4 rounded-card border border-border bg-surface-low p-4 shadow-sm">

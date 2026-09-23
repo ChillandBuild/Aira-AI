@@ -239,9 +239,9 @@ Always guide the customer toward the next step: getting more information, making
 If you don't know a specific detail, say: "Let me connect you with our team who can help you right away."
 If the customer asks to speak in a regional language, respond in that language.
 """
-# NOTE: This is the generic fallback. Every tenant should configure their own prompt
-# via the AI Tune page (Knowledge → AI Tune tab). The fallback is only used when no
-# custom prompt exists for a given channel.
+# NOTE: This is the generic fallback, used only when the platform master prompt row
+# cannot be read. The real prompt lives in platform_defaults.default_master_prompt and
+# is edited in one place: Operator → Master Prompt.
 
 REENGAGEMENT_FALLBACKS = {}
 
@@ -249,33 +249,41 @@ _prompt_cache: dict[str, tuple[float, str]] = {}
 _PROMPT_TTL = 60.0
 
 
-def _get_prompt(name: str, tenant_id: str | None = None) -> str:
-    cache_key = f"{tenant_id}:{name}" if tenant_id else name
-    cached = _prompt_cache.get(cache_key)
+_MASTER_CACHE_KEY = "platform:master"
+
+
+def get_master_prompt() -> str:
+    """The single master prompt every tenant runs on.
+
+    Platform-wide by design: it lives in platform_defaults.default_master_prompt and is
+    edited in exactly one place (Operator -> Master Prompt). There is deliberately no
+    per-tenant override -- what differs between clients is the business description they
+    write on their own Knowledge Base page, not how the assistant behaves.
+    """
+    cached = _prompt_cache.get(_MASTER_CACHE_KEY)
     now = time.monotonic()
     if cached and now - cached[0] < _PROMPT_TTL:
         return cached[1]
     try:
         db = get_supabase()
-        query = db.table("ai_prompts").select("content").eq("name", name)
-        if tenant_id:
-            query = query.eq("tenant_id", tenant_id)
-        row = query.limit(1).execute()
-        content = (row.data[0].get("content") if row.data else None) or FALLBACK_PROMPT
+        row = (
+            db.table("platform_defaults")
+            .select("value")
+            .eq("key", "default_master_prompt")
+            .limit(1)
+            .execute()
+        )
+        raw = (row.data[0].get("value") if row.data else None) or ""
+        content = raw.strip() or FALLBACK_PROMPT
     except Exception as e:
-        logger.error(f"Failed to load prompt {name}: {e}")
+        logger.error(f"Failed to load the platform master prompt: {e}")
         content = FALLBACK_PROMPT
-    _prompt_cache[cache_key] = (now, content)
+    _prompt_cache[_MASTER_CACHE_KEY] = (now, content)
     return content
 
 
-def invalidate_prompt_cache(name: str | None = None) -> None:
-    if name:
-        keys_to_remove = [k for k in _prompt_cache if k == name or k.endswith(f":{name}")]
-        for k in keys_to_remove:
-            _prompt_cache.pop(k, None)
-    else:
-        _prompt_cache.clear()
+def invalidate_prompt_cache() -> None:
+    _prompt_cache.clear()
 
 
 _CHANNEL_LABELS = {
@@ -290,15 +298,17 @@ def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
     """Assemble the developer-owned master prompt with the channel label and the
     client-owned business description.
 
-    The master prompt (operator console) defines HOW to behave; the description
+    The master prompt is platform-wide -- one text, identical for every tenant, edited
+    only under Operator -> Master Prompt. It defines HOW to behave; the description
     (client's Knowledge Base page) defines WHO the assistant is and what the business
-    sells. The description is always injected in full and never goes through RAG --
-    a retrieval miss would leave the assistant with no role at all.
+    sells, and is the only part that varies per tenant. The description is always
+    injected in full and never goes through RAG -- a retrieval miss would leave the
+    assistant with no role at all.
 
     The channel label is appended unconditionally rather than substituted into a
     placeholder, so it works regardless of how the developer writes the master text.
     """
-    prompt = _get_prompt("master", tenant_id=tenant_id)
+    prompt = get_master_prompt()
     prompt += f"\n\nCHANNEL: You are replying over {_CHANNEL_LABELS.get(channel, channel)}."
 
     description = (get_setting("business_description", tenant_id=tenant_id) or "").strip()

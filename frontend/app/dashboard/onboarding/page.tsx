@@ -138,7 +138,7 @@ function StarterStep({ onDone, onWantInterview }: { onDone: () => void; onWantIn
         disabled={applyingKey !== null}
         className="w-full mt-2 font-body text-xs text-ink-muted hover:text-ink disabled:opacity-50"
       >
-        Skip — I'll set this up myself
+        Skip — I&apos;ll set this up myself
       </button>
     </div>
   );
@@ -187,7 +187,7 @@ function InterviewQuestionsForm({
     <div className="card rounded-3xl p-8">
       <h1 className="font-display text-xl font-bold text-ink mb-1">A few quick questions</h1>
       <p className="font-body text-sm text-ink-muted mb-6">
-        Aira's AI will write your setup from your answers. You'll review it before anything is saved.
+        Aira&apos;s AI will write your setup from your answers. You&apos;ll review it before anything is saved.
       </p>
 
       {error && (
@@ -247,7 +247,6 @@ function InterviewReview({
   onDone: () => void;
   onBack: () => void;
 }) {
-  const [masterPrompt, setMasterPrompt] = useState(draft.master_prompt);
   const [businessDescription, setBusinessDescription] = useState(draft.business_description);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -257,7 +256,6 @@ function InterviewReview({
     setError(null);
     try {
       await api.onboarding.interviewApply({
-        master_prompt: masterPrompt.trim(),
         business_description: businessDescription.trim(),
       });
       onDone();
@@ -269,7 +267,7 @@ function InterviewReview({
 
   return (
     <div className="card rounded-3xl p-8">
-      <h1 className="font-display text-xl font-bold text-ink mb-1">Here's what the AI wrote</h1>
+      <h1 className="font-display text-xl font-bold text-ink mb-1">Here&apos;s what the AI wrote</h1>
       <p className="font-body text-sm text-ink-muted mb-6">
         Edit anything before saving — nothing is live yet.
       </p>
@@ -283,30 +281,24 @@ function InterviewReview({
       <div className="space-y-4">
         <div>
           <label className="font-body text-sm font-medium text-ink mb-1.5 block">
-            How the AI should behave
-          </label>
-          <textarea
-            value={masterPrompt}
-            onChange={(e) => setMasterPrompt(e.target.value)}
-            rows={5}
-            className="input w-full"
-          />
-        </div>
-        <div>
-          <label className="font-body text-sm font-medium text-ink mb-1.5 block">
             Business description
           </label>
           <textarea
             value={businessDescription}
             onChange={(e) => setBusinessDescription(e.target.value)}
-            rows={6}
+            rows={8}
             className="input w-full"
           />
+          <p className="font-body text-xs text-ink-muted mt-1.5">
+            This is what your assistant knows about you. How it speaks — tone, reply length,
+            when it hands over to a person — is set for every workspace and is not editable
+            here.
+          </p>
         </div>
         <button
           type="button"
           onClick={handleApply}
-          disabled={applying || !masterPrompt.trim() || !businessDescription.trim()}
+          disabled={applying || !businessDescription.trim()}
           className="btn-primary w-full justify-center"
         >
           {applying ? "Saving…" : "Save and continue"}

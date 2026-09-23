@@ -20,7 +20,7 @@ export default function PromptTemplatePage() {
         setTemplate(data.template || "");
         setSaved(data.template || "");
       } catch {
-        setError("Could not load the template.");
+        setError("Could not load the master prompt.");
       } finally {
         setLoading(false);
       }
@@ -40,7 +40,7 @@ export default function PromptTemplatePage() {
       if (!res.ok) throw new Error("Save failed");
       setSaved(template);
     } catch {
-      setError("Could not save the template.");
+      setError("Could not save the master prompt.");
     } finally {
       setSaving(false);
     }
@@ -59,12 +59,13 @@ export default function PromptTemplatePage() {
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold text-ink">
           <Sparkles size={18} className="text-ink-muted" />
-          Default Master Prompt
+          Master Prompt
         </h1>
         <p className="mt-2 text-xs leading-relaxed text-ink-muted">
-          This template is copied into a new client&apos;s master prompt when the client is
-          created. Editing it here does <strong>not</strong> change any existing client — to
-          change a live client, edit their master prompt on their Config tab.
+          One prompt, shared by every client. It defines how the assistant behaves &mdash; reply
+          length, tone, and worked examples. Saving here changes{" "}
+          <strong>every client&apos;s</strong> replies, live. What differs per client is only
+          their own business description, written on their Knowledge Base page.
         </p>
       </div>
 
@@ -86,7 +87,7 @@ export default function PromptTemplatePage() {
           className="inline-flex items-center gap-2 rounded-card bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:opacity-90 disabled:cursor-default disabled:opacity-50"
         >
           {saving && <Loader2 size={14} className="animate-spin" />}
-          {saving ? "Saving…" : "Save Template"}
+          {saving ? "Saving…" : "Save Master Prompt"}
         </button>
       </div>
     </div>

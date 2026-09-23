@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { href: "/operator/subscription", label: "Subscription" },
   { href: "/operator/subscription-requests", label: "Requests" },
   { href: "/operator/scheduler", label: "Schedulers" },
-  { href: "/operator/prompt-template", label: "Default Prompt" },
+  { href: "/operator/prompt-template", label: "Master Prompt" },
   { href: "/operator/audit-log", label: "Audit Log" },
 ];
 

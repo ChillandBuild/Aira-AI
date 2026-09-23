@@ -4,7 +4,7 @@ from app.services import ai_reply
 
 
 def test_build_base_prompt_includes_master_channel_and_description():
-    with patch.object(ai_reply, "_get_prompt", return_value="MASTER BEHAVIOUR"), \
+    with patch.object(ai_reply, "get_master_prompt", return_value="MASTER BEHAVIOUR"), \
          patch.object(ai_reply, "get_setting", return_value="We sell birth-chart readings."):
         result = ai_reply._build_base_prompt("whatsapp", "tenant-1")
 
@@ -17,7 +17,7 @@ def test_build_base_prompt_includes_master_channel_and_description():
 
 
 def test_build_base_prompt_omits_description_block_when_unset():
-    with patch.object(ai_reply, "_get_prompt", return_value="MASTER BEHAVIOUR"), \
+    with patch.object(ai_reply, "get_master_prompt", return_value="MASTER BEHAVIOUR"), \
          patch.object(ai_reply, "get_setting", return_value=None):
         result = ai_reply._build_base_prompt("telegram", "tenant-1")
 
@@ -26,12 +26,29 @@ def test_build_base_prompt_omits_description_block_when_unset():
     assert "BUSINESS DESCRIPTION:" not in result
 
 
-def test_build_base_prompt_reads_the_master_row():
-    with patch.object(ai_reply, "_get_prompt", return_value="M") as mock_get, \
+def test_build_base_prompt_reads_the_platform_prompt_not_a_tenant_row():
+    """The master prompt is platform-wide -- the tenant must not narrow it."""
+    with patch.object(ai_reply, "get_master_prompt", return_value="M") as mock_get, \
          patch.object(ai_reply, "get_setting", return_value=None):
         ai_reply._build_base_prompt("instagram", "tenant-9")
 
-    mock_get.assert_called_once_with("master", tenant_id="tenant-9")
+    mock_get.assert_called_once_with()
+
+
+def test_every_tenant_gets_the_same_master_prompt():
+    """The whole point of the platform-wide prompt: two tenants, one behaviour.
+    Only the business description may differ between them."""
+    descriptions = {"tenant-a": "Sells birth charts.", "tenant-b": "Sells pooja kits."}
+    with patch.object(ai_reply, "get_master_prompt", return_value="MASTER BEHAVIOUR"), \
+         patch.object(ai_reply, "get_setting", side_effect=lambda key, tenant_id=None: (
+             descriptions.get(tenant_id) if key == "business_description" else None)):
+        a = ai_reply._build_base_prompt("whatsapp", "tenant-a")
+        b = ai_reply._build_base_prompt("whatsapp", "tenant-b")
+
+    assert "MASTER BEHAVIOUR" in a and "MASTER BEHAVIOUR" in b
+    assert "Sells birth charts." in a
+    assert "Sells pooja kits." in b
+    assert "Sells pooja kits." not in a
 
 
 def test_build_base_prompt_labels_every_channel():
@@ -42,7 +59,7 @@ def test_build_base_prompt_labels_every_channel():
         "facebook": "Facebook Messenger",
     }
     for channel, label in labels.items():
-        with patch.object(ai_reply, "_get_prompt", return_value="M"), \
+        with patch.object(ai_reply, "get_master_prompt", return_value="M"), \
              patch.object(ai_reply, "get_setting", return_value=None):
             assert label in ai_reply._build_base_prompt(channel, "t")
 
@@ -64,7 +81,7 @@ def test_language_rule_forced_modes_still_present():
 
 
 def test_accuracy_rule_is_gone():
-    """The hardcoded ACCURACY RULE was removed 2026-07-20 (operator decision) so each
-    client's master prompt can decide how to handle pricing. If this test fails, it was
-    re-added -- which would silently override every client's own pricing instructions."""
+    """The hardcoded ACCURACY RULE was removed 2026-07-20 (operator decision) so the
+    master prompt can decide how to handle pricing. If this test fails, it was
+    re-added -- which would silently override the master prompt's pricing instructions."""
     assert not hasattr(ai_reply, "_ACCURACY_RULE")
