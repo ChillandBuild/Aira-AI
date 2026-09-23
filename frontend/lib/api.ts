@@ -177,6 +177,14 @@ export interface CallEvaluation {
   coaching_tip?: string;
 }
 
+export interface PendingWrapupSummary {
+  caller_id: string;
+  name: string | null;
+  pending_count: number;
+  last_sync_at: string | null;
+  has_sync_token: boolean;
+}
+
 export interface CallLog {
   id: string;
   lead_id: string | null;
@@ -204,6 +212,8 @@ export interface CallLog {
   feedback_source?: "automatic" | "manual";
   manual_started_at?: string | null;
   manual_ended_at?: string | null;
+  direction?: "outgoing" | "incoming" | "missed" | null;
+  feedback_at?: string | null;
   transcript: string | null;
   created_at: string;
   leads?: { phone: string | null; name: string | null } | null;
@@ -1526,6 +1536,13 @@ export const api = {
       apiFetch<CallLog>(`/api/v1/calls/${callLogId}/generate-summary`, { method: "POST" }),
     getPendingWrapups: () =>
       apiFetch<CallLog[]>(`/api/v1/calls/pending-wrapups`),
+    pendingWrapupsSummary: () =>
+      apiFetch<PendingWrapupSummary[]>(`/api/v1/calls/pending-wrapups/summary`),
+    dismissFeedback: (callLogId: string, reason: string) =>
+      apiFetch<{ dismissed: boolean }>(`/api/v1/calls/${callLogId}/dismiss-feedback`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
     nextLead: (callerId?: string) =>
       apiFetch<Lead>(`/api/v1/calls/next-lead${callerId ? `?caller_id=${callerId}` : ""}`),
     assignmentMode: () =>

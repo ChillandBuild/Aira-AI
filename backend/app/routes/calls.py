@@ -682,6 +682,27 @@ def _sim_status_from_type(call_type: int, duration: int) -> tuple[str, str | Non
     return "failed", None, None
 
 
+# Calls created before this instant never owe feedback (gate go-live cutoff).
+FEEDBACK_GATE_SINCE = "2026-09-24T00:00:00+00:00"
+
+_SIM_DIRECTION_BY_TYPE = {1: "incoming", 2: "outgoing", 3: "missed"}
+
+
+def _sim_direction(call_type: int) -> str | None:
+    """Map an Android CallLog type to call_logs.direction (None if unknown)."""
+    return _SIM_DIRECTION_BY_TYPE.get(call_type)
+
+
+def _touch_caller_sync(db, caller_id: str) -> None:
+    """Heartbeat for the owner's 'Aira Sync inactive' warning. Never fails a sync."""
+    try:
+        db.table("callers").update(
+            {"last_sync_at": datetime.now(timezone.utc).isoformat()}
+        ).eq("id", caller_id).execute()
+    except Exception as e:
+        logger.warning(f"sim sync heartbeat failed for caller {caller_id}: {e}")
+
+
 def _resolve_sim_caller(request: Request) -> dict:
     """Authenticate a SIM sync request via the X-Sync-Token header.
 
@@ -715,6 +736,7 @@ async def sim_cdr(payload: SimCdrPayload, request: Request, background_tasks: Ba
     caller_id = caller["id"]
     tenant_id = caller["tenant_id"]
     db = get_supabase()
+    _touch_caller_sync(db, caller_id)
 
     results: list[dict] = []
     for entry in payload.calls:
@@ -740,6 +762,7 @@ async def sim_lead_numbers(request: Request):
     caller_id = caller["id"]
     tenant_id = caller["tenant_id"]
     db = get_supabase()
+    _touch_caller_sync(db, caller_id)
 
     rows = (
         db.table("leads")
@@ -859,6 +882,7 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
         "status": status,
         "disposition": disposition,
         "duration_seconds": entry.duration,
+        "direction": _sim_direction(entry.call_type),
     }
     # Only stamp the APK-derived outcome when the caller hasn't already tagged
     # one via the wrap-up form — never clobber a human's outcome.
@@ -1251,6 +1275,8 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         log_updates["manual_started_at"] = payload.manual_started_at.isoformat()
     if payload.manual_ended_at is not None:
         log_updates["manual_ended_at"] = payload.manual_ended_at.isoformat()
+    if payload.outcome or payload.disposition or payload.manual_status or dnc_outcome or in_progress:
+        log_updates["feedback_at"] = datetime.now(timezone.utc).isoformat()
     if log.data.get("provider") == "sim_basic":
         log_updates["feedback_source"] = "manual"
         if payload.outcome or payload.disposition or payload.manual_status:
@@ -1722,23 +1748,110 @@ async def get_assignment_mode(ctx: dict = Depends(get_tenant_and_role)):
 
 @router.get("/pending-wrapups")
 async def get_pending_wrapups(ctx: dict = Depends(get_tenant_and_role)):
+    """Calls still owing human feedback.
+
+    SIM calls owe feedback until a human submits an outcome (`feedback_at`) or the
+    owner dismisses them — the Aira Sync upload auto-fills disposition/outcome, so
+    those columns can't tell us. Other providers keep the original rule.
+    """
     tenant_id = ctx["tenant_id"]
     caller_id = ctx.get("caller_id")
     db = get_supabase()
 
-    q = (
+    sim_q = (
         db.table("call_logs")
         .select("*, leads(name, phone)")
         .eq("tenant_id", tenant_id)
+        .eq("provider", "sim_basic")
+        .is_("feedback_at", "null")
+        .is_("feedback_dismissed_at", "null")
+        .not_.is_("lead_id", "null")
+        .gte("created_at", FEEDBACK_GATE_SINCE)
+    )
+    other_q = (
+        db.table("call_logs")
+        .select("*, leads(name, phone)")
+        .eq("tenant_id", tenant_id)
+        .neq("provider", "sim_basic")
         .eq("status", "completed")
         .is_("outcome", "null")
         .is_("disposition", "null")
     )
     if caller_id:
-        q = q.eq("caller_id", caller_id)
+        sim_q = sim_q.eq("caller_id", caller_id)
+        other_q = other_q.eq("caller_id", caller_id)
 
-    result = q.execute()
-    return result.data or []
+    rows = (sim_q.execute().data or []) + (other_q.execute().data or [])
+    return sorted(rows, key=lambda r: r.get("created_at") or "")
+
+
+@router.get("/pending-wrapups/summary")
+async def pending_wrapups_summary(ctx: dict = Depends(get_tenant_and_role)):
+    """Owner view: per-telecaller pending-feedback count + Aira Sync heartbeat."""
+    if ctx.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Owner only")
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+
+    pending = (
+        db.table("call_logs")
+        .select("caller_id")
+        .eq("tenant_id", tenant_id)
+        .eq("provider", "sim_basic")
+        .is_("feedback_at", "null")
+        .is_("feedback_dismissed_at", "null")
+        .not_.is_("lead_id", "null")
+        .not_.is_("caller_id", "null")
+        .gte("created_at", FEEDBACK_GATE_SINCE)
+        .execute()
+    ).data or []
+    counts: dict[str, int] = {}
+    for r in pending:
+        counts[r["caller_id"]] = counts.get(r["caller_id"], 0) + 1
+
+    callers = (
+        db.table("callers")
+        .select("id,name,last_sync_at,sync_token")
+        .eq("tenant_id", tenant_id)
+        .eq("active", True)
+        .execute()
+    ).data or []
+    return [
+        {
+            "caller_id": c["id"],
+            "name": c.get("name"),
+            "pending_count": counts.get(c["id"], 0),
+            "last_sync_at": c.get("last_sync_at"),
+            "has_sync_token": bool(c.get("sync_token")),
+        }
+        for c in callers
+    ]
+
+
+class DismissFeedback(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/{call_log_id}/dismiss-feedback")
+async def dismiss_feedback(call_log_id: str, payload: DismissFeedback, ctx: dict = Depends(get_tenant_and_role)):
+    """Owner clears a call from a telecaller's pending list (wrong number, personal call…)."""
+    if ctx.get("role") != "owner":
+        raise HTTPException(status_code=403, detail="Owner only")
+    db = get_supabase()
+    result = (
+        db.table("call_logs")
+        .update({
+            "feedback_dismissed_at": datetime.now(timezone.utc).isoformat(),
+            "feedback_dismissed_by": str(ctx.get("user_id") or ""),
+            "feedback_dismiss_reason": payload.reason.strip(),
+        })
+        .eq("id", call_log_id)
+        .eq("tenant_id", ctx["tenant_id"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Call log not found")
+    return {"dismissed": True}
 
 
 @router.get("/{call_log_id}")

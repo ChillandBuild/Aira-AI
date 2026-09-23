@@ -10,6 +10,7 @@ import { istTodayIso } from "@/lib/utils";
 import { formatTalk } from "./sections/performance-format";
 import TeamAttendanceGrid from "../../team/TeamAttendanceGrid";
 import LiveAgentStatus from "./sections/LiveAgentStatus";
+import FeedbackOversight from "./sections/FeedbackOversight";
 import PerformanceHeadline from "./sections/PerformanceHeadline";
 import PerformanceKpis from "./sections/PerformanceKpis";
 import PerformanceInsights from "./sections/PerformanceInsights";
@@ -218,6 +219,8 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         callingProvider={callingProvider}
         canManageShifts={canManageTeam}
       />
+
+      {callingProvider === "sim_basic" && role === "owner" && <FeedbackOversight />}
 
       {/* Selection indicator */}
       <div className="flex items-center gap-2 text-xs">
