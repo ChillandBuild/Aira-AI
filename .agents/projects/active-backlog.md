@@ -52,6 +52,11 @@
 - ~~Paid Expert Handoff: staff has no way to see who paid~~ — **Done.** Direction question resolved as a separate dedicated page, not a `chat_handovers`/Conversations-pool reuse (that approach was tried and dropped — see commit `c2a6f2af` "notify staff pool on expert handoff payment, drop chat_handovers approach"). Shipped: `notify_pool` call on payment confirm, authenticated `GET` endpoint listing sessions by bucket (`0920972c`), `/dashboard/consultations` page (`b415f015`, `6b98fcce`).
 - ~~Paid Expert Handoff: live-tested end to end, three bugs found~~ — **Done 2026-08-12.** `messages_reply_source_check` missing `expert_handoff` (migration 173, was causing a silent double-reply — see decisions/log.md), AI hard-muted post-payment leaving leads with no answer to follow-up questions (now stays live via a `_expert_handoff_paid_prompt_block`, mirrors the existing escalation pattern), no way to close out a paid session (added `resolve_expert_handoff_session` + "Mark Resolved"). Consultations page's `ChatThread` embed removed — it's a details-only surface now, collected fields render as a table. Full writeup in decisions/log.md 2026-08-12 and subsystem-notes.md.
 - **No Razorpay refund path exists anywhere (found 2026-08-12)**: checked `payment_razorpay.py` and the Razorpay MCP tool set — zero create-refund capability. If an astrologer never follows up and a lead wants their money back, there's no button; it's a manual Razorpay-dashboard operation today. Bump up if this goes to real client volume.
+  **Migrated from the standalone `PAID_INTAKE_DIAGNOSIS.md` report (2026-09-09, archived 2026-09-23 — see decisions/log.md), still open**:
+  - No `payment_link.expire_by` is sent when creating a Razorpay link (`payment_razorpay.py:56-72`), so links never expire on Razorpay's side.
+  - Only `payment_link.paid` is handled on the webhook (`routes/intake.py:247-249`) — `payment_link.expired`, `payment.failed`, and refund events produce zero state change on the session (this is the refund-path gap above, plus the missing expiry/failure handling that would feed it).
+  - `callback_url` is sent as `""` on link creation, so a payer gets no redirect back after paying.
+  - Needs design before touching the webhook handler: what should happen on expiry/failure — resend, notify staff, auto-cancel the session?
 - **No SLA / re-notify if staff ignores a paid-consultation alert (found 2026-08-12)**: `notify_pool` fires once when a lead pays. If everyone's offline or the notification gets missed, nothing re-notifies or escalates — the AI reassurance (see above) buys time but doesn't guarantee a human actually follows up. Worth a "still unresolved after N hours" re-ping before this scales past a pilot.
 - **Intake `fields` "Choice" type is still unimplemented (found 2026-08-12, renamed 2026-08-13)**: the panel's field-type dropdown (`IntakeConfigPanel.tsx`, was `ExpertHandoffConfigPanel.tsx`) offers Text/Date/Choice, but Choice has no options-input UI — there's no way to define the actual option values — and even if there were, `extract_fields()`'s LLM extraction prompt (`intake.py`, was `expert_handoff.py`) only injects `key`/`label`/`type`, never `options`, so the model never sees the choice list either way. Picking Choice today does nothing but put the word "(choice)" in the extraction hint with zero choices behind it. **The original motivating example for this item — "which package: Basic/Premium/VIP" — was built 2026-08-13, but as a separate top-level `packages` structure (its own name/price/description, selected before fields are collected), not as a Choice-type field.** The `fields` Choice type itself is still unbuilt and still has no real use case in the current live config (all fields are Text/Date). Build when a tenant needs a genuinely fixed-option *field* (not a priced tier) — add the options-list editor to the panel and thread `options` through to the extraction prompt together.
 - **Legacy `/api/v1/expert-handoff` route alias still mounted (added 2026-08-13, blocks nothing yet)**: `main.py` mounts both `/api/v1/intake` and `/api/v1/expert-handoff` on the same routers because Razorpay's dashboard has `/api/v1/expert-handoff/razorpay-webhook` registered as the live payment webhook URL for the tenant(s) using Paid Intake, and switching it isn't something a deploy can do atomically. Remove the two legacy `include_router` calls in `main.py` only after updating that URL in Razorpay's dashboard by hand and confirming a test payment still lands. No urgency — both prefixes work identically today. **Raised stakes since 2026-08-18**: the AstroTamil bridge's reply callback is `/api/v1/expert-handoff/astro-reply` and Django is deployed against that exact path, so removing the alias now breaks inbound astrologer replies while every outbound push keeps working — the dashboard still fills up and nobody notices. Update Django's `AIRA_BRIDGE_URL` first, or keep the alias permanently.
@@ -194,10 +199,14 @@
 - [2026-08-23-nested-packages-and-settings-nav-design.md](../../docs/superpowers/specs/2026-08-23-nested-packages-and-settings-nav-design.md) is still approved and unbuilt. An earlier version of the 2026-08-24 button work added a `button_label` field to `intake_config` package nodes, which would have collided with that spec's recursive node shape. **That work was reverted** — `button_label` does not exist anywhere. The nested-packages plan can be written against the current flat node shape with no coordination needed.
 - The settings-nav restructure in that same spec (splitting the Automations tab into `/dashboard/settings/auto-reply`, `/follow-ups`, etc.) now also needs to relocate the new `QuickRepliesPanel`, which currently sits in the Automations tab alongside `IntakeConfigPanel`.
 
-## Dev-environment tooling gaps blocking documented workflows (re-confirmed 2026-09-09)
-- **`graphify` is not on PATH and `graphify-out/` does not exist in this environment.** `make wiki-refresh` and `make wiki` both fail, and `/second-brain-close`'s "has code changed since the wiki?" check (`find ... -newer graphify-out/manifest.json`) silently returns **nothing** when the manifest is missing — i.e. it reports a false "no code changed" rather than an error. This matters because CLAUDE.md names `graphify query "<question>"` as step 1 of the lookup order for *any* task; that path is currently unavailable, so sessions fall back to targeted greps/reads. Either install graphify and build the graph once, or soften the CLAUDE.md instruction to match reality. **Demonstrated on 2026-08-25**: the `find ... -newer` check printed nothing while three frontend components had just been committed — a silent false negative, not a skip. `make` is also not on PATH in this shell, so every `make <target>` in CLAUDE.md must be run as its underlying script instead.
-- **Re-confirmed 2026-09-09**: `graphify-out/` still absent and the `graphify` Python module is not importable, so `scripts/build_wiki.py` dies on `ModuleNotFoundError` and the wiki step of `/second-brain-close` cannot run at all. The `find ... -newer` check again printed nothing while `knowledge/page.tsx` had just been committed three times — the same silent false negative.
-- **`lefthook` and `gitleaks` still not on PATH** (first logged 2026-07-23, still true). Hooks silently no-op; credential scanning falls back to 4 narrow patterns.
+## Dev-environment tooling gaps — superseded, see below (was: re-confirmed 2026-09-09)
+This and two later sections (2026-09-18, 2026-09-20) all reported the same lefthook/gitleaks/
+graphify/`make` gaps. Consolidated and re-checked 2026-09-23 — see **"Local tooling gaps —
+re-checked and mostly resolved"** further down for current status. One thing worth keeping from
+here: `graphify-out/manifest.json` now exists, so `second-brain-close`'s `find … -newer
+graphify-out/manifest.json` false-negative (reads as "no code changed" when the manifest is
+missing) no longer triggers — but the mechanism is still worth knowing if the manifest ever goes
+missing again.
 
 
 ## 26 dead `animate-in` usages across the frontend (2026-09-05)
@@ -444,20 +453,9 @@ Shipped and merged to local `main` (not pushed); migration 190 applied live. See
   soft delete + a `deleted_at` filter in the retrieval RPCs); a per-campaign Description add-on
   for campaign-scoped rules (currently left out and shown to the client).
 
-## Local dev environment gaps surfaced by `/second-brain-close` (open, 2026-09-18)
-Both need network + an install, so they could not be fixed from the agent sandbox.
-- **Git hooks are silently no-op'ing.** `lefthook` is a root `package.json` devDependency but the
-  repo root has **no `node_modules` at all**, and `.git/hooks/` contains only `.sample` files.
-  Fix: `npm install` at the repo root, then `npx lefthook install`.
-- **`gitleaks` not installed**, so the session-close credential scan only runs 4 narrow fallback
-  patterns, not full coverage.
-- **`graphify` not installed and `graphify-out/` does not exist locally**, so `make wiki-refresh`
-  cannot run and the architecture wiki can't be rebuilt from this machine. (`make` itself is also
-  absent — run `python scripts/second_brain_close.py` directly.)
-- **`frontend/node_modules` is stale**: `@supabase/supabase-js` 2.103.3 installed vs 2.116.0
-  pinned in `package-lock.json`, which is the whole reason `npx tsc --noEmit` reports one error in
-  `lib/supabase/client.ts` (passkey option didn't exist in 2.103.3). A plain `npm install` in
-  `frontend/` clears it; CI installs from the lock file and is unaffected.
+## Local dev environment gaps — superseded, see "Local tooling gaps" below (was: open, 2026-09-18)
+Reported from an agent sandbox without network access. Re-checked on the user's actual machine
+2026-09-23 — see **"Local tooling gaps — re-checked and mostly resolved"** further down.
 
 
 ## Meta Ads — what still blocks the `ads_read` / Marketing API resubmission (open, 2026-09-19)
@@ -518,29 +516,35 @@ or earlier, so anything newer is genuine and worth acting on.
 - **Follow-Me looks enabled now** (200 instead of 420 on 2026-09-22, real leg-A CDR). If that holds, the
   "make `initiate_call` send `webrtc:true, followme:false` per tenant" item above loses its urgency and
   the optional TeleCMI support ticket can be dropped. Needs one more confirmed call to be sure.
-- **Frontend changes from this session are uncommitted** on `main`: `roles/page.tsx`,
-  `telecalling/components/sections/LiveAgentStatus.tsx`, `telecalling/components/performance-view.tsx`.
-  A fourth file, `settings/follow-ups/page.tsx`, is the user's own parallel edit — do not include it.
-  None of it is rendered/visually verified.
+- ~~**Frontend changes from this session are uncommitted** on `main`~~ — **FIXED 2026-09-23**:
+  `roles/page.tsx`, `telecalling/components/sections/LiveAgentStatus.tsx`,
+  `telecalling/components/performance-view.tsx` all landed in commit `8fbd112a`. Still not
+  rendered/visually verified.
 
-## Local tooling gaps (reported by `second-brain-close`, 2026-09-20)
+## Local tooling gaps — re-checked and mostly resolved (2026-09-23, second-brain audit)
 
-- **lefthook hooks are silently no-op'ing.** `lefthook.yml` exists and `lefthook` is a devDependency in
-  the ROOT `package.json`, but there is no root `node_modules/` and `.git/hooks/` holds only samples —
-  so the pre-commit `py_compile` and tenant-audit guards have not been running. Fix: `npm ci` at the
-  repo root, then `npx lefthook install`. (npm registry was reachable from the sandbox when checked.)
-- **gitleaks not installed**, so the close check falls back to 4 narrow patterns instead of full
-  credential coverage.
-- **`graphify` is not installed on this machine and `graphify-out/` does not exist (found 2026-09-22).**
-  Neither the `graphify` CLI nor the Python module is importable, so `make wiki-refresh` *and* the
-  cheaper `python scripts/build_wiki.py` both fail (`ModuleNotFoundError: No module named 'graphify'`).
-  **Consequence: the "query the wiki, don't read files" workflow CLAUDE.md prescribes is unavailable** —
-  fall back to grepping `.agents/` plus targeted reads, and say so rather than pretending the wiki was
-  consulted. Note also that `second-brain-close`'s code-change probe
-  (`find … -newer graphify-out/manifest.json`) returns **empty** when that file is missing, which reads
-  as "no code changed" instead of erroring — do not trust it without checking the manifest exists.
-- **`make` is not on PATH** (Git Bash on Windows), so every `make <target>` in the docs has to be run as
-  its underlying command; `python scripts/second_brain_close.py` works.
+Three earlier sections (2026-09-09, 2026-09-18, 2026-09-20) independently reported lefthook,
+gitleaks, graphify and a stale `frontend/node_modules` as broken. Re-checked on the user's actual
+Mac (not an agent sandbox) during a `/auditing-second-brain` pass — most of it no longer holds:
+
+- **Hooks work.** `lefthook` binary is on PATH (`/opt/homebrew/bin/lefthook`), `.git/hooks/`
+  has 4 real (non-sample) hooks, and they fired for real on this session's commit + push
+  (`tenant-audit`, `backend-syntax`, `full-typecheck` all ran and passed). The "no root
+  `node_modules` → hooks no-op" theory was specific to whatever sandbox produced those reports.
+- **`gitleaks` is installed** (`/opt/homebrew/bin/gitleaks`).
+- **`frontend/node_modules` is no longer stale** — `@supabase/supabase-js` is 2.116.0 installed,
+  matching `package-lock.json`. `npx tsc --noEmit` is clean (0 errors); the passkey-option error
+  these notes blamed on the mismatch is gone.
+- **`make` is on PATH** (`/usr/bin/make`) on this machine. The "not on PATH" reports were from a
+  Git Bash/Windows environment — environment-specific, not a repo bug.
+- **Still a real, partial gap: `graphify` the Python module.** The `graphify` CLI binary now
+  exists (`~/.local/bin/graphify`), and `graphify-out/` is not empty (dated subdirs from
+  2026-06-24 through 2026-07-02) — so the older "doesn't exist at all" claim is also stale. But
+  `python3 -c "import graphify"` still raises `ModuleNotFoundError`, so `scripts/build_wiki.py`
+  still can't run, and the wiki content is at least 2 months old. `graphify query` (CLAUDE.md's
+  step 1) is unverified either way. **Next step**: find out how the CLI binary was installed
+  (pipx? a venv?) and get the same Python env `build_wiki.py` runs in, or accept the wiki is
+  rebuild-only-via-CLI for now and confirm what `graphify query` actually does before trusting it.
 
 ## AI reply context — gaps found while building the persona simulator (open, 2026-09-22)
 Measured against Astro Tamil (`eba3ed94`) with `backend/scripts/sim/`, which runs the real
