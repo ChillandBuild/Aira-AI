@@ -685,6 +685,9 @@ def _sim_status_from_type(call_type: int, duration: int) -> tuple[str, str | Non
 # Calls created before this instant never owe feedback (gate go-live cutoff).
 FEEDBACK_GATE_SINCE = "2026-09-24T00:00:00+00:00"
 
+# PostgREST caps a select at 1000 rows; page so big tenants aren't silently truncated.
+_LEAD_NUMBERS_PAGE = 1000
+
 _SIM_DIRECTION_BY_TYPE = {1: "incoming", 2: "outgoing", 3: "missed"}
 
 
@@ -752,11 +755,14 @@ async def sim_cdr(payload: SimCdrPayload, request: Request, background_tasks: Ba
 
 @public_router.get("/sim-lead-numbers")
 async def sim_lead_numbers(request: Request):
-    """Return the caller's assigned-lead phone numbers for on-device filtering.
+    """Return the tenant's lead phone numbers for on-device filtering.
 
     The APK fetches this set and only uploads call-log entries whose number is
-    in it — so personal calls never leave the phone. Numbers are normalized the
+    in it — so personal calls never leave the phone. Covers every lead in the
+    tenant (not just the caller's assigned ones) so a call to an unassigned or
+    pool lead is still tracked and owes feedback. Numbers are normalized the
     same way the ingest path normalizes them, so the device can compare directly.
+    Also the Aira Sync heartbeat: the APK calls this on every run.
     """
     caller = _resolve_sim_caller(request)
     caller_id = caller["id"]
@@ -764,19 +770,24 @@ async def sim_lead_numbers(request: Request):
     db = get_supabase()
     _touch_caller_sync(db, caller_id)
 
-    rows = (
-        db.table("leads")
-        .select("phone")
-        .eq("tenant_id", tenant_id)
-        .eq("assigned_to", caller_id)
-        .is_("deleted_at", "null")
-        .not_.is_("phone", "null")
-        .execute()
-    )
-    numbers = sorted({
-        n for r in (rows.data or [])
-        if (n := _normalize_sim_phone(r.get("phone") or ""))
-    })
+    phones: list[str] = []
+    start = 0
+    while True:
+        page = (
+            db.table("leads")
+            .select("phone")
+            .eq("tenant_id", tenant_id)
+            .is_("deleted_at", "null")
+            .not_.is_("phone", "null")
+            .order("id")
+            .range(start, start + _LEAD_NUMBERS_PAGE - 1)
+            .execute()
+        ).data or []
+        phones.extend(r.get("phone") or "" for r in page)
+        if len(page) < _LEAD_NUMBERS_PAGE:
+            break
+        start += _LEAD_NUMBERS_PAGE
+    numbers = sorted({n for p in phones if (n := _normalize_sim_phone(p))})
     return {"numbers": numbers, "count": len(numbers)}
 
 

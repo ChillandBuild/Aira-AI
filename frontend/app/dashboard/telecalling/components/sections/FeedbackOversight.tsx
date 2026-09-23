@@ -11,9 +11,13 @@ const SYNC_STALE_MS = 2 * 60 * 60 * 1000;
 const WORKDAY_START_HOUR = 9;
 const WORKDAY_END_HOUR = 20;
 const POLL_MS = 30_000;
+// Aira Sync 1.1 only contacts the server when the phone has new calls, so a quiet
+// telecaller looks "inactive". Flip on once 1.2 (30-min check-in) is on the phones.
+const HEARTBEAT_WARNING_ENABLED = false;
 
 function syncWarning(row: PendingWrapupSummary): string | null {
   if (!row.has_sync_token) return "Aira Sync not set up";
+  if (!HEARTBEAT_WARNING_ENABLED) return null;
   const hour = new Date().getHours();
   if (hour < WORKDAY_START_HOUR || hour >= WORKDAY_END_HOUR) return null;
   if (!row.last_sync_at) return "Aira Sync never connected";

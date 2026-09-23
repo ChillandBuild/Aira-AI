@@ -196,3 +196,38 @@ class SourceContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LeadNumbersTests(unittest.TestCase):
+    """sim-lead-numbers: whole tenant, paged past PostgREST's 1000-row cap, heartbeat."""
+
+    def _call(self, pages):
+        pages = list(pages)
+        db = MagicMock()
+        q = MagicMock()
+        for m in ("select", "eq", "is_", "order", "range"):
+            getattr(q, m).return_value = q
+        q.not_ = q
+        q.execute.side_effect = [MagicMock(data=p) for p in pages]
+        db.table.return_value = q
+        request = MagicMock()
+        with patch.object(calls, "get_supabase", return_value=db), \
+             patch.object(calls, "_resolve_sim_caller", return_value={"id": "c1", "tenant_id": "t1"}), \
+             patch.object(calls, "_touch_caller_sync") as touch:
+            import asyncio
+            out = asyncio.run(calls.sim_lead_numbers(request))
+        return out, q, touch
+
+    def test_covers_unassigned_leads_and_stamps_heartbeat(self):
+        out, q, touch = self._call([[{"phone": "+919876543210"}]])
+        touch.assert_called_once()
+        eq_args = [c.args for c in q.eq.call_args_list]
+        self.assertNotIn(("assigned_to", "c1"), eq_args)
+        self.assertIn(("tenant_id", "t1"), eq_args)
+        self.assertEqual(out["numbers"], ["+919876543210"])
+
+    def test_pages_until_short_page(self):
+        full = [{"phone": f"+9198765{i:05d}"} for i in range(calls._LEAD_NUMBERS_PAGE)]
+        out, q, _ = self._call([full, [{"phone": "+919000000001"}]])
+        self.assertEqual(q.execute.call_count, 2)
+        self.assertEqual(out["count"], calls._LEAD_NUMBERS_PAGE + 1)
