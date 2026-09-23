@@ -12,8 +12,10 @@ from app.services.inbound_leads_logic import (
 )
 
 
-def test_inbound_sources_are_the_four_messaging_channels():
-    assert set(INBOUND_SOURCES) == {"whatsapp", "instagram", "facebook", "telegram"}
+def test_inbound_sources_are_the_messaging_and_marketplace_channels():
+    assert set(INBOUND_SOURCES) == {
+        "whatsapp", "instagram", "facebook", "telegram", "indiamart", "justdial",
+    }
 
 
 def test_is_inbound_lead_excludes_upload_and_manual():
@@ -53,4 +55,7 @@ def test_aggregate_inbound_splits_organic_vs_ad_and_buckets_by_utc_day():
         {"day": "2026-06-06", "organic": 1, "ad": 1},
     ]
     assert out["by_segment"] == {"A": 1, "B": 1, "C": 1, "D": 0}
-    assert out["by_channel"] == {"whatsapp": 2, "instagram": 1, "facebook": 0, "telegram": 0}
+    assert out["by_channel"] == {
+        "whatsapp": 2, "instagram": 1, "facebook": 0, "telegram": 0,
+        "indiamart": 0, "justdial": 0,
+    }

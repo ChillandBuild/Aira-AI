@@ -4,6 +4,7 @@ import { Download } from "lucide-react";
 import { API_URL, IntakeSession, api, getAuthHeaders } from "@/lib/api";
 import { IntakeTable } from "./IntakeTable";
 import { IntakeDashboard } from "./IntakeDashboard";
+import { PipelineBoard } from "./PipelineBoard";
 import { ColumnPicker } from "./ColumnPicker";
 import { deriveColumns } from "./columns";
 
@@ -23,10 +24,10 @@ interface PackageOption {
 
 export default function IntakePage() {
   const [filter, setFilter] = useState<Filter>("all");
-  // The dashboard is a view over the same tenant's sessions, not a fourth
-  // status filter — keeping it out of `filter` means switching to it and back
-  // doesn't refetch the table or lose the staff member's place.
-  const [view, setView] = useState<"table" | "dashboard">("table");
+  // Dashboard and Board are views over the same tenant's sessions, not more
+  // status filters — keeping them out of `filter` means switching to one and
+  // back doesn't refetch the table or lose the staff member's place.
+  const [view, setView] = useState<"table" | "dashboard" | "board">("table");
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<IntakeSession[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -131,6 +132,15 @@ export default function IntakePage() {
           ))}
           <button
             type="button"
+            onClick={() => setView("board")}
+            className={`rounded-lg px-3 py-1.5 font-label text-xs font-bold transition-all ${
+              view === "board" ? "bg-white text-ink shadow-sm" : "text-ink-muted"
+            }`}
+          >
+            Pipeline
+          </button>
+          <button
+            type="button"
             onClick={() => setView("dashboard")}
             className={`rounded-lg px-3 py-1.5 font-label text-xs font-bold transition-all ${
               view === "dashboard" ? "bg-white text-ink shadow-sm" : "text-ink-muted"
@@ -166,6 +176,8 @@ export default function IntakePage() {
       <div className="flex-1 overflow-y-auto">
         {view === "dashboard" ? (
           <IntakeDashboard />
+        ) : view === "board" ? (
+          <PipelineBoard />
         ) : loading ? (
           <div className="space-y-3 p-4">
             {[...Array(6)].map((_, i) => (

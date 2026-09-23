@@ -176,7 +176,7 @@ export function BusinessHoursPanel({ canManage = true }: { canManage?: boolean }
                   className={`px-3 py-1.5 rounded-full font-label text-xs font-semibold border transition-colors ${
                     active
                       ? "bg-primary text-white border-primary"
-                      : "bg-white text-ink-muted border-border hover:border-violet-300"
+                      : "bg-white text-ink-muted border-border hover:border-primary-300"
                   }`}
                 >
                   {label}

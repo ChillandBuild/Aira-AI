@@ -74,7 +74,7 @@ export function PackageEditor({ packages, onChange, canManage }: PackageEditorPr
         <button
           type="button"
           onClick={addRootPackage}
-          className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700"
+          className="inline-flex items-center gap-1 text-xs font-label font-semibold text-primary-600 hover:text-primary-700"
         >
           <Plus size={14} /> Add package
         </button>
@@ -193,12 +193,12 @@ function PackageNode({
       {canManage && (
         <div className="flex gap-3">
           {!hasAddons && (
-            <button type="button" onClick={addSubPackage} className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700">
+            <button type="button" onClick={addSubPackage} className="inline-flex items-center gap-1 text-xs font-label font-semibold text-primary-600 hover:text-primary-700">
               <Plus size={12} /> Add sub-package
             </button>
           )}
           {isLeaf && !node.options && (
-            <button type="button" onClick={addAddon} className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700">
+            <button type="button" onClick={addAddon} className="inline-flex items-center gap-1 text-xs font-label font-semibold text-primary-600 hover:text-primary-700">
               <Plus size={12} /> Add addon
             </button>
           )}
@@ -271,7 +271,7 @@ function PackageNode({
             </div>
           ))}
           {canManage && (
-            <button type="button" onClick={addAddon} className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700">
+            <button type="button" onClick={addAddon} className="inline-flex items-center gap-1 text-xs font-label font-semibold text-primary-600 hover:text-primary-700">
               <Plus size={12} /> Add another addon
             </button>
           )}

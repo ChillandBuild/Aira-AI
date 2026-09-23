@@ -250,8 +250,8 @@ export function TokenUsageCard({ tenantId }: { tenantId: string }) {
                         labelFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                         formatter={(value, name) => [fmt(Number(value) || 0), name === "input_tokens" ? "Input" : "Output"]}
                       />
-                      <Bar dataKey="input_tokens" stackId="tokens" fill="#5b21b6" radius={[0, 0, 0, 0]} name="input_tokens" />
-                      <Bar dataKey="output_tokens" stackId="tokens" fill="#a78bfa" radius={[4, 4, 0, 0]} name="output_tokens" />
+                      <Bar dataKey="input_tokens" stackId="tokens" fill="var(--primary-800)" radius={[0, 0, 0, 0]} name="input_tokens" />
+                      <Bar dataKey="output_tokens" stackId="tokens" fill="var(--primary-400)" radius={[4, 4, 0, 0]} name="output_tokens" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

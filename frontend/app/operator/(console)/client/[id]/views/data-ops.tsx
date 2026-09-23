@@ -44,7 +44,7 @@ const DATA_TYPES = [
   },
   {
     key: "knowledge", label: "Knowledge Base", icon: BookOpen,
-    color: "text-purple-600", bg: "bg-purple-50",
+    color: "text-primary-600", bg: "bg-primary-50",
     desc: "All uploaded knowledge documents and their vector embedding chunks — removes the AI's document-based knowledge for this client.",
   },
   {

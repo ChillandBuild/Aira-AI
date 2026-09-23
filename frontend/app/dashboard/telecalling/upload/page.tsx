@@ -21,6 +21,7 @@ import {
   CloudUpload,
 } from "lucide-react";
 import { getAuthHeaders } from "@/lib/api";
+import { convertScanToCsv } from "@/lib/scanUpload";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
 import { createPortal } from "react-dom";
@@ -312,7 +313,7 @@ function StepIndicator({ current }: { current: number }) {
             )}
             <div className={cn(
               "relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all",
-              done ? "bg-gradient-to-br from-[#2e1065] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[#2e1065] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"
+              done ? "bg-gradient-to-br from-[var(--primary-950)] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[var(--primary-950)] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"
             )}>
               {done ? <Check size={16} /> : step}
             </div>
@@ -376,8 +377,11 @@ function UploadTab() {
     setParseLoading(true);
 
     try {
-      // 1. Convert Excel to CSV if needed
-      const csvFile = await toCsvFile(selected);
+      const lowerName = selected.name.toLowerCase();
+      const isScan = lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".png") || lowerName.endsWith(".pdf");
+
+      // 1. OCR a photo/PDF scan into CSV first, otherwise convert Excel to CSV if needed
+      const csvFile = isScan ? await convertScanToCsv(selected) : await toCsvFile(selected);
 
       // 2. Normalize CSV headers client-side (maps phone/name columns)
       const { normalizedFile } = await normalizeCsvFile(csvFile);
@@ -421,10 +425,10 @@ function UploadTab() {
     if (!dropped) return;
 
     const lowerName = dropped.name.toLowerCase();
-    if (lowerName.endsWith(".csv") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
+    if (lowerName.endsWith(".csv") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".png") || lowerName.endsWith(".pdf")) {
       await processAndParseFile(dropped);
     } else {
-      setParseError("Invalid file format. Please upload a .csv, .xlsx, or .xls file.");
+      setParseError("Invalid file format. Please upload a .csv, .xlsx, .xls, .jpg, .png, or .pdf file.");
     }
   }
 
@@ -493,7 +497,7 @@ function UploadTab() {
           <div className="lg:col-span-7 space-y-6 flex flex-col justify-between h-full">
             <div>
               <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your contacts</h2>
-              <p className="font-body text-sm text-on-surface-muted">Select a CSV or Excel file with contact data. We will detect column mappings automatically.</p>
+              <p className="font-body text-sm text-on-surface-muted">Select a CSV or Excel file with contact data, or a photo/PDF scan of a notebook page — we will detect column mappings automatically.</p>
             </div>
 
             {(uploadError || parseError) && (
@@ -526,24 +530,24 @@ function UploadTab() {
               </div>
               <div className="text-center px-4">
                 <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
-                  {parseLoading ? "Processing & parsing file..." : file ? file.name : "Drop your CSV or Excel file here"}
+                  {parseLoading ? "Processing & parsing file..." : file ? file.name : "Drop your CSV, Excel, or scanned notebook photo here"}
                 </p>
                 <p className="font-body text-xs text-on-surface-muted mt-1.5">
                   {parseLoading
                     ? "Analyzing columns, verifying phone numbers, and searching for duplicates..."
                     : file
                     ? `${(file.size / 1024).toFixed(1)} KB${rowCount !== null ? ` · ${rowCount.toLocaleString()} rows` : ""} · click to change file`
-                    : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
+                    : "or click to browse — .csv, .xlsx, .xls, .jpg, .png, .pdf · name and phone columns required"}
                 </p>
               </div>
               {!file && !parseLoading && (
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-primary/20 w-full justify-center pt-4 mt-1">
                   <span className="flex items-center gap-1"><Check size={10} className="text-primary" /> Auto-detects columns</span>
                   <span className="flex items-center gap-1"><Check size={10} className="text-primary" /> Deduplicates leads</span>
-                  <span className="flex items-center gap-1"><Check size={10} className="text-primary" /> Indian numbers formatted</span>
+                  <span className="flex items-center gap-1"><Check size={10} className="text-primary" /> OCRs handwritten scans</span>
                 </div>
               )}
-              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} disabled={parseLoading} />
+              <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.jpg,.jpeg,.png,.pdf" className="hidden" onChange={handleFileSelect} disabled={parseLoading} />
             </label>
 
             <div className="flex justify-end">
@@ -1351,8 +1355,8 @@ function ScriptsTab() {
                     {/* Cockpit Screen Body */}
                     <div className="flex-grow p-4 space-y-4 overflow-y-auto bg-slate-50 flex flex-col justify-start">
                       {/* What you say speech bubble */}
-                      <div className="bg-violet-50 border border-violet-100 rounded-2xl p-4 relative shadow-sm shrink-0">
-                        <div className="text-[8px] font-bold text-violet-600 uppercase tracking-wider mb-1.5">
+                      <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4 relative shadow-sm shrink-0">
+                        <div className="text-[8px] font-bold text-primary-600 uppercase tracking-wider mb-1.5">
                           What you say:
                         </div>
                         <p className="font-body text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
@@ -1398,7 +1402,7 @@ function ScriptsTab() {
                                 className="w-full bg-white hover:bg-slate-100 border border-slate-200 text-left px-3 py-2 rounded-xl font-body text-xs text-slate-700 hover:text-slate-900 transition-all flex items-center justify-between shadow-sm group"
                               >
                                 <span className="truncate pr-2">{br.label || `Choice ${bi + 1}`}</span>
-                                <span className="text-[9px] font-bold text-violet-600 flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
+                                <span className="text-[9px] font-bold text-primary-600 flex items-center gap-0.5 shrink-0 group-hover:translate-x-0.5 transition-transform">
                                   Go to {br.goto} <ChevronRight size={10} />
                                 </span>
                               </button>

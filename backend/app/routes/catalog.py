@@ -37,6 +37,12 @@ async def create_item(
     _ctx: dict = Depends(require_catalog_manage),
 ):
     db = get_supabase()
+    price_paise = payload.get("price_paise")
+    if price_paise is not None and price_paise < 0:
+        raise HTTPException(status_code=400, detail="price_paise must not be negative")
+    stock_quantity = payload.get("stock_quantity")
+    if stock_quantity is not None and stock_quantity < 0:
+        raise HTTPException(status_code=400, detail="stock_quantity must not be negative")
     res = db.table("catalog_items").insert({
         "tenant_id": tenant_id,
         "name": payload.get("name"),
@@ -45,6 +51,9 @@ async def create_item(
         "status": "draft",
         "attributes": payload.get("attributes") or {},
         "variant_group_id": payload.get("variant_group_id"),
+        "price_paise": price_paise,
+        "price_note": payload.get("price_note"),
+        "stock_quantity": stock_quantity,
     }).execute()
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create catalog item")
@@ -69,10 +78,14 @@ async def update_item(
     db = get_supabase()
     updates = {
         k: v for k, v in payload.items()
-        if k in {"name", "item_type", "description", "status", "attributes", "variant_group_id"}
+        if k in {"name", "item_type", "description", "status", "attributes", "variant_group_id", "price_paise", "price_note", "stock_quantity"}
     }
     if "status" in updates and updates["status"] not in _VALID_STATUSES:
         raise HTTPException(status_code=400, detail=f"status must be one of {_VALID_STATUSES}")
+    if updates.get("price_paise") is not None and updates["price_paise"] < 0:
+        raise HTTPException(status_code=400, detail="price_paise must not be negative")
+    if updates.get("stock_quantity") is not None and updates["stock_quantity"] < 0:
+        raise HTTPException(status_code=400, detail="stock_quantity must not be negative")
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     res = (

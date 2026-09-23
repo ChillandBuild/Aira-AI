@@ -28,7 +28,7 @@ router = APIRouter()
 
 @router.get("/summary")
 async def summary(tenant_id: str = Depends(get_tenant_id)):
-    return build_follow_up_summary()
+    return build_follow_up_summary(tenant_id)
 
 
 @router.post("/run")
@@ -46,7 +46,7 @@ async def run_due_follow_ups(limit: int = Query(20, ge=1, le=100), ctx: dict = D
             "sent": 0,
             "failed": 0,
             "skipped": 0,
-            "summary": build_follow_up_summary(db=db),
+            "summary": build_follow_up_summary(tenant_id, db=db),
         }
 
     now = utcnow().isoformat()
@@ -137,7 +137,7 @@ async def run_due_follow_ups(limit: int = Query(20, ge=1, le=100), ctx: dict = D
         "sent": sent,
         "failed": failed,
         "skipped": skipped,
-        "summary": build_follow_up_summary(db=db),
+        "summary": build_follow_up_summary(tenant_id, db=db),
     }
 
 

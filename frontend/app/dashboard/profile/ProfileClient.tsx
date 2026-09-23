@@ -128,7 +128,7 @@ export function ProfileClient({
     const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
     const quickLinks = [
-      { href: "/dashboard", icon: BarChart2, label: "Dashboard", desc: "Team overview & metrics", color: "from-primary to-violet-500" },
+      { href: "/dashboard", icon: BarChart2, label: "Dashboard", desc: "Team overview & metrics", color: "from-primary to-primary-500" },
       { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload Contacts", desc: "Import CSV & manage scripts", color: "from-emerald-500 to-teal-500" },
       { href: "/dashboard/telecalling", icon: Phone, label: "Telecalling", desc: "Dialer & lead queue", color: "from-amber-500 to-orange-500" },
       { href: "/dashboard/team", icon: Users, label: "Team", desc: "Manage telecallers", color: "from-blue-500 to-cyan-500" },
@@ -149,7 +149,7 @@ export function ProfileClient({
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-gradient-to-tr from-amber-500/10 to-transparent rounded-full translate-y-1/2 -translate-x-1/4" />
 
           <div className="relative flex items-center gap-6">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[#2e1065] to-primary flex items-center justify-center shadow-lg shadow-primary/25">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-[var(--primary-950)] to-primary flex items-center justify-center shadow-lg shadow-primary/25">
               <span className="font-display text-3xl font-bold text-white">{initials}</span>
             </div>
             <div className="flex-1 min-w-0">
@@ -405,7 +405,7 @@ export function ProfileClient({
                 <defs>
                   <linearGradient id="targetRingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                     <stop offset="0%" stopColor="#6366f1" />
-                    <stop offset="100%" stopColor="#a855f7" />
+                    <stop offset="100%" stopColor="var(--primary-500)" />
                   </linearGradient>
                 </defs>
               </svg>

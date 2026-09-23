@@ -7,14 +7,18 @@ from pydantic import BaseModel
 from app.config_dynamic import get_setting, save_setting, invalidate_cache
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_owner
-from app.services.groq_client import get_groq_client
+from app.services.gemini_client import gemini_chat_completion
 from app.services.knowledge_versions import save_description
-from app.services.token_meter import record_groq_sdk
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_owner)])
 
-_TUNE_MODEL = "llama-3.3-70b-versatile"
+# Same model the arc scorer itself uses (scoring_engine.py) -- one fewer provider
+# key for a tenant to configure. Switched off Groq 2026-09-23: two live tenants
+# (Astro Tamil - Co, Astrotamil Pooja) have a gemini_api_key but no groq_api_key,
+# so auto-rubric-generation was silently no-op'ing for them (get_groq_client raises,
+# caught, returns) every time their description was saved.
+_TUNE_MODEL = "gemini-3.1-flash-lite"
 
 
 class DescriptionUpdate(BaseModel):
@@ -62,19 +66,16 @@ async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = 
                 logger.info(f"Scoring rubric already exists for tenant {tenant_id} — skipping auto-generation")
                 return
 
-        try:
-            client = get_groq_client(tenant_id, is_async=True)
-        except Exception:
-            return
-
-        resp = await client.chat.completions.create(
-            model=_TUNE_MODEL,
-            messages=[{"role": "user", "content": _rubric_prompt(description)}],
-            temperature=0.3,
-            max_tokens=300,
-        )
-        record_groq_sdk(tenant_id, "ai_tune", _TUNE_MODEL, resp)
-        rubric = resp.choices[0].message.content.strip()
+        rubric = (
+            await gemini_chat_completion(
+                messages=[{"role": "user", "content": _rubric_prompt(description)}],
+                model=_TUNE_MODEL,
+                temperature=0.3,
+                max_tokens=300,
+                tenant_id=tenant_id,
+                purpose="ai_tune_rubric",
+            )
+        ).strip()
         if rubric and "9-10" in rubric:
             save_setting("scoring_rubric", rubric, tenant_id=tenant_id)
             logger.info(f"Auto-generated scoring rubric for tenant {tenant_id}")

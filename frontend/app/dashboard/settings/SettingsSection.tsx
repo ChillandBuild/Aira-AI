@@ -102,10 +102,10 @@ export type SectionAccent = "violet" | "amber" | "sky" | "emerald";
 
 const ACCENTS: Record<SectionAccent, { tile: string; icon: string; rail: string; glow: string }> = {
   violet: {
-    tile: "bg-gradient-to-br from-[#f5f3ff] to-[#e9e2ff] ring-[#ddd4fb]",
+    tile: "bg-gradient-to-br from-[var(--primary-50)] to-[#e9e2ff] ring-[#ddd4fb]",
     icon: "text-primary",
-    rail: "from-primary/70 via-violet-400/60 to-transparent",
-    glow: "group-hover/section:shadow-[0_0_0_4px_rgba(91,33,182,0.06)]",
+    rail: "from-primary/70 via-primary-400/60 to-transparent",
+    glow: "group-hover/section:shadow-[0_0_0_4px_rgba(var(--primary-800-rgb),0.06)]",
   },
   amber: {
     tile: "bg-gradient-to-br from-[#fffbeb] to-[#fdefc8] ring-[#f8e3ae]",
@@ -344,7 +344,7 @@ export function SaveButton({
         state === "saved"
           ? "cursor-default bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200"
           : active
-          ? "bg-gradient-to-br from-[#2e1065] to-primary text-white shadow-[0_6px_16px_-8px_rgba(91,33,182,0.7)] hover:shadow-[0_10px_22px_-8px_rgba(91,33,182,0.75)] hover:brightness-110 active:scale-[0.98]"
+          ? "bg-gradient-to-br from-[var(--primary-950)] to-primary text-white shadow-[0_6px_16px_-8px_rgba(var(--primary-800-rgb),0.7)] hover:shadow-[0_10px_22px_-8px_rgba(var(--primary-800-rgb),0.75)] hover:brightness-110 active:scale-[0.98]"
           : "cursor-default bg-surface-subtle text-ink-muted ring-1 ring-inset ring-border/70"
       )}
     >

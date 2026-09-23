@@ -33,7 +33,7 @@ export function RangePicker({
         <select
           value={value.preset}
           onChange={(e) => onChange({ ...value, preset: e.target.value as Preset })}
-          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
         >
           {PRESET_OPTIONS.map((option) => (
             <option key={option.id} value={option.id}>
@@ -53,7 +53,7 @@ export function RangePicker({
             value={value.start}
             max={value.end || undefined}
             onChange={(e) => onChange({ ...value, start: e.target.value })}
-            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-200"
           />
           <span className="font-label text-xs text-on-surface-muted">→</span>
           <input
@@ -63,7 +63,7 @@ export function RangePicker({
             value={value.end}
             min={value.start || undefined}
             onChange={(e) => onChange({ ...value, end: e.target.value })}
-            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-200"
           />
         </>
       )}

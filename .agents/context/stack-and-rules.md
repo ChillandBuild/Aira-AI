@@ -56,7 +56,7 @@ repo.
 - **Telegram Webhook URL**: `https://aira-ai-5tfr.onrender.com/webhook/telegram/{tenant_id}`
 
 ## Hard Invariants (Never Break)
-1. **Lead Score**: Always an integer 1–10.
+1. **Lead Score**: Always an integer 0–10 (0 = "Not Interested" / segment D floor, migration 164). Was 1–10 before 2026-08; corrected 2026-09-22 to match the live DB CHECK and `scoring_engine.py` — see AUDIT-2026-09.md finding C1.
 2. **Segments**: A=Hot, B=Warm, C=Cold, D=Disqualified. Labels are immutable.
 3. **WhatsApp Window**: 24h session window — approved templates only outside window.
 4. **Segment Export**: All segment list routes must resolve: `GET /api/v1/leads?segment=A&format=csv`.

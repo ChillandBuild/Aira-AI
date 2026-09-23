@@ -238,7 +238,7 @@ export default function ScheduledCallsPage() {
   const sectionConfig = [
     { key: "overdue" as const, label: "Overdue", icon: AlertTriangle, iconColor: "text-rose-500", bgGradient: "from-rose-50/70 to-red-50/20", borderColor: "border-rose-200/60", badgeColor: "bg-rose-100 text-rose-700" },
     { key: "today" as const, label: "Today", icon: Clock, iconColor: "text-amber-500", bgGradient: "from-amber-50/70 to-orange-50/20", borderColor: "border-amber-200/60", badgeColor: "bg-amber-100 text-amber-700" },
-    { key: "tomorrow" as const, label: "Tomorrow", icon: Calendar, iconColor: "text-primary", bgGradient: "from-primary-light/70 to-purple-50/20", borderColor: "border-primary-muted/60", badgeColor: "bg-primary-light text-primary" },
+    { key: "tomorrow" as const, label: "Tomorrow", icon: Calendar, iconColor: "text-primary", bgGradient: "from-primary-light/70 to-primary-50/20", borderColor: "border-primary-muted/60", badgeColor: "bg-primary-light text-primary" },
     { key: "upcoming" as const, label: "Upcoming", icon: ChevronRight, iconColor: "text-[#78716c]", bgGradient: "from-[#faf8f5]/70 to-gray-50/20", borderColor: "border-[#e8e3db]/60", badgeColor: "bg-[#f0ece4] text-[#57534e]" },
   ];
 
@@ -398,7 +398,7 @@ export default function ScheduledCallsPage() {
                           {!isAssignedToMe && isTakeoverEligible && (
                             <button
                               onClick={() => handleOpenTakeoverHandoff(cb)}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-primary to-purple-600 text-white rounded-xl font-label text-[10px] font-bold hover:from-primary-dark hover:to-purple-700 transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
+                              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-primary to-primary-600 text-white rounded-xl font-label text-[10px] font-bold hover:from-primary-dark hover:to-primary-700 transition-all shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                             >
                               <Zap size={12} className="fill-white text-white" /> Claim
                             </button>
@@ -628,7 +628,7 @@ export default function ScheduledCallsPage() {
               <button
                 onClick={() => handleConfirmTakeover(handoffCallback)}
                 disabled={takeoverLoading}
-                className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-primary to-purple-600 text-white hover:from-primary-dark hover:to-purple-700 rounded-xl font-label text-[11px] font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-primary to-primary-600 text-white hover:from-primary-dark hover:to-primary-700 rounded-xl font-label text-[11px] font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50"
               >
                 {takeoverLoading ? (
                   <RefreshCw size={12} className="animate-spin" />

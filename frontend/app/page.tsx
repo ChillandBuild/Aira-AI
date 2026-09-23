@@ -383,7 +383,7 @@ export default function LandingPage() {
 
             {/* Right — Dashboard Mockup */}
             <div className="relative reveal visible" style={{ animationDelay: "0.15s" }}>
-              <div className="absolute -inset-8 bg-gradient-to-br from-[#5b21b6]/10 to-[#7c3aed]/5 blur-3xl rounded-3xl pointer-events-none"></div>
+              <div className="absolute -inset-8 bg-gradient-to-br from-[var(--primary-800)]/10 to-[var(--primary-600)]/5 blur-3xl rounded-3xl pointer-events-none"></div>
               <div className="dashboard-mockup relative z-10">
                 {/* Window Chrome */}
                 <div className="window-chrome">
@@ -416,10 +416,10 @@ export default function LandingPage() {
                     <p className="text-[10px] text-ink-muted font-medium mb-3">Lead Funnel</p>
                     <div className="flex flex-col gap-1.5">
                       {[
-                        { label: "Enquiries", width: "100%", color: "#2e1065" },
-                        { label: "Qualified", width: "65%", color: "#5b21b6" },
-                        { label: "Interested", width: "42%", color: "#7c3aed" },
-                        { label: "Converted", width: "25%", color: "#a78bfa" },
+                        { label: "Enquiries", width: "100%", color: "var(--primary-950)" },
+                        { label: "Qualified", width: "65%", color: "var(--primary-800)" },
+                        { label: "Interested", width: "42%", color: "var(--primary-600)" },
+                        { label: "Converted", width: "25%", color: "var(--primary-400)" },
                       ].map((bar) => (
                         <div key={bar.label} className="flex items-center gap-2">
                           <span className="text-[8px] text-ink-muted w-14 text-right">{bar.label}</span>
@@ -436,7 +436,7 @@ export default function LandingPage() {
                   {/* AI Chat Preview */}
                   <div className="bg-surface rounded-lg p-3 border border-border-subtle">
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[#2e1065] to-[#5b21b6] flex items-center justify-center">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--primary-950)] to-[var(--primary-800)] flex items-center justify-center">
                         <Bot size={10} className="text-white" />
                       </div>
                       <span className="text-[9px] font-semibold text-ink">Aira Assistant</span>
@@ -556,7 +556,7 @@ export default function LandingPage() {
                   <div className="space-y-4">
                     {[
                       { label: "Signature Verified", active: true, color: "#059669" },
-                      { label: "RAG Query Context", active: true, color: "#5b21b6" },
+                      { label: "RAG Query Context", active: true, color: "var(--primary-800)" },
                       { label: "Lead Handover", active: currentStep >= 5, color: currentStep >= 5 ? "#059669" : "#a8a29e" },
                     ].map((item) => (
                       <div key={item.label} className="flex items-center gap-3">
@@ -898,7 +898,7 @@ export default function LandingPage() {
                   placeholder="Enter your email"
                   className="form-input-dark text-xs px-3 py-2 rounded-r-none w-48"
                 />
-                <button className="px-4 py-2 bg-gradient-to-r from-[#2e1065] to-[#5b21b6] text-white text-xs font-semibold rounded-r-lg rounded-l-none hover:opacity-90 transition-opacity">
+                <button className="px-4 py-2 bg-gradient-to-r from-[var(--primary-950)] to-[var(--primary-800)] text-white text-xs font-semibold rounded-r-lg rounded-l-none hover:opacity-90 transition-opacity">
                   Subscribe
                 </button>
               </div>

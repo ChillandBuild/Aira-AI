@@ -64,6 +64,9 @@ export interface CatalogItem {
   attributes: Record<string, string>;
   variant_group_id: string | null;
   embedding: string | null;
+  price_paise: number | null;
+  price_note: string | null;
+  stock_quantity: number | null;
 }
 
 export interface CatalogMedia {
@@ -1065,7 +1068,50 @@ export interface AssignmentLogSummary {
   by_segment: Record<string, number>;
 }
 
-export type IntakeStatus = "awaiting_payment" | "paid" | "resolved";
+export type IntakeStatus = "awaiting_payment" | "paid" | "resolved" | "cancelled";
+
+export interface IntakeBoardSession {
+  id: string;
+  lead_id: string;
+  status: IntakeStatus;
+  package_name: string | null;
+  amount_paise: number | null;
+  total_amount_paise: number | null;
+  payment_link: string | null;
+  paid_at: string | null;
+  created_at: string;
+  leads: { name: string | null; phone: string | null } | null;
+}
+
+export interface IntakeBoardColumn {
+  label: string;
+  count: number;
+  total_paise: number;
+  sessions: IntakeBoardSession[];
+  has_more: boolean;
+}
+
+export interface CatalogQuote {
+  id: string;
+  lead_id: string;
+  item_name: string;
+  amount_paise: number;
+  amount_is_estimate: boolean;
+  source: "ai_catalog" | "manual";
+  created_at: string;
+  leads: { name: string | null; phone: string | null } | null;
+}
+
+export interface IntakeBoard {
+  columns: Record<"awaiting_payment" | "paid" | "resolved" | "cancelled", IntakeBoardColumn>;
+  catalog_quotes: {
+    label: string;
+    count: number;
+    total_paise: number;
+    quotes: CatalogQuote[];
+    has_more: boolean;
+  };
+}
 
 export interface IntakeField {
   key: string;
@@ -1106,7 +1152,35 @@ export interface IntakePage {
   next_cursor: string | null;
 }
 
+export interface VerticalStarter {
+  key: string;
+  label: string;
+  master_prompt: string;
+  business_description: string;
+}
+
+export interface InterviewQuestion {
+  id: string;
+  question: string;
+}
+
+export interface InterviewDraft {
+  master_prompt: string;
+  business_description: string;
+}
+
+export interface AskAnalyticsResult {
+  answer: string;
+  data: Record<string, unknown> | null;
+  source: string | null;
+}
+
 export const api = {
+  ask: (question: string) =>
+    apiFetch<AskAnalyticsResult>("/api/v1/ask", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+    }),
   leads: {
     list: async (params?: {
       segment?: string;
@@ -1157,6 +1231,14 @@ export const api = {
       apiFetch<Message>(`/api/v1/leads/${id}/send`, {
         method: "POST",
         body: JSON.stringify({ content }),
+      }),
+    addQuote: (
+      id: string,
+      data: { item_name: string; amount_paise: number; catalog_item_id?: string; qty?: number }
+    ) =>
+      apiFetch<{ recorded: boolean; stock_warning: boolean }>(`/api/v1/leads/${id}/quote`, {
+        method: "POST",
+        body: JSON.stringify(data),
       }),
     sendMedia: async (id: string, file: File, caption?: string): Promise<Message> => {
       const authHeaders = await getAuthHeaders();
@@ -1922,6 +2004,25 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ name }),
       }),
+    starters: () =>
+      apiFetch<{ data: VerticalStarter[] }>("/api/v1/onboarding/starters"),
+    applyStarter: (key: string, force = false) =>
+      apiFetch<{ applied: string }>("/api/v1/onboarding/apply-starter", {
+        method: "POST",
+        body: JSON.stringify({ key, force }),
+      }),
+    interviewQuestions: () =>
+      apiFetch<{ data: InterviewQuestion[] }>("/api/v1/onboarding/interview/questions"),
+    interviewDraft: (answers: { question_id: string; answer: string }[]) =>
+      apiFetch<InterviewDraft>("/api/v1/onboarding/interview/draft", {
+        method: "POST",
+        body: JSON.stringify({ answers }),
+      }),
+    interviewApply: (draft: InterviewDraft, force = false) =>
+      apiFetch<{ applied: boolean }>("/api/v1/onboarding/interview/apply", {
+        method: "POST",
+        body: JSON.stringify({ ...draft, force }),
+      }),
   },
   operator: {
     getCallingProvider: (tenantId: string) =>
@@ -2245,6 +2346,7 @@ export const api = {
         body: JSON.stringify({ package_key: packageKey }),
       }),
     stats: () => apiFetch<IntakeStats>("/api/v1/intake/stats"),
+    board: () => apiFetch<IntakeBoard>("/api/v1/intake/board"),
     csvPath: (params: { status: IntakeStatus | "all"; packageKey?: string; q?: string }) => {
       const search = new URLSearchParams({ status: params.status });
       if (params.packageKey) search.set("package", params.packageKey);

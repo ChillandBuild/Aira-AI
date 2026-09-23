@@ -27,16 +27,16 @@ export default function ManualSection({
   onDisconnectChannel: (channelId: string) => void;
 }) {
   return (
-    <section className="overflow-hidden rounded-[28px] border border-violet-200/80 bg-white shadow-[0_12px_40px_rgba(124,58,237,0.08),0_2px_10px_rgba(0,0,0,0.04)] ring-1 ring-violet-100/50">
+    <section className="overflow-hidden rounded-[28px] border border-primary-200/80 bg-white shadow-[0_12px_40px_rgba(var(--primary-600-rgb),0.08),0_2px_10px_rgba(0,0,0,0.04)] ring-1 ring-primary-100/50">
       {/* ── Header ─────────────────────────────────────────────────────── */}
-      <div className="grid items-center gap-6 border-b border-violet-100 bg-gradient-to-r from-violet-50 via-white to-violet-50/40 px-6 py-5 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:py-5.5">
+      <div className="grid items-center gap-6 border-b border-primary-100 bg-gradient-to-r from-primary-50 via-white to-primary-50/40 px-6 py-5 sm:grid-cols-[1fr_auto] sm:gap-8 sm:px-8 sm:py-5.5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-purple-200/90 bg-purple-50/90 px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary-200/90 bg-primary-50/90 px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
               <Sliders size={12} className="text-primary" />
               Manual API Connection
             </span>
-            <span className="inline-flex items-center rounded-full bg-violet-600 px-2.5 py-0.5 font-label text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
+            <span className="inline-flex items-center rounded-full bg-primary-600 px-2.5 py-0.5 font-label text-[10px] font-bold uppercase tracking-wider text-white shadow-sm">
               Advanced
             </span>
           </div>

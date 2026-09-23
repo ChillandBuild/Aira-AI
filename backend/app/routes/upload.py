@@ -14,6 +14,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.ai_reply import send_whatsapp
 from app.services.delivery_status import nearest_record, nearest_status, parse_ts
+from app.services.gemini_client import gemini_extract_contacts_csv
 from app.services.growth import get_or_create_campaign, record_stage_event, sync_follow_up_jobs
 from app.services.meta_cloud import send_template_message
 from app.services.outbound_router import get_best_number, increment_send_count
@@ -468,6 +469,62 @@ async def parse_csv(file: UploadFile = File(...), tenant_id: str = Depends(get_t
         "csv_file_path": csv_file_path,
         "csv_file_name": csv_file_name,
     }
+
+
+_SCAN_EXTENSIONS = (".jpg", ".jpeg", ".png", ".pdf")
+
+
+@router.post("/scan")
+async def scan_contacts(file: UploadFile = File(...), tenant_id: str = Depends(get_tenant_id)):
+    """OCR a photographed/scanned notebook page (or PDF) of names and phone numbers
+    into CSV text, so the client can hand it straight into the existing /parse ->
+    upload pipeline unchanged. Extraction-only -- never inserts a lead, so this stays
+    at the router's base require_outbound_read level; the actual insert routes
+    (/leads, telecalling-upload/upload) keep their own stricter permission checks."""
+    filename = (file.filename or "").lower()
+    content_type = file.content_type or ""
+    if not filename.endswith(_SCAN_EXTENSIONS) and not (content_type.startswith("image/") or content_type == "application/pdf"):
+        raise HTTPException(status_code=400, detail="File must be a .jpg, .png, or .pdf scan")
+
+    raw_bytes = await file.read()
+    mime_type = "application/pdf" if filename.endswith(".pdf") or content_type == "application/pdf" else (content_type or "image/jpeg")
+
+    try:
+        raw_csv = await asyncio.to_thread(gemini_extract_contacts_csv, raw_bytes, mime_type, tenant_id=tenant_id)
+    except Exception:
+        logger.exception("Failed to OCR contact scan")
+        raise HTTPException(status_code=502, detail="Could not read this scan. Try a clearer photo.")
+
+    cleaned = raw_csv.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+        cleaned = re.sub(r"```$", "", cleaned).strip()
+
+    reader = csv.DictReader(io.StringIO(cleaned))
+    if not reader.fieldnames or "phone" not in [f.strip().lower() for f in reader.fieldnames]:
+        raise HTTPException(status_code=422, detail="Could not find any phone numbers in this scan")
+
+    fieldmap = {f.strip().lower(): f for f in reader.fieldnames}
+    phone_col = fieldmap.get("phone", "phone")
+    name_col = fieldmap.get("name")
+
+    rows: list[dict] = []
+    for row in reader:
+        normalized = _normalize_phone(row.get(phone_col, "") or "")
+        if not normalized:
+            continue
+        name = (row.get(name_col) or "").strip() if name_col else ""
+        rows.append({"name": name, "phone": normalized})
+
+    if not rows:
+        raise HTTPException(status_code=422, detail="Could not find any valid phone numbers in this scan")
+
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=["name", "phone"])
+    writer.writeheader()
+    writer.writerows(rows)
+
+    return {"csv_text": out.getvalue(), "rows_found": len(rows)}
 
 
 @router.get("/csv-signed-url")
@@ -1118,6 +1175,13 @@ async def bulk_send(
         except Exception as csv_err:
             logger.error(f"Failed to add broadcast_id to CSV: {csv_err}")
 
+    # Every recipient's score/segment is deliberately reset to the tenant's
+    # default, existing lead or not: a broadcast is often a pitch for a
+    # DIFFERENT product from the same company, so it's a fresh pitch, not a
+    # status update on the same conversation. (AUDIT-2026-09.md finding C5
+    # tried to protect existing leads' scores here and was reverted by
+    # explicit user decision for exactly this reason -- do not reintroduce
+    # without checking with the user first.)
     initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
     upsert_rows = []
     for lead in eligible:

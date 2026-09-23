@@ -149,7 +149,7 @@ function initials(name: string) {
 }
 
 const AVATAR_PALETTE = [
-  "bg-violet-100 text-violet-700",
+  "bg-primary-100 text-primary-700",
   "bg-blue-100 text-blue-700",
   "bg-emerald-100 text-emerald-700",
   "bg-amber-100 text-amber-700",
@@ -594,7 +594,7 @@ export default function RolesPage() {
       {role === "owner" && callingProvider === "sim_basic" && (
         <div className="flex flex-col gap-3 rounded-3xl border border-border-subtle bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-violet-50 text-violet-600">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-primary-50 text-primary-600">
               <Smartphone size={18} />
             </div>
             <div>
@@ -613,9 +613,9 @@ export default function RolesPage() {
       )}
 
       {syncToken && (
-        <div className="flex flex-col gap-3 rounded-3xl border border-violet-200 bg-violet-50 p-4">
-          <p className="font-label text-[10px] font-black uppercase tracking-wider text-violet-700">Aira Sync setup for {syncToken.label}</p>
-          <p className="font-body text-xs text-violet-700">Paste both fields into the Aira Sync app on the caller&apos;s phone, then tap Save &amp; Connect. The token is shown once.</p>
+        <div className="flex flex-col gap-3 rounded-3xl border border-primary-200 bg-primary-50 p-4">
+          <p className="font-label text-[10px] font-black uppercase tracking-wider text-primary-700">Aira Sync setup for {syncToken.label}</p>
+          <p className="font-body text-xs text-primary-700">Paste both fields into the Aira Sync app on the caller&apos;s phone, then tap Save &amp; Connect. The token is shown once.</p>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
@@ -658,8 +658,8 @@ export default function RolesPage() {
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="card flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50/50 p-4 shadow-sm">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-violet-600">
+        <div className="card flex items-center gap-3 rounded-2xl border border-primary-100 bg-primary-50/50 p-4 shadow-sm">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-primary-600">
             <ShieldCheck size={18} />
           </div>
           <div className="min-w-0">

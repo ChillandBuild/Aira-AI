@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Upload, Check, AlertTriangle, ChevronRight, ChevronDown, RotateCcw, MessageSquare, Clock, Send, Download, CheckCircle2, Eye, XCircle, Calendar, Phone, Search, Smartphone, ShieldCheck, FileSpreadsheet, PlayCircle, MapPin, Copy, Globe, Image as ImageIcon, FileText, Tag, Plus, Trash2, RefreshCw, Info, Sparkles } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { convertScanToCsv } from "@/lib/scanUpload";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
@@ -116,7 +117,7 @@ type TagStats = {
 
 const PRESET_COLORS = [
   "#FFFFFF", "#FBBF24", "#22C55E", "#EF4444", "#3B82F6",
-  "#F97316", "#8B5CF6", "#1F2937", "#EC4899", "#14B8A6",
+  "#F97316", "var(--primary-500)", "#1F2937", "#EC4899", "#14B8A6",
   "#6366F1", "#84CC16",
 ];
 
@@ -129,7 +130,7 @@ function getTagStyle(hex: string): { background: string; colorClass: string } {
     "#EF4444": { bg: "linear-gradient(135deg, #F87171, #DC2626)", text: "text-white" },
     "#3B82F6": { bg: "linear-gradient(135deg, #60A5FA, #2563EB)", text: "text-white" },
     "#F97316": { bg: "linear-gradient(135deg, #FDBA74, #EA580C)", text: "text-white" },
-    "#8B5CF6": { bg: "linear-gradient(135deg, #A78BFA, #7C3AED)", text: "text-white" },
+    "var(--primary-500)": { bg: "linear-gradient(135deg, var(--primary-400), var(--primary-600))", text: "text-white" },
     "#1F2937": { bg: "linear-gradient(135deg, #4B5563, #111827)", text: "text-white" },
     "#EC4899": { bg: "linear-gradient(135deg, #F472B6, #DB2777)", text: "text-white" },
     "#14B8A6": { bg: "linear-gradient(135deg, #2DD4BF, #0D9488)", text: "text-white" },
@@ -211,7 +212,7 @@ function StepIndicator({ current }: { current: number }) {
               <div className={`absolute top-5 right-1/2 w-full h-0.5 -translate-y-1/2 transition-colors ${step <= current ? "bg-primary" : "bg-surface-mid"}`} />
             )}
             <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-colors
-              ${done ? "bg-gradient-to-br from-[#2e1065] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[#2e1065] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
+              ${done ? "bg-gradient-to-br from-[var(--primary-950)] to-primary text-white shadow-sm" : active ? "bg-gradient-to-br from-[var(--primary-950)] to-primary text-white ring-4 ring-primary/20 shadow-md" : "bg-surface text-on-surface-muted border-2 border-surface-mid"}`}>
               {done ? <Check size={16} /> : step}
             </div>
             <span className={`mt-2 font-label text-[10px] text-center whitespace-nowrap md:text-xs ${active ? "text-primary font-semibold" : done ? "text-primary/50" : "text-on-surface-muted"}`}>
@@ -227,7 +228,7 @@ function StepIndicator({ current }: { current: number }) {
 // ─── Segment Dropdown ─────────────────────────────────────────────────────────
 
 const SEGMENT_OPTIONS = [
-  { label: "All Segments", value: "", color: "text-violet-700 bg-violet-50 border-violet-200 hover:bg-violet-100" },
+  { label: "All Segments", value: "", color: "text-primary-700 bg-primary-50 border-primary-200 hover:bg-primary-100" },
   { label: "Hot", value: "A", color: "text-green-700 bg-green-50 border-green-200 hover:bg-green-100" },
   { label: "Warm", value: "B", color: "text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100" },
   { label: "Cold", value: "C", color: "text-gray-700 bg-gray-50 border-gray-200 hover:bg-gray-100" },
@@ -286,7 +287,7 @@ function SegmentDropdown({ tagId, dark }: { tagId: string, dark?: boolean }) {
         ref={btnRef}
         onClick={() => setOpen(!open)}
         className={cn("text-xs px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1 font-medium",
-          dark ? "border border-white/40 text-white hover:bg-white/20" : "border border-violet-200 text-violet-700 hover:bg-violet-50"
+          dark ? "border border-white/40 text-white hover:bg-white/20" : "border border-primary-200 text-primary-700 hover:bg-primary-50"
         )}
       >
         <Download size={12} /> Segment Leads
@@ -437,7 +438,7 @@ function BroadcastSegmentDropdown({ broadcastId, tagId, onDownload }: {
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-lg font-label text-[11px] font-semibold transition-colors border border-violet-200"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-lg font-label text-[11px] font-semibold transition-colors border border-primary-200"
       >
         <Download size={12} />
         Segment Leads
@@ -451,7 +452,7 @@ function BroadcastSegmentDropdown({ broadcastId, tagId, onDownload }: {
         >
           <button
             onClick={() => { onDownload(broadcastId, tagId, ""); setOpen(false); }}
-            className="w-full text-left text-xs px-3 py-2.5 font-label font-semibold transition-colors border-b border-surface-mid/30 text-violet-700 bg-violet-50 hover:bg-violet-100"
+            className="w-full text-left text-xs px-3 py-2.5 font-label font-semibold transition-colors border-b border-surface-mid/30 text-primary-700 bg-primary-50 hover:bg-primary-100"
           >
             All Segments
           </button>
@@ -523,30 +524,30 @@ function ExportAllDropdown({ tagCount }: { tagCount: number }) {
       <button
         ref={btnRef}
         onClick={() => setOpen(!open)}
-        className="flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors"
+        className="flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-white border border-primary-100/80 text-gray-700 hover:border-primary-200 hover:bg-primary-50/40 font-label text-xs font-semibold shadow-xs transition-colors"
       >
-        <Download size={12} className="text-[#5b21b6]" />
+        <Download size={12} className="text-[var(--primary-800)]" />
         <span>Export All</span>
         <ChevronDown size={11} className={cn("text-gray-400 transition-transform", open && "rotate-180")} />
       </button>
       {open && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed w-60 bg-white rounded-2xl shadow-xl border border-purple-100 z-[9999] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+          className="fixed w-60 bg-white rounded-2xl shadow-xl border border-primary-100 z-[9999] overflow-hidden animate-in fade-in zoom-in-95 duration-100"
           style={{ top: position.top, right: position.right }}
         >
           <button
             onClick={() => download("all")}
-            className="w-full text-left text-xs px-4 py-3 font-label transition-colors border-b border-purple-100/60 hover:bg-purple-50/60 group"
+            className="w-full text-left text-xs px-4 py-3 font-label transition-colors border-b border-primary-100/60 hover:bg-primary-50/60 group"
           >
-            <p className="font-semibold text-gray-900 group-hover:text-[#5b21b6] transition-colors">All Tags (Combined)</p>
+            <p className="font-semibold text-gray-900 group-hover:text-[var(--primary-800)] transition-colors">All Tags (Combined)</p>
             <p className="text-gray-500 text-[11px] mt-0.5">Combine all {tagCount} tags without deduplication</p>
           </button>
           <button
             onClick={() => download("cross")}
-            className="w-full text-left text-xs px-4 py-3 font-label transition-colors hover:bg-purple-50/60 group"
+            className="w-full text-left text-xs px-4 py-3 font-label transition-colors hover:bg-primary-50/60 group"
           >
-            <p className="font-semibold text-gray-900 group-hover:text-[#5b21b6] transition-colors">Cross-Tag Ranked</p>
+            <p className="font-semibold text-gray-900 group-hover:text-[var(--primary-800)] transition-colors">Cross-Tag Ranked</p>
             <p className="text-gray-500 text-[11px] mt-0.5">Best segment per lead across all tags</p>
           </button>
         </div>,
@@ -1200,7 +1201,9 @@ export default function OutboundLeadsPage() {
 
     setParseLoading(true);
     try {
-      const f = await toCsvFile(picked);
+      const lowerName = picked.name.toLowerCase();
+      const isScan = lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".png") || lowerName.endsWith(".pdf");
+      const f = isScan ? await convertScanToCsv(picked) : await toCsvFile(picked);
       setCsvFile(f);
       const auth = await getAuthHeaders();
       const fd = new FormData();
@@ -1231,10 +1234,10 @@ export default function OutboundLeadsPage() {
     const dropped = e.dataTransfer.files?.[0];
     if (!dropped) return;
     const lowerName = dropped.name.toLowerCase();
-    if (lowerName.endsWith(".csv") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
+    if (lowerName.endsWith(".csv") || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".png") || lowerName.endsWith(".pdf")) {
       await processFile(dropped);
     } else {
-      setParseError("Invalid file format. Please upload a .csv, .xlsx, or .xls file.");
+      setParseError("Invalid file format. Please upload a .csv, .xlsx, .xls, .jpg, .png, or .pdf file.");
     }
   }
 
@@ -1444,7 +1447,7 @@ export default function OutboundLeadsPage() {
               {/* Left Column: Upload Controls (7 cols) */}
                 <div className="lg:col-span-7 space-y-6">
                   <div>
-                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV or Excel</h2>
+                    <h2 className="font-display text-2xl font-bold text-on-surface mb-1">Upload your CSV, Excel, or scanned notebook</h2>
                     <p className="font-body text-sm text-on-surface-muted">We&apos;ll detect column mappings automatically.</p>
                   </div>
 
@@ -1460,22 +1463,22 @@ export default function OutboundLeadsPage() {
                     </div>
                     <div className="text-center px-4">
                       <p className="font-display text-lg font-bold text-on-surface truncate max-w-md mx-auto">
-                        {csvFile ? csvFile.name : "Drop your CSV or Excel file here"}
+                        {csvFile ? csvFile.name : "Drop your CSV, Excel, or scanned notebook photo here"}
                       </p>
                       <p className="font-body text-xs text-on-surface-muted mt-1.5">
                         {csvFile
                           ? `${(csvFile.size / 1024).toFixed(1)} KB · click to change file`
-                          : "or click to browse — .csv, .xlsx, .xls · name and phone columns required"}
+                          : "or click to browse — .csv, .xlsx, .xls, .jpg, .png, .pdf · name and phone columns required"}
                       </p>
                     </div>
                     {!csvFile && (
                       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[10px] text-on-surface-muted font-label border-t border-dashed border-primary/20 w-full justify-center pt-4 mt-1">
                         <span>✓ Auto-detects columns</span>
                         <span>✓ Deduplicates leads</span>
-                        <span>✓ Indian numbers formatted</span>
+                        <span>✓ OCRs handwritten scans</span>
                       </div>
                     )}
-                    <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileSelect} />
+                    <input ref={fileInputRef} type="file" accept=".csv,.xlsx,.xls,.jpg,.jpeg,.png,.pdf" className="hidden" onChange={handleFileSelect} />
                   </label>
 
                   {parseLoading && (
@@ -1813,7 +1816,7 @@ export default function OutboundLeadsPage() {
                   )}
                   {!tagsLoading && tags.length === 0 && (
                     <p className="font-label text-xs text-on-surface-muted mt-2">
-                      No tags yet. <button onClick={() => setActiveTab("tags")} className="underline text-violet-600">Create one →</button>
+                      No tags yet. <button onClick={() => setActiveTab("tags")} className="underline text-primary-600">Create one →</button>
                     </p>
                   )}
                 </div>
@@ -2008,7 +2011,7 @@ export default function OutboundLeadsPage() {
                 {/* WhatsApp Live Preview */}
                 <div className="border-t border-surface-mid/40 pt-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                    <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600">
                       <Smartphone size={16} />
                     </div>
                     <h3 className="font-display font-bold text-on-surface text-base">Live Preview</h3>
@@ -2302,7 +2305,7 @@ export default function OutboundLeadsPage() {
               {/* Right Column: Template preview (5 cols) */}
               <div className="lg:col-span-5 lg:border-l lg:border-surface-mid lg:pl-8 space-y-6">
                 <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
+                  <div className="w-8 h-8 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600">
                     <Smartphone size={16} />
                   </div>
                   <h3 className="font-display font-bold text-on-surface text-base">Live Preview</h3>
@@ -2502,20 +2505,20 @@ export default function OutboundLeadsPage() {
       {/* Broadcast History */}
       {/* Tags Tab */}
       {activeTab === "tags" && (
-        <div className="overflow-hidden rounded-2xl border border-purple-100/70 bg-white shadow-lg">
+        <div className="overflow-hidden rounded-2xl border border-primary-100/70 bg-white shadow-lg">
           {/* Header Card Bar */}
-          <div className="border-b border-purple-100/70 bg-gradient-to-r from-purple-50/80 via-violet-50/30 to-white px-4 py-5 md:px-8">
+          <div className="border-b border-primary-100/70 bg-gradient-to-r from-primary-50/80 via-primary-50/30 to-white px-4 py-5 md:px-8">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               {/* Title with Icon Badge */}
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 border border-purple-200/60 shadow-xs">
-                  <Tag size={20} className="text-[#5b21b6]" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-100 to-primary-100 border border-primary-200/60 shadow-xs">
+                  <Tag size={20} className="text-[var(--primary-800)]" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
                     <h2 className="font-display text-xl font-bold text-gray-900">Broadcast Tags</h2>
                     {tagsList.length > 0 && (
-                      <span className="rounded-full bg-purple-100/80 border border-purple-200/60 px-2.5 py-0.5 font-label text-[11px] font-bold text-[#5b21b6]">
+                      <span className="rounded-full bg-primary-100/80 border border-primary-200/60 px-2.5 py-0.5 font-label text-[11px] font-bold text-[var(--primary-800)]">
                         {tagsList.length} {tagsList.length === 1 ? "tag" : "tags"}
                       </span>
                     )}
@@ -2536,7 +2539,7 @@ export default function OutboundLeadsPage() {
                     placeholder="Search tags…"
                     value={tagsSearch}
                     onChange={(e) => setTagsSearch(e.target.value)}
-                    className="h-8 w-32 sm:w-40 pl-7 pr-6 text-xs bg-white/90 border border-purple-100/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all placeholder:text-gray-400 text-gray-800 shadow-xs"
+                    className="h-8 w-32 sm:w-40 pl-7 pr-6 text-xs bg-white/90 border border-primary-100/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-600)]/20 focus:border-[var(--primary-600)] transition-all placeholder:text-gray-400 text-gray-800 shadow-xs"
                   />
                   {tagsSearch && (
                     <button
@@ -2556,10 +2559,10 @@ export default function OutboundLeadsPage() {
                 <button
                   onClick={loadTags}
                   disabled={tagsListLoading}
-                  className="flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-white border border-purple-100/80 text-gray-700 hover:border-purple-200 hover:bg-purple-50/40 font-label text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                  className="flex h-8 items-center gap-1.5 px-2.5 rounded-lg bg-white border border-primary-100/80 text-gray-700 hover:border-primary-200 hover:bg-primary-50/40 font-label text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
                   title="Refresh tags"
                 >
-                  <RefreshCw size={12} className={cn("text-[#5b21b6] transition-transform", tagsListLoading && "animate-spin")} />
+                  <RefreshCw size={12} className={cn("text-[var(--primary-800)] transition-transform", tagsListLoading && "animate-spin")} />
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
 
@@ -2569,8 +2572,8 @@ export default function OutboundLeadsPage() {
                   className={cn(
                     "flex h-8 items-center gap-1.5 px-3 rounded-lg font-label text-xs font-bold transition-all",
                     showCreateTag
-                      ? "bg-purple-100 border border-purple-200 text-[#5b21b6] hover:bg-purple-200/70"
-                      : "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95"
+                      ? "bg-primary-100 border border-primary-200 text-[var(--primary-800)] hover:bg-primary-200/70"
+                      : "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] text-white shadow-[0_2px_8px_rgba(var(--primary-800-rgb),0.25)] hover:opacity-95"
                   )}
                 >
                   {showCreateTag ? (
@@ -2588,11 +2591,11 @@ export default function OutboundLeadsPage() {
 
           {/* Create Tag Panel */}
           {showCreateTag && (
-            <div className="border-b border-purple-100/80 bg-gradient-to-br from-purple-50/50 via-white to-violet-50/30 p-4 md:px-8 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="border-b border-primary-100/80 bg-gradient-to-br from-primary-50/50 via-white to-primary-50/30 p-4 md:px-8 animate-in fade-in slide-in-from-top-2 duration-200">
               <div className="max-w-3xl">
                 <div className="flex items-center gap-2 mb-2.5">
-                  <div className="w-1.5 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed]" />
-                  <p className="font-label text-[11px] font-bold uppercase tracking-wider text-[#5b21b6]">Create New Tag</p>
+                  <div className="w-1.5 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)]" />
+                  <p className="font-label text-[11px] font-bold uppercase tracking-wider text-[var(--primary-800)]">Create New Tag</p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2.5 items-end">
                   <div className="flex-1 w-full">
@@ -2604,12 +2607,12 @@ export default function OutboundLeadsPage() {
                       onKeyDown={(e) => e.key === "Enter" && canManageOutbound && handleCreateTag()}
                       placeholder="e.g. VIP Customers, Flash Sale, Diapers"
                       autoFocus
-                      className="w-full h-8 px-3 rounded-lg border border-purple-100/90 bg-white font-body text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] shadow-xs transition-all"
+                      className="w-full h-8 px-3 rounded-lg border border-primary-100/90 bg-white font-body text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary-600)]/20 focus:border-[var(--primary-600)] shadow-xs transition-all"
                     />
                   </div>
                   <div className="w-full sm:w-auto">
                     <label className="font-label text-[11px] font-medium text-gray-600 mb-1 block">Color Palette</label>
-                    <div className="flex items-center gap-1.5 h-8 px-2 bg-white border border-purple-100/90 rounded-lg shadow-xs">
+                    <div className="flex items-center gap-1.5 h-8 px-2 bg-white border border-primary-100/90 rounded-lg shadow-xs">
                       {PRESET_COLORS.map((c) => (
                         <button
                           key={c}
@@ -2617,19 +2620,19 @@ export default function OutboundLeadsPage() {
                           onClick={() => { setCustomTagColor(""); setNewTagColor(c); }}
                           className={cn(
                             "w-[18px] h-[18px] rounded-full transition-transform border border-black/10 shrink-0",
-                            newTagColor === c && !customTagColor ? "ring-2 ring-offset-1 ring-[#7c3aed] scale-110" : "hover:scale-110"
+                            newTagColor === c && !customTagColor ? "ring-2 ring-offset-1 ring-[var(--primary-600)] scale-110" : "hover:scale-110"
                           )}
                           style={{ backgroundColor: c }}
                           title={c}
                         />
                       ))}
-                      <div className="w-px h-3.5 bg-purple-100 mx-0.5 shrink-0" />
+                      <div className="w-px h-3.5 bg-primary-100 mx-0.5 shrink-0" />
                       {/* Circular multicolor custom color option */}
                       <div className="relative shrink-0 flex items-center justify-center">
                         <div
                           className={cn(
                             "w-[18px] h-[18px] rounded-full transition-transform border border-black/10 cursor-pointer overflow-hidden shadow-2xs hover:scale-110 relative flex items-center justify-center",
-                            customTagColor ? "ring-2 ring-offset-1 ring-[#7c3aed] scale-110" : ""
+                            customTagColor ? "ring-2 ring-offset-1 ring-[var(--primary-600)] scale-110" : ""
                           )}
                           style={{
                             background: customTagColor
@@ -2653,7 +2656,7 @@ export default function OutboundLeadsPage() {
                     <button
                       type="button"
                       onClick={() => setShowCreateTag(false)}
-                      className="h-8 px-2.5 rounded-lg border border-purple-100 text-gray-600 hover:bg-purple-50/50 font-label text-xs font-semibold transition-colors"
+                      className="h-8 px-2.5 rounded-lg border border-primary-100 text-gray-600 hover:bg-primary-50/50 font-label text-xs font-semibold transition-colors"
                     >
                       Cancel
                     </button>
@@ -2662,7 +2665,7 @@ export default function OutboundLeadsPage() {
                       onClick={handleCreateTag}
                       disabled={creatingTag || !newTagName.trim() || !canManageOutbound}
                       title={canManageOutbound ? "Create tag" : "Read-only role: saving is disabled"}
-                      className="h-8 px-3 rounded-lg bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95 disabled:opacity-40 flex items-center gap-1.5 transition-all shrink-0"
+                      className="h-8 px-3 rounded-lg bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(var(--primary-800-rgb),0.25)] hover:opacity-95 disabled:opacity-40 flex items-center gap-1.5 transition-all shrink-0"
                     >
                       {creatingTag && <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                       <span>Create Tag</span>
@@ -2676,7 +2679,7 @@ export default function OutboundLeadsPage() {
           {/* Body Section */}
           {tagsListLoading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <div className="w-7 h-7 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+              <div className="w-7 h-7 border-2 border-[var(--primary-600)] border-t-transparent rounded-full animate-spin" />
               <p className="font-label text-xs font-medium text-gray-500">Loading tags...</p>
             </div>
           ) : filteredTagsList.length === 0 ? (
@@ -2684,7 +2687,7 @@ export default function OutboundLeadsPage() {
             <div className="px-6 py-16 text-center">
               {tagsSearch ? (
                 <div className="max-w-md mx-auto">
-                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 border border-purple-100 text-[#5b21b6]">
+                  <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 border border-primary-100 text-[var(--primary-800)]">
                     <Search size={20} />
                   </div>
                   <h3 className="font-display text-base font-bold text-gray-900">No tags found</h3>
@@ -2694,7 +2697,7 @@ export default function OutboundLeadsPage() {
                   <button
                     type="button"
                     onClick={() => setTagsSearch("")}
-                    className="mt-4 px-3.5 py-1.5 rounded-xl border border-purple-200 bg-white font-label text-xs font-semibold text-[#5b21b6] hover:bg-purple-50 transition-colors shadow-xs"
+                    className="mt-4 px-3.5 py-1.5 rounded-xl border border-primary-200 bg-white font-label text-xs font-semibold text-[var(--primary-800)] hover:bg-primary-50 transition-colors shadow-xs"
                   >
                     Clear Search
                   </button>
@@ -2702,9 +2705,9 @@ export default function OutboundLeadsPage() {
               ) : (
                 <div className="max-w-lg mx-auto">
                   {/* Glowing Icon Container */}
-                  <div className="relative mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 via-purple-100 to-violet-50 border border-purple-200/70 shadow-[0_4px_20px_rgba(124,58,237,0.12)]">
-                    <Tag size={28} className="text-[#5b21b6]" />
-                    <Sparkles size={14} className="absolute -top-1 -right-1 text-[#7c3aed]" />
+                  <div className="relative mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-100 via-primary-100 to-primary-50 border border-primary-200/70 shadow-[0_4px_20px_rgba(var(--primary-600-rgb),0.12)]">
+                    <Tag size={28} className="text-[var(--primary-800)]" />
+                    <Sparkles size={14} className="absolute -top-1 -right-1 text-[var(--primary-600)]" />
                   </div>
 
                   <h3 className="font-display text-lg font-bold text-gray-900">
@@ -2719,7 +2722,7 @@ export default function OutboundLeadsPage() {
                     <button
                       type="button"
                       onClick={() => setShowCreateTag(true)}
-                      className="flex h-8 items-center gap-1.5 px-3.5 rounded-lg bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(91,33,182,0.25)] hover:opacity-95 transition-all hover:scale-[1.02]"
+                      className="flex h-8 items-center gap-1.5 px-3.5 rounded-lg bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] text-white font-label text-xs font-bold shadow-[0_2px_8px_rgba(var(--primary-800-rgb),0.25)] hover:opacity-95 transition-all hover:scale-[1.02]"
                     >
                       <Plus size={14} />
                       <span>Create Your First Tag</span>
@@ -2727,13 +2730,13 @@ export default function OutboundLeadsPage() {
                   </div>
 
                   {/* Quick Starter Suggestions */}
-                  <div className="mt-8 pt-6 border-t border-purple-50">
+                  <div className="mt-8 pt-6 border-t border-primary-50">
                     <p className="font-label text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2.5">
                       Suggested starter tags
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       {[
-                        { name: "VIP Customers", color: "#8B5CF6" },
+                        { name: "VIP Customers", color: "var(--primary-500)" },
                         { name: "Product Launch", color: "#3B82F6" },
                         { name: "Flash Sale", color: "#F97316" },
                         { name: "Re-engagement", color: "#22C55E" },
@@ -2747,11 +2750,11 @@ export default function OutboundLeadsPage() {
                             setCustomTagColor("");
                             setShowCreateTag(true);
                           }}
-                          className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50/70 border border-purple-100 hover:border-purple-200 hover:bg-purple-100/60 transition-all font-label text-xs font-medium text-gray-700 shadow-2xs"
+                          className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary-50/70 border border-primary-100 hover:border-primary-200 hover:bg-primary-100/60 transition-all font-label text-xs font-medium text-gray-700 shadow-2xs"
                         >
                           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
                           <span>{item.name}</span>
-                          <span className="text-gray-400 group-hover:text-[#5b21b6] text-[10px]">＋</span>
+                          <span className="text-gray-400 group-hover:text-[var(--primary-800)] text-[10px]">＋</span>
                         </button>
                       ))}
                     </div>
@@ -2808,7 +2811,7 @@ export default function OutboundLeadsPage() {
               <div className="overflow-x-auto">
                 <table className="hidden w-full md:table">
                   <thead>
-                    <tr className="border-b border-purple-100/70 bg-purple-50/40">
+                    <tr className="border-b border-primary-100/70 bg-primary-50/40">
                       {["Tag", "Sent", "Hot", "Warm", "Cold"].map((h) => (
                         <th key={h} className={cn("font-label text-xs font-semibold text-gray-600 py-3", h === "Tag" ? "px-6" : "px-3 text-center")}>{h}</th>
                       ))}
@@ -2818,7 +2821,7 @@ export default function OutboundLeadsPage() {
                       <th className="font-label text-xs font-semibold text-gray-600 text-right px-6 py-3">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-purple-100/40">
+                  <tbody className="divide-y divide-primary-100/40">
                     {filteredTagsList.map((tag) => {
                       const s = tagStats[tag.id];
                       const style = getTagStyle(tag.color);
@@ -2895,7 +2898,7 @@ export default function OutboundLeadsPage() {
                   </div>
                   <span className={cn(
                     "px-2.5 py-1 rounded-full font-label text-[11px] font-semibold border",
-                    lead.scope === "global" ? "bg-red-50 text-red-700 border-red-100" : "bg-violet-50 text-violet-700 border-violet-100"
+                    lead.scope === "global" ? "bg-red-50 text-red-700 border-red-100" : "bg-primary-50 text-primary-700 border-primary-100"
                   )}>
                     {lead.scope === "global" ? "All broadcasts" : lead.tag_name || "Tag"}
                   </span>
@@ -2983,7 +2986,7 @@ export default function OutboundLeadsPage() {
                     </span>
                     <span className="font-display text-sm font-semibold text-gray-900">{item.template_name}</span>
                     {item.tag_name && (
-                      <span className="px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 font-label text-[11px] font-semibold border border-violet-100">
+                      <span className="px-2.5 py-1 rounded-full bg-primary-50 text-primary-700 font-label text-[11px] font-semibold border border-primary-100">
                         {item.tag_name}
                       </span>
                     )}
@@ -3019,17 +3022,17 @@ export default function OutboundLeadsPage() {
 
       {activeTab === "history" && (
       <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg">
-        <div className="border-b border-purple-100/70 bg-gradient-to-r from-purple-50/80 via-violet-50/30 to-white px-4 py-5 md:px-8">
+        <div className="border-b border-primary-100/70 bg-gradient-to-r from-primary-50/80 via-primary-50/30 to-white px-4 py-5 md:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3 md:gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 border border-purple-200/60 shadow-xs md:h-12 md:w-12">
-                <Clock size={22} className="text-[#5b21b6]" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-100 to-primary-100 border border-primary-200/60 shadow-xs md:h-12 md:w-12">
+                <Clock size={22} className="text-[var(--primary-800)]" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="font-display text-xl font-bold text-gray-900">Broadcast History</h2>
                   {historyRefreshing && (
-                    <span className="inline-flex items-center gap-1 font-label text-[11px] font-semibold text-[#5b21b6]">
+                    <span className="inline-flex items-center gap-1 font-label text-[11px] font-semibold text-[var(--primary-800)]">
                       <RefreshCw size={11} className="animate-spin" /> Updating…
                     </span>
                   )}
@@ -3046,12 +3049,12 @@ export default function OutboundLeadsPage() {
                     placeholder="Search…"
                     value={historySearch}
                     onChange={(e) => setHistorySearch(e.target.value)}
-                    className="w-full min-w-0 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:border-[#7c3aed] transition-all sm:min-w-40"
+                    className="w-full min-w-0 pl-8 pr-3 py-1.5 font-body text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--primary-600)]/20 focus:border-[var(--primary-600)] transition-all sm:min-w-40"
                   />
                 </div>
                 <button
                   onClick={downloadHistoryCsv}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white rounded-lg font-label text-xs font-semibold hover:opacity-95 transition-all shadow-[0_2px_8px_rgba(91,33,182,0.25)]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] text-white rounded-lg font-label text-xs font-semibold hover:opacity-95 transition-all shadow-[0_2px_8px_rgba(var(--primary-800-rgb),0.25)]"
                 >
                   <Download size={12} />
                   Broadcast History
@@ -3064,7 +3067,7 @@ export default function OutboundLeadsPage() {
                       className={cn(
                         "px-2.5 py-1.5 font-label text-xs font-semibold transition-all",
                         historyStatusFilter === f
-                          ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white font-bold shadow-xs"
+                          ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] text-white font-bold shadow-xs"
                           : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                       )}
                     >
@@ -3086,7 +3089,7 @@ export default function OutboundLeadsPage() {
 
         {historyLoading ? (
           <div className="py-12 flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[var(--primary-600)] border-t-transparent rounded-full animate-spin" />
           </div>
         ) : broadcastHistory.length === 0 ? (
           <div className="py-16 flex flex-col items-center justify-center gap-3">
@@ -3134,7 +3137,7 @@ export default function OutboundLeadsPage() {
                     {item.template_name}
                   </span>
                   {item.tag_name && (
-                    <span className="px-2.5 py-1 rounded-full bg-violet-50 text-violet-700 font-label text-[11px] font-semibold border border-violet-100 shrink-0 whitespace-nowrap">
+                    <span className="px-2.5 py-1 rounded-full bg-primary-50 text-primary-700 font-label text-[11px] font-semibold border border-primary-100 shrink-0 whitespace-nowrap">
                       {item.tag_name}
                     </span>
                   )}

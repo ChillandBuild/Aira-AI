@@ -2,7 +2,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -545,6 +545,132 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         assert "_llm_chat_with_tools" in source
         assert "catalog_images_to_send" in source
         assert "catalog_max_images" in source
+
+    def test_generate_reply_blocks_out_of_stock_recommendations(self):
+        """Static check for the defense-in-depth branch: the prompt alone
+        telling the model not to recommend an out-of-stock item isn't
+        enough (a model can ignore instructions), so generate_reply's
+        tool-call handler must itself refuse before sending images or
+        recording a quote. No existing test drives the tool-call loop
+        end-to-end (verified: nothing in this file or test_ai_reply_llm_wiring.py
+        does), so this is the same static-inspection technique as the test
+        above, not a substitute for one."""
+        import inspect
+        from app.services import ai_reply
+
+        source = inspect.getsource(ai_reply.generate_reply)
+        assert 'item.get("stock_quantity") == 0' in source
+
+
+class CatalogStockContextTests(unittest.IsolatedAsyncioTestCase):
+    """Tests for stock_quantity flowing into _build_catalog_context's prompt
+    text, on the fallback (non-embedded) path -- the vector-search path is
+    covered by test_confident_single_match_offers_the_tool_for_that_item_only
+    and friends, which don't need a stock-specific variant since the marking
+    logic runs on the same items_by_id regardless of which path populated it."""
+
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_zero_stock_item_is_marked_out_of_stock_in_the_prompt(self, mock_match):
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+
+        def table(name):
+            tbl = MagicMock()
+            if name == "app_settings":
+                tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+            elif name == "catalog_items":
+                tbl.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
+                tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+                    {"id": "item-1", "name": "DSLR Bag", "item_type": "product", "description": "Padded bag",
+                     "stock_quantity": 0},
+                ]
+            return tbl
+
+        db.table.side_effect = table
+        # Explicit, not relied-on-by-default: an unconfigured AsyncMock's
+        # awaited return value is a truthy MagicMock, which would wrongly
+        # send this into the disambiguation branch instead of the plain
+        # fallback listing this test is actually about.
+        mock_match.return_value = []
+
+        text, _, _, _ = await _build_catalog_context(db, "tenant-1", "dslr bag")
+
+        self.assertIn("— OUT OF STOCK:", text)
+        self.assertIn("do NOT call recommend_catalog_item for this item", text)
+
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_untracked_stock_is_not_marked_out_of_stock(self, mock_match):
+        """stock_quantity is NULL for anything not tracked (services,
+        courses, or a product the owner never set a count for) -- must never
+        be treated as zero."""
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+
+        def table(name):
+            tbl = MagicMock()
+            if name == "app_settings":
+                tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+            elif name == "catalog_items":
+                tbl.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
+                tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+                    {"id": "item-1", "name": "Physio Session", "item_type": "service", "description": None,
+                     "stock_quantity": None},
+                ]
+            return tbl
+
+        db.table.side_effect = table
+        mock_match.return_value = []
+
+        text, _, _, _ = await _build_catalog_context(db, "tenant-1", "physio session")
+
+        self.assertNotIn("— OUT OF STOCK:", text)
+
+    @patch("app.services.ai_reply.match_catalog_items")
+    async def test_positive_stock_is_not_marked_out_of_stock(self, mock_match):
+        from app.services.ai_reply import _build_catalog_context
+        db = MagicMock()
+
+        def table(name):
+            tbl = MagicMock()
+            if name == "app_settings":
+                tbl.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+            elif name == "catalog_items":
+                tbl.select.return_value.eq.return_value.eq.return_value.is_.return_value.execute.return_value.count = 0
+                tbl.select.return_value.eq.return_value.eq.return_value.order.return_value.execute.return_value.data = [
+                    {"id": "item-1", "name": "DSLR Bag", "item_type": "product", "description": None,
+                     "stock_quantity": 12},
+                ]
+            return tbl
+
+        db.table.side_effect = table
+        mock_match.return_value = []
+
+        text, _, _, _ = await _build_catalog_context(db, "tenant-1", "dslr bag")
+
+        self.assertNotIn("— OUT OF STOCK:", text)
+
+
+class CatalogPriceAndStockValidationTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_id] = lambda: "tenant-1"
+        app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": "tenant-1", "role": "owner"}
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    @patch("app.routes.catalog.embed_and_store_catalog_item", new_callable=AsyncMock)
+    @patch("app.routes.catalog.get_supabase")
+    def test_create_item_rejects_negative_stock_quantity(self, mock_get_db, mock_embed):
+        res = self.client.post("/api/v1/catalog/items", json={"name": "Bag", "stock_quantity": -1})
+        self.assertEqual(res.status_code, 400)
+        mock_get_db.return_value.table.return_value.insert.assert_not_called()
+
+    @patch("app.routes.catalog.get_supabase")
+    def test_update_item_rejects_negative_stock_quantity(self, mock_get_db):
+        res = self.client.patch("/api/v1/catalog/items/11111111-1111-1111-1111-111111111111", json={"stock_quantity": -5})
+        self.assertEqual(res.status_code, 400)
 
 
 class CatalogImageCapEnforcementTests(unittest.TestCase):

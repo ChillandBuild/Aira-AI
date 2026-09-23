@@ -27,7 +27,7 @@ export function ComparisonPicker({
         <select
           value={value.mode}
           onChange={(e) => selectMode(e.target.value as ComparisonSelection["mode"])}
-          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+          className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
         >
           {([
             ["off", "Off"],
@@ -51,7 +51,7 @@ export function ComparisonPicker({
             value={value.start}
             max={value.end || undefined}
             onChange={(e) => onChange({ mode: "custom", start: e.target.value, end: value.end })}
-            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-200"
           />
           <span className="font-label text-xs text-on-surface-muted">→</span>
           <input
@@ -61,7 +61,7 @@ export function ComparisonPicker({
             value={value.end}
             min={value.start || undefined}
             onChange={(e) => onChange({ mode: "custom", start: value.start, end: e.target.value })}
-            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-200"
+            className="h-9 w-[122px] shrink-0 rounded-xl border border-surface-mid bg-white px-2.5 font-body text-xs font-semibold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-200"
           />
         </>
       )}

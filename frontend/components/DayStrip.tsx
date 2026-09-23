@@ -94,8 +94,8 @@ export function DayStrip({ data }: { data: DailyMessageStat[] }) {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center">
-              <Sparkles size={16} className="text-purple-600" />
+            <div className="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center">
+              <Sparkles size={16} className="text-primary-600" />
             </div>
             <div>
               <div className="font-body font-semibold text-[13px] text-ink">AI handled</div>

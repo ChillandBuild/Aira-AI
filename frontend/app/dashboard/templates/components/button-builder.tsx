@@ -110,7 +110,7 @@ function TypeBadge({ type }: { type: string }) {
     URL: "bg-blue-50 text-blue-700",
     PHONE_NUMBER: "bg-orange-50 text-orange-700",
     WHATSAPP_CALL: "bg-teal-50 text-teal-700",
-    COPY_CODE: "bg-purple-50 text-purple-700",
+    COPY_CODE: "bg-primary-50 text-primary-700",
     ONE_TAP: "bg-pink-50 text-pink-700",
   };
   return (
@@ -219,9 +219,9 @@ export default function ButtonBuilder({
 
       {/* Mixed-type warning */}
       {mixed && (
-        <div className="mb-3 flex items-start gap-2 p-3 rounded-xl bg-violet-50 border border-violet-200">
-          <AlertTriangle size={15} className="text-violet-600 shrink-0 mt-0.5" />
-          <p className="font-body text-xs text-violet-800 leading-relaxed">
+        <div className="mb-3 flex items-start gap-2 p-3 rounded-xl bg-primary-50 border border-primary-200">
+          <AlertTriangle size={15} className="text-primary-600 shrink-0 mt-0.5" />
+          <p className="font-body text-xs text-primary-800 leading-relaxed">
             Mixing Quick Reply and Call-to-Action buttons is fully supported by Meta, but note that users on older WhatsApp Desktop clients may be prompted to view this message on their phone.
           </p>
         </div>

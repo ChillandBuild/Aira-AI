@@ -54,7 +54,7 @@ export function SwitchPill({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
         s.track,
         on
-          ? "border-[#2e1065] bg-gradient-to-br from-[#2e1065] to-violet-500 shadow-[inset_0_1px_3px_rgba(46,16,101,0.4)]"
+          ? "border-[var(--primary-950)] bg-gradient-to-br from-[var(--primary-950)] to-primary-500 shadow-[inset_0_1px_3px_rgba(var(--primary-950-rgb),0.4)]"
           : "border-border bg-[#e4ded2] shadow-[inset_0_1px_3px_rgba(28,25,23,0.09)]",
         inert ? "cursor-not-allowed opacity-45" : "cursor-pointer"
       )}
@@ -75,7 +75,7 @@ export function SwitchPill({
             height={s.icon}
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#5b21b6"
+            stroke="var(--primary-800)"
             strokeWidth={3.5}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -138,7 +138,7 @@ export function TickMark({
         "grid shrink-0 place-items-center rounded-full border-2 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         s.box,
         filled
-          ? "border-primary bg-gradient-to-br from-[#2e1065] to-primary shadow-[0_0_0_3px_rgba(91,33,182,0.13)]"
+          ? "border-primary bg-gradient-to-br from-[var(--primary-950)] to-primary shadow-[0_0_0_3px_rgba(var(--primary-800-rgb),0.13)]"
           : "border-[#c9c2b6] bg-transparent",
         disabled && "opacity-45",
         className

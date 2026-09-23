@@ -168,7 +168,7 @@ export function AuditLogsView({ tenantId, clientName }: { tenantId: string; clie
                   </td>
                   <td className="px-5 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                      log.actor_role === "system_admin" ? "bg-purple-50 text-purple-700"
+                      log.actor_role === "system_admin" ? "bg-primary-50 text-primary-700"
                         : log.actor_role === "owner" ? "bg-primary-light text-primary"
                         : "bg-surface-mid text-ink-muted"
                     }`}>

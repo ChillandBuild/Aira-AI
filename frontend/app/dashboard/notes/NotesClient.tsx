@@ -371,7 +371,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                 {/* Lead header */}
                 <div className="bg-gradient-to-r from-primary-light via-white to-white rounded-2xl border border-[#e8e3db] p-5 shadow-sm flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-purple-500 text-white flex items-center justify-center font-display text-base font-bold shrink-0 shadow-sm">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-primary-500 text-white flex items-center justify-center font-display text-base font-bold shrink-0 shadow-sm">
                       {selected.name ? selected.name.charAt(0).toUpperCase() : <User size={18} />}
                     </div>
                     <div className="min-w-0">
@@ -481,12 +481,12 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                     <div className="bg-[#faf8f5] rounded-2xl border border-[#e8e3db] p-4">
                       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                         <h3 className="font-display text-sm font-extrabold text-[#1c1917] flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-lg bg-purple-50 flex items-center justify-center">
-                            <Sparkles size={13} className="text-purple-500" />
+                          <span className="w-6 h-6 rounded-lg bg-primary-50 flex items-center justify-center">
+                            <Sparkles size={13} className="text-primary-500" />
                           </span>
                           Summary
                           {aiLogs.length > 0 && (
-                            <span className="px-1.5 py-0.5 rounded-full bg-purple-50 font-label text-[10px] text-purple-600">
+                            <span className="px-1.5 py-0.5 rounded-full bg-primary-50 font-label text-[10px] text-primary-600">
                               {aiLogs.length}
                             </span>
                           )}

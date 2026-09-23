@@ -16,7 +16,7 @@ export default function GeneralSettingsPage() {
         </h1>
 
         <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2e1065] to-primary text-sm font-bold text-white shadow-md shadow-primary/20">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--primary-950)] to-primary text-sm font-bold text-white shadow-md shadow-primary/20">
             {initials}
           </span>
           <div className="min-w-0">

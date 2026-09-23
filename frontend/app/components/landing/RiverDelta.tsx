@@ -39,17 +39,17 @@ export default function RiverDelta() {
         <svg viewBox="0 0 1200 240" preserveAspectRatio="none" className="delta-river-svg" fill="none">
           <defs>
             <linearGradient id="delta-current" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#4c1d95" stopOpacity="0.25" />
-              <stop offset="50%" stopColor="#7c3aed" stopOpacity="0.55" />
-              <stop offset="100%" stopColor="#5b21b6" stopOpacity="0.25" />
+              <stop offset="0%" stopColor="var(--primary-900)" stopOpacity="0.25" />
+              <stop offset="50%" stopColor="var(--primary-600)" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="var(--primary-800)" stopOpacity="0.25" />
             </linearGradient>
             <path id="delta-path" d={RIVER_PATH} />
           </defs>
           <path d={RIVER_PATH} className="delta-bed" stroke="url(#delta-current)" />
-          <path d={RIVER_PATH} className="delta-flow" stroke="#a78bfa" />
+          <path d={RIVER_PATH} className="delta-flow" stroke="var(--primary-400)" />
           {!reducedMotion &&
             [0, 1, 2, 3, 4].map((i) => (
-              <circle key={i} r={3} className="delta-particle" fill="#7c3aed">
+              <circle key={i} r={3} className="delta-particle" fill="var(--primary-600)">
                 <animateMotion dur={`${5 + i * 1.4}s`} begin={`${i * 0.9}s`} repeatCount="indefinite">
                   <mpath href="#delta-path" />
                 </animateMotion>

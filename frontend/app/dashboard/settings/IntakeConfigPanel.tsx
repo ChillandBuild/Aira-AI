@@ -193,7 +193,7 @@ export function IntakeConfigPanel({ canManage = true }: { canManage?: boolean })
             <button
               type="button"
               onClick={addField}
-              className="inline-flex items-center gap-1 text-xs font-label font-semibold text-violet-600 hover:text-violet-700"
+              className="inline-flex items-center gap-1 text-xs font-label font-semibold text-primary-600 hover:text-primary-700"
             >
               <Plus size={14} /> Add field
             </button>

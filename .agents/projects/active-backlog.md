@@ -12,6 +12,8 @@
 
 ## Active Backlog
 
+- **Catalog-priced deals on the intake Pipeline board — parked, not built (2026-09-22)** — Phase 1 shipped: `/dashboard/intake` now has a "Pipeline" view (`PipelineBoard.tsx`, backend `GET /api/v1/intake/board` in `intake.py`) grouping intake sessions into Awaiting Payment / Paid / Resolved / Cancelled columns with a rupee total per column, read straight off `intake_sessions` — zero new tables. This came out of a DealConverter competitive teardown: the fix for "Aira has no pipeline/deal value" was to have the board fill itself from existing intake/payment data rather than add a rep-maintained kanban. Deliberately out of scope, by user decision: (1) **manual deal entry** (a phone sale with no WhatsApp trail) — dropped because this phase is WhatsApp-only; (2) **catalog-sourced deals** — a customer asking the AI the price of a catalog item mid-chat (not through the structured intake/package flow) currently creates no record at all, because `catalog_items` has no price column and there is no `deals` table to hold a card that isn't an intake session. This piece is still WhatsApp-native (fits the "AI does it, not a human" rule) but was parked to keep this pass scoped to intake only. If revisited: add `price_paise` to `catalog_items`, add a small `deals` table, and have the AI write a "Quoted" card when it states a real catalog price. **Do not also build automatic "Won" tracking for these** — `create_payment_link()` (`backend/app/services/payment_razorpay.py`) has exactly one caller today (the intake flow), so catalog items have no payment-collection plumbing at all; wiring that up is a separate feature, not a small extension.
+
 - **No migration creates `broadcast_recipients.meta_message_id` or `leads.whatsapp_undeliverable` (found 2026-09-17)** — both exist in prod (added by hand) and are load-bearing: every accepted broadcast send writes `meta_message_id`, the status webhook keys `fail_detail` on it, and the `template_performance` functions join on it. A database rebuilt from `backend/supabase/migrations/` alone would be missing both, and sends would fail. Fix: an idempotent `ADD COLUMN IF NOT EXISTS` migration for each — a no-op on prod, correct everywhere else.
 
 - **TeleCMI calling WORKS via a logged-in softphone; productising it is deferred (updated 2026-09-17)** — the 2026-09-16 "blocked upstream" framing was wrong: `webrtc:true` click2call always worked, it just had no softphone to ring. Proven in production 2026-09-17 (details in subsystem-notes.md). **User decision 2026-09-17: keep the standalone softphone page for now, do not build it into the Aira dashboard yet.** The page lives OUTSIDE the repo at `~/Documents/telecmi-softphone/` (`start.sh`, `index.html`, TeleCMI's `piopiy.min.js`, README) — no secrets in the files; the app secret is typed once and kept in browser localStorage, and the softphone password is fetched from `/v3/user/get`. When productising: (a) make `initiate_call` send `webrtc:true, followme:false` per tenant (currently hardcoded `followme=True`, which TeleCMI refuses with 420); (b) embed the piopiyjs softphone in the telecalling cockpit, logged in as the caller's `telecmi_agent_id`; (c) serve it over HTTPS so it also works in phone browsers. The Follow-Me support ticket to TeleCMI is now optional — only needed if telecallers must answer on their native dialer rather than a browser.
@@ -55,7 +57,7 @@
 - **Surface stale hot leads (waiting too long for a reply) somewhere real, after removing the Overview "Needs attention" panel (found 2026-08-01)**: the panel was deleted at the client's request — it just listed every result from `GET /analytics/hot-leads-stale` reading "no reply since last message" with no per-lead differentiation, not actionable. The underlying need (know which hot leads are about to go cold from neglect) is still real; a quick check of `/dashboard/conversations` found no "waiting for reply" sort/badge there either, so there's currently no surface for this at all. If rebuilt, put it where the reply action actually happens (Conversations) rather than back in Analytics. See decisions/log.md 2026-08-01.
 - **Live-verify the new `tanglish_escalate_tamil` reply mode against a real lead conversation (found 2026-08-01)**: `_resolve_tamil_lock()` and the `leads.tamil_locked` persistence (migration 163, commit `24b30d58`) are covered only by unit tests with a mocked `db` — no real tenant conversation has confirmed the lock actually sticks turn-to-turn, or that a Tanglish message with heavy Tamil vocabulary but Latin script doesn't false-trigger it. See decisions/log.md 2026-08-01.
 - **Three dead/parallel delete paths for callers/team members, confirmed unused (found 2026-07-31, re-confirmed 2026-08-08, still not removed — out of scope both times)**: `DELETE /api/v1/team/{user_id}` (`team.py`'s `remove_member`, `api.team.remove` in `api.ts` — no frontend caller), `DELETE /api/v1/callers/{caller_id}` (`callers.py:535`'s `delete_caller` — also no frontend caller, only deactivates), and the operator console's own `DELETE /operator/clients/{tenant_id}/team/{caller_id}`. Roles page's `deleteUser` → `DELETE /api/v1/rbac/users/{user_id}` (`rbac.py`) is the one active, real user-removal path — as of 2026-08-08 it hard-deletes the `callers` row and writes an audit log entry (see decisions/log.md). Verify with a repo-wide search before deleting any of the three dead ones; unifying them into the one real path is a legitimate future cleanup, just never scoped into either session that found them.
-- **Make immediate and scheduled broadcasts preserve global lead scores consistently (found 2026-07-30)**: Scheduled broadcasts deliberately create a fresh `broadcast_lead_scores` row at the configured Cold floor without updating `leads.score` or `leads.segment`. In contrast, `routes/upload.py::bulk_send` currently upserts all recipients into `leads` with the Cold-floor values, so an existing Hot lead is reset to Cold when using Send Now/import. Split existing recipients from genuinely new rows (or otherwise preserve global score/segment) so both delivery modes create a new per-broadcast score while an existing lead's global score continues unchanged.
+- ~~Make immediate and scheduled broadcasts preserve global lead scores consistently (found 2026-07-30)~~ — **closed 2026-09-22, not a bug.** A fix was written and briefly shipped (`split_upsert_rows_by_existing_lead()`), then explicitly reverted by the user: a broadcast is often a pitch for a *different* product from the same company, so resetting an existing lead's score on Send Now is deliberate, not a defect. `bulk_send` upserts every recipient's score/segment as before. See AUDIT-2026-09.md finding C5.
 
 - ~~Astro Tamil's WhatsApp Business Account is Meta-restricted (found 2026-07-25)~~ — **stale, cleared by 2026-08-18.** Error `131031` "Business Account locked" blocked every outbound send for that tenant when it was found. User confirmed on 2026-08-18 that it no longer applies. Do not cite it as a blocker on new work — it was repeated as an open caveat across several 2026-08-18 PRs after it had already been resolved.
 - **Re-verify `broadcast_lead_scores` / `lead_tag_interest` post-reply update path (found 2026-07-26, stale docs corrected but underlying mechanism not re-traced)**: subsystem-notes.md's Scoring section previously claimed `compute_score(broadcast_context=...)` writes both the per-broadcast row and rolls up to `lead_tag_interest` — verified false this session (no such parameter exists on `compute_score()` today, no writer found in `ai_reply.py`/`scoring_engine.py`). The table is still seeded at send time (`broadcast_executor.py`/`upload.py`) at the tenant's configured Cold floor, so it's not fully dead, but whatever (if anything) keeps a per-broadcast score in sync with a lead's actual replies was not found. Needs a fresh trace before anyone relies on "per-broadcast scoring" being live — it may be silently frozen at its initial Cold score/segment after send.
@@ -537,3 +539,55 @@ or earlier, so anything newer is genuine and worth acting on.
   as "no code changed" instead of erroring — do not trust it without checking the manifest exists.
 - **`make` is not on PATH** (Git Bash on Windows), so every `make <target>` in the docs has to be run as
   its underlying command; `python scripts/second_brain_close.py` works.
+
+## AI reply context — gaps found while building the persona simulator (open, 2026-09-22)
+Measured against Astro Tamil (`eba3ed94`) with `backend/scripts/sim/`, which runs the real
+`generate_reply` with only the outward edges stubbed. Numbers are from a live read, not an estimate.
+
+- **The assistant has no idea what day it is.** `grep -n "strftime|datetime.now|utcnow" ai_reply.py`
+  returns nothing: no date, time, day of week or timezone ever enters the prompt, and
+  `get_business_hours` reaches it only through `_escalation_prompt_block`, i.e. only for a lead
+  already flagged `needs_human_attention`. First simulated conversation produced
+  *"Inaiku date 23rd May 2024"* — a fabricated date 16 months in the past — plus
+  *"naanga eppovum active-ah dhaan irukkom"* in answer to "are you open now?". Fix is ~30 tokens
+  of tenant-local date + open/closed status in `_build_base_prompt`.
+- **The prompt does not vary with the question.** `"How much for the pooja?"`,
+  `"Do you do weddings in Chennai on 3rd?"` and `"price?"` each assembled a byte-identical
+  27,015-char prompt (~6,753 tokens): master 13,520 (50%), description 6,765 (25%),
+  knowledge base 5,692 (21%), catalog 432, language 321, lead context 74.
+- **RAG selects nothing for this tenant.** Only 5 `knowledge_chunks` exist and
+  `_MATCH_COUNT = 5`, so every query returns all five, re-ranked. The per-reply Jina embedding
+  call buys ordering and nothing else. Worth a "chunks < match_count → skip retrieval" short-circuit.
+- **Two sibling tenants have no `jina_api_key`, so retrieval throws on every reply.**
+  `Astro Tamil - Co` (`9dfe3f53`) and `Astrotamil Pooja` (`82c63194`) log
+  `KB retrieval (semantic) failed ... jina_api_key not configured for this client` per reply,
+  then fall through to `_full_text_context`. Both also have `status='indexed'` documents with
+  **zero** chunks, which would reach the same fallback anyway. Measured prompt floors today:
+  Co 4,428 ch, Pooja 15,954 ch, Astro Tamil 26,014 ch. The payload is small only because their
+  documents are small -- `_full_text_context` concatenates every document's `full_text` with no
+  total cap (`_MAX_TEXT_CHARS = 50_000` is per document), so this scales with the next upload.
+  `Astrotamil Pooja` also has no `business_description` at all.
+  Nothing surfaces either failure to the operator console.
+- **Catalog fallback is uncapped too.** `_build_catalog_context` lists every `status='ready'`
+  item with its description when retrieval misses *or* when any one item lacks an embedding.
+- **`business_description` has no enforced ceiling.** `SOFT_WORD_LIMIT = 1_200` in
+  `knowledge_sort.py` only steers auto-sort proposals; a client typing into the Knowledge page
+  hits no limit and the reply path never trims. There is also no `max_length` on
+  `PUT /ai-tune/description` (already noted under Knowledge Auto-Sort above).
+- **Phone-call context is dead weight.** `_fetch_call_context` / `_call_context_block` assemble a
+  PHONE CALL HISTORY block that is always empty, because the SIM Basic path produces no transcript.
+
+## Knowledge Auto-Sort — rules lost when two sorts are applied back to back (open, 2026-09-22)
+Astro Tamil's two documents were sorted on 2026-09-20 (`knowledge_reviews` rows at 13:14:31
+applied, 13:14:37 discarded, 13:19:34 applied). The second apply rebuilt the Description from a
+base that did not carry the first one's result: **9 of the Guidelines document's 43
+`proposed_rule_lines` are absent from the live `business_description`.**
+
+Six are independently covered by the master prompt (`kandippa`, the guarantee wording,
+"Thank you for contacting", Tanglish preference), so behaviour is mostly intact. Three are gone
+from every surface: "never sound like customer support", the free-slot / 24-hour reply line, and
+the hesitation-reassurance about astrologer privacy.
+
+Not diagnosed further. The question is whether `apply_review()` rebases onto the current
+Description or onto `base_version_id`, and what happens when a second review's base predates a
+first review that has already been applied.

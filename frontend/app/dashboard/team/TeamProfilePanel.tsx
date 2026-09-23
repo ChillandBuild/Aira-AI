@@ -35,8 +35,8 @@ const OUTCOME_COLORS: Record<string, string> = {
   callback: "#f59e0b",
   not_interested: "#f43f5e",
   no_answer: "#94a3b8",
-  do_not_call: "#7c3aed",
-  do_not_contact: "#7c3aed",
+  do_not_call: "var(--primary-600)",
+  do_not_contact: "var(--primary-600)",
   in_progress: "#6366f1",
 };
 
@@ -236,10 +236,10 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
           </div>
           <p className="font-display text-xl font-bold text-ink">{todayCallEvents.length}</p>
         </div>
-        <div className="rounded-xl bg-violet-50 dark:bg-violet-950/30 border border-violet-100 p-4">
+        <div className="rounded-xl bg-primary-50 dark:bg-primary-950/30 border border-primary-100 p-4">
           <div className="flex items-center gap-2 mb-1">
-            <Clock size={14} className="text-violet-600" />
-            <span className="text-[11px] font-label text-violet-700">Duration</span>
+            <Clock size={14} className="text-primary-600" />
+            <span className="text-[11px] font-label text-primary-700">Duration</span>
           </div>
           <p className="font-display text-xl font-bold text-ink">{formatDuration(totalDurationSeconds)}</p>
         </div>
@@ -294,7 +294,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
                     <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%`, backgroundColor: OUTCOME_COLORS[key] ?? "#a78bfa" }}
+                        style={{ width: `${pct}%`, backgroundColor: OUTCOME_COLORS[key] ?? "var(--primary-400)" }}
                       />
                     </div>
                   </div>

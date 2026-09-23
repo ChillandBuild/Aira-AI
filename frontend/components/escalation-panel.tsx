@@ -291,8 +291,8 @@ export function EscalationPanel({
         <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
           <div className="min-w-0 flex-shrink-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 border border-purple-200/60 shadow-xs">
-                <AlertTriangle size={18} className="text-[#5b21b6]" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-100 to-primary-100 border border-primary-200/60 shadow-xs">
+                <AlertTriangle size={18} className="text-[var(--primary-800)]" />
               </div>
               <div>
                 <h2 className="font-display text-xl font-bold tracking-tight text-gray-900">Escalations</h2>
@@ -306,7 +306,7 @@ export function EscalationPanel({
         </div>
 
         <div className="-mx-6 mt-5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-border/80 px-6 pb-2.5">
-          <div className="flex items-center p-1 rounded-xl bg-purple-50/60 border border-purple-100/80 gap-1" role="tablist" aria-label="Escalation views">
+          <div className="flex items-center p-1 rounded-xl bg-primary-50/60 border border-primary-100/80 gap-1" role="tablist" aria-label="Escalation views">
             {([
               { key: "active", label: "Active", count: visibleHandovers.length },
               { key: "history", label: "History", count: null },
@@ -319,7 +319,7 @@ export function EscalationPanel({
                 className={cn(
                   "flex items-center gap-1.5 px-3.5 py-1 rounded-lg font-label text-xs font-bold transition-all",
                   tab === t.key
-                    ? "bg-white text-[#5b21b6] shadow-xs"
+                    ? "bg-white text-[var(--primary-800)] shadow-xs"
                     : "text-gray-500 hover:text-gray-900"
                 )}
               >
@@ -328,7 +328,7 @@ export function EscalationPanel({
                   <span
                     className={cn(
                       "rounded-full px-1.5 py-0.5 font-mono text-[10px] font-bold leading-none tabular-nums",
-                      tab === t.key ? "bg-rose-500 text-white shadow-2xs" : "bg-purple-100 text-[#5b21b6]"
+                      tab === t.key ? "bg-rose-500 text-white shadow-2xs" : "bg-primary-100 text-[var(--primary-800)]"
                     )}
                   >
                     {t.count}
@@ -348,7 +348,7 @@ export function EscalationPanel({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={tab === "active" ? "Search name, phone, reason…" : "Search name or phone…"}
                 aria-label="Search escalations"
-                className="h-8 w-full rounded-xl border border-purple-100/80 bg-white pl-8 pr-7 font-body text-xs text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/20 shadow-xs"
+                className="h-8 w-full rounded-xl border border-primary-100/80 bg-white pl-8 pr-7 font-body text-xs text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-[var(--primary-600)] focus:ring-2 focus:ring-[var(--primary-600)]/20 shadow-xs"
               />
               {searchQuery && (
                 <button
@@ -370,8 +370,8 @@ export function EscalationPanel({
                   className={cn(
                     "inline-flex h-8 items-center rounded-xl border px-3 font-label text-xs font-semibold transition-all shadow-xs",
                     quickFilter === f.key
-                      ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] text-white border-transparent"
-                      : "border-purple-100/80 bg-white text-gray-600 hover:border-purple-200 hover:bg-purple-50/50"
+                      ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] text-white border-transparent"
+                      : "border-primary-100/80 bg-white text-gray-600 hover:border-primary-200 hover:bg-primary-50/50"
                   )}
                 >
                   {f.label}
@@ -383,7 +383,7 @@ export function EscalationPanel({
                   value={historyResolver}
                   onChange={(e) => setHistoryResolver(e.target.value)}
                   aria-label="Filter by resolver"
-                  className="h-8 cursor-pointer rounded-xl border border-purple-100/80 bg-white px-3 font-label text-xs font-semibold text-gray-700 outline-none transition-colors hover:border-purple-200 focus:border-[#7c3aed] shadow-xs"
+                  className="h-8 cursor-pointer rounded-xl border border-primary-100/80 bg-white px-3 font-label text-xs font-semibold text-gray-700 outline-none transition-colors hover:border-primary-200 focus:border-[var(--primary-600)] shadow-xs"
                 >
                   <option value="">Anyone</option>
                   {historyStats.resolvers.map((r) => (
@@ -394,7 +394,7 @@ export function EscalationPanel({
                   value={historyReason}
                   onChange={(e) => setHistoryReason(e.target.value)}
                   aria-label="Filter by reason"
-                  className="h-8 cursor-pointer rounded-xl border border-purple-100/80 bg-white px-3 font-label text-xs font-semibold text-gray-700 outline-none transition-colors hover:border-purple-200 focus:border-[#7c3aed] shadow-xs"
+                  className="h-8 cursor-pointer rounded-xl border border-primary-100/80 bg-white px-3 font-label text-xs font-semibold text-gray-700 outline-none transition-colors hover:border-primary-200 focus:border-[var(--primary-600)] shadow-xs"
                 >
                   <option value="">Any reason</option>
                   {historyStats.reasons.map((r) => (
@@ -470,7 +470,7 @@ export function EscalationPanel({
                         return (
                           <tr
                             key={h.id}
-                            className="group border-b border-border-subtle/80 bg-surface transition-colors hover:bg-purple-50/20 last:border-b-0"
+                            className="group border-b border-border-subtle/80 bg-surface transition-colors hover:bg-primary-50/20 last:border-b-0"
                           >
                             <td className="relative px-4 py-3 pl-8 text-left align-middle">
                               <span

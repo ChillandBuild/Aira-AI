@@ -45,7 +45,7 @@ export function IntakeDashboard() {
       value: t.messages,
       sub: "paid consultations",
       icon: MessageSquare,
-      tone: "text-indigo-600 bg-indigo-50",
+      tone: "text-primary-600 bg-primary-50",
     },
     {
       label: "Pending Answer",
@@ -66,7 +66,7 @@ export function IntakeDashboard() {
       value: `₹${t.revenue_inr}`,
       sub: "collected via consultations",
       icon: IndianRupee,
-      tone: "text-violet-600 bg-violet-50",
+      tone: "text-primary-600 bg-primary-50",
     },
   ];
 
@@ -135,7 +135,7 @@ export function IntakeDashboard() {
                 {d.count}
               </span>
               <div
-                className={`w-full rounded-t-md ${d.count > 0 ? "bg-indigo-500" : "bg-border-subtle"}`}
+                className={`w-full rounded-t-md ${d.count > 0 ? "bg-primary-500" : "bg-border-subtle"}`}
                 style={{ height: `${Math.max(4, (d.count / maxDay) * 88)}px` }}
               />
               <span className="font-body text-[9px] text-ink-muted">{d.date.slice(8)}</span>

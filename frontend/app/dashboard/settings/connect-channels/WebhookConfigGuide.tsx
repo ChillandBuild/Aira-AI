@@ -100,7 +100,7 @@ export default function WebhookConfigGuide({ channelId }: { channelId: string; t
 
   if (channelId === "meta_ads") {
     return (
-      <div className="space-y-2.5 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5 font-body text-xs text-ink-secondary">
+      <div className="space-y-2.5 rounded-2xl border border-primary-100 bg-primary-50/60 p-5 font-body text-xs text-ink-secondary">
         <p className="text-sm font-semibold text-ink">Meta Ads reporting connection</p>
         <p>1. Create or select a Meta System User with access to the required ad account.</p>
         <p>2. Generate a token with <strong>ads_read</strong> and save it with the Ads Account ID.</p>

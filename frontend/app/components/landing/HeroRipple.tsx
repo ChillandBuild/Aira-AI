@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useReducedMotion } from "./useReducedMotion";
+import { PRIMARY_RGB } from "@/lib/color-tokens";
 
 interface Ripple {
   x: number;
@@ -25,8 +26,8 @@ interface Mote {
   phase: number; // twinkle phase
 }
 
-const RING_VIOLET = "124, 58, 237"; // #7c3aed
-const RING_DEEP = "91, 33, 182"; // #5b21b6
+const RING_VIOLET = PRIMARY_RGB[600]; // #7c3aed
+const RING_DEEP = PRIMARY_RGB[800]; // #5b21b6
 
 /**
  * The hero's living atmosphere. Slow violet light-motes drift like wind/breath,

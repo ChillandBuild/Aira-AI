@@ -39,7 +39,7 @@ export function LeadSourceSection({ overview }: { overview: AnalyticsOverview })
             <div key={channel} className="flex items-center gap-3">
               <div className="w-24 text-xs font-semibold text-ink-secondary">{CHANNEL_LABELS[channel] ?? channel}</div>
               <div className="flex-1 h-2 rounded-full bg-surface-mid overflow-hidden">
-                <div className="h-full bg-[#5b21b6]" style={{ width: `${pct}%` }} />
+                <div className="h-full bg-[var(--primary-800)]" style={{ width: `${pct}%` }} />
               </div>
               <div className="w-16 shrink-0 whitespace-nowrap text-right text-xs font-mono text-ink-muted">{count} · {pct}%</div>
             </div>

@@ -154,6 +154,32 @@ async def execute_broadcast(row: dict) -> dict:
         recipient_rows = []
         aborted = False
 
+        # AUDIT-2026-09.md finding C4: recipient rows used to be written ONLY
+        # after the whole loop finished, so a crash/restart mid-send (e.g. a
+        # Render deploy) lost every already-sent message's record with no
+        # trace, and re-running the same row would re-send to everyone since
+        # nothing marked what had already gone out. Both are fixed here:
+        # each row is now written right after it's decided (see
+        # _record_recipient below), and a phone already recorded for THIS
+        # broadcast_id is skipped so a resume never double-sends.
+        already_recorded = (
+            db.table("broadcast_recipients")
+            .select("phone")
+            .eq("broadcast_id", broadcast_id)
+            .eq("tenant_id", tenant_id)
+            .execute()
+            .data
+            or []
+        )
+        already_recorded_phones = {r["phone"] for r in already_recorded if r.get("phone")}
+
+        def _record_recipient(row: dict) -> None:
+            recipient_rows.append(row)
+            try:
+                db.table("broadcast_recipients").insert(row).execute()
+            except Exception as rec_err:
+                logger.error(f"broadcast_recipients insert failed for {row.get('phone')}: {rec_err}")
+
         for idx, lead in enumerate(leads_raw):
             if idx % 3 == 0:
                 try:
@@ -171,9 +197,14 @@ async def execute_broadcast(row: dict) -> dict:
                     pass
 
             phone = _normalize_phone(lead.get("phone", ""))
+            if phone and phone in already_recorded_phones:
+                # Resuming a previously-interrupted run of this same broadcast:
+                # this phone already has a recipient row from before the crash.
+                continue
+
             if not phone or phone in opted_out_phones or phone in suppressed_phones or phone in negative_reply_phones:
                 failed += 1
-                recipient_rows.append({
+                _record_recipient({
                     "tenant_id": tenant_id,
                     "broadcast_id": broadcast_id,
                     "lead_id": phone_to_lead_id.get(phone) if phone else None,
@@ -218,7 +249,7 @@ async def execute_broadcast(row: dict) -> dict:
                     pass
 
                 sent += 1
-                recipient_rows.append({
+                _record_recipient({
                     "tenant_id": tenant_id,
                     "broadcast_id": broadcast_id,
                     "lead_id": lead_id,
@@ -254,7 +285,7 @@ async def execute_broadcast(row: dict) -> dict:
             except Exception as e:
                 logger.error(f"Scheduled broadcast send failed for {phone}: {e}")
                 failed += 1
-                recipient_rows.append({
+                _record_recipient({
                     "tenant_id": tenant_id,
                     "broadcast_id": broadcast_id,
                     "lead_id": lead_id,
@@ -268,7 +299,9 @@ async def execute_broadcast(row: dict) -> dict:
         if aborted:
             for lead in leads_raw[idx:]:
                 phone = _normalize_phone(lead.get("phone", ""))
-                recipient_rows.append({
+                if phone and phone in already_recorded_phones:
+                    continue
+                _record_recipient({
                     "tenant_id": tenant_id,
                     "broadcast_id": broadcast_id,
                     "lead_id": phone_to_lead_id.get(phone),
@@ -278,14 +311,11 @@ async def execute_broadcast(row: dict) -> dict:
                     "tag_id": tag_id,
                 })
 
-        # Persist broadcast_recipients
-        if recipient_rows:
-            for i in range(0, len(recipient_rows), 100):
-                batch = recipient_rows[i:i+100]
-                try:
-                    db.table("broadcast_recipients").insert(batch).execute()
-                except Exception as br_err:
-                    logger.error(f"broadcast_recipients insert failed: {br_err}")
+        # Recipient rows are written incrementally by _record_recipient() as
+        # each one is decided (see the C4 note above) -- no batch persist
+        # step here any more. broadcast_recipients has no unique constraint
+        # beyond its own `id`, so re-inserting the same rows here would
+        # silently duplicate every recipient instead of erroring.
 
         # Freeze previous un-finalized broadcast_lead_scores rows (per-lead freeze).
         # Each broadcast starts its own scoring slate at the tenant's Cold floor;

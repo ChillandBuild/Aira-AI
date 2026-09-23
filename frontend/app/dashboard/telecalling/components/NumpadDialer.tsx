@@ -62,7 +62,7 @@ export default function NumpadDialer({ value, onChange, onDial, dialing, disable
             key={btn.digit}
             onClick={() => handleDigitClick(btn.digit)}
             disabled={disabled}
-            className="flex flex-col items-center justify-center bg-[#faf8f5] border border-[#e8e3db]/60 hover:bg-[#f5f3ff] hover:border-[#ede9fe] hover:text-[#5b21b6] active:scale-95 rounded-2xl py-2.5 transition-all disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#faf8f5] disabled:hover:text-inherit"
+            className="flex flex-col items-center justify-center bg-[#faf8f5] border border-[#e8e3db]/60 hover:bg-[var(--primary-50)] hover:border-[var(--primary-100)] hover:text-[var(--primary-800)] active:scale-95 rounded-2xl py-2.5 transition-all disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#faf8f5] disabled:hover:text-inherit"
           >
             <span className="font-display text-base font-extrabold text-[#292524] hover:text-inherit">{btn.digit}</span>
             <span className="font-label text-[7.5px] text-[#a8a29e] font-bold tracking-wider uppercase mt-0.5">{btn.sub || "\u00A0"}</span>
@@ -72,7 +72,7 @@ export default function NumpadDialer({ value, onChange, onDial, dialing, disable
         <button
           onClick={onDial}
           disabled={disabled || dialing || !value.trim()}
-          className="col-span-3 mt-1 py-3.5 bg-gradient-to-r from-[#5b21b6] to-[#7c3aed] hover:from-[#5b21b6] hover:to-[#6d28d9] text-white rounded-2xl flex items-center justify-center gap-2 font-display text-sm font-extrabold shadow-[0_4px_12px_rgba(99,102,241,0.25)] hover:shadow-[0_6px_16px_rgba(99,102,241,0.4)] disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
+          className="col-span-3 mt-1 py-3.5 bg-gradient-to-r from-[var(--primary-800)] to-[var(--primary-600)] hover:from-[var(--primary-800)] hover:to-[var(--primary-700)] text-white rounded-2xl flex items-center justify-center gap-2 font-display text-sm font-extrabold shadow-[0_4px_12px_rgba(var(--primary-500-rgb),0.25)] hover:shadow-[0_6px_16px_rgba(var(--primary-500-rgb),0.4)] disabled:opacity-50 transition-all hover:scale-[1.01] active:scale-[0.99]"
         >
           <Phone size={14} className="fill-white" />
           {dialing ? "Dialing..." : "Call Now"}

@@ -15,10 +15,29 @@ const config: Config = {
         "surface-low": "#faf8f5",
         "surface-subtle": "#faf8f5",
 
-        primary: "#5b21b6",
-        "primary-dark": "#4c1d95",
-        "primary-light": "#f5f3ff",
-        "primary-muted": "#ede9fe",
+        // Full shade scale anchored on the brand primary (= violet-800 in
+        // Tailwind's default palette). Added so every violet/purple/indigo
+        // utility class in the app can resolve to ONE consistent scale
+        // instead of three near-identical Tailwind palettes.
+        // DEFAULT/dark/light/muted are unchanged values, kept as aliases so
+        // existing bg-primary / bg-primary-dark / etc. usages don't move.
+        primary: {
+          DEFAULT: "#5b21b6",
+          50: "#f5f3ff",
+          100: "#ede9fe",
+          200: "#ddd6fe",
+          300: "#c4b5fd",
+          400: "#a78bfa",
+          500: "#8b5cf6",
+          600: "#7c3aed",
+          700: "#6d28d9",
+          800: "#5b21b6",
+          900: "#4c1d95",
+          950: "#2e1065",
+          dark: "#4c1d95",
+          light: "#f5f3ff",
+          muted: "#ede9fe",
+        },
 
         ink: "#1c1917",
         "ink-secondary": "#78716c",
@@ -74,7 +93,7 @@ const config: Config = {
         "3xl": "1.25rem",
       },
       backgroundImage: {
-        "brand-gradient": "linear-gradient(135deg, #2e1065 0%, #5b21b6 100%)",
+        "brand-gradient": "linear-gradient(135deg, var(--primary-950) 0%, var(--primary-800) 100%)",
         "warm-base": "linear-gradient(180deg, #faf8f5 0%, #f0ece4 100%)",
       },
     },

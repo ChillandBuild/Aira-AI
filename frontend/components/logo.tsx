@@ -29,22 +29,22 @@ export function AiraLogo(props: SVGProps<SVGSVGElement>) {
       </g>
       <defs>
         <linearGradient id={gradientId1} x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-321.02,312.39,-312.39,-321.02,1766.41,640.02)">
-          <stop offset="0" stopColor="#5b21b6" />
-          <stop offset="0.29" stopColor="#5b21b6" />
-          <stop offset="0.99" stopColor="#2e1065" />
-          <stop offset="1" stopColor="#2e1065" />
+          <stop offset="0" stopColor="var(--primary-800)" />
+          <stop offset="0.29" stopColor="var(--primary-800)" />
+          <stop offset="0.99" stopColor="var(--primary-950)" />
+          <stop offset="1" stopColor="var(--primary-950)" />
         </linearGradient>
         <linearGradient id={gradientId2} x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(7476.113943,0,0,7476.113943,136988.859737,64885.413)">
-          <stop offset="0" stopColor="#5b21b6" />
-          <stop offset="0.29" stopColor="#5b21b6" />
-          <stop offset="0.99" stopColor="#2e1065" />
-          <stop offset="1" stopColor="#2e1065" />
+          <stop offset="0" stopColor="var(--primary-800)" />
+          <stop offset="0.29" stopColor="var(--primary-800)" />
+          <stop offset="0.99" stopColor="var(--primary-950)" />
+          <stop offset="1" stopColor="var(--primary-950)" />
         </linearGradient>
         <linearGradient id={gradientId3} x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(7476.113943,0,0,7476.113943,62631.176512,64885.413)">
-          <stop offset="0" stopColor="#5b21b6" />
-          <stop offset="0.29" stopColor="#5b21b6" />
-          <stop offset="0.99" stopColor="#2e1065" />
-          <stop offset="1" stopColor="#2e1065" />
+          <stop offset="0" stopColor="var(--primary-800)" />
+          <stop offset="0.29" stopColor="var(--primary-800)" />
+          <stop offset="0.99" stopColor="var(--primary-950)" />
+          <stop offset="1" stopColor="var(--primary-950)" />
         </linearGradient>
       </defs>
     </svg>

@@ -104,12 +104,12 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
         />
         <HeroCard
           icon={<CheckCircle2 size={18} />}
-          iconGradient="bg-gradient-to-br from-[#2e1065] to-primary"
-          glowColor="bg-violet-500/5 group-hover:bg-violet-500/10"
+          iconGradient="bg-gradient-to-br from-[var(--primary-950)] to-primary"
+          glowColor="bg-primary-500/5 group-hover:bg-primary-500/10"
           label="Conversions Today"
           value={overview.converted_today}
           sparklineData={[]}
-          sparklineColor="#5b21b6"
+          sparklineColor="var(--primary-800)"
           gradientId="conversionsGrad"
           trendPct={null}
           trendLabel=""

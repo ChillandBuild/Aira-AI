@@ -495,6 +495,13 @@ function AddEditItemModal({
   const [name, setName] = useState(itemToEdit?.name || "");
   const [itemType, setItemType] = useState(itemToEdit?.item_type || ITEM_TYPES[0]);
   const [description, setDescription] = useState(itemToEdit?.description || "");
+  const [priceRupees, setPriceRupees] = useState(
+    itemToEdit?.price_paise != null ? String(itemToEdit.price_paise / 100) : ""
+  );
+  const [priceNote, setPriceNote] = useState(itemToEdit?.price_note || "");
+  const [stockQuantity, setStockQuantity] = useState(
+    itemToEdit?.stock_quantity != null ? String(itemToEdit.stock_quantity) : ""
+  );
   const [variantGroupId, setVariantGroupId] = useState(itemToEdit?.variant_group_id || "");
 
   const nextAttrId = useRef(0);
@@ -568,6 +575,19 @@ function AddEditItemModal({
       }
     }
 
+    const trimmedPrice = priceRupees.trim();
+    if (trimmedPrice && (Number.isNaN(Number(trimmedPrice)) || Number(trimmedPrice) < 0)) {
+      setError("Price must be a non-negative number");
+      setIsSaving(false);
+      return;
+    }
+    const trimmedStock = itemType === "product" ? stockQuantity.trim() : "";
+    if (trimmedStock && (Number.isNaN(Number(trimmedStock)) || Number(trimmedStock) < 0)) {
+      setError("Stock must be a non-negative number");
+      setIsSaving(false);
+      return;
+    }
+
     try {
       let savedItem: CatalogItem;
       const payload = {
@@ -576,6 +596,9 @@ function AddEditItemModal({
         description: description.trim() || null,
         variant_group_id: variantGroupId || null,
         attributes: attrRecord,
+        price_paise: trimmedPrice ? Math.round(Number(trimmedPrice) * 100) : null,
+        price_note: priceNote.trim() || null,
+        stock_quantity: trimmedStock ? Math.round(Number(trimmedStock)) : null,
       };
 
       if (itemToEdit) {
@@ -627,6 +650,51 @@ function AddEditItemModal({
               ))}
             </select>
           </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-ink-muted">Price (optional)</label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-muted">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={priceRupees}
+                  onChange={(event) => setPriceRupees(event.target.value)}
+                  className="h-10 w-full rounded-xl border border-border bg-surface-low pl-7 pr-3 text-sm outline-none focus:border-primary"
+                  placeholder="3200"
+                />
+              </div>
+              <input
+                type="text"
+                value={priceNote}
+                onChange={(event) => setPriceNote(event.target.value)}
+                className="h-10 w-40 rounded-xl border border-border bg-surface-low px-3 text-sm outline-none focus:border-primary"
+                placeholder="e.g. starting from"
+              />
+            </div>
+            <p className="mt-1 text-xs text-ink-muted">
+              When set, Aira can quote this price directly in WhatsApp replies.
+            </p>
+          </div>
+          {itemType === "product" && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-ink-muted">Stock (optional)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={stockQuantity}
+                onChange={(event) => setStockQuantity(event.target.value)}
+                className="h-10 w-full rounded-xl border border-border bg-surface-low px-3 text-sm outline-none focus:border-primary"
+                placeholder="Leave blank if you don't track stock for this item"
+              />
+              <p className="mt-1 text-xs text-ink-muted">
+                When set, Aira stops recommending this item for purchase once it hits 0 — but can still tell a
+                customer it's out of stock if asked.
+              </p>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase text-ink-muted">Description (optional)</label>
             <textarea

@@ -230,7 +230,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
     if (!selected) return "bg-surface-low text-on-surface-muted hover:bg-surface-mid hover:text-on-surface";
     switch (source) {
       case "whatsapp": return "bg-green-500 text-white shadow-sm";
-      case "instagram": return "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-sm";
+      case "instagram": return "bg-gradient-to-r from-primary-500 to-pink-500 text-white shadow-sm";
       case "facebook": return "bg-blue-600 text-white shadow-sm";
       case "telegram": return "bg-sky-500 text-white shadow-sm";
       case "all": return "bg-primary text-white shadow-sm";

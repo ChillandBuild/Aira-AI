@@ -183,7 +183,7 @@ export default function AuditLogPage() {
                   </td>
                   <td className="px-5 py-3 text-xs">
                     <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                      log.actor_role === "system_admin" ? "bg-purple-50 text-purple-700" : "bg-surface-mid text-ink-muted"
+                      log.actor_role === "system_admin" ? "bg-primary-50 text-primary-700" : "bg-surface-mid text-ink-muted"
                     }`}>
                       {log.actor_role || "system"}
                     </span>

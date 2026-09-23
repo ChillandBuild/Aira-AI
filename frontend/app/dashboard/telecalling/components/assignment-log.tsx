@@ -115,7 +115,7 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
         <div className="w-full sm:w-[170px]">
           <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Caller</label>
           <select value={callerFilter} onChange={(e) => { setPage(1); setCallerFilter(e.target.value); }}
-            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
+            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200">
             <option value="">All callers</option>
             {callers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -123,7 +123,7 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
         <div className="w-full sm:w-[160px]">
           <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Segment</label>
           <select value={segmentFilter} onChange={(e) => { setPage(1); setSegmentFilter(e.target.value); }}
-            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200">
+            className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200">
             <option value="">All segments</option>
             <option value="A">Hot</option>
             <option value="B">Warm</option>
@@ -132,11 +132,11 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
         </div>
         <div className="ml-auto flex w-full items-center justify-end gap-2 sm:w-auto">
           <button onClick={load} disabled={loading}
-            className="flex h-9 items-center gap-1.5 rounded-full border border-surface-mid bg-white px-3 font-label text-xs font-bold text-on-surface shadow-sm transition-colors hover:border-violet-200 hover:bg-violet-50 hover:text-primary disabled:opacity-50">
+            className="flex h-9 items-center gap-1.5 rounded-full border border-surface-mid bg-white px-3 font-label text-xs font-bold text-on-surface shadow-sm transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary disabled:opacity-50">
             <RefreshCw size={13} className={loading ? "animate-spin" : ""} /> Refresh
           </button>
           <button onClick={handleExport} disabled={exporting}
-            className="flex h-9 items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3.5 font-label text-xs font-bold text-primary shadow-sm transition-colors hover:bg-violet-100 disabled:opacity-50">
+            className="flex h-9 items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50 px-3.5 font-label text-xs font-bold text-primary shadow-sm transition-colors hover:bg-primary-100 disabled:opacity-50">
             <Download size={13} /> {exporting ? "Exporting…" : "Export CSV"}
           </button>
         </div>

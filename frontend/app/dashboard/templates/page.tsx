@@ -270,7 +270,7 @@ export default function TemplatesPage() {
           </div>
           <Link
             href="/dashboard/templates/new"
-            className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-violet-200 flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-xs font-bold transition-all shadow-md shadow-primary-200 flex items-center justify-center gap-1.5"
           >
             <Plus size={14} />
             Create Template
@@ -289,7 +289,7 @@ export default function TemplatesPage() {
       <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-2.5 lg:flex-nowrap">
           <div className="flex shrink-0 items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-700 ring-1 ring-primary-100">
               <Filter size={14} />
             </span>
             <div className="hidden leading-tight sm:block">
@@ -307,7 +307,7 @@ export default function TemplatesPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates..."
               style={{ paddingLeft: "2rem", paddingRight: searchQuery ? "1.75rem" : "0.75rem" }}
-              className="h-9 w-full rounded-xl border border-surface-mid bg-white font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="h-9 w-full rounded-xl border border-surface-mid bg-white font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
             />
             {searchQuery && (
               <button
@@ -323,7 +323,7 @@ export default function TemplatesPage() {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
             >
               <option value="ALL">All Types</option>
               <option value="MARKETING">Marketing</option>
@@ -337,7 +337,7 @@ export default function TemplatesPage() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+              className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-7 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
             >
               <option value="ALL">All Statuses</option>
               <option value="APPROVED">Approved</option>
@@ -451,7 +451,7 @@ export default function TemplatesPage() {
                   <div className="mt-4 flex flex-wrap justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => setSelectedTemplate(t)} className="rounded-lg bg-surface-subtle p-2 text-ink-muted hover:text-ink" title="View Preview"><Eye size={14} /></button>
                     {canManageTemplates && <button onClick={(e) => handleSyncSingle(t.id, e)} disabled={syncingId === t.id} className="rounded-lg bg-surface-subtle p-2 text-ink-muted hover:text-ink disabled:opacity-50" title="Sync Status"><RefreshCw size={14} className={syncingId === t.id ? "animate-spin" : ""} /></button>}
-                    {canManageTemplates && <button onClick={(e) => openVariationsModal(t.id, e)} className="rounded-lg bg-violet-50 p-2 text-violet-600" title="Rotate Variations"><Shuffle size={14} /></button>}
+                    {canManageTemplates && <button onClick={(e) => openVariationsModal(t.id, e)} className="rounded-lg bg-primary-50 p-2 text-primary-600" title="Rotate Variations"><Shuffle size={14} /></button>}
                     <button onClick={() => router.push(`/dashboard/templates/${t.id}`)} className="rounded-lg bg-emerald-50 p-2 text-emerald-600" title="Open Detail/Editor"><ChevronRight size={14} /></button>
                     {canManageTemplates && <button onClick={(e) => handleDelete(t.id, e)} className="rounded-lg bg-red-50 p-2 text-red-500" title="Delete"><Trash2 size={14} /></button>}
                   </div>
@@ -516,7 +516,7 @@ export default function TemplatesPage() {
                           {canManageTemplates && (
                             <button
                               onClick={(e) => openVariationsModal(t.id, e)}
-                              className="p-1.5 rounded-lg hover:bg-violet-50 text-ink-muted hover:text-violet-600"
+                              className="p-1.5 rounded-lg hover:bg-primary-50 text-ink-muted hover:text-primary-600"
                               title="Rotate Variations"
                             >
                               <Shuffle size={13} />
@@ -670,8 +670,8 @@ export default function TemplatesPage() {
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 animate-slide-up">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
-                    <Shuffle size={16} className="text-violet-600" />
+                  <div className="w-9 h-9 rounded-xl bg-primary-50 flex items-center justify-center">
+                    <Shuffle size={16} className="text-primary-600" />
                   </div>
                   <div>
                     <h2 className="font-display font-bold text-ink text-sm">Message Variations</h2>
@@ -705,10 +705,10 @@ export default function TemplatesPage() {
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {variationsList.map((v) => (
-                        <span key={v} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-50 text-violet-700 text-xs font-mono font-medium">
+                        <span key={v} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary-50 text-primary-700 text-xs font-mono font-medium">
                           {v}
                           {canManageTemplates && (
-                            <button onClick={() => handleVariationRemove(v)} className="text-violet-400 hover:text-violet-700">
+                            <button onClick={() => handleVariationRemove(v)} className="text-primary-400 hover:text-primary-700">
                               <X size={12} />
                             </button>
                           )}

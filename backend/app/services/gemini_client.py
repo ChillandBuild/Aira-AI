@@ -232,23 +232,23 @@ async def gemini_speech_to_text(
     return _gemini_output_text(data.get("steps") or [])
 
 
-def gemini_extract_document_text(
+def _gemini_document_interaction(
     file_bytes: bytes,
     mime_type: str,
-    model: str = DEFAULT_GEMINI_TEXT_MODEL,
-    tenant_id: str | None = None,
-    purpose: str = "doc_digitization",
+    prompt: str,
+    model: str,
+    tenant_id: str | None,
+    purpose: str,
 ) -> str:
-    """OCR/extraction for scanned PDFs and images via Gemini's interactions endpoint.
-    Content-part type is "document" for PDFs, "image" for anything else -- live-tested
-    2026-07-18, same flat {"data": <base64>, "mime_type": ...} shape as audio, confirmed
-    with real output (exact verbatim OCR text back from a test image). Replaces Sarvam
-    Document Digitization's whole create->upload->start->poll->download->unzip job
-    lifecycle with one request -- no polling needed.
+    """Shared sync request/response plumbing for document+image content-parts via
+    Gemini's interactions endpoint. Content-part type is "document" for PDFs, "image"
+    for anything else -- live-tested 2026-07-18, same flat {"data": <base64>,
+    "mime_type": ...} shape as audio.
 
-    Deliberately synchronous (httpx.Client, not AsyncClient) -- the only caller
-    (knowledge_service.extract_text_from_file) is itself a sync function dispatched via
-    asyncio.to_thread, matching the same execution model the Sarvam version used."""
+    Deliberately synchronous (httpx.Client, not AsyncClient) -- the only callers
+    (knowledge_service.extract_text_from_file, upload.py's scan-to-lead route) are
+    sync functions dispatched via asyncio.to_thread / already sync, matching the
+    execution model the original Sarvam version used."""
     api_key = require_tenant_setting("gemini_api_key", tenant_id)
     content_type = "document" if mime_type == "application/pdf" else "image"
     request_json = {
@@ -256,7 +256,7 @@ def gemini_extract_document_text(
         "input": [{
             "type": "user_input",
             "content": [
-                {"type": "text", "text": "Extract all text from this document, verbatim, as markdown. Return only the extracted text, no commentary."},
+                {"type": "text", "text": prompt},
                 {"type": content_type, "data": base64.b64encode(file_bytes).decode(), "mime_type": mime_type},
             ],
         }],
@@ -276,6 +276,55 @@ def gemini_extract_document_text(
         data = resp.json()
     _record(tenant_id, purpose, model, data)
     return _gemini_output_text(data.get("steps") or [])
+
+
+def gemini_extract_document_text(
+    file_bytes: bytes,
+    mime_type: str,
+    model: str = DEFAULT_GEMINI_TEXT_MODEL,
+    tenant_id: str | None = None,
+    purpose: str = "doc_digitization",
+) -> str:
+    """OCR/extraction for scanned PDFs and images, verbatim as markdown. Replaces Sarvam
+    Document Digitization's whole create->upload->start->poll->download->unzip job
+    lifecycle with one request -- no polling needed. Confirmed with real output (exact
+    verbatim OCR text back from a test image)."""
+    return _gemini_document_interaction(
+        file_bytes,
+        mime_type,
+        "Extract all text from this document, verbatim, as markdown. Return only the extracted text, no commentary.",
+        model,
+        tenant_id,
+        purpose,
+    )
+
+
+def gemini_extract_contacts_csv(
+    file_bytes: bytes,
+    mime_type: str,
+    model: str = DEFAULT_GEMINI_TEXT_MODEL,
+    tenant_id: str | None = None,
+    purpose: str = "lead_scan_ocr",
+) -> str:
+    """OCR a photographed/scanned page of names and phone numbers (e.g. a notebook
+    page) directly into CSV rows, for the scan-to-lead upload path. Caller
+    (upload.py's /upload/scan) re-validates every phone number with the same
+    _normalize_phone used by CSV uploads -- this function's job is just getting the
+    handwriting into a parseable shape, not validating it."""
+    return _gemini_document_interaction(
+        file_bytes,
+        mime_type,
+        (
+            "This image or PDF contains a list of names and/or phone numbers, possibly "
+            "handwritten in a notebook. Extract every contact you can find into strict "
+            "CSV with exactly two columns, header \"name,phone\". Use an empty string for "
+            "name if none is written next to a number. Output only the CSV, no markdown "
+            "code fences, no commentary."
+        ),
+        model,
+        tenant_id,
+        purpose,
+    )
 
 
 async def gemini_chat_completion_json(

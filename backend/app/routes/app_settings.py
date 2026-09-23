@@ -441,6 +441,8 @@ async def update_settings(
         "meta_ads_access_token",
         "astro_bridge_api_key",
         "astro_bridge_secret",
+        "indiamart_ingest_token",
+        "justdial_ingest_token",
     }
     updated = []
     for key, value in payload.updates.items():

@@ -22,6 +22,7 @@ import {
   Filter,
   RefreshCw,
   Download,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -261,7 +262,7 @@ function ChannelsTab({
       )}>
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm space-y-4">
           <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-primary-700 ring-1 ring-primary-100">
               <Filter size={13} />
             </span>
             <span className="font-label text-[13px] font-bold text-on-surface">Filters</span>
@@ -432,7 +433,7 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
       {showFilters ? (
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-primary-700 ring-1 ring-primary-100">
               <Filter size={13} />
             </span>
             <div>
@@ -641,7 +642,7 @@ function InboundTab({
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="organic" stackId="a" fill="#10b981" name="Organic" />
-                <Bar dataKey="ad" stackId="a" fill="#5b21b6" name="Ad" />
+                <Bar dataKey="ad" stackId="a" fill="var(--primary-800)" name="Ad" />
               </BarChart>
             </ResponsiveContainer>
           </SectionCard>
@@ -664,6 +665,60 @@ function InboundTab({
 
 // ─── Page shell ───────────────────────────────────────────────────────────────
 
+function AskAnalytics() {
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleAsk(e: React.FormEvent) {
+    e.preventDefault();
+    if (!question.trim() || asking) return;
+    setAsking(true);
+    setError(null);
+    setAnswer(null);
+    try {
+      const result = await api.ask(question.trim());
+      setAnswer(result.answer);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't get an answer");
+    } finally {
+      setAsking(false);
+    }
+  }
+
+  return (
+    <div className="mb-5 rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-primary-700 ring-1 ring-primary-100">
+          <Sparkles size={13} />
+        </span>
+        <span className="font-label text-[13px] font-bold text-on-surface">Ask a question</span>
+      </div>
+      <form onSubmit={handleAsk} className="flex gap-2">
+        <input
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          placeholder="e.g. How many hot leads came from Instagram this week?"
+          className="flex-1 h-10 rounded-xl border border-surface-mid bg-surface-low px-3 font-body text-sm outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          disabled={asking || !question.trim()}
+          className="px-4 h-10 rounded-xl bg-primary text-white font-label text-xs font-bold disabled:opacity-40 hover:bg-primary/90 transition-colors"
+        >
+          {asking ? "Asking…" : "Ask"}
+        </button>
+      </form>
+      {error && <p className="mt-3 font-body text-xs text-red-600">{error}</p>}
+      {answer && (
+        <p className="mt-3 font-body text-sm text-on-surface bg-surface-low rounded-xl p-3">{answer}</p>
+      )}
+    </div>
+  );
+}
+
 export default function AnalyticsPage() {
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
@@ -683,6 +738,8 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-w-0">
+      <AskAnalytics />
+
       {activeTab !== "templates" && activeTab !== "channels" && (
         <div className={cn(
           "overflow-hidden transition-all duration-300 ease-in-out",
@@ -690,7 +747,7 @@ export default function AnalyticsPage() {
         )}>
           <div className="space-y-3 rounded-2xl border border-surface-mid/80 bg-white/95 p-4 shadow-sm">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-primary-700 ring-1 ring-primary-100">
                 <Filter size={13} />
               </span>
               <span className="font-label text-[13px] font-bold text-on-surface">Period Filters</span>

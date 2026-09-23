@@ -64,7 +64,7 @@ function docStatus(doc: KnowledgeDoc): DocStatus {
 
 const DOC_STATUS_STYLE: Record<DocStatus, { label: string; className: string; title?: string }> = {
   sorting: { label: "Sorting", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  review: { label: "Review ready", className: "bg-purple-50 text-purple-700 border-purple-200" },
+  review: { label: "Review ready", className: "bg-primary-50 text-primary-700 border-primary-200" },
   live: { label: "Live", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   unsorted: {
     label: "Not sorted",
@@ -358,11 +358,11 @@ function getFileTypeMeta(fileType: string, fileName: string): FileTypeMeta {
     return {
       label: "Image",
       ext: lowerName.match(/\.[0-9a-z]+$/i)?.[0] || ".img",
-      badgeBg: "bg-purple-50",
-      badgeText: "text-purple-700",
-      badgeBorder: "border-purple-200",
-      iconBg: "bg-purple-500/10",
-      iconColor: "text-purple-600",
+      badgeBg: "bg-primary-50",
+      badgeText: "text-primary-700",
+      badgeBorder: "border-primary-200",
+      iconBg: "bg-primary-500/10",
+      iconColor: "text-primary-600",
       category: "image",
     };
   }
@@ -958,9 +958,9 @@ export default function KnowledgePage() {
           </div>
 
           {showUploadGuide && (
-            <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
+            <div className="bg-gradient-to-br from-primary-50/70 via-surface to-surface border border-primary-100 rounded-2xl p-5 md:p-6 shadow-xs">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-xl bg-primary-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
                   <Lightbulb size={18} />
                 </div>
                 <div className="min-w-0">
@@ -981,7 +981,7 @@ export default function KnowledgePage() {
                   <div
                     key={point.title}
                     className={cn(
-                      "p-3.5 bg-white rounded-xl border border-purple-100",
+                      "p-3.5 bg-white rounded-xl border border-primary-100",
                       RAG_POINTS.length % 2 === 1 &&
                         i === RAG_POINTS.length - 1 &&
                         "md:col-span-2"
@@ -998,7 +998,7 @@ export default function KnowledgePage() {
                     <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
                       {point.body}
                     </p>
-                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
+                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-primary-200 leading-relaxed">
                       {point.example}
                     </p>
                   </div>
@@ -1030,14 +1030,14 @@ export default function KnowledgePage() {
           )}
 
           {showRagExample && (
-            <div className="rounded-xl border border-purple-100 bg-white overflow-hidden shadow-xs">
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
+            <div className="rounded-xl border border-primary-100 bg-white overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-primary-100 bg-primary-50/40">
                 <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
                   Paste this into a document and replace the words in brackets
                 </p>
                 <button
                   onClick={() => copyTemplate("rag")}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-primary-50 transition-colors shrink-0"
                 >
                   {copiedTemplate === "rag" ? (
                     <>
@@ -1129,7 +1129,7 @@ export default function KnowledgePage() {
                   {campaignTags.length} campaigns available
                 </p>
               </div>
-              <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-primary-50 flex items-center justify-center text-primary-600 shrink-0">
                 <Tag size={20} />
               </div>
             </div>
@@ -1311,7 +1311,7 @@ export default function KnowledgePage() {
 
                 {/* Scope pill reminder */}
                 {selectedCampaignTag && (
-                  <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-100">
+                  <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-50 text-primary-700 text-xs font-semibold border border-primary-100">
                     <Tag size={12} />
                     Will be scoped exclusively to &quot;{tagMap.get(selectedCampaignTag)?.name}&quot;
                   </div>
@@ -1626,7 +1626,7 @@ export default function KnowledgePage() {
                         {/* Campaign Scope Pill */}
                         <div className="mt-3">
                           {campaignTag ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 text-[11px] font-semibold border border-purple-100">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-50 text-primary-700 text-[11px] font-semibold border border-primary-100">
                               <Tag size={11} /> {campaignTag.name}
                             </span>
                           ) : (
@@ -1761,7 +1761,7 @@ export default function KnowledgePage() {
                           {/* Campaign Scope */}
                           <td className="px-4 py-3.5 whitespace-nowrap">
                             {campaignTag ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-100">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary-50 text-primary-700 text-xs font-semibold border border-primary-100">
                                 <Tag size={11} /> {campaignTag.name}
                               </span>
                             ) : (
@@ -1820,10 +1820,10 @@ export default function KnowledgePage() {
           </div>
 
           {/* ── Modern RAG Explainer Card ─────────────────────────────────── */}
-          <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 shadow-xs">
+          <div className="bg-gradient-to-br from-primary-50/70 via-surface to-surface border border-primary-100 rounded-2xl p-5 shadow-xs">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-xl bg-primary-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
                   <Sparkles size={18} />
                 </div>
                 <div>
@@ -1845,8 +1845,8 @@ export default function KnowledgePage() {
             </div>
 
             {showRagGuide && (
-              <div className="mt-4 pt-4 border-t border-purple-100/80 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-body">
-                <div className="p-3 bg-white rounded-xl border border-purple-100">
+              <div className="mt-4 pt-4 border-t border-primary-100/80 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-body">
+                <div className="p-3 bg-white rounded-xl border border-primary-100">
                   <p className="font-bold text-primary font-label uppercase tracking-wider text-[10px]">
                     1. Text Extraction & Chunking
                   </p>
@@ -1854,7 +1854,7 @@ export default function KnowledgePage() {
                     Uploaded documents are parsed (Docx, PDF, Excel) and split into semantic chunks with 10% overlap to preserve context.
                   </p>
                 </div>
-                <div className="p-3 bg-white rounded-xl border border-purple-100">
+                <div className="p-3 bg-white rounded-xl border border-primary-100">
                   <p className="font-bold text-primary font-label uppercase tracking-wider text-[10px]">
                     2. Vector Embeddings
                   </p>
@@ -1862,7 +1862,7 @@ export default function KnowledgePage() {
                     Each chunk is encoded into 512-dimensional vector space using high-precision embedding models and indexed with HNSW.
                   </p>
                 </div>
-                <div className="p-3 bg-white rounded-xl border border-purple-100">
+                <div className="p-3 bg-white rounded-xl border border-primary-100">
                   <p className="font-bold text-primary font-label uppercase tracking-wider text-[10px]">
                     3. Campaign Scoping
                   </p>
@@ -1897,9 +1897,9 @@ export default function KnowledgePage() {
           </div>
 
           {showDescGuide && (
-            <div className="bg-gradient-to-br from-purple-50/70 via-surface to-surface border border-purple-100 rounded-2xl p-5 md:p-6 shadow-xs">
+            <div className="bg-gradient-to-br from-primary-50/70 via-surface to-surface border border-primary-100 rounded-2xl p-5 md:p-6 shadow-xs">
               <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-purple-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-9 h-9 rounded-xl bg-primary-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
                   <Lightbulb size={18} />
                 </div>
                 <div className="min-w-0">
@@ -1921,7 +1921,7 @@ export default function KnowledgePage() {
                   <div
                     key={point.title}
                     className={cn(
-                      "p-3.5 bg-white rounded-xl border border-purple-100",
+                      "p-3.5 bg-white rounded-xl border border-primary-100",
                       // Odd count leaves the last card alone on its row — let it span.
                       DESCRIPTION_POINTS.length % 2 === 1 &&
                         i === DESCRIPTION_POINTS.length - 1 &&
@@ -1939,7 +1939,7 @@ export default function KnowledgePage() {
                     <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
                       {point.body}
                     </p>
-                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-purple-200 leading-relaxed">
+                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-primary-200 leading-relaxed">
                       {point.example}
                     </p>
                   </div>
@@ -1969,14 +1969,14 @@ export default function KnowledgePage() {
           )}
 
           {showDescExample && (
-            <div className="rounded-xl border border-purple-100 bg-white overflow-hidden shadow-xs">
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-purple-100 bg-purple-50/40">
+            <div className="rounded-xl border border-primary-100 bg-white overflow-hidden shadow-xs">
+              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-primary-100 bg-primary-50/40">
                 <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
                   Copy this and replace the words in brackets
                 </p>
                 <button
                   onClick={() => copyTemplate("desc")}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-purple-50 transition-colors shrink-0"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-primary-50 transition-colors shrink-0"
                 >
                   {copiedTemplate === "desc" ? (
                     <>

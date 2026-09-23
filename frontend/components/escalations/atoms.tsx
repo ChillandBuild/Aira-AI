@@ -127,8 +127,8 @@ export function LeadCell({ lead }: { lead: EscalationLead }) {
 
   return (
     <div className="flex items-center gap-3 text-left">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-100 text-[#5b21b6] font-mono text-[11px] font-bold ring-1 ring-purple-200/70 shadow-2xs">
-        {initials ? initials : <User size={14} className="text-[#5b21b6]" />}
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-100 to-primary-100 text-[var(--primary-800)] font-mono text-[11px] font-bold ring-1 ring-primary-200/70 shadow-2xs">
+        {initials ? initials : <User size={14} className="text-[var(--primary-800)]" />}
       </div>
 
       <div className="flex flex-col min-w-0">
@@ -160,7 +160,7 @@ export function PersonCell({ name, empty }: { name: string | null; empty: string
   }
   return (
     <div className="flex items-center gap-2 text-left">
-      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-purple-100 text-[#5b21b6] font-mono text-[10.5px] font-bold ring-1 ring-purple-200/70 shadow-2xs">
+      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-100 to-primary-100 text-[var(--primary-800)] font-mono text-[10.5px] font-bold ring-1 ring-primary-200/70 shadow-2xs">
         {initialsOf(name)}
       </div>
       <span className="truncate font-body text-xs font-semibold text-slate-800" title={name}>
@@ -217,7 +217,7 @@ export function TableEmpty({
 }) {
   return (
     <div className="mx-auto my-12 max-w-md rounded-2xl border border-border/80 bg-surface p-10 text-center shadow-card">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50/70 border border-purple-100">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50/70 border border-primary-100">
         {icon}
       </div>
       <p className="font-heading text-base font-bold text-slate-900">{title}</p>

@@ -474,7 +474,7 @@ export function AdPerformanceTab() {
   }
 
   const selectClass =
-    "h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid/80 bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-40";
+    "h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid/80 bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-sm transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
     <div>
@@ -485,7 +485,7 @@ export function AdPerformanceTab() {
                 value={count(totals.inline_link_clicks)}
                 description="Clicked the ad and opened WhatsApp"
                 icon={MousePointerClick}
-                gradient="bg-gradient-to-br from-violet-500 to-primary"
+                gradient="bg-gradient-to-br from-primary-500 to-primary"
               />
               <PerformanceKpiCard
                 label="Messages Sent"
@@ -512,7 +512,7 @@ export function AdPerformanceTab() {
 
         <div className="grid h-fit grid-cols-2 gap-2 self-start p-1">
           <button type="button" onClick={() => mutate()} disabled={isValidating}
-            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-violet-300 hover:text-violet-700 disabled:opacity-40">
+            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-primary-300 hover:text-primary-700 disabled:opacity-40">
             <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
           </button>
           <button type="button" onClick={handleSyncNow} disabled={syncing}
@@ -526,12 +526,12 @@ export function AdPerformanceTab() {
             className={cn(
               "flex h-9 items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
               showFilters || activeDimensionFilters > 0
-                ? "border-violet-200 bg-violet-50 text-violet-700"
-                : "border-surface-mid bg-white text-on-surface hover:border-violet-300 hover:text-violet-700",
+                ? "border-primary-200 bg-primary-50 text-primary-700"
+                : "border-surface-mid bg-white text-on-surface hover:border-primary-300 hover:text-primary-700",
             )}>
             <Filter size={12} /> Filters
             {activeDimensionFilters > 0 && (
-              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-violet-600 text-[9px] text-white">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-[9px] text-white">
                 {activeDimensionFilters}
               </span>
             )}
@@ -540,20 +540,20 @@ export function AdPerformanceTab() {
           <div className="relative">
             <button type="button" onClick={() => setShowColumns((visible) => !visible)}
               aria-expanded={showColumns} aria-haspopup="dialog"
-              className="flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 font-label text-xs font-bold text-indigo-700 shadow-sm transition-all hover:bg-indigo-50">
+              className="flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-white px-3 py-2 font-label text-xs font-bold text-primary-700 shadow-sm transition-all hover:bg-primary-50">
               <Columns3 size={13} /> Columns
-              <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length}</span>
+              <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length}</span>
             </button>
             {showColumns && (
               <div role="dialog" aria-label="Customize ad performance columns"
                 className="absolute right-0 top-11 z-30 flex max-h-[22rem] w-[320px] flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white p-3 shadow-xl">
                 <div className="mb-2 flex items-center justify-between border-b border-[#eee9e1] px-1 pb-2">
                   <div className="flex items-center gap-2">
-                    <SlidersHorizontal size={13} className="text-indigo-600" />
+                    <SlidersHorizontal size={13} className="text-primary-600" />
                     <span className="font-label text-xs font-bold text-[#292524]">Customize metrics</span>
                   </div>
                   <button type="button" onClick={() => setVisibleMetrics(new Set(DEFAULT_METRICS))}
-                    className="flex items-center gap-1 font-label text-[10px] font-bold text-indigo-600 hover:text-indigo-800">
+                    className="flex items-center gap-1 font-label text-[10px] font-bold text-primary-600 hover:text-primary-800">
                     <RotateCcw size={10} /> Reset
                   </button>
                 </div>
@@ -581,7 +581,7 @@ export function AdPerformanceTab() {
 
           <button type="button" onClick={openTrackingModal} disabled={(filters?.creatives?.length ?? 0) === 0}
             title="Generate a fallback ID for a Meta ad's pre-filled WhatsApp message"
-            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 font-label text-xs font-bold text-violet-700 shadow-sm transition-all hover:bg-violet-100 disabled:opacity-40">
+            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3 py-2 font-label text-xs font-bold text-primary-700 shadow-sm transition-all hover:bg-primary-100 disabled:opacity-40">
             <KeyRound size={12} /> Generate ID
           </button>
 
@@ -593,10 +593,10 @@ export function AdPerformanceTab() {
       </div>
 
       {showFilters && (
-        <div id="ad-performance-filters" className="mb-5 overflow-hidden rounded-2xl border border-violet-100/80 bg-gradient-to-br from-violet-50/70 via-white to-indigo-50/50 p-3 shadow-sm">
+        <div id="ad-performance-filters" className="mb-5 overflow-hidden rounded-2xl border border-primary-100/80 bg-gradient-to-br from-primary-50/70 via-white to-primary-50/50 p-3 shadow-sm">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm shadow-violet-200">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-600 text-white shadow-sm shadow-primary-200">
                 <Filter size={13} />
               </span>
               <div>
@@ -605,7 +605,7 @@ export function AdPerformanceTab() {
               </div>
             </div>
             <button type="button" onClick={clearFilters}
-              className="flex h-7 items-center gap-1 rounded-full border border-violet-200 bg-white/90 px-2.5 font-label text-[11px] font-semibold text-violet-700 shadow-sm transition-colors hover:border-violet-300 hover:bg-violet-50 hover:text-violet-900">
+              className="flex h-7 items-center gap-1 rounded-full border border-primary-200 bg-white/90 px-2.5 font-label text-[11px] font-semibold text-primary-700 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-900">
               <X size={11} /> Clear filters
             </button>
           </div>
@@ -613,12 +613,12 @@ export function AdPerformanceTab() {
             <div>
               <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
               <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200" />
             </div>
             <div>
               <label htmlFor="ad-performance-to" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To Date</label>
               <input id="ad-performance-to" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200" />
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200" />
             </div>
             <div>
               <label htmlFor="ad-performance-campaign" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Campaign</label>
@@ -674,22 +674,22 @@ export function AdPerformanceTab() {
       )}
 
       {showReportingNotice && (
-        <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+        <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary-100 bg-primary-50/60 px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary-100 text-primary-600">
               <Megaphone size={15} />
             </span>
             <div>
-              <p className="font-label text-xs font-bold text-indigo-950">Click-to-WhatsApp reporting</p>
-              <p className="font-body text-[11px] text-indigo-700">
+              <p className="font-label text-xs font-bold text-primary-950">Click-to-WhatsApp reporting</p>
+              <p className="font-body text-[11px] text-primary-700">
                 Current account {filters?.account_id ?? "not connected"} · Website, app, form, Messenger, and Instagram DM ads are excluded.
               </p>
-              <p className="font-body text-[10px] text-indigo-600">
+              <p className="font-body text-[10px] text-primary-600">
                 This applies only to Ad Performance; the Leads tab still includes WhatsApp, Instagram, Facebook, and Telegram leads.
               </p>
             </div>
           </div>
-          <span className="rounded-full border border-indigo-200 bg-white px-3 py-1 font-label text-[10px] font-bold text-indigo-700">
+          <span className="rounded-full border border-primary-200 bg-white px-3 py-1 font-label text-[10px] font-bold text-primary-700">
             {dateFrom} — {dateTo}
           </span>
         </div>
@@ -698,8 +698,8 @@ export function AdPerformanceTab() {
       <div className="card overflow-hidden rounded-2xl">
         {rows.length === 0 ? (
           <div className="flex flex-col items-center justify-center px-4 py-20 text-center">
-            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-50">
-              <Megaphone size={24} className="text-violet-400" />
+            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50">
+              <Megaphone size={24} className="text-primary-400" />
             </div>
             <h3 className="mb-1 text-base font-bold text-[#44403c]">No Click-to-WhatsApp data for this account</h3>
             <p className="max-w-md text-sm leading-relaxed text-[#a8a29e]">
@@ -748,7 +748,7 @@ export function AdPerformanceTab() {
                         <td key={metric.key} className={cn(
                           "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
                           metric.key === "messages" && "font-bold text-on-surface",
-                          metric.key === "inline_link_clicks" && "font-semibold text-violet-700",
+                          metric.key === "inline_link_clicks" && "font-semibold text-primary-700",
                           metric.key === "hot" && "font-semibold text-rose-600",
                         )}>
                           {metricValue(metric.key, row)}
@@ -789,7 +789,7 @@ export function AdPerformanceTab() {
           >
             <div className="mb-4 flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-100 text-primary-700">
                   <KeyRound size={18} />
                 </span>
                 <div>
@@ -851,7 +851,7 @@ export function AdPerformanceTab() {
                     setTrackingMessage(event.target.value);
                     setTrackingResult(null);
                   }}
-                  className="w-full resize-none rounded-2xl border border-surface-mid bg-white px-3 py-2.5 font-body text-sm text-on-surface outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                  className="w-full resize-none rounded-2xl border border-surface-mid bg-white px-3 py-2.5 font-body text-sm text-on-surface outline-none transition focus:border-primary-300 focus:ring-2 focus:ring-primary-100"
                 />
               </div>
 

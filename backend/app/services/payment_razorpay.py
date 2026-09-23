@@ -45,8 +45,8 @@ def _get_webhook_secret(tenant_id: str | None = None) -> str:
 
 
 async def create_payment_link(
-    booking_id: str,
-    booking_ref: str,
+    idempotency_key: str,
+    notes: dict[str, str],
     amount_paise: int,
     customer_name: str,
     customer_phone: str,
@@ -55,6 +55,14 @@ async def create_payment_link(
 ) -> dict[str, Any]:
     """
     Create a Razorpay Payment Link and return the short URL.
+
+    `notes` and `idempotency_key` are caller-supplied rather than a fixed
+    booking_id/booking_ref shape -- the webhook resolves what got paid purely
+    from `notes` (see razorpay_webhook in routes/intake.py), so a second kind
+    of payment (a quote, not an intake booking) needs its own notes key
+    (`quote_id`, not `booking_id`) to avoid the webhook conflating the two.
+    idempotency_key must stay unique per payable thing, e.g.
+    f"booking:{session_id}:payment_link" or f"quote:{quote_id}:payment_link".
 
     Returns dict with keys:
       - payment_link_url: str
@@ -73,10 +81,7 @@ async def create_payment_link(
         },
         "notify": {"sms": False, "email": False},
         "reminder_enable": False,
-        "notes": {
-            "booking_id": booking_id,
-            "booking_ref": booking_ref,
-        },
+        "notes": notes,
         # No callback_url: delivery is WhatsApp, not a browser redirect flow --
         # there is nothing to redirect back to, and the payment receipt is
         # already sent from the payment_link.paid webhook handler.
@@ -87,7 +92,7 @@ async def create_payment_link(
         resp = await client.post(
             f"{_RAZORPAY_BASE}/payment_links",
             json=payload,
-            headers={"X-Razorpay-Idempotency-Key": f"booking:{booking_id}:payment_link"},
+            headers={"X-Razorpay-Idempotency-Key": idempotency_key},
         )
 
     if not resp.is_success:

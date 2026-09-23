@@ -45,7 +45,7 @@ export function ProfileMenu() {
       >
         <span
           className="flex items-center justify-center w-[34px] h-[34px] shrink-0 rounded-full text-white text-[12px] font-bold"
-          style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}
+          style={{ background: "linear-gradient(135deg, var(--primary-950), var(--primary-800))" }}
         >
           {initials}
         </span>

@@ -42,8 +42,8 @@ export default function ChannelCard({
       className={cn(
         "flex min-h-[270px] flex-col justify-between rounded-3xl border bg-white p-5 transition-all duration-300",
         viaMeta
-          ? "border-violet-300/90 bg-gradient-to-b from-[#fdfcff] to-white shadow-[0_0_18px_rgba(124,58,237,0.18),0_2px_8px_rgba(124,58,237,0.08)] ring-1 ring-violet-400/25 hover:-translate-y-0.5 hover:border-violet-500 hover:shadow-[0_0_28px_rgba(124,58,237,0.36)]"
-          : "border-violet-200/80 shadow-[0_0_15px_rgba(124,58,237,0.14),0_2px_6px_rgba(124,58,237,0.06)] ring-1 ring-violet-300/20 hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-[0_0_25px_rgba(124,58,237,0.32)]"
+          ? "border-primary-300/90 bg-gradient-to-b from-[#fdfcff] to-white shadow-[0_0_18px_rgba(var(--primary-600-rgb),0.18),0_2px_8px_rgba(var(--primary-600-rgb),0.08)] ring-1 ring-primary-400/25 hover:-translate-y-0.5 hover:border-primary-500 hover:shadow-[0_0_28px_rgba(var(--primary-600-rgb),0.36)]"
+          : "border-primary-200/80 shadow-[0_0_15px_rgba(var(--primary-600-rgb),0.14),0_2px_6px_rgba(var(--primary-600-rgb),0.06)] ring-1 ring-primary-300/20 hover:-translate-y-0.5 hover:border-primary-400 hover:shadow-[0_0_25px_rgba(var(--primary-600-rgb),0.32)]"
       )}
     >
       <div>
@@ -70,7 +70,7 @@ export default function ChannelCard({
 
       <div className="mt-3 flex items-center justify-between gap-2">
         {channel.id === "meta_ads" ? (
-          <span className="font-body text-[10px] font-medium text-indigo-600">Click-to-WhatsApp only</span>
+          <span className="font-body text-[10px] font-medium text-primary-600">Click-to-WhatsApp only</span>
         ) : (
           <HealthRefreshButton loading={healthLoading} onClick={onRefreshHealth} />
         )}
@@ -89,7 +89,7 @@ export default function ChannelCard({
               type="button"
               onClick={onEmbeddedConnect}
               disabled={!canManage || embeddedBusy}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#2e1065] to-primary px-2.5 py-1.5 font-label text-[10px] font-bold text-white shadow-[0_4px_12px_rgba(91,33,182,0.22)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-br from-[var(--primary-950)] to-primary px-2.5 py-1.5 font-label text-[10px] font-bold text-white shadow-[0_4px_12px_rgba(var(--primary-800-rgb),0.22)] transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {embeddedBusy
                 ? <><Loader2 size={12} className="animate-spin" /> Opening…</>
@@ -99,7 +99,7 @@ export default function ChannelCard({
           <button
             type="button"
             onClick={onOpen}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#f4f0ff] px-2.5 py-1.5 font-label text-[10px] font-bold text-primary transition-colors hover:bg-[#ede9fe]"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#f4f0ff] px-2.5 py-1.5 font-label text-[10px] font-bold text-primary transition-colors hover:bg-[var(--primary-100)]"
           >
             <Settings2 size={12} /> {viaMeta ? "Override manually" : configured ? "Manage" : "Set up"}
           </button>

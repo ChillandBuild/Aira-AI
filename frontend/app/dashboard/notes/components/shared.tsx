@@ -9,7 +9,7 @@ export const PRESET_TAGS = [
   { label: "Follow-up", color: "bg-blue-100 text-blue-700 border-blue-200" },
   { label: "Important", color: "bg-red-100 text-red-700 border-red-200" },
   { label: "Callback", color: "bg-amber-100 text-amber-700 border-amber-200" },
-  { label: "Pricing", color: "bg-purple-100 text-purple-700 border-purple-200" },
+  { label: "Pricing", color: "bg-primary-100 text-primary-700 border-primary-200" },
   { label: "Visit", color: "bg-green-100 text-green-700 border-green-200" },
   { label: "Brochure", color: "bg-teal-100 text-teal-700 border-teal-200" },
   { label: "Not interested", color: "bg-gray-100 text-gray-600 border-gray-200" },
@@ -26,7 +26,7 @@ const TAG_CARD_BG: Record<string, string> = {
   "Follow-up": "bg-blue-50/70 border-blue-100",
   "Important": "bg-red-50/70 border-red-100",
   "Callback": "bg-amber-50/70 border-amber-100",
-  "Pricing": "bg-purple-50/70 border-purple-100",
+  "Pricing": "bg-primary-50/70 border-primary-100",
   "Visit": "bg-green-50/70 border-green-100",
   "Brochure": "bg-teal-50/70 border-teal-100",
   "Not interested": "bg-[#f0ece4]/70 border-[#e8e3db]",
@@ -58,7 +58,7 @@ const TAG_DOT_COLOR: Record<string, string> = {
   "Follow-up": "bg-blue-400",
   "Important": "bg-red-400",
   "Callback": "bg-amber-400",
-  "Pricing": "bg-purple-400",
+  "Pricing": "bg-primary-400",
   "Visit": "bg-green-400",
   "Brochure": "bg-teal-400",
   "Not interested": "bg-[#a8a29e]",
@@ -101,7 +101,7 @@ const OUTCOME_BADGE_COLOR: Record<string, string> = {
 };
 
 export function outcomeBadgeColor(outcome?: string | null): string {
-  return (outcome && OUTCOME_BADGE_COLOR[outcome]) || "bg-[#f5f3ff] text-primary";
+  return (outcome && OUTCOME_BADGE_COLOR[outcome]) || "bg-[var(--primary-50)] text-primary";
 }
 
 // ─── Sentiment ──────────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ const SENTIMENT_CHIP_COLOR: Record<string, string> = {
 };
 
 export function sentimentChipColor(sentiment?: string | null): string {
-  return (sentiment && SENTIMENT_CHIP_COLOR[sentiment.toLowerCase()]) || "bg-[#f5f3ff] text-primary border-[#ede9fe]";
+  return (sentiment && SENTIMENT_CHIP_COLOR[sentiment.toLowerCase()]) || "bg-[var(--primary-50)] text-primary border-[var(--primary-100)]";
 }
 
 const SENTIMENT_DOT_COLOR: Record<string, string> = {
@@ -164,7 +164,7 @@ export function TimelineItem({
 // ─── Segment badges ────────────────────────────────────────────────────────────
 export const SEGMENT_COLORS: Record<string, string> = {
   A: "bg-rose-100 text-rose-600",
-  B: "bg-[#f5f3ff] text-primary",
+  B: "bg-[var(--primary-50)] text-primary",
   C: "bg-blue-50 text-blue-600",
   D: "bg-[#f0ece4] text-[#78716c]",
 };
@@ -328,7 +328,7 @@ export function AiSummaryCard({
   }
 
   return (
-    <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[#ede9fe] shadow-sm hover:shadow-md transition-shadow">
+    <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[var(--primary-100)] shadow-sm hover:shadow-md transition-shadow">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

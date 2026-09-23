@@ -47,8 +47,8 @@ async def test_create_payment_link_returns_url_and_id():
     with patch.object(pr, "get_setting", side_effect=["key_id", "key_secret"]), \
          patch("httpx.AsyncClient", return_value=fake_client):
         result = await pr.create_payment_link(
-            booking_id="session-1",
-            booking_ref="EH-ABC123",
+            idempotency_key="booking:session-1:payment_link",
+            notes={"booking_id": "session-1", "booking_ref": "EH-ABC123"},
             amount_paise=2900,
             customer_name="Priya",
             customer_phone="+919876543210",
@@ -56,6 +56,10 @@ async def test_create_payment_link_returns_url_and_id():
             tenant_id="t-1",
         )
     assert result == {"payment_link_url": "https://rzp.io/abc", "razorpay_payment_link_id": "plink_123"}
+    sent_payload = fake_client.post.call_args.kwargs["json"]
+    assert sent_payload["notes"] == {"booking_id": "session-1", "booking_ref": "EH-ABC123"}
+    sent_headers = fake_client.post.call_args.kwargs["headers"]
+    assert sent_headers["X-Razorpay-Idempotency-Key"] == "booking:session-1:payment_link"
 
 
 @pytest.mark.asyncio
@@ -74,7 +78,9 @@ async def test_create_payment_link_raises_on_failed_response():
          patch("httpx.AsyncClient", return_value=fake_client):
         with pytest.raises(RuntimeError, match="Razorpay payment link creation failed"):
             await pr.create_payment_link(
-                booking_id="session-1", booking_ref="EH-ABC123", amount_paise=2900,
+                idempotency_key="booking:session-1:payment_link",
+                notes={"booking_id": "session-1", "booking_ref": "EH-ABC123"},
+                amount_paise=2900,
                 customer_name="Priya", customer_phone="+919876543210",
                 description="x", tenant_id="t-1",
             )

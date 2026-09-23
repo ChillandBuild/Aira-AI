@@ -91,7 +91,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
       {dialCountdown !== null && dialTarget && (
         <div className="fixed inset-0 bg-[#1c1917]/70 backdrop-blur-sm flex items-center justify-center z-[70]">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl border border-[#e8e3db] text-center animate-in fade-in zoom-in-95">
-            <div className="w-16 h-16 bg-[#f5f3ff] text-[#5b21b6] rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+            <div className="w-16 h-16 bg-[var(--primary-50)] text-[var(--primary-800)] rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
               <Phone size={24} />
             </div>
             <h3 className="font-display text-lg font-bold text-[#292524]">Calling in {dialCountdown}s...</h3>

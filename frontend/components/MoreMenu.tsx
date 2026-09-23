@@ -108,7 +108,7 @@ export function MoreMenu() {
         onClick={() => setIsOpen(true)}
         aria-label="More"
         className="flex h-[34px] w-[34px] items-center justify-center rounded-full text-white transition-transform hover:scale-105"
-        style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}
+        style={{ background: "linear-gradient(135deg, var(--primary-950), var(--primary-800))" }}
       >
         <Menu size={16} />
       </button>

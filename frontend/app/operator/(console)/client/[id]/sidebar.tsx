@@ -113,11 +113,11 @@ export function ClientDetailSidebar({
       <div
         onClick={() => onSectionChange(item.key)}
         className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 group ${
-          active ? "bg-[#f5f3ff] text-[#5b21b6]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"
+          active ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"
         }`}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[#5b21b6]" : ""}`} />
+          <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[var(--primary-800)]" : ""}`} />
           <span className={`text-sm font-semibold truncate ${!enabled && !active ? "line-through" : ""}`}>{item.label}</span>
         </div>
         {item.toggleKey && <FeatureToggle featureKey={item.toggleKey} />}
@@ -138,10 +138,10 @@ export function ClientDetailSidebar({
         onClick={() => onSectionChange(item.key)}
         className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 group ${
           indent ? "ml-4" : ""
-        } ${active ? "bg-[#f5f3ff] text-[#5b21b6]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"}`}
+        } ${active ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"}`}
       >
         <div className="flex items-center gap-3 min-w-0">
-          <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[#5b21b6]" : ""}`} />
+          <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[var(--primary-800)]" : ""}`} />
           <span className={`text-sm font-semibold truncate ${!enabled && !active ? "line-through" : ""}`}>{item.label}</span>
         </div>
         {interactive && <FeatureToggle featureKey={item.featureKey} />}
@@ -175,7 +175,7 @@ export function ClientDetailSidebar({
             onClick={() => setTcExpanded(!tcExpanded)}
             className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 ${
               ["tc-upload", "tc-dialer", "tc-scheduled", "tc-notes"].includes(activeSection)
-                ? "bg-[#f5f3ff] text-[#5b21b6]" : isEnabled("telecalling") ? "text-[#1c1917] hover:bg-[#f0ece4]" : "text-[#1c1917] opacity-40"
+                ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : isEnabled("telecalling") ? "text-[#1c1917] hover:bg-[#f0ece4]" : "text-[#1c1917] opacity-40"
             }`}
           >
             <div className="flex items-center gap-3 min-w-0">

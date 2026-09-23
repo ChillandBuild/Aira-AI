@@ -168,7 +168,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         <Tile
           loading={loading}
           icon={<Award size={16} />}
-          iconClass="bg-purple-50 text-purple-600"
+          iconClass="bg-primary-50 text-primary-600"
           value={quality ? `${quality.toFixed(1)}/10` : "—"}
           label="Overall Score"
           tooltip="Rolling average of last 10 calls (outcome + AI eval)"

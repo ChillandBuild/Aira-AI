@@ -1204,6 +1204,36 @@ _CATALOG_RECOMMEND_TOOL = {
     },
 }
 
+_SEND_QUOTE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "send_quote",
+        "description": (
+            "Send a formal price quote with a payment link for one or more catalog items the "
+            "customer has clearly decided to buy -- not just shown interest in. The exact prices "
+            "are read from the catalog, never invented. Only call this when the customer has "
+            "confirmed what they want and is ready to pay; use recommend_catalog_item instead for "
+            "browsing or answering 'how much is X'. Do NOT call for an item marked OUT OF STOCK."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "item_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "UUIDs of the catalog items the customer wants to buy",
+                },
+                "quantities": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "Quantity for each item_id, same order and length as item_ids. Omit for 1 each.",
+                },
+            },
+            "required": ["item_ids"],
+        },
+    },
+}
+
 
 def _intake_in_progress_prompt_block(service_noun: str) -> str:
     """System-prompt section for a lead who is mid-way through the paid intake flow
@@ -1327,7 +1357,7 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
         try:
             res = (
                 db.table("catalog_items")
-                .select("id,name,item_type,description")
+                .select("id,name,item_type,description,price_paise,price_note,stock_quantity")
                 .eq("tenant_id", tenant_id)
                 .eq("status", "ready")
                 .order("name")
@@ -1344,9 +1374,21 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
     items_by_id = {row["id"]: row for row in items}
     item_lines: list[str] = []
     for row in items:
+        # stock_quantity is NULL for anything that isn't a tracked physical
+        # product (services, courses) -- NULL always means "available", only
+        # an explicit 0 means out of stock.
+        out_of_stock = row.get("stock_quantity") == 0
         line = f"  • {row['name']} ({row['item_type']}) [id: {row['id']}]"
+        if row.get("price_paise") is not None:
+            price_rupees = row["price_paise"] / 100
+            price_str = f"₹{price_rupees:.0f}" if price_rupees == int(price_rupees) else f"₹{price_rupees:.2f}"
+            if row.get("price_note"):
+                price_str += f" ({row['price_note']})"
+            line += f" — {price_str}"
         if row.get("description"):
             line += f" — {row['description']}"
+        if out_of_stock:
+            line += " — OUT OF STOCK: if asked, say so honestly, but do NOT call recommend_catalog_item for this item"
         item_lines.append(line)
 
     text_block = ""
@@ -1354,7 +1396,8 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
         text_block = (
             "\n\nCATALOG:\nWhen the customer asks about what's available or shows interest in a type of "
             "product/service, use your catalog below. Mention items by name — and when you do, call the "
-            "recommend_catalog_item tool with the item's [id] so the customer receives its photo automatically.\n"
+            "recommend_catalog_item tool with the item's [id] so the customer receives its photo automatically. "
+            "Never call that tool for an item marked OUT OF STOCK.\n"
             + "\n".join(item_lines)
         )
     text_block += directive
@@ -1367,6 +1410,8 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
     if rules.get("can_send_images", True) and items:
         tools = [dict(_CATALOG_RECOMMEND_TOOL)]
         text_block += f"\n\nYou may recommend up to {max_images} item(s) with photos per reply."
+    if any(row.get("price_paise") is not None for row in items):
+        tools.append(dict(_SEND_QUOTE_TOOL))
 
     return text_block, tools, items_by_id, max_images
 
@@ -1766,10 +1811,52 @@ async def generate_reply(
                     lead_id, len(quick_reply_blocks),
                 )
 
-            # Handle tool calls — the model asked to recommend catalog items
+            # Handle tool calls — the model asked to recommend a catalog item or send a quote
             for tc in tool_calls:
                 func = tc.get("function") or {}
-                if func.get("name") != "recommend_catalog_item":
+                tool_name = func.get("name")
+                if tool_name == "send_quote":
+                    try:
+                        args = json.loads(func.get("arguments") or "{}")
+                    except (ValueError, TypeError):
+                        continue
+                    item_ids = args.get("item_ids") or []
+                    quantities = args.get("quantities") or []
+                    line_items = []
+                    for idx, iid in enumerate(item_ids):
+                        item = catalog_items_by_id.get(iid)
+                        if not item or item.get("price_paise") is None or item.get("stock_quantity") == 0:
+                            # Defense in depth, same reasoning as the
+                            # recommend_catalog_item branch below: silently
+                            # drop an unpriced/unknown/out-of-stock item
+                            # rather than trust the model to have obeyed the
+                            # prompt instruction not to quote it.
+                            continue
+                        qty = quantities[idx] if idx < len(quantities) and quantities[idx] > 0 else 1
+                        line_items.append({
+                            "catalog_item_id": iid, "name": item["name"],
+                            "price_paise": item["price_paise"], "qty": qty,
+                        })
+                    if not line_items:
+                        continue
+                    try:
+                        from app.services.quotes import create_quote
+                        result = await create_quote(
+                            tenant_id, lead_id, line_items,
+                            customer_name=lead_data.get("name") or phone,
+                            customer_phone=lead_data.get("phone") or phone,
+                            db=db,
+                        )
+                    except Exception as e:
+                        logger.warning(f"create_quote failed for lead {lead_id}: {e}")
+                        result = None
+                    if result:
+                        reply_text = result["summary_text"]
+                        logger.info(f"Quote sent: lead {lead_id} -> quote {result['quote_id']}")
+                    elif not reply_text:
+                        reply_text = "Sorry, I couldn't put that quote together right now — a team member will follow up."
+                    continue
+                if tool_name != "recommend_catalog_item":
                     continue
                 try:
                     args = json.loads(func.get("arguments") or "{}")
@@ -1780,9 +1867,28 @@ async def generate_reply(
                     continue
 
                 item = catalog_items_by_id[item_id]
+                # Defense in depth: the prompt already tells the model not to
+                # recommend an out-of-stock item, but a model can ignore an
+                # instruction. This is the backend actually enforcing it --
+                # no images, no quote recorded, regardless of what the model did.
+                if item.get("stock_quantity") == 0:
+                    logger.info(
+                        "Blocked out-of-stock recommendation: lead %s -> item %s (%s)", lead_id, item["name"], item_id
+                    )
+                    if not reply_text:
+                        reply_text = f"Sorry, {item['name']} is currently out of stock."
+                    continue
                 logger.info(
                     "Catalog recommendation: lead %s -> item %s (%s)", lead_id, item["name"], item_id
                 )
+                if item.get("price_paise") is not None:
+                    try:
+                        from app.services.catalog_quotes import record_catalog_quote
+                        record_catalog_quote(
+                            tenant_id, lead_id, item_id, item["name"], item["price_paise"], db=db,
+                        )
+                    except Exception as e:
+                        logger.warning(f"record_catalog_quote failed for lead {lead_id}: {e}")
                 # Append a natural confirmation sentence to the reply if we're sending photos
                 # — only if no customer-facing text was generated by the model.
                 if not reply_text:

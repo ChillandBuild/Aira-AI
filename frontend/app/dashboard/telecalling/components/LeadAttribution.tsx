@@ -22,19 +22,19 @@ export default function LeadAttribution({ lead, variant = "full" }: LeadAttribut
 
   if (hasOutbound) {
     return (
-      <div className={`bg-gradient-to-br from-purple-50/50 to-primary-light/20 border border-purple-100/60 shadow-sm flex flex-col ${
+      <div className={`bg-gradient-to-br from-primary-50/50 to-primary-light/20 border border-primary-100/60 shadow-sm flex flex-col ${
         isCompact ? "rounded-2xl p-4 gap-3" : "rounded-3xl p-5 gap-4"
       }`}>
-        <span className={`font-display font-black text-purple-800 uppercase tracking-widest flex items-center gap-1.5 ${
+        <span className={`font-display font-black text-primary-800 uppercase tracking-widest flex items-center gap-1.5 ${
           isCompact ? "text-[10px]" : "text-[11px]"
         }`}>
-          <Target size={isCompact ? 11 : 12} className="text-purple-500" /> Outbound Campaign
+          <Target size={isCompact ? 11 : 12} className="text-primary-500" /> Outbound Campaign
         </span>
         <div className={isCompact ? "grid grid-cols-2 gap-2.5" : "space-y-3.5"}>
-          <div className={`bg-white/90 backdrop-blur-sm border border-purple-100/65 rounded-xl relative shadow-sm ${
+          <div className={`bg-white/90 backdrop-blur-sm border border-primary-100/65 rounded-xl relative shadow-sm ${
             isCompact ? "p-3" : "p-3.5"
           }`}>
-            <span className="font-label text-[9px] text-purple-700/60 uppercase font-extrabold block">Broadcast Campaign ID</span>
+            <span className="font-label text-[9px] text-primary-700/60 uppercase font-extrabold block">Broadcast Campaign ID</span>
             <p className={`font-mono text-[#292524] font-bold mt-1.5 truncate select-all ${
               isCompact ? "text-[10px] pr-6" : "text-xs pr-8"
             }`}>
@@ -43,7 +43,7 @@ export default function LeadAttribution({ lead, variant = "full" }: LeadAttribut
             {lead.broadcast_id && (
               <button 
                 onClick={() => copyToClipboard(lead.broadcast_id || "", "Campaign ID")}
-                className={`absolute text-purple-400 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors ${
+                className={`absolute text-primary-400 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors ${
                   isCompact ? "right-2.5 bottom-2.5 p-1" : "right-3 bottom-3 p-1.5"
                 }`}
                 title="Copy ID"
@@ -53,23 +53,23 @@ export default function LeadAttribution({ lead, variant = "full" }: LeadAttribut
             )}
           </div>
 
-          <div className={`bg-white/90 backdrop-blur-sm border border-purple-100/65 rounded-xl shadow-sm ${
+          <div className={`bg-white/90 backdrop-blur-sm border border-primary-100/65 rounded-xl shadow-sm ${
             isCompact ? "p-3" : "p-3.5"
           }`}>
-            <span className="font-label text-[9px] text-purple-700/60 uppercase font-extrabold block">Message Template</span>
+            <span className="font-label text-[9px] text-primary-700/60 uppercase font-extrabold block">Message Template</span>
             <p className="font-body text-xs text-[#1c1917] font-bold mt-1.5 truncate">
               {lead.template_name || "N/A"}
             </p>
           </div>
 
           {lead.tag_name && (
-            <div className={`bg-white/90 backdrop-blur-sm border border-purple-100/65 rounded-xl shadow-sm flex items-center gap-1.5 ${
+            <div className={`bg-white/90 backdrop-blur-sm border border-primary-100/65 rounded-xl shadow-sm flex items-center gap-1.5 ${
               isCompact ? "p-3 col-span-2" : "p-3.5"
             }`}>
-              <Tag size={11} className="text-purple-500 shrink-0" />
+              <Tag size={11} className="text-primary-500 shrink-0" />
               <div>
-                <span className="font-label text-[9px] text-purple-700/60 uppercase font-extrabold block">Campaign Tag</span>
-                <span className="text-xs font-bold text-purple-700 mt-0.5 inline-block">{lead.tag_name}</span>
+                <span className="font-label text-[9px] text-primary-700/60 uppercase font-extrabold block">Campaign Tag</span>
+                <span className="text-xs font-bold text-primary-700 mt-0.5 inline-block">{lead.tag_name}</span>
               </div>
             </div>
           )}

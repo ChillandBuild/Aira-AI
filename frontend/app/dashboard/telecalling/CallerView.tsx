@@ -258,7 +258,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                       onClick={() => cockpit.setSelectedLeadId(lead.id)}
                       className={`rounded-2xl border-y border-r border-l-[6px] transition-all duration-200 cursor-pointer p-3 flex items-center justify-between gap-3 ${borderAccent} ${
                         isSelected
-                          ? "bg-gradient-to-r from-primary-light/70 to-purple-50/20 border-primary-muted shadow-[0_4px_15px_rgba(99,102,241,0.06)] ring-1 ring-primary/10 translate-x-1"
+                          ? "bg-gradient-to-r from-primary-light/70 to-primary-50/20 border-primary-muted shadow-[0_4px_15px_rgba(var(--primary-500-rgb),0.06)] ring-1 ring-primary/10 translate-x-1"
                           : "bg-[#faf8f5]/30 border-[#f0ece4] hover:bg-[#faf8f5] hover:shadow-sm"
                       }`}
                     >

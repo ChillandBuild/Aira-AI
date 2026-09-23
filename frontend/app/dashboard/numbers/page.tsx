@@ -127,14 +127,14 @@ function TierGuide({
     { limit: "250 / day", label: "Unverified", color: "bg-red-50 text-red-700 border-red-200", trigger: "Default on registration" },
     { limit: "2,000 / day", label: "Tier 1", color: "bg-amber-50 text-amber-700 border-amber-200", trigger: "Complete Meta Business Verification" },
     { limit: "10,000 / day", label: "Tier 2", color: "bg-blue-50 text-blue-700 border-blue-200", trigger: "Auto-upgrade: ≥50% usage in 7 days + High/Medium quality" },
-    { limit: "100,000 / day", label: "Tier 3", color: "bg-purple-50 text-purple-700 border-purple-200", trigger: "Auto-upgrade: same criteria" },
+    { limit: "100,000 / day", label: "Tier 3", color: "bg-primary-50 text-primary-700 border-primary-200", trigger: "Auto-upgrade: same criteria" },
     { limit: "Unlimited", label: "Tier 4", color: "bg-emerald-50 text-emerald-700 border-emerald-200", trigger: "Auto-upgrade: same criteria" },
   ];
 
   return (
     <div
       className={cn(
-        "rounded-2xl border border-purple-200/70 bg-gradient-to-br from-purple-50/40 via-white to-blue-50/30 overflow-hidden shadow-xs transition-all duration-300",
+        "rounded-2xl border border-primary-200/70 bg-gradient-to-br from-primary-50/40 via-white to-blue-50/30 overflow-hidden shadow-xs transition-all duration-300",
         isFading
           ? "opacity-0 -translate-y-1 max-h-0 pointer-events-none border-transparent py-0"
           : "opacity-100 max-h-[1000px]"
@@ -142,7 +142,7 @@ function TierGuide({
     >
       <div
         onClick={toggleOpen}
-        className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-purple-50/50 transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between px-5 py-3.5 text-left hover:bg-primary-50/50 transition-colors cursor-pointer"
       >
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -152,7 +152,7 @@ function TierGuide({
             <span className="font-display text-sm font-bold text-on-surface">
               How WhatsApp messaging limits work
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-purple-100/80 text-primary font-label text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-full bg-primary-100/80 text-primary font-label text-[10px] font-bold">
               Portfolio-Level · Updated 2025/2026
             </span>
           </div>
@@ -169,7 +169,7 @@ function TierGuide({
           <button
             type="button"
             onClick={handleManualDismiss}
-            className="p-1 rounded-lg hover:bg-purple-100 text-on-surface-muted hover:text-on-surface transition-colors ml-1"
+            className="p-1 rounded-lg hover:bg-primary-100 text-on-surface-muted hover:text-on-surface transition-colors ml-1"
             title="Dismiss notice"
           >
             <X size={14} />
@@ -178,7 +178,7 @@ function TierGuide({
       </div>
 
       {open && (
-        <div className="px-5 pb-5 pt-1 border-t border-purple-100/80 space-y-4">
+        <div className="px-5 pb-5 pt-1 border-t border-primary-100/80 space-y-4">
           <p className="font-body text-xs text-on-surface-muted leading-relaxed">
             Meta operates on a <strong>portfolio-level</strong> tier system (since Oct 2025). All phone numbers in your Meta Business portfolio share the portfolio tier limit.
             There is <strong>no fixed 14-day evaluation window</strong> — upgrades trigger automatically when you dispatch ≥50% of your current tier limit over any rolling 7-day period while keeping High or Medium quality.
@@ -251,7 +251,7 @@ const TYPE_BADGE: Record<string, string> = {
   quality_yellow: "bg-amber-50 text-amber-700 border-amber-200",
   quality_red: "bg-red-50 text-red-700 border-red-200",
   failover: "bg-blue-50 text-blue-700 border-blue-200",
-  migration_sent: "bg-purple-50 text-purple-700 border-purple-200",
+  migration_sent: "bg-primary-50 text-primary-700 border-primary-200",
   appeal_filed: "bg-orange-50 text-orange-700 border-orange-200",
   standby_promoted: "bg-blue-50 text-blue-700 border-blue-200",
   warm_up_complete: "bg-green-50 text-green-700 border-green-200",
@@ -313,7 +313,7 @@ function IncidentRow({ incident }: { incident: Incident }) {
   return (
     <div className="flex gap-4 py-4 border-b border-border/60 last:border-0 hover:bg-surface-low/50 px-3 rounded-xl transition-colors">
       <div className="flex flex-col items-center gap-1 pt-1">
-        <div className="w-8 h-8 rounded-xl bg-purple-50 text-primary border border-purple-100 flex items-center justify-center shrink-0">
+        <div className="w-8 h-8 rounded-xl bg-primary-50 text-primary border border-primary-100 flex items-center justify-center shrink-0">
           {incident.type.includes("quality") ? (
             <ShieldCheck size={16} />
           ) : incident.type.includes("failover") || incident.type.includes("promoted") ? (
@@ -679,10 +679,10 @@ function NumbersPageContent() {
             {/* KPI 1: Pool Utilization */}
             <div className="p-5 rounded-2xl bg-white border border-border/80 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
               <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-50 text-primary flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary flex items-center justify-center shrink-0">
                   <Smartphone size={20} />
                 </div>
-                <span className="font-label text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-100/70 text-primary">
+                <span className="font-label text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-primary-100/70 text-primary">
                   {totalPoolUsed >= totalPoolLimit ? "Quota Full" : `${totalPoolLimit - totalPoolUsed} slots free`}
                 </span>
               </div>
@@ -804,7 +804,7 @@ function NumbersPageContent() {
                       setShowTierGuide(true);
                       setTierGuideOpen(true);
                     }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-label font-bold text-primary bg-purple-50 hover:bg-purple-100 border border-purple-200/80 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-label font-bold text-primary bg-primary-50 hover:bg-primary-100 border border-primary-200/80 transition-colors"
                     title="Re-open WhatsApp messaging limits and tier guide"
                   >
                     <Info size={12} />
@@ -862,7 +862,7 @@ function NumbersPageContent() {
                   <button
                     onClick={handleSyncAllMeta}
                     disabled={syncingAll}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#2e1065] via-[#5b21b6] to-[#7c3aed] text-white hover:opacity-95 rounded-xl font-label text-xs font-bold shadow-sm transition-all disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[var(--primary-950)] via-[var(--primary-800)] to-[var(--primary-600)] text-white hover:opacity-95 rounded-xl font-label text-xs font-bold shadow-sm transition-all disabled:opacity-50"
                     title="Discover and sync all numbers from your connected Meta WhatsApp Business account"
                   >
                     <RefreshCw size={13} className={syncingAll ? "animate-spin" : ""} />
@@ -880,7 +880,7 @@ function NumbersPageContent() {
               </div>
             ) : visible.length === 0 ? (
               <div className="py-16 text-center max-w-md mx-auto space-y-4">
-                <div className="w-14 h-14 rounded-2xl bg-purple-50 text-primary border border-purple-100 flex items-center justify-center mx-auto">
+                <div className="w-14 h-14 rounded-2xl bg-primary-50 text-primary border border-primary-100 flex items-center justify-center mx-auto">
                   <Phone size={26} />
                 </div>
                 <div>
@@ -937,7 +937,7 @@ function NumbersPageContent() {
                           <div className={cn(
                             "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-xs",
                             num.role === "primary"
-                              ? "bg-gradient-to-br from-purple-600 to-[#2e1065] text-white ring-2 ring-primary/20"
+                              ? "bg-gradient-to-br from-primary-600 to-[var(--primary-950)] text-white ring-2 ring-primary/20"
                               : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
                           )}>
                             <Phone size={22} />
@@ -994,8 +994,8 @@ function NumbersPageContent() {
 
                               {/* Role Badge */}
                               {num.role === "primary" ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold bg-gradient-to-r from-purple-100 via-purple-50 to-indigo-100 text-[#5b21b6] border border-purple-200/80 shadow-2xs">
-                                  <Star size={11} className="fill-[#5b21b6] text-[#5b21b6]" />
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold bg-gradient-to-r from-primary-100 via-primary-50 to-primary-100 text-[var(--primary-800)] border border-primary-200/80 shadow-2xs">
+                                  <Star size={11} className="fill-[var(--primary-800)] text-[var(--primary-800)]" />
                                   Primary Sender
                                 </span>
                               ) : (
@@ -1086,10 +1086,10 @@ function NumbersPageContent() {
                             {canManageNumbers && num.role !== "primary" && num.role !== "archived" && (
                               <button
                                 onClick={() => handleSetPrimary(num.id)}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 text-[#5b21b6] font-label text-xs font-bold transition-all shadow-2xs"
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary-200 bg-primary-50/70 hover:bg-primary-100 text-[var(--primary-800)] font-label text-xs font-bold transition-all shadow-2xs"
                                 title="Set this line as the active primary sender"
                               >
-                                <Star size={12} className="fill-purple-600/30" />
+                                <Star size={12} className="fill-primary-600/30" />
                                 <span>Set Primary</span>
                               </button>
                             )}

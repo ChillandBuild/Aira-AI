@@ -34,13 +34,13 @@ function WinnerCard({
 
   const gradientClass = isDaily
     ? "from-amber-400 via-orange-400 to-rose-400"
-    : "from-violet-500 via-purple-500 to-primary";
+    : "from-primary-500 via-primary-500 to-primary";
 
   const avatarClass = isDaily
     ? "bg-white/25 ring-2 ring-white/40"
     : "bg-white/25 ring-2 ring-white/40";
 
-  const shimmerClass = isDaily ? "bg-amber-300/40" : "bg-violet-400/40";
+  const shimmerClass = isDaily ? "bg-amber-300/40" : "bg-primary-400/40";
 
   const label = isDaily ? "⚡ Daily Winner" : "👑 Monthly Champion";
   const emptyMsg = isDaily ? "No calls yet today" : "No callers yet";

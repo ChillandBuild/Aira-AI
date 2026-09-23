@@ -25,7 +25,7 @@ type ChannelState = "receiving" | "waiting" | "synced" | "attention" | "off";
 const STATE_STYLES: Record<ChannelState, string> = {
   receiving: "text-emerald-600",
   waiting: "text-amber-600",
-  synced: "text-indigo-600",
+  synced: "text-primary-600",
   attention: "text-rose-600",
   off: "text-ink-muted",
 };
@@ -33,7 +33,7 @@ const STATE_STYLES: Record<ChannelState, string> = {
 const DOT_STYLES: Record<ChannelState, string> = {
   receiving: "bg-emerald-500",
   waiting: "bg-amber-500",
-  synced: "bg-indigo-500",
+  synced: "bg-primary-500",
   attention: "bg-rose-500",
   off: "bg-ink-muted",
 };
@@ -42,7 +42,7 @@ const RAIL_STYLES: Record<string, string> = {
   whatsapp: "bg-emerald-500",
   instagram: "bg-pink-500",
   facebook: "bg-blue-500",
-  meta_ads: "bg-indigo-500",
+  meta_ads: "bg-primary-500",
 };
 
 export default function EmbeddedSection({
@@ -162,15 +162,15 @@ export default function EmbeddedSection({
                 "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-label text-[10.5px] font-bold uppercase tracking-[0.14em] shadow-sm transition-colors",
                 isConnected
                   ? "border-emerald-200/90 bg-emerald-50/90 text-emerald-700"
-                  : "border-purple-200/90 bg-purple-50/90 text-primary"
+                  : "border-primary-200/90 bg-primary-50/90 text-primary"
               )}
             >
               <Activity size={12} className={isConnected ? "text-emerald-600" : "text-primary"} />
               Connectivity Hub
             </span>
             {!isConnected && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-50/90 px-2.5 py-1 font-label text-[10.5px] font-bold uppercase tracking-wider text-violet-700 shadow-[0_0_12px_rgba(139,92,246,0.32)]">
-                <Sparkles size={11} className="animate-pulse text-violet-600" />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary-500/30 bg-primary-50/90 px-2.5 py-1 font-label text-[10.5px] font-bold uppercase tracking-wider text-primary-700 shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.32)]">
+                <Sparkles size={11} className="animate-pulse text-primary-600" />
                 Recommended
               </span>
             )}
@@ -190,7 +190,7 @@ export default function EmbeddedSection({
                 <span>One secure connection brings WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting into Aira.</span>
               </div>
               <div className="flex items-start gap-2.5 font-body text-[13px] leading-relaxed text-ink-secondary">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400" />
                 <span><strong className="font-semibold text-ink">Prefer using your phone?</strong> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing with Aira.</span>
               </div>
             </div>
@@ -211,7 +211,7 @@ export default function EmbeddedSection({
                 onClick={onConnect}
                 disabled={!canManage || isBusy}
                 title="Refresh permissions and re-pick assets"
-                className="relative inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] px-3.5 py-2 font-label text-xs font-bold text-white shadow-[0_0_16px_-3px_rgba(124,58,237,0.45),0_2px_4px_rgba(46,16,101,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(124,58,237,0.65),0_4px_12px_rgba(46,16,101,0.3)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="relative inline-flex items-center gap-2 rounded-[10px] bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] px-3.5 py-2 font-label text-xs font-bold text-white shadow-[0_0_16px_-3px_rgba(var(--primary-600-rgb),0.45),0_2px_4px_rgba(var(--primary-950-rgb),0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(var(--primary-600-rgb),0.65),0_4px_12px_rgba(var(--primary-950-rgb),0.3)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isBusy && activeMode === "standard" && <Loader2 size={12} className="animate-spin text-white" />}
                 Reconnect Meta Business
@@ -221,7 +221,7 @@ export default function EmbeddedSection({
                 onClick={onConnectCoexistence}
                 disabled={!canManage || isBusy}
                 title="Keep the WhatsApp mobile app working alongside Aira"
-                className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-3.5 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-3.5 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(var(--primary-800-rgb),0.28)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isBusy && activeMode === "coexistence" && <Loader2 size={12} className="animate-spin" />}
                 <Smartphone size={13} className="text-ink-secondary" />
@@ -242,7 +242,7 @@ export default function EmbeddedSection({
                 type="button"
                 onClick={onConnect}
                 disabled={!canManage || isBusy}
-                className="relative inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] px-5 py-2.5 font-label text-[13px] font-bold text-white shadow-[0_0_20px_-3px_rgba(124,58,237,0.45),0_2px_4px_rgba(46,16,101,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_28px_rgba(124,58,237,0.65),0_6px_16px_rgba(46,16,101,0.3)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="relative inline-flex items-center gap-2 rounded-[11px] bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] px-5 py-2.5 font-label text-[13px] font-bold text-white shadow-[0_0_20px_-3px_rgba(var(--primary-600-rgb),0.45),0_2px_4px_rgba(var(--primary-950-rgb),0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_0_28px_rgba(var(--primary-600-rgb),0.65),0_6px_16px_rgba(var(--primary-950-rgb),0.3)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isBusy && activeMode === "standard" && <Loader2 size={14} className="animate-spin" />}
                 Connect Meta Business
@@ -252,7 +252,7 @@ export default function EmbeddedSection({
                 type="button"
                 onClick={onConnectCoexistence}
                 disabled={!canManage || isBusy}
-                className="inline-flex items-center gap-2 rounded-[11px] border border-border bg-white px-4 py-2.5 font-label text-[13px] font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(91,33,182,0.25)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-[11px] border border-border bg-white px-4 py-2.5 font-label text-[13px] font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(var(--primary-800-rgb),0.25)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isBusy && activeMode === "coexistence" && <Loader2 size={14} className="animate-spin" />}
                 <Smartphone size={13} className="text-ink-secondary" />
@@ -280,7 +280,7 @@ export default function EmbeddedSection({
 
       {/* ── Account strip / value props ────────────────────────────────── */}
       {isConnected ? (
-        <dl className="grid border-y border-border-subtle bg-gradient-to-r from-emerald-50/50 via-[#f9fcf9] to-indigo-50/40 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid border-y border-border-subtle bg-gradient-to-r from-emerald-50/50 via-[#f9fcf9] to-primary-50/40 sm:grid-cols-2 lg:grid-cols-4">
           <StripCell
             icon={MessageSquare}
             iconBg="bg-emerald-100/90 text-emerald-700 ring-1 ring-emerald-400/25"
@@ -324,13 +324,13 @@ export default function EmbeddedSection({
           />
           <StripCell
             icon={Megaphone}
-            iconBg="bg-indigo-100/90 text-indigo-600 ring-1 ring-indigo-400/25"
-            cellBg="hover:bg-gradient-to-br hover:from-indigo-50/70 hover:to-white"
+            iconBg="bg-primary-100/90 text-primary-600 ring-1 ring-primary-400/25"
+            cellBg="hover:bg-gradient-to-br hover:from-primary-50/70 hover:to-white"
             label="Ad account"
             value={adsName}
             detail={
               adsId ? (
-                <span className="font-mono text-[11px] font-semibold text-indigo-700">
+                <span className="font-mono text-[11px] font-semibold text-primary-700">
                   {adsId}
                 </span>
               ) : null

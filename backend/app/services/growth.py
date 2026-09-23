@@ -243,15 +243,19 @@ def sync_follow_up_jobs(
     return inserted.data or rows
 
 
-def build_follow_up_summary(db=None) -> dict[str, Any]:
+def build_follow_up_summary(tenant_id: str, db=None) -> dict[str, Any]:
+    # AUDIT-2026-09.md finding C6: every query below MUST stay scoped to
+    # tenant_id. Without it, this leaks every tenant's pending/sent/failed
+    # follow-up counts plus a preview of other tenants' lead names and phones
+    # to any authenticated caller.
     db = db or get_supabase()
     now = utcnow()
     window_start = (now - timedelta(days=7)).isoformat()
 
-    pending = db.table("follow_up_jobs").select("*").eq("status", "pending").order("scheduled_for").execute().data or []
-    sent = db.table("follow_up_jobs").select("*").eq("status", "sent").gte("sent_at", window_start).execute().data or []
-    failed = db.table("follow_up_jobs").select("*").eq("status", "failed").gte("updated_at", window_start).execute().data or []
-    skipped = db.table("follow_up_jobs").select("*").in_("status", ["skipped", "canceled"]).gte("updated_at", window_start).execute().data or []
+    pending = db.table("follow_up_jobs").select("*").eq("tenant_id", tenant_id).eq("status", "pending").order("scheduled_for").execute().data or []
+    sent = db.table("follow_up_jobs").select("*").eq("tenant_id", tenant_id).eq("status", "sent").gte("sent_at", window_start).execute().data or []
+    failed = db.table("follow_up_jobs").select("*").eq("tenant_id", tenant_id).eq("status", "failed").gte("updated_at", window_start).execute().data or []
+    skipped = db.table("follow_up_jobs").select("*").eq("tenant_id", tenant_id).in_("status", ["skipped", "canceled"]).gte("updated_at", window_start).execute().data or []
 
     lead_ids = list({job["lead_id"] for job in pending[:8]})
     lead_map: dict[str, dict[str, Any]] = {}
@@ -259,6 +263,7 @@ def build_follow_up_summary(db=None) -> dict[str, Any]:
         leads = (
             db.table("leads")
             .select("id,name,phone,segment")
+            .eq("tenant_id", tenant_id)
             .in_("id", lead_ids)
             .execute()
             .data

@@ -17,11 +17,11 @@ export function StatCard({ label, value, sub, accent }: StatCardProps) {
           ? "border-transparent text-white"
           : "bg-surface"
       )}
-      style={accent ? { background: "linear-gradient(135deg, #2e1065, #5b21b6)" } : {}}
+      style={accent ? { background: "linear-gradient(135deg, var(--primary-950), var(--primary-800))" } : {}}
     >
       <p className={cn(
         "stat-label mb-2",
-        accent ? "text-purple-200/60" : ""
+        accent ? "text-primary-200/60" : ""
       )}>
         {label}
       </p>
@@ -34,7 +34,7 @@ export function StatCard({ label, value, sub, accent }: StatCardProps) {
       {sub && (
         <p className={cn(
           "mt-1 text-xs",
-          accent ? "text-purple-200/60" : "text-ink-muted"
+          accent ? "text-primary-200/60" : "text-ink-muted"
         )}>
           {sub}
         </p>

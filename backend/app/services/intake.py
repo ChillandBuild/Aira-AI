@@ -1152,8 +1152,8 @@ async def route_intake(
             service_noun = config["service_noun"].capitalize()
             try:
                 link = await create_payment_link(
-                    booking_id=session["id"],
-                    booking_ref=ref,
+                    idempotency_key=f"booking:{session['id']}:payment_link",
+                    notes={"booking_id": session["id"], "booking_ref": ref},
                     amount_paise=amount_paise,
                     customer_name=customer_name,
                     customer_phone=phone,

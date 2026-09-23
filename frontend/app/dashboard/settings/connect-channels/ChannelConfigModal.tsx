@@ -182,7 +182,7 @@ export default function ChannelConfigModal({
                       title={!canManage ? "Read-only role" : !configured ? "Save required fields first" : channel.id === "meta_ads" ? "Validate token and ad account" : "Validate token and register webhook"}
                       className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl font-label text-sm font-semibold transition-all border",
                         canManage && configured
-                          ? "border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100"
+                          ? "border-primary-300 text-primary-700 bg-primary-50 hover:bg-primary-100"
                           : "border-border text-ink-muted bg-surface-subtle cursor-not-allowed opacity-50"
                       )}
                     >

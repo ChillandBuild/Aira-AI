@@ -127,7 +127,7 @@ function SourceBadge({ source }: { source: string }) {
   }
   if (source === "upload") {
     return (
-      <span className="inline-flex items-center gap-1 text-purple-600 font-semibold font-label text-xs">
+      <span className="inline-flex items-center gap-1 text-primary-600 font-semibold font-label text-xs">
         📊 CSV Upload
       </span>
     );
@@ -222,7 +222,7 @@ function ScoreEventCard({ ev }: { ev: ScoreEvent }) {
             </span>
           )}
           {ev.metadata.arc_updated && (
-            <span className="font-label text-[10px] text-purple-500">⚡ arc</span>
+            <span className="font-label text-[10px] text-primary-500">⚡ arc</span>
           )}
         </div>
       )}
@@ -248,6 +248,39 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
   );
 }
 
+interface LeadQuote {
+  id: string;
+  items: { name: string; qty: number; price_paise: number }[];
+  total_paise: number;
+  status: "sent" | "paid" | "expired" | "cancelled";
+  payment_link: string | null;
+  sent_at: string;
+  paid_at: string | null;
+}
+
+const QUOTE_STATUS_STYLE: Record<LeadQuote["status"], string> = {
+  sent: "bg-amber-50 text-amber-700",
+  paid: "bg-emerald-50 text-emerald-700",
+  expired: "bg-gray-100 text-gray-500",
+  cancelled: "bg-gray-100 text-gray-500",
+};
+
+function QuoteRow({ quote }: { quote: LeadQuote }) {
+  const rupees = Math.round(quote.total_paise / 100).toLocaleString("en-IN");
+  const itemNames = quote.items.map((i) => `${i.name}${i.qty > 1 ? ` x${i.qty}` : ""}`).join(", ");
+  return (
+    <div className="rounded-lg border border-surface-mid bg-white p-2.5 space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <p className="font-label text-xs font-semibold text-on-surface">₹{rupees}</p>
+        <span className={cn("font-label text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full", QUOTE_STATUS_STYLE[quote.status])}>
+          {quote.status}
+        </span>
+      </div>
+      <p className="font-body text-[11px] text-on-surface-muted truncate">{itemNames}</p>
+    </div>
+  );
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 interface LeadDetailsPanelProps {
   lead: Lead;
@@ -262,6 +295,13 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
   const [historyError, setHistoryError] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [showSaleForm, setShowSaleForm] = useState(false);
+  const [saleItemName, setSaleItemName] = useState("");
+  const [saleAmountRupees, setSaleAmountRupees] = useState("");
+  const [savingSale, setSavingSale] = useState(false);
+  const [quotes, setQuotes] = useState<LeadQuote[]>([]);
+  const [loadingQuotes, setLoadingQuotes] = useState(false);
+  const [quotesError, setQuotesError] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -290,6 +330,33 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
     return () => { mounted = false; };
   }, [lead.id]);
 
+  useEffect(() => {
+    let mounted = true;
+    setQuotes([]);
+    setQuotesError(false);
+    setLoadingQuotes(true);
+
+    (async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/leads/${lead.id}/quotes`, { headers: auth });
+        if (!mounted) return;
+        if (res.ok) {
+          const data = await res.json();
+          setQuotes(data.data || []);
+        } else {
+          setQuotesError(true);
+        }
+      } catch {
+        if (mounted) setQuotesError(true);
+      } finally {
+        if (mounted) setLoadingQuotes(false);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [lead.id]);
+
   async function handleToggleAI() {
     setToggling(true);
     try {
@@ -309,6 +376,34 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
     } finally { setConverting(false); }
+  }
+
+  async function handleAddSale(e: React.FormEvent) {
+    e.preventDefault();
+    const amountRupees = Number(saleAmountRupees);
+    if (!saleItemName.trim() || !saleAmountRupees.trim() || Number.isNaN(amountRupees) || amountRupees < 0) {
+      toast.error("Enter what was sold and a valid amount");
+      return;
+    }
+    setSavingSale(true);
+    try {
+      const result = await api.leads.addQuote(lead.id, {
+        item_name: saleItemName.trim(),
+        amount_paise: Math.round(amountRupees * 100),
+      });
+      if (result.stock_warning) {
+        toast.error("Sale recorded, but stock couldn't be adjusted — check inventory manually");
+      } else {
+        toast.success("Sale recorded");
+      }
+      setSaleItemName("");
+      setSaleAmountRupees("");
+      setShowSaleForm(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to record sale");
+    } finally {
+      setSavingSale(false);
+    }
   }
 
   const initials = lead.name
@@ -424,6 +519,23 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
                 </div>
               )}
             </Section>
+
+            <Section icon={<CheckCircle2 size={12} />} title="Quotes">
+              {loadingQuotes && <p className="font-body text-xs text-on-surface-muted">Loading…</p>}
+              {!loadingQuotes && quotesError && <p className="font-body text-xs text-red-500">Failed to load quotes.</p>}
+              {!loadingQuotes && !quotesError && quotes.length === 0 && (
+                <p className="font-body text-xs text-on-surface-muted">
+                  No quotes sent yet.
+                  <br />
+                  <span className="text-[10px]">Appears once the AI sends a priced quote in chat.</span>
+                </p>
+              )}
+              {quotes.length > 0 && (
+                <div className="space-y-2">
+                  {quotes.map((q) => <QuoteRow key={q.id} quote={q} />)}
+                </div>
+              )}
+            </Section>
           </div>
         )}
 
@@ -480,6 +592,64 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
                 >
                   <CheckCircle2 size={13} />
                   {converting ? "Saving…" : "Mark as Converted"}
+                </button>
+              )}
+            </div>
+
+            {/* Manual sale entry — for a sale with no WhatsApp trail (phone
+                call, walk-in, cash). Everything else on the Pipeline board
+                fills itself in from AI conversations; this is the one place
+                a human types a number in, on purpose. */}
+            <div className="rounded-xl border border-surface-mid bg-surface-low p-4 space-y-3">
+              <div>
+                <p className="font-label text-xs font-semibold text-on-surface">Log a sale</p>
+                <p className="font-body text-[11px] text-on-surface-muted mt-0.5">
+                  For a sale with no WhatsApp trail — a call, a walk-in, cash
+                </p>
+              </div>
+              {showSaleForm ? (
+                <form onSubmit={handleAddSale} className="space-y-2">
+                  <input
+                    type="text"
+                    value={saleItemName}
+                    onChange={(e) => setSaleItemName(e.target.value)}
+                    placeholder="What was sold"
+                    className="w-full h-9 rounded-lg border border-surface-mid bg-white px-3 font-body text-xs outline-none focus:border-primary"
+                    autoFocus
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={saleAmountRupees}
+                    onChange={(e) => setSaleAmountRupees(e.target.value)}
+                    placeholder="Amount (₹)"
+                    className="w-full h-9 rounded-lg border border-surface-mid bg-white px-3 font-body text-xs outline-none focus:border-primary"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={savingSale}
+                      className="flex-1 py-2 rounded-lg bg-primary text-white font-label text-xs font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40"
+                    >
+                      {savingSale ? "Saving…" : "Save sale"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSaleForm(false)}
+                      disabled={savingSale}
+                      className="px-3 py-2 rounded-lg border border-surface-mid font-label text-xs font-semibold text-on-surface-muted hover:bg-surface-mid disabled:opacity-40"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  onClick={() => setShowSaleForm(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-surface-mid font-label text-xs font-semibold text-on-surface hover:bg-surface-mid transition-colors"
+                >
+                  + Add sale
                 </button>
               )}
             </div>

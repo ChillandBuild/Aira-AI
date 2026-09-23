@@ -298,7 +298,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
               Aira split this file into rules for your Description and facts to look up. Nothing changes until you click Apply.
             </p>
             {review?.replaces_document && (
-              <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-purple-100 bg-purple-50 px-2.5 py-1 font-label text-[11px] font-semibold text-purple-700">
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary-100 bg-primary-50 px-2.5 py-1 font-label text-[11px] font-semibold text-primary-700">
                 <RefreshCw size={11} /> Replaces &ldquo;{review.replaces_document.name}&rdquo;
               </span>
             )}

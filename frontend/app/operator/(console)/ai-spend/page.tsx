@@ -78,7 +78,7 @@ const PURPOSE_LABELS: Record<string, string> = {
 // against the console's white/cream surface (never reuse success/warning/danger).
 const PROVIDER_ORDER = ["groq", "gemini", "openai", "sarvam"] as const;
 const PROVIDER_COLORS: Record<string, string> = {
-  groq: "#7c3aed",
+  groq: "var(--primary-600)",
   gemini: "#0891b2",
   openai: "#c2650a",
   sarvam: "#a1276b",

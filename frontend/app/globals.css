@@ -11,6 +11,36 @@
   --primary-dark: #4c1d95;
   --primary-light: #f5f3ff;
   --primary-muted: #ede9fe;
+  /* Full shade scale, same values as tailwind.config.ts theme.colors.primary.
+     Lets inline styles and SVG fills reference one source of truth instead
+     of repeating hex. --primary-800/900/50/100 duplicate the aliases above
+     on purpose, for callers that prefer the numeric step. */
+  --primary-50: #f5f3ff;
+  --primary-100: #ede9fe;
+  --primary-200: #ddd6fe;
+  --primary-300: #c4b5fd;
+  --primary-400: #a78bfa;
+  --primary-500: #8b5cf6;
+  --primary-600: #7c3aed;
+  --primary-700: #6d28d9;
+  --primary-800: #5b21b6;
+  --primary-900: #4c1d95;
+  --primary-950: #2e1065;
+  /* Same scale as "r, g, b" triplets, for rgba(var(--primary-NNN-rgb), .3)
+     inside box-shadow / gradient strings that need an opacity Tailwind's
+     class-based opacity modifier can't reach (arbitrary values, template
+     literals). Mirrors lib/color-tokens.ts PRIMARY_RGB for canvas code. */
+  --primary-50-rgb: 245, 243, 255;
+  --primary-100-rgb: 237, 233, 254;
+  --primary-200-rgb: 221, 214, 254;
+  --primary-300-rgb: 196, 181, 253;
+  --primary-400-rgb: 167, 139, 250;
+  --primary-500-rgb: 139, 92, 246;
+  --primary-600-rgb: 124, 58, 237;
+  --primary-700-rgb: 109, 40, 217;
+  --primary-800-rgb: 91, 33, 182;
+  --primary-900-rgb: 76, 29, 149;
+  --primary-950-rgb: 46, 16, 101;
   --ink: #1c1917;
   --ink-secondary: #78716c;
   --ink-muted: #a8a29e;

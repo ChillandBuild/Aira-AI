@@ -82,7 +82,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
               <div>
                 <h2 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Queue</h2>
                 <p className="font-label text-xs text-[#78716c] mt-0.5">
-                  Calling as <span className="text-[#5b21b6] font-semibold">{selectedCallerName}</span>
+                  Calling as <span className="text-[var(--primary-800)] font-semibold">{selectedCallerName}</span>
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -96,7 +96,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
                 <select
                   value={selectedCallerId || ""}
                   onChange={(e) => setSelectedCallerId(e.target.value || null)}
-                  className="w-full appearance-none pl-3 pr-8 py-2 rounded-xl bg-white border border-[#e8e3db]/80 font-body text-xs font-semibold text-[#44403c] focus:outline-none focus:ring-2 focus:ring-[#5b21b6] cursor-pointer"
+                  className="w-full appearance-none pl-3 pr-8 py-2 rounded-xl bg-white border border-[#e8e3db]/80 font-body text-xs font-semibold text-[#44403c] focus:outline-none focus:ring-2 focus:ring-[var(--primary-800)] cursor-pointer"
                 >
                   <option value="">Admin (me)</option>
                   {callers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -189,7 +189,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
                       const isSelected = cockpit.selectedLeadId === lead.id;
 
                       let borderAccent = "border-l-violet-400";
-                      let avatarBg = "bg-violet-500";
+                      let avatarBg = "bg-primary-500";
                       let callBtnBg = "bg-emerald-500 hover:bg-emerald-600";
                       if (lead.score >= 8) {
                         borderAccent = "border-l-red-500"; avatarBg = "bg-red-500"; callBtnBg = "bg-rose-500 hover:bg-rose-600";
@@ -205,7 +205,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
                           onClick={() => cockpit.setSelectedLeadId(lead.id)}
                           className={`rounded-2xl border-y border-r border-l-[6px] transition-all duration-200 cursor-pointer p-3 flex items-center justify-between gap-3 ${borderAccent} ${
                             isSelected
-                              ? "bg-gradient-to-r from-primary-light/70 to-purple-50/20 border-primary-muted shadow-[0_4px_15px_rgba(91,33,182,0.06)] ring-1 ring-primary/10 translate-x-1"
+                              ? "bg-gradient-to-r from-primary-light/70 to-primary-50/20 border-primary-muted shadow-[0_4px_15px_rgba(var(--primary-800-rgb),0.06)] ring-1 ring-primary/10 translate-x-1"
                               : "bg-[#faf8f5]/30 border-[#f0ece4] hover:bg-[#faf8f5] hover:shadow-sm"
                           }`}
                         >

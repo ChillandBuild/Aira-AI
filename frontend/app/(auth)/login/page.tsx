@@ -56,10 +56,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-[100dvh] w-full flex flex-col lg:flex-row bg-[#faf8f5] relative overflow-x-hidden overflow-y-auto lg:overflow-hidden">
       {/* Left Column: Visual/Branding panel (visible on desktop) */}
-      <div className="hidden lg:flex lg:w-1/2 lg:h-screen lg:sticky lg:top-0 bg-gradient-to-br from-[#2e1065] to-[#5b21b6] p-10 lg:pt-12 lg:pb-8 lg:px-16 flex-col justify-between text-white relative z-10 overflow-hidden select-none">
+      <div className="hidden lg:flex lg:w-1/2 lg:h-screen lg:sticky lg:top-0 bg-gradient-to-br from-[var(--primary-950)] to-[var(--primary-800)] p-10 lg:pt-12 lg:pb-8 lg:px-16 flex-col justify-between text-white relative z-10 overflow-hidden select-none">
         {/* Subtle background glow decorative elements */}
-        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[#7c3aed] opacity-20 blur-[120px] pointer-events-none"></div>
-        <div className="absolute -bottom-40 -right-20 w-96 h-96 rounded-full bg-[#c084fc] opacity-20 blur-[100px] pointer-events-none"></div>
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-[var(--primary-600)] opacity-20 blur-[120px] pointer-events-none"></div>
+        <div className="absolute -bottom-40 -right-20 w-96 h-96 rounded-full bg-[var(--primary-400)] opacity-20 blur-[100px] pointer-events-none"></div>
 
         <div>
           <AiraLogo className="text-white h-7 w-auto" />
@@ -69,7 +69,7 @@ export default function LoginPage() {
           <div className="space-y-4">
             <h2 className="text-5xl font-bold tracking-tight text-white leading-tight font-display">
               Automate.<br />
-              <span className="text-[#a78bfa] bg-clip-text">Convert.</span><br />
+              <span className="text-[var(--primary-400)] bg-clip-text">Convert.</span><br />
               Grow.
             </h2>
             <p className="text-white/80 text-sm max-w-sm leading-relaxed font-body">
@@ -90,11 +90,11 @@ export default function LoginPage() {
             </div>
 
             <div className="flex items-start gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/20 group">
-              <div className="p-2.5 rounded-xl bg-white/10 text-[#a78bfa] group-hover:scale-105 transition-transform">
+              <div className="p-2.5 rounded-xl bg-white/10 text-[var(--primary-400)] group-hover:scale-105 transition-transform">
                 <Target size={20} />
               </div>
               <div>
-                <h4 className="font-semibold text-[#a78bfa] text-sm font-label font-bold">Convert Hot Leads</h4>
+                <h4 className="font-semibold text-[var(--primary-400)] text-sm font-label font-bold">Convert Hot Leads</h4>
                 <p className="text-white/60 text-xs mt-0.5 font-body">Verify signatures, score intent, and route qualified leads instantly.</p>
               </div>
             </div>

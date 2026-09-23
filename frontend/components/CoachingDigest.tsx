@@ -48,7 +48,7 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
 
   if (loading) {
     return (
-      <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8">
+      <div className="bg-gradient-to-br from-[var(--primary-50)] via-white to-[var(--primary-100)] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8">
         <div className="flex items-center gap-3">
           <RefreshCw size={16} className="animate-spin text-primary" />
           <span className="font-body text-sm text-on-surface-muted">Loading coaching digest...</span>
@@ -59,7 +59,7 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
 
   if (!current) {
     return (
-      <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8">
+      <div className="bg-gradient-to-br from-[var(--primary-50)] via-white to-[var(--primary-100)] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-base font-bold text-primary flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-primary/10">
@@ -100,7 +100,7 @@ export function CoachingDigest({ callerId }: CoachingDigestProps) {
   const weakestScore = weakest ? current.stats.criteria_avg[weakest] : null;
 
   return (
-    <div className="bg-gradient-to-br from-[#f5f3ff] via-white to-[#ede9fe] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8 relative overflow-hidden">
+    <div className="bg-gradient-to-br from-[var(--primary-50)] via-white to-[var(--primary-100)] rounded-card p-6 shadow-card ring-1 ring-primary/10 mb-8 relative overflow-hidden">
       <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-primary/5 to-transparent rounded-full -translate-y-1/2 translate-x-1/3" />
 
       {/* Header */}
@@ -295,7 +295,7 @@ export function CoachingOneLiner({ callerId }: { callerId: string | null }) {
   if (!phrase) return null;
 
   return (
-    <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-[#f5f3ff] to-[#ede9fe] rounded-xl border border-primary/10 mb-4">
+    <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-[var(--primary-50)] to-[var(--primary-100)] rounded-xl border border-primary/10 mb-4">
       <Sparkles size={14} className="text-primary shrink-0" />
       <p className="font-body text-sm text-primary truncate">
         <span className="font-semibold">Try today:</span> &ldquo;{phrase}&rdquo;

@@ -25,16 +25,16 @@ export default function RiverThread() {
       >
         <defs>
           <linearGradient id="river-base" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5b21b6" stopOpacity="0.05" />
-            <stop offset="50%" stopColor="#7c3aed" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="#5b21b6" stopOpacity="0.05" />
+            <stop offset="0%" stopColor="var(--primary-800)" stopOpacity="0.05" />
+            <stop offset="50%" stopColor="var(--primary-600)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="var(--primary-800)" stopOpacity="0.05" />
           </linearGradient>
         </defs>
 
         {/* Soft riverbed */}
         <path d={path} className="river-thread-bed" stroke="url(#river-base)" />
         {/* Flowing light that drifts downstream */}
-        <path d={path} className="river-thread-current" stroke="#7c3aed" />
+        <path d={path} className="river-thread-current" stroke="var(--primary-600)" />
       </svg>
     </div>
   );

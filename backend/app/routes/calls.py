@@ -66,7 +66,7 @@ _MANUAL_STATUS_TO_OUTCOME: dict[str, str | None] = {
     "callback": "callback",
 }
 
-_MESSAGE_LEAD_SOURCES = {"whatsapp", "instagram", "facebook", "telegram"}
+_MESSAGE_LEAD_SOURCES = {"whatsapp", "instagram", "facebook", "telegram", "indiamart", "justdial"}
 _SEGMENT_RANK = {"A": 0, "B": 1, "C": 2, "D": 3}
 
 

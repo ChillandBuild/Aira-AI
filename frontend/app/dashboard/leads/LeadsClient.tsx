@@ -733,7 +733,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             onClick={() => setComposing(true)}
             disabled={!canManageLeads}
             title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#2e1065] to-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:from-primary hover:to-[#2e1065] disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--primary-950)] to-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:from-primary hover:to-[var(--primary-950)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Plus size={14} />
             New Message

@@ -18,8 +18,8 @@ export function FiltersToggleButton({
       className={cn(
         "flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
         open || active
-          ? "border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100"
-          : "border-surface-mid bg-white text-on-surface hover:border-violet-300 hover:text-violet-700"
+          ? "border-primary-200 bg-primary-50 text-primary-700 hover:bg-primary-100"
+          : "border-surface-mid bg-white text-on-surface hover:border-primary-300 hover:text-primary-700"
       )}
     >
       <Filter size={12} />

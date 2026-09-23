@@ -474,6 +474,14 @@ async def whatsapp_webhook(
 
             if field == "phone_number_quality_update":
                 meta_phone_number_id = value.get("phone_number_id")
+                db_qual = get_supabase()
+                owner_tenant = _get_tenant_id_for_meta_number(meta_phone_number_id, db_qual) if meta_phone_number_id else None
+                if owner_tenant != tenant_for_sig:
+                    logger.warning(
+                        f"phone_number_quality_update: meta_id={meta_phone_number_id} belongs to "
+                        f"tenant {owner_tenant}, not the signed tenant {tenant_for_sig} — skipping"
+                    )
+                    continue
                 quality_rating = value.get("quality_rating", "")
                 current_limit = value.get("current_limit")
                 messaging_tier = None
@@ -496,6 +504,12 @@ async def whatsapp_webhook(
                 tenant_id = _get_tenant_id_for_meta_number(meta_phone_number_id, db) if meta_phone_number_id else None
                 if not tenant_id:
                     logger.warning(f"No tenant for meta phone_number_id={meta_phone_number_id}, dropping history payload")
+                    continue
+                if tenant_id != tenant_for_sig:
+                    logger.warning(
+                        f"history: meta_phone_number_id={meta_phone_number_id} belongs to tenant "
+                        f"{tenant_id}, not the signed tenant {tenant_for_sig} — dropping"
+                    )
                     continue
                 for chunk in value.get("history", []):
                     for thread in chunk.get("threads", []):
@@ -547,6 +561,12 @@ async def whatsapp_webhook(
                 if not tenant_id:
                     logger.warning(f"No tenant for meta phone_number_id={meta_phone_number_id}, dropping smb_app_state_sync payload")
                     continue
+                if tenant_id != tenant_for_sig:
+                    logger.warning(
+                        f"smb_app_state_sync: meta_phone_number_id={meta_phone_number_id} belongs to "
+                        f"tenant {tenant_id}, not the signed tenant {tenant_for_sig} — dropping"
+                    )
+                    continue
                 for entry_row in value.get("state_sync", []):
                     if entry_row.get("type") != "contact" or entry_row.get("action") == "remove":
                         continue
@@ -573,6 +593,12 @@ async def whatsapp_webhook(
                 tenant_id = _get_tenant_id_for_meta_number(meta_phone_number_id, db) if meta_phone_number_id else None
                 if not tenant_id:
                     logger.warning(f"No tenant for meta phone_number_id={meta_phone_number_id}, dropping smb_message_echoes payload")
+                    continue
+                if tenant_id != tenant_for_sig:
+                    logger.warning(
+                        f"smb_message_echoes: meta_phone_number_id={meta_phone_number_id} belongs to "
+                        f"tenant {tenant_id}, not the signed tenant {tenant_for_sig} — dropping"
+                    )
                     continue
                 for echo in value.get("message_echoes", []):
                     echo_type = echo.get("type")
@@ -613,6 +639,12 @@ async def whatsapp_webhook(
                 tenant_id = _get_tenant_id_for_meta_number(meta_phone_number_id, db) if meta_phone_number_id else None
                 if not tenant_id:
                     logger.warning(f"No tenant for meta phone_number_id={meta_phone_number_id}, dropping WhatsApp payload")
+                    continue
+                if tenant_id != tenant_for_sig:
+                    logger.warning(
+                        f"messages: meta_phone_number_id={meta_phone_number_id} belongs to tenant "
+                        f"{tenant_id}, not the signed tenant {tenant_for_sig} — dropping"
+                    )
                     continue
                 for msg in value.get("messages", []):
                     msg_type = msg.get("type")

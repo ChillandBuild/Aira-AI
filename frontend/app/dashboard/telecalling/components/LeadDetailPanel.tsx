@@ -210,7 +210,7 @@ export default function LeadDetailPanel({
   const ringBgGradient =
     score >= 8 ? "from-rose-500 to-red-600" :
     score >= 6 ? "from-amber-500 to-orange-600" :
-    score >= 4 ? "from-primary to-purple-600" :
+    score >= 4 ? "from-primary to-primary-600" :
     "from-[#a8a29e] to-[#78716c]";
   const circumference = 2 * Math.PI * 28;
   const strokeDashoffset = circumference - (score / 10) * circumference;
@@ -267,7 +267,7 @@ export default function LeadDetailPanel({
                   <span className={`px-2 py-0.5 rounded-md font-label text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 ${
                     callStatus === "connected"
                       ? "bg-emerald-500/30 text-emerald-200 border border-emerald-400/30"
-                      : "bg-violet-500/30 text-violet-200 border border-violet-400/30 animate-pulse"
+                      : "bg-primary-500/30 text-primary-200 border border-primary-400/30 animate-pulse"
                   }`}>
                     {callStatus === "connected" && (
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
@@ -750,11 +750,11 @@ export default function LeadDetailPanel({
                   {timelineItems.map((item) => (
                     <div key={`${item.type}-${item.id}`} className="relative">
                       <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
-                        item.type === "note" ? "bg-orange-400" : item.type === "call" ? "bg-violet-400" : "bg-teal-400"
+                        item.type === "note" ? "bg-orange-400" : item.type === "call" ? "bg-primary-400" : "bg-teal-400"
                       }`} />
                       <div className="text-[9px] text-[#a8a29e] font-bold mb-1 flex items-center gap-1">
                         {item.type === "note" && <><StickyNote size={9} className="text-orange-400" /> Note · {timeAgo(item.created_at)}</>}
-                        {item.type === "call" && <><Phone size={9} className="text-violet-400" /> Call · {timeAgo(item.created_at)}</>}
+                        {item.type === "call" && <><Phone size={9} className="text-primary-400" /> Call · {timeAgo(item.created_at)}</>}
                         {item.type === "message" && <><MessageSquare size={9} className="text-teal-500" /> WhatsApp · {timeAgo(item.created_at)}</>}
                       </div>
                       {item.type === "note" && (
@@ -831,9 +831,9 @@ export default function LeadDetailPanel({
                   <div className="relative border-l-2 border-primary-muted pl-4 ml-2 space-y-3">
                     {selectedLeadCallLogs.map((log) => (
                       <div key={log.id} className="relative">
-                        <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-white" />
+                        <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary-400 border-2 border-white" />
                         <div className="text-[9px] text-[#a8a29e] font-bold mb-1 flex items-center gap-1">
-                          <Phone size={9} className="text-violet-400" /> {timeAgo(log.created_at)}
+                          <Phone size={9} className="text-primary-400" /> {timeAgo(log.created_at)}
                         </div>
                         <div className="bg-primary-light/40 border border-primary-muted p-3 rounded-xl flex items-center justify-between">
                           <span className="font-label text-xs font-bold text-[#44403c]">

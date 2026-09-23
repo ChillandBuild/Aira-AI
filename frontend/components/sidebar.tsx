@@ -69,17 +69,17 @@ function MainNavItem({
       )}
     >
       {active && (
-        <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] -ml-0.5 mr-0.5 flex-shrink-0 shadow-[0_1px_3px_rgba(91,33,182,0.25)]" />
+        <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] -ml-0.5 mr-0.5 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
       )}
       <Icon
         size={16}
-        className={active ? "text-[#5b21b6] flex-shrink-0" : "text-[#1c1917] group-hover:text-[#1c1917] flex-shrink-0"}
+        className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover:text-[#1c1917] flex-shrink-0"}
       />
       <span
         className={cn(
           "truncate flex-grow",
           active
-            ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] bg-clip-text text-transparent font-black tracking-tight"
+            ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
             : "font-medium"
         )}
       >
@@ -269,13 +269,13 @@ export function Sidebar() {
                 )}
               >
                 {active && (
-                  <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(91,33,182,0.25)]" />
+                  <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
                 )}
                 <span
                   className={cn(
                     "truncate",
                     active
-                      ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] bg-clip-text text-transparent font-black tracking-tight"
+                      ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
                       : "font-medium"
                   )}
                 >
@@ -458,10 +458,10 @@ export function Sidebar() {
               onClick={() => toggleGroup("Telecalling")}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                isTcActive ? "text-[#5b21b6]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+                isTcActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-[#f0ece4]"
               )}
             >
-              <Phone size={16} className={isTcActive ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+              <Phone size={16} className={isTcActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
               <span className="flex-1">Telecalling</span>
               {showTc ? <ChevronDown size={14} className="text-[#a8a29e]" /> : <ChevronRight size={14} className="text-[#a8a29e]" />}
             </button>
@@ -504,13 +504,13 @@ export function Sidebar() {
                         )}
                       >
                         {active && (
-                          <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] mr-1 flex-shrink-0 shadow-[0_1px_3px_rgba(91,33,182,0.25)]" />
+                          <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-1 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
                         )}
                         <span
                           className={cn(
                             "truncate flex-1",
                             active
-                              ? "bg-gradient-to-r from-[#3b0f79] via-[#5b21b6] to-[#7c3aed] bg-clip-text text-transparent font-black tracking-tight"
+                              ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
                               : "font-medium"
                           )}
                         >
@@ -531,10 +531,10 @@ export function Sidebar() {
             onClick={() => toggleGroup("Settings")}
             className={cn(
               "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-              isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+              isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-[#f0ece4]"
             )}
           >
-            <Settings size={16} className={isSettingsActive ? "text-[#5b21b6]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+            <Settings size={16} className={isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
             <span className="flex-1">Settings</span>
             <ChevronRight size={14} className="text-[#a8a29e]" />
           </button>

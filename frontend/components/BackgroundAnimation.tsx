@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { PRIMARY, PRIMARY_RGB } from "@/lib/color-tokens";
 
 export default function BackgroundAnimation() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -52,7 +53,7 @@ export default function BackgroundAnimation() {
 
       draw() {
         if (!ctx) return;
-        ctx.fillStyle = "rgba(91, 33, 182, 0.18)";
+        ctx.fillStyle = `rgba(${PRIMARY_RGB[800]}, 0.18)`;
         ctx.beginPath();
         ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
         ctx.fill();
@@ -76,7 +77,7 @@ export default function BackgroundAnimation() {
 
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
       gradient.addColorStop(0, '#faf8f5');
-      gradient.addColorStop(1, '#f5f3ff');
+      gradient.addColorStop(1, PRIMARY[50]);
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -92,7 +93,7 @@ export default function BackgroundAnimation() {
           if (distSq < 22500) {
             const distance = Math.sqrt(distSq);
             ctx.beginPath();
-            ctx.strokeStyle = `rgba(91, 33, 182, ${0.08 - distance / 2500})`;
+            ctx.strokeStyle = `rgba(${PRIMARY_RGB[800]}, ${0.08 - distance / 2500})`;
             ctx.lineWidth = 1;
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);

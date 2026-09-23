@@ -14,10 +14,12 @@ from app.dependencies.auth import get_current_user
 
 import os
 from app.config import settings
-from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac, quick_replies, feedback
+from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac, quick_replies, feedback, ask
 from app.routes.calls import public_router as calls_public_router
 from app.routes.intake import public_router as intake_public_router
 from app.routes import intake
+from app.routes.marketplace_intake import public_router as marketplace_public_router
+from app.routes import marketplace_intake
 
 # Configure logging
 logging.basicConfig(
@@ -618,6 +620,8 @@ app.include_router(facebook.router, prefix="/webhook/facebook", tags=["facebook-
 app.include_router(calls_public_router, prefix="/api/v1/calls", tags=["calls-telecmi"])
 app.include_router(intake_public_router, prefix="/api/v1/intake", tags=["intake-webhook"])
 app.include_router(intake.router, prefix="/api/v1/intake", tags=["intake"], dependencies=_auth)
+app.include_router(marketplace_public_router, prefix="/api/v1/marketplace", tags=["marketplace-webhook"])
+app.include_router(marketplace_intake.router, prefix="/api/v1/marketplace", tags=["marketplace"], dependencies=_auth)
 # Legacy prefix. Razorpay's dashboard has /api/v1/expert-handoff/razorpay-webhook
 # registered externally; remove these two lines only after updating it there.
 app.include_router(intake_public_router, prefix="/api/v1/expert-handoff", tags=["intake-webhook-legacy"])
@@ -626,6 +630,7 @@ app.include_router(intake.router, prefix="/api/v1/expert-handoff", tags=["intake
 app.include_router(leads.router, prefix="/api/v1/leads", tags=["leads"], dependencies=_auth)
 app.include_router(messages.router, prefix="/api/v1/messages", tags=["messages"], dependencies=_auth)
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"], dependencies=_auth)
+app.include_router(ask.router, prefix="/api/v1", tags=["ask"], dependencies=_auth)
 app.include_router(upload.router, prefix="/api/v1/upload", tags=["upload"], dependencies=_auth)
 app.include_router(segments.router, prefix="/api/v1/segments", tags=["segments"], dependencies=_auth)
 app.include_router(calls.router, prefix="/api/v1/calls", tags=["calls"], dependencies=_auth)

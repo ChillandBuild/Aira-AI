@@ -60,3 +60,4 @@ android/**/*.keystore
 
 # Firecrawl MCP scrape output — dropped at repo root by the tool, not source content
 .firecrawl/
+sim-out/

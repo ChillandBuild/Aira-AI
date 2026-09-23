@@ -137,7 +137,7 @@ async def list_leads(
         query = query.eq("assigned_to", assigned_to)
 
     # Apply medium / campaign / broadcast filters
-    INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram')
+    INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram', 'indiamart', 'justdial')
     if source_filter == "inbound":
         query = query.in_("source", list(INBOUND_SOURCES))
     elif source_filter == "organic":
@@ -226,7 +226,7 @@ async def broadcast_custom_message(
         query = query.eq("segment", body.segment)
 
     # Apply source filter
-    INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram')
+    INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram', 'indiamart', 'justdial')
     if body.source_filter == "inbound":
         query = query.in_("source", list(INBOUND_SOURCES))
     elif body.source_filter == "organic":
@@ -614,7 +614,7 @@ async def export_assigned_leads(
         ad_campaign_name = campaign_map.get(ad_campaign_id, {}).get("campaign_name", "") if ad_campaign_id else ""
         channel = campaign_map.get(ad_campaign_id, {}).get("platform", l.get("source", "")) if ad_campaign_id else l.get("source", "")
         
-        lead_type = "inbound" if l.get("source") in ('whatsapp', 'instagram', 'facebook', 'telegram') and not broadcast_id else "outbound"
+        lead_type = "inbound" if l.get("source") in ('whatsapp', 'instagram', 'facebook', 'telegram', 'indiamart', 'justdial') and not broadcast_id else "outbound"
         
         rows.append({
             "name": l.get("name") or "",
@@ -837,6 +837,61 @@ async def toggle_archive(lead_id: UUID, ctx: dict = Depends(require_conversation
     new_val = None if cur.data.get("archived_at") else datetime.now(timezone.utc).isoformat()
     res = db.table("leads").update({"archived_at": new_val}).eq("id", str(lead_id)).eq("tenant_id", tenant_id).execute()
     return res.data[0] if res.data else {"archived_at": new_val}
+
+
+class ManualQuotePayload(BaseModel):
+    item_name: str
+    amount_paise: int
+    catalog_item_id: UUID | None = None
+    qty: int = 1
+
+
+@router.post("/{lead_id}/quote")
+async def add_manual_quote(lead_id: UUID, payload: ManualQuotePayload, ctx: dict = Depends(require_leads_manage)):
+    """A sale with no WhatsApp trail (phone call, walk-in, cash) -- the one
+    thing this session's AI-first Pipeline board can't see on its own. A
+    human confirming a real sale happened is enough to log it and, when it's
+    tied to a catalog item, deduct stock -- see catalog_stock.decrement_stock's
+    docstring for why this differs from an AI catalog quote (interest, not a
+    sale, never deducts).
+    """
+    if payload.amount_paise < 0:
+        raise HTTPException(status_code=400, detail="amount_paise must not be negative")
+    if payload.qty < 1:
+        raise HTTPException(status_code=400, detail="qty must be at least 1")
+
+    db = get_supabase()
+    tenant_id = ctx["tenant_id"]
+
+    lead = db.table("leads").select("id").eq("id", str(lead_id)).eq("tenant_id", tenant_id).maybe_single().execute()
+    if not lead or not lead.data:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    db.table("catalog_quotes").upsert(
+        {
+            "tenant_id": tenant_id,
+            "lead_id": str(lead_id),
+            "catalog_item_id": str(payload.catalog_item_id) if payload.catalog_item_id else None,
+            "item_name": payload.item_name,
+            "amount_paise": payload.amount_paise,
+            "amount_is_estimate": False,
+            "source": "manual",
+            "created_by": ctx["user_id"],
+        },
+        on_conflict="lead_id",
+    ).execute()
+
+    stock_warning = False
+    if payload.catalog_item_id:
+        from app.services.catalog_stock import decrement_stock
+        try:
+            deducted = decrement_stock(tenant_id, str(payload.catalog_item_id), payload.qty, db=db)
+            stock_warning = not deducted
+        except Exception as e:
+            logger.warning(f"decrement_stock failed for lead {lead_id}, item {payload.catalog_item_id}: {e}")
+            stock_warning = True
+
+    return {"recorded": True, "stock_warning": stock_warning}
 
 
 @router.patch("/{lead_id}/block")
@@ -1237,6 +1292,24 @@ async def score_history(lead_id: UUID, ctx: dict = Depends(get_tenant_and_role))
         .eq("tenant_id", tenant_id)
         .in_("event_type", ["segment_changed", "score_updated"])
         .order("created_at", desc=True)
+        .limit(20)
+        .execute()
+    )
+    return {"data": result.data or []}
+
+
+@router.get("/{lead_id}/quotes")
+async def lead_quotes(lead_id: UUID, ctx: dict = Depends(get_tenant_and_role)):
+    """Read-only: quotes sent to this lead (quote-and-pay inside chat),
+    newest first. So a human can see what was quoted and whether it was
+    paid without digging through chat history."""
+    db = get_supabase()
+    result = (
+        db.table("quotes")
+        .select("id, items, total_paise, status, payment_link, sent_at, paid_at")
+        .eq("lead_id", str(lead_id))
+        .eq("tenant_id", ctx["tenant_id"])
+        .order("sent_at", desc=True)
         .limit(20)
         .execute()
     )

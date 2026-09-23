@@ -117,19 +117,19 @@ export default function LeadProfileModal({ leadId, onClose }: LeadProfileModalPr
               </div>
 
               {lead.broadcast_id || lead.template_name ? (
-                <div className="bg-gradient-to-br from-purple-50/50 to-primary-light/20 border border-purple-100/60 rounded-3xl p-5 shadow-sm space-y-4">
-                  <span className="font-display text-[11px] font-black text-purple-800 uppercase tracking-widest flex items-center gap-1.5">
-                    <Phone size={12} className="text-purple-500" /> Outbound Campaign
+                <div className="bg-gradient-to-br from-primary-50/50 to-primary-light/20 border border-primary-100/60 rounded-3xl p-5 shadow-sm space-y-4">
+                  <span className="font-display text-[11px] font-black text-primary-800 uppercase tracking-widest flex items-center gap-1.5">
+                    <Phone size={12} className="text-primary-500" /> Outbound Campaign
                   </span>
                   <div className="space-y-3.5">
-                    <div className="bg-white/90 backdrop-blur-sm border border-purple-100/65 rounded-xl p-3.5 relative shadow-sm">
-                      <span className="font-label text-[9px] text-purple-700/60 uppercase font-extrabold block">Broadcast Campaign ID</span>
+                    <div className="bg-white/90 backdrop-blur-sm border border-primary-100/65 rounded-xl p-3.5 relative shadow-sm">
+                      <span className="font-label text-[9px] text-primary-700/60 uppercase font-extrabold block">Broadcast Campaign ID</span>
                       <p className="font-mono text-xs text-[#292524] font-bold mt-1.5 truncate pr-8 select-all">
                         {lead.broadcast_id || "None"}
                       </p>
                     </div>
-                    <div className="bg-white/90 backdrop-blur-sm border border-purple-100/65 rounded-xl p-3.5 shadow-sm">
-                      <span className="font-label text-[9px] text-purple-700/60 uppercase font-extrabold block">Message Template</span>
+                    <div className="bg-white/90 backdrop-blur-sm border border-primary-100/65 rounded-xl p-3.5 shadow-sm">
+                      <span className="font-label text-[9px] text-primary-700/60 uppercase font-extrabold block">Message Template</span>
                       <p className="font-body text-xs text-[#1c1917] font-bold mt-1.5 truncate">
                         {lead.template_name || "N/A"}
                       </p>

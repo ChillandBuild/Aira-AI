@@ -173,7 +173,7 @@ export function HistoryTab({ onOpenChat, canReply, onReopened, search, resolver,
                     {rows.map((row) => (
                       <tr
                         key={row.id}
-                        className="group border-b border-border-subtle/80 bg-surface transition-colors hover:bg-purple-50/20 last:border-b-0"
+                        className="group border-b border-border-subtle/80 bg-surface transition-colors hover:bg-primary-50/20 last:border-b-0"
                       >
                         <td className="px-4 py-3 pl-8 text-left align-middle">
                           <LeadCell lead={row.leads} />

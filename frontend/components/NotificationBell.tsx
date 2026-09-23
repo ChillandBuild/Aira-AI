@@ -99,7 +99,7 @@ export function NotificationBell() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative flex items-center justify-center w-[34px] h-[34px] rounded-full transition-transform hover:scale-105 group"
-        style={{ background: "linear-gradient(135deg, #2e1065, #5b21b6)" }}
+        style={{ background: "linear-gradient(135deg, var(--primary-950), var(--primary-800))" }}
         title="Notification Center"
       >
         <Bell size={16} className="text-white" />
@@ -116,7 +116,7 @@ export function NotificationBell() {
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
           <div className="fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top))] bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex flex-col overflow-hidden rounded-3xl border border-[#e8e3db]/60 bg-white/95 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200 md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:max-h-[80vh] md:w-96">
             {/* Header */}
-            <div className="px-5 py-4 bg-gradient-to-br from-primary-light/65 to-purple-50/65 border-b border-[#f0ece4] flex items-center justify-between">
+            <div className="px-5 py-4 bg-gradient-to-br from-primary-light/65 to-primary-50/65 border-b border-[#f0ece4] flex items-center justify-between">
               <h3 className="font-display text-sm font-black text-[#292524] uppercase tracking-wider">
                 Notification Center
               </h3>

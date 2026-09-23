@@ -33,6 +33,8 @@ CHANNEL_LABELS = {
     "instagram": "Instagram",
     "facebook": "Facebook",
     "telegram": "Telegram",
+    "indiamart": "IndiaMART",
+    "justdial": "JustDial",
 }
 
 SEGMENT_LABELS = {

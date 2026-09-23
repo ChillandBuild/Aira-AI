@@ -47,6 +47,8 @@ const SOURCE_OPTIONS = [
   { value: "instagram", label: "Instagram" },
   { value: "facebook", label: "Facebook" },
   { value: "telegram", label: "Telegram" },
+  { value: "indiamart", label: "IndiaMART" },
+  { value: "justdial", label: "JustDial" },
 ];
 
 const ORIGIN_OPTIONS = [
@@ -121,8 +123,8 @@ function StatCard({
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-100 to-primary-light flex items-center justify-center mb-4 shadow-sm">
-        <RadioTower size={28} className="text-violet-400" />
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-light flex items-center justify-center mb-4 shadow-sm">
+        <RadioTower size={28} className="text-primary-400" />
       </div>
       <h3 className="font-bold text-[#44403c] text-lg mb-1">No Inbound Leads Yet</h3>
       <p className="text-sm text-[#a8a29e] max-w-sm leading-relaxed">
@@ -187,8 +189,8 @@ function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
       >
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
-              <Link2 size={16} className="text-violet-700" />
+            <div className="w-9 h-9 rounded-xl bg-primary-100 flex items-center justify-center">
+              <Link2 size={16} className="text-primary-700" />
             </div>
             <div>
               <h3 className="font-display font-black text-on-surface text-base leading-tight">Google Ads Link</h3>
@@ -207,7 +209,7 @@ function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
           value={campaign}
           onChange={(e) => setCampaign(e.target.value)}
           placeholder="e.g. Summer Sale 2026"
-          className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 mb-3"
+          className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-300 mb-3"
         />
 
         <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
@@ -217,7 +219,7 @@ function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
           value={gclid}
           onChange={(e) => setGclid(e.target.value)}
           placeholder="{gclid}"
-          className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-mono text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-violet-300 mb-4"
+          className="w-full px-3 py-2 bg-surface-low border border-surface-mid rounded-xl font-mono text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary-300 mb-4"
         />
 
         <button
@@ -233,7 +235,7 @@ function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1.5">
               <span className="font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider">Tracked Link</span>
-              <span className="font-mono text-[10px] text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded">[GADS:{slug}]</span>
+              <span className="font-mono text-[10px] text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded">[GADS:{slug}]</span>
             </div>
             <div className="flex items-stretch gap-2">
               <code className="flex-1 px-3 py-2 bg-surface-mid rounded-xl font-mono text-[11px] text-on-surface break-all leading-relaxed select-all">
@@ -241,7 +243,7 @@ function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
               </code>
               <button
                 onClick={handleCopy}
-                className="shrink-0 flex items-center justify-center px-3 rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                className="shrink-0 flex items-center justify-center px-3 rounded-xl bg-primary-600 text-white hover:bg-primary-700 transition-colors"
                 title="Copy link"
               >
                 {copied ? <Check size={15} /> : <Copy size={15} />}
@@ -368,7 +370,7 @@ export function InboundLeadsClient({
         <div className="rounded-2xl border border-surface-mid/80 bg-white/95 p-3 shadow-sm">
           <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-700 ring-1 ring-violet-100">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-50 text-primary-700 ring-1 ring-primary-100">
                 <Filter size={13} />
               </span>
               <div>
@@ -404,7 +406,7 @@ export function InboundLeadsClient({
                     onClick={() => setOrigin(o.value)}
                     className={`rounded-full px-2 text-xs font-bold transition ${
                       origin === o.value
-                        ? "bg-white text-primary shadow-sm ring-1 ring-violet-100"
+                        ? "bg-white text-primary shadow-sm ring-1 ring-primary-100"
                         : "text-[#78716c] hover:bg-white/60 hover:text-[#44403c]"
                     }`}
                   >
@@ -419,7 +421,7 @@ export function InboundLeadsClient({
               <select
                 value={selectedSegment}
                 onChange={(e) => setSelectedSegment(e.target.value)}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
               >
                 {SEGMENT_FILTER_OPTIONS.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
@@ -434,7 +436,7 @@ export function InboundLeadsClient({
                   value={selectedCampaign}
                   onChange={(e) => setSelectedCampaign(e.target.value)}
                   disabled={origin === "organic"}
-                  className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <option value="">All Campaigns</option>
                   {campaigns.map((c) => (
@@ -451,7 +453,7 @@ export function InboundLeadsClient({
                 <select
                   value={selectedSource}
                   onChange={(e) => setSelectedSource(e.target.value)}
-                  className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                  className="h-9 w-full cursor-pointer appearance-none rounded-xl border border-surface-mid bg-white px-3 pr-8 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
                 >
                   {SOURCE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
@@ -465,7 +467,7 @@ export function InboundLeadsClient({
               <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
               <input
                 type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
               />
             </div>
 
@@ -473,7 +475,7 @@ export function InboundLeadsClient({
               <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">To Date</label>
               <input
                 type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200"
+                className="h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
               />
             </div>
           </div>
@@ -483,7 +485,7 @@ export function InboundLeadsClient({
       {/* ── Stats & Actions ────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
         <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-violet-500 to-primary" />
+          <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-primary-500 to-primary" />
           <StatCard label="Showing Now" value={leads.length} icon={Users} gradient="bg-gradient-to-br from-blue-500 to-cyan-600" />
           <StatCard label="Unique Keywords" value={uniqueKeywords} icon={MessageSquare} gradient="bg-gradient-to-br from-amber-500 to-orange-500" />
           <StatCard label="Active Campaigns" value={uniqueCampaigns} icon={Megaphone} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
@@ -495,14 +497,14 @@ export function InboundLeadsClient({
               className={cn(
                 "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-label text-xs font-bold border transition-all shadow-sm",
                 showFilters || hasFilters
-                  ? "bg-violet-50 border-violet-200 text-violet-700 hover:bg-violet-100"
-                  : "bg-white border-surface-mid text-on-surface hover:border-violet-300 hover:text-violet-700"
+                  ? "bg-primary-50 border-primary-200 text-primary-700 hover:bg-primary-100"
+                  : "bg-white border-surface-mid text-on-surface hover:border-primary-300 hover:text-primary-700"
               )}
             >
               <Filter size={12} />
               <span>Filters</span>
               {activeFilterCount > 0 && (
-                <span className="w-4 h-4 rounded-full bg-violet-600 text-white text-[9px] font-bold flex items-center justify-center">
+                <span className="w-4 h-4 rounded-full bg-primary-600 text-white text-[9px] font-bold flex items-center justify-center">
                   {activeFilterCount}
                 </span>
               )}
@@ -518,7 +520,7 @@ export function InboundLeadsClient({
           </div>
           <button
             onClick={() => setShowGoogleModal(true)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 hover:bg-violet-100 font-label text-xs font-bold transition-all shadow-sm"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-primary-50 border border-primary-200 text-primary-700 hover:bg-primary-100 font-label text-xs font-bold transition-all shadow-sm"
           >
             <Link2 size={12} />
             <span>Google Ads Link</span>
@@ -570,7 +572,7 @@ export function InboundLeadsClient({
                     <span className={cn(
                       "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
                       lead.origin === "ad"
-                        ? "border-violet-200 bg-violet-50 text-violet-700"
+                        ? "border-primary-200 bg-primary-50 text-primary-700"
                         : "border-[#e8e3db] bg-[#f0ece4] text-[#57534e]"
                     )}>
                       {lead.origin.charAt(0).toUpperCase() + lead.origin.slice(1)}
@@ -636,7 +638,7 @@ export function InboundLeadsClient({
                         <span className={cn(
                           "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border",
                           lead.origin === "ad"
-                            ? "bg-violet-50 border-violet-200 text-violet-700"
+                            ? "bg-primary-50 border-primary-200 text-primary-700"
                             : "bg-[#f0ece4] border-[#e8e3db] text-[#57534e]"
                         )}>
                           {lead.origin.charAt(0).toUpperCase() + lead.origin.slice(1)}
@@ -660,7 +662,7 @@ export function InboundLeadsClient({
                       {/* Campaign */}
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-1.5">
-                          <Megaphone size={11} className="text-violet-400 flex-shrink-0" />
+                          <Megaphone size={11} className="text-primary-400 flex-shrink-0" />
                           <span
                             className="font-label text-xs font-semibold text-on-surface truncate max-w-[140px]"
                             title={lead.campaign_name}

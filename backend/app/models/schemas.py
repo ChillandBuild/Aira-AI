@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 # --- Enums as Literals ---
-SourceType = Literal["whatsapp", "instagram", "facebook", "telegram", "upload", "csv", "manual"]
+SourceType = Literal["whatsapp", "instagram", "facebook", "telegram", "upload", "csv", "manual", "indiamart", "justdial"]
 SegmentType = Literal["A", "B", "C", "D"]
 DirectionType = Literal["inbound", "outbound"]
 OutcomeType = Literal["converted", "interested", "callback", "not_interested", "no_answer"]
@@ -24,9 +24,11 @@ class LeadBase(BaseModel):
 
     @field_validator("score")
     @classmethod
-    def score_must_be_1_to_10(cls, v):
-        if not 1 <= v <= 10:
-            raise ValueError("score must be between 1 and 10")
+    def score_must_be_0_to_10(cls, v):
+        # 0 is a valid score: it's the "Not Interested" (segment D) floor
+        # introduced by migration 164. The DB CHECK is score >= 0 AND <= 10.
+        if not 0 <= v <= 10:
+            raise ValueError("score must be between 0 and 10")
         return v
 
 class LeadCreate(LeadBase):

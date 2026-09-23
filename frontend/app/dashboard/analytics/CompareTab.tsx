@@ -16,7 +16,7 @@ import {
 import { canLoadComparison, ComparisonSelection, isCompleteSelection } from "@/components/analytics/periodSelection";
 import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
-const CURRENT_COLOR = "#5b21b6";
+const CURRENT_COLOR = "var(--primary-800)";
 const PREVIOUS_COLOR = "#a8a29e";
 
 const SERIES_OPTIONS: { id: string; label: string }[] = [
@@ -302,7 +302,7 @@ function LeadHeatmap({ points }: { points: ComparePeriod["heatmap"] }) {
                   key={hour}
                   title={`${label} ${hour}:00 — ${count} lead${count === 1 ? "" : "s"}`}
                   className="h-6 rounded-sm"
-                  style={{ backgroundColor: `rgba(91, 33, 182, ${intensity})` }}
+                  style={{ backgroundColor: `rgba(var(--primary-800-rgb), ${intensity})` }}
                 />
               );
             })}
@@ -549,15 +549,15 @@ export function CompareTab({
                   <AreaChart data={buildTrend(data.current)} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                     <defs>
                       <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#5b21b6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#5b21b6" stopOpacity={0} />
+                        <stop offset="5%" stopColor="var(--primary-800)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="var(--primary-800)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
                     <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
-                    <Area type="monotone" dataKey="count" stroke="#5b21b6" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
+                    <Area type="monotone" dataKey="count" stroke="var(--primary-800)" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
