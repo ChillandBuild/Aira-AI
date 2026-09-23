@@ -183,6 +183,10 @@ export interface PendingWrapupSummary {
   pending_count: number;
   last_sync_at: string | null;
   has_sync_token: boolean;
+  /** Aira Sync build the phone last reported; null = never reported (1.2 or older). */
+  app_version: number | null;
+  /** Newest published build from version.json; null if it couldn't be read. */
+  latest_app_version: number | null;
 }
 
 export interface CallLog {

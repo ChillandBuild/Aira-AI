@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { AlertCircle, RefreshCw, WifiOff } from "lucide-react";
+import { AlertCircle, Download, RefreshCw, WifiOff } from "lucide-react";
 import { api, type CallLog, type PendingWrapupSummary } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import { pendingCallLabel } from "../../lib/feedbackLabels";
@@ -22,6 +22,13 @@ function syncWarning(row: PendingWrapupSummary): string | null {
   if (hour < WORKDAY_START_HOUR || hour >= WORKDAY_END_HOUR) return null;
   if (!row.last_sync_at) return "Aira Sync never connected";
   return Date.now() - new Date(row.last_sync_at).getTime() > SYNC_STALE_MS ? "Aira Sync inactive" : null;
+}
+
+/** True when the phone is known to run an older Aira Sync than the published one. */
+function needsAppUpdate(row: PendingWrapupSummary): boolean {
+  if (row.latest_app_version == null || !row.last_sync_at) return false;
+  // Builds before 1.3 don't report a version, so null means "older than the latest".
+  return row.app_version == null || row.app_version < row.latest_app_version;
 }
 
 /** Owner-only: who owes call feedback, who's not syncing, and a dismiss escape hatch. */
@@ -65,7 +72,7 @@ export default function FeedbackOversight() {
     }
   }
 
-  const visible = rows.filter((r) => r.pending_count > 0 || syncWarning(r));
+  const visible = rows.filter((r) => r.pending_count > 0 || syncWarning(r) || needsAppUpdate(r));
   if (visible.length === 0) return null;
 
   return (
@@ -101,6 +108,12 @@ export default function FeedbackOversight() {
                   <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 font-label text-xs font-bold text-red-700">
                     <WifiOff size={11} /> {warning}
                     {row.last_sync_at ? ` · last ${timeAgo(row.last_sync_at)}` : ""}
+                  </span>
+                )}
+                {needsAppUpdate(row) && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 font-label text-xs font-bold text-amber-700">
+                    <Download size={11} /> Aira Sync update needed
+                    {row.app_version != null ? ` · build ${row.app_version}` : " · old version"}
                   </span>
                 )}
               </div>

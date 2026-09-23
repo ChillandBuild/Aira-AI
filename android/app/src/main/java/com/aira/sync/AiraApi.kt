@@ -24,12 +24,14 @@ data class LeadNumbersResponse(
 interface AiraApi {
     @GET("api/v1/calls/sim-lead-numbers")
     suspend fun getLeadNumbers(
-        @Header("X-Sync-Token") syncToken: String
+        @Header("X-Sync-Token") syncToken: String,
+        @Header("X-App-Version") appVersion: String
     ): Response<LeadNumbersResponse>
 
     @POST("api/v1/calls/sim-cdr")
     suspend fun postCalls(
         @Header("X-Sync-Token") syncToken: String,
+        @Header("X-App-Version") appVersion: String,
         @Body payload: SimCdrPayload
     ): Response<SimCdrResponse>
 }

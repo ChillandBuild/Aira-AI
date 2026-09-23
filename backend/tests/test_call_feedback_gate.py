@@ -73,6 +73,57 @@ class HeartbeatTests(unittest.TestCase):
         calls._touch_caller_sync(db, "caller-1")  # must not raise
 
 
+class AppVersionTests(unittest.TestCase):
+    def _req(self, value):
+        r = MagicMock()
+        r.headers = {"X-App-Version": value} if value is not None else {}
+        return r
+
+    def test_parses_numeric_header(self):
+        self.assertEqual(calls._parse_app_version(self._req("4")), 4)
+
+    def test_missing_or_garbled_header_is_none(self):
+        self.assertIsNone(calls._parse_app_version(self._req(None)))
+        self.assertIsNone(calls._parse_app_version(self._req("1.2")))
+        self.assertIsNone(calls._parse_app_version(self._req("-3")))
+
+    def test_heartbeat_stores_version_only_when_sent(self):
+        db = FakeDb({})
+        calls._touch_caller_sync(db, "c1", 4)
+        self.assertEqual(db.queries["callers"][0].calls[0][1][0]["app_version"], 4)
+        db2 = FakeDb({})
+        calls._touch_caller_sync(db2, "c1")
+        self.assertNotIn("app_version", db2.queries["callers"][0].calls[0][1][0])
+
+    def test_latest_version_reads_version_json_and_caches(self):
+        import asyncio
+        calls._sim_app_version_cache.update(at=0.0, value=None)
+        resp = MagicMock()
+        resp.json.return_value = {"versionCode": 7}
+        client = MagicMock()
+
+        async def _get(url):
+            client.hits += 1
+            return resp
+        client.hits = 0
+        client.get = _get
+        cm = MagicMock()
+        cm.__aenter__ = MagicMock(side_effect=lambda: asyncio.sleep(0, result=client))
+        cm.__aexit__ = MagicMock(side_effect=lambda *a: asyncio.sleep(0, result=False))
+        with patch.object(calls.httpx, "AsyncClient", return_value=cm):
+            first = asyncio.run(calls._latest_sim_app_version())
+            second = asyncio.run(calls._latest_sim_app_version())
+        self.assertEqual((first, second), (7, 7))
+        self.assertEqual(client.hits, 1)
+
+    def test_latest_version_none_when_unreachable(self):
+        import asyncio
+        calls._sim_app_version_cache.update(at=0.0, value=None)
+        with patch.object(calls.httpx, "AsyncClient", side_effect=RuntimeError("down")):
+            self.assertIsNone(asyncio.run(calls._latest_sim_app_version()))
+        calls._sim_app_version_cache.update(at=0.0, value=None)
+
+
 class GateRouteTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
@@ -124,13 +175,14 @@ class GateRouteTests(unittest.TestCase):
         mock_get_db.return_value = FakeDb({})
         self.assertEqual(self.client.get("/api/v1/calls/pending-wrapups/summary").status_code, 403)
 
+    @patch("app.routes.calls._latest_sim_app_version", return_value=5)
     @patch("app.routes.calls.get_supabase")
-    def test_summary_counts_per_caller(self, mock_get_db):
+    def test_summary_counts_per_caller(self, mock_get_db, _latest):
         self._as("owner")
         mock_get_db.return_value = FakeDb({
             "call_logs": [{"caller_id": "c1"}, {"caller_id": "c1"}, {"caller_id": "c2"}],
             "callers": [
-                {"id": "c1", "name": "A", "last_sync_at": None, "sync_token": "t"},
+                {"id": "c1", "name": "A", "last_sync_at": None, "sync_token": "t", "app_version": 3},
                 {"id": "c2", "name": "B", "last_sync_at": "2026-09-25T10:00:00+00:00", "sync_token": None},
             ],
         })
@@ -140,6 +192,9 @@ class GateRouteTests(unittest.TestCase):
         self.assertEqual(by_id["c2"]["pending_count"], 1)
         self.assertTrue(by_id["c1"]["has_sync_token"])
         self.assertFalse(by_id["c2"]["has_sync_token"])
+        self.assertEqual(by_id["c1"]["app_version"], 3)
+        self.assertEqual(by_id["c1"]["latest_app_version"], 5)
+        self.assertIsNone(by_id["c2"]["app_version"])
 
     @patch("app.routes.calls.get_supabase")
     def test_dismiss_is_owner_only(self, mock_get_db):
@@ -191,7 +246,7 @@ class SourceContractTests(unittest.TestCase):
         self.assertNotIn("feedback_at", block)
 
     def test_heartbeat_wired_into_both_apk_routes(self):
-        self.assertEqual(self.src.count("_touch_caller_sync(db, caller_id)"), 2)
+        self.assertEqual(self.src.count("_touch_caller_sync(db, caller_id, _parse_app_version(request))"), 2)
 
 
 if __name__ == "__main__":

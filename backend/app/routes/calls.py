@@ -696,14 +696,49 @@ def _sim_direction(call_type: int) -> str | None:
     return _SIM_DIRECTION_BY_TYPE.get(call_type)
 
 
-def _touch_caller_sync(db, caller_id: str) -> None:
-    """Heartbeat for the owner's 'Aira Sync inactive' warning. Never fails a sync."""
+def _parse_app_version(request: Request) -> int | None:
+    """Aira Sync build number from the X-App-Version header (None if absent/garbled)."""
+    raw = request.headers.get("X-App-Version")
+    if raw and raw.isdigit():
+        return int(raw)
+    return None
+
+
+def _touch_caller_sync(db, caller_id: str, app_version: int | None = None) -> None:
+    """Heartbeat for the owner's sync/version warnings. Never fails a sync."""
+    updates: dict = {"last_sync_at": datetime.now(timezone.utc).isoformat()}
+    if app_version is not None:
+        updates["app_version"] = app_version
     try:
-        db.table("callers").update(
-            {"last_sync_at": datetime.now(timezone.utc).isoformat()}
-        ).eq("id", caller_id).execute()
+        db.table("callers").update(updates).eq("id", caller_id).execute()
     except Exception as e:
         logger.warning(f"sim sync heartbeat failed for caller {caller_id}: {e}")
+
+
+# version.json sits next to the APK in the public app-releases bucket and is the
+# single source of truth for "what is the latest Aira Sync build".
+_SIM_APP_VERSION_URL = f"{settings.supabase_url}/storage/v1/object/public/app-releases/version.json"
+_SIM_APP_VERSION_TTL_S = 600
+_sim_app_version_cache: dict = {"at": 0.0, "value": None}
+
+
+async def _latest_sim_app_version() -> int | None:
+    """Latest published Aira Sync versionCode, cached; None if unreachable."""
+    import time
+    now = time.monotonic()
+    if now - _sim_app_version_cache["at"] < _SIM_APP_VERSION_TTL_S:
+        return _sim_app_version_cache["value"]
+    value = None
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.get(_SIM_APP_VERSION_URL)
+            res.raise_for_status()
+            code = res.json().get("versionCode")
+            value = int(code) if isinstance(code, int) else None
+    except Exception as e:
+        logger.warning(f"could not read Aira Sync version.json: {e}")
+    _sim_app_version_cache.update(at=now, value=value)
+    return value
 
 
 def _resolve_sim_caller(request: Request) -> dict:
@@ -739,7 +774,7 @@ async def sim_cdr(payload: SimCdrPayload, request: Request, background_tasks: Ba
     caller_id = caller["id"]
     tenant_id = caller["tenant_id"]
     db = get_supabase()
-    _touch_caller_sync(db, caller_id)
+    _touch_caller_sync(db, caller_id, _parse_app_version(request))
 
     results: list[dict] = []
     for entry in payload.calls:
@@ -768,7 +803,7 @@ async def sim_lead_numbers(request: Request):
     caller_id = caller["id"]
     tenant_id = caller["tenant_id"]
     db = get_supabase()
-    _touch_caller_sync(db, caller_id)
+    _touch_caller_sync(db, caller_id, _parse_app_version(request))
 
     phones: list[str] = []
     start = 0
@@ -1822,11 +1857,12 @@ async def pending_wrapups_summary(ctx: dict = Depends(get_tenant_and_role)):
 
     callers = (
         db.table("callers")
-        .select("id,name,last_sync_at,sync_token")
+        .select("id,name,last_sync_at,sync_token,app_version")
         .eq("tenant_id", tenant_id)
         .eq("active", True)
         .execute()
     ).data or []
+    latest_version = await _latest_sim_app_version()
     return [
         {
             "caller_id": c["id"],
@@ -1834,6 +1870,8 @@ async def pending_wrapups_summary(ctx: dict = Depends(get_tenant_and_role)):
             "pending_count": counts.get(c["id"], 0),
             "last_sync_at": c.get("last_sync_at"),
             "has_sync_token": bool(c.get("sync_token")),
+            "app_version": c.get("app_version"),
+            "latest_app_version": latest_version,
         }
         for c in callers
     ]

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -20,6 +21,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var syncNowBtn: Button
     private lateinit var permissionStatus: TextView
     private lateinit var lastSyncedText: TextView
+    private lateinit var updateBanner: TextView
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -41,6 +43,10 @@ class MainActivity : AppCompatActivity() {
         syncNowBtn = findViewById(R.id.syncNowBtn)
         permissionStatus = findViewById(R.id.permissionStatus)
         lastSyncedText = findViewById(R.id.lastSyncedText)
+        updateBanner = findViewById(R.id.updateBanner)
+        updateBanner.setOnClickListener {
+            startActivity(UpdateChecker.downloadIntent(prefs.latestApkUrl))
+        }
 
         serverUrlInput.setText(prefs.serverUrl)
         syncTokenInput.setText(prefs.syncToken)
@@ -58,6 +64,12 @@ class MainActivity : AppCompatActivity() {
 
         updatePermissionStatus()
         updateLastSynced()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateBanner.visibility =
+            if (UpdateChecker.isUpdateAvailable(this, prefs)) View.VISIBLE else View.GONE
     }
 
     private fun checkAndRequestPermissions() {
