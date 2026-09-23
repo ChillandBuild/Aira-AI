@@ -1,0 +1,12 @@
+-- 198: drop ai_prompts (2026-09-23)
+--
+-- The master prompt is platform-wide: every tenant reads the single
+-- platform_defaults.default_master_prompt row at reply time via
+-- ai_reply.get_master_prompt(). Nothing reads ai_prompts any more --
+-- neither the per-tenant `master` rows nor the legacy per-channel
+-- whatsapp_reply / instagram_reply / facebook_reply / telegram_reply rows,
+-- which were already unread before this change.
+--
+-- Applied to the live project as migration 198_drop_ai_prompts.
+-- CASCADE takes the RLS policies, indexes and the updated_at trigger with it.
+drop table if exists public.ai_prompts cascade;

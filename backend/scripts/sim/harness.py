@@ -65,8 +65,8 @@ def sandboxed(
 ):
     """Patch every outward edge, plus the capture wrappers, for the duration.
 
-    master_override swaps the platform prompt for this run without touching the
-    ai_prompts table -- the point is to compare candidate master prompts against
+    master_override swaps the platform prompt for this run without writing to
+    platform_defaults -- the point is to compare candidate master prompts against
     one identical tenant (same description, same knowledge base, same catalog),
     so the only variable is the platform layer itself.
     """
@@ -170,14 +170,7 @@ def sandboxed(
 
     # ---- variant: swap the platform prompt --------------------------------
     if master_override is not None:
-        real_get_prompt = ai_reply._get_prompt
-
-        def fixed_get_prompt(name: str, tenant_id: str | None = None) -> str:
-            if name == "master":
-                return master_override
-            return real_get_prompt(name, tenant_id=tenant_id)
-
-        patch(ai_reply, "_get_prompt", fixed_get_prompt)
+        patch(ai_reply, "get_master_prompt", lambda: master_override)
 
     # ---- capture: the assembled prompt ------------------------------------
     real_build = ai_reply.build_reply_system_prompt

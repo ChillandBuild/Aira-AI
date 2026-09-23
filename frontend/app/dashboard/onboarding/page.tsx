@@ -281,7 +281,7 @@ function InterviewReview({
       <div className="space-y-4">
         <div>
           <label className="font-body text-sm font-medium text-ink mb-1.5 block">
-            Business description
+            Product description
           </label>
           <textarea
             value={businessDescription}

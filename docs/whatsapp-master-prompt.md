@@ -8,17 +8,19 @@ Canonical text for the developer-owned master prompt, stored in
 per-tenant override: the operator edits this text in one place (Operator → Master Prompt,
 `/operator/prompt-template`) and it takes effect for every client as soon as the 60s
 prompt cache turns over. The per-client Configuration tab shows it read-only. The
-`ai_prompts` table is no longer read by any code path — neither the old per-tenant
-`master` rows nor the `whatsapp_reply` / `instagram_reply` / `telegram_reply` /
-`facebook_reply` rows.
+`ai_prompts` table — which held the old per-tenant `master` rows and the legacy
+`whatsapp_reply` / `instagram_reply` / `telegram_reply` / `facebook_reply` rows — was
+**dropped** in migration `198_drop_ai_prompts.sql`. This file and `platform_defaults`
+are now the only places the text exists.
 
 **This one prompt also serves all four channels** — WhatsApp, Instagram, Facebook
 Messenger and Telegram. The only per-channel variation is the `CHANNEL:` line appended
 after it, so keep this text channel-neutral.
 
-It defines HOW the assistant behaves. The tenant's Knowledge Base `business_description`
-defines WHO it is and what it sells, and is the only part that varies per client; it is
-appended separately — as are the channel label, app link, language rules, escalation
+It defines HOW the assistant behaves. The tenant's Knowledge Base product description
+(stored as `app_settings.business_description` — the key kept its old name) defines WHO
+it is and what it sells, and is the only part that varies per client; it is appended
+separately — as are the channel label, app link, language rules, escalation
 block, knowledge excerpts and catalog. **Do not duplicate those here.**
 
 Tenants add persona and subject matter through their business description only. They

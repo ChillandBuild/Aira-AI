@@ -438,7 +438,6 @@ export interface SystemStatus {
   has_gemini: boolean;
   has_groq: boolean;
   supabase_url: string;
-  active_prompt: { name: string; updated_at: string } | null;
 }
 
 export interface AnalyticsOverview {

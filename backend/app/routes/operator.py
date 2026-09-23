@@ -2493,7 +2493,7 @@ _ALL_TENANT_TABLES = [
     "meta_templates", "phone_number_quality_history", "phone_numbers",
     "reengagement_logs", "reengagement_steps", "segment_templates",
     "telecalling_upload_batches", "voice_numbers", "whatsapp_insights_snapshots",
-    "ad_campaigns", "ai_prompts", "app_notifications",
+    "ad_campaigns", "app_notifications",
     "app_audit_logs", "leads", "app_settings", "tenant_users",
 ]
 

@@ -65,7 +65,7 @@ export default function PromptTemplatePage() {
           One prompt, shared by every client. It defines how the assistant behaves &mdash; reply
           length, tone, and worked examples. Saving here changes{" "}
           <strong>every client&apos;s</strong> replies, live. What differs per client is only
-          their own business description, written on their Knowledge Base page.
+          their own product description, written on their Knowledge Base page.
         </p>
       </div>
 

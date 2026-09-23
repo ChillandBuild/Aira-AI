@@ -442,7 +442,7 @@ export default function KnowledgePage() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Business Description & AI Tuning
+  // Product Description & AI Tuning
   const [description, setDescription] = useState<string>("");
   const [savedDescription, setSavedDescription] = useState<string>("");
   const [descSaving, setDescSaving] = useState(false);
@@ -1196,7 +1196,7 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            {/* ── Business description: status only ─────────────────────────
+            {/* ── Product description: status only ─────────────────────────
                 A word count and a link across to the Description tab. It used to be
                 an editable copy of the same textarea, which put two editors for one
                 field on screen and made this card look like it took two kinds of
@@ -1207,7 +1207,7 @@ export default function KnowledgePage() {
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-mid/60 px-4 py-3.5 sm:px-5">
                 <BookOpen size={15} className="shrink-0 text-primary" />
                 <span className="whitespace-nowrap font-display text-sm font-bold text-on-surface">
-                  Business description
+                  Product description
                 </span>
                 {hasDescription ? (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-emerald-700">
@@ -1995,7 +1995,7 @@ export default function KnowledgePage() {
             </div>
           )}
 
-          {/* Business Description Card */}
+          {/* Product Description Card */}
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
             <div>
               <h2 className="font-display text-lg font-bold text-primary">
@@ -2081,19 +2081,19 @@ export default function KnowledgePage() {
                 Lead Scoring Rubric (1–10)
               </h2>
               <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                The criteria used by Aira to evaluate conversation transcripts and assign 1–10 intent scores to leads. You can edit this rubric manually or toggle auto-update to sync with your business description.
+                The criteria used by Aira to evaluate conversation transcripts and assign 1–10 intent scores to leads. You can edit this rubric manually or toggle auto-update to sync with your product description.
               </p>
             </div>
 
             <div className="flex items-start justify-between gap-4 rounded-xl border border-surface-mid bg-surface-low p-4">
               <div>
                 <p className="font-label text-sm font-semibold text-on-surface">
-                  Auto-generate rubric from business description
+                  Auto-generate rubric from product description
                 </p>
                 <p className="font-body text-xs text-on-surface-muted mt-0.5 leading-relaxed">
                   {rubricAutoUpdate
                     ? "Active: saving your description will automatically update this rubric based on your updated products/services."
-                    : "Disabled: manual rubric changes below will be preserved and won't be modified when editing your business description."}
+                    : "Disabled: manual rubric changes below will be preserved and won't be modified when editing your product description."}
                 </p>
               </div>
 
@@ -2103,7 +2103,7 @@ export default function KnowledgePage() {
                   onChange={toggleRubricAutoUpdate}
                   loading={rubricToggleSaving}
                   disabled={!canManageKnowledge}
-                  aria-label="Auto-generate rubric from business description"
+                  aria-label="Auto-generate rubric from product description"
                 />
               </div>
             </div>

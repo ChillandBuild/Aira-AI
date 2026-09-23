@@ -299,10 +299,11 @@ async def main() -> int:
     parser.add_argument("--cleanup", metavar="RUN_ID", help="delete a previous run's rows and exit")
     parser.add_argument("--out", default="sim-out", help="report directory (default: sim-out)")
     parser.add_argument(
-        "--master-from-tenant",
-        metavar="UUID",
-        help="run with ANOTHER tenant's master prompt, to compare platform prompts "
-             "against one identical tenant. Reads only; nothing is written back.",
+        "--master-from-file",
+        metavar="PATH",
+        help="run with a candidate master prompt read from this file, to compare it "
+             "against the live one on one identical tenant. Reads only; nothing is "
+             "written back to platform_defaults.",
     )
     parser.add_argument("--label", help="short name for this variant, shown in the report")
     args = parser.parse_args()
@@ -330,17 +331,14 @@ async def main() -> int:
         )
 
     master_override = None
-    if args.master_from_tenant:
-        row = (
-            db.table("ai_prompts").select("content")
-            .eq("tenant_id", args.master_from_tenant).eq("name", "master")
-            .limit(1).execute()
-        ).data
-        if not row:
-            parser.error(f"no master prompt row for tenant {args.master_from_tenant}")
-        master_override = row[0]["content"]
-        print(f"master prompt override: {len(master_override):,} chars "
-              f"from tenant {args.master_from_tenant}")
+    if args.master_from_file:
+        path = Path(args.master_from_file)
+        if not path.is_file():
+            parser.error(f"no such master prompt file: {path}")
+        master_override = path.read_text(encoding="utf-8").strip()
+        if not master_override:
+            parser.error(f"master prompt file is empty: {path}")
+        print(f"master prompt override: {len(master_override):,} chars from {path}")
 
     run_id = uuid.uuid4().hex[:12]
     result = {
@@ -350,7 +348,7 @@ async def main() -> int:
         "live_notifications": args.live_notifications,
         "label": args.label or "live-master",
         "master_chars": len(master_override) if master_override else None,
-        "master_from_tenant": args.master_from_tenant,
+        "master_from_file": args.master_from_file,
         "personas": [],
     }
     print(f"run {run_id} — {len(selected)} persona(s), tenant {args.tenant}")

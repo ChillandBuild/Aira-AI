@@ -903,7 +903,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         <p className="mb-4 text-xs leading-relaxed text-ink-muted">
           Every client runs on this one prompt — it is not editable per client. It defines
           how the assistant behaves: reply length, tone, and worked examples. What makes this
-          client&apos;s replies their own is the business description below, which they write
+          client&apos;s replies their own is the product description below, which they write
           themselves.
         </p>
 
@@ -925,7 +925,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
 
         <div className="mt-4 rounded-card border border-border bg-surface-low p-4 shadow-sm">
           <p className="mb-2 text-xs font-semibold text-ink">
-            Client&apos;s business description (read-only)
+            Client&apos;s product description (read-only)
           </p>
           <pre className="whitespace-pre-wrap font-body text-xs leading-relaxed text-ink-muted">
             {config.business_description || "The client has not written a description yet."}
