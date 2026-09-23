@@ -429,7 +429,7 @@ def _astro_unauthorized() -> JSONResponse:
 async def astro_reply(request: Request):
     """The astrologer's answer, called by the astrobackmatrimony Django app.
     Signed with HMAC-SHA256 over the raw body using this tenant's
-    astro_bridge_secret. Wire contract — see ConsultationAPIEndpoints.md."""
+    astro_bridge_secret. Wire contract — see subsystem-notes.md, AstroTamil consultation bridge."""
     raw_body = await request.body()
     signature = request.headers.get("x-astro-signature", "")
 

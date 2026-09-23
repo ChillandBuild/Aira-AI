@@ -1688,7 +1688,7 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
 # astrologer's reply back into the lead's WhatsApp thread.
 # The wire contract (paths, payload keys, header names, external_ref format)
 # is shared with the astrobackmatrimony Django app — see
-# ConsultationAPIEndpoints.md. Do not rename anything that crosses the wire.
+# subsystem-notes.md (AstroTamil consultation bridge). Do not rename anything that crosses the wire.
 # --------------------------------------------------------------------------
 
 def record_astro_bridge_ids(session_id: str, tenant_id: str, bridge_response: dict, db=None) -> None:
