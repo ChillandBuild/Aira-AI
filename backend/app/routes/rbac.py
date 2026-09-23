@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_and_role, require_permission
+from app.dependencies.tenant import get_tenant_and_role, require_permission, invalidate_tenant_cache
 from app.services.assignment import get_telecalling_config
 from app.services.audit_log import record_audit_event
 from app.services.entitlements import get_purchased_quantity, resolve_entitlements
@@ -293,6 +293,7 @@ def update_role(role_id: str, payload: RolePayload, ctx: dict = Depends(require_
         "permissions": normalize_permissions(payload.permissions),
     })
     updated = db.table("tenant_roles").update(updates).eq("id", role_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    invalidate_tenant_cache()
     record_audit_event(
         db, tenant_id=ctx["tenant_id"], actor_user_id=ctx["user_id"], actor_role=ctx.get("role"),
         action="role.updated", target_type="tenant_role", target_id=role_id,
@@ -313,6 +314,7 @@ def delete_role(role_id: str, ctx: dict = Depends(require_roles_manage)):
     if assigned.data:
         raise HTTPException(status_code=400, detail="Role is assigned to users")
     db.table("tenant_roles").delete().eq("id", role_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    invalidate_tenant_cache()
     record_audit_event(
         db, tenant_id=ctx["tenant_id"], actor_user_id=ctx["user_id"], actor_role=ctx.get("role"),
         action="role.deleted", target_type="tenant_role", target_id=role_id,
@@ -422,6 +424,7 @@ def create_user(payload: UserPayload, ctx: dict = Depends(require_roles_manage))
         "force_password_reset": True,
         "temporary_password_issued_at": datetime.now(timezone.utc).isoformat(),
     }).execute()
+    invalidate_tenant_cache(user_id)
     _ensure_caller_profile(db, ctx["tenant_id"], user_id, payload, role)
     record_audit_event(
         db, tenant_id=ctx["tenant_id"], actor_user_id=ctx["user_id"], actor_role=ctx.get("role"),
@@ -468,6 +471,7 @@ def update_user(user_id: str, payload: UserUpdatePayload, ctx: dict = Depends(re
         updates["role_id"] = payload.role_id
     if updates:
         db.table("tenant_users").update(updates).eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).execute()
+        invalidate_tenant_cache(user_id)
     _ensure_caller_profile(db, ctx["tenant_id"], user_id, payload, role)
     record_audit_event(
         db, tenant_id=ctx["tenant_id"], actor_user_id=ctx["user_id"], actor_role=ctx.get("role"),
@@ -496,6 +500,7 @@ def delete_user(user_id: str, ctx: dict = Depends(require_roles_manage)):
         db.table("callers").delete().eq("id", caller["id"]).eq("tenant_id", ctx["tenant_id"]).execute()
 
     db.table("tenant_users").delete().eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).execute()
+    invalidate_tenant_cache(user_id)
     try:
         db.auth.admin.delete_user(user_id)
     except Exception:
@@ -527,6 +532,7 @@ def reset_user_password(user_id: str, ctx: dict = Depends(require_roles_manage))
         "force_password_reset": True,
         "temporary_password_issued_at": datetime.now(timezone.utc).isoformat(),
     }).eq("tenant_id", ctx["tenant_id"]).eq("user_id", user_id).execute()
+    invalidate_tenant_cache(user_id)
     record_audit_event(
         db, tenant_id=ctx["tenant_id"], actor_user_id=ctx["user_id"], actor_role=ctx.get("role"),
         action="team.password_reset", target_type="tenant_user", target_id=user_id, metadata={},
@@ -538,6 +544,7 @@ def reset_user_password(user_id: str, ctx: dict = Depends(require_roles_manage))
 def password_reset_complete(ctx: dict = Depends(get_tenant_and_role)):
     db = get_supabase()
     db.table("tenant_users").update({"force_password_reset": False}).eq("tenant_id", ctx["tenant_id"]).eq("user_id", ctx["user_id"]).execute()
+    invalidate_tenant_cache(ctx["user_id"])
     try:
         _update_auth_metadata(db, ctx["user_id"], {"force_password_reset": False})
     except Exception:
