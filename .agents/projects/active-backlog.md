@@ -345,7 +345,8 @@ code. Uncheck them so the config matches what Meta approves. See
   know about.
 
 
-## Astro Tamil tenant is misconfigured — description and RAG are inverted (found 2026-09-09)
+## ~~Astro Tamil tenant is misconfigured — description and RAG are inverted~~ — FIXED 2026-09-24 (see decisions/log.md)
+> Resolved: all three Astro Tamil tenants now have sectioned profiles (485/397/225 words), the behavioural rules moved out of Documents, and the master prompt is generic. The findings below are kept for history; the ₹29 vs ₹49 price question was settled as ₹29 (the profile and facts say so).
 Tenant `eba3ed94-277c-430f-a992-19bbe855e2f4`. Found while answering "should this document
 live in the description or in RAG"; **nothing was changed** — needs the client's sign-off.
 - **`business_description` (2,005 chars) is a pasted AI chat reply.** It opens literally
@@ -597,3 +598,13 @@ the hesitation-reassurance about astrologer privacy.
 Not diagnosed further. The question is whether `apply_review()` rebases onto the current
 Description or onto `base_version_id`, and what happens when a second review's base predates a
 first review that has already been applied.
+
+## Knowledge / scoring follow-ups after the 2026-09-24 rebuild (open)
+- **Astrotamil Pooja (`82c63194-1957-4262-ae7c-a95f05effcb1`)** has no `handover_line` (AI defaults to "a team member will follow up") and its Homam details (date/time/place, member details needed, payment/booking rules, edit-a-booking contact) are unknown — the profile tells the AI never to invent them. Needs the client's answers.
+- **Rubric auto-update is Off for all three Astro Tamil tenants**; their saved rubrics were generated when the generator saw ~44% of the profile. Turn on (or regenerate once) — operator's call.
+- **Reply eval remaining failures (1/71):** the language-mirroring cases are graded against the operator setting only. Real chats: labels for the scoring eval are Claude's, not yet operator-reviewed (`SCORING_LABELS_REVIEW.md`, gitignored).
+- **No unit test for `useAutoGrow`** (vitest runs in `node` env, no jsdom). Add jsdom + testing-library if UI hooks need coverage.
+- **Reply-time quality gaps not addressed:** retrieval still ignores conversation context (searches the latest message only) and always returns 5 chunks with no relevance cutoff; the reply model is called once per message so an invented "no" can still slip through (3 known cases now fixed by prompt, not by a check).
+- **Separate paying clients need their own Jina key** (Co and Pooja borrow Astro Tamil's).
+- **A live UI test account exists** (`Aira UI Test (Claude)`, see subsystem-notes.md) — delete when no longer needed.
+
