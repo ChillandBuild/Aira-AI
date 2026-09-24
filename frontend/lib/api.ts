@@ -408,6 +408,10 @@ export interface KnowledgeReview {
   replaces_document: { id: string; name: string } | null;
   word_count: number;
   soft_word_limit: number;
+  /** A sentence the upload contained telling customers how to reach a person
+   *  (e.g. "Call Priya at 98765 43210"). "" when none was found. Never saved
+   *  automatically -- the client chooses to use it as their handover line. */
+  suggested_handover: string;
 }
 
 export type KnowledgeConflictChoice = "a" | "b" | "none";
@@ -1666,6 +1670,9 @@ export const api = {
         sorted_at?: string | null;
         sort_state?: "sorting" | "review" | "failed" | null;
         has_pending_review?: boolean;
+        /** False when Aira can't run a vector search over this file. */
+        searchable?: boolean;
+        search_issue?: null | "no_jina_key" | "not_indexed";
       }> }>(`/api/v1/knowledge/documents`);
       return res.data || [];
     },

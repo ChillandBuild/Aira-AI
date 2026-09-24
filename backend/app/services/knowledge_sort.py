@@ -81,6 +81,11 @@ class OwnerRequiredError(KnowledgeError):
     message = "Only an account owner can change the Description."
 
 
+class ProfileTooLongError(KnowledgeError):
+    status = 422
+    message = "This would make your profile too long."
+
+
 # ─── Model calls ──────────────────────────────────────────────────────────────
 
 def _parse_json(raw: str | None) -> dict:
@@ -138,24 +143,27 @@ Reply with only JSON:
 
 _COMPILE_SYSTEM = """You maintain the always-on instructions ("Description") for a business's WhatsApp sales assistant. The assistant re-reads the whole Description before every reply, so it must be short, clear and free of contradictions.
 
-You get the CURRENT DESCRIPTION and NEW RULES taken from an uploaded document. Produce the updated Description.
+You get the CURRENT DESCRIPTION and NEW RULES taken from an uploaded document. Produce the updated Description, plus any handover line found in the rules.
 
 How to write it:
 - Keep every line of the current Description word for word, unless a new rule contradicts it.
 - Merge the new rules in as short plain lines under UPPERCASE headings, in this order, using only the ones you need: ABOUT US, HOW CUSTOMERS BUY, WHO WE TALK TO, HOW TO SOUND, YOUR JOB IN EVERY CONVERSATION, WHAT YOU MUST NEVER DO. Headings already in the current Description stay as they are.
+- Section routing is strict:
+  - HOW CUSTOMERS BUY is ONLY the steps to buy or book, where to do it, and AT MOST ONE line summarising price. Never a price list, package breakdown, FAQ or policy.
+  - Conversation-flow rules -- when or how often to recommend something, what to do when the customer shares X, when to ask a follow-up question -- go under YOUR JOB IN EVERY CONVERSATION, never under HOW CUSTOMERS BUY.
+  - Price lists, package breakdowns, FAQs and policies NEVER go in the Description at all -- they are looked up separately from Documents -- unless a line identical in substance is already in the current Description.
 - Never include rules about WHICH LANGUAGE to reply in (that is a setting); keep style/phrases/spellings.
-- Never include rules about when to hand over to a person (that is a setting); keep style.
+- Never include a line telling the assistant how to hand over to a person, e.g. a phone number, WhatsApp number, email or "talk to a human" instruction -- that is a separate per-tenant setting, and such a line must NEVER appear in the Description. Instead, put ONE sentence describing how a customer reaches a person (in the business's own words) in "handover"; "" if none is present in these rules.
 - Drop generic good behaviour that every assistant already follows (no guarantees, no invented facts, be polite, keep it short, no pressure, honesty about being AI).
 - When one new rule says it overrides or replaces another, keep only the winning one.
 - Write each rule once. Drop example conversations unless one exact phrase must be used word for word.
-- Do not copy prices, packages, FAQs or policies into the Description -- they are looked up separately -- unless they are already in the current Description.
 - No markdown: no #, no **, no >, no tables. Plain lines; "- " bullets are fine.
 - At most 700 words. When a section is over its word limit, shorten or merge lines in that section; keep total under 700.
 
 Conflicts: when the new rules disagree with the current Description, or with each other, and you cannot tell which is right, put NEITHER version in the Description and list it in "conflicts".
 
 Reply with only JSON:
-{"description": "the full updated Description", "conflicts": [{"topic": "short", "heading": "HEADING IT BELONGS UNDER", "option_a": "one line", "source_a": "current Description or this file", "option_b": "one line", "source_b": "this file"}]}"""
+{"description": "the full updated Description", "handover": "one sentence in the business's own words, or \"\"", "conflicts": [{"topic": "short", "heading": "HEADING IT BELONGS UNDER", "option_a": "one line", "source_a": "current Description or this file", "option_b": "one line", "source_b": "this file"}]}"""
 
 
 _DISAGREE_SYSTEM = """You check whether newly uploaded facts disagree with what a business's assistant already knows -- for example a different price, a different number of free questions, a different link.
@@ -216,11 +224,30 @@ async def label_sections(tenant_id: str, sections: list[Section]) -> dict[str, L
     return labels
 
 
+_MIN_MIXED_RULES_WORDS = 3
+
+
+def mixed_rules_text(section_text: str, facts: list[str]) -> str:
+    """The rules left in a MIXED section once its copied fact sentences are cut out.
+    Facts were copied verbatim (spec §4.1's labelling contract), so plain substring
+    removal finds them exactly; this runs for verified AND unverified facts alike --
+    an unverified fact is still text the section no longer needs in its rules. If
+    fewer than 3 words survive, the section was almost entirely facts and contributes
+    nothing to rules (a bare price list must never become a "rule")."""
+    text = section_text
+    for fact in facts:
+        if fact:
+            text = text.replace(fact, "")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return text if len(text.split()) >= _MIN_MIXED_RULES_WORDS else ""
+
+
 def bucket_sections(sections: list[Section], labels: dict[str, Label]) -> Buckets:
-    """FACT sections go to RAG verbatim. MIXED sections feed the rules, and their copied
-    facts go to RAG only if every number/link in them is in the section (spec §4.3).
-    A section the model skipped is left out rather than guessed -- guessing FACT would
-    put rules back into retrieval."""
+    """FACT sections go to RAG verbatim. MIXED sections feed the rules with their
+    copied facts cut out (mixed_rules_text), and those facts go to RAG only if every
+    number/link in them is in the section (spec §4.3). A section the model skipped is
+    left out rather than guessed -- guessing FACT would put rules back into retrieval."""
     b = Buckets()
     for s in sections:
         lab = labels.get(s.id)
@@ -231,7 +258,9 @@ def bucket_sections(sections: list[Section], labels: dict[str, Label]) -> Bucket
         elif lab.label == "RULE":
             b.rules.append(s.text)
         elif lab.label == "MIXED":
-            b.rules.append(s.text)
+            rules_text = mixed_rules_text(s.text, lab.facts)
+            if rules_text:
+                b.rules.append(rules_text)
             for fact in lab.facts:
                 (b.facts if verify_fact(fact, s.text) else b.unverified).append(fact)
         else:
@@ -262,11 +291,68 @@ def _clean_conflicts(items, start: int) -> list[dict]:
     return out
 
 
-async def compile_description(tenant_id: str, current: str, rules: list[str]) -> tuple[str, list[dict]]:
+_PHONE_RE = re.compile(r"(?:\+?91[\s-]?)?(?:\d[\s-]?){7,}\d")
+_HANDOVER_HINT_RE = re.compile(r"\b(call|contact|talk|speak|whatsapp|reach|number|meet|complaint|manager)\b", re.IGNORECASE)
+
+
+def _is_handover_line(line: str) -> bool:
+    return bool(_PHONE_RE.search(line)) and bool(_HANDOVER_HINT_RE.search(line))
+
+
+def strip_handover_lines(text: str, handover: str) -> tuple[str, str]:
+    """Deterministic safety net, independent of what the model claimed: a line with a
+    phone number next to a word like "call" or "contact" is a handover instruction, and
+    it must never reach the Description -- handover is a separate per-tenant setting.
+    If the model's own "handover" came back empty, the first dropped line becomes the
+    fallback suggestion."""
+    kept: list[str] = []
+    fallback = ""
+    for line in text.split("\n"):
+        if _is_handover_line(line):
+            if not fallback:
+                fallback = line.strip()
+            continue
+        kept.append(line)
+    cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+    return cleaned, (handover or fallback)
+
+
+# Sentence ends, but not after the titles that precede a contact's name ("Mr. Ganesan").
+_SENTENCE_SPLIT_RE = re.compile(r"(?<!Mr\.)(?<!Ms\.)(?<!Dr\.)(?<!Mrs\.)(?<=[.!?])\s+|\n+")
+
+
+def _source_handover_sentence(source: str) -> str:
+    """The first sentence in the uploaded file that gives a phone number to reach a
+    person. Copied verbatim, so its number is by definition the file's own."""
+    for sentence in _SENTENCE_SPLIT_RE.split(source or ""):
+        if _is_handover_line(sentence):
+            return sentence.strip()
+    return ""
+
+
+def verified_handover(handover: str, source: str) -> str:
+    """The suggested "When Aira can't help" line must never carry a contact the file
+    doesn't contain: live-tested, the model offered 9840012345 for a file whose number
+    was 97890 33445. The file's own phone sentence wins when there is one (verbatim,
+    and it has the number the model sometimes drops); otherwise the model's line is
+    kept only if every number/link/email in it appears in the file."""
+    from_source = _source_handover_sentence(source)
+    if from_source:
+        return from_source
+    candidate = (handover or "").strip()
+    if candidate and not unverified_tokens(candidate, source):
+        return candidate
+    return ""
+
+
+async def compile_description(tenant_id: str, current: str, rules: list[str]) -> tuple[str, list[dict], str]:
     """Fold the rules into the Description batch by batch, so a very long rulebook never
-    has to fit one request. Each round's output is the next round's CURRENT."""
+    has to fit one request. Each round's output is the next round's CURRENT. handover is
+    the last non-empty one the model reported across rounds; strip_handover_lines then
+    catches anything it missed."""
     description = current
     conflicts: list[dict] = []
+    handover = ""
     for batch in _batches(rules, _COMPILE_BATCH_CHARS):
         user = (
             f"CURRENT DESCRIPTION:\n{description.strip() or '(empty)'}\n\n"
@@ -277,7 +363,48 @@ async def compile_description(tenant_id: str, current: str, rules: list[str]) ->
         if proposed:
             description = proposed
         conflicts += _clean_conflicts(data.get("conflicts"), start=len(conflicts))
-    return description, conflicts
+        batch_handover = str(data.get("handover") or "").strip()
+        if batch_handover:
+            handover = batch_handover
+    description, handover = strip_handover_lines(description, handover)
+    return description, conflicts, handover
+
+
+_CONDENSE_SYSTEM = """You shorten ONE section of a business's WhatsApp assistant profile so it fits its word limit. Keep every business-specific rule and exact phrase; drop repetition first, then anything less essential. Never invent a new rule.
+
+Reply with only JSON:
+{"text": "the shortened section, plain lines only"}"""
+
+
+async def _condense_section(tenant_id: str, heading: str, word_limit: int, text: str) -> str:
+    user = f"SECTION: {heading}\nWORD LIMIT: {word_limit} words\n\nTEXT:\n{text}"
+    try:
+        data = await _llm_json(_CONDENSE_SYSTEM, user, tenant_id=tenant_id, max_tokens=800)
+    except KnowledgeError as e:
+        logger.warning(f"knowledge_sort: condensing {heading} failed for tenant {tenant_id}: {e}")
+        return ""
+    return str(data.get("text") or "").strip()
+
+
+async def enforce_section_limits(tenant_id: str, text: str) -> str:
+    """Parse the compiled Description into its fixed sections (business_profile.SECTIONS)
+    and, for each one over its word limit, ask the model to rewrite ONLY that section to
+    fit -- once, never looping. If the rewrite doesn't fit either, the shorter of the two
+    wins. Text outside the known sections (parsed.other) is preserved untouched."""
+    from app.services import business_profile
+
+    parsed = business_profile.parse(text)
+    if not parsed.sections:
+        return text
+    sections = dict(parsed.sections)
+    for section in business_profile.SECTIONS:
+        current_text = sections.get(section.key, "")
+        if not current_text or business_profile.word_count(current_text) <= section.word_limit:
+            continue
+        condensed = await _condense_section(tenant_id, section.heading, section.word_limit, current_text)
+        if condensed and business_profile.word_count(condensed) < business_profile.word_count(current_text):
+            sections[section.key] = condensed
+    return business_profile.render(sections, parsed.other)
 
 
 # ─── Price and fact disagreements (spec §6.5) ─────────────────────────────────
@@ -478,9 +605,11 @@ async def run_sort(
         compile_base = remove_lines(current, set(_doc_rule_lines(db, tenant_id, replaces_document_id)) - shared)
 
     if rules:
-        proposed, conflicts = await compile_description(tenant_id, compile_base, rules)
+        proposed, conflicts, handover = await compile_description(tenant_id, compile_base, rules)
     else:
-        proposed, conflicts = compile_base, []
+        proposed, conflicts, handover = compile_base, [], ""
+    proposed = await enforce_section_limits(tenant_id, proposed)
+    handover = verified_handover(handover, source_text)
 
     facts_text = "\n\n".join(b.facts).strip()
     disagreements: list[dict] = []
@@ -528,6 +657,7 @@ async def run_sort(
         "origin": origin,
         "status": "pending",
         "created_by": user_id,
+        "suggested_handover": handover,
     }).execute().data[0]
 
 
@@ -636,6 +766,7 @@ def build_review_payload(db, tenant_id: str, document_id: str) -> dict:
         "replaces_document": replaces,
         "word_count": len(proposed.split()),
         "soft_word_limit": SOFT_WORD_LIMIT,
+        "suggested_handover": review.get("suggested_handover") or "",
     }
 
 
@@ -665,6 +796,20 @@ def compute_final_description(review: dict, base_text: str, machine: set[str], c
     return final.strip(), list(dict.fromkeys(new_lines))
 
 
+def _check_profile_word_limit(text: str) -> None:
+    """apply_review's own HARD_WORD_LIMIT gate -- until now only PUT /ai-tune/profile
+    checked it, so a review could be applied straight past the limit."""
+    from app.services import business_profile
+
+    parsed = business_profile.parse(text)
+    total = sum(business_profile.word_count(t) for t in parsed.sections.values()) + business_profile.word_count(parsed.other)
+    if total > business_profile.HARD_WORD_LIMIT:
+        raise ProfileTooLongError(
+            f"This would make your profile {total} words; the limit is {business_profile.HARD_WORD_LIMIT}. "
+            "Untick some changes or shorten the profile first."
+        )
+
+
 def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *, user_id: str | None, is_owner: bool) -> dict:
     """Commit an approved review. Database writes only -- the caller schedules
     index_facts() so chunking/embedding never holds up the response; until the chunks
@@ -676,6 +821,7 @@ def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *,
 
     base_text = latest.get("content") or ""
     final, new_lines = compute_final_description(review, base_text, machine_lines(db, tenant_id), choices)
+    _check_profile_word_limit(final)
     # An empty result is allowed (2026-09-20): a file that is all look-up facts gets
     # indexed even when nothing in it describes the business. The review screen warns
     # that Aira has no identity yet; it no longer refuses. An empty Description is

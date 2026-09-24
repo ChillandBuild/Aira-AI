@@ -1,0 +1,24 @@
+{
+  "must_be_facts": [
+    "₹1,25,000",
+    "₹75,000",
+    "₹85,000",
+    "₹18,000",
+    "₹9,000",
+    "625020",
+    "14 students scored above 650"
+  ],
+  "must_be_profile": [
+    "never guarantee a rank",
+    "never criticise a competitor academy",
+    "amma/appa",
+    "stricter attendance policy",
+    "don't discuss individual teacher performance"
+  ],
+  "must_not_be_profile": [
+    "default to tanglish",
+    "94430 11223",
+    "dreaming of a medical seat"
+  ],
+  "junk_marker": "dreaming of a medical seat"
+}

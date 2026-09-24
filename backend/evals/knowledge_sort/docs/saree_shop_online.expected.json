@@ -1,0 +1,24 @@
+{
+  "must_be_facts": [
+    "₹850",
+    "₹1,800",
+    "₹3,500",
+    "₹6,000",
+    "₹25,000",
+    "₹350",
+    "₹5,000"
+  ],
+  "must_be_profile": [
+    "semma pattu",
+    "never claim a saree is \"pure silk\"",
+    "never promise a specific delivery date",
+    "never negotiate prices",
+    "ask for pincode before confirming"
+  ],
+  "must_not_be_profile": [
+    "reply in the same language the customer uses first",
+    "98407 65432",
+    "drape yourself in timeless elegance"
+  ],
+  "junk_marker": "drape yourself in timeless elegance"
+}

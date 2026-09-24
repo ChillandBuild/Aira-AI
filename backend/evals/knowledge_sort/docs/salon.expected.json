@@ -1,0 +1,25 @@
+{
+  "must_be_facts": [
+    "₹250",
+    "₹450",
+    "₹900",
+    "₹3,500",
+    "₹700",
+    "₹15,000",
+    "₹22,000",
+    "641018"
+  ],
+  "must_be_profile": [
+    "never promise an exact appointment slot",
+    "never discuss or recommend specific hair/skin treatments",
+    "never guarantee results",
+    "special occasion",
+    "never make up a price"
+  ],
+  "must_not_be_profile": [
+    "reply in tanglish by default",
+    "97890 33445",
+    "welcome to glow studio"
+  ],
+  "junk_marker": "welcome to glow studio"
+}

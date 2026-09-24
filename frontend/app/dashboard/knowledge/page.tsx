@@ -41,6 +41,10 @@ interface KnowledgeDoc {
   sorted_at?: string | null;
   sort_state?: "sorting" | "review" | "failed" | null;
   has_pending_review?: boolean;
+  /** False when Aira can't run a vector search over this file -- it falls back
+   *  to reading the whole file on every reply instead. */
+  searchable?: boolean;
+  search_issue?: null | "no_jina_key" | "not_indexed";
 }
 
 interface CampaignTag {
@@ -76,9 +80,26 @@ const DOC_STATUS_STYLE: Record<DocStatus, { label: string; className: string; ti
   failed: { label: "Failed", className: "bg-red-50 text-red-700 border-red-200" },
 };
 
+// A "live" (indexed) file that Aira still can't vector-search -- either this
+// account has no Jina key, or the file hasn't gone through indexing yet. The
+// text stays visible (not colour-only) since this is a real functional gap,
+// not just a status flavor.
+const NOT_SEARCHABLE_TITLE: Record<"no_jina_key" | "not_indexed", string> = {
+  no_jina_key:
+    "Aira can't search this file because no Jina key is set for this account. Ask your Aira operator to add one. Until then, Aira reads the whole file on every reply, which stops working well once your files get long.",
+  not_indexed: "This file hasn't been prepared for search yet. Try Re-sort.",
+};
+
 function DocStatusBadge({ doc, className }: { doc: KnowledgeDoc; className?: string }) {
   const status = docStatus(doc);
-  const style = DOC_STATUS_STYLE[status];
+  const notSearchable = status === "live" && doc.searchable === false;
+  const style = notSearchable
+    ? {
+        label: "Not searchable",
+        className: "bg-amber-50 text-amber-700 border-amber-200",
+        title: NOT_SEARCHABLE_TITLE[doc.search_issue === "no_jina_key" ? "no_jina_key" : "not_indexed"],
+      }
+    : DOC_STATUS_STYLE[status];
   return (
     <div
       title={style.title}
@@ -88,7 +109,9 @@ function DocStatusBadge({ doc, className }: { doc: KnowledgeDoc; className?: str
         className
       )}
     >
-      {status === "sorting" ? (
+      {notSearchable ? (
+        <AlertTriangle size={11} />
+      ) : status === "sorting" ? (
         <Loader2 size={11} className="animate-spin" />
       ) : status === "review" ? (
         <ClipboardCheck size={11} />

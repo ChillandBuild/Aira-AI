@@ -212,6 +212,17 @@ def test_prepare_resort_refuses_a_file_with_no_text(env):
         ks.prepare_resort(env.db, T, doc["id"])
 
 
+def test_apply_refuses_a_result_over_the_hard_word_limit(env):
+    env.set_description("ABOUT US\nWe are AstroTamil.")
+    doc = add_doc(env.db)
+    huge_section = "HOW CUSTOMERS BUY\n" + "buy now " * 700  # far past HARD_WORD_LIMIT
+    review = _review(env, doc, proposed="ABOUT US\nWe are AstroTamil.\n\n" + huge_section)
+    with pytest.raises(ks.ProfileTooLongError, match="700"):
+        ks.apply_review(env.db, T, doc["id"], _choices(env, review), user_id=None, is_owner=True)
+    # Nothing was committed: the Description in force is unchanged.
+    assert env.description() == "ABOUT US\nWe are AstroTamil."
+
+
 def test_a_forged_review_on_another_tenants_document_is_not_found(env):
     """Security review 2026-09-18: a review row's tenant_id is not proof of ownership --
     the document itself must belong to the caller's tenant."""

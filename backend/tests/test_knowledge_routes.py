@@ -41,7 +41,7 @@ def test_every_auto_sort_path_is_registered():
 @pytest.mark.parametrize(
     "error, status",
     [(ks.StaleError(), 409), (ks.EmptyDescriptionError(), 422), (ks.OwnerRequiredError(), 403),
-     (ks.NotFoundError(), 404), (ks.SortError(), 400)],
+     (ks.NotFoundError(), 404), (ks.SortError(), 400), (ks.ProfileTooLongError("This would make your profile 900 words; the limit is 700."), 422)],
 )
 def test_errors_map_to_status_with_a_plain_string_detail(error, status):
     http = knowledge._http(error)
@@ -57,6 +57,34 @@ def test_list_marks_documents_with_a_pending_review(env, monkeypatch):
 
     data = client.get("/api/v1/knowledge/documents").json()["data"]
     assert {d["name"]: d["has_pending_review"] for d in data} == {"waiting.docx": True, "live.docx": False}
+
+
+def test_list_reports_search_status_without_an_n_plus_one(env, monkeypatch):
+    """indexed + chunks -> searchable; indexed + no chunks + a key -> not_indexed;
+    indexed + no chunks + no key -> no_jina_key; not indexed -> not searchable, no issue."""
+    client = _client(env, monkeypatch)
+    monkeypatch.setattr(knowledge, "get_setting", lambda key, tenant_id=None: "a-jina-key")
+    chunked = add_doc(env.db, name="chunked.docx", status="indexed")
+    env.db.add("knowledge_chunks", tenant_id=T, document_id=chunked["id"], content="c")
+    add_doc(env.db, name="stuck.docx", status="indexed")
+    add_doc(env.db, name="processing.docx", status="processing")
+
+    data = client.get("/api/v1/knowledge/documents").json()["data"]
+    by_name = {d["name"]: (d["searchable"], d["search_issue"]) for d in data}
+    assert by_name == {
+        "chunked.docx": (True, None),
+        "stuck.docx": (False, "not_indexed"),
+        "processing.docx": (False, None),
+    }
+
+
+def test_list_flags_no_jina_key_when_the_tenant_has_none_configured(env, monkeypatch):
+    client = _client(env, monkeypatch)
+    monkeypatch.setattr(knowledge, "get_setting", lambda key, tenant_id=None: None)
+    add_doc(env.db, name="stuck.docx", status="indexed")
+
+    data = client.get("/api/v1/knowledge/documents").json()["data"]
+    assert data[0]["search_issue"] == "no_jina_key"
 
 
 def test_upload_rejects_a_replace_target_that_is_not_a_uuid(env, monkeypatch):
