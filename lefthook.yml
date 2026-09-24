@@ -15,12 +15,7 @@ pre-commit:
 
     - name: tenant-audit
       glob: "backend/app/routes/*.py"
-      run: |
-        for f in {staged_files}; do
-          if ! grep -q "tenant_id" "$f"; then
-            echo "⚠ TENANT AUDIT: $f has no tenant_id — verify isolation"
-          fi
-        done
+      run: sh scripts/hooks/tenant-audit.sh {staged_files}
 
 pre-push:
   jobs:
