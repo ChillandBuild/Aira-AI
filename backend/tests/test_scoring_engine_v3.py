@@ -90,8 +90,19 @@ class TestSegmentLock(unittest.TestCase):
         self.assertEqual(seg, "B")
         self.assertEqual(count, 0)
 
-    def test_big_drop_is_immediate(self):
+    def test_two_segment_drop_needs_confirmation(self):
+        # One "ok" after a buying step must not knock Hot straight to Cold.
         seg, count = _apply_segment_lock("C", "A", 0, False)
+        self.assertEqual(seg, "A")
+        self.assertEqual(count, 1)
+
+    def test_two_segment_drop_applies_on_second_confirmation(self):
+        seg, count = _apply_segment_lock("C", "A", 1, False)
+        self.assertEqual(seg, "C")
+        self.assertEqual(count, 0)
+
+    def test_explicit_big_drop_flag_is_immediate(self):
+        seg, count = _apply_segment_lock("C", "A", 0, True)
         self.assertEqual(seg, "C")
         self.assertEqual(count, 0)
 

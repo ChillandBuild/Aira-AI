@@ -68,17 +68,17 @@ class TestSegmentLock(unittest.TestCase):
         self.assertEqual(seg, "B")   # held
         self.assertEqual(count, 1)
 
-    # ── Big drop: always immediate ────────────────────────────────────────
+    # ── Explicit big_drop flag: immediate ─────────────────────────────────
     def test_a_to_d_big_drop_is_immediate(self):
         seg, count = _apply_segment_lock("D", "A", 0, True)
         self.assertEqual(seg, "D")
         self.assertEqual(count, 0)
 
-    def test_big_drop_2_segments_immediate(self):
-        # A→C is a 2-segment drop (even without big_drop flag, diff >= 2)
+    def test_2_segment_drop_without_flag_is_held_once(self):
+        # A→C without the flag needs a second confirming message, like any drop.
         seg, count = _apply_segment_lock("C", "A", 0, False)
-        self.assertEqual(seg, "C")
-        self.assertEqual(count, 0)
+        self.assertEqual(seg, "A")
+        self.assertEqual(count, 1)
 
     # ── Same segment resets counter ───────────────────────────────────────
     def test_same_segment_resets_drop_count(self):

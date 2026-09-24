@@ -37,21 +37,36 @@ def _rubric_prompt(description: str) -> str:
     nothing like one for a real-estate agent). The master prompt is generic behaviour
     shared across clients and would produce an identical, useless rubric for everyone.
     """
-    return f"""You are configuring a lead scoring system for a B2B sales team.
+    return f"""You write the examples a lead classifier uses for ONE business.
 
-Based on this business's own description of what it does, write a lead scoring rubric
-for three categories. The rubric should reflect THIS specific business's conversion signals —
-not generic ones.
+The classifier already has fixed definitions for every business:
+- HOT  = the lead took a buying step (asked the price or how to pay, asked to book /
+         visit / get a demo, asked for the sign-up or app link, said they want to buy,
+         sent the details the service needs to start, or is blocked while trying to buy).
+- WARM = real interest but no buying step yet (asks about the service, describes a need
+         or personal question the service answers, compares options, will decide later).
+- COLD = no real interest (greetings, one-word replies, unrelated, wrong number, asks for
+         something this business does not sell, or withdrew).
+
+Your job: translate those definitions into what they look like for THIS business.
+First work out, silently: what exactly does a customer pay for here, how do they
+start or book it, and what problems or questions bring people here.
 
 Business description:
 {description[:1500]}
 
-Write a rubric in this exact format (exactly 3 lines):
-- Hot: [High intent signals specific to this business — explicit requests, booking, payment]
-- Warm: [Engaged signals — detailed questions, comparisons, info provided]
-- Cold: [Low engagement signals — generic inquiry, single-word replies, no follow-up]
+Rules:
+- Hot must name concrete buying steps for this business (its booking, payment or
+  sign-up actions), never a topic. "Asks about marriage" is a topic, so it is Warm.
+- Warm must name the questions and needs people here typically have.
+- Cold must name the typical non-buyers for this business (e.g. job seekers, people
+  wanting a service it does not offer), plus greetings and one-word replies.
+- Write in the customer's likely words where useful. Keep each line under 45 words.
 
-Reply with ONLY the 3 rubric lines. No explanation, no preamble."""
+Reply with exactly 3 lines and nothing else:
+- Hot: ...
+- Warm: ...
+- Cold: ..."""
 
 
 def is_old_5band_rubric(rubric: str) -> bool:
@@ -74,8 +89,8 @@ async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = 
             await gemini_chat_completion(
                 messages=[{"role": "user", "content": _rubric_prompt(description)}],
                 model=_TUNE_MODEL,
-                temperature=0.3,
-                max_tokens=300,
+                temperature=0.2,
+                max_tokens=400,
                 tenant_id=tenant_id,
                 purpose="ai_tune_rubric",
             )

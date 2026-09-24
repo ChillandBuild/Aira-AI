@@ -15,8 +15,8 @@ Score compatibility layer (DB: 0-10 int):
 No time-based decay: score and segment only move on something the lead actually
 said. Going silent never changes either, by design.
 
-Segment lock: upgrade always immediate. Small drop (1 segment) needs 2 consecutive
-confirmations. Big drop (2+ segments) or rejection phrase: immediate.
+Segment lock: upgrade always immediate. Any drop needs 2 consecutive confirmations.
+Rejection phrase: immediate D.
 """
 
 import logging
@@ -156,10 +156,36 @@ def _check_rejection(message: str) -> bool:
 
 
 _ARC_RUBRIC_DEFAULT = """
-- Hot: Explicitly asked for pricing/payment, confirmed participation, ready to proceed, booking a slot
-- Warm: Asking detailed questions, comparing options, providing requested info, multiple engaged follow-ups
-- Cold: General inquiry, first contact, initial greetings, vague replies, low engagement, no follow-up to questions
+- Hot: Asks the price or how to pay, asks to book or visit, asks how to start or sign up
+- Warm: Asks about the service, describes a need the service solves, compares options
+- Cold: Greetings, one-word or vague replies, unrelated messages
 """
+
+# Fixed for every business. The tenant rubric only says what these look like for
+# its own business; it cannot redefine them (a rubric once made "any personal
+# problem" Hot, which filled Hot with people who had only asked a question).
+_SEGMENT_DEFINITIONS = """
+HOT  = the lead took a BUYING STEP toward the paid product or service. Examples of a
+       buying step: asks the price or fees, asks how to pay or for payment details,
+       asks to book / reserve / schedule / visit / get a demo or trial, asks for the
+       app link or sign-up to get the service, says they want to buy / join / consult,
+       sends the documents or details the service needs to start, negotiates a price
+       on a specific offer, or is trying to buy and is blocked (app not working,
+       payment failing, no reply from support).
+WARM = real interest but NO buying step yet: asks about the product or service,
+       describes a problem or need the business solves, asks a personal question
+       the paid service would answer, compares options or competitors, says they
+       will decide later.
+COLD = no real interest shown: only greetings, emojis, "ok", one-word or vague
+       replies, gibberish, only the ad's pre-filled message, wrong number, asks for
+       something the business does not offer (a job, a rental, a different service),
+       or clearly withdrew ("already bought elsewhere", "not needed now", "no thanks").
+"""
+
+
+# Messages fetched per classification. Template placeholders are dropped after
+# the fetch, so this must leave room for them.
+_CONVERSATION_WINDOW = 20
 
 _AD_PREFILL_MARKER = "[ad-prefilled entry message]"
 _ESCALATION_MARKER = "[handover follow-up]"
@@ -216,23 +242,39 @@ async def _classify_segment(conversation: str, tenant_id: str | None, fallback: 
         rubric = _ARC_RUBRIC_DEFAULT.strip()
 
     prompt = (
-        f"Classify the lead's purchase intent into one of three categories.\n\n"
-        f"Rubric:\n{rubric}\n\n"
-        f"Conversation:\n{conversation}\n\n"
-        f"RULES:\n"
-        f"- Initial greetings (e.g., \"Hi\", \"Hello\", \"Namaste\", \"Vanakkam\") = Cold unless rubric says otherwise.\n"
-        f"- A line prefixed with \"{_AD_PREFILL_MARKER}\" = Meta's auto-fill (lead tapped ad, did not compose). Treat as Cold.\n"
-        f"- A line prefixed with \"{_ESCALATION_MARKER}\" = frustration about response time, NOT intent. Ignore for classification.\n"
-        f"- Regional language messages have same weight as English.\n\n"
-        f"Reply with ONE WORD ONLY: hot or warm or cold\n"
-        f"Optionally add a short reason on a second line (e.g., \"hot\\nAsked for pricing\")"
+        "You sort sales leads from a chat into HOT, WARM or COLD.\n\n"
+        f"DEFINITIONS (fixed, always apply):\n{_SEGMENT_DEFINITIONS}\n"
+        "BUSINESS-SPECIFIC EXAMPLES (written by this business; use them to recognise what "
+        "a buying step or real interest looks like here. If an example conflicts with the "
+        "definitions, the DEFINITIONS win: e.g. an example that calls any personal problem "
+        f"or question HOT is wrong, a question is WARM until a buying step):\n{rubric}\n\n"
+        f"CONVERSATION (oldest first):\n{conversation}\n\n"
+        "RULES:\n"
+        "- Judge only the User lines. Bot lines are context; a price or link the Bot "
+        "mentions is not the lead's intent.\n"
+        "- Use the STRONGEST intent the lead has shown in this conversation that they "
+        "have not taken back. A later \"ok\", \"thanks\", \"received\" or silence does "
+        "NOT lower it. Only a clear withdrawal lowers it.\n"
+        "- Price hesitation (\"too costly\", \"can you reduce\") after asking the price "
+        "is still a buying step, not disinterest.\n"
+        "- A message length or detail is not intent. A long message with only general "
+        "questions is WARM at most.\n"
+        f"- \"{_AD_PREFILL_MARKER}\" means the lead tapped an ad and sent its pre-filled "
+        "text without writing anything. On its own it is COLD.\n"
+        f"- A line prefixed with \"{_ESCALATION_MARKER}\" is the lead chasing a promised "
+        "callback. It is not a withdrawal; judge intent from the other lines.\n"
+        "- Tamil, Tanglish, Hindi and other languages carry the same weight as English. "
+        "A short native-language answer can still be a buying step.\n\n"
+        "Reply in exactly two lines:\n"
+        "line 1: hot or warm or cold\n"
+        "line 2: the reason in under 15 words, quoting the lead's words when possible"
     )
     try:
         raw = await gemini_chat_completion(
             messages=[{"role": "user", "content": prompt}],
             model=_MODEL,
             temperature=0.0,
-            max_tokens=40,
+            max_tokens=80,
             tenant_id=tenant_id,
             purpose="scoring",
         )
@@ -265,9 +307,10 @@ def _apply_segment_lock(
     """
     Returns (final_segment, new_drop_count).
 
-    Upgrade:            always immediate, resets counter.
-    Small drop (1 seg): needs 2 consecutive proposed drops.
-    Big drop (2+ segs)  or rejection: immediate, resets counter.
+    Upgrade:          always immediate, resets counter.
+    Any drop:         needs 2 consecutive proposed drops, however many segments.
+                      One "ok" after a buying step must not knock Hot straight to Cold.
+    big_drop=True:    immediate. Rejection phrases skip this function entirely.
     """
     order = {"A": 4, "B": 3, "C": 2, "D": 1}
     diff = order.get(current, 2) - order.get(proposed, 2)
@@ -275,7 +318,7 @@ def _apply_segment_lock(
     if diff <= 0:
         return proposed, 0
 
-    if big_drop or diff >= 2:
+    if big_drop:
         return proposed, 0
 
     new_count = drop_count + 1
@@ -432,7 +475,7 @@ async def compute_score(
             .select("direction,content,created_at,via_ad_referral,attributed_ad_creative_id")
             .eq("lead_id", str(lead_id))
             .order("created_at", desc=True)
-            .limit(10)
+            .limit(_CONVERSATION_WINDOW)
         )
         msgs = (msg_query.execute().data or [])
 
@@ -495,11 +538,11 @@ async def compute_score(
                 )
                 is_unknown_ad_referral = bool(m.get("via_ad_referral")) and not original_greeting
                 if is_confirmed_unedited or is_unknown_ad_referral:
-                    prefix = f"{_AD_PREFILL_MARKER} "
-                elif is_escalation_followup:
-                    prefix = f"{_ESCALATION_MARKER} "
-                else:
-                    prefix = ""
+                    # Drop the ad's own words: an ad that reads "I want detailed guidance"
+                    # was otherwise taken as the lead's stated need, even with a marker.
+                    lines.append(f"{role}: {_AD_PREFILL_MARKER}")
+                    continue
+                prefix = f"{_ESCALATION_MARKER} " if is_escalation_followup else ""
                 lines.append(f"{role}: {prefix}{content}")
         conversation = "\n".join(lines) if lines else f"User: {message}"
     except Exception:
