@@ -1243,7 +1243,7 @@ export default function KnowledgePage() {
                       No lead scoring rubric yet
                     </p>
                     <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-2xl">
-                      The rubric scores how interested each lead is. It&rsquo;s written for you from
+                      The rubric tells Aira how to classify leads as Hot, Warm, or Cold. It&rsquo;s written for you from
                       your Description the first time you save one, or you can write your own. It
                       doesn&rsquo;t hold up uploads \u2014 nothing here does.
                     </p>
@@ -2078,10 +2078,10 @@ export default function KnowledgePage() {
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
             <div>
               <h2 className="font-display text-lg font-bold text-primary">
-                Lead Scoring Rubric (1–10)
+                Lead Scoring Rubric (Hot / Warm / Cold)
               </h2>
               <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                The criteria used by Aira to evaluate conversation transcripts and assign 1–10 intent scores to leads. You can edit this rubric manually or toggle auto-update to sync with your product description.
+                The criteria used by Aira to classify leads into Hot, Warm, or Cold categories based on conversation transcripts. You can edit this rubric manually or toggle auto-update to sync with your product description.
               </p>
             </div>
 
@@ -2111,14 +2111,12 @@ export default function KnowledgePage() {
             <textarea
               value={scoringRubric}
               onChange={(e) => setScoringRubric(e.target.value)}
-              rows={7}
+              rows={5}
               spellCheck={false}
               placeholder={
-                "9-10: High intent — asked about pricing, booking slot, or requested human advisor callback\n" +
-                "7-8: Warm — showed clear interest, asked specific product or qualification questions\n" +
-                "5-6: Neutral — general inquiry, no immediate buying signal\n" +
-                "3-4: Lukewarm — vague interest, brief replies\n" +
-                "1-2: Low — unresponsive, spam, or out-of-scope"
+                "- Hot: Asked for pricing, booking slot, or callback; ready to proceed\n" +
+                "- Warm: Clear interest, detailed questions, comparing options, providing info\n" +
+                "- Cold: General inquiry, first contact, vague replies, no follow-up"
               }
               className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
             />

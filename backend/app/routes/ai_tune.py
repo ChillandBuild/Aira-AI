@@ -40,20 +40,28 @@ def _rubric_prompt(description: str) -> str:
     return f"""You are configuring a lead scoring system for a B2B sales team.
 
 Based on this business's own description of what it does, write a lead scoring rubric
-(1-10 scale). The rubric should reflect THIS specific business's conversion signals —
+for three categories. The rubric should reflect THIS specific business's conversion signals —
 not generic ones.
 
 Business description:
 {description[:1500]}
 
-Write a rubric in this exact format (5 lines, one per score band):
-- 9-10: [High intent signals specific to this business]
-- 7-8: [Warm signals specific to this business]
-- 5-6: [Neutral signals]
-- 3-4: [Low engagement signals]
-- 1-2: [Not interested signals]
+Write a rubric in this exact format (exactly 3 lines):
+- Hot: [High intent signals specific to this business — explicit requests, booking, payment]
+- Warm: [Engaged signals — detailed questions, comparisons, info provided]
+- Cold: [Low engagement signals — generic inquiry, single-word replies, no follow-up]
 
-Reply with ONLY the 5 rubric lines. No explanation, no preamble."""
+Reply with ONLY the 3 rubric lines. No explanation, no preamble."""
+
+
+def is_old_5band_rubric(rubric: str) -> bool:
+    """Detect old numeric 5-band rubric format (lines starting with digit ranges)."""
+    import re
+    lines = rubric.strip().split("\n")
+    for line in lines:
+        if re.match(r'^\s*\d+-\d+\s*:', line.strip()):
+            return True
+    return False
 
 
 async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = False) -> None:
@@ -62,7 +70,7 @@ async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = 
     try:
         if not force:
             existing_rubric = get_setting("scoring_rubric", tenant_id=tenant_id)
-            if existing_rubric and existing_rubric.strip():
+            if existing_rubric and existing_rubric.strip() and not is_old_5band_rubric(existing_rubric):
                 logger.info(f"Scoring rubric already exists for tenant {tenant_id} — skipping auto-generation")
                 return
 
@@ -76,9 +84,11 @@ async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = 
                 purpose="ai_tune_rubric",
             )
         ).strip()
-        if rubric and "9-10" in rubric:
+        if rubric and ("Hot" in rubric or "hot" in rubric):
             save_setting("scoring_rubric", rubric, tenant_id=tenant_id)
             logger.info(f"Auto-generated scoring rubric for tenant {tenant_id}")
+        else:
+            logger.warning(f"Generated rubric for tenant {tenant_id} does not match expected format")
     except Exception as e:
         logger.warning(f"Auto-rubric generation failed for tenant {tenant_id}: {e}")
 

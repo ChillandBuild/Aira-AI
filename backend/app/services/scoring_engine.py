@@ -1,14 +1,16 @@
 """
-AIRA Score Engine v2
+AIRA Score Engine v3
 
-Composite score = clamp(arc + intent_delta + engagement, 1, 10)
+Segment classification: Hot (A) / Warm (B) / Cold (C) / Not Interested (D)
 
-  arc_score        — LLM scores the conversation thread, fires on every inbound
-                     message (no periodic gate — see decisions/log.md 2026-08-02).
-  intent_delta     — Rule-based instant signal on the current message. -3..+2.
-                     Rejection phrases bypass everything → immediate score 1, segment D.
-  engagement      — Rule-based engagement signal on message history. 0..+2.
-                     Reply volume, message substance, media shared.
+  arc_classifier   — LLM classifies conversation intent as hot/warm/cold,
+                     fires on every inbound message. Returns one of: A, B, C.
+  rejection        — Rule-based rejection signal. Rejection phrases bypass
+                     everything → immediate score 0, segment D.
+
+Score compatibility layer (DB: 0-10 int):
+  A (Hot) → score 9    | B (Warm) → score 6
+  C (Cold) → score 2   | D (Not Interested) → score 0
 
 No time-based decay: score and segment only move on something the lead actually
 said. Going silent never changes either, by design.
@@ -145,132 +147,91 @@ _INFO_PROVIDED_PATTERNS = [
 _REJECTION_SENTINEL = -99
 
 
-def _compute_intent_delta(message: str, flow_state: str, via_ad_referral: bool = False) -> tuple[int, str]:
-    """
-    Returns (delta, reason).
-    delta is -2..+2 or _REJECTION_SENTINEL for immediate D override.
-    Max +2 so arc must carry the weight to reach Hot (A≥9).
-
-    via_ad_referral: True when this message is Meta's own click-to-WhatsApp
-    auto-fill text (the lead tapped an ad and hit Send, didn't compose it).
-    Mirrors _score_arc's prompt rule -- never credit the lead for Meta's own
-    copy, even if it's long or contains a high-intent keyword like "book".
-    Rejection detection still runs first: an auto-filled message won't
-    realistically match those patterns, but skipping that check to save a
-    lookup isn't worth the risk of missing a real rejection.
-    """
+def _check_rejection(message: str) -> bool:
+    """Check if message contains rejection pattern. Returns True if rejection detected."""
     for pat in _REJECTION_PATTERNS:
         if re.search(pat, message, re.IGNORECASE):
-            return _REJECTION_SENTINEL, "rejection"
-
-    if via_ad_referral:
-        return 0, "ad_prefilled"
-
-    delta = 0
-    reasons: list[str] = []
-
-    for pat in _HIGH_INTENT_PATTERNS:
-        if re.search(pat, message, re.IGNORECASE):
-            delta += 1
-            reasons.append("high_intent")
-            break
-
-    for pat in _INFO_PROVIDED_PATTERNS:
-        if re.search(pat, message, re.IGNORECASE):
-            delta += 1
-            reasons.append("info_provided")
-            break
-
-    if len(message.strip()) > 60:
-        delta += 1
-        reasons.append("detailed_message")
-
-    return max(-3, min(2, delta)), ",".join(reasons) or "neutral"
-
-
-def _compute_engagement(lead_id: str, db) -> int:
-    """Rule-based engagement score from message history. 0..+2."""
-    try:
-        msgs = (
-            db.table("messages")
-            .select("content,media_url")
-            .eq("lead_id", str(lead_id))
-            .eq("direction", "inbound")
-            .order("created_at", desc=True)
-            .limit(10)
-            .execute()
-        ).data or []
-    except Exception:
-        return 0
-
-    if not msgs:
-        return 0
-
-    score = 0
-
-    if len(msgs) >= 5:
-        score += 1
-
-    avg_len = sum(len((m.get("content") or "").strip()) for m in msgs) / len(msgs)
-    if avg_len >= 40:
-        score += 1
-
-    if any(m.get("media_url") for m in msgs):
-        score += 1
-
-    return min(2, score)
+            return True
+    return False
 
 
 _ARC_RUBRIC_DEFAULT = """
-9-10: High intent — explicitly asked for pricing/payment, confirmed participation, ready to proceed
-7-8:  Warm — asking detailed questions, comparing options, providing requested info, multiple engaged follow-ups
-5-6:  Neutral — general inquiry, first contact, initial greetings/salutations (e.g. "Hi", "Hello", "Vanakkam", "Namaste"), short acknowledgments with some context
-3-4:  Lukewarm — vague replies, no follow-up to questions, low engagement
-1-2:  Low intent — unresponsive, dismissive, irrelevant, or repeated single-word replies with no context (excluding greetings)
+- Hot: Explicitly asked for pricing/payment, confirmed participation, ready to proceed, booking a slot
+- Warm: Asking detailed questions, comparing options, providing requested info, multiple engaged follow-ups
+- Cold: General inquiry, first contact, initial greetings, vague replies, low engagement, no follow-up to questions
 """
 
 _AD_PREFILL_MARKER = "[ad-prefilled entry message]"
 _ESCALATION_MARKER = "[handover follow-up]"
 
 
-async def _score_arc(conversation: str, tenant_id: str | None, fallback: int = 5) -> int:
-    """LLM scores the conversation thread for overall purchase intent."""
+def _is_old_5band_rubric(rubric: str) -> bool:
+    """Detect old numeric 5-band rubric format (lines starting with digit ranges like 9-10)."""
+    lines = rubric.strip().split("\n")
+    for line in lines:
+        if re.match(r'^\s*\d+-\d+\s*:', line.strip()):
+            return True
+    return False
+
+
+async def _classify_segment(conversation: str, tenant_id: str | None, fallback: str = "C") -> tuple[str, str]:
+    """
+    LLM classifies conversation for segment: hot/warm/cold.
+    Returns (segment, reason) where segment is 'A'/'B'/'C' and reason is short explanation.
+    fallback is returned on error as the segment (with reason='error_fallback').
+    """
     try:
         from app.config_dynamic import get_setting
         custom = get_setting("scoring_rubric", tenant_id=tenant_id) if tenant_id else None
-        rubric = (custom or _ARC_RUBRIC_DEFAULT).strip()
+
+        # If custom rubric is old 5-band format, fall back to default
+        if custom and _is_old_5band_rubric(custom):
+            logger.info(f"Tenant {tenant_id} has old 5-band rubric format, using default")
+            rubric = _ARC_RUBRIC_DEFAULT.strip()
+        else:
+            rubric = (custom or _ARC_RUBRIC_DEFAULT).strip()
     except Exception:
         rubric = _ARC_RUBRIC_DEFAULT.strip()
 
     prompt = (
-        f"You score sales conversations for purchase intent (1-10).\n\n"
+        f"Classify the lead's purchase intent into one of three categories.\n\n"
         f"Rubric:\n{rubric}\n\n"
         f"Conversation:\n{conversation}\n\n"
-        f"LANGUAGE & GREETING RULES:\n"
-        f"- Initial greetings, salutations, or first contact messages (e.g., \"Hi\", \"Hello\", \"Namaste\", \"Vanakkam\", \"Hi sir\") must be scored as 5 or 6 (Neutral), NOT penalized as low-intent or single-word replies.\n"
-        f"- A message requesting communication in a regional language (Tamil, Hindi, Telugu, etc.) is an engagement signal — never score below 5 for it.\n"
-        f"- Single-word answers in regional languages (e.g. \"சிம்மம்\", \"பூரம்\", \"ஆமா\") must be evaluated for their semantic intent, not penalised for brevity or language.\n"
-        f"- Non-English intent = same weight as English equivalent.\n"
-        f"- A line prefixed with \"{_AD_PREFILL_MARKER}\" is Meta's own click-to-WhatsApp auto-fill text — the lead tapped an ad and hit Send, they did not compose it. Treat it as a neutral first-contact signal only (score 5-6), never as evidence of the lead's own composed interest, even if it contains intent-sounding words like \"detailed\" or \"urgent\".\n"
-        f"- A line prefixed with \"{_ESCALATION_MARKER}\" is the lead chasing a human callback they were already promised (e.g. \"still no one contacted me\", \"when will they call\"). This is frustration about response time, NOT a signal about product interest — do not let it lower the score. Weigh the conversation's non-escalation lines to judge actual purchase intent instead.\n\n"
-        f"Score the OVERALL purchase intent trajectory of this conversation. "
-        f"Consider the full arc — not just the last message. "
-        f"Reply with ONLY a single integer 1-10."
+        f"RULES:\n"
+        f"- Initial greetings (e.g., \"Hi\", \"Hello\", \"Namaste\", \"Vanakkam\") = Cold unless rubric says otherwise.\n"
+        f"- A line prefixed with \"{_AD_PREFILL_MARKER}\" = Meta's auto-fill (lead tapped ad, did not compose). Treat as Cold.\n"
+        f"- A line prefixed with \"{_ESCALATION_MARKER}\" = frustration about response time, NOT intent. Ignore for classification.\n"
+        f"- Regional language messages have same weight as English.\n\n"
+        f"Reply with ONE WORD ONLY: hot or warm or cold\n"
+        f"Optionally add a short reason on a second line (e.g., \"hot\\nAsked for pricing\")"
     )
     try:
         raw = await gemini_chat_completion(
             messages=[{"role": "user", "content": prompt}],
             model=_MODEL,
             temperature=0.0,
-            max_tokens=8,
+            max_tokens=40,
             tenant_id=tenant_id,
             purpose="scoring",
         )
-        match = re.search(r'\d+', raw.strip())
-        return max(1, min(10, int(match.group()))) if match else fallback
+
+        lines = raw.strip().lower().split("\n")
+        classification = lines[0].strip()
+        reason = lines[1].strip() if len(lines) > 1 else ""
+
+        # Robust parsing
+        if "hot" in classification:
+            return "A", reason or "classified_hot"
+        elif "warm" in classification:
+            return "B", reason or "classified_warm"
+        elif "cold" in classification:
+            return "C", reason or "classified_cold"
+        else:
+            logger.warning(f"Unexpected classification output: {raw}")
+            return fallback, "parse_error_fallback"
     except Exception as e:
-        logger.error(f"Arc scoring failed: {e}")
-        return fallback
+        logger.error(f"Segment classification failed: {e}")
+        return fallback, "error_fallback"
 
 
 def _apply_segment_lock(
@@ -317,15 +278,15 @@ async def compute_score(
     tenant_id: str | None = None,
 ) -> dict:
     """
-    Main entry point. Computes composite score, persists to DB, returns breakdown.
+    Main entry point. Classifies lead segment, persists to DB, returns breakdown.
 
-    Segment/score only move on something the lead actually said (arc, intent,
-    engagement) — going silent never changes either, by design. No time-based
-    decay term.
+    Segment/score only move on something the lead actually said (LLM classification,
+    rejection detection) — going silent never changes either, by design.
+    No time-based decay term.
 
     Returns:
         score, segment, arc_score, intent_delta, engagement,
-        intent_reason, arc_updated, segment_drop_count
+        intent_reason, arc_updated, segment_drop_count, reason
     """
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -396,36 +357,35 @@ async def compute_score(
         ad_prefill_known_edited = False
 
     # Confirmed untouched pre-fill: zero real signal from this message -- freeze
-    # score/segment/arc/intent/engagement exactly where they were. Still update
+    # score/segment/classification exactly where they were. Still update
     # last_inbound_at since that's activity recency, not a scoring input.
     if ad_prefill_confirmed_unedited:
         db.table("leads").update({"last_inbound_at": now_iso}).eq("id", str(lead_id)).execute()
         logger.info(f"Lead {lead_id} sent confirmed-unedited ad pre-fill — score frozen")
         return {
-            "score": data.get("score") if data.get("score") is not None else 1,
+            "score": data.get("score") if data.get("score") is not None else 2,
             "segment": global_segment,
             "arc_score": global_arc,
-            "intent_delta": data.get("score_intent_delta") or 0,
-            "engagement": data.get("score_engagement") or 0,
+            "intent_delta": 0,
+            "engagement": 0,
             "intent_reason": "ad_prefilled_frozen",
             "arc_updated": False,
             "segment_drop_count": global_drop,
+            "reason": "ad_prefilled_frozen",
         }
 
     # Known to have been edited: it's the lead's own words now, regardless of
     # how the conversation started -- score fully normally, no ad-related
-    # discount at all. Unknown (flag set but no original text to compare, e.g.
-    # not synced yet): keep today's softer treatment as a safe fallback.
+    # discount at all.
     effective_via_ad_referral = via_ad_referral and not ad_prefill_known_edited
 
-    # ── 3. Intent delta (instant, rule-based) ─────────────────────────────────
-    intent_delta, intent_reason = _compute_intent_delta(message, "idle", via_ad_referral=effective_via_ad_referral)
-    is_rejection = intent_delta == _REJECTION_SENTINEL
+    # ── 3. Rejection check (instant, rule-based) ──────────────────────────────
+    is_rejection = _check_rejection(message)
 
-    # ── 5. REJECTION: bypass everything, force D for both global + broadcast ───
+    # ── 4. REJECTION: bypass everything, force D for both global + broadcast ───
     if is_rejection:
         rejection_payload = {
-            "score": 0, "score_arc": 1, "score_intent_delta": -3,
+            "score": 0, "score_arc": 0, "score_intent_delta": 0,
             "score_engagement": 0,
             "segment": "D",
             "segment_drop_count": 0,
@@ -436,16 +396,14 @@ async def compute_score(
 
         logger.info(f"Lead {lead_id} rejection detected — immediate D")
         return {
-            "score": 0, "segment": "D", "arc_score": 1,
-            "intent_delta": -3, "engagement": 0,
+            "score": 0, "segment": "D", "arc_score": 0,
+            "intent_delta": 0, "engagement": 0,
             "intent_reason": "rejection", "arc_updated": True,
             "segment_drop_count": 0,
+            "reason": "rejection",
         }
 
-    # ── 6. Engagement (rule-based, from message history) ─────────────────────
-    engagement = _compute_engagement(lead_id, db)
-
-    # ── 7. Arc score (LLM, every inbound message) ─────────────────────────────
+    # ── 5. Segment classification (LLM, every inbound message) ────────────────
     try:
         msg_query = (
             db.table("messages")
@@ -525,44 +483,45 @@ async def compute_score(
     except Exception:
         conversation = f"User: {message}"
 
-    current_arc = await _score_arc(conversation, tenant_id, fallback=current_arc)
+    classified_segment, classification_reason = await _classify_segment(conversation, tenant_id, fallback=current_seg)
     arc_updated = True
 
-    # ── 8. Composite final score ───────────────────────────────────────────────
-    final_score = max(0, min(10, current_arc + intent_delta + engagement))
+    # ── 6. Map segment to compatibility score (DB: 0-10) ──────────────────────
+    segment_to_score = {"A": 9, "B": 6, "C": 2, "D": 0}
 
-    # ── 9. Segment with lock ───────────────────────────────────────────────────
-    proposed_segment = score_to_segment(final_score)
+    # ── 7. Segment with lock ──────────────────────────────────────────────────
     final_segment, new_drop_count = _apply_segment_lock(
-        proposed_segment, current_seg, current_drop, big_drop=False
+        classified_segment, current_seg, current_drop, big_drop=False
     )
+    # Score follows the segment actually kept after the lock, not the raw label.
+    final_score = segment_to_score.get(final_segment, 2)
 
-    # ── 10. Persist global leads ───────────────────────────────────────────────
+    # ── 8. Persist global leads ───────────────────────────────────────────────
     db.table("leads").update({
         "score": final_score,
-        "score_arc": current_arc,
-        "score_intent_delta": intent_delta,
-        "score_engagement": engagement,
+        "score_arc": final_score,  # For compat: store the score value here too
+        "score_intent_delta": 0,  # Compat placeholder
+        "score_engagement": 0,    # Compat placeholder
         "segment": final_segment,
         "segment_drop_count": new_drop_count,
         "last_inbound_at": now_iso,
     }).eq("id", str(lead_id)).execute()
 
     logger.info(
-        f"Lead {lead_id} scored: arc={current_arc} intent={intent_delta:+d} "
-        f"eng={engagement:+d} → {final_score} ({final_segment}) "
-        f"[arc_updated={arc_updated}, reason={intent_reason}]"
+        f"Lead {lead_id} classified: {classified_segment} → score {final_score} "
+        f"({final_segment}) [reason={classification_reason}]"
     )
 
     return {
         "score": final_score,
         "segment": final_segment,
-        "arc_score": current_arc,
-        "intent_delta": intent_delta,
-        "engagement": engagement,
-        "intent_reason": intent_reason,
+        "arc_score": final_score,
+        "intent_delta": 0,
+        "engagement": 0,
+        "intent_reason": "classified",
         "arc_updated": arc_updated,
         "segment_drop_count": new_drop_count,
+        "reason": classification_reason,
     }
 
 

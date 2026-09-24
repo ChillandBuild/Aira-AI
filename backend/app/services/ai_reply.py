@@ -2205,6 +2205,7 @@ async def generate_reply(
             "message_snippet": message[:150],
             "channel": channel,
             "broadcast_id": None,
+            "classification_reason": score_result.get("reason"),
         }
         record_stage_event(
             lead_id,

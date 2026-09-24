@@ -23,7 +23,8 @@ def test_rubric_prompt_is_built_from_the_description():
     client's description, not in the developer's generic master prompt."""
     built = ai_tune._rubric_prompt("We are a Vedic astrology consultancy.")
     assert "We are a Vedic astrology consultancy." in built
-    assert "9-10" in built
+    assert "Hot" in built and "Warm" in built and "Cold" in built
+    assert "9-10" not in built
 
 
 def test_rubric_auto_update_defaults_to_off():
