@@ -161,8 +161,10 @@ Use the GRADER NOTE for what a good reply does in this case. When unsure, mark t
 
 
 _LANGUAGE_EXPECTED = {
-    "mirror": "the same language and style as the customer's latest message "
-              "(Hindi/Hinglish gets Hindi/Hinglish, Tanglish gets Tanglish, Tamil script gets Tamil script, English gets English)",
+    # Tamil Nadu audience by design (operator decision 2026-09-24): the operator
+    # console setting decides, and mirror covers Tamil script, Tanglish and English only.
+    "mirror": "the same style as the customer's latest message: Tamil script gets Tamil "
+              "script, Tanglish gets Tanglish, English gets English",
     "english": "English only, whatever the customer writes",
     "tanglish": "Tanglish (Tamil in English letters), whatever the customer writes",
     "tamil": "Tamil script, whatever the customer writes",
