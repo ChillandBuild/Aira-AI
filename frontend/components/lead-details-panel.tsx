@@ -4,6 +4,7 @@ import { api, API_URL, getAuthHeaders, Lead } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ChevronRight, CheckCircle2, Calendar, TrendingUp, MessageCircle, Power, PowerOff } from "lucide-react";
 import { toast } from "sonner";
+import { SegmentBadge } from "./segment-badge";
 
 // ─── Channel icons ─────────────────────────────────────────────────────────────
 function IgIcon({ size = 11 }: { size?: number }) {
@@ -75,33 +76,12 @@ function formatDate(dateStr: string): string {
   });
 }
 
-const SEG_STYLE: Record<string, string> = {
-  A: "bg-red-100 text-red-700 border-red-200",
-  B: "bg-amber-100 text-amber-700 border-amber-200",
-  C: "bg-blue-100 text-blue-700 border-blue-200",
-  D: "bg-gray-100 text-gray-500 border-gray-200",
-};
-
 const SEG_TEXT_COLOR: Record<string, string> = {
   A: "text-red-600",
   B: "text-amber-600",
   C: "text-blue-600",
   D: "text-gray-500",
 };
-
-const SEG_LABEL: Record<string, string> = {
-  A: "Hot",
-  B: "Warm",
-  C: "Cold",
-  D: "Not Interested",
-};
-
-function scoreBarColor(score: number): string {
-  if (score >= 9) return "bg-red-500";
-  if (score >= 7) return "bg-amber-500";
-  if (score >= 5) return "bg-blue-500";
-  return "bg-gray-400";
-}
 
 function SourceBadge({ source }: { source: string }) {
   if (source === "instagram") {
@@ -483,24 +463,8 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
               </p>
             </Section>
 
-            <Section icon={<TrendingUp size={12} />} title="Score">
-              <div className="space-y-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2 rounded-full bg-surface-mid overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full transition-all", scoreBarColor(lead.score))}
-                      style={{ width: `${lead.score * 10}%` }}
-                    />
-                  </div>
-                  <span className="font-display text-base font-bold text-on-surface w-6 text-right">{lead.score}</span>
-                </div>
-                <span className={cn(
-                  "font-label text-[11px] font-semibold px-2 py-0.5 rounded-full border",
-                  SEG_STYLE[lead.segment] ?? "bg-gray-100 text-gray-500"
-                )}>
-                  Segment {lead.segment} · {SEG_LABEL[lead.segment] ?? ""}
-                </span>
-              </div>
+            <Section icon={<TrendingUp size={12} />} title="Segment">
+              <SegmentBadge segment={lead.segment} />
             </Section>
 
             <Section icon={<TrendingUp size={12} />} title="Score History">

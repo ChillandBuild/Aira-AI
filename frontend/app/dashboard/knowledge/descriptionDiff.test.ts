@@ -19,7 +19,7 @@ function review(partial: Partial<KnowledgeReview>): KnowledgeReview {
     review_id: "r", document_id: "d", document_name: "f.docx", origin: "upload", stale: false,
     base_version_id: "v", base_description: BASE, proposed_description: BASE, hunks: [], conflicts: [],
     fact_disagreements: [], facts: "", unverified: [], left_out: [], left_out_rules: [], truncated: false,
-    replaces_document: null, word_count: 0, soft_word_limit: 1200, ...partial,
+    replaces_document: null, word_count: 0, soft_word_limit: 1200, suggested_handover: "", ...partial,
   };
 }
 

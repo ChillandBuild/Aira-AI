@@ -6,6 +6,5 @@ CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
 
 [mcp_servers.render]
 url = "https://mcp.render.com/mcp?ownerId=tea-d7m36fsvikkc73fo8pcg"
-
-[mcp_servers.render.http_headers]
-Authorization = "Bearer rnd_4h6hYf2OzaQGLWMgrOle6Zlnr41X"
+# Key comes from the RENDER_API_KEY environment variable — never paste it here.
+bearer_token_env_var = "RENDER_API_KEY"

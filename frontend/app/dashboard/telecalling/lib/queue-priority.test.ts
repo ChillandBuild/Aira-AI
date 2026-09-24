@@ -34,4 +34,25 @@ describe("telecalling queue priority", () => {
 
     expect(sorted.map((item) => item.id)).toEqual(["reply-hot", "message-warm", "upload-hot", "upload-cold"]);
   });
+
+  it("ranks by segment first, then most recent activity, ignoring score", () => {
+    // Two segment-A leads in upload section: one with high score but old, one with low score but recent
+    const sorted = sortLeadsForCallQueue([
+      lead({ id: "old-a-high-score", source: "upload", segment: "A", score: 10, created_at: "2026-07-05T08:00:00Z" }),
+      lead({ id: "new-a-low-score", source: "upload", segment: "A", score: 1, last_inbound_at: "2026-07-05T11:00:00Z" }),
+    ]);
+
+    // Most recent activity should come first, regardless of score
+    expect(sorted.map((item) => item.id)).toEqual(["new-a-low-score", "old-a-high-score"]);
+  });
+
+  it("uses most recent last_inbound_at as primary tie-breaker over score", () => {
+    const sorted = sortLeadsForCallQueue([
+      lead({ id: "recent-b", source: "upload", segment: "B", score: 2, last_inbound_at: "2026-07-05T12:00:00Z" }),
+      lead({ id: "old-b-high-score", source: "upload", segment: "B", score: 9, last_inbound_at: "2026-07-05T09:00:00Z" }),
+    ]);
+
+    // Segment same (B), so use most recent last_inbound_at
+    expect(sorted.map((item) => item.id)).toEqual(["recent-b", "old-b-high-score"]);
+  });
 });

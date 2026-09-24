@@ -96,6 +96,15 @@ const config: Config = {
         "brand-gradient": "linear-gradient(135deg, var(--primary-950) 0%, var(--primary-800) 100%)",
         "warm-base": "linear-gradient(180deg, #faf8f5 0%, #f0ece4 100%)",
       },
+      zIndex: {
+        // Shared stacking convention for the dashboard shell. The mobile
+        // bottom nav (`z-bottom-nav`) must stay BELOW every modal/dialog
+        // overlay (`z-dialog`) so opening a dialog on a phone never leaves
+        // the bar drawn on top of it. Keep new fixed-position dashboard
+        // overlays on one of these two tokens instead of ad-hoc z-50/z-60.
+        "bottom-nav": "60",
+        dialog: "100",
+      },
     },
   },
   plugins: [],

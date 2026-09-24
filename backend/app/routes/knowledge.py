@@ -3,6 +3,7 @@ from typing import Literal, Optional
 from uuid import UUID, uuid4
 from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel, Field
+from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services import knowledge_sort as ks
@@ -76,6 +77,14 @@ def _doc_signed_url(db, path: str, expires_in: int = 300) -> str | None:
     return None
 
 
+def _search_issue(doc: dict, *, has_chunks: bool, has_jina_key: bool) -> str | None:
+    """None once a document is actually searchable; otherwise the one reason it isn't,
+    so the client can tell "not indexed yet" from "no Jina key configured"."""
+    if doc.get("status") != "indexed" or has_chunks:
+        return None
+    return "no_jina_key" if not has_jina_key else "not_indexed"
+
+
 @router.get("/documents")
 async def list_documents(tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
@@ -89,8 +98,17 @@ async def list_documents(tenant_id: str = Depends(get_tenant_id)):
         .execute()
     )
     pending_ids = {r["document_id"] for r in (pending.data or [])}
+
+    # One query for every document's chunk count instead of one per document (no N+1).
+    chunk_rows = db.table("knowledge_chunks").select("document_id").eq("tenant_id", tenant_id).execute()
+    chunked_ids = {r["document_id"] for r in (chunk_rows.data or [])}
+    has_jina_key = bool(get_setting("jina_api_key", tenant_id=tenant_id))
+
     for doc in docs:
         doc["has_pending_review"] = doc["id"] in pending_ids
+        has_chunks = doc["id"] in chunked_ids
+        doc["searchable"] = doc.get("status") == "indexed" and has_chunks
+        doc["search_issue"] = _search_issue(doc, has_chunks=has_chunks, has_jina_key=has_jina_key)
     return {"data": docs}
 
 

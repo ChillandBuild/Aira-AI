@@ -1,5 +1,12 @@
 # Messaging Compliance Master Prompt (platform-wide)
 
+> **2026-09-24: the text below is NOT what runs.** The live master prompt is
+> [master-prompt-live.txt](master-prompt-live.txt) (24 rules, domain-neutral since
+> 2026-09-24: astrology / birth-detail rules moved into the Astro Tamil tenants' own
+> profiles, the Tanglish style guide moved to the language setting in `ai_reply.py`).
+> Test any change with `python -m evals.replies.run_eval --master-file ../docs/master-prompt-live.txt`
+> before publishing it to `platform_defaults`, and keep this file in sync with what is published.
+
 Canonical text for the developer-owned master prompt, stored in
 `platform_defaults.default_master_prompt` and loaded by `get_master_prompt()` /
 `_build_base_prompt()` in `backend/app/services/ai_reply.py`.

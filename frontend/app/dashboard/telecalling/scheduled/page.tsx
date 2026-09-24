@@ -434,7 +434,7 @@ export default function ScheduledCallsPage() {
 
       {/* Context Handoff Modal */}
       {handoffCallback && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1c1917]/60 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-[#1c1917]/60 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-4xl border border-[#f0ece4] max-h-[90vh] flex flex-col animate-zoom-in">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-4 border-b border-[#f0ece4] shrink-0">

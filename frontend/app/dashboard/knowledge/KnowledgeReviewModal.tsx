@@ -12,13 +12,21 @@ import {
   FileText,
   Loader2,
   PenLine,
+  Phone,
   RefreshCw,
   Scale,
   Tag,
   Trash2,
   X,
 } from "lucide-react";
-import { api, type KnowledgeConflictChoice, type KnowledgeHunk, type KnowledgeReview } from "@/lib/api";
+import {
+  api,
+  API_URL,
+  getAuthHeaders,
+  type KnowledgeConflictChoice,
+  type KnowledgeHunk,
+  type KnowledgeReview,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { buildFinalDescription, normalizeText, wordCount } from "./descriptionDiff";
 
@@ -167,6 +175,9 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
   const [showPreview, setShowPreview] = useState(false);
   const [showLeftOut, setShowLeftOut] = useState(false);
   const [busy, setBusy] = useState<"apply" | "discard" | "resort" | null>(null);
+  const [handoverDismissed, setHandoverDismissed] = useState(false);
+  const [handoverSaving, setHandoverSaving] = useState(false);
+  const [handoverSaved, setHandoverSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +273,26 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
     }
   }
 
+  async function useHandoverLine() {
+    if (!review || !review.suggested_handover.trim()) return;
+    setHandoverSaving(true);
+    try {
+      const auth = await getAuthHeaders();
+      const res = await fetch(`${API_URL}/api/v1/settings/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        body: JSON.stringify({ updates: { handover_line: review.suggested_handover.trim() } }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setHandoverSaved(true);
+      toast.success("Saved as your ‘When Aira can’t help’ line.");
+    } catch {
+      toast.error("Could not save this line. Please try again.");
+    } finally {
+      setHandoverSaving(false);
+    }
+  }
+
   async function resort() {
     setBusy("resort");
     try {
@@ -279,7 +310,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
   const fileWarnings = review?.fact_disagreements.filter((d) => d.where === "file") ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -383,6 +414,53 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                   ))
                 )}
               </Section>
+
+              {/* Contact line found -- a sentence telling customers how to reach a person.
+                  Aira keeps this out of the Description; it's offered as the separate
+                  "when Aira can't help" line instead, never saved automatically. */}
+              {review.suggested_handover.trim() && !handoverDismissed && (
+                <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
+                  <div className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                      <Phone size={14} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="font-display text-sm font-bold text-on-surface">Contact line found in this file</h4>
+                      <p className="mt-1 font-body text-xs leading-relaxed text-amber-900">
+                        This tells customers how to reach a person. Aira keeps it out of your profile. Use it as
+                        your &ldquo;When Aira can&rsquo;t help&rdquo; line?
+                      </p>
+                      <p className="mt-2 rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-[11.5px] leading-relaxed text-on-surface">
+                        {review.suggested_handover}
+                      </p>
+                      {canManage && (
+                        <div className="mt-3 flex items-center gap-2">
+                          <button
+                            onClick={useHandoverLine}
+                            disabled={handoverSaving || handoverSaved}
+                            className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 font-label text-xs font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {handoverSaving ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : handoverSaved ? (
+                              <Check size={12} strokeWidth={3} />
+                            ) : null}
+                            {handoverSaved ? "Saved" : "Use this line"}
+                          </button>
+                          {!handoverSaved && (
+                            <button
+                              onClick={() => setHandoverDismissed(true)}
+                              className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-label text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-50"
+                            >
+                              Ignore
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
 
               {/* 2. Conflicts */}
               {review.conflicts.length > 0 && (
@@ -563,7 +641,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
 
         {/* Footer */}
         {review && (
-          <div className="space-y-2.5 border-t border-surface-mid bg-surface-low/50 px-5 py-3.5 sm:px-6">
+          <div className="space-y-2.5 border-t border-surface-mid bg-surface-low/50 px-5 pt-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] sm:px-6">
             {emptyResult && !blockReason && (
               <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
                 <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />

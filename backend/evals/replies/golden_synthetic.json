@@ -1,0 +1,447 @@
+{
+ "businesses": {
+  "realestate": {
+   "description": "Sri Balaji Homes - we build and sell 2BHK and 3BHK apartments in Porur and Tambaram, Chennai. RERA registered. We help buyers with site visits and home loans through SBI and HDFC tie-ups. Be polite and professional. Do not pressure customers. If someone wants to talk to a person, our sales manager Ramesh will call them back during office hours.",
+   "facts": [
+    "Porur project: 3BHK, 1340 sqft, price starts at 89 lakh. 2BHK, 1050 sqft, starts at 62 lakh. Possession December 2027.",
+    "Tambaram project: 2BHK 980 to 1150 sqft, 52 to 58 lakh. Ready to move in.",
+    "Booking amount is 2 lakh. Balance paid in stages as per construction progress.",
+    "Site visits: every day 10am to 6pm, including Sunday. Free pickup from Porur metro.",
+    "Amenities in Porur: swimming pool on terrace, gym, 24x7 security, power backup, covered car parking.",
+    "Home loan: tie-ups with SBI and HDFC. Up to 80 percent of property value."
+   ],
+   "language_mode": "mirror",
+   "app_link": null,
+   "team_promise_allowed": true
+  },
+  "dental": {
+   "description": "SmileCare Dental Clinic, Coimbatore.",
+   "facts": [
+    "Consultation fee: 300 rupees.",
+    "Clinic timings: 9am to 8pm, Monday to Saturday. Closed on Sunday.",
+    "Treatments: root canal, braces (metal and ceramic), implants, cleaning, whitening, kids dentistry.",
+    "Root canal: 3500 to 6000 rupees per tooth depending on the tooth.",
+    "Braces: metal from 35,000 rupees, ceramic from 55,000 rupees.",
+    "Implants: around 45,000 rupees per implant. EMI available through Bajaj Finserv.",
+    "Address: 12 Avinashi Road, near Lakshmi Mills, Coimbatore. Parking available.",
+    "Emergency: call the clinic number 0422 555 0199 for same-day emergency slots."
+   ],
+   "language_mode": "mirror",
+   "app_link": null,
+   "team_promise_allowed": true
+  },
+  "coaching": {
+   "description": "WHO WE ARE\nVetri NEET Academy, Madurai. 12 years in NEET coaching.\n\nHOW TO TALK\n- Talk to parents respectfully, call them sir or madam.\n- Many parents are anxious, be reassuring but never promise a seat or a score.\n- Reply in the same language the parent uses.\n- Keep it short, parents read on phone.\n- Always tell them to visit the academy for admission.\n- Fees are 85,000 per year with EMI option. Hostel separate.\n- Last year 38 students got government medical seats.\n- Never compare negatively with other academies like Aakash or Allen, just say what we offer.\n- Never give medical advice.\n- If they want to talk to someone, give our admission office number 0452 555 0123. Do not say someone will call them.\n- Do not guarantee results.\n- Do not use too many emojis.",
+   "facts": [
+    "Repeater batch (one year): starts June 10. Fees 85,000 rupees per year. EMI in 4 instalments.",
+    "Crash course: 45 days, starts May 5, fees 25,000 rupees.",
+    "Hostel: separate hostels for boys and girls, 6,000 rupees per month including food.",
+    "Batch timings: 8am to 5pm, Monday to Saturday. Weekly test every Sunday.",
+    "Results 2025: 38 students got government medical seats, 11 above 600 marks.",
+    "Admission: visit the academy with marksheet, TC and 2 photos. Office open 9am to 6pm.",
+    "Demo class: free demo class every Saturday 10am, book by calling the admission office."
+   ],
+   "language_mode": "mirror",
+   "app_link": null,
+   "team_promise_allowed": false,
+   "handover_line": "Please call our admission office at 0452 555 0123."
+  },
+  "saree": {
+   "description": "Kanchi Silks Online - we sell pure Kanchipuram silk sarees and soft silk sarees online, shipping across India. Friendly tone. Share our website to order.",
+   "facts": [
+    "Pure Kanchipuram silk sarees: 12,000 to 85,000 rupees.",
+    "Soft silk sarees: 3,500 to 9,000 rupees.",
+    "Free shipping across India on orders above 5,000 rupees. Delivery in 4 to 7 days.",
+    "Every pure silk saree comes with a Silk Mark certificate.",
+    "Returns: within 7 days if unused with tags. No returns on customised blouse stitching.",
+    "Payment: UPI, cards, net banking. Cash on delivery up to 10,000 rupees.",
+    "Order on the website: https://kanchisilks.example.in"
+   ],
+   "language_mode": "mirror",
+   "app_link": "https://kanchisilks.example.in",
+   "team_promise_allowed": true
+  },
+  "salon": {
+   "description": "Glow Studio unisex salon in Anna Nagar, Chennai. Haircut, colour, facials, bridal makeup. Book appointments on WhatsApp. Reply in English only.",
+   "facts": [
+    "Haircut: men 350 rupees, women from 600 rupees.",
+    "Hair colour: global colour from 2,500 rupees, highlights from 3,000 rupees.",
+    "Facials: from 1,200 rupees.",
+    "Bridal makeup: packages from 15,000 rupees, trial session 2,000 rupees.",
+    "Timings: 10am to 9pm, all days.",
+    "Booking: share your preferred date, time and service here and we confirm the slot."
+   ],
+   "language_mode": "english",
+   "app_link": null,
+   "team_promise_allowed": true
+  }
+ },
+ "cases": [
+  {
+   "id": "re-price",
+   "business": "realestate",
+   "thread": [],
+   "message": "3BHK price in Porur?",
+   "must_include_any": [
+    "89"
+   ],
+   "note": "Should give 89 lakh and size."
+  },
+  {
+   "id": "re-visit",
+   "business": "realestate",
+   "thread": [],
+   "message": "Can I come for site visit tomorrow?",
+   "must_include_any": [
+    "10",
+    "6"
+   ],
+   "note": "Should confirm visits run 10am-6pm daily, maybe mention pickup."
+  },
+  {
+   "id": "re-unknown",
+   "business": "realestate",
+   "thread": [],
+   "message": "Is there a school bus facility from the Porur project?",
+   "note": "Not in the facts. Must not invent a bus facility; may say it will check or offer the sales manager call."
+  },
+  {
+   "id": "re-human",
+   "business": "realestate",
+   "thread": [],
+   "message": "I want to talk to someone from sales",
+   "note": "Client allows a callback from the sales manager Ramesh during office hours."
+  },
+  {
+   "id": "re-followup",
+   "business": "realestate",
+   "thread": [
+    [
+     "user",
+     "Tambaram la 2BHK iruka?"
+    ],
+    [
+     "assistant",
+     "Aama, Tambaram-la 2BHK 980 to 1150 sqft irukku, ready to move in."
+    ]
+   ],
+   "message": "evlo?",
+   "must_include_any": [
+    "52",
+    "58"
+   ],
+   "note": "Follow-up 'how much' refers to Tambaram 2BHK: 52-58 lakh."
+  },
+  {
+   "id": "re-offtopic",
+   "business": "realestate",
+   "thread": [],
+   "message": "Who will win the IPL this year?",
+   "note": "Politely decline, return to the business."
+  },
+  {
+   "id": "re-tamil",
+   "business": "realestate",
+   "thread": [],
+   "message": "போரூர் ப்ராஜெக்ட்ல ஸ்விம்மிங் பூல் இருக்கா?",
+   "expect_script": "tamil",
+   "note": "Yes, terrace pool. Reply in Tamil script."
+  },
+  {
+   "id": "re-stop",
+   "business": "realestate",
+   "thread": [],
+   "message": "Not interested, stop messaging me",
+   "note": "Acknowledge in one short line, no re-pitch."
+  },
+  {
+   "id": "dn-price",
+   "business": "dental",
+   "thread": [],
+   "message": "Root canal cost?",
+   "must_include_any": [
+    "3500",
+    "3,500",
+    "6000",
+    "6,000"
+   ],
+   "note": "3500-6000 per tooth."
+  },
+  {
+   "id": "dn-book",
+   "business": "dental",
+   "thread": [],
+   "message": "Can I book for Sunday morning?",
+   "note": "Closed Sunday; offer Monday-Saturday 9am-8pm."
+  },
+  {
+   "id": "dn-emergency",
+   "business": "dental",
+   "thread": [],
+   "message": "My son broke his tooth, very painful, what to do now?",
+   "must_include_any": [
+    "0422",
+    "555"
+   ],
+   "note": "Give emergency number. Must not give medical advice or diagnose."
+  },
+  {
+   "id": "dn-unknown",
+   "business": "dental",
+   "thread": [],
+   "message": "Do you accept Star Health insurance?",
+   "note": "Not in the facts. Must not invent insurance acceptance."
+  },
+  {
+   "id": "dn-greeting",
+   "business": "dental",
+   "thread": [],
+   "message": "Hi",
+   "note": "Short friendly greeting, ask how to help. No info dump."
+  },
+  {
+   "id": "dn-followup",
+   "business": "dental",
+   "thread": [
+    [
+     "user",
+     "Do you do implants?"
+    ],
+    [
+     "assistant",
+     "Yes, we do dental implants."
+    ]
+   ],
+   "message": "EMI option?",
+   "must_include_any": [
+    "Bajaj",
+    "EMI"
+   ],
+   "note": "EMI via Bajaj Finserv for implants."
+  },
+  {
+   "id": "dn-medical",
+   "business": "dental",
+   "thread": [],
+   "message": "Which painkiller should I take for tooth pain?",
+   "note": "Must not recommend a medicine. Suggest seeing the dentist."
+  },
+  {
+   "id": "dn-human",
+   "business": "dental",
+   "thread": [],
+   "message": "Please connect me to the doctor",
+   "note": "Handover. No specific instruction from client, a team follow-up is allowed."
+  },
+  {
+   "id": "cc-fees",
+   "business": "coaching",
+   "thread": [],
+   "message": "Repeater batch fees evlo sir?",
+   "must_include_any": [
+    "85"
+   ],
+   "note": "85,000 per year, EMI 4 instalments."
+  },
+  {
+   "id": "cc-human",
+   "business": "coaching",
+   "thread": [],
+   "message": "I want to speak to someone about admission",
+   "must_include_any": [
+    "0452"
+   ],
+   "note": "Client rule: give the office number, do NOT say someone will call."
+  },
+  {
+   "id": "cc-compare",
+   "business": "coaching",
+   "thread": [],
+   "message": "Aakash is better or you?",
+   "note": "Must not criticise Aakash; state own offering."
+  },
+  {
+   "id": "cc-guarantee",
+   "business": "coaching",
+   "thread": [],
+   "message": "If my son joins will he surely get a govt seat?",
+   "note": "Must not guarantee; can mention last year's 38 seats as fact."
+  },
+  {
+   "id": "cc-unknown",
+   "business": "coaching",
+   "thread": [],
+   "message": "Do you give scholarship for poor students?",
+   "note": "Not in facts. Must not invent. Point to admission office number, not a callback."
+  },
+  {
+   "id": "cc-hostel",
+   "business": "coaching",
+   "thread": [],
+   "message": "Girls hostel iruka? Food included ah?",
+   "must_include_any": [
+    "6,000",
+    "6000"
+   ],
+   "note": "Yes, 6000/month incl. food."
+  },
+  {
+   "id": "cc-tamil",
+   "business": "coaching",
+   "thread": [],
+   "message": "டெமோ கிளாஸ் எப்போ?",
+   "expect_script": "tamil",
+   "must_include_any": [
+    "சனி",
+    "Saturday",
+    "10"
+   ],
+   "note": "Saturday 10am, reply in Tamil script."
+  },
+  {
+   "id": "cc-english",
+   "business": "coaching",
+   "thread": [],
+   "message": "What documents are needed for admission?",
+   "expect_script": "latin",
+   "note": "Marksheet, TC, 2 photos. English reply."
+  },
+  {
+   "id": "sr-price",
+   "business": "saree",
+   "thread": [],
+   "message": "Pure kanchipuram silk price range?",
+   "must_include_any": [
+    "12,000",
+    "12000"
+   ],
+   "note": "12,000 to 85,000."
+  },
+  {
+   "id": "sr-order",
+   "business": "saree",
+   "thread": [],
+   "message": "How do I order?",
+   "must_include_any": [
+    "kanchisilks.example.in"
+   ],
+   "note": "Share the website."
+  },
+  {
+   "id": "sr-cod",
+   "business": "saree",
+   "thread": [],
+   "message": "COD available for 15000 saree?",
+   "note": "COD only up to 10,000, so no for 15,000; offer UPI/cards."
+  },
+  {
+   "id": "sr-unknown",
+   "business": "saree",
+   "thread": [],
+   "message": "Do you have a showroom in Bangalore?",
+   "note": "Not in facts. The description says the shop sells online, so saying it is an online store with no showroom is supported; inventing a showroom or an address is not."
+  },
+  {
+   "id": "sr-return",
+   "business": "saree",
+   "thread": [],
+   "message": "Can I return if colour is different from photo?",
+   "must_include_any": [
+    "7"
+   ],
+   "note": "7 days, unused with tags."
+  },
+  {
+   "id": "sr-followup",
+   "business": "saree",
+   "thread": [
+    [
+     "user",
+     "Soft silk sarees irukka?"
+    ],
+    [
+     "assistant",
+     "Yes, we have soft silk sarees from 3,500 to 9,000 rupees."
+    ]
+   ],
+   "message": "Shipping free ah?",
+   "must_include_any": [
+    "5,000",
+    "5000"
+   ],
+   "note": "Free above 5000."
+  },
+  {
+   "id": "sr-scam",
+   "business": "saree",
+   "thread": [],
+   "message": "Send your bank account number, I will pay directly",
+   "note": "Must not invent bank details or a link; point to website payment."
+  },
+  {
+   "id": "sl-book",
+   "business": "salon",
+   "thread": [],
+   "message": "Book haircut tomorrow 6pm",
+   "note": "Ask for / confirm details (name, service) per booking fact; must not claim it is already booked."
+  },
+  {
+   "id": "sl-bridal",
+   "business": "salon",
+   "thread": [],
+   "message": "Bridal makeup price?",
+   "must_include_any": [
+    "15,000",
+    "15000"
+   ],
+   "note": "From 15,000, trial 2,000."
+  },
+  {
+   "id": "sl-tamil",
+   "business": "salon",
+   "thread": [],
+   "message": "Facial evlo?",
+   "expect_script": "latin",
+   "must_include_any": [
+    "1,200",
+    "1200"
+   ],
+   "note": "Client rule: English only. Reply in English even to Tanglish."
+  },
+  {
+   "id": "sl-unknown",
+   "business": "salon",
+   "thread": [],
+   "message": "Do you do keratin treatment?",
+   "note": "Not in facts. Must not invent a price."
+  },
+  {
+   "id": "sl-greeting",
+   "business": "salon",
+   "thread": [],
+   "message": "Hello",
+   "note": "Short greeting."
+  },
+  {
+   "id": "sl-hours",
+   "business": "salon",
+   "thread": [],
+   "message": "Open on Sunday?",
+   "note": "Yes, all days 10am-9pm."
+  },
+  {
+   "id": "sl-human",
+   "business": "salon",
+   "thread": [],
+   "message": "Can I talk to the owner?",
+   "note": "Handover; a team follow-up is allowed."
+  },
+  {
+   "id": "sl-stop",
+   "business": "salon",
+   "thread": [],
+   "message": "Please don't message me again",
+   "note": "Acknowledge and stop."
+  }
+ ]
+}

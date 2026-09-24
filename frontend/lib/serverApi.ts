@@ -6,7 +6,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://aira-ai-5tfr.onrende
 export async function serverFetchJson<T>(
   path: string,
   token: string | undefined,
-  timeoutMs = 2500,
+  timeoutMs = 1500,
 ): Promise<T | null> {
   if (!token) return null;
   const controller = new AbortController();

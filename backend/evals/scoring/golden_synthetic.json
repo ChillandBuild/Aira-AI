@@ -1,0 +1,65 @@
+{
+ "businesses": {
+  "realestate": {
+   "description": "Sri Balaji Homes sells 2BHK and 3BHK apartments in Chennai (Porur, Tambaram). Prices 55L to 1.2Cr. We arrange site visits and help with home loans.",
+   "rubric": "- Hot: Wants a site visit, asks about booking amount or loan approval, ready to buy\n- Warm: Asking about location, price, sizes, amenities\n- Cold: Just greetings or no reply"
+  },
+  "dental": {
+   "description": "SmileCare Dental Clinic in Coimbatore. Root canal, braces, implants, cleaning. Consultation 300 rupees. Open 9am to 8pm.",
+   "rubric": "- Hot: Wants to book an appointment\n- Warm: Asking about treatments or cost\n- Cold: Not interested"
+  },
+  "coaching": {
+   "description": "Vetri NEET Academy, Madurai. One-year NEET repeater batch and crash course. Fees 85,000 per year, EMI available. Hostel for girls and boys.",
+   "rubric": "- Hot: Parent or student ready to join or pay fees\n- Warm: Asking about fees, batch timing, results, hostel\n- Cold: Greetings, wrong number, unrelated"
+  }
+ },
+ "cases": [
+  {"id": "re-01", "business": "realestate", "label": "hot", "reason": "Asked to fix a site visit on a specific day.", "conversation": ["User: Hi saw your Porur project ad", "Bot: Vanakkam! We have 2BHK and 3BHK in Porur from 62L. Would you like details?", "User: 3BHK price and sqft?", "Bot: 3BHK is 1340 sqft, 89L onwards.", "User: Can we come for site visit this Sunday morning? Me and my wife"]},
+  {"id": "re-02", "business": "realestate", "label": "hot", "reason": "Asked booking amount and said loan is pre-approved. Hot even though the last message is only 'ok thanks'.", "conversation": ["User: What is the booking amount for 2BHK Tambaram", "Bot: Booking amount is 2 lakh, balance as per construction stages.", "User: My SBI loan is already pre approved for 60L", "Bot: Great, that works well for our 2BHK at 58L.", "User: ok thanks"]},
+  {"id": "re-03", "business": "realestate", "label": "hot", "reason": "Asked for the bank account to pay the token advance.", "conversation": ["User: Sir we visited yesterday, we liked the 4th floor east facing flat", "Bot: Happy to hear that! Flat 4B is still available.", "User: Send account details, will transfer token advance today"]},
+  {"id": "re-04", "business": "realestate", "label": "hot", "reason": "Asked for the agreement copy to show their lawyer before booking.", "conversation": ["User: Before booking can you share the sale agreement draft? My lawyer will check", "Bot: Sure, which unit are you looking at?", "User: 3BHK 1340 sqft Porur, 7th floor"]},
+  {"id": "re-05", "business": "realestate", "label": "hot", "reason": "Price objection but negotiating on a specific unit and ready to close. Negotiation is a buying step.", "conversation": ["User: 89L is too much. If you can do 84L for the 7th floor 3BHK I will book this week", "Bot: Let me check with our sales head.", "User: ok let me know fast, I am also seeing another builder"]},
+  {"id": "re-06", "business": "realestate", "label": "warm", "reason": "Asking location and amenities. Interest, no step.", "conversation": ["User: Hi", "Bot: Vanakkam! How can we help?", "User: Porur la school hospital near ah? Swimming pool iruka?", "Bot: Yes, 2 schools within 1km and a pool on the terrace.", "User: ok nice"]},
+  {"id": "re-07", "business": "realestate", "label": "warm", "reason": "Comparing prices, no step.", "conversation": ["User: What is price per sqft in Tambaram?", "Bot: Around 5800 per sqft.", "User: Other builders are giving 5200 there"]},
+  {"id": "re-08", "business": "realestate", "label": "warm", "reason": "Planning for next year, asking sizes. Real interest, not ready.", "conversation": ["User: We are planning to buy next year after my promotion. What sizes do you have in 2BHK?", "Bot: 2BHK from 980 to 1150 sqft."]},
+  {"id": "re-09", "business": "realestate", "label": "warm", "reason": "Asked for brochure and floor plan.", "conversation": ["User: Send brochure and floor plan pls", "Bot: Sharing now.", "User: Received"]},
+  {"id": "re-10", "business": "realestate", "label": "warm", "reason": "Long detailed message, but only general questions. Length is not intent.", "conversation": ["User: Hello sir, I am working in Dubai and my parents stay in Chennai, I wanted to understand how the real estate market is in Chennai these days and whether prices will go up in the next few years, also what is RERA and is it important", "Bot: Happy to help. RERA protects buyers; our projects are RERA registered."]},
+  {"id": "re-11", "business": "realestate", "label": "cold", "reason": "Only the ad's pre-filled message.", "conversation": ["User: [ad-prefill] I want to know more about Sri Balaji Homes"]},
+  {"id": "re-12", "business": "realestate", "label": "cold", "reason": "Greetings only.", "conversation": ["User: Hi", "Bot: Vanakkam! How can we help?", "User: Hello"]},
+  {"id": "re-13", "business": "realestate", "label": "cold", "reason": "Looking for rent, which this business does not do.", "conversation": ["User: 1BHK for rent available in Porur?", "Bot: Sorry, we only sell apartments.", "User: ok"]},
+  {"id": "re-14", "business": "realestate", "label": "cold", "reason": "Wrong number.", "conversation": ["User: Is this Murugan sir number?", "Bot: This is Sri Balaji Homes.", "User: sorry wrong number"]},
+  {"id": "re-15", "business": "realestate", "label": "cold", "reason": "Earlier interest, then clearly said they bought elsewhere.", "conversation": ["User: 3BHK price?", "Bot: 89L onwards.", "User: We already bought in OMR last month, just checking"]},
+
+  {"id": "dn-01", "business": "dental", "label": "hot", "reason": "Asked for an appointment slot tomorrow.", "conversation": ["User: Tooth pain from yesterday very bad", "Bot: Sorry to hear that. Would you like to see the doctor?", "User: Yes tomorrow morning any slot?"]},
+  {"id": "dn-02", "business": "dental", "label": "hot", "reason": "Confirmed booking time and asked for location.", "conversation": ["User: Is 6pm today available for cleaning", "Bot: Yes, 6pm is free.", "User: Book it. Name Karthik. Send location"]},
+  {"id": "dn-03", "business": "dental", "label": "hot", "reason": "Asked about EMI for implants for their father, ready to start.", "conversation": ["User: Implant cost for 2 teeth?", "Bot: Around 45,000 per implant.", "User: EMI option iruka? Appa ku start pannanum next week"]},
+  {"id": "dn-04", "business": "dental", "label": "hot", "reason": "Rescheduling an existing appointment is still an active patient. Last message is just thanks.", "conversation": ["User: I have appointment 11am Saturday, can I change to 4pm?", "Bot: Done, 4pm Saturday confirmed.", "User: thank you"]},
+  {"id": "dn-05", "business": "dental", "label": "hot", "reason": "Wants an emergency visit today.", "conversation": ["User: My son fell and front tooth broke, can we come now?"]},
+  {"id": "dn-06", "business": "dental", "label": "warm", "reason": "Asked cost of braces. No step.", "conversation": ["User: Braces cost evlo?", "Bot: Metal braces start at 35,000.", "User: Ceramic?", "Bot: 55,000 onwards."]},
+  {"id": "dn-07", "business": "dental", "label": "warm", "reason": "Asking whether root canal hurts. Considering treatment.", "conversation": ["User: Root canal pannina valikuma? Doctor sollirukanga pannanumnu"]},
+  {"id": "dn-08", "business": "dental", "label": "warm", "reason": "Asking timings and Sunday opening.", "conversation": ["User: Sunday open ah?", "Bot: We are open 9am to 8pm, Monday to Saturday.", "User: ok"]},
+  {"id": "dn-09", "business": "dental", "label": "warm", "reason": "Price objection with no step, comparing clinics.", "conversation": ["User: Cleaning 1500 ah? Near my house they do for 800"]},
+  {"id": "dn-10", "business": "dental", "label": "warm", "reason": "Asked about whitening, said will think.", "conversation": ["User: Teeth whitening panreengala?", "Bot: Yes, 6000 for a full session.", "User: Will think and tell"]},
+  {"id": "dn-11", "business": "dental", "label": "cold", "reason": "Greeting only.", "conversation": ["User: Hi", "Bot: Hello! How can we help you today?"]},
+  {"id": "dn-12", "business": "dental", "label": "cold", "reason": "Ad message only.", "conversation": ["User: [ad-prefill] Tell me more about SmileCare offers"]},
+  {"id": "dn-13", "business": "dental", "label": "cold", "reason": "Asking for a job, not a patient.", "conversation": ["User: Any receptionist job vacancy?", "Bot: Please email hr@smilecare.in", "User: ok"]},
+  {"id": "dn-14", "business": "dental", "label": "cold", "reason": "Emoji only.", "conversation": ["User: 👍", "Bot: How can we help?", "User: 🙏"]},
+  {"id": "dn-15", "business": "dental", "label": "cold", "reason": "Earlier cost question, then said the problem went away.", "conversation": ["User: Filling cost?", "Bot: 1200 onwards.", "User: Pain is gone now, not needed"]},
+
+  {"id": "cc-01", "business": "coaching", "label": "hot", "reason": "Parent asked how to pay the fees and for admission.", "conversation": ["User: My daughter scored 480 this year. Repeater batch admission open ah?", "Bot: Yes, the batch starts June 10.", "User: How to pay fees? GPay ok ah? Want to confirm seat"]},
+  {"id": "cc-02", "business": "coaching", "label": "hot", "reason": "Asked for the EMI form to join.", "conversation": ["User: 85000 one shot kashtam. EMI form anupunga, join pannanum"]},
+  {"id": "cc-03", "business": "coaching", "label": "hot", "reason": "Coming to the academy with documents on a set day.", "conversation": ["User: We will come Monday with marksheet and TC for admission", "Bot: Great, office is open from 9am.", "User: ok"]},
+  {"id": "cc-04", "business": "coaching", "label": "hot", "reason": "Asked for hostel room booking along with admission.", "conversation": ["User: Admission plus girls hostel both book pannanum. Hostel fee separate ah?"]},
+  {"id": "cc-05", "business": "coaching", "label": "hot", "reason": "Asked for a demo class to decide this week.", "conversation": ["User: Can my son attend one demo class this week? If he likes we will join"]},
+  {"id": "cc-06", "business": "coaching", "label": "warm", "reason": "Asked last year's results.", "conversation": ["User: Last year evlo per selection?", "Bot: 38 students got government seats last year."]},
+  {"id": "cc-07", "business": "coaching", "label": "warm", "reason": "Asked batch timings and faculty.", "conversation": ["User: Batch timing enna? Physics yaaru edukuranga?"]},
+  {"id": "cc-08", "business": "coaching", "label": "warm", "reason": "Comparing with another academy.", "conversation": ["User: Aakash la 1.2L sollranga, unga la enna difference?"]},
+  {"id": "cc-09", "business": "coaching", "label": "warm", "reason": "Student still waiting for results before deciding.", "conversation": ["User: Result vandha apram decide pannuvom. Crash course eppo start?", "Bot: Crash course starts May 5."]},
+  {"id": "cc-10", "business": "coaching", "label": "warm", "reason": "Long message about the child's situation but no step.", "conversation": ["User: My son is very stressed, he wrote NEET twice and got 390 and 420, he is not sure if he wants to try again, we are also thinking about BSc nursing, what do you suggest for such students"]},
+  {"id": "cc-11", "business": "coaching", "label": "cold", "reason": "Greetings only.", "conversation": ["User: Vanakkam", "Bot: Vanakkam! How can we help?", "User: Hi"]},
+  {"id": "cc-12", "business": "coaching", "label": "cold", "reason": "Ad message only.", "conversation": ["User: [ad-prefill] I want details about Vetri NEET Academy"]},
+  {"id": "cc-13", "business": "coaching", "label": "cold", "reason": "Wants JEE coaching, which is not offered.", "conversation": ["User: JEE coaching iruka?", "Bot: Sorry, we only offer NEET.", "User: ok"]},
+  {"id": "cc-14", "business": "coaching", "label": "cold", "reason": "Already joined elsewhere.", "conversation": ["User: Fees?", "Bot: 85,000 per year.", "User: Already joined in Namakkal, thanks"]},
+  {"id": "cc-15", "business": "coaching", "label": "cold", "reason": "Just 'ok' replies to broadcast.", "conversation": ["Bot: New repeater batch starts June 10! Reply for details.", "User: ok", "Bot: Would you like fee details?", "User: k"]}
+ ]
+}

@@ -12,6 +12,7 @@ import CockpitModals from "./components/CockpitModals";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
 import { getLeadQueueSection, sortLeadsForCallQueue, type LeadQueueSection } from "./lib/queue-priority";
 import { useSearchParams } from "next/navigation";
+import { SegmentBadge } from "@/components/segment-badge";
 
 export default function CallerView({ callerId, readOnly = false }: { callerId: string | null; readOnly?: boolean }) {
   const searchParams = useSearchParams();
@@ -226,7 +227,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                   let avatarBg = "bg-primary";
                   let callBtnBg = "bg-emerald-500 hover:bg-emerald-600";
 
-                  if (lead.score >= 8) {
+                  if (lead.segment === "A") {
                     borderAccent = "border-l-red-500";
                     avatarBg = "bg-red-500";
                     callBtnBg = "bg-rose-500 hover:bg-rose-600 shadow-rose-500/10";
@@ -267,16 +268,13 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-body text-sm font-bold text-[#292524] truncate">{lead.name || formatPhone(lead.phone)}</p>
-                            {lead.score >= 7 && (
-                              <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded font-label text-[8px] font-black uppercase tracking-wider">HOT</span>
-                            )}
-                            <span className="px-1.5 py-0.5 bg-primary-light text-primary rounded font-label text-[8px] font-black uppercase">SEG {lead.segment}</span>
+                            <SegmentBadge segment={lead.segment} />
                             {lead.call_status === "callback" && (
                               <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-label text-[8px] font-black uppercase">CALLBACK</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <p className="font-label text-xs text-[#78716c]">{lead.name ? formatPhone(lead.phone) + " · " : ""}Score {lead.score}/10</p>
+                            <p className="font-label text-xs text-[#78716c]">{lead.name ? formatPhone(lead.phone) : ""}</p>
                           </div>
                           <div className="flex items-center gap-1 text-[10px] text-[#a8a29e] mt-0.5">
                             <Clock size={10} />

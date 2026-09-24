@@ -1022,6 +1022,12 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                     {savingKey ? <Loader2 size={16} className="animate-spin" /> : "Save Key"}
                   </button>
                 </div>
+                {providerMeta.key === "jina" && status !== "configured" && (
+                  <p className="mb-3 flex items-start gap-1.5 text-xs text-warning">
+                    <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                    No Jina key: this client&apos;s knowledge files are not searchable (Aira pastes all files into every reply).
+                  </p>
+                )}
                 {models.length === 0 ? (
                   <p className="text-xs leading-relaxed text-ink-muted">
                     Used for knowledge-base and catalog search embeddings — no reply model choice for this provider.

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { FeedbackLockGate } from "./FeedbackLockGate";
 import { Sidebar } from "@/components/sidebar";
 import { AuthRoleProvider } from "./contexts/AuthRoleContext";
 import { ActiveCallProvider } from "./contexts/ActiveCallContext";
@@ -51,7 +52,12 @@ function DashboardAuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <FeedbackLockGate />
+      {children}
+    </>
+  );
 }
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -126,6 +132,10 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             <SessionTracker />
             <DashboardAuthGuard>
               <div className="h-screen bg-background overflow-hidden relative">
+                {/* Collapsed Dashboard Rail (md+) */}
+                <div className="hidden md:block">
+                  <Sidebar collapsed onExpand={() => setIsInboxSidebarOpen(true)} />
+                </div>
                 {isInboxSidebarOpen && (
                   <>
                     {/* Backdrop */}

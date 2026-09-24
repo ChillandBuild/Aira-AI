@@ -1,0 +1,25 @@
+{
+  "must_be_facts": [
+    "₹68 lakhs",
+    "₹78 lakhs",
+    "₹95 lakhs",
+    "1.08 crore",
+    "₹2 lakhs",
+    "TN/29/Building/0421/2024",
+    "600119",
+    "₹10,000"
+  ],
+  "must_be_profile": [
+    "never say \"guaranteed appreciation\"",
+    "never discuss loan eligibility",
+    "never guarantee possession dates",
+    "never quote a \"final\" price",
+    "never invent floor plans"
+  ],
+  "must_not_be_profile": [
+    "reply in english unless the customer types in tamil",
+    "90000 12345",
+    "thinking about your dream home in chennai"
+  ],
+  "junk_marker": "thinking about your dream home in chennai"
+}

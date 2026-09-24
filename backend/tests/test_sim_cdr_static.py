@@ -76,11 +76,12 @@ def test_sim_cdr_never_writes_human_owned_fields():
 def test_sim_lead_numbers_endpoint_for_device_filter():
     source = _read("app/routes/calls.py")
     assert '@public_router.get("/sim-lead-numbers")' in source
-    # Scoped to the caller's own assigned leads, tenant-isolated, non-deleted.
-    assert '.eq("assigned_to", caller_id)' in source
+    # Whole tenant (so unassigned/pool lead calls are tracked), tenant-isolated,
+    # non-deleted. Deliberately NOT filtered by assigned_to.
+    assert '.eq("assigned_to", caller_id)' not in source
     assert '.eq("tenant_id", tenant_id)' in source
     # Returns normalized numbers so the device can compare directly.
-    assert "_normalize_sim_phone(r.get(\"phone\")" in source
+    assert "_normalize_sim_phone(p)" in source
 
 
 def test_sim_status_mapping_contract():

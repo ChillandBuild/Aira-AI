@@ -47,7 +47,7 @@ export default function BriefingModal({
   onViewAllNotes,
 }: Props) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/40">
       <div className="bg-surface rounded-card p-8 shadow-card w-full max-w-md ring-1 ring-[#c4c7c7]/20 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-display text-lg font-bold text-primary">
@@ -66,7 +66,7 @@ export default function BriefingModal({
             {lead.name || "Unnamed lead"}
           </p>
           <p className="font-label text-sm text-on-surface-muted mt-0.5">
-            {formatPhone(lead.phone)} · Score {lead.score} · Segment {lead.segment}
+            {formatPhone(lead.phone)} · Segment {lead.segment}
           </p>
         </div>
 

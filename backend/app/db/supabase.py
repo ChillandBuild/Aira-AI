@@ -64,13 +64,14 @@ def _wrap_postgrest_session(client: Client) -> None:
     functions, and each one assigns its own `base_url` onto it — last writer
     wins, and the other two then talk to the wrong host.
     """
+    limits = httpx.Limits(max_keepalive_connections=30, max_connections=100, keepalive_expiry=60.0)
     old = client.postgrest.session
     client.postgrest.session = httpx.Client(
         base_url=old.base_url,
         headers=old.headers,
         timeout=old.timeout,
         follow_redirects=True,
-        transport=_RetryTransport(httpx.HTTPTransport(http2=True)),
+        transport=_RetryTransport(httpx.HTTPTransport(http2=True, limits=limits)),
     )
     old.close()
 

@@ -22,6 +22,8 @@ import { SwitchPill } from "@/components/ui/controls";
 import KnowledgeReviewModal from "./KnowledgeReviewModal";
 import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
 import DeleteDocumentModal from "./DeleteDocumentModal";
+import ProfileSectionsEditor from "./ProfileSectionsEditor";
+import { AutoGrowTextarea } from "./useAutoGrow";
 import { wordCount } from "./descriptionDiff";
 
 // ─── Interfaces & Types ───────────────────────────────────────────────────────
@@ -40,6 +42,10 @@ interface KnowledgeDoc {
   sorted_at?: string | null;
   sort_state?: "sorting" | "review" | "failed" | null;
   has_pending_review?: boolean;
+  /** False when Aira can't run a vector search over this file -- it falls back
+   *  to reading the whole file on every reply instead. */
+  searchable?: boolean;
+  search_issue?: null | "no_jina_key" | "not_indexed";
 }
 
 interface CampaignTag {
@@ -75,9 +81,26 @@ const DOC_STATUS_STYLE: Record<DocStatus, { label: string; className: string; ti
   failed: { label: "Failed", className: "bg-red-50 text-red-700 border-red-200" },
 };
 
+// A "live" (indexed) file that Aira still can't vector-search -- either this
+// account has no Jina key, or the file hasn't gone through indexing yet. The
+// text stays visible (not colour-only) since this is a real functional gap,
+// not just a status flavor.
+const NOT_SEARCHABLE_TITLE: Record<"no_jina_key" | "not_indexed", string> = {
+  no_jina_key:
+    "Aira can't search this file because no Jina key is set for this account. Ask your Aira operator to add one. Until then, Aira reads the whole file on every reply, which stops working well once your files get long.",
+  not_indexed: "This file hasn't been prepared for search yet. Try Re-sort.",
+};
+
 function DocStatusBadge({ doc, className }: { doc: KnowledgeDoc; className?: string }) {
   const status = docStatus(doc);
-  const style = DOC_STATUS_STYLE[status];
+  const notSearchable = status === "live" && doc.searchable === false;
+  const style = notSearchable
+    ? {
+        label: "Not searchable",
+        className: "bg-amber-50 text-amber-700 border-amber-200",
+        title: NOT_SEARCHABLE_TITLE[doc.search_issue === "no_jina_key" ? "no_jina_key" : "not_indexed"],
+      }
+    : DOC_STATUS_STYLE[status];
   return (
     <div
       title={style.title}
@@ -87,7 +110,9 @@ function DocStatusBadge({ doc, className }: { doc: KnowledgeDoc; className?: str
         className
       )}
     >
-      {status === "sorting" ? (
+      {notSearchable ? (
+        <AlertTriangle size={11} />
+      ) : status === "sorting" ? (
         <Loader2 size={11} className="animate-spin" />
       ) : status === "review" ? (
         <ClipboardCheck size={11} />
@@ -442,10 +467,8 @@ export default function KnowledgePage() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Product Description & AI Tuning
-  const [description, setDescription] = useState<string>("");
+  // Product Description & AI Tuning (savedDescription is used in Documents tab status row)
   const [savedDescription, setSavedDescription] = useState<string>("");
-  const [descSaving, setDescSaving] = useState(false);
 
   const [appLink, setAppLink] = useState<string>("");
   const [savedAppLink, setSavedAppLink] = useState<string>("");
@@ -455,6 +478,9 @@ export default function KnowledgePage() {
   const [savedRubric, setSavedRubric] = useState<string>("");
   const [rubricSaving, setRubricSaving] = useState(false);
   const [rubricAutoUpdate, setRubricAutoUpdate] = useState(false);
+  const [handoverLine, setHandoverLine] = useState<string>("");
+  const [savedHandoverLine, setSavedHandoverLine] = useState<string>("");
+  const [handoverSaving, setHandoverSaving] = useState(false);
   const [rubricToggleSaving, setRubricToggleSaving] = useState(false);
   // Description + rubric drive the upload gate on the Documents tab, so they are
   // fetched on mount rather than lazily when the Description tab opens.
@@ -564,13 +590,17 @@ export default function KnowledgePage() {
   // Document statistics
   const stats = useMemo(() => {
     const total = documents.length;
-    const indexed = documents.filter((d) => d.status === "indexed").length;
+    const indexedDocs = documents.filter((d) => d.status === "indexed");
+    // `searchable === undefined` means the API predates this field -- treat those
+    // docs as searchable so older accounts don't suddenly show a false warning.
+    const indexed = indexedDocs.filter((d) => d.searchable !== false).length;
+    const notSearchable = indexedDocs.filter((d) => d.searchable === false).length;
     const processing = documents.filter((d) => docStatus(d) === "sorting").length;
     const review = documents.filter((d) => docStatus(d) === "review").length;
     const failed = documents.filter((d) => ["failed", "sort_failed"].includes(docStatus(d))).length;
     const totalBytes = documents.reduce((sum, d) => sum + (d.size_bytes || 0), 0);
     const scopedCount = documents.filter((d) => Boolean(d.campaign_tag_id)).length;
-    return { total, indexed, processing, review, failed, totalBytes, scopedCount };
+    return { total, indexed, notSearchable, processing, review, failed, totalBytes, scopedCount };
   }, [documents]);
 
   // Filtered documents
@@ -653,7 +683,6 @@ export default function KnowledgePage() {
   async function loadDescription() {
     try {
       const d = await api.aiTune.description();
-      setDescription(d);
       setSavedDescription(d);
     } catch {}
   }
@@ -681,6 +710,10 @@ export default function KnowledgePage() {
       }
       const auto = settings.find((s) => s.key === "rubric_auto_update");
       setRubricAutoUpdate(auto?.display_value === "true");
+      const handover = settings.find((s) => s.key === "handover_line");
+      const handoverVal = handover && handover.display_value !== "Not set" ? handover.display_value : "";
+      setHandoverLine(handoverVal);
+      setSavedHandoverLine(handoverVal);
     } catch {}
   }
 
@@ -831,6 +864,102 @@ export default function KnowledgePage() {
     return null;
   }
 
+  // Stacked card row for the Documents table on phone widths (below md), where a
+  // 6-column table forces horizontal scroll to reach Status/Actions. Reuses the
+  // same status badge, scope pill, and action handlers as the table/grid rows --
+  // no duplicated logic, just different markup for narrow screens.
+  function renderDocRow(doc: KnowledgeDoc) {
+    const meta = getFileTypeMeta(doc.file_type, doc.name);
+    const campaignTag = doc.campaign_tag_id ? tagMap.get(doc.campaign_tag_id) : null;
+
+    return (
+      <div key={doc.id} className="p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+              meta.iconBg,
+              meta.iconColor
+            )}
+          >
+            {meta.category === "spreadsheet" ? (
+              <FileSpreadsheet size={18} />
+            ) : meta.category === "image" ? (
+              <ImageIcon size={18} />
+            ) : meta.category === "text" ? (
+              <FileCode size={18} />
+            ) : (
+              <FileText size={18} />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-on-surface text-sm truncate" title={doc.name}>
+              {doc.name}
+            </p>
+            <p className="font-mono text-[11px] text-on-surface-muted mt-0.5">
+              {formatBytes(doc.size_bytes)} · {formatDate(doc.created_at)}
+            </p>
+            {(doc.status === "failed" || doc.sort_state === "failed") && (
+              <p className="text-[11px] text-red-600 mt-1" title={doc.error_message || undefined}>
+                {doc.error_message || "Extraction error — delete & re-upload"}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <DocStatusBadge doc={doc} />
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border",
+              meta.badgeBg,
+              meta.badgeText,
+              meta.badgeBorder
+            )}
+          >
+            {meta.label}
+          </span>
+          {campaignTag ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary-50 text-primary-700 text-[11px] font-semibold border border-primary-100">
+              <Tag size={11} /> {campaignTag.name}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-low text-on-surface-muted text-[11px] font-medium border border-surface-mid">
+              🌐 Shared
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 pt-1">
+          {renderSortAction(doc)}
+          <button
+            onClick={() => openDocument(doc.id)}
+            title="What Aira looks up from this file"
+            className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={() => downloadDocument(doc.id)}
+            title="Download original file"
+            className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+          >
+            <Download size={16} />
+          </button>
+          {canManageKnowledge && (
+            <button
+              onClick={() => setDeletingDoc(doc)}
+              title="Delete document"
+              className="p-2 text-on-surface-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   async function saveFacts() {
     if (!viewingDoc) return;
     setFactsSaving(true);
@@ -855,20 +984,6 @@ export default function KnowledgePage() {
   }
 
   // ─── AI Tuning Handlers ───────────────────────────────────────────────────
-
-  async function saveDescription() {
-    setDescSaving(true);
-    try {
-      await api.aiTune.updateDescription(description);
-      setSavedDescription(description);
-      toast.success("Description saved. Updating scoring rubric…");
-      setTimeout(loadAiTuneSettings, 4000);
-    } catch {
-      toast.error("Failed to save description. Please try again.");
-    } finally {
-      setDescSaving(false);
-    }
-  }
 
   async function saveAppLink() {
     setAppLinkSaving(true);
@@ -899,6 +1014,28 @@ export default function KnowledgePage() {
       toast.error("Failed to save rubric. Please try again.");
     } finally {
       setRubricSaving(false);
+    }
+  }
+
+  async function saveHandoverLine() {
+    setHandoverSaving(true);
+    try {
+      const auth = await getAuthHeaders();
+      const value = handoverLine.trim();
+      const res = await fetch(`${API_URL}/api/v1/settings/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        // Empty string clears the row, so the platform default wording applies again.
+        body: JSON.stringify({ updates: { handover_line: value } }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setHandoverLine(value);
+      setSavedHandoverLine(value);
+      toast.success(value ? "Saved. Aira will use this line." : "Cleared. Aira will use the default line.");
+    } catch {
+      toast.error("Failed to save. Please try again.");
+    } finally {
+      setHandoverSaving(false);
     }
   }
 
@@ -1091,8 +1228,15 @@ export default function KnowledgePage() {
                     </span>
                   )}
                 </div>
-                <p className="font-body text-[11px] text-emerald-700 font-semibold mt-0.5">
-                  Ready for AI RAG retrieval
+                <p
+                  className={cn(
+                    "font-body text-[11px] font-semibold mt-0.5",
+                    stats.notSearchable > 0 ? "text-amber-700" : "text-emerald-700"
+                  )}
+                >
+                  {stats.notSearchable > 0
+                    ? `${stats.notSearchable} not searchable`
+                    : "Ready for AI RAG retrieval"}
                 </p>
               </div>
               <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
@@ -1243,9 +1387,9 @@ export default function KnowledgePage() {
                       No lead scoring rubric yet
                     </p>
                     <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-2xl">
-                      The rubric scores how interested each lead is. It&rsquo;s written for you from
+                      The rubric tells Aira how to classify leads as Hot, Warm, or Cold. It&rsquo;s written for you from
                       your Description the first time you save one, or you can write your own. It
-                      doesn&rsquo;t hold up uploads \u2014 nothing here does.
+                      doesn&rsquo;t hold up uploads &mdash; nothing here does.
                     </p>
                   </div>
                   <button
@@ -1682,8 +1826,15 @@ export default function KnowledgePage() {
                 })}
               </div>
             ) : (
-              /* ── Modern Table View ── */
-              <div className="overflow-x-auto">
+              /* ── Modern Table View (md and up) + Stacked Rows (phone) ── */
+              <>
+                {/* Below md, a 6-column table forces sideways scrolling to reach
+                    Status/Actions, so phones get stacked cards instead. */}
+                <div className="md:hidden divide-y divide-surface-mid/60">
+                  {filteredDocs.map((doc) => renderDocRow(doc))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left font-body text-sm">
                   <thead>
                     <tr className="bg-surface-low/80 border-b border-surface-mid text-[11px] font-label font-bold text-on-surface-muted uppercase tracking-wider">
@@ -1815,7 +1966,8 @@ export default function KnowledgePage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -1995,53 +2147,17 @@ export default function KnowledgePage() {
             </div>
           )}
 
-          {/* Product Description Card */}
-          <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
-            <div>
-              <h2 className="font-display text-lg font-bold text-primary">
-                Lead Segment Description
-              </h2>
-              <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                Describe your business, products, services, and the role your AI assistant plays. Write it in clear, natural language — as you would brief a new team member. Your assistant uses this core context to formulate responses and understand brand tone.
-              </p>
-            </div>
-
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={!canManageKnowledge}
-              rows={12}
-              placeholder="Example: We are a real estate consultancy based in Bangalore specializing in residential villas and apartments in North Bangalore. We help prospective homebuyers with site visits, loan pre-approvals, and booking assistance. Most customers contact us asking about project amenities, pricing per sq.ft, handover timelines, and visit schedules."
-              className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-body text-sm leading-relaxed text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
-            />
-
-            <div className="flex items-center justify-between pt-2">
-              <span
-                className={cn(
-                  "font-mono text-xs",
-                  wordCount(description) > 1200 ? "font-semibold text-amber-700" : "text-on-surface-muted"
-                )}
-              >
-                {wordCount(description).toLocaleString()} words · {description.length.toLocaleString()} characters
-                {wordCount(description) > 1200 && " — over the 1,200-word guide"}
-              </span>
-              <div className="flex items-center gap-2">
-              <button
-                onClick={() => setHistoryTarget({ kind: "description", title: "Description" })}
-                className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-surface-mid text-on-surface rounded-xl font-label text-sm font-semibold hover:bg-surface-low transition-colors shadow-xs"
-              >
-                <History size={14} /> History
-              </button>
-              <button
-                onClick={saveDescription}
-                disabled={descSaving || description === savedDescription || !canManageKnowledge}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
-              >
-                <Save size={14} /> {descSaving ? "Saving…" : "Save Description"}
-              </button>
-              </div>
-            </div>
-          </div>
+          {/* Business Profile Editor */}
+          <ProfileSectionsEditor
+            canEdit={isOwner}
+            onOpenHistory={() => setHistoryTarget({ kind: "description", title: "Description" })}
+            onSaved={() => {
+              // Update savedDescription to reflect the new word count from the profile
+              // This keeps the Documents tab status row in sync.
+              // We use loadDescription() to refetch the full text state.
+              loadDescription();
+            }}
+          />
 
           {/* App / Download Link */}
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
@@ -2074,14 +2190,48 @@ export default function KnowledgePage() {
             </div>
           </div>
 
+          {/* Handover line */}
+          <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
+            <div>
+              <h2 className="font-display text-lg font-bold text-primary">
+                When Aira can&rsquo;t help
+              </h2>
+              <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
+                What Aira tells a customer when it doesn&rsquo;t know the answer, or when they ask for a
+                person. Write it the way you want it said, for example &ldquo;Please call our office on
+                98400 00000&rdquo; or &ldquo;Use the Support option in our app&rdquo;. Aira says it in the
+                customer&rsquo;s language. Leave it empty and Aira says a team member will follow up, so
+                only leave it empty if someone on your team really does follow up.
+              </p>
+            </div>
+            <textarea
+              value={handoverLine}
+              onChange={(e) => setHandoverLine(e.target.value)}
+              rows={2}
+              maxLength={300}
+              placeholder="Please call our office on 98400 00000, 10am to 6pm."
+              aria-label="When Aira can't help"
+              className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-body text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={saveHandoverLine}
+                disabled={handoverSaving || handoverLine.trim() === savedHandoverLine || !canManageKnowledge}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
+              >
+                <Save size={14} /> {handoverSaving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+
           {/* Scoring Rubric */}
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
             <div>
               <h2 className="font-display text-lg font-bold text-primary">
-                Lead Scoring Rubric (1–10)
+                Lead Scoring Rubric (Hot / Warm / Cold)
               </h2>
               <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                The criteria used by Aira to evaluate conversation transcripts and assign 1–10 intent scores to leads. You can edit this rubric manually or toggle auto-update to sync with your product description.
+                The criteria used by Aira to classify leads into Hot, Warm, or Cold categories based on conversation transcripts. You can edit this rubric manually or toggle auto-update to sync with your product description.
               </p>
             </div>
 
@@ -2108,17 +2258,15 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            <textarea
+            <AutoGrowTextarea
               value={scoringRubric}
               onChange={(e) => setScoringRubric(e.target.value)}
-              rows={7}
+              minRows={5}
               spellCheck={false}
               placeholder={
-                "9-10: High intent — asked about pricing, booking slot, or requested human advisor callback\n" +
-                "7-8: Warm — showed clear interest, asked specific product or qualification questions\n" +
-                "5-6: Neutral — general inquiry, no immediate buying signal\n" +
-                "3-4: Lukewarm — vague interest, brief replies\n" +
-                "1-2: Low — unresponsive, spam, or out-of-scope"
+                "- Hot: Asked for pricing, booking slot, or callback; ready to proceed\n" +
+                "- Warm: Clear interest, detailed questions, comparing options, providing info\n" +
+                "- Cold: General inquiry, first contact, vague replies, no follow-up"
               }
               className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
             />
@@ -2138,7 +2286,7 @@ export default function KnowledgePage() {
 
       {/* ── Extracted Document Viewer Loading Overlay ───────────────────────── */}
       {viewerLoading && !viewingDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-surface rounded-2xl p-5 shadow-2xl border border-surface-mid flex items-center gap-3">
             <Loader2 size={24} className="animate-spin text-primary" />
             <span className="font-body text-sm font-semibold text-on-surface">Loading document content…</span>
@@ -2149,7 +2297,7 @@ export default function KnowledgePage() {
       {/* ── Extracted Document Viewer Modal ─────────────────────────────────── */}
       {viewingDoc && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setViewingDoc(null)}
         >
           <div
@@ -2415,7 +2563,7 @@ export default function KnowledgePage() {
       {/* ── Same file name: replace or keep both ───────────────────────────── */}
       {sameNamePrompt && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setSameNamePrompt(null)}
         >
           <div

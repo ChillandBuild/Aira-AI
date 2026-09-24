@@ -19,6 +19,7 @@ _DEFAULTS = {
         "proposed_description": "", "proposed_facts": "", "proposed_rule_lines": [],
         "conflicts": [], "fact_disagreements": [], "unverified": [], "left_out": [],
         "left_out_rules": [], "truncated": False, "replaces_document_id": None, "created_by": None,
+        "suggested_handover": "",
     },
     "knowledge_versions": {"document_id": None, "created_by": None, "content": ""},
 }

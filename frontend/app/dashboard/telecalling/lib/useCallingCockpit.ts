@@ -159,7 +159,17 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   useEffect(() => {
     if (!blockingWrapups) return;
     const id = setInterval(loadPendingWrapups, 5000);
-    return () => clearInterval(id);
+    // Reopening/refocusing the app must lock immediately, not after the next tick.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadPendingWrapups();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", loadPendingWrapups);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", loadPendingWrapups);
+    };
   }, [blockingWrapups, loadPendingWrapups]);
 
   async function generatePreCallBrief(leadId: string, force = false) {

@@ -3,6 +3,7 @@ import { AlertCircle, CalendarClock, Check, Copy, Phone, RefreshCw, Send, Star, 
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { formatPhone } from "@/lib/utils";
+import { pendingCallLabel } from "../lib/feedbackLabels";
 import { QUICK_NOTE_TAGS } from "./LeadDetailPanel";
 import type { CallingCockpit } from "../lib/useCallingCockpit";
 
@@ -365,7 +366,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
               </div>
               <h2 className="font-display text-xl font-extrabold text-[#1c1917]">Action Required: Pending Call Wrap-ups</h2>
               <p className="font-body text-xs text-[#a8a29e] mt-1.5">
-                You have {pendingWrapups.length} completed call(s) that require outcome feedback. Please submit feedback to unlock the dashboard.
+                You have {pendingWrapups.length} call(s) that need an outcome. Submit feedback for each to unlock the app.
               </p>
             </div>
 
@@ -377,7 +378,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                       {log.leads?.name || "Unnamed Lead"} ({formatPhone(log.leads?.phone || "")})
                     </p>
                     <p className="font-label text-xs text-[#78716c] mt-1">
-                      Duration: {log.duration_seconds || 0}s · Completed {new Date(log.created_at).toLocaleString()}
+                      {pendingCallLabel(log)} · {log.duration_seconds || 0}s · {new Date(log.created_at).toLocaleString()}
                     </p>
                   </div>
                   <button

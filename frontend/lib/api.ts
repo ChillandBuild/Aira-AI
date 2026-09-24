@@ -236,6 +236,18 @@ export interface TranscriptPreview {
   hidden_lines: number;
 }
 
+export interface PendingWrapupSummary {
+  caller_id: string;
+  name: string | null;
+  pending_count: number;
+  last_sync_at: string | null;
+  has_sync_token: boolean;
+  /** Aira Sync build the phone last reported; null = never reported (1.2 or older). */
+  app_version: number | null;
+  /** Newest published build from version.json; null if it couldn't be read. */
+  latest_app_version: number | null;
+}
+
 export interface CallLog {
   id: string;
   lead_id: string | null;
@@ -272,6 +284,8 @@ export interface CallLog {
   manual_started_at?: string | null;
   manual_ended_at?: string | null;
   transcript_preview?: TranscriptPreview | null;
+  direction?: "outgoing" | "incoming" | "missed" | null;
+  feedback_at?: string | null;
   created_at: string;
   leads?: { phone: string | null; name: string | null } | null;
   callers?: { name: string | null } | null;
@@ -443,6 +457,10 @@ export interface KnowledgeReview {
   replaces_document: { id: string; name: string } | null;
   word_count: number;
   soft_word_limit: number;
+  /** A sentence the upload contained telling customers how to reach a person
+   *  (e.g. "Call Priya at 98765 43210"). "" when none was found. Never saved
+   *  automatically -- the client chooses to use it as their handover line. */
+  suggested_handover: string;
 }
 
 export type KnowledgeConflictChoice = "a" | "b" | "none";
@@ -1580,6 +1598,13 @@ export const api = {
       }),
     getPendingWrapups: () =>
       apiFetch<CallLog[]>(`/api/v1/calls/pending-wrapups`),
+    pendingWrapupsSummary: () =>
+      apiFetch<PendingWrapupSummary[]>(`/api/v1/calls/pending-wrapups/summary`),
+    dismissFeedback: (callLogId: string, reason: string) =>
+      apiFetch<{ dismissed: boolean }>(`/api/v1/calls/${callLogId}/dismiss-feedback`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      }),
     nextLead: (callerId?: string) =>
       apiFetch<Lead>(`/api/v1/calls/next-lead${callerId ? `?caller_id=${callerId}` : ""}`),
     assignmentMode: () =>
@@ -1699,6 +1724,9 @@ export const api = {
         sorted_at?: string | null;
         sort_state?: "sorting" | "review" | "failed" | null;
         has_pending_review?: boolean;
+        /** False when Aira can't run a vector search over this file. */
+        searchable?: boolean;
+        search_issue?: null | "no_jina_key" | "not_indexed";
       }> }>(`/api/v1/knowledge/documents`);
       return res.data || [];
     },

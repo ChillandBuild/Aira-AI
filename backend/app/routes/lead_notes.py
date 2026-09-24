@@ -73,7 +73,7 @@ async def leads_with_activity(ctx: dict = Depends(get_tenant_and_role)):
     if ctx.get("role") == "caller" and ctx.get("caller_id"):
         query = query.eq("assigned_to", ctx["caller_id"])
 
-    result = query.order("score", desc=True).execute()
+    result = query.order("segment").order("last_inbound_at", desc=True, nullsfirst=False).order("created_at", desc=True).execute()
     return {"data": result.data or []}
 
 

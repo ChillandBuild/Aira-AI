@@ -908,9 +908,6 @@ async def funnel_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
     }
     scores = []
     leads_this_week = 0
-    score_histogram_raw: dict[str, int] = {
-        "1-2": 0, "3-4": 0, "5-6": 0, "7-8": 0, "9-10": 0,
-    }
 
     now = datetime.now(timezone.utc)
     hot_aging: dict[str, int] = {"<1d": 0, "1-3d": 0, "3-7d": 0, "7d+": 0}
@@ -927,16 +924,6 @@ async def funnel_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
         score = lead.get("score")
         if score is not None:
             scores.append(score)
-            if 1 <= score <= 2:
-                score_histogram_raw["1-2"] += 1
-            elif 3 <= score <= 4:
-                score_histogram_raw["3-4"] += 1
-            elif 5 <= score <= 6:
-                score_histogram_raw["5-6"] += 1
-            elif 7 <= score <= 8:
-                score_histogram_raw["7-8"] += 1
-            elif 9 <= score <= 10:
-                score_histogram_raw["9-10"] += 1
 
         if (lead.get("created_at") or "") >= week:
             leads_this_week += 1
@@ -961,9 +948,11 @@ async def funnel_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
 
     avg_score = round(sum(scores) / len(scores), 1) if scores else None
 
+    # Segment labels for response
+    segment_labels = {"A": "Hot", "B": "Warm", "C": "Cold", "D": "Not Interested"}
     score_histogram = [
-        {"range": r, "count": score_histogram_raw[r]}
-        for r in ("1-2", "3-4", "5-6", "7-8", "9-10")
+        {"range": segment_labels[seg], "count": by_segment[seg]}
+        for seg in ("A", "B", "C", "D")
     ]
     hot_lead_aging = [
         {"bucket": b, "count": hot_aging[b]}

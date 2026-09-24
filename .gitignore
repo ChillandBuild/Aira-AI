@@ -61,3 +61,15 @@ android/**/*.keystore
 # Firecrawl MCP scrape output — dropped at repo root by the tool, not source content
 .firecrawl/
 sim-out/
+
+# Scoring eval: real customer chats stay local
+backend/evals/scoring/golden_real.json
+backend/evals/scoring/results_*.json
+SCORING_LABELS_REVIEW.md
+backend/evals/replies/golden_real.json
+backend/evals/replies/results_*.json
+PROFILES_REVIEW.md
+
+# UI test account credentials (local only, never commit)
+backend/evals/ui/.test-account.json
+backend/evals/ui/screenshots/

@@ -23,11 +23,6 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
                 prefs.lastSyncedTimestampMs
             }
 
-            val calls = CallLogReader.readCallsSince(applicationContext, sinceMs)
-            if (calls.isEmpty()) {
-                return@withContext Result.success()
-            }
-
             val retrofit = Retrofit.Builder()
                 .baseUrl(prefs.serverUrl)
                 .addConverterFactory(GsonConverterFactory.create())
@@ -35,15 +30,25 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
 
             val api = retrofit.create(AiraApi::class.java)
 
-            // Fetch the caller's assigned-lead numbers for on-device filtering.
-            // Fail closed: if we can't get the lead set, do NOT upload anything —
-            // never risk sending a personal call to the server.
-            val leadResp = api.getLeadNumbers(prefs.syncToken)
+            // Fetch the lead-number set FIRST, even when there are no new calls: the
+            // request doubles as the check-in the owner's "Aira Sync inactive" warning
+            // relies on. Fail closed: if we can't get the lead set, do NOT upload
+            // anything — never risk sending a personal call to the server.
+            val appVersion = UpdateChecker.currentVersionCode(applicationContext).toString()
+            val leadResp = api.getLeadNumbers(prefs.syncToken, appVersion)
             if (!leadResp.isSuccessful) {
                 Log.e("SyncWorker", "Lead-number fetch failed: HTTP ${leadResp.code()}")
                 return@withContext Result.retry()
             }
             val leadSet = leadResp.body()?.numbers?.toHashSet() ?: hashSetOf()
+
+            // Best-effort: an update-check failure must never affect call syncing.
+            UpdateChecker.checkAndNotify(applicationContext)
+
+            val calls = CallLogReader.readCallsSince(applicationContext, sinceMs)
+            if (calls.isEmpty()) {
+                return@withContext Result.success()
+            }
 
             // Keep only calls to/from a known lead; personal calls never leave the phone.
             val workCalls = calls.filter { normalizePhone(it.number) in leadSet }
@@ -57,7 +62,7 @@ class SyncWorker(appContext: Context, workerParams: WorkerParameters) :
                 return@withContext Result.success()
             }
 
-            val response = api.postCalls(prefs.syncToken, SimCdrPayload(workCalls))
+            val response = api.postCalls(prefs.syncToken, appVersion, SimCdrPayload(workCalls))
             if (response.isSuccessful) {
                 prefs.lastSyncedTimestampMs = newBoundary
                 Log.d("SyncWorker", "Synced ${workCalls.size}/${calls.size} lead calls, boundary: $newBoundary")

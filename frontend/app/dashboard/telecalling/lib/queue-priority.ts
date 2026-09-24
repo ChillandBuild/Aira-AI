@@ -27,9 +27,6 @@ export function compareLeadQueuePriority(a: Lead, b: Lead): number {
   const segmentRank = (SEGMENT_RANK[a.segment] ?? 9) - (SEGMENT_RANK[b.segment] ?? 9);
   if (segmentRank !== 0) return segmentRank;
 
-  const scoreRank = (b.score ?? 0) - (a.score ?? 0);
-  if (scoreRank !== 0) return scoreRank;
-
   const aActivity = timeValue(a.last_inbound_at) || timeValue(a.assigned_at) || timeValue(a.created_at);
   const bActivity = timeValue(b.last_inbound_at) || timeValue(b.assigned_at) || timeValue(b.created_at);
   return bActivity - aActivity;

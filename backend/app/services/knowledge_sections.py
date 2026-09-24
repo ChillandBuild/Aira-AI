@@ -9,10 +9,10 @@ No I/O here: everything is deterministic and unit-tested directly."""
 import re
 from dataclasses import dataclass
 
-MAX_SECTION_CHARS = 2_500
+MAX_SECTION_CHARS = 1_000
 # A heading only starts a new section once the current one has some substance --
 # otherwise every "Examples" line would become its own one-line section.
-_MIN_SECTION_CHARS = 400
+_MIN_SECTION_CHARS = 200
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,25 @@
+{
+  "must_be_facts": [
+    "₹200",
+    "₹800",
+    "₹500",
+    "₹3500",
+    "₹28000",
+    "₹45000",
+    "₹350",
+    "641002"
+  ],
+  "must_be_profile": [
+    "vanakkam",
+    "never say we are the",
+    "never compare",
+    "come in for a check",
+    "root canal vs extraction"
+  ],
+  "must_not_be_profile": [
+    "reply in tamil by default",
+    "98765 43210",
+    "revised version of your clinic description"
+  ],
+  "junk_marker": "revised version of your clinic description"
+}

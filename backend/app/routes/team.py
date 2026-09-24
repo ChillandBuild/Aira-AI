@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_and_role, require_permission
+from app.dependencies.tenant import get_tenant_and_role, require_permission, invalidate_tenant_cache
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.attendance import build_attendance_map, compute_team_summary, date_range
 from app.services.rbac import ensure_default_roles
@@ -209,6 +209,7 @@ def remove_member(user_id: str, ctx: dict = Depends(get_tenant_and_role)):
     db = get_supabase()
     db.table("tenant_users").delete().eq("user_id", user_id).eq("tenant_id", ctx["tenant_id"]).execute()
     db.table("callers").delete().eq("user_id", user_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    invalidate_tenant_cache(user_id)
     return {"removed": True}
 
 

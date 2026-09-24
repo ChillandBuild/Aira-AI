@@ -34,9 +34,10 @@ def section_ids(user_text: str) -> list[str]:
     return re.findall(r"<<(s\d+)>>", user_text)
 
 
-def fake_model(monkeypatch, *, labels, compiled=None, disagreements=None):
+def fake_model(monkeypatch, *, labels, compiled=None, disagreements=None, handover=""):
     """labels: callable(section_id, section_text) -> (label, facts) for each section.
-    compiled: dict returned for the compile prompt (default: current + rules joined).
+    compiled: dict returned for the compile prompt (default: current + rules joined,
+    plus `handover` if given -- unused when `compiled` is passed explicitly).
     Returns the list of prompts called, for asserting which steps ran."""
     calls: list[str] = []
 
@@ -56,10 +57,13 @@ def fake_model(monkeypatch, *, labels, compiled=None, disagreements=None):
             current = user.split("CURRENT DESCRIPTION:\n", 1)[1].split("\n\nNEW RULES:", 1)[0]
             current = "" if current == "(empty)" else current
             rules = user.split("NEW RULES:\n", 1)[1]
-            return {"description": (current + "\n" + rules).strip(), "conflicts": []}
+            return {"description": (current + "\n" + rules).strip(), "conflicts": [], "handover": handover}
         if system is ks._DISAGREE_SYSTEM:
             calls.append("disagree")
             return {"disagreements": disagreements or []}
+        if system is ks._CONDENSE_SYSTEM:
+            calls.append("condense")
+            return {"text": user.split("TEXT:\n", 1)[1]}
         raise AssertionError("unexpected prompt")
 
     monkeypatch.setattr(ks, "_llm_json", _fake)

@@ -1,14 +1,17 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, field_validator
 
 from app.config_dynamic import get_setting, save_setting, invalidate_cache
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.gemini_client import gemini_chat_completion
 from app.services.knowledge_versions import save_description
+from app.services.business_profile import (
+    SECTIONS, HARD_WORD_LIMIT, parse, render, validate, word_count, propose_conversion
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_owner)])
@@ -29,6 +32,13 @@ class AppLinkUpdate(BaseModel):
     app_link: str
 
 
+# The profile is capped at 700 words (~4,500 chars, more in Tamil script). The prompt used
+# to read only the first 1,500 chars, so a full profile's later sections -- how customers
+# buy, the business rules, never-do's -- never reached the rubric. 12,000 leaves room
+# for a 700-word profile in any script and still bounds the request.
+_RUBRIC_INPUT_CHARS = 12_000
+
+
 def _rubric_prompt(description: str) -> str:
     """Build the rubric-generation prompt from the client's business description.
 
@@ -37,23 +47,42 @@ def _rubric_prompt(description: str) -> str:
     nothing like one for a real-estate agent). The master prompt is generic behaviour
     shared across clients and would produce an identical, useless rubric for everyone.
     """
-    return f"""You are configuring a lead scoring system for a B2B sales team.
+    return f"""You write the examples a lead classifier uses for ONE business.
 
-Based on this business's own description of what it does, write a lead scoring rubric
-(1-10 scale). The rubric should reflect THIS specific business's conversion signals —
-not generic ones.
+The classifier already has fixed definitions for every business:
+- HOT  = the lead took a buying step (asked the price or how to pay, asked to book /
+         visit / get a demo, asked for the sign-up or app link, said they want to buy,
+         sent the details the service needs to start, or is blocked while trying to buy).
+- WARM = real interest but no buying step yet (asks about the service, describes a need
+         or personal question the service answers, compares options, will decide later).
+- COLD = no real interest (greetings, one-word replies, unrelated, wrong number, asks for
+         something this business does not sell, or withdrew).
+
+Your job: translate those definitions into what they look like for THIS business.
+First work out, silently: what exactly does a customer pay for here, how do they
+start or book it, and what problems or questions bring people here.
 
 Business description:
-{description[:1500]}
+{description[:_RUBRIC_INPUT_CHARS]}
 
-Write a rubric in this exact format (5 lines, one per score band):
-- 9-10: [High intent signals specific to this business]
-- 7-8: [Warm signals specific to this business]
-- 5-6: [Neutral signals]
-- 3-4: [Low engagement signals]
-- 1-2: [Not interested signals]
+Rules:
+- Hot must name concrete buying steps for this business (its booking, payment or
+  sign-up actions), never a topic. "Asks about marriage" is a topic, so it is Warm.
+- Warm must name the questions and needs people here typically have.
+- Cold must name the typical non-buyers for this business (e.g. job seekers, people
+  wanting a service it does not offer), plus greetings and one-word replies.
+- Write in the customer's likely words where useful. Keep each line under 45 words.
 
-Reply with ONLY the 5 rubric lines. No explanation, no preamble."""
+Reply with exactly 3 lines and nothing else:
+- Hot: ...
+- Warm: ...
+- Cold: ..."""
+
+
+def is_old_5band_rubric(rubric: str) -> bool:
+    """Detect old numeric 5-band rubric format. Single source: scoring_engine."""
+    from app.services.scoring_engine import _is_old_5band_rubric
+    return _is_old_5band_rubric(rubric)
 
 
 async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = False) -> None:
@@ -62,7 +91,7 @@ async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = 
     try:
         if not force:
             existing_rubric = get_setting("scoring_rubric", tenant_id=tenant_id)
-            if existing_rubric and existing_rubric.strip():
+            if existing_rubric and existing_rubric.strip() and not is_old_5band_rubric(existing_rubric):
                 logger.info(f"Scoring rubric already exists for tenant {tenant_id} — skipping auto-generation")
                 return
 
@@ -70,15 +99,17 @@ async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = 
             await gemini_chat_completion(
                 messages=[{"role": "user", "content": _rubric_prompt(description)}],
                 model=_TUNE_MODEL,
-                temperature=0.3,
-                max_tokens=300,
+                temperature=0.2,
+                max_tokens=400,
                 tenant_id=tenant_id,
                 purpose="ai_tune_rubric",
             )
         ).strip()
-        if rubric and "9-10" in rubric:
+        if rubric and ("Hot" in rubric or "hot" in rubric):
             save_setting("scoring_rubric", rubric, tenant_id=tenant_id)
             logger.info(f"Auto-generated scoring rubric for tenant {tenant_id}")
+        else:
+            logger.warning(f"Generated rubric for tenant {tenant_id} does not match expected format")
     except Exception as e:
         logger.warning(f"Auto-rubric generation failed for tenant {tenant_id}: {e}")
 
@@ -137,3 +168,134 @@ async def update_app_link(payload: AppLinkUpdate, tenant_id: str = Depends(get_t
     save_setting("app_download_link", app_link, tenant_id=tenant_id)
     invalidate_cache("app_download_link")
     return {"app_link": app_link}
+
+
+# ─── Business Profile endpoints ────────────────────────────────────────────
+
+
+class ProfileSection(BaseModel):
+    key: str
+    heading: str
+    label: str
+    hint: str
+    word_limit: int
+    text: str = ""
+    words: int = 0
+
+
+class ProfileResponse(BaseModel):
+    sections: list[ProfileSection]
+    other: str = ""
+    total_words: int
+    hard_limit: int
+    is_structured: bool
+
+
+class ProfileUpdatePayload(BaseModel):
+    sections: dict[str, str] = {}
+    other: str = ""
+    
+    @field_validator('sections')
+    def validate_section_keys(cls, v):
+        """Ensure only known section keys."""
+        from app.services.business_profile import _SECTION_BY_KEY
+        for key in v.keys():
+            if key not in _SECTION_BY_KEY:
+                raise ValueError(f"Unknown section key: {key}")
+        return v
+
+
+@router.get("/profile")
+async def get_profile(tenant_id: str = Depends(get_tenant_id)):
+    """Get current profile sections and metadata."""
+    current = get_setting("business_description", tenant_id=tenant_id) or ""
+    parsed = parse(current)
+    
+    sections_list = []
+    for section in SECTIONS:
+        text = parsed.sections.get(section.key, "")
+        words = word_count(text)
+        sections_list.append(ProfileSection(
+            key=section.key,
+            heading=section.heading,
+            label=section.label,
+            hint=section.hint,
+            word_limit=section.word_limit,
+            text=text,
+            words=words,
+        ))
+    
+    total = sum(word_count(s.text) for s in sections_list) + word_count(parsed.other)
+    
+    return ProfileResponse(
+        sections=sections_list,
+        other=parsed.other,
+        total_words=total,
+        hard_limit=HARD_WORD_LIMIT,
+        is_structured=bool(parsed.sections) and not parsed.other.strip(),
+    )
+
+
+@router.put("/profile")
+async def update_profile(
+    payload: ProfileUpdatePayload,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_owner),
+):
+    """Update profile sections.
+    
+    Validates total word count and saves via save_description with reason 'edit'.
+    Returns 422 if validation fails.
+    """
+    errors = validate(payload.sections, payload.other)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+    
+    text = render(payload.sections, payload.other)
+    save_description(get_supabase(), tenant_id, text, "edit", ctx.get("user_id"))
+    queue_rubric_for_description(tenant_id, text)
+    
+    # Return updated profile
+    parsed = parse(text)
+    sections_list = []
+    for section in SECTIONS:
+        text_val = parsed.sections.get(section.key, "")
+        words = word_count(text_val)
+        sections_list.append(ProfileSection(
+            key=section.key,
+            heading=section.heading,
+            label=section.label,
+            hint=section.hint,
+            word_limit=section.word_limit,
+            text=text_val,
+            words=words,
+        ))
+    
+    total = sum(word_count(s.text) for s in sections_list) + word_count(parsed.other)
+    
+    return {
+        "sections": sections_list,
+        "other": parsed.other,
+        "total_words": total,
+        "hard_limit": HARD_WORD_LIMIT,
+        "is_structured": bool(parsed.sections) and not parsed.other.strip(),
+        "rubric_queued": True,
+    }
+
+
+@router.post("/profile/convert")
+async def convert_profile(
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_owner),
+):
+    """Convert free-text description to structured profile.
+    
+    Uses LLM to split current description into sections.
+    Does not save; returns proposed conversion with metadata.
+    """
+    current = get_setting("business_description", tenant_id=tenant_id) or ""
+    if not current.strip():
+        raise HTTPException(status_code=400, detail="Description is empty.")
+    
+    result = await propose_conversion(tenant_id, current)
+    return result
