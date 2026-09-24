@@ -32,10 +32,11 @@ from app.services.gemini_client import gemini_chat_completion_json  # noqa: E402
 from app.services.knowledge_service import get_knowledge_context  # noqa: E402
 
 JUDGE_MODEL = "gemini-3.5-flash"
-CONCURRENCY = 4
+CONCURRENCY = 2  # Jina allows 2 concurrent requests per key
 MAX_REPLY_CHARS = 700
 _PLACEHOLDER_RE = re.compile(r"\[(?:insert|link|url|your)[^\]]*\]", re.IGNORECASE)
 _UNSET = object()
+REAL_HANDOVER_LINE = ""  # set by --real-handover-line
 
 # ── Settings override, per asyncio task ──────────────────────────────────────
 _overrides: contextvars.ContextVar[dict] = contextvars.ContextVar("overrides", default={})
@@ -82,12 +83,14 @@ def load_cases(only: str | None) -> tuple[list[dict], dict]:
 
 async def build_context(case: dict, biz: dict | None, key_tenant: str) -> tuple[str, dict]:
     if biz is None:  # real tenant: its own settings and live retrieval
-        return await get_knowledge_context(key_tenant, query=case["message"]), {}
+        overrides = {"handover_line": REAL_HANDOVER_LINE} if REAL_HANDOVER_LINE else {}
+        return await get_knowledge_context(key_tenant, query=case["message"]), overrides
     excerpts = "\n\n".join(f"=== excerpt {i + 1} ===\n{f}" for i, f in enumerate(biz["facts"]))
     overrides = {
         "business_description": biz["description"],
         "app_download_link": biz.get("app_link"),
         "reply_language_mode": biz["language_mode"],
+        "handover_line": biz.get("handover_line"),
     }
     return excerpts, overrides
 
@@ -95,7 +98,8 @@ async def build_context(case: dict, biz: dict | None, key_tenant: str) -> tuple[
 async def generate(case: dict, biz: dict | None, key_tenant: str) -> tuple[str, str, str, str]:
     context_text, overrides = await build_context(case, biz, key_tenant)
     _overrides.set(overrides)
-    lead = {"name": "", "segment": "C", "tenant_id": key_tenant, "needs_human_attention": False}
+    lead = {"name": "", "segment": "C", "tenant_id": key_tenant,
+            "needs_human_attention": bool(case.get("escalated"))}
     system_prompt, _mode, _intake = ai_reply.build_reply_system_prompt(
         _StubDB(), "eval-lead", key_tenant, lead, case["message"], "whatsapp",
         context_text=context_text, include_intake_context=False,
@@ -146,8 +150,10 @@ broke_rule     = breaks a rule in the BUSINESS PROFILE, or a universal rule: nev
                  outcomes; no medical/legal/financial advice; a stop request gets one short
                  acknowledgement and nothing else.
 claimed_action = says something was done that an assistant cannot have done ("I have booked",
-                 "I have updated our records", "I have informed the team", "you will not
-                 receive messages") unless the conversation shows it happened.
+                 "I have updated our records", "I have informed the team") unless the
+                 conversation shows it happened. Exception: replying to a clear stop /
+                 not-interested request with "you won't be contacted again" is true (the
+                 system opts the lead out), so it is NOT a claimed action.
 wrong_language = the reply's language or style does not match the LANGUAGE EXPECTED line.
 pushy          = selling the customer did not invite, or repeating a call to action.
 natural        = 5 reads like a helpful human on WhatsApp, 1 robotic or awkward.
@@ -244,7 +250,17 @@ async def main() -> None:
     parser.add_argument("--key-tenant", required=True)
     parser.add_argument("--only", choices=["real", "synthetic"], default=None)
     parser.add_argument("--out", default=None)
+    parser.add_argument("--real-handover-line", default="",
+                        help="handover line to test the real tenant with (not saved anywhere)")
+    parser.add_argument("--master-file", default=None,
+                        help="use this master prompt text instead of the live one (test before publishing)")
     args = parser.parse_args()
+    if args.real_handover_line:
+        global REAL_HANDOVER_LINE
+        REAL_HANDOVER_LINE = args.real_handover_line
+    if args.master_file:
+        master = Path(args.master_file).read_text()
+        ai_reply.get_master_prompt = lambda: master
     cases, businesses = load_cases(args.only)
     sem = asyncio.Semaphore(CONCURRENCY)
     results = await asyncio.gather(*(run_case(c, businesses, args.key_tenant, sem) for c in cases))

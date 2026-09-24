@@ -323,12 +323,38 @@ def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
             "rules above already call for sharing the app or a download/consultation "
             "link -- if you need one, use this exact URL instead of inventing one."
         )
+    prompt += _handover_rule_block(tenant_id)
     prompt += (
         "\n\nNEVER write a placeholder like \"[Insert Link Here]\" or \"[link]\" in a reply. "
-        "If you need a link you don't have, say a team member will send it instead of inventing one."
+        "If you need a link you don't have, follow the HANDOVER RULE instead of inventing one."
     )
 
     return prompt
+
+
+def _handover_line(tenant_id: str | None) -> str:
+    """The client's own words for "I can't help with this here" (Knowledge page).
+    Empty means the client hasn't set one and the platform default applies."""
+    return (get_setting("handover_line", tenant_id=tenant_id) or "").strip()
+
+
+def _handover_rule_block(tenant_id: str | None) -> str:
+    """One place that decides what the AI says when it can't answer or a human is
+    asked for. Every other block (knowledge, campaign, missing link, escalation, the
+    master prompt) points here instead of hardcoding "a team member will contact you",
+    which a client like Astro Tamil forbids and which promised callbacks nobody made."""
+    line = _handover_line(tenant_id)
+    if line:
+        return (
+            "\n\nHANDOVER RULE (this business's own instruction): when you cannot answer "
+            "from the information you have, or the customer asks for a person, tell them "
+            f"this in the customer's language: \"{line}\". Do not say anyone will contact "
+            "them unless that line says so."
+        )
+    return (
+        "\n\nHANDOVER RULE: when you cannot answer from the information you have, or the "
+        "customer asks for a person, say a team member will follow up."
+    )
 
 
 def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
@@ -1114,9 +1140,24 @@ def _trigger_chat_escalation(
         logger.exception("Escalation WhatsApp queue failed for lead %s", lead_id)
 
 
-def _escalation_prompt_block(bh: dict, now=None) -> str:
+def _escalation_prompt_block(bh: dict, now=None, handover_line: str = "") -> str:
     """System-prompt section telling the AI this lead is already escalated and
-    how to answer while they wait, based on whether the office is open."""
+    how to answer while they wait, based on whether the office is open.
+
+    With a client handover line, the AI repeats that line instead of promising a
+    callback: the client decided how people get help, not this block."""
+    if handover_line:
+        return (
+            "\n\nESCALATION CONTEXT:\n"
+            "This customer has already asked for help beyond what you can answer. If they "
+            "ask for a person, ask about their request, or say nobody has helped them yet, "
+            f"tell them this in their language: \"{handover_line}\".\n"
+            "Rules:\n"
+            "- Never promise a callback, a time, or a named person.\n"
+            "- Never claim someone has already called or messaged them.\n"
+            "- Never say the request was resolved.\n"
+            "- Otherwise keep answering their questions normally and helpfully.\n"
+        )
     from app.services.business_hours import (
         is_within_business_hours, describe_hours, next_open_description,
     )
@@ -1458,10 +1499,15 @@ def build_reply_system_prompt(
         system_prompt += (
             f'\n\nCAMPAIGN CONTEXT:\nThis lead came from the "{campaign_name}" campaign. '
             "Assume their questions relate to that unless they clearly ask about something else. "
-            "If they ask about something outside it, offer to connect them with the team."
+            "If they ask about something outside it that you cannot answer, follow the HANDOVER RULE."
         )
     if context_text:
-        system_prompt += "\n\nKNOWLEDGE BASE:\nUse the following excerpts to answer the user's question accurately. If the answer is not in the excerpts, say you will connect them with a team member.\n\n" + context_text
+        system_prompt += (
+            "\n\nKNOWLEDGE BASE:\nUse the following excerpts to answer the user's question "
+            "accurately. If the answer is not in the excerpts, do not guess and do not answer "
+            "yes or no; say you don't have that detail and follow the HANDOVER RULE.\n\n"
+            + context_text
+        )
 
     lead_name = (lead_data.get("name") or "").strip()
     lead_segment = lead_data.get("segment") or "C"
@@ -1540,7 +1586,8 @@ def build_reply_system_prompt(
         try:
             from app.services.business_hours import get_business_hours
             system_prompt += _escalation_prompt_block(
-                get_business_hours(tenant_id, db=db)
+                get_business_hours(tenant_id, db=db),
+                handover_line=_handover_line(tenant_id),
             )
         except Exception:
             logger.exception(

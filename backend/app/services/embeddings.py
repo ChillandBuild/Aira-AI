@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import httpx
@@ -15,9 +16,32 @@ _MAX_BATCH = 100
 _TASK_DOCUMENT = "retrieval.passage"
 _TASK_QUERY = "retrieval.query"
 
+# Jina's free tier allows 2 concurrent requests per key. Past that it answers 429 and
+# retrieval silently fell back to pasting every document into the prompt whenever a
+# few leads messaged at once. Queue locally instead, and retry a 429 briefly.
+# Per process: with several workers the limit can still be exceeded, hence the retry.
+_JINA_CONCURRENCY = 2
+_JINA_RETRY_DELAYS = (0.5, 1.5)
+_jina_slots = asyncio.Semaphore(_JINA_CONCURRENCY)
+
 
 class EmbeddingError(RuntimeError):
     """Raised when the embedding provider is unavailable or returns a bad shape."""
+
+
+async def _post_with_retry(headers: dict, payload: dict) -> httpx.Response:
+    """POST to Jina inside the local concurrency limit, retrying only on 429."""
+    resp = None
+    for delay in (0.0, *_JINA_RETRY_DELAYS):
+        if delay:
+            await asyncio.sleep(delay)
+        async with _jina_slots:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(_JINA_URL, headers=headers, json=payload)
+        if resp.status_code != 429:
+            return resp
+        logger.warning("Jina 429 (concurrency), retrying")
+    return resp
 
 
 async def _call_jina(inputs: list[str], task: str, tenant_id: str | None) -> list[list[float]]:
@@ -37,8 +61,7 @@ async def _call_jina(inputs: list[str], task: str, tenant_id: str | None) -> lis
         "dimensions": EMBED_DIM,
         "input": inputs,
     }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(_JINA_URL, headers=headers, json=payload)
+    resp = await _post_with_retry(headers, payload)
     if resp.status_code != 200:
         raise EmbeddingError(f"Jina {resp.status_code}: {resp.text[:300]}")
     rows = (resp.json() or {}).get("data") or []

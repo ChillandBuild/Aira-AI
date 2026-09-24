@@ -449,6 +449,12 @@ async def compute_score(
 
     # ── 4. REJECTION: bypass everything, force D for both global + broadcast ───
     if is_rejection:
+        # A clear refusal is a full opt-out, not just a segment change. The master
+        # prompt tells the lead "you won't be contacted again"; before this, only the
+        # exact words "stop"/"unsubscribe" set opted_out, so leads who wrote "not
+        # interested, stop messaging me" kept getting automatic follow-ups.
+        # Reversible by hand (upload.py reactivate endpoint). The AI still answers if
+        # the lead writes again; only automated outbound stops.
         rejection_payload = {
             "score": 0, "score_arc": 0, "score_intent_delta": 0,
             "score_engagement": 0,
@@ -456,6 +462,8 @@ async def compute_score(
             "segment_drop_count": 0,
             "last_inbound_at": now_iso,
             "broadcast_negative_reply_at": now_iso,
+            "opted_out": True,
+            "opted_out_at": now_iso,
         }
         db.table("leads").update(rejection_payload).eq("id", str(lead_id)).execute()
 

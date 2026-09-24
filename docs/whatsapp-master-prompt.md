@@ -1,5 +1,12 @@
 # Messaging Compliance Master Prompt (platform-wide)
 
+> **2026-09-24: the text below is NOT what runs.** The live master prompt was rewritten in
+> the operator console (26 rules, ~2,300 words, partly Astro Tamil specific). An exact copy
+> of the live text, plus the 2026-09-24 handover / "don't guess" / "unclear message" edits,
+> is in [master-prompt-live.txt](master-prompt-live.txt). Test any change with
+> `python -m evals.replies.run_eval --master-file ../docs/master-prompt-live.txt` before
+> publishing it to `platform_defaults`.
+
 Canonical text for the developer-owned master prompt, stored in
 `platform_defaults.default_master_prompt` and loaded by `get_master_prompt()` /
 `_build_base_prompt()` in `backend/app/services/ai_reply.py`.

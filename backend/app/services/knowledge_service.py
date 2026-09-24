@@ -195,7 +195,19 @@ def _full_text_context(tenant_id: str, db, campaign_tag_id: str | None = None) -
         for doc in (res.data or [])
         if doc.get("full_text")
     ]
-    return "\n\n".join(parts)
+    return _cap_fallback("\n\n".join(parts))
+
+
+# The fallback pastes whole documents into the prompt. Uncapped, a tenant with many
+# large files sent up to ~50k characters per document on every retrieval miss.
+_FALLBACK_MAX_CHARS = 12_000
+
+
+def _cap_fallback(text: str) -> str:
+    if len(text) <= _FALLBACK_MAX_CHARS:
+        return text
+    logger.warning("Full-text fallback truncated from %d to %d chars", len(text), _FALLBACK_MAX_CHARS)
+    return text[:_FALLBACK_MAX_CHARS]
 
 
 def _format_excerpts(rows: list[dict]) -> str:

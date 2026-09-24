@@ -455,6 +455,9 @@ export default function KnowledgePage() {
   const [savedRubric, setSavedRubric] = useState<string>("");
   const [rubricSaving, setRubricSaving] = useState(false);
   const [rubricAutoUpdate, setRubricAutoUpdate] = useState(false);
+  const [handoverLine, setHandoverLine] = useState<string>("");
+  const [savedHandoverLine, setSavedHandoverLine] = useState<string>("");
+  const [handoverSaving, setHandoverSaving] = useState(false);
   const [rubricToggleSaving, setRubricToggleSaving] = useState(false);
   // Description + rubric drive the upload gate on the Documents tab, so they are
   // fetched on mount rather than lazily when the Description tab opens.
@@ -681,6 +684,10 @@ export default function KnowledgePage() {
       }
       const auto = settings.find((s) => s.key === "rubric_auto_update");
       setRubricAutoUpdate(auto?.display_value === "true");
+      const handover = settings.find((s) => s.key === "handover_line");
+      const handoverVal = handover && handover.display_value !== "Not set" ? handover.display_value : "";
+      setHandoverLine(handoverVal);
+      setSavedHandoverLine(handoverVal);
     } catch {}
   }
 
@@ -899,6 +906,28 @@ export default function KnowledgePage() {
       toast.error("Failed to save rubric. Please try again.");
     } finally {
       setRubricSaving(false);
+    }
+  }
+
+  async function saveHandoverLine() {
+    setHandoverSaving(true);
+    try {
+      const auth = await getAuthHeaders();
+      const value = handoverLine.trim();
+      const res = await fetch(`${API_URL}/api/v1/settings/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...auth },
+        // Empty string clears the row, so the platform default wording applies again.
+        body: JSON.stringify({ updates: { handover_line: value } }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setHandoverLine(value);
+      setSavedHandoverLine(value);
+      toast.success(value ? "Saved. Aira will use this line." : "Cleared. Aira will use the default line.");
+    } catch {
+      toast.error("Failed to save. Please try again.");
+    } finally {
+      setHandoverSaving(false);
     }
   }
 
@@ -2070,6 +2099,40 @@ export default function KnowledgePage() {
                 className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
               >
                 <Save size={14} /> {appLinkSaving ? "Saving…" : "Save Link"}
+              </button>
+            </div>
+          </div>
+
+          {/* Handover line */}
+          <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
+            <div>
+              <h2 className="font-display text-lg font-bold text-primary">
+                When Aira can&rsquo;t help
+              </h2>
+              <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
+                What Aira tells a customer when it doesn&rsquo;t know the answer, or when they ask for a
+                person. Write it the way you want it said, for example &ldquo;Please call our office on
+                98400 00000&rdquo; or &ldquo;Use the Support option in our app&rdquo;. Aira says it in the
+                customer&rsquo;s language. Leave it empty and Aira says a team member will follow up, so
+                only leave it empty if someone on your team really does follow up.
+              </p>
+            </div>
+            <textarea
+              value={handoverLine}
+              onChange={(e) => setHandoverLine(e.target.value)}
+              rows={2}
+              maxLength={300}
+              placeholder="Please call our office on 98400 00000, 10am to 6pm."
+              aria-label="When Aira can't help"
+              className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-body text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={saveHandoverLine}
+                disabled={handoverSaving || handoverLine.trim() === savedHandoverLine || !canManageKnowledge}
+                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
+              >
+                <Save size={14} /> {handoverSaving ? "Saving…" : "Save"}
               </button>
             </div>
           </div>
