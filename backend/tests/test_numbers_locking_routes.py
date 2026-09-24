@@ -127,19 +127,20 @@ class NumbersLockingPatchTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.get_supabase")
-    def test_allows_rename_on_locked_number(self, mock_get_db, mock_unlocked):
-        db = MagicMock()
-        db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
-            data=[{"id": "num-1", "display_name": "New Name"}]
-        )
-        mock_get_db.return_value = db
+    def test_rejects_rename_because_meta_owns_the_display_name(self, mock_get_db, mock_unlocked):
+        """display_name was dropped from UpdatePhoneNumber on 2026-09-23 -- Meta's
+        verified_name is the source of truth and both sync paths overwrite the row,
+        so a rename accepted here would silently revert on the next sync."""
+        mock_get_db.return_value = MagicMock()
         mock_unlocked.return_value = set()
 
         res = self.client.patch(
             "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
             json={"display_name": "New Name"},
         )
-        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("nothing to update", res.json()["detail"].lower())
+        mock_get_db.return_value.table.assert_not_called()
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.get_supabase")

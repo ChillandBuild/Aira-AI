@@ -1024,7 +1024,7 @@ async def get_number_quality(
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
             url,
-            params={"fields": "quality_rating,messaging_limit_tier"},
+            params={"fields": "quality_rating,messaging_limit_tier,verified_name"},
             headers={"Authorization": f"Bearer {tok}"},
         )
     if not resp.is_success:
@@ -1034,6 +1034,10 @@ async def get_number_quality(
     return {
         "quality_rating": data.get("quality_rating", "UNKNOWN"),
         "messaging_tier": _TIER_MAP.get(data.get("messaging_limit_tier", ""), 0),
+        # Meta's approved display name. Callers that only care about quality
+        # (the daily scheduler job) ignore it; the single-number sync route
+        # mirrors it onto phone_numbers.display_name.
+        "verified_name": data.get("verified_name"),
     }
 
 

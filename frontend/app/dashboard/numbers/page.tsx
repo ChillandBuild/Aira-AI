@@ -1,10 +1,10 @@
 "use client";
 
 import { toast } from "sonner";
-import { useEffect, useRef, useState, useCallback, Suspense, useMemo } from "react";
+import { useEffect, useState, useCallback, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  X, Pencil, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw,
+  X, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw,
   Info, ChevronDown, ChevronUp, ChevronRight, Lock, Copy, Phone,
   ShieldCheck, Activity, Smartphone, CheckCircle2,
   Search, ArrowRightLeft, ExternalLink
@@ -366,7 +366,9 @@ const numbersApi = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  update: (id: string, data: Partial<Pick<PhoneNumber, "role" | "status" | "display_name" | "paused_outbound">>) =>
+  // display_name is deliberately absent: Meta owns it (verified_name), and sync
+  // overwrites whatever is in the row, so a local rename would silently revert.
+  update: (id: string, data: Partial<Pick<PhoneNumber, "role" | "status" | "paused_outbound">>) =>
     apiFetch<PhoneNumber>(`/api/v1/numbers/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -405,12 +407,6 @@ function NumbersPageContent() {
   // Tier guide banner state (auto-dismisses after 15s)
   const [showTierGuide, setShowTierGuide] = useState(true);
   const [tierGuideOpen, setTierGuideOpen] = useState(false);
-
-  // Inline rename state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const editInputRef = useRef<HTMLInputElement>(null);
 
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState(false);
@@ -480,14 +476,6 @@ function NumbersPageContent() {
     setLoadingMoreIncidents(false);
   }
 
-  // Focus input when entering edit mode
-  useEffect(() => {
-    if (editingId && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select();
-    }
-  }, [editingId]);
-
   const handleCopyNumber = (id: string, phone: string) => {
     navigator.clipboard.writeText(phone);
     setCopiedId(id);
@@ -547,28 +535,6 @@ function NumbersPageContent() {
         </p>
       </div>
     );
-  }
-
-  function startRename(num: PhoneNumber) {
-    if (!canManageNumbers) return;
-    setEditingId(num.id);
-    setEditName(num.display_name);
-  }
-
-  async function saveRename(id: string) {
-    if (!canManageNumbers) return;
-    if (!editName.trim()) return;
-    setSaving(true);
-    try {
-      await numbersApi.update(id, { display_name: editName.trim() });
-      await reload();
-      setEditingId(null);
-      toast.success("Number renamed");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Rename failed");
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function handleSetPrimary(id: string) {
@@ -915,7 +881,6 @@ function NumbersPageContent() {
             ) : (
               <div className="space-y-4">
                 {filteredNumbers.map((num) => {
-                  const isEditing = editingId === num.id;
                   const isSyncing = syncingId === num.id;
                   const isPausing = pausingId === num.id;
                   const sendPct = num.messaging_tier > 0
@@ -944,53 +909,14 @@ function NumbersPageContent() {
                           </div>
 
                           <div className="min-w-0 flex-1 space-y-1.5">
-                            {/* Line 1: Name + Editable */}
+                            {/* Line 1: Meta-approved display name (read-only — changed in WhatsApp Manager, pulled in by Sync) */}
                             <div className="flex flex-wrap items-center gap-2">
-                              {isEditing ? (
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    ref={editInputRef}
-                                    type="text"
-                                    value={editName}
-                                    onChange={(e) => setEditName(e.target.value)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter") saveRename(num.id);
-                                      if (e.key === "Escape") setEditingId(null);
-                                    }}
-                                    className="px-3 py-1 bg-surface-low rounded-lg border border-primary font-display text-sm font-bold text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-0 w-52"
-                                  />
-                                  <button
-                                    onClick={() => saveRename(num.id)}
-                                    disabled={saving}
-                                    className="p-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                                    title="Save name"
-                                  >
-                                    <Check size={13} />
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingId(null)}
-                                    className="p-1.5 rounded-lg bg-surface-low hover:bg-surface-mid text-on-surface-muted transition-colors"
-                                    title="Cancel"
-                                  >
-                                    <X size={13} />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-2 group min-w-0">
-                                  <h3 className="font-display text-base font-bold text-on-surface truncate">
-                                    {num.display_name}
-                                  </h3>
-                                  {canManageNumbers && (
-                                    <button
-                                      onClick={() => startRename(num)}
-                                      className="p-1 rounded-md text-on-surface-muted/40 group-hover:text-primary hover:bg-surface-low transition-colors"
-                                      title="Rename display name"
-                                    >
-                                      <Pencil size={12} />
-                                    </button>
-                                  )}
-                                </div>
-                              )}
+                              <h3
+                                className="font-display text-base font-bold text-on-surface truncate min-w-0"
+                                title={`${num.display_name} — display name is set in Meta WhatsApp Manager and pulled in by Sync`}
+                              >
+                                {num.display_name}
+                              </h3>
 
                               {/* Role Badge */}
                               {num.role === "primary" ? (
