@@ -41,3 +41,17 @@ def test_rubric_auto_update_reads_the_setting():
 
     with patch.object(ai_tune, "get_setting", return_value="false"):
         assert ai_tune._rubric_auto_update_enabled("tenant-1") is False
+
+
+def test_rubric_prompt_reads_the_whole_700_word_profile():
+    # The prompt used to cut the profile at 1,500 chars (~220 words), so a full
+    # profile's later sections (how customers buy, your job, never do) were ignored.
+    marker_last = "ZZ-LAST-LINE-OF-NEVER-SECTION"
+    profile = "ABOUT US\n" + ("word " * 640) + "\nWHAT YOU MUST NEVER DO\n" + marker_last
+    built = ai_tune._rubric_prompt(profile)
+    assert marker_last in built
+
+
+def test_rubric_prompt_still_bounds_absurdly_long_input():
+    built = ai_tune._rubric_prompt("x" * 100_000)
+    assert len(built) < 20_000

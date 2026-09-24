@@ -32,6 +32,13 @@ class AppLinkUpdate(BaseModel):
     app_link: str
 
 
+# The profile is capped at 700 words (~4,500 chars, more in Tamil script). The prompt used
+# to read only the first 1,500 chars, so a full profile's later sections -- how customers
+# buy, the business rules, never-do's -- never reached the rubric. 12,000 leaves room
+# for a 700-word profile in any script and still bounds the request.
+_RUBRIC_INPUT_CHARS = 12_000
+
+
 def _rubric_prompt(description: str) -> str:
     """Build the rubric-generation prompt from the client's business description.
 
@@ -56,7 +63,7 @@ First work out, silently: what exactly does a customer pay for here, how do they
 start or book it, and what problems or questions bring people here.
 
 Business description:
-{description[:1500]}
+{description[:_RUBRIC_INPUT_CHARS]}
 
 Rules:
 - Hot must name concrete buying steps for this business (its booking, payment or
