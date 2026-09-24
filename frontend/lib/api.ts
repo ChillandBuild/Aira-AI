@@ -1950,6 +1950,12 @@ export const api = {
       }>(`/api/v1/analytics/inbound?range=${range}`),
     callerTimeline: (callerId: string, date: string) =>
       apiFetch<{ data: TimelineEvent[] }>(`/api/v1/analytics/caller-timeline?caller_id=${encodeURIComponent(callerId)}&date=${encodeURIComponent(date)}`),
+    /** Scored calls in the window, lowest score first. */
+    qaQueue: (params: { from: string; to: string; callerId?: string | null; page?: number; limit?: number }) => {
+      const qs = new URLSearchParams({ from: params.from, to: params.to, page: String(params.page ?? 1), limit: String(params.limit ?? 10) });
+      if (params.callerId) qs.set("caller_id", params.callerId);
+      return apiFetch<{ data: CallLog[]; total: number; page: number; limit: number }>(`/api/v1/analytics/qa-queue?${qs.toString()}`);
+    },
     compare: (params: CompareParams) => {
       const qs = new URLSearchParams({ preset: params.preset });
       if (params.start) qs.set("start", params.start);

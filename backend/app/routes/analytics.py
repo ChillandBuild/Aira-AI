@@ -742,6 +742,62 @@ async def telecalling_analytics(
     }
 
 
+@router.get("/qa-queue")
+async def qa_queue(
+    from_date: str | None = Query(None, alias="from"),
+    to_date: str | None = Query(None, alias="to"),
+    caller_id: UUID | None = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=50),
+    ctx: dict = Depends(require_analytics_view),
+):
+    """QA review feed: the window's scored calls, lowest score first, so the
+    weakest calls get reviewed. Same IST-day window as the Performance filter;
+    the owner's own calls are left out like every other telecaller metric."""
+    from app.services.call_transcript import mask_transcripts
+
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    today = (datetime.now(timezone.utc) + IST_OFFSET).date()
+    try:
+        start_day = date.fromisoformat(from_date) if from_date else today
+        end_day = date.fromisoformat(to_date) if to_date else start_day
+    except ValueError:
+        raise HTTPException(status_code=400, detail="from/to must be in YYYY-MM-DD format")
+    start = datetime.combine(start_day, datetime.min.time(), timezone.utc) - IST_OFFSET
+    end = datetime.combine(end_day + timedelta(days=1), datetime.min.time(), timezone.utc) - IST_OFFSET
+
+    owner = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").limit(1).execute()
+    owner_user_id = (owner.data[0] if owner.data else {}).get("user_id")
+    owner_caller_ids: list[str] = []
+    if owner_user_id:
+        rows = db.table("callers").select("id").eq("tenant_id", tenant_id).eq("user_id", owner_user_id).execute()
+        owner_caller_ids = [r["id"] for r in (rows.data or [])]
+
+    query = (
+        db.table("call_logs")
+        .select(
+            "id,created_at,duration_seconds,status,outcome,provider,score,score_status,score_breakdown,"
+            "evaluation,ai_summary,ai_status,recording_url,transcript,flag_status,flag_reason,"
+            "lead_id,caller_id,leads(name,phone),callers(name)",
+            count="exact",
+        )
+        .eq("tenant_id", tenant_id)
+        .eq("score_status", "scored")
+        .gte("created_at", start.isoformat())
+        .lt("created_at", end.isoformat())
+    )
+    if caller_id:
+        query = query.eq("caller_id", str(caller_id))
+    if owner_caller_ids:
+        query = query.not_.in_("caller_id", owner_caller_ids)
+    offset = (page - 1) * limit
+    res = await asyncio.to_thread(
+        query.order("score").order("created_at", desc=True).range(offset, offset + limit - 1).execute
+    )
+    return {"data": mask_transcripts(res.data), "total": res.count or 0, "page": page, "limit": limit}
+
+
 @router.get("/caller-timeline")
 async def caller_timeline(
     caller_id: UUID = Query(...),

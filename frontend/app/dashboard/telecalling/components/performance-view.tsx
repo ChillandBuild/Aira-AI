@@ -18,6 +18,7 @@ import OutcomeBreakdown from "./sections/OutcomeBreakdown";
 import CallsPerHour from "./sections/CallsPerHour";
 import ShiftTimeline from "./sections/ShiftTimeline";
 import FlaggedCalls from "./sections/FlaggedCalls";
+import QaReviewFeed from "./sections/QaReviewFeed";
 import BulkAssignment from "./sections/BulkAssignment";
 import LeadProfileModal from "./sections/LeadProfileModal";
 import { useAuthRole } from "../../contexts/AuthRoleContext";
@@ -435,12 +436,19 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         >
           <div className="text-left">
             <h2 className="font-display text-base font-bold text-primary">Tools</h2>
-            <p className="font-label text-xs text-on-surface-muted">Bulk lead assignment.</p>
+            <p className="font-label text-xs text-on-surface-muted">QA call review &amp; bulk lead assignment.</p>
           </div>
           {toolsOpen ? <ChevronUp size={16} className="text-[#a8a29e]" /> : <ChevronDown size={16} className="text-[#a8a29e]" />}
         </button>
         {toolsOpen && (
-          <div className="px-6 pb-6">
+          <div className="px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <QaReviewFeed
+              from={statsFrom}
+              to={statsTo}
+              callerId={selectedCallerId}
+              callerName={selectedCallerName}
+              onViewLead={setViewingLeadId}
+            />
             <BulkAssignment callers={callersList} />
           </div>
         )}
