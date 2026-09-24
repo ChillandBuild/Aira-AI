@@ -1,15 +1,9 @@
--- 202: TeleCMI call scoring v3.
--- Removes the outcome-only telecaller scoring (callers.overall_score, the daily
--- coaching digest) and adds the recording-pipeline, score and flag state that
--- the recording-based scorer needs. call_logs.score is kept as the column for
--- the new 0-10 score, but every old outcome-only value is cleared so the two
--- scales never mix.
-
-drop table if exists public.caller_digests;
-
-alter table public.callers drop column if exists overall_score;
-
-update public.call_logs set score = null where score is not null;
+-- 202: TeleCMI call scoring v3 (additive half).
+-- Adds the recording-pipeline, score and flag state the recording-based scorer
+-- needs. Safe to apply while the previous backend is still live: it only adds
+-- columns, checks and indexes. The destructive half (drop the digest table and
+-- callers.overall_score, clear old outcome-only scores) is 203, applied only
+-- after the new backend is deployed.
 
 alter table public.call_logs
   add column if not exists recording_filename text,
