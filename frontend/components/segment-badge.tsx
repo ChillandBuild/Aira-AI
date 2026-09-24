@@ -4,31 +4,27 @@ import { cn } from "@/lib/utils";
 const SEGMENT_CONFIG = {
   A: {
     label: "Hot",
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    border: "border-emerald-200/80",
-    dot: "bg-emerald-500",
+    bg: "bg-segment-a-bg",
+    text: "text-segment-a-text",
+    border: "border-segment-a-border",
   },
   B: {
     label: "Warm",
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-    border: "border-amber-200/80",
-    dot: "bg-amber-500",
+    bg: "bg-segment-b-bg",
+    text: "text-segment-b-text",
+    border: "border-segment-b-border",
   },
   C: {
     label: "Cold",
-    bg: "bg-slate-50",
-    text: "text-slate-600",
-    border: "border-slate-200",
-    dot: "bg-slate-400",
+    bg: "bg-segment-c-bg",
+    text: "text-segment-c-text",
+    border: "border-segment-c-border",
   },
   D: {
-    label: "Disq.",
-    bg: "bg-rose-50",
-    text: "text-rose-700",
-    border: "border-rose-200/80",
-    dot: "bg-rose-500",
+    label: "Not Interested",
+    bg: "bg-segment-d-bg",
+    text: "text-segment-d-text",
+    border: "border-segment-d-border",
   },
 };
 
@@ -43,7 +39,6 @@ export function SegmentBadge({ segment }: { segment: "A" | "B" | "C" | "D" }) {
         cfg.border
       )}
     >
-      <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", cfg.dot)} />
       <span>{segment} · {cfg.label}</span>
     </span>
   );

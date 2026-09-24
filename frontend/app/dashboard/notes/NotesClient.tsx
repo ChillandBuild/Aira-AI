@@ -13,10 +13,11 @@ import { saveNote, createCallback } from "@/app/dashboard/telecalling/lib/notes-
 import NoteCard from "./components/NoteCard";
 import {
   AiSummaryCard, SEGMENT_COLORS, SEGMENT_LABELS, SentimentTrend, TagChip, TagSelector,
-  dotColorFor, outcomeDotColor, scoreBadgeColor, TimelineItem,
+  dotColorFor, outcomeDotColor, TimelineItem,
 } from "./components/shared";
 import { useLeadsWithActivity, useNotes, useAllNotes } from "@/hooks/useApi";
 import { TickMark } from "@/components/ui/controls";
+import { SegmentBadge } from "@/components/segment-badge";
 
 type PageMode = "by_lead" | "all_notes";
 type ViewMode = "grid" | "list";
@@ -348,7 +349,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                       </span>
                     </div>
                     <p className="font-label text-xs text-[#78716c] mt-0.5">
-                      {lead.name ? formatPhone(lead.phone) + " · " : ""}Score {lead.score}/10
+                      {lead.name ? formatPhone(lead.phone) : ""}
                     </p>
                     {lastCalledMap[lead.id] && (
                       <p className="font-label text-[10px] text-[#a8a29e] mt-0.5">Called {timeAgo(lastCalledMap[lead.id])}</p>
@@ -382,12 +383,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                         {selected.name && (
                           <span className="font-label text-xs text-[#78716c]">{formatPhone(selected.phone)}</span>
                         )}
-                        <span className={`px-1.5 py-0.5 rounded font-label text-[9px] font-black uppercase ${SEGMENT_COLORS[selected.segment]}`}>
-                          {SEGMENT_LABELS[selected.segment]}
-                        </span>
-                        <span className={`px-1.5 py-0.5 rounded font-label text-[9px] font-black ${scoreBadgeColor(selected.score)}`}>
-                          Score {selected.score}
-                        </span>
+                        <SegmentBadge segment={selected.segment} />
                       </div>
                     </div>
                   </div>

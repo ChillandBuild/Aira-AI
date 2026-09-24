@@ -66,7 +66,7 @@ export default function BriefingModal({
             {lead.name || "Unnamed lead"}
           </p>
           <p className="font-label text-sm text-on-surface-muted mt-0.5">
-            {formatPhone(lead.phone)} · Score {lead.score} · Segment {lead.segment}
+            {formatPhone(lead.phone)} · Segment {lead.segment}
           </p>
         </div>
 

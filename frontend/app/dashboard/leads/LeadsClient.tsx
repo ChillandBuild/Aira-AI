@@ -11,6 +11,7 @@ import ReengagementBuilder from "./ReengagementBuilder";
 import { useLeads } from "@/hooks/useApi";
 import { useSearchParams, useRouter } from "next/navigation";
 import { MobileRecordCard, MobileRecordField, MobileRecordGrid, MobileRecordHeader } from "@/components/MobileRecord";
+import { SegmentBadge } from "@/components/segment-badge";
 
 function pillClass(active: boolean) {
   return `px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
@@ -780,15 +781,8 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                   />
                   <MobileRecordGrid>
                     <MobileRecordField
-                      label="Score"
-                      value={
-                        <span className="flex items-center gap-2">
-                          <span className="h-1.5 w-14 overflow-hidden rounded-full bg-surface-mid">
-                            <span className="block h-full rounded-full bg-secondary" style={{ width: `${lead.score * 10}%` }} />
-                          </span>
-                          {lead.score}/10
-                        </span>
-                      }
+                      label="Segment"
+                      value={<SegmentBadge segment={lead.segment} />}
                     />
                     <MobileRecordField
                       label="Assigned"
@@ -826,7 +820,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                 <tr className="border-b border-surface-mid">
                   <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Contact/ID</th>
                   <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Name</th>
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Score</th>
+                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Segment</th>
                   <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Assigned To</th>
                   <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Source</th>
                   {sourceFilter === "BROADCAST" && (
@@ -863,12 +857,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-1.5 rounded-full bg-surface-mid overflow-hidden">
-                          <div className="h-full rounded-full bg-secondary transition-all" style={{ width: `${lead.score * 10}%` }} />
-                        </div>
-                        <span className="font-label text-xs text-on-surface-muted">{lead.score}</span>
-                      </div>
+                      <SegmentBadge segment={lead.segment} />
                     </td>
                     <td className="px-6 py-4">
                       {lead.assigned_to ? (

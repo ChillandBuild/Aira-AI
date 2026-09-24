@@ -167,7 +167,6 @@ export default function AssignmentLog({ callers }: { callers: Caller[] }) {
                   <span className={`px-2 py-0.5 rounded-lg border font-label text-xs font-semibold ${SEGMENT_STYLE[e.segment || "C"] || SEGMENT_STYLE.C}`}>
                     {SEGMENT_LABEL[e.segment || "C"] || e.segment}
                   </span>
-                  {typeof e.score === "number" && <span className="ml-2 font-body text-xs text-on-surface-muted">score {e.score}</span>}
                 </td>
                 <td className="px-4 py-2.5 font-body text-sm text-on-surface">
                   {e.event_type === "reassigned" && e.prev_caller_name ? (

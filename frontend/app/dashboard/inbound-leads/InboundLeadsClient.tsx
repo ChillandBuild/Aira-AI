@@ -85,19 +85,6 @@ function ChannelBadge({ source }: { source: string }) {
   );
 }
 
-// Ensure score displays nicely between 1 and 10
-function ScoreBar({ score }: { score: number }) {
-  const pct = Math.min(Math.max(score, 1), 10) * 10;
-  const color = score >= 8 ? "bg-emerald-500" : score >= 6 ? "bg-amber-400" : "bg-[#d6cfc9]";
-  return (
-    <div className="flex items-center gap-2">
-      <div className="w-14 h-1.5 rounded-full bg-[#f0ece4] overflow-hidden">
-        <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
-      </div>
-      <span className="text-xs font-mono text-[#78716c] font-bold">{score}</span>
-    </div>
-  );
-}
 
 function StatCard({
   label, value, icon: Icon, gradient,
@@ -580,7 +567,6 @@ export function InboundLeadsClient({
                     <SegmentBadge segment={lead.segment as "A" | "B" | "C" | "D"} />
                   </div>
                   <MobileRecordGrid>
-                    <MobileRecordField label="Score" value={<ScoreBar score={lead.score} />} />
                     <MobileRecordField label="Joined" value={formatDate(lead.created_at)} />
                     <MobileRecordField
                       label="Keyword"
@@ -600,7 +586,7 @@ export function InboundLeadsClient({
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-surface-mid bg-surface-low/60">
-                    {["Contact", "Channel", "Origin", "Keyword (First Message)", "Ad Campaign", "Segment", "Score", "Date & Time Joined"].map((h) => (
+                    {["Contact", "Channel", "Origin", "Keyword (First Message)", "Ad Campaign", "Segment", "Date & Time Joined"].map((h) => (
                       <th key={h} className="px-5 py-3.5 text-left font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-widest whitespace-nowrap">
                         {h}
                       </th>
@@ -675,11 +661,6 @@ export function InboundLeadsClient({
                       {/* Segment */}
                       <td className="px-5 py-3.5">
                         <SegmentBadge segment={lead.segment as "A" | "B" | "C" | "D"} />
-                      </td>
-
-                      {/* Score */}
-                      <td className="px-5 py-3.5">
-                        <ScoreBar score={lead.score} />
                       </td>
 
                       {/* Date joined */}

@@ -7,6 +7,7 @@ import { formatPhone, timeAgo } from "@/lib/utils";
 import LeadAttribution from "./LeadAttribution";
 import { getMessageDisplayMeta } from "../lib/message-display";
 import { TickMark } from "@/components/ui/controls";
+import { SegmentBadge } from "@/components/segment-badge";
 
 export const QUICK_NOTE_TAGS = [
   "Meeting scheduled",
@@ -255,12 +256,7 @@ export default function LeadDetailPanel({
                 <h2 className="font-display text-2xl font-extrabold tracking-tight truncate">
                   {selectedLead.name || "Unnamed Lead"}
                 </h2>
-                {selectedLead.score >= 7 && (
-                  <span className="px-2 py-0.5 bg-rose-500 text-rose-50 border border-rose-600/30 rounded-md font-label text-[9px] font-black uppercase tracking-wider shadow-sm">HOT</span>
-                )}
-                <span className="px-2 py-0.5 bg-orange-500/40 text-orange-100 border border-orange-400/20 rounded-md font-label text-[9px] font-black uppercase tracking-wider">
-                  SEG {selectedLead.segment}
-                </span>
+                <SegmentBadge segment={selectedLead.segment} />
               </div>
               {isCallingThisLead ? (
                 <div className="flex flex-wrap items-center gap-3 mt-1.5">

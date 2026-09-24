@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
 import { ChannelAvatar } from "./channel-avatar";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
+import { SegmentBadge } from "./segment-badge";
 import {
   Bot, User, CheckCircle2, Send, PowerOff, Power,
   AlertTriangle, Pencil, MessageCircle, Trash2,
@@ -561,9 +562,7 @@ export function ChatThread({
               <span className="inline-flex items-center gap-0.5 text-green-600 font-semibold"><MessageCircle size={9} /> WhatsApp</span>
             )}
             <span className="text-on-surface-muted/50">·</span>
-            <span>Score {current.score}/10</span>
-            <span className="text-on-surface-muted/50">·</span>
-            <span>Seg {current.segment}</span>
+            <SegmentBadge segment={current.segment} />
             {!aiEnabled && <span className="text-amber-600 font-semibold ml-1">· Handling</span>}
           </p>
         </div>
