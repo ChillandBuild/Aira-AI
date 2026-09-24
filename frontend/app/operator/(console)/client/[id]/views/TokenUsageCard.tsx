@@ -61,6 +61,7 @@ const PURPOSE_LABELS: Record<string, string> = {
   pre_call_brief: "Pre-Call Brief",
   conversation_compaction: "Conversation Compaction",
   speech_to_text: "Speech-to-Text",
+  call_transcription: "Call Transcription",
   doc_digitization: "Knowledge Doc Digitization",
   voice_reply_tts: "Voice Reply (TTS)",
 };

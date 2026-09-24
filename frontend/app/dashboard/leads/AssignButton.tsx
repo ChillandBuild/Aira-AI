@@ -161,9 +161,6 @@ export function AssignButton({ leadId, currentAssignedTo, callers: callersProp, 
                 {c.id === assignedId && <span className="text-teal-500 text-xs">✓</span>}
                 {c.name}
               </span>
-              {c.overall_score != null && (
-                <span className="text-[11px] text-gray-400">⭐ {Number(c.overall_score).toFixed(1)}</span>
-              )}
             </button>
           ))}
         </>

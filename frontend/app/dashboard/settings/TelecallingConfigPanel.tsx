@@ -5,6 +5,8 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "./SettingsSection";
 import { CheckField, TickMark } from "@/components/ui/controls";
+import { SCORE_CRITERIA } from "@/components/CallAi";
+import type { ScoreCriterion } from "@/lib/api";
 
 type TelecallingConfig = {
   enabled: boolean;
@@ -18,7 +20,10 @@ type TelecallingConfig = {
   recycle_max_retries?: number;
   recycle_start_hour?: number;
   recycle_end_hour?: number;
+  score_criteria?: ScoreCriterion[];
 };
+
+const ALL_CRITERIA = SCORE_CRITERIA.map((c) => c.key);
 
 const DEFAULT: TelecallingConfig = {
   enabled: false,
@@ -141,6 +146,56 @@ export function TelecallingConfigPanel({ canManage = true }: { canManage?: boole
             </div>
           </div>
         </div>
+
+        {/* Call scoring criteria — recorded (Cloud Telephony) calls only */}
+        {(draft.calling_provider ?? "telecmi") === "telecmi" && (() => {
+          const selected = draft.score_criteria ?? ALL_CRITERIA;
+          const share = 7 / selected.length;
+          return (
+            <div>
+              <div className="font-label text-sm font-semibold text-ink mb-1">Call Scoring Criteria</div>
+              <div className="font-body text-xs text-ink-muted mb-3 max-w-2xl">
+                The AI scores each recorded call of 30 seconds or more out of 10: 7 marks from the criteria you tick here,
+                3 marks from the outcome the telecaller marks. Ticked criteria share the 7 marks equally. At least one must stay ticked.
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {SCORE_CRITERIA.map(({ key, label, hint }) => {
+                  const active = selected.includes(key);
+                  const locked = active && selected.length === 1;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={active}
+                      disabled={!canManage || locked}
+                      title={locked ? "At least one criterion must stay selected" : undefined}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          score_criteria: ALL_CRITERIA.filter((k) => (k === key ? !active : selected.includes(k))),
+                        })
+                      }
+                      className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 disabled:cursor-not-allowed ${
+                        active ? "border-primary/25 bg-primary-light/50" : "border-border bg-surface-subtle hover:border-primary/40"
+                      } ${!canManage ? "disabled:opacity-55" : ""}`}
+                    >
+                      <span className="mt-0.5"><TickMark checked={active} size="sm" /></span>
+                      <span className="min-w-0">
+                        <span className="block font-label text-sm font-semibold text-ink">{label}</span>
+                        <span className="block font-body text-[11px] leading-snug text-ink-muted">{hint}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="font-body text-[11px] text-ink-muted mt-2">
+                {selected.length} of {ALL_CRITERIA.length} selected · each worth {Number.isInteger(share) ? share : share.toFixed(2)} of the 7 AI marks.
+                Changes apply to calls scored from now on.
+              </p>
+            </div>
+          );
+        })()}
 
         {/* Segments */}
         <div>

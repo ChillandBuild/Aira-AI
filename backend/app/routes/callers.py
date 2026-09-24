@@ -13,7 +13,6 @@ from app.services.assignment import (
     get_telecalling_config,
     save_telecalling_config,
 )
-from app.services.call_coach import coaching_tip
 from app.services.call_transcript import mask_transcripts
 from app.services.telecaller_performance import (
     MIN_SCORED_DAILY,
@@ -632,17 +631,3 @@ async def get_winners(tenant_id: str = Depends(get_owner_tenant_id)):
             winner["min_scored_calls"] = min_scored
         result[key] = winner
     return result
-
-
-@router.get("/{caller_id}/coaching")
-async def get_coaching(caller_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
-    db = get_supabase()
-    caller = db.table("callers").select("id").eq("id", str(caller_id)).eq("tenant_id", tenant_id).maybe_single().execute()
-    if not caller.data:
-        raise HTTPException(status_code=404, detail="Caller not found")
-    tip = await coaching_tip(str(caller_id))
-    return {"caller_id": str(caller_id), "tip": tip}
-
-
-
-

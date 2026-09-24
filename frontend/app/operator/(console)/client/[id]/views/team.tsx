@@ -24,7 +24,7 @@ interface CallerRow {
   name: string;
   role: string;
   active: boolean;
-  overall_score: number | null;
+  avg_score_month: number | null;
   shift_start_hour: number | null;
   shift_end_hour: number | null;
 }
@@ -146,7 +146,7 @@ export function TeamView({ tenantId }: { tenantId: string }) {
                 <th className="text-left px-4 py-3 font-medium">Name</th>
                 <th className="text-left px-4 py-3 font-medium">Role</th>
                 <th className="text-left px-4 py-3 font-medium">Status</th>
-                <th className="text-left px-4 py-3 font-medium">Score</th>
+                <th className="text-left px-4 py-3 font-medium" title="Average of this month's scored calls">Score (month)</th>
                 <th className="text-left px-4 py-3 font-medium">Shift Hours</th>
                 <th className="text-left px-4 py-3 font-medium w-12"></th>
               </tr>
@@ -168,7 +168,7 @@ export function TeamView({ tenantId }: { tenantId: string }) {
                       <span className="text-xs text-ink-secondary">{c.active ? "Active" : "Inactive"}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-ink">{c.overall_score != null ? c.overall_score.toFixed(1) : "—"}</td>
+                  <td className="px-4 py-3 text-ink">{c.avg_score_month != null ? c.avg_score_month.toFixed(1) : "—"}</td>
                   <td className="px-4 py-3 text-ink-secondary text-xs">{formatShift(c.shift_start_hour, c.shift_end_hour)}</td>
                   <td className="px-4 py-3">
                     {c.role !== "owner" && (

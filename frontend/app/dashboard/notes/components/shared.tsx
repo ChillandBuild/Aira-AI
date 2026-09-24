@@ -1,8 +1,9 @@
 "use client";
 import { useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronUp, Plus, RefreshCw, Sparkles, Tag, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Tag, X } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { api, type CallLog } from "@/lib/api";
+import { CallAiDetail } from "@/components/CallAi";
 
 // ─── Tag system ───────────────────────────────────────────────────────────────
 export const PRESET_TAGS = [
@@ -276,7 +277,6 @@ export function AiSummaryCard({
 }) {
   const [open, setOpen] = useState(false);
   const [rate, setRate] = useState(1);
-  const [generating, setGenerating] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const s = log.ai_summary;
 
@@ -285,20 +285,18 @@ export function AiSummaryCard({
     if (audioRef.current) audioRef.current.playbackRate = r;
   }
 
-  async function generateSummary() {
-    setGenerating(true);
+  async function refresh() {
     try {
-      const updated = await api.calls.generateSummary(log.id);
-      onGenerated?.(updated);
+      onGenerated?.(await api.calls.getLog(log.id));
     } catch {
-      // surfaced via disabled state reverting; caller can retry
-    } finally {
-      setGenerating(false);
+      // the next page load picks the new state up
     }
   }
 
   if (!s) {
-    if (!log.recording_url) return null;
+    // Summaries are made automatically after transcription; until then show the
+    // processing stage (or Retry when it failed) instead of an on-demand button.
+    if (log.provider !== "telecmi" || !log.ai_status) return null;
     return (
       <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[#e8e3db] shadow-sm">
         <div className="flex items-center justify-between gap-2">
@@ -313,15 +311,9 @@ export function AiSummaryCard({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={generateSummary}
-            disabled={generating}
-            className="px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-label text-[10px] font-extrabold disabled:opacity-60 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap"
-          >
-            {generating ? <RefreshCw size={11} className="animate-spin" /> : <Sparkles size={11} />}
-            {generating ? "Generating…" : "Generate Summary"}
-          </button>
+        </div>
+        <div className="mt-3">
+          <CallAiDetail log={log} onChanged={() => void refresh()} />
         </div>
       </div>
     );

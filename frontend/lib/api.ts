@@ -110,7 +110,6 @@ export interface Caller {
   id: string;
   name: string;
   phone: string | null;
-  overall_score: number;
   active: boolean;
   status?: "active" | "break" | "logged_out";
   status_changed_at?: string;
@@ -121,13 +120,28 @@ export interface Caller {
   shift_end_hour?: number | null;
 }
 
+/** Daily/monthly winner: 70% average score + 30% volume (calls vs the busiest telecaller). */
+export interface Winner {
+  caller_id: string;
+  name: string;
+  points: number;
+  avg_score: number;
+  total_calls: number;
+  scored_calls: number;
+  volume_points: number;
+  min_scored_calls: number;
+}
+
 export interface CallerStats {
   calls_today: number;
   calls_this_week: number;
   conversion_rate_week: number;
   avg_duration_seconds: number | null;
   pending_hot_leads: number;
-  overall_score: number;
+  /** Average of this IST month's scored calls; null until one is scored. */
+  avg_score_month: number | null;
+  scored_calls_month: number;
+  total_calls_month: number;
   name: string;
   phone: string;
   status: string;
@@ -148,8 +162,23 @@ export interface TemplatePerformanceRow {
   last_sent: string | null;
 }
 
+export type ScoreCriterion =
+  | "greeting_quality"
+  | "communication_clarity"
+  | "product_knowledge"
+  | "requirement_understanding"
+  | "conversation_engagement"
+  | "objection_handling"
+  | "professionalism"
+  | "tone";
+
+/** v3 AI evaluation. Only the criteria listed in `criteria` were scored for this call. */
 export interface CallEvaluation {
   evaluation_version?: number;
+  criteria?: ScoreCriterion[];
+  criteria_skipped?: ScoreCriterion[];
+  ai_average?: number;
+  quality_label?: "Excellent" | "Good" | "Average" | "Bad";
   greeting_quality?: number;
   greeting_quality_reason?: string;
   communication_clarity?: number;
@@ -164,17 +193,47 @@ export interface CallEvaluation {
   objection_handling_reason?: string;
   professionalism?: number;
   professionalism_reason?: string;
+  tone?: number;
+  tone_reason?: string;
+  closing_move?: number;
+  closing_move_reason?: string;
+  detected_outcome?: string;
+  acceptable_outcomes?: string[];
+  real_conversation?: boolean;
   talk_ratio?: number;
-  overall_score?: number;
-  quality_label?: "Excellent" | "Good" | "Average" | "Bad";
   clear_next_step?: boolean;
   next_step_summary?: string | null;
-  outcome_match?: boolean;
-  outcome_match_reason?: string;
   purchase_intent?: "high" | "medium" | "low";
   missed_opportunity?: boolean;
   missed_opportunity_note?: string | null;
   coaching_tip?: string;
+}
+
+export type CallAiStatus = "pending" | "transcribing" | "scoring" | "done" | "failed";
+export type CallScoreStatus =
+  | "pending"
+  | "awaiting_outcome"
+  | "scored"
+  | "short_call"
+  | "no_answer"
+  | "no_recording"
+  | "failed";
+
+export interface CallScoreBreakdown {
+  ai_points: number;
+  ai_average: number;
+  criteria: ScoreCriterion[];
+  accuracy_point: number;
+  closing_points: number;
+  outcome_points: number;
+  marked_outcome: string;
+}
+
+/** The full transcript never leaves the backend: only its first and last line. */
+export interface TranscriptPreview {
+  first: string;
+  last: string | null;
+  hidden_lines: number;
 }
 
 export interface CallLog {
@@ -201,32 +260,22 @@ export interface CallLog {
   quality_rating: number | null;
   notes?: string | null;
   provider?: "telecmi" | "sim_basic";
+  score_status?: CallScoreStatus | null;
+  score_breakdown?: CallScoreBreakdown | null;
+  ai_status?: CallAiStatus | null;
+  ai_error?: string | null;
+  flag_status?: "open" | "confirmed" | "dismissed" | null;
+  flag_reason?: string | null;
+  flagged_at?: string | null;
+  flag_resolved_at?: string | null;
   feedback_source?: "automatic" | "manual";
   manual_started_at?: string | null;
   manual_ended_at?: string | null;
-  transcript: string | null;
+  transcript_preview?: TranscriptPreview | null;
   created_at: string;
   leads?: { phone: string | null; name: string | null } | null;
   callers?: { name: string | null } | null;
   caller_id?: string | null;
-}
-
-export interface DigestEntry {
-  digest_date: string;
-  call_count: number;
-  stats: {
-    total_calls: number;
-    converted: number;
-    callbacks: number;
-    not_interested: number;
-    no_answer: number;
-    avg_duration_seconds: number;
-    avg_score: number | null;
-    weakest_criterion: string | null;
-    criteria_avg: Record<string, number>;
-  };
-  coaching_report: string | null;
-  created_at: string;
 }
 
 export interface NoteWithLead {
@@ -674,7 +723,9 @@ export interface TelecallingAnalytics {
     caller_id: string;
     name: string;
     calls_today: number;
+    /** Average score of the selected window's scored calls. */
     overall_score: number | null;
+    scored_calls?: number;
     connect_rate?: number;
     avg_talk_seconds?: number | null;
     talk_minutes_today?: number;
@@ -683,7 +734,6 @@ export interface TelecallingAnalytics {
     longest_idle_seconds?: number | null;
     bunking_flag?: boolean;
     speed_to_lead_min?: number | null;
-    quality_avg?: number | null;
   }[];
   connect_rate?: number;
   avg_talk_seconds?: number | null;
@@ -702,6 +752,7 @@ export interface TelecallingConfig {
   channels?: string[];
   scripts?: Record<string, string>;
   assignment_mode?: "push" | "pull";
+  score_criteria?: ScoreCriterion[];
 }
 
 export interface FunnelAnalytics {
@@ -766,7 +817,9 @@ export interface TelecallingAnalyticsExtended {
     caller_id: string;
     name: string;
     calls_today: number;
+    /** Average score of the selected window's scored calls. */
     overall_score: number | null;
+    scored_calls?: number;
     total_minutes_today: number;
     conversion_rate: number | null;
     connect_rate?: number;
@@ -777,7 +830,6 @@ export interface TelecallingAnalyticsExtended {
     longest_idle_seconds?: number | null;
     bunking_flag?: boolean;
     speed_to_lead_min?: number | null;
-    quality_avg?: number | null;
   }[];
   calls_per_hour: { hour: number; label: string; count: number }[];
   calls_per_slot: { slot: string; count: number; caller_counts: Record<string, number> }[];
@@ -1414,10 +1466,6 @@ export const api = {
       const res = await apiFetch<{ data: CallLog[] }>(`/api/v1/callers/${id}/logs`);
       return res.data || [];
     },
-    coaching: (id: string) =>
-      apiFetch<{ caller_id: string; tip: string }>(`/api/v1/callers/${id}/coaching`),
-    digest: (id: string, days = 7) =>
-      apiFetch<{ data: DigestEntry[] }>(`/api/v1/callers/${id}/digest?days=${days}`).then(r => r.data || []),
     myStatus: () =>
       apiFetch<{ status: string; caller_id: string | null }>(`/api/v1/callers/my-status`),
     setMyStatus: (status: "active" | "break" | "logged_out") =>
@@ -1444,10 +1492,7 @@ export const api = {
       return apiFetch<{ data: TimelineEvent[] }>(`/api/v1/callers/${id}/timeline${q}`);
     },
     winners: () =>
-      apiFetch<{
-        daily: { caller_id: string; name: string; value: number; label: string } | null;
-        monthly: { caller_id: string; name: string; value: number; calls_this_month: number; label: string } | null;
-      }>(`/api/v1/callers/winners`),
+      apiFetch<{ daily: Winner | null; monthly: Winner | null }>(`/api/v1/callers/winners`),
     myCallsToday: () =>
       apiFetch<{ data: CallLog[] }>(`/api/v1/callers/my-calls-today`).then(res => res.data || []),
     myPerformance: () =>
@@ -1478,8 +1523,8 @@ export const api = {
       apiFetch<{
         call_log_id: string;
         outcome: string;
-        score: number;
-        caller_overall_score: number | null;
+        score: number | null;
+        score_status: CallScoreStatus | null;
       }>(`/api/v1/calls/${callLogId}/outcome`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -1503,7 +1548,7 @@ export const api = {
         outcome: string | null;
         disposition: string | null;
         score: number | null;
-        caller_overall_score: number | null;
+        score_status: CallScoreStatus | null;
       }>(`/api/v1/calls/${callLogId}/outcome`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -1522,8 +1567,17 @@ export const api = {
       apiFetch<{ deleted: boolean }>(`/api/v1/calls/${callLogId}`, { method: "DELETE" }),
     getLog: (callLogId: string) =>
       apiFetch<CallLog>(`/api/v1/calls/${callLogId}`),
-    generateSummary: (callLogId: string) =>
-      apiFetch<CallLog>(`/api/v1/calls/${callLogId}/generate-summary`, { method: "POST" }),
+    retryAi: (callLogId: string) =>
+      apiFetch<{ ok: boolean }>(`/api/v1/calls/${callLogId}/retry-ai`, { method: "POST" }),
+    flagged: (status: "open" | "resolved" = "open", page = 1, limit = 20) =>
+      apiFetch<{ data: CallLog[]; total: number; open_count: number; page: number; limit: number }>(
+        `/api/v1/calls/flagged?status=${status}&page=${page}&limit=${limit}`,
+      ),
+    resolveFlag: (callLogId: string, action: "confirm" | "dismiss") =>
+      apiFetch<CallLog>(`/api/v1/calls/${callLogId}/flag`, {
+        method: "POST",
+        body: JSON.stringify({ action }),
+      }),
     getPendingWrapups: () =>
       apiFetch<CallLog[]>(`/api/v1/calls/pending-wrapups`),
     nextLead: (callerId?: string) =>
@@ -1858,14 +1912,6 @@ export const api = {
       }>(`/api/v1/analytics/inbound?range=${range}`),
     callerTimeline: (callerId: string, date: string) =>
       apiFetch<{ data: TimelineEvent[] }>(`/api/v1/analytics/caller-timeline?caller_id=${encodeURIComponent(callerId)}&date=${encodeURIComponent(date)}`),
-    qaQueue: async (limit: number) => {
-      // `queue` is the pre-2026-09-19 key; accepted so the feed keeps working
-      // against a backend that has not been redeployed yet.
-      const res = await apiFetch<{ data?: CallLog[]; queue?: CallLog[] }>(
-        `/api/v1/analytics/qa-queue?limit=${limit}`
-      );
-      return { data: res.data ?? res.queue ?? [] };
-    },
     compare: (params: CompareParams) => {
       const qs = new URLSearchParams({ preset: params.preset });
       if (params.start) qs.set("start", params.start);

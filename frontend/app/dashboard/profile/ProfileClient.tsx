@@ -23,7 +23,6 @@ import { toast } from "sonner";
 import { useMyStats, useMyPerformance, useCallerLogs } from "@/hooks/useApi";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import AttendanceMini from "../team/AttendanceMini";
-import { CoachingDigest } from "@/components/CoachingDigest";
 import { PasskeySettings } from "./PasskeySettings";
 
 export interface ProfileClientProps {
@@ -218,9 +217,6 @@ export function ProfileClient({
 
   return (
     <div>
-      {/* Daily Coaching Digest */}
-      <CoachingDigest callerId={stats.caller_id} />
-
       {/* Profile Card + Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Profile Card */}
@@ -260,19 +256,22 @@ export function ProfileClient({
             </div>
           </div>
 
-          {/* Overall Score */}
+          {/* This month's average call score */}
           <div className="mt-4 pt-4 border-t border-surface-mid">
             <p className="font-label text-xs text-on-surface-muted uppercase tracking-wider mb-1">
-              Performance Score
+              Avg Call Score · This Month
             </p>
             <div className="flex items-baseline gap-2">
               <span className="font-display text-4xl font-bold text-primary">
-                {Number(stats.overall_score).toFixed(1)}
+                {stats.avg_score_month != null ? stats.avg_score_month.toFixed(1) : "\u2014"}
               </span>
               <span className="font-label text-sm text-on-surface-muted">
                 / 10
               </span>
             </div>
+            <p className="font-label text-xs text-on-surface-muted mt-1">
+              {stats.scored_calls_month} scored of {stats.total_calls_month} calls
+            </p>
           </div>
         </div>
 

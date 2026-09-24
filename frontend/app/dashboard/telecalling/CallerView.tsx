@@ -11,7 +11,6 @@ import LeadDetailPanel from "./components/LeadDetailPanel";
 import CockpitModals from "./components/CockpitModals";
 import { useCallingCockpit } from "./lib/useCallingCockpit";
 import { getLeadQueueSection, sortLeadsForCallQueue, type LeadQueueSection } from "./lib/queue-priority";
-import { CoachingOneLiner } from "@/components/CoachingDigest";
 import { useSearchParams } from "next/navigation";
 
 export default function CallerView({ callerId, readOnly = false }: { callerId: string | null; readOnly?: boolean }) {
@@ -127,7 +126,6 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] flex-col bg-transparent xl:h-[calc(100vh-4rem)]">
-      <CoachingOneLiner callerId={callerId} />
       <div className="grid flex-1 grid-cols-1 gap-4 pb-4 xl:grid-cols-12 xl:min-h-0">
         {/* Left Side: Lead List (4/12) */}
         <div className="flex flex-col gap-5 pr-0 xl:col-span-4 xl:min-h-0 xl:pr-1">

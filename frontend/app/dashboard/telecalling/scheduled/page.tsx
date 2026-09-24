@@ -603,10 +603,10 @@ export default function ScheduledCallsPage() {
                             </div>
                           )}
 
-                          {log.transcript && (
+                          {log.transcript_preview && (
                             <div className="bg-[#f0ece4]/50 rounded p-2 mt-1.5">
                               <p className="text-[9px] font-bold text-[#78716c] mb-0.5">Transcript Snippet</p>
-                              <p className="text-[10px] text-[#57534e] line-clamp-2 italic">&ldquo;{log.transcript}&rdquo;</p>
+                              <p className="text-[10px] text-[#57534e] line-clamp-2 italic">&ldquo;{log.transcript_preview.first}&rdquo;</p>
                             </div>
                           )}
                         </div>

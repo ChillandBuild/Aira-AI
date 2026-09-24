@@ -1,16 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { api, type Winner as WinnerEntry } from "@/lib/api";
 
-type Winner = {
-  caller_id: string;
-  name: string;
-  value: number;
-  label: string;
-  calls_this_month?: number;
-} | null;
+type Winner = WinnerEntry | null;
 
 type WinnersData = { daily: Winner; monthly: Winner };
+
+const FORMULA = "Winner points = 70% average call score + 30% calls made (compared with the busiest telecaller).";
 
 function Initials({ name }: { name: string }) {
   const parts = name.trim().split(" ");
@@ -43,7 +39,9 @@ function WinnerCard({
   const shimmerClass = isDaily ? "bg-amber-300/40" : "bg-primary-400/40";
 
   const label = isDaily ? "⚡ Daily Winner" : "👑 Monthly Champion";
-  const emptyMsg = isDaily ? "No calls yet today" : "No callers yet";
+  const emptyMsg = isDaily
+    ? "Needs 3 scored calls today to qualify"
+    : "Needs 20 scored calls this month to qualify";
 
   if (loading) {
     return (
@@ -64,6 +62,7 @@ function WinnerCard({
 
   return (
     <div
+      title={FORMULA}
       className={`relative flex-1 rounded-2xl overflow-hidden bg-gradient-to-br ${gradientClass} p-5 shadow-lg`}
     >
       {/* decorative blobs */}
@@ -90,25 +89,10 @@ function WinnerCard({
               {winner.name}
             </p>
             <p className="text-white/75 text-sm mt-0.5 font-medium">
-              {isDaily ? (
-                <>
-                  Score{" "}
-                  <span className="text-white font-bold text-base">{winner.value.toFixed(1)}</span>
-                  {winner.label && (
-                    <span className="text-white/60 text-xs ml-2">· {winner.label}</span>
-                  )}
-                </>
-              ) : (
-                <>
-                  Score{" "}
-                  <span className="text-white font-bold text-base">{winner.value.toFixed(1)}</span>
-                  {winner.calls_this_month !== undefined && (
-                    <span className="text-white/60 text-xs ml-2">
-                      · {winner.calls_this_month} calls this month
-                    </span>
-                  )}
-                </>
-              )}
+              <span className="text-white font-bold text-base">{winner.points.toFixed(1)}</span> pts
+              <span className="text-white/60 text-xs ml-2">
+                · avg score {winner.avg_score.toFixed(1)} · {winner.total_calls} calls
+              </span>
             </p>
           </div>
 

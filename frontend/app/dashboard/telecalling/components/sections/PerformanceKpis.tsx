@@ -170,8 +170,8 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
           icon={<Award size={16} />}
           iconClass="bg-primary-50 text-primary-600"
           value={quality ? `${quality.toFixed(1)}/10` : "—"}
-          label="Overall Score"
-          tooltip="Rolling average of last 10 calls (outcome + AI eval)"
+          label="Avg Score"
+          tooltip="Average of this period's scored calls: 7 points AI review + 3 points outcome. Short and no-answer calls count toward calls, not the score."
         />
       )}
       {!isTeam && (

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Loader2, Phone, RefreshCw, User } from "lucide-react";
 import { api, type CallLog } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
+import { CallAiDetail, CallScorePill, anyProcessing } from "@/components/CallAi";
 
 const OUTCOME_LABEL: Record<string, string> = {
   converted: "Converted",
@@ -33,12 +34,7 @@ function formatDuration(seconds: number | null): string {
   return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 }
 
-/** The AI scorecard's score — distinct from `score`, which grades the outcome. */
-function aiScore(log: CallLog): number | null {
-  const raw = log.evaluation?.overall_score;
-  const value = typeof raw === "string" ? Number(raw) : raw;
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
+const PROCESSING_POLL_MS = 10_000;
 
 interface RecentCallsTabProps {
   /** Whose calls to show; omit for everyone's (admin). */
@@ -52,20 +48,29 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     try {
       setLogs(await api.calls.recent(20, callerId ?? undefined));
     } catch (err) {
       console.error("Failed to load recent calls:", err);
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, [callerId]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // While a recording is being transcribed or scored, refresh quietly so the
+  // score and summary appear without the telecaller reloading.
+  const processing = anyProcessing(logs);
+  useEffect(() => {
+    if (!processing) return;
+    const timer = setInterval(() => void load(true), PROCESSING_POLL_MS);
+    return () => clearInterval(timer);
+  }, [processing, load]);
 
   if (loading) {
     return (
@@ -104,7 +109,6 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
       <div className="space-y-2">
         {logs.map((log) => {
           const expanded = expandedId === log.id;
-          const score = aiScore(log);
           const outcome = log.outcome ?? "";
           return (
             <div key={log.id} className="bg-white border border-[#e8e3db] rounded-2xl shadow-sm overflow-hidden">
@@ -126,9 +130,7 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
                     {OUTCOME_LABEL[outcome] ?? outcome}
                   </span>
                 )}
-                {score !== null && (
-                  <span className="shrink-0 font-label text-[10px] font-extrabold text-primary">{score}/10</span>
-                )}
+                <CallScorePill log={log} />
                 <ChevronDown
                   size={13}
                   className={`shrink-0 text-[#a8a29e] transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -137,28 +139,17 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
 
               {expanded && (
                 <div className="px-3 pb-3 pt-1 border-t border-[#f0ece4] space-y-2.5">
-                  {log.ai_summary?.brief && (
-                    <p className="font-body text-[11px] leading-relaxed text-[#57534e]">{log.ai_summary.brief}</p>
-                  )}
                   {log.recording_url ? (
                     <audio src={log.recording_url} controls className="w-full h-8" />
                   ) : (
                     <p className="font-label text-[10px] italic text-[#a8a29e]">No recording for this call.</p>
                   )}
-                  {log.transcript && (
-                    <details className="group">
-                      <summary className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e] cursor-pointer hover:text-[#57534e]">
-                        Transcript
-                      </summary>
-                      <p className="mt-1.5 max-h-40 overflow-y-auto font-body text-[11px] leading-relaxed text-[#57534e] whitespace-pre-wrap">
-                        {log.transcript}
-                      </p>
-                    </details>
-                  )}
-                  {log.evaluation?.coaching_tip && (
-                    <p className="font-body text-[11px] leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-2">
-                      <span className="font-bold">Coaching: </span>{log.evaluation.coaching_tip}
-                    </p>
+                  {log.provider === "telecmi" ? (
+                    <CallAiDetail log={log} onChanged={() => void load(true)} />
+                  ) : (
+                    log.ai_summary?.brief && (
+                      <p className="font-body text-[11px] leading-relaxed text-[#57534e]">{log.ai_summary.brief}</p>
+                    )
                   )}
                   {log.lead_id && onSelectLead && (
                     <button
