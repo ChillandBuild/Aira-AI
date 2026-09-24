@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import {
-  Menu, Users, MessageCircle, Archive, Ban, Bell,
+  Users, MessageCircle, Archive, Ban, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,17 +27,7 @@ export function InboxRail({ folder, onFolderChange, escalationCount }: InboxRail
   const railBtn = "w-11 h-11 rounded-xl flex items-center justify-center transition-colors";
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-16 bg-surface border-r border-surface-mid flex flex-col items-center py-3 gap-1">
-      <button
-        onClick={() => {
-          window.dispatchEvent(new CustomEvent("open-inbox-sidebar"));
-        }}
-        title="Open menu"
-        className={cn(railBtn, "text-on-surface-muted hover:bg-surface-low hover:text-on-surface mb-1")}
-      >
-        <Menu size={20} />
-      </button>
-
+    <aside className="fixed left-16 top-0 z-40 h-screen w-16 bg-surface border-r border-surface-mid flex flex-col items-center py-3 gap-1">
       <button
         onClick={() => router.push("/dashboard/leads")}
         title="Contacts"

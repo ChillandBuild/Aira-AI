@@ -132,6 +132,10 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
             <SessionTracker />
             <DashboardAuthGuard>
               <div className="h-screen bg-background overflow-hidden relative">
+                {/* Collapsed Dashboard Rail (md+) */}
+                <div className="hidden md:block">
+                  <Sidebar collapsed onExpand={() => setIsInboxSidebarOpen(true)} />
+                </div>
                 {isInboxSidebarOpen && (
                   <>
                     {/* Backdrop */}

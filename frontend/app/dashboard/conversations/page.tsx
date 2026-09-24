@@ -247,7 +247,7 @@ export default function ConversationsPage() {
 
   if (folder === "escalations") {
     return (
-      <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-16">
+      <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-32">
         <div className="hidden md:block">
           <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
         </div>
@@ -262,7 +262,7 @@ export default function ConversationsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-16">
+    <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-32">
       <div className="hidden md:block">
         <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
       </div>

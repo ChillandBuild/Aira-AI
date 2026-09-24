@@ -9,6 +9,7 @@ import {
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
   Settings,
+  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,52 @@ const TELECALLING_ITEMS: NavItem[] = [
   { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes" },
 ];
 
+function CollapsedNavItem({
+  href,
+  active,
+  icon: Icon,
+  label,
+  badge,
+}: {
+  href: string;
+  active: boolean;
+  icon: typeof LayoutDashboard;
+  label: string;
+  badge?: React.ReactNode;
+}) {
+  const router = useRouter();
+  return (
+    <div className="group relative" onMouseEnter={() => router.prefetch(href)}>
+      <Link
+        href={href}
+        prefetch={true}
+        className={cn(
+          "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all duration-150 border relative",
+          active
+            ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)]"
+            : "border-transparent hover:bg-[#f0ece4]"
+        )}
+      >
+        {active && (
+          <span className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
+        )}
+        <Icon
+          size={16}
+          className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover:text-[#1c1917] flex-shrink-0"}
+        />
+        {badge && (
+          <span className="absolute -top-1 -right-1 flex items-center justify-center">
+            {badge}
+          </span>
+        )}
+      </Link>
+      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+        {label}
+      </div>
+    </div>
+  );
+}
+
 function MainNavItem({
   href,
   active,
@@ -58,9 +105,12 @@ function MainNavItem({
   label: string;
   badge?: React.ReactNode;
 }) {
+  const router = useRouter();
   return (
     <Link
       href={href}
+      prefetch={true}
+      onMouseEnter={() => router.prefetch(href)}
       className={cn(
         "flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border group",
         active
@@ -90,7 +140,12 @@ function MainNavItem({
   );
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean;
+  onExpand?: () => void;
+}
+
+export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
@@ -193,7 +248,7 @@ export function Sidebar() {
 
   if (roleLoading || subStatus === "loading") {
     return (
-      <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] z-20" />
+      <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e8e3db] z-20", collapsed ? "w-16" : "w-[220px]")} />
     );
   }
 
@@ -225,68 +280,303 @@ export function Sidebar() {
   const showSettings = expandedGroups.Settings || isSettingsActive;
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-[220px] bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none">
+    <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none", collapsed ? "w-16" : "w-[220px]")}>
       {/* Brand — h-16 (64px) matches the header so this bottom border and the
           header border form one continuous divider. shrink-0 is essential: the
           nav below overflows and would otherwise compress this box under flex
           pressure, lifting the divider above the header's fixed 64px line. */}
-      <div className="h-16 shrink-0 flex items-center px-5 border-b border-[#e8e3db]">
-        <AiraLogo className="h-6 w-auto text-[#1c1917]" />
+      <div className={cn("h-16 shrink-0 flex items-center border-b border-[#e8e3db]", collapsed ? "justify-center px-2" : "px-5")}>
+        {collapsed ? (
+          <button
+            type="button"
+            onClick={() => onExpand?.()}
+            title="Open menu"
+            className="w-11 h-11 rounded-xl flex items-center justify-center text-[#57534e] transition-colors hover:bg-[#f0ece4] hover:text-[#1c1917]"
+          >
+            <Menu size={20} />
+          </button>
+        ) : (
+          <AiraLogo className="h-6 w-auto text-[#1c1917]" />
+        )}
       </div>
 
 
-      {showSettings ? (
-        <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1 scrollbar-thin">
-          <button
-            onClick={() => {
-              setExpandedGroups((prev) => ({ ...prev, Settings: false }));
-              router.push("/dashboard");
-            }}
-            className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#1c1917] transition-all hover:bg-[#f0ece4]"
-          >
-            <ChevronLeft size={16} />
-            <span>Settings</span>
-          </button>
+      {collapsed ? (
+        <div className="flex-grow overflow-y-auto flex flex-col items-center py-4 space-y-1.5 scrollbar-thin">
+        {/* TOP LEVEL: Overview / Dashboard */}
+        {can("dashboard.view") ? (
+          <CollapsedNavItem
+            href="/dashboard"
+            active={pathname === "/dashboard"}
+            icon={LayoutDashboard}
+            label="Dashboard"
+          />
+        ) : (
+          <CollapsedNavItem
+            href="/dashboard/profile"
+            active={pathname === "/dashboard/profile"}
+            icon={LayoutDashboard}
+            label="Overview"
+          />
+        )}
 
-          {visibleSettingsItems.map((item) => {
-            const matches = visibleSettingsItems.filter(
-              (i) => pathname === i.href || pathname.startsWith(i.href + "/")
-            );
-            const bestMatch = matches.reduce<NavItem | null>(
-              (best, i) => (!best || i.href.length > best.href.length ? i : best), null
-            );
-            const active = bestMatch?.href === item.href;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
-                  active
-                    ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
-                    : "border-transparent text-[#78716c] hover:text-[#1c1917] hover:bg-[#f0ece4]"
-                )}
-              >
-                {active && (
-                  <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-                )}
-                <span
-                  className={cn(
-                    "truncate",
-                    active
-                      ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
-                      : "font-medium"
-                  )}
-                >
-                  {item.label}
+        {/* TOP LEVEL: Conversations */}
+        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
+          <CollapsedNavItem
+            href="/dashboard/conversations"
+            active={pathname.startsWith("/dashboard/conversations")}
+            icon={MessageSquare}
+            label="Conversations"
+            badge={
+              inboxCount > 0 ? (
+                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[10px] font-bold min-w-[16px]">
+                  {inboxCount > 9 ? "9+" : inboxCount}
                 </span>
-              </Link>
-            );
-          })}
+              ) : undefined
+            }
+          />
+        )}
+
+        {/* TOP LEVEL: Intake */}
+        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
+          <CollapsedNavItem
+            href="/dashboard/intake"
+            active={pathname.startsWith("/dashboard/intake")}
+            icon={Headset}
+            label="Intake"
+          />
+        )}
+
+        {/* TOP LEVEL: Leads */}
+        {isSubscribed && can("leads.view") && messagingOn && (
+          <CollapsedNavItem
+            href="/dashboard/leads"
+            active={pathname.startsWith("/dashboard/leads")}
+            icon={Users}
+            label="Segments"
+          />
+        )}
+
+        {/* TOP LEVEL: Inbound Leads */}
+        {isSubscribed && can("inbound_leads.view") && inboundOn && (
+          <CollapsedNavItem
+            href="/dashboard/inbound-leads"
+            active={pathname.startsWith("/dashboard/inbound-leads")}
+            icon={RadioTower}
+            label="Inbound Leads"
+          />
+        )}
+
+        {/* TOP LEVEL: Meta Ads */}
+        {isSubscribed && can("inbound_leads.view") && inboundOn && (
+          <CollapsedNavItem
+            href="/dashboard/meta-ads"
+            active={pathname.startsWith("/dashboard/meta-ads")}
+            icon={Megaphone}
+            label="Meta Ads"
+          />
+        )}
+
+        {/* TOP LEVEL: Outbound Leads */}
+        {isSubscribed && canAny(["outbound_leads.view", "outbound_leads.manage"]) && outboundOn && (
+          <CollapsedNavItem
+            href="/dashboard/outbound-leads"
+            active={pathname.startsWith("/dashboard/outbound-leads")}
+            icon={Upload}
+            label="Outbound Leads"
+          />
+        )}
+
+        {/* TOP LEVEL: Templates */}
+        {isSubscribed && canAny(["templates.view", "templates.manage"]) && outboundOn && (
+          <CollapsedNavItem
+            href="/dashboard/templates"
+            active={pathname.startsWith("/dashboard/templates")}
+            icon={FileCheck}
+            label="Templates"
+          />
+        )}
+
+        {/* TOP LEVEL: Numbers Pool */}
+        {isSubscribed && canAny(["numbers.view", "numbers.manage"]) && messagingOn && (
+          <CollapsedNavItem
+            href="/dashboard/numbers"
+            active={pathname.startsWith("/dashboard/numbers")}
+            icon={Layers}
+            label="Numbers Pool"
+          />
+        )}
+
+        {/* TOP LEVEL: Knowledge Base */}
+        {isSubscribed && canAny(["knowledge.view", "knowledge.manage"]) && messagingOn && (
+          <CollapsedNavItem
+            href="/dashboard/knowledge"
+            active={pathname.startsWith("/dashboard/knowledge")}
+            icon={BookOpen}
+            label="Knowledge Base"
+          />
+        )}
+
+        {/* TOP LEVEL: Catalog */}
+        {isSubscribed && canAny(["catalog.view", "catalog.manage"]) && messagingOn && (
+          <CollapsedNavItem
+            href="/dashboard/catalog"
+            active={pathname.startsWith("/dashboard/catalog")}
+            icon={Package}
+            label="Catalog"
+          />
+        )}
+
+        {/* TOP LEVEL: Analytics */}
+        {isSubscribed && can("analytics.view") && messagingOn && (
+          <CollapsedNavItem
+            href="/dashboard/analytics"
+            active={pathname.startsWith("/dashboard/analytics")}
+            icon={BarChart2}
+            label="Analytics"
+          />
+        )}
+
+        {/* TOP LEVEL: Subscription */}
+        {canAny(["subscription.view", "subscription.manage"]) && (
+          <CollapsedNavItem
+            href="/dashboard/subscription"
+            active={pathname === "/dashboard/subscription"}
+            icon={CreditCard}
+            label="Subscription"
+          />
+        )}
+
+        {/* TOP LEVEL: Team */}
+        {isSubscribed && can("team.view") && (
+          <CollapsedNavItem
+            href="/dashboard/team"
+            active={pathname.startsWith("/dashboard/team")}
+            icon={Users}
+            label="Team"
+          />
+        )}
+
+        {/* TOP LEVEL: Roles */}
+        {isSubscribed && canAny(["roles.view", "roles.manage"]) && (
+          <CollapsedNavItem
+            href="/dashboard/roles"
+            active={pathname.startsWith("/dashboard/roles")}
+            icon={ShieldCheck}
+            label="Roles"
+          />
+        )}
+
+        {/* GROUP: Telecalling */}
+        {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
+          <div className="group relative">
+            <button
+              onClick={() => onExpand?.()}
+              className={cn(
+                "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/tc border relative",
+                isTcActive
+                  ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)]"
+                  : "border-transparent hover:bg-[#f0ece4]"
+              )}
+              title="Telecalling"
+            >
+              {isTcActive && (
+                <span className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
+              )}
+              <Phone
+                size={16}
+                className={isTcActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover/tc:text-[#1c1917] flex-shrink-0"}
+              />
+            </button>
+            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+              Telecalling
+            </div>
+          </div>
+        )}
+
+        {/* GROUP: Settings */}
+        {isSubscribed && canSettings && (
+          <div className="group relative">
+            <button
+              onClick={() => onExpand?.()}
+              className={cn(
+                "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/settings border relative",
+                isSettingsActive
+                  ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)]"
+                  : "border-transparent hover:bg-[#f0ece4]"
+              )}
+              title="Settings"
+            >
+              {isSettingsActive && (
+                <span className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
+              )}
+              <Settings
+                size={16}
+                className={isSettingsActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover/settings:text-[#1c1917] flex-shrink-0"}
+              />
+            </button>
+            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+              Settings
+            </div>
+          </div>
+        )}
         </div>
       ) : (
-      <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
+        <>
+          {showSettings ? (
+            <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1 scrollbar-thin">
+              <button
+                onClick={() => {
+                  setExpandedGroups((prev) => ({ ...prev, Settings: false }));
+                  router.push("/dashboard");
+                }}
+                className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#1c1917] transition-all hover:bg-[#f0ece4]"
+              >
+                <ChevronLeft size={16} />
+                <span>Settings</span>
+              </button>
+
+              {visibleSettingsItems.map((item) => {
+                const matches = visibleSettingsItems.filter(
+                  (i) => pathname === i.href || pathname.startsWith(i.href + "/")
+                );
+                const bestMatch = matches.reduce<NavItem | null>(
+                  (best, i) => (!best || i.href.length > best.href.length ? i : best), null
+                );
+                const active = bestMatch?.href === item.href;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    prefetch={true}
+                    onMouseEnter={() => router.prefetch(item.href)}
+                    className={cn(
+                      "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
+                      active
+                        ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
+                        : "border-transparent text-[#78716c] hover:text-[#1c1917] hover:bg-[#f0ece4]"
+                    )}
+                  >
+                    {active && (
+                      <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
+                    )}
+                    <span
+                      className={cn(
+                        "truncate",
+                        active
+                          ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
+                          : "font-medium"
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
         {/* TOP LEVEL: Overview / Dashboard */}
         {can("dashboard.view") ? (
           <MainNavItem
@@ -496,6 +786,8 @@ export function Sidebar() {
 
                       <Link
                         href={item.href}
+                        prefetch={true}
+                        onMouseEnter={() => router.prefetch(item.href)}
                         className={cn(
                           "flex items-center gap-2 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group border",
                           active
@@ -525,21 +817,23 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* GROUP: Settings */}
-        {isSubscribed && canSettings && (
-          <button
-            onClick={() => toggleGroup("Settings")}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-              isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+            {/* GROUP: Settings */}
+            {isSubscribed && canSettings && (
+              <button
+                onClick={() => toggleGroup("Settings")}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
+                  isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+                )}
+              >
+                <Settings size={16} className={isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+                <span className="flex-1">Settings</span>
+                <ChevronRight size={14} className="text-[#a8a29e]" />
+              </button>
             )}
-          >
-            <Settings size={16} className={isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
-            <span className="flex-1">Settings</span>
-            <ChevronRight size={14} className="text-[#a8a29e]" />
-          </button>
-        )}
-      </div>
+            </div>
+          )}
+        </>
       )}
     </aside>
   );
