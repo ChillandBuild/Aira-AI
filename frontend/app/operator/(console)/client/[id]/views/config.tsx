@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, CheckCircle2, Image as ImageIcon, Link2, Loader2, Lock, Mic, Plus, Puzzle, RadioTower, Shield, Smartphone, Sparkles, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Image as ImageIcon, Link2, Loader2, Mic, Plus, Puzzle, RadioTower, Shield, Smartphone, Sparkles, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
@@ -215,7 +214,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<AiProviderKey, string>>({ sarvam: "", gemini: "", openai: "", groq: "", jina: "" });
   const [apiKeySaving, setApiKeySaving] = useState<AiProviderKey | null>(null);
   const [replyModelSaving, setReplyModelSaving] = useState<ReplyModelId | null>(null);
-  const [masterPrompt, setMasterPrompt] = useState<string>("");
   const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
   const [newFeatureKey, setNewFeatureKey] = useState("");
   const [featureSaving, setFeatureSaving] = useState(false);
@@ -480,7 +478,6 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       .then(([configData, providerData, overviewData]) => {
         setConfig(configData);
         setProvider(providerData);
-        setMasterPrompt(configData.master_prompt || "");
         setEnabledFeatures(overviewData.tenant.enabled_features || []);
       })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load config"))
@@ -888,42 +885,10 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
-      {/* Master Prompt — platform-wide, not per client */}
+      {/* The master prompt is platform-wide: it is shown and edited only at
+          /operator/prompt-template, not repeated under every client. */}
       <div>
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
-            <Sparkles size={16} className="text-ink-muted" />
-            Master Prompt
-          </h3>
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-mid px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-secondary">
-            <Lock size={10} />
-            Platform-wide
-          </span>
-        </div>
-        <p className="mb-4 text-xs leading-relaxed text-ink-muted">
-          Every client runs on this one prompt — it is not editable per client. It defines
-          how the assistant behaves: reply length, tone, and worked examples. What makes this
-          client&apos;s replies their own is the product description below, which they write
-          themselves.
-        </p>
-
-        <div className="relative rounded-card border border-border bg-surface-low shadow-sm">
-          <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-relaxed text-ink-secondary">
-            {masterPrompt || "No master prompt has been set for the platform yet."}
-          </pre>
-        </div>
-
-        <div className="mt-3 flex justify-end">
-          <Link
-            href="/operator/prompt-template"
-            className="inline-flex items-center gap-1.5 rounded-card border border-border bg-white px-4 py-2 text-sm font-semibold text-ink-secondary shadow-sm transition-all hover:border-primary-muted hover:text-ink"
-          >
-            Edit for all clients
-            <ArrowUpRight size={14} />
-          </Link>
-        </div>
-
-        <div className="mt-4 rounded-card border border-border bg-surface-low p-4 shadow-sm">
+        <div className="rounded-card border border-border bg-surface-low p-4 shadow-sm">
           <p className="mb-2 text-xs font-semibold text-ink">
             Client&apos;s product description (read-only)
           </p>
