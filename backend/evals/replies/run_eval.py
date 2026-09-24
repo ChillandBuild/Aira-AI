@@ -37,6 +37,7 @@ MAX_REPLY_CHARS = 700
 _PLACEHOLDER_RE = re.compile(r"\[(?:insert|link|url|your)[^\]]*\]", re.IGNORECASE)
 _UNSET = object()
 REAL_HANDOVER_LINE = ""  # set by --real-handover-line
+REAL_DESCRIPTION = ""  # set by --real-description-file
 
 # ── Settings override, per asyncio task ──────────────────────────────────────
 _overrides: contextvars.ContextVar[dict] = contextvars.ContextVar("overrides", default={})
@@ -84,6 +85,8 @@ def load_cases(only: str | None) -> tuple[list[dict], dict]:
 async def build_context(case: dict, biz: dict | None, key_tenant: str) -> tuple[str, dict]:
     if biz is None:  # real tenant: its own settings and live retrieval
         overrides = {"handover_line": REAL_HANDOVER_LINE} if REAL_HANDOVER_LINE else {}
+        if REAL_DESCRIPTION:
+            overrides["business_description"] = REAL_DESCRIPTION
         return await get_knowledge_context(key_tenant, query=case["message"]), overrides
     excerpts = "\n\n".join(f"=== excerpt {i + 1} ===\n{f}" for i, f in enumerate(biz["facts"]))
     overrides = {
@@ -95,7 +98,7 @@ async def build_context(case: dict, biz: dict | None, key_tenant: str) -> tuple[
     return excerpts, overrides
 
 
-async def generate(case: dict, biz: dict | None, key_tenant: str) -> tuple[str, str, str, str]:
+async def generate(case: dict, biz: dict | None, key_tenant: str) -> tuple[str, str, str, str, str]:
     context_text, overrides = await build_context(case, biz, key_tenant)
     _overrides.set(overrides)
     lead = {"name": "", "segment": "C", "tenant_id": key_tenant,
@@ -108,8 +111,9 @@ async def generate(case: dict, biz: dict | None, key_tenant: str) -> tuple[str, 
     messages += [{"role": r, "content": c} for r, c in case.get("thread", [])]
     messages.append({"role": "user", "content": case["message"]})
     reply = (await ai_reply._llm_chat(messages, max_tokens=600, tenant_id=key_tenant)).strip()
+    handover_line = ai_reply._handover_line(key_tenant)
     return reply, context_text, _overrides.get().get("business_description") or _real_get_setting(
-        "business_description", tenant_id=key_tenant) or "", _mode
+        "business_description", tenant_id=key_tenant) or "", _mode, handover_line
 
 
 # ── Grading ───────────────────────────────────────────────────────────────────
@@ -148,7 +152,9 @@ invented       = ANY claim not supported by the BUSINESS PROFILE or FACTS. This 
                  say it isn't known / will be checked, never to answer yes or no.
 broke_rule     = breaks a rule in the BUSINESS PROFILE, or a universal rule: never guarantee
                  outcomes; no medical/legal/financial advice; a stop request gets one short
-                 acknowledgement and nothing else.
+                 acknowledgement and nothing else. Using the HANDOVER LINE when the customer
+                 asks for a person, has a problem the assistant can't solve, or asks something
+                 not in the facts is never a rule break.
 claimed_action = says something was done that an assistant cannot have done ("I have booked",
                  "I have updated our records", "I have informed the team") unless the
                  conversation shows it happened. Exception: replying to a clear stop /
@@ -172,11 +178,14 @@ _LANGUAGE_EXPECTED = {
 
 
 async def judge(case: dict, reply: str, profile: str, facts: str, mode: str,
-                key_tenant: str) -> dict:
+                key_tenant: str, handover_line: str) -> dict:
     thread = "\n".join(f"{r}: {c}" for r, c in case.get("thread", []))
     language = _LANGUAGE_EXPECTED.get(mode, _LANGUAGE_EXPECTED["mirror"])
+    handover_note = handover_line or "(none — the default is that a team member will follow up)"
     user = (
         f"BUSINESS PROFILE:\n{profile[:8000]}\n\nFACTS:\n{facts[:8000]}\n\n"
+        "HANDOVER LINE (the business's own instruction for when the assistant can't help "
+        f"or a person is asked for; using it is correct, not a rule break): {handover_note}\n\n"
         f"LANGUAGE EXPECTED: {language}\n\n"
         f"EARLIER CHAT:\n{thread or '(none)'}\n\nCUSTOMER: {case['message']}\n\n"
         f"REPLY TO GRADE:\n{reply}\n\nGRADER NOTE: {case.get('note', '')}"
@@ -212,10 +221,10 @@ async def run_case(case, businesses, key_tenant, sem) -> dict:
     biz = businesses.get(case.get("business")) if case.get("business") != "real" else None
     async with sem:
         try:
-            reply, facts, profile, mode = await generate(case, biz, key_tenant)
+            reply, facts, profile, mode, handover_line = await generate(case, biz, key_tenant)
         except Exception as e:
             return {**case, "reply": "", "fails": [f"generation_error: {e}"], "verdict": {}}
-        verdict = await judge(case, reply, profile, facts, mode, key_tenant)
+        verdict = await judge(case, reply, profile, facts, mode, key_tenant, handover_line)
     fails = fixed_checks(case, biz, reply) + judge_fails(verdict)
     return {**case, "reply": reply, "fails": fails, "verdict": verdict}
 
@@ -254,12 +263,17 @@ async def main() -> None:
     parser.add_argument("--out", default=None)
     parser.add_argument("--real-handover-line", default="",
                         help="handover line to test the real tenant with (not saved anywhere)")
+    parser.add_argument("--real-description-file", default=None,
+                        help="test the real tenant with this description instead of its saved one")
     parser.add_argument("--master-file", default=None,
                         help="use this master prompt text instead of the live one (test before publishing)")
     args = parser.parse_args()
     if args.real_handover_line:
         global REAL_HANDOVER_LINE
         REAL_HANDOVER_LINE = args.real_handover_line
+    if args.real_description_file:
+        global REAL_DESCRIPTION
+        REAL_DESCRIPTION = Path(args.real_description_file).read_text()
     if args.master_file:
         master = Path(args.master_file).read_text()
         ai_reply.get_master_prompt = lambda: master

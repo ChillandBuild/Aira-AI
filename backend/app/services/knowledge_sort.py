@@ -33,7 +33,7 @@ from app.services.knowledge_sections import Section, critical_tokens, split_sect
 
 logger = logging.getLogger(__name__)
 
-SOFT_WORD_LIMIT = 1_200
+SOFT_WORD_LIMIT = 700
 _PURPOSE = "knowledge_sort"
 _LABEL_BATCH_CHARS = 12_000
 _COMPILE_BATCH_CHARS = 16_000
@@ -142,12 +142,15 @@ You get the CURRENT DESCRIPTION and NEW RULES taken from an uploaded document. P
 
 How to write it:
 - Keep every line of the current Description word for word, unless a new rule contradicts it.
-- Merge the new rules in as short plain lines under UPPERCASE headings, in this order, using only the ones you need: ABOUT US, WHAT WE OFFER, WHO WE TALK TO, YOUR JOB IN EVERY CONVERSATION, LANGUAGE, HOW TO SOUND, GREETINGS AND CLOSINGS, WHAT YOU MUST NEVER DO, HAND OVER TO A PERSON WHEN. Headings already in the current Description stay as they are.
+- Merge the new rules in as short plain lines under UPPERCASE headings, in this order, using only the ones you need: ABOUT US, HOW CUSTOMERS BUY, WHO WE TALK TO, HOW TO SOUND, YOUR JOB IN EVERY CONVERSATION, WHAT YOU MUST NEVER DO. Headings already in the current Description stay as they are.
+- Never include rules about WHICH LANGUAGE to reply in (that is a setting); keep style/phrases/spellings.
+- Never include rules about when to hand over to a person (that is a setting); keep style.
+- Drop generic good behaviour that every assistant already follows (no guarantees, no invented facts, be polite, keep it short, no pressure, honesty about being AI).
 - When one new rule says it overrides or replaces another, keep only the winning one.
 - Write each rule once. Drop example conversations unless one exact phrase must be used word for word.
 - Do not copy prices, packages, FAQs or policies into the Description -- they are looked up separately -- unless they are already in the current Description.
 - No markdown: no #, no **, no >, no tables. Plain lines; "- " bullets are fine.
-- At most 1,200 words.
+- At most 700 words. When a section is over its word limit, shorten or merge lines in that section; keep total under 700.
 
 Conflicts: when the new rules disagree with the current Description, or with each other, and you cannot tell which is right, put NEITHER version in the Description and list it in "conflicts".
 

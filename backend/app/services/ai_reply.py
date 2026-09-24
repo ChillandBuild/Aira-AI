@@ -601,6 +601,20 @@ def _resolve_reply_language_mode(tenant_id: str | None) -> str:
     return mode if mode in _LANGUAGE_MODES else "mirror"
 
 
+# How to write Tanglish well. Lived in the platform master prompt (as rule 9) until
+# 2026-09-24; moved here so it rides with the language setting: every client whose
+# setting can produce Tanglish gets it, and the master prompt stays language-neutral.
+# Declarative wording on purpose -- see the _language_rule_block docstring.
+_TANGLISH_STYLE_GUIDE = (
+    "\n\nTANGLISH STYLE (whenever you reply in Tanglish): write natural, simple, everyday "
+    "Tanglish, the way people text on WhatsApp, not translated or literary Tamil and not "
+    "formal customer-service language. Prefer simple words such as puriyudhu, vishayam, "
+    "therinjukka, paathu, ketkalaam, sollunga, share pannunga, question, guidance. Avoid "
+    "literary words such as soozhnilai, manasthapam, aazhamaaga aaraainthu, thevaiyaana. "
+    "Keep common English words in English instead of forcing a Tamil translation."
+)
+
+
 def _language_rule_block(mode: str, message: str) -> str:
     """System-prompt LANGUAGE instruction, branched on this tenant's reply_language_mode.
     The three forced modes use calm/declarative phrasing only -- live-tested 2026-07-17:
@@ -616,7 +630,7 @@ def _language_rule_block(mode: str, message: str) -> str:
             "out in Roman/English letters (e.g. 'eppo varuvinga', 'jaadhagam paakanum'), the "
             "way a Tamil customer-service agent casually texts on WhatsApp. Use this Tanglish "
             "style for every reply, even when the customer writes in English or in Tamil script."
-        )
+        ) + _TANGLISH_STYLE_GUIDE
     if mode == "english":
         return (
             "\n\nLANGUAGE STYLE: Always reply in English only, regardless of what language or "
@@ -636,7 +650,7 @@ def _language_rule_block(mode: str, message: str) -> str:
         "If the customer's latest message explicitly requests a different language (e.g. 'in English please', "
         "'tamil-la sollunga', 'reply in tamil'), you MUST fully switch to that requested language for this "
         "reply and continue in it afterward, overriding whatever style earlier messages in the conversation used."
-    ) + f"\n\nCUSTOMER'S LATEST MESSAGE SCRIPT: {_latest_message_script_note(message)}"
+    ) + _TANGLISH_STYLE_GUIDE + f"\n\nCUSTOMER'S LATEST MESSAGE SCRIPT: {_latest_message_script_note(message)}"
 
 
 # NOTE: the hardcoded ACCURACY RULE was removed 2026-07-20 (operator decision). It

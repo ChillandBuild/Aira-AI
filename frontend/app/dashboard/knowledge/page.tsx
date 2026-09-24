@@ -22,6 +22,7 @@ import { SwitchPill } from "@/components/ui/controls";
 import KnowledgeReviewModal from "./KnowledgeReviewModal";
 import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
 import DeleteDocumentModal from "./DeleteDocumentModal";
+import ProfileSectionsEditor from "./ProfileSectionsEditor";
 import { wordCount } from "./descriptionDiff";
 
 // ─── Interfaces & Types ───────────────────────────────────────────────────────
@@ -442,10 +443,8 @@ export default function KnowledgePage() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Product Description & AI Tuning
-  const [description, setDescription] = useState<string>("");
+  // Product Description & AI Tuning (savedDescription is used in Documents tab status row)
   const [savedDescription, setSavedDescription] = useState<string>("");
-  const [descSaving, setDescSaving] = useState(false);
 
   const [appLink, setAppLink] = useState<string>("");
   const [savedAppLink, setSavedAppLink] = useState<string>("");
@@ -656,7 +655,6 @@ export default function KnowledgePage() {
   async function loadDescription() {
     try {
       const d = await api.aiTune.description();
-      setDescription(d);
       setSavedDescription(d);
     } catch {}
   }
@@ -862,20 +860,6 @@ export default function KnowledgePage() {
   }
 
   // ─── AI Tuning Handlers ───────────────────────────────────────────────────
-
-  async function saveDescription() {
-    setDescSaving(true);
-    try {
-      await api.aiTune.updateDescription(description);
-      setSavedDescription(description);
-      toast.success("Description saved. Updating scoring rubric…");
-      setTimeout(loadAiTuneSettings, 4000);
-    } catch {
-      toast.error("Failed to save description. Please try again.");
-    } finally {
-      setDescSaving(false);
-    }
-  }
 
   async function saveAppLink() {
     setAppLinkSaving(true);
@@ -2024,53 +2008,17 @@ export default function KnowledgePage() {
             </div>
           )}
 
-          {/* Product Description Card */}
-          <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
-            <div>
-              <h2 className="font-display text-lg font-bold text-primary">
-                Lead Segment Description
-              </h2>
-              <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                Describe your business, products, services, and the role your AI assistant plays. Write it in clear, natural language — as you would brief a new team member. Your assistant uses this core context to formulate responses and understand brand tone.
-              </p>
-            </div>
-
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={!canManageKnowledge}
-              rows={12}
-              placeholder="Example: We are a real estate consultancy based in Bangalore specializing in residential villas and apartments in North Bangalore. We help prospective homebuyers with site visits, loan pre-approvals, and booking assistance. Most customers contact us asking about project amenities, pricing per sq.ft, handover timelines, and visit schedules."
-              className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-body text-sm leading-relaxed text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
-            />
-
-            <div className="flex items-center justify-between pt-2">
-              <span
-                className={cn(
-                  "font-mono text-xs",
-                  wordCount(description) > 1200 ? "font-semibold text-amber-700" : "text-on-surface-muted"
-                )}
-              >
-                {wordCount(description).toLocaleString()} words · {description.length.toLocaleString()} characters
-                {wordCount(description) > 1200 && " — over the 1,200-word guide"}
-              </span>
-              <div className="flex items-center gap-2">
-              <button
-                onClick={() => setHistoryTarget({ kind: "description", title: "Description" })}
-                className="flex items-center gap-2 px-4 py-2.5 bg-surface border border-surface-mid text-on-surface rounded-xl font-label text-sm font-semibold hover:bg-surface-low transition-colors shadow-xs"
-              >
-                <History size={14} /> History
-              </button>
-              <button
-                onClick={saveDescription}
-                disabled={descSaving || description === savedDescription || !canManageKnowledge}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
-              >
-                <Save size={14} /> {descSaving ? "Saving…" : "Save Description"}
-              </button>
-              </div>
-            </div>
-          </div>
+          {/* Business Profile Editor */}
+          <ProfileSectionsEditor
+            canEdit={isOwner}
+            onOpenHistory={() => setHistoryTarget({ kind: "description", title: "Description" })}
+            onSaved={() => {
+              // Update savedDescription to reflect the new word count from the profile
+              // This keeps the Documents tab status row in sync.
+              // We use loadDescription() to refetch the full text state.
+              loadDescription();
+            }}
+          />
 
           {/* App / Download Link */}
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">

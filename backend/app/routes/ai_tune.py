@@ -1,14 +1,17 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, field_validator
 
 from app.config_dynamic import get_setting, save_setting, invalidate_cache
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.gemini_client import gemini_chat_completion
 from app.services.knowledge_versions import save_description
+from app.services.business_profile import (
+    SECTIONS, HARD_WORD_LIMIT, parse, render, validate, word_count, propose_conversion
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(require_owner)])
@@ -158,3 +161,134 @@ async def update_app_link(payload: AppLinkUpdate, tenant_id: str = Depends(get_t
     save_setting("app_download_link", app_link, tenant_id=tenant_id)
     invalidate_cache("app_download_link")
     return {"app_link": app_link}
+
+
+# ─── Business Profile endpoints ────────────────────────────────────────────
+
+
+class ProfileSection(BaseModel):
+    key: str
+    heading: str
+    label: str
+    hint: str
+    word_limit: int
+    text: str = ""
+    words: int = 0
+
+
+class ProfileResponse(BaseModel):
+    sections: list[ProfileSection]
+    other: str = ""
+    total_words: int
+    hard_limit: int
+    is_structured: bool
+
+
+class ProfileUpdatePayload(BaseModel):
+    sections: dict[str, str] = {}
+    other: str = ""
+    
+    @field_validator('sections')
+    def validate_section_keys(cls, v):
+        """Ensure only known section keys."""
+        from app.services.business_profile import _SECTION_BY_KEY
+        for key in v.keys():
+            if key not in _SECTION_BY_KEY:
+                raise ValueError(f"Unknown section key: {key}")
+        return v
+
+
+@router.get("/profile")
+async def get_profile(tenant_id: str = Depends(get_tenant_id)):
+    """Get current profile sections and metadata."""
+    current = get_setting("business_description", tenant_id=tenant_id) or ""
+    parsed = parse(current)
+    
+    sections_list = []
+    for section in SECTIONS:
+        text = parsed.sections.get(section.key, "")
+        words = word_count(text)
+        sections_list.append(ProfileSection(
+            key=section.key,
+            heading=section.heading,
+            label=section.label,
+            hint=section.hint,
+            word_limit=section.word_limit,
+            text=text,
+            words=words,
+        ))
+    
+    total = sum(word_count(s.text) for s in sections_list) + word_count(parsed.other)
+    
+    return ProfileResponse(
+        sections=sections_list,
+        other=parsed.other,
+        total_words=total,
+        hard_limit=HARD_WORD_LIMIT,
+        is_structured=bool(parsed.sections) and not parsed.other.strip(),
+    )
+
+
+@router.put("/profile")
+async def update_profile(
+    payload: ProfileUpdatePayload,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_owner),
+):
+    """Update profile sections.
+    
+    Validates total word count and saves via save_description with reason 'edit'.
+    Returns 422 if validation fails.
+    """
+    errors = validate(payload.sections, payload.other)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+    
+    text = render(payload.sections, payload.other)
+    save_description(get_supabase(), tenant_id, text, "edit", ctx.get("user_id"))
+    queue_rubric_for_description(tenant_id, text)
+    
+    # Return updated profile
+    parsed = parse(text)
+    sections_list = []
+    for section in SECTIONS:
+        text_val = parsed.sections.get(section.key, "")
+        words = word_count(text_val)
+        sections_list.append(ProfileSection(
+            key=section.key,
+            heading=section.heading,
+            label=section.label,
+            hint=section.hint,
+            word_limit=section.word_limit,
+            text=text_val,
+            words=words,
+        ))
+    
+    total = sum(word_count(s.text) for s in sections_list) + word_count(parsed.other)
+    
+    return {
+        "sections": sections_list,
+        "other": parsed.other,
+        "total_words": total,
+        "hard_limit": HARD_WORD_LIMIT,
+        "is_structured": bool(parsed.sections) and not parsed.other.strip(),
+        "rubric_queued": True,
+    }
+
+
+@router.post("/profile/convert")
+async def convert_profile(
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_owner),
+):
+    """Convert free-text description to structured profile.
+    
+    Uses LLM to split current description into sections.
+    Does not save; returns proposed conversion with metadata.
+    """
+    current = get_setting("business_description", tenant_id=tenant_id) or ""
+    if not current.strip():
+        raise HTTPException(status_code=400, detail="Description is empty.")
+    
+    result = await propose_conversion(tenant_id, current)
+    return result
