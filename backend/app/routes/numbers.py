@@ -28,9 +28,11 @@ class CreatePhoneNumber(BaseModel):
 
 
 class UpdatePhoneNumber(BaseModel):
+    # No display_name: Meta owns it (`verified_name`), and both sync paths
+    # overwrite the row, so a rename here would silently revert. Changing the
+    # name customers see is a Meta review flow -- see subsystem-notes.md.
     role: str | None = None
     status: str | None = None
-    display_name: str | None = None
     paused_outbound: bool | None = None
     warm_up_day: int | None = None
 
@@ -181,6 +183,14 @@ async def sync_all_numbers_from_meta(
                 continue
 
             updates: dict = {"daily_send_count": 0, "last_reset_at": now.isoformat()}
+            # Meta owns the display name -- it's the Meta-approved `verified_name`
+            # customers actually see in WhatsApp, and it can only be changed in
+            # WhatsApp Manager (a rename there goes through Meta's review). The
+            # dashboard has no rename affordance, so sync mirrors Meta verbatim
+            # rather than preserving whatever the row happens to hold.
+            verified_name = (meta_num.get("verified_name") or "").strip()
+            if verified_name and verified_name != row.get("display_name"):
+                updates["display_name"] = verified_name
             if quality:
                 updates["quality_rating"] = quality
             if tier:
@@ -271,8 +281,6 @@ async def update_phone_number(
         updates["role"] = payload.role
     if payload.status is not None:
         updates["status"] = payload.status
-    if payload.display_name is not None:
-        updates["display_name"] = payload.display_name.strip()
     if payload.paused_outbound is not None:
         updates["paused_outbound"] = payload.paused_outbound
     if payload.warm_up_day is not None:
@@ -350,6 +358,11 @@ async def sync_number_from_meta(
         "daily_send_count": 0,
         "last_reset_at": now.isoformat(),
     }
+
+    # Mirror Meta's approved display name -- see the same note in sync-from-meta.
+    verified_name = (meta_data.get("verified_name") or "").strip()
+    if verified_name and verified_name != row.get("display_name"):
+        updates["display_name"] = verified_name
 
     if row["status"] == "warming" and days_elapsed > 0:
         new_day = min(row["warm_up_day"] + days_elapsed, _WARM_UP_MAX)

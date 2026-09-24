@@ -3,7 +3,7 @@
 ## Core Commands
 - **Backend Dev**: `cd backend && uvicorn app.main:app --reload`
 - **Backend Build/Deps**: `cd backend && pip install -r requirements.txt`
-- **Backend Test**: `cd backend && pytest` (runs tests under `backend/tests/`)
+- **Backend Test**: `cd backend && python -m pytest` (runs tests under `backend/tests/`). Use `python -m pytest`, not bare `pytest` — several test modules import `app.*` without adding the backend dir to `sys.path`, so bare `pytest` dies at collection with `ModuleNotFoundError: No module named 'app'`. `python -m` puts the cwd on `sys.path` and the suite passes (1829 tests as of 2026-09-23). Run it from `backend/`, not the repo root.
 - **Frontend Dev**: `cd frontend && npm run dev`
 - **Frontend Build**: `cd frontend && npm run build`
 - **Frontend Typecheck**: `cd frontend && npm run typecheck`
