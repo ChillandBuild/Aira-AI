@@ -337,6 +337,13 @@ export interface ReengagementLog {
   leads?: { name: string | null; phone: string; segment: string | null } | null;
 }
 
+export interface KnowledgeReadinessItem {
+  key: "about" | "how_to_buy" | "prices" | "handover" | "who" | "never" | "questions" | "voice";
+  label: string;
+  level: "must" | "nice" | "optional";
+  ok: boolean;
+}
+
 export interface KnowledgeDocContent {
   id: string;
   name: string;
@@ -1706,6 +1713,9 @@ export const api = {
       }),
     deletePreview: (id: string) =>
       apiFetch<KnowledgeDeletePreview>(`/api/v1/knowledge/documents/${id}/delete-preview`),
+    /** Which of the 8 Business Kit headings Aira already has (no AI call). */
+    readiness: () =>
+      apiFetch<{ data: KnowledgeReadinessItem[] }>(`/api/v1/knowledge/readiness`),
     getReview: (id: string) =>
       apiFetch<KnowledgeReview>(`/api/v1/knowledge/documents/${id}/review`),
     applyReview: (id: string, choices: KnowledgeApplyChoices) =>

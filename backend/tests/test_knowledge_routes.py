@@ -170,3 +170,20 @@ def test_delete_without_a_body_still_works(env, monkeypatch):
     res = client.delete(f"/api/v1/knowledge/documents/{doc['id']}")
     assert res.status_code == 200, res.text
     assert env.db.rows("knowledge_documents") == []
+
+
+def test_readiness_reads_description_handover_and_live_facts_for_a_manager(env, monkeypatch):
+    client = _client(env, monkeypatch, role="manager", permissions=["knowledge.view"])
+    settings = {
+        "business_description": "ABOUT US\nA dental clinic.\n\nHOW CUSTOMERS BUY\nBook a checkup.",
+        "handover_line": "Call 90000 12345.",
+    }
+    monkeypatch.setattr(knowledge, "get_setting", lambda key, tenant_id=None: settings.get(key))
+    add_doc(env.db, name="prices.docx", status="indexed", full_text="Cleaning Rs 800")
+    add_doc(env.db, name="waiting.docx", status="review_pending", full_text="Q: Refund?\nA: No refunds.")
+
+    items = {i["key"]: i["ok"] for i in client.get("/api/v1/knowledge/readiness").json()["data"]}
+    assert items == {
+        "about": True, "how_to_buy": True, "prices": True, "handover": True,
+        "who": False, "never": False, "questions": False, "voice": False,
+    }

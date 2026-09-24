@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 
 from app.db.supabase import get_supabase
 from app.services import knowledge_versions as versions
+from app.services.knowledge_kit import scrub_placeholders, split_kit, strip_example
 from app.services.description_diff import (
     apply_hunks,
     client_lines,
@@ -42,6 +43,7 @@ _PREVIEW_CHARS = 600
 _LABELS = {"RULE", "FACT", "MIXED", "JUNK"}
 
 NO_MODEL_MESSAGE = "Aira couldn't sort this file because no AI model is set up for your account."
+BLANK_NOTE = "You left this blank in your file. Fill it in, then upload the file again."
 
 
 # ─── Errors (routes map .status to the HTTP status; str(e) is the plain-language detail) ──
@@ -222,6 +224,35 @@ async def label_sections(tenant_id: str, sections: list[Section]) -> dict[str, L
             facts = [str(f).strip() for f in (item.get("facts") or []) if str(f).strip()] if label == "MIXED" else []
             labels[sid] = Label(label=label, facts=facts, note=str(item.get("note") or "")[:200])
     return labels
+
+
+async def label_document(tenant_id: str, text: str) -> tuple[list[Section], dict[str, Label]]:
+    """Split and label one document: by heading when it is a Business Kit file, by the
+    model otherwise. Shared with evals/knowledge_sort/run_kit_eval.py."""
+    kit = split_kit(text)
+    if kit is None:
+        sections = split_sections(text)
+        return sections, await label_sections(tenant_id, sections)
+    return await _label_kit(tenant_id, kit)
+
+
+async def _label_kit(tenant_id: str, kit: list[tuple[str | None, str]]) -> tuple[list[Section], dict[str, Label]]:
+    """Kit headings are labelled by heading, whole; only text outside them is sent to the
+    model (split as usual). A Kit section is never cut, so a heading's text can't be
+    packed together with its neighbour's."""
+    sections: list[Section] = []
+    fixed: dict[str, Label] = {}
+    loose: list[Section] = []
+    for label, text in kit:
+        for part in [text] if label else [s.text for s in split_sections(text)]:
+            section = Section(id=f"s{len(sections) + 1}", text=part)
+            sections.append(section)
+            if label:
+                fixed[section.id] = Label(label=label, facts=[], note="Kit heading")
+            else:
+                loose.append(section)
+    labels = await label_sections(tenant_id, loose) if loose else {}
+    return sections, {**labels, **fixed}
 
 
 _MIN_MIXED_RULES_WORDS = 3
@@ -585,9 +616,12 @@ async def run_sort(
     user_id: str | None,
 ) -> dict:
     """Sort one document and park the result as the document's pending review."""
-    sections = split_sections(source_text)
-    labels = await label_sections(tenant_id, sections)
+    # Kit template example and unfilled placeholders go before anything else sees the
+    # text, so neither can become a fact, a rule or a handover line.
+    source_text, blanks = scrub_placeholders(strip_example(source_text))
+    sections, labels = await label_document(tenant_id, source_text)
     b = bucket_sections(sections, labels)
+    b.left_out.extend({"text": blank[:_PREVIEW_CHARS], "note": BLANK_NOTE} for blank in blanks)
 
     # Campaign-scoped rules are left out: the Description applies to every campaign
     # (spec §4.5, decided 2026-09-18).
