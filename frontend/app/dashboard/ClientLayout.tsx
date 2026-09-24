@@ -62,7 +62,6 @@ function DashboardAuthGuard({ children }: { children: React.ReactNode }) {
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [isInboxSidebarOpen, setIsInboxSidebarOpen] = useState(false);
   const [subStatus, setSubStatus] = useState<"loading" | "none" | "pending_approval" | "active">("loading");
   const pathname = usePathname();
   const isMetaAds = pathname === "/dashboard/meta-ads";
@@ -94,22 +93,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  useEffect(() => {
-    const handleOpen = () => setIsInboxSidebarOpen(true);
-    const handleClose = () => setIsInboxSidebarOpen(false);
-    window.addEventListener("open-inbox-sidebar", handleOpen);
-    window.addEventListener("close-inbox-sidebar", handleClose);
-    return () => {
-      window.removeEventListener("open-inbox-sidebar", handleOpen);
-      window.removeEventListener("close-inbox-sidebar", handleClose);
-    };
-  }, []);
 
   const router = useRouter();
-
-  useEffect(() => {
-    setIsInboxSidebarOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     if (subStatus === "none" || subStatus === "pending_approval") {
@@ -134,21 +119,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               <div className="h-screen bg-background overflow-hidden relative">
                 {/* Collapsed Dashboard Rail (md+) */}
                 <div className="hidden md:block">
-                  <Sidebar collapsed onExpand={() => setIsInboxSidebarOpen(true)} />
+                  <Sidebar collapsed />
                 </div>
-                {isInboxSidebarOpen && (
-                  <>
-                    {/* Backdrop */}
-                    <div
-                      onClick={() => setIsInboxSidebarOpen(false)}
-                      className="fixed inset-0 bg-black/45 backdrop-blur-xs z-40 transition-opacity cursor-pointer"
-                    />
-                    {/* Labeled Sidebar Drawer Overlay */}
-                    <div className="fixed left-0 top-0 bottom-0 w-[220px] z-50 [&>aside]:z-50 [&>aside]:shadow-2xl animate-in slide-in-from-left duration-200">
-                      <Sidebar />
-                    </div>
-                  </>
-                )}
                 {children}
                 <div className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-[65] md:hidden">
                   <MoreMenu />

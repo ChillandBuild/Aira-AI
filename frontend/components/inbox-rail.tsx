@@ -1,7 +1,6 @@
 "use client";
-import { useRouter } from "next/navigation";
 import {
-  Users, MessageCircle, Archive, Ban, Bell,
+  MessageCircle, Archive, Ban, Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,20 +21,10 @@ const FOLDERS: { value: InboxFolder; icon: typeof MessageCircle; label: string }
 ];
 
 export function InboxRail({ folder, onFolderChange, escalationCount }: InboxRailProps) {
-  const router = useRouter();
-
   const railBtn = "w-11 h-11 rounded-xl flex items-center justify-center transition-colors";
 
   return (
     <aside className="fixed left-16 top-0 z-40 h-screen w-16 bg-surface border-r border-surface-mid flex flex-col items-center py-3 gap-1">
-      <button
-        onClick={() => router.push("/dashboard/leads")}
-        title="Contacts"
-        className={cn(railBtn, "text-on-surface-muted hover:bg-surface-low hover:text-on-surface")}
-      >
-        <Users size={19} />
-      </button>
-
       {FOLDERS.map(({ value, icon: Icon, label }) => (
         <button
           key={value}

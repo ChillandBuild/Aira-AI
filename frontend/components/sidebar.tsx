@@ -9,7 +9,6 @@ import {
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
   ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
   Settings,
-  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -142,10 +141,9 @@ function MainNavItem({
 
 interface SidebarProps {
   collapsed?: boolean;
-  onExpand?: () => void;
 }
 
-export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
+export function Sidebar({ collapsed = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
@@ -287,14 +285,11 @@ export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
           pressure, lifting the divider above the header's fixed 64px line. */}
       <div className={cn("h-16 shrink-0 flex items-center border-b border-[#e8e3db]", collapsed ? "justify-center px-2" : "px-5")}>
         {collapsed ? (
-          <button
-            type="button"
-            onClick={() => onExpand?.()}
-            title="Open menu"
-            className="w-11 h-11 rounded-xl flex items-center justify-center text-[#57534e] transition-colors hover:bg-[#f0ece4] hover:text-[#1c1917]"
-          >
-            <Menu size={20} />
-          </button>
+          // Brand mark only: every page is already an icon in the rail below, so the
+          // old "open menu" drawer was a second copy of the same navigation.
+          // public/ assets are not basePath-prefixed, hence the hard-coded /aira.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src="/aira/icons/aira-icon.svg" alt="Aira" width={32} height={32} className="h-8 w-8" />
         ) : (
           <AiraLogo className="h-6 w-auto text-[#1c1917]" />
         )}
@@ -471,7 +466,8 @@ export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
         {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
           <div className="group relative">
             <button
-              onClick={() => onExpand?.()}
+              // Groups open their first page: the collapsed rail has no drawer to expand.
+              onClick={() => router.push(tcGroupItems[0].href)}
               className={cn(
                 "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/tc border relative",
                 isTcActive
@@ -498,7 +494,7 @@ export function Sidebar({ collapsed = false, onExpand }: SidebarProps) {
         {isSubscribed && canSettings && (
           <div className="group relative">
             <button
-              onClick={() => onExpand?.()}
+              onClick={() => router.push(visibleSettingsItems[0]?.href ?? "/dashboard/settings/general")}
               className={cn(
                 "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/settings border relative",
                 isSettingsActive
