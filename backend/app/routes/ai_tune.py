@@ -55,13 +55,9 @@ Reply with ONLY the 3 rubric lines. No explanation, no preamble."""
 
 
 def is_old_5band_rubric(rubric: str) -> bool:
-    """Detect old numeric 5-band rubric format (lines starting with digit ranges)."""
-    import re
-    lines = rubric.strip().split("\n")
-    for line in lines:
-        if re.match(r'^\s*\d+-\d+\s*:', line.strip()):
-            return True
-    return False
+    """Detect old numeric 5-band rubric format. Single source: scoring_engine."""
+    from app.services.scoring_engine import _is_old_5band_rubric
+    return _is_old_5band_rubric(rubric)
 
 
 async def _auto_generate_rubric(description: str, tenant_id: str, force: bool = False) -> None:

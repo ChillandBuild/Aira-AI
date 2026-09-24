@@ -112,6 +112,24 @@ class TestOldRubricDetection(unittest.TestCase):
 1-2: Low intent — unresponsive"""
         self.assertTrue(_is_old_5band_rubric(old_rubric))
 
+    def test_dash_prefixed_5band_format_detected(self):
+        # Real tenant rubric shape: every line starts with "- ".
+        rubric = "- 9-10: Personal problems\n- 7-8: Generic\n- 5-6: Greetings\n- 3-4: Vague\n- 1-2: Spam"
+        self.assertTrue(_is_old_5band_rubric(rubric))
+
+    def test_convert_5band_keeps_client_wording(self):
+        from app.services.scoring_engine import convert_5band_rubric
+        rubric = ("- 9-10: Personal problems\n- 7-8: Generic astrology talk\n"
+                  "- 5-6: Greetings\n- 3-4: Vague\n- 1-2: Spam")
+        out = convert_5band_rubric(rubric)
+        self.assertEqual(out.split("\n")[0], "- Hot: Personal problems")
+        self.assertEqual(out.split("\n")[1], "- Warm: Generic astrology talk")
+        self.assertEqual(out.split("\n")[2], "- Cold: Greetings; Vague; Spam")
+
+    def test_convert_5band_garbage_returns_empty(self):
+        from app.services.scoring_engine import convert_5band_rubric
+        self.assertEqual(convert_5band_rubric("no bands here"), "")
+
     def test_new_3band_format_not_detected(self):
         new_rubric = """- Hot: Explicitly asked for pricing/payment
 - Warm: Asking detailed questions

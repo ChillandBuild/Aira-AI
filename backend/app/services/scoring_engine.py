@@ -169,9 +169,32 @@ def _is_old_5band_rubric(rubric: str) -> bool:
     """Detect old numeric 5-band rubric format (lines starting with digit ranges like 9-10)."""
     lines = rubric.strip().split("\n")
     for line in lines:
-        if re.match(r'^\s*\d+-\d+\s*:', line.strip()):
+        if re.match(r'^[\s\-*\u2022]*\d+\s*-\s*\d+\s*:', line):
             return True
     return False
+
+
+_BAND_LINE = re.compile(r'^[\s\-*\u2022]*(\d+)\s*-\s*(\d+)\s*:\s*(.+)$')
+
+
+def convert_5band_rubric(rubric: str) -> str:
+    """Turn an old 1-10 five-band rubric into Hot/Warm/Cold lines, keeping the
+    client's own wording. 9-10 -> Hot, 7-8 -> Warm, everything lower -> Cold
+    (greetings and vague replies used to sit at 5-6, which is not Warm)."""
+    hot: list[str] = []
+    warm: list[str] = []
+    cold: list[str] = []
+    for line in rubric.strip().split("\n"):
+        m = _BAND_LINE.match(line)
+        if not m:
+            continue
+        top, text = int(m.group(2)), m.group(3).strip()
+        (hot if top >= 9 else warm if top >= 7 else cold).append(text)
+    out = []
+    for label, parts in (("Hot", hot), ("Warm", warm), ("Cold", cold)):
+        if parts:
+            out.append(f"- {label}: " + "; ".join(parts))
+    return "\n".join(out)
 
 
 async def _classify_segment(conversation: str, tenant_id: str | None, fallback: str = "C") -> tuple[str, str]:
@@ -184,10 +207,9 @@ async def _classify_segment(conversation: str, tenant_id: str | None, fallback: 
         from app.config_dynamic import get_setting
         custom = get_setting("scoring_rubric", tenant_id=tenant_id) if tenant_id else None
 
-        # If custom rubric is old 5-band format, fall back to default
+        # Old 1-10 rubric: convert to Hot/Warm/Cold, keeping the client's wording.
         if custom and _is_old_5band_rubric(custom):
-            logger.info(f"Tenant {tenant_id} has old 5-band rubric format, using default")
-            rubric = _ARC_RUBRIC_DEFAULT.strip()
+            rubric = convert_5band_rubric(custom) or _ARC_RUBRIC_DEFAULT.strip()
         else:
             rubric = (custom or _ARC_RUBRIC_DEFAULT).strip()
     except Exception:
