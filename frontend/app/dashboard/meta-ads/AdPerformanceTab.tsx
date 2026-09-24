@@ -780,7 +780,7 @@ export function AdPerformanceTab() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="tracking-id-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-dialog flex items-center justify-center bg-stone-950/40 p-4 backdrop-blur-[2px]"
           onClick={() => setShowTrackingModal(false)}
         >
           <div

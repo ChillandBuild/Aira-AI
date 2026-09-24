@@ -43,7 +43,7 @@ export default function ChannelConfigModal({
   const isModalDirty = isDirty;
   return (
         <Portal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-[3px] animate-fade-in">
+          <div className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-black/45 backdrop-blur-[3px] animate-fade-in">
             <div className="bg-surface rounded-card shadow-card w-full max-w-2xl max-h-[85vh] overflow-y-auto ring-1 ring-[#c4c7c7]/20 flex flex-col">
             
             {/* Modal Header */}

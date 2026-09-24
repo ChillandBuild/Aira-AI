@@ -81,7 +81,7 @@ export default function KnowledgeHistoryModal({ kind, documentId, title, canRest
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

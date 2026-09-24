@@ -37,7 +37,7 @@ export default function LeadProfileModal({ leadId, onClose }: LeadProfileModalPr
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm cursor-pointer"
+      className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm cursor-pointer"
       onClick={onClose}
     >
       <div

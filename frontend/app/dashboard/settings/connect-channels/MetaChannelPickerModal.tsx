@@ -56,7 +56,7 @@ export default function MetaChannelPickerModal({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[3px]">
+      <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/45 p-4 backdrop-blur-[3px]">
         <div className="w-full max-w-xl overflow-hidden rounded-card bg-surface shadow-card ring-1 ring-[#c4c7c7]/20">
           <div className="flex items-start justify-between border-b border-border-subtle p-6">
             <div>

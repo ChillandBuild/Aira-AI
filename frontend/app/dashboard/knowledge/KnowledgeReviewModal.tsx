@@ -310,7 +310,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
   const fileWarnings = review?.fact_disagreements.filter((d) => d.where === "file") ?? [];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -641,7 +641,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
 
         {/* Footer */}
         {review && (
-          <div className="space-y-2.5 border-t border-surface-mid bg-surface-low/50 px-5 py-3.5 sm:px-6">
+          <div className="space-y-2.5 border-t border-surface-mid bg-surface-low/50 px-5 pt-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom,0px))] sm:px-6">
             {emptyResult && !blockReason && (
               <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
                 <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />

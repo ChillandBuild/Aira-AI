@@ -18,7 +18,7 @@ export function AiraLoader({ showRetryAfterMs, onRetry }: AiraLoaderProps) {
   }, [showRetryAfterMs]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#f0ece4] p-4 text-center">
+    <div className="fixed inset-0 z-dialog flex flex-col items-center justify-center bg-[#f0ece4] p-4 text-center">
       <div className="flex flex-col items-center gap-4">
         {!showRetry && (
           <div

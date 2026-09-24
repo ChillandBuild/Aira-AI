@@ -14,6 +14,7 @@ import {
   sectionState,
 } from "./profileSections";
 import ConvertToSectionsModal, { type ConvertResult } from "./ConvertToSectionsModal";
+import { AutoGrowTextarea } from "./useAutoGrow";
 
 interface ProfileSectionsEditorProps {
   canEdit: boolean;
@@ -260,13 +261,13 @@ export default function ProfileSectionsEditor({
                 )}
               </div>
 
-              <textarea
+              <AutoGrowTextarea
                 id={`section-${key}`}
                 value={text}
                 onChange={(e) =>
                   setSectionTexts((prev) => ({ ...prev, [key]: e.target.value }))
                 }
-                rows={4}
+                minRows={3}
                 className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-body text-sm leading-relaxed text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
               />
 

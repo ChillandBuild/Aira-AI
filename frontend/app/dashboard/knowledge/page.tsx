@@ -589,13 +589,17 @@ export default function KnowledgePage() {
   // Document statistics
   const stats = useMemo(() => {
     const total = documents.length;
-    const indexed = documents.filter((d) => d.status === "indexed").length;
+    const indexedDocs = documents.filter((d) => d.status === "indexed");
+    // `searchable === undefined` means the API predates this field -- treat those
+    // docs as searchable so older accounts don't suddenly show a false warning.
+    const indexed = indexedDocs.filter((d) => d.searchable !== false).length;
+    const notSearchable = indexedDocs.filter((d) => d.searchable === false).length;
     const processing = documents.filter((d) => docStatus(d) === "sorting").length;
     const review = documents.filter((d) => docStatus(d) === "review").length;
     const failed = documents.filter((d) => ["failed", "sort_failed"].includes(docStatus(d))).length;
     const totalBytes = documents.reduce((sum, d) => sum + (d.size_bytes || 0), 0);
     const scopedCount = documents.filter((d) => Boolean(d.campaign_tag_id)).length;
-    return { total, indexed, processing, review, failed, totalBytes, scopedCount };
+    return { total, indexed, notSearchable, processing, review, failed, totalBytes, scopedCount };
   }, [documents]);
 
   // Filtered documents
@@ -857,6 +861,102 @@ export default function KnowledgePage() {
       );
     }
     return null;
+  }
+
+  // Stacked card row for the Documents table on phone widths (below md), where a
+  // 6-column table forces horizontal scroll to reach Status/Actions. Reuses the
+  // same status badge, scope pill, and action handlers as the table/grid rows --
+  // no duplicated logic, just different markup for narrow screens.
+  function renderDocRow(doc: KnowledgeDoc) {
+    const meta = getFileTypeMeta(doc.file_type, doc.name);
+    const campaignTag = doc.campaign_tag_id ? tagMap.get(doc.campaign_tag_id) : null;
+
+    return (
+      <div key={doc.id} className="p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+              meta.iconBg,
+              meta.iconColor
+            )}
+          >
+            {meta.category === "spreadsheet" ? (
+              <FileSpreadsheet size={18} />
+            ) : meta.category === "image" ? (
+              <ImageIcon size={18} />
+            ) : meta.category === "text" ? (
+              <FileCode size={18} />
+            ) : (
+              <FileText size={18} />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-on-surface text-sm truncate" title={doc.name}>
+              {doc.name}
+            </p>
+            <p className="font-mono text-[11px] text-on-surface-muted mt-0.5">
+              {formatBytes(doc.size_bytes)} · {formatDate(doc.created_at)}
+            </p>
+            {(doc.status === "failed" || doc.sort_state === "failed") && (
+              <p className="text-[11px] text-red-600 mt-1" title={doc.error_message || undefined}>
+                {doc.error_message || "Extraction error — delete & re-upload"}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <DocStatusBadge doc={doc} />
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border",
+              meta.badgeBg,
+              meta.badgeText,
+              meta.badgeBorder
+            )}
+          >
+            {meta.label}
+          </span>
+          {campaignTag ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary-50 text-primary-700 text-[11px] font-semibold border border-primary-100">
+              <Tag size={11} /> {campaignTag.name}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-low text-on-surface-muted text-[11px] font-medium border border-surface-mid">
+              🌐 Shared
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 pt-1">
+          {renderSortAction(doc)}
+          <button
+            onClick={() => openDocument(doc.id)}
+            title="What Aira looks up from this file"
+            className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+          >
+            <Eye size={16} />
+          </button>
+          <button
+            onClick={() => downloadDocument(doc.id)}
+            title="Download original file"
+            className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
+          >
+            <Download size={16} />
+          </button>
+          {canManageKnowledge && (
+            <button
+              onClick={() => setDeletingDoc(doc)}
+              title="Delete document"
+              className="p-2 text-on-surface-muted hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   async function saveFacts() {
@@ -1127,8 +1227,15 @@ export default function KnowledgePage() {
                     </span>
                   )}
                 </div>
-                <p className="font-body text-[11px] text-emerald-700 font-semibold mt-0.5">
-                  Ready for AI RAG retrieval
+                <p
+                  className={cn(
+                    "font-body text-[11px] font-semibold mt-0.5",
+                    stats.notSearchable > 0 ? "text-amber-700" : "text-emerald-700"
+                  )}
+                >
+                  {stats.notSearchable > 0
+                    ? `${stats.notSearchable} not searchable`
+                    : "Ready for AI RAG retrieval"}
                 </p>
               </div>
               <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
@@ -1281,7 +1388,7 @@ export default function KnowledgePage() {
                     <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-2xl">
                       The rubric tells Aira how to classify leads as Hot, Warm, or Cold. It&rsquo;s written for you from
                       your Description the first time you save one, or you can write your own. It
-                      doesn&rsquo;t hold up uploads \u2014 nothing here does.
+                      doesn&rsquo;t hold up uploads &mdash; nothing here does.
                     </p>
                   </div>
                   <button
@@ -1718,8 +1825,15 @@ export default function KnowledgePage() {
                 })}
               </div>
             ) : (
-              /* ── Modern Table View ── */
-              <div className="overflow-x-auto">
+              /* ── Modern Table View (md and up) + Stacked Rows (phone) ── */
+              <>
+                {/* Below md, a 6-column table forces sideways scrolling to reach
+                    Status/Actions, so phones get stacked cards instead. */}
+                <div className="md:hidden divide-y divide-surface-mid/60">
+                  {filteredDocs.map((doc) => renderDocRow(doc))}
+                </div>
+
+                <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left font-body text-sm">
                   <thead>
                     <tr className="bg-surface-low/80 border-b border-surface-mid text-[11px] font-label font-bold text-on-surface-muted uppercase tracking-wider">
@@ -1851,7 +1965,8 @@ export default function KnowledgePage() {
                     })}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </div>
 
@@ -2170,7 +2285,7 @@ export default function KnowledgePage() {
 
       {/* ── Extracted Document Viewer Loading Overlay ───────────────────────── */}
       {viewerLoading && !viewingDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-surface rounded-2xl p-5 shadow-2xl border border-surface-mid flex items-center gap-3">
             <Loader2 size={24} className="animate-spin text-primary" />
             <span className="font-body text-sm font-semibold text-on-surface">Loading document content…</span>
@@ -2181,7 +2296,7 @@ export default function KnowledgePage() {
       {/* ── Extracted Document Viewer Modal ─────────────────────────────────── */}
       {viewingDoc && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setViewingDoc(null)}
         >
           <div
@@ -2447,7 +2562,7 @@ export default function KnowledgePage() {
       {/* ── Same file name: replace or keep both ───────────────────────────── */}
       {sameNamePrompt && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
           onClick={() => setSameNamePrompt(null)}
         >
           <div

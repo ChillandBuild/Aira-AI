@@ -56,7 +56,7 @@ export default function ConvertToSectionsModal({ text, onClose, onApply }: Conve
 
   if (loading && !result) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
         <div className="bg-surface rounded-2xl p-8 border border-surface-mid shadow-2xl max-w-lg w-full">
           <div className="flex items-center justify-center gap-3">
             <Loader2 size={20} className="animate-spin text-primary" />
@@ -71,7 +71,7 @@ export default function ConvertToSectionsModal({ text, onClose, onApply }: Conve
 
   if (error) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
         <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-2xl max-w-lg w-full space-y-4">
           <div className="flex items-start gap-2">
             <AlertTriangle size={16} className="text-red-600 flex-shrink-0 mt-0.5" />
@@ -91,7 +91,7 @@ export default function ConvertToSectionsModal({ text, onClose, onApply }: Conve
   if (!result) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm overflow-y-auto" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -232,7 +232,7 @@ export default function ConvertToSectionsModal({ text, onClose, onApply }: Conve
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2 border-t border-surface-mid p-4 md:p-6 bg-surface-low">
+        <div className="flex items-center justify-between gap-2 border-t border-surface-mid bg-surface-low px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:px-6 md:pt-6 md:pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]">
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2.5 bg-surface border border-surface-mid text-on-surface rounded-xl font-label text-sm font-semibold hover:bg-surface-low transition-colors"

@@ -1113,7 +1113,7 @@ function ScriptsTab() {
       {/* Delete confirmation */}
       {deletingId && (
         <Portal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-surface rounded-2xl p-6 shadow-2xl w-full max-w-sm ring-1 ring-[#c4c7c7]/20">
               <h3 className="font-display text-base font-bold text-on-surface mb-2">Delete Script</h3>
               <p className="font-body text-sm text-on-surface-muted mb-6">Are you sure? This cannot be undone.</p>
@@ -1132,7 +1132,7 @@ function ScriptsTab() {
         const currentSimStep = formSteps[safeSimStepIdx] || { text: "", note: "", branches: [] };
         return (
           <Portal>
-            <div className="fixed inset-0 z-50 bg-[#faf8f5] flex flex-col animate-fade-in overflow-hidden">
+            <div className="fixed inset-0 z-dialog bg-[#faf8f5] flex flex-col animate-fade-in overflow-hidden">
               {/* Full Screen Header */}
               <div className="bg-surface border-b border-surface-mid p-6 flex items-center justify-between shrink-0 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -1464,7 +1464,7 @@ function ScriptsTab() {
       {/* Preview Modal */}
       {previewScript && (
         <Portal>
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <div className="bg-surface rounded-2xl shadow-2xl w-full max-w-2xl ring-1 ring-[#c4c7c7]/20 max-h-[90vh] flex flex-col">
               <div className="flex items-center justify-between p-6 pb-4 border-b border-surface-mid shrink-0">
                 <div>
