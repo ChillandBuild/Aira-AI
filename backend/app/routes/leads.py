@@ -159,7 +159,7 @@ async def list_leads(
                 )
             query = query.in_("id", lead_ids)
 
-    result = query.order("score", desc=True).range(offset, offset + limit - 1).execute()
+    result = query.order("segment").order("last_inbound_at", desc=True, nullsfirst=False).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     leads_data = result.data or []
 
     # Enrichment
@@ -529,7 +529,7 @@ async def export_leads(
     query = db.table("leads").select("id,phone,name,source,score,segment,notes,created_at").eq("tenant_id", tenant_id).is_("deleted_at", "null").neq("opted_out", True).neq("whatsapp_undeliverable", True)
     if segment:
         query = query.eq("segment", segment)
-    result = query.order("score", desc=True).execute()
+    result = query.order("segment").order("last_inbound_at", desc=True, nullsfirst=False).order("created_at", desc=True).execute()
     leads = result.data or []
 
     # Exclude leads that appear only in failed broadcasts (never successfully sent to)
@@ -563,7 +563,7 @@ async def export_assigned_leads(
         raise HTTPException(status_code=400, detail="Caller profile not found")
         
     # Query leads assigned to caller
-    leads_res = db.table("leads").select("*").eq("tenant_id", tenant_id).eq("assigned_to", caller_id).is_("deleted_at", "null").order("score", desc=True).execute()
+    leads_res = db.table("leads").select("*").eq("tenant_id", tenant_id).eq("assigned_to", caller_id).is_("deleted_at", "null").order("segment").order("last_inbound_at", desc=True, nullsfirst=False).order("created_at", desc=True).execute()
     leads = leads_res.data or []
     
     # Collect lead IDs for batch fetching
