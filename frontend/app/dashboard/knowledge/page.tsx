@@ -24,7 +24,8 @@ import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
 import DeleteDocumentModal from "./DeleteDocumentModal";
 import ProfileSectionsEditor from "./ProfileSectionsEditor";
 import { AutoGrowTextarea } from "./useAutoGrow";
-import { wordCount } from "./descriptionDiff";
+import KitStarter from "./KitStarter";
+import ReadinessLine from "./ReadinessLine";
 
 // ─── Interfaces & Types ───────────────────────────────────────────────────────
 
@@ -141,145 +142,6 @@ interface FileTypeMeta {
   iconColor: string;
   category: "pdf" | "word" | "spreadsheet" | "presentation" | "text" | "image" | "other";
 }
-
-// ─── Description Guide ────────────────────────────────────────────────────────
-// Plain-language onboarding for the Description tab. Clients writing this box are
-// business owners, not prompt engineers -- the points below are the ones that
-// actually change how Aira replies, in the order they matter.
-//
-// Deliberately NOT asked for here: opening hours and reply language. Both are
-// structured settings (app_settings.business_hours, the reply-language mode) that
-// ai_reply injects live, with real open/closed state -- a hand-typed line here
-// only goes stale and then contradicts them mid-conversation.
-
-const DESCRIPTION_POINTS: { title: string; body: string; example: string }[] = [
-  {
-    title: "Who you are",
-    body: "Your business name, what line of work you are in, and the area you actually serve.",
-    example: "We are Sunrise Interiors, a home interior studio running since 2015. We take up work across Coimbatore and Tiruppur.",
-  },
-  {
-    title: "What you sell",
-    body: "Your main services or products — named the way your customers name them, not your internal terms.",
-    example: "We do modular kitchens, wardrobes, and full home interiors.",
-  },
-  {
-    title: "Who your customers are",
-    body: "Who usually contacts you, and what they normally want — so Aira pitches at the right level instead of guessing.",
-    example: "Mostly families moving into a new apartment. They usually want a rough price and a site visit.",
-  },
-  {
-    title: "What you want Aira to do",
-    body: "The point of every conversation. Without this Aira will answer politely and let the customer go.",
-    example: "Answer their question, then offer a free site visit and ask which area they live in.",
-  },
-  {
-    title: "What Aira must never do",
-    body: "The promises that would cost you if a machine made them on your behalf.",
-    example: "Never quote a final price, promise a discount, or commit to a delivery date.",
-  },
-  {
-    title: "Tone, and when to fetch a person",
-    body: "How you want Aira to sound, and the topics it should hand straight to your team.",
-    example: "Warm and respectful, address customers as sir or madam. Hand over complaints and anything about an ongoing order.",
-  },
-];
-
-// Headed sections rather than one prose blob: the same text is re-read on every
-// reply, and a labelled block is far harder for the model to lose than a
-// sentence buried mid-paragraph. No hours and no language line -- see above.
-const DESCRIPTION_TEMPLATE = `ABOUT US
-We are [BUSINESS NAME], a [WHAT YOU DO] business running since [YEAR].
-We serve [YOUR AREA, CITIES, OR "customers anywhere - we work online"].
-
-WHAT WE OFFER
-- [SERVICE OR PRODUCT 1] - [one line, in the words customers use]
-- [SERVICE OR PRODUCT 2] - [one line, in the words customers use]
-- [SERVICE OR PRODUCT 3] - [one line, in the words customers use]
-
-WHO WE TALK TO
-Most people who contact us are [WHO THEY ARE].
-They usually want [WHAT THEY ASK FOR MOST OFTEN].
-
-YOUR JOB IN EVERY CONVERSATION
-Understand what the customer needs, answer it clearly, then [YOUR GOAL: book a
-visit / collect their requirement / get them onto the app / arrange a callback].
-Ask one question at a time. Never leave a customer without a next step.
-
-WHAT YOU MUST NEVER DO
-- Never [PROMISE A DISCOUNT / CONFIRM A FINAL PRICE / COMMIT TO A DATE].
-- Never invent an answer. If you do not know, say you will check with the team.
-- Never [ANYTHING ELSE THAT WOULD COST YOU: e.g. give medical or legal advice].
-
-HAND OVER TO A PERSON WHEN
-[A COMPLAINT / A REFUND OR CANCELLATION / ANYTHING ABOUT AN EXISTING ORDER /
-THE CUSTOMER IS UPSET OR ASKS FOR A HUMAN].
-
-HOW TO SOUND
-[WARM AND RESPECTFUL / CASUAL AND FRIENDLY]. [ADDRESS CUSTOMERS AS SIR OR MADAM.]
-Keep replies short — [TWO OR THREE] sentences unless they ask for detail.`;
-
-// ─── Documents (RAG) Guide ────────────────────────────────────────────────────
-// The mirror of DESCRIPTION_POINTS for the Documents tab. The split clients get
-// wrong is what belongs in each place: the description is re-read on every reply
-// and competes with the safety rules for attention, so everything long, detailed
-// or changeable has to live here instead and be looked up only when asked.
-
-const RAG_POINTS: { title: string; body: string; example: string }[] = [
-  {
-    title: "Prices and packages",
-    body: "Full rate cards, what each package includes, and what costs extra.",
-    example: "Modular kitchen — Basic ₹1.8L, Premium ₹3.2L. Chimney and hob are extra.",
-  },
-  {
-    title: "What each service actually involves",
-    body: "The detail behind the one-liners on your Description page — included, excluded, how long it takes.",
-    example: "Full home interiors: design, material, execution. Civil work is not included. 60 to 75 days.",
-  },
-  {
-    title: "Questions you answer every day",
-    body: "Refunds, cancellations, delivery times, warranty — write them as question and answer.",
-    example: "Q: Do you give a warranty? A: 10 years on modular units, 1 year on hardware.",
-  },
-  {
-    title: "Policies and terms",
-    body: "Payment terms, eligibility, cancellation rules — anything a customer might argue about later.",
-    example: "50% advance on order, 40% before installation, 10% on handover.",
-  },
-  {
-    title: "Locations and directions",
-    body: "Branch list, addresses, landmarks, parking — the things people ask right before they visit.",
-    example: "Showroom: 3rd floor, Brookefields Mall, Coimbatore. Parking in basement 2.",
-  },
-  {
-    title: "Proof of your work",
-    body: "Past projects, client names you are allowed to share, certifications, awards.",
-    example: "Completed 400+ homes since 2015. ISO 9001 certified.",
-  },
-];
-
-const RAG_TEMPLATE = `PRICING — [SERVICE NAME]
-
-[PACKAGE 1] - [PRICE]
-Includes: [WHAT IS INCLUDED]
-Not included: [WHAT COSTS EXTRA]
-
-[PACKAGE 2] - [PRICE]
-Includes: [WHAT IS INCLUDED]
-Not included: [WHAT COSTS EXTRA]
-
-COMMON QUESTIONS
-
-Q: [QUESTION A CUSTOMER ACTUALLY ASKS]
-A: [YOUR ANSWER IN ONE OR TWO SENTENCES]
-
-Q: [ANOTHER QUESTION]
-A: [YOUR ANSWER]
-
-PAYMENT AND CANCELLATION
-
-[YOUR PAYMENT TERMS]
-[YOUR CANCELLATION RULE]`;
 
 // ─── File Formatting Helpers ──────────────────────────────────────────────────
 
@@ -510,31 +372,6 @@ export default function KnowledgePage() {
   const [factsDraft, setFactsDraft] = useState("");
   const [factsSaving, setFactsSaving] = useState(false);
 
-  // RAG Guide Expandable
-  const [showRagGuide, setShowRagGuide] = useState(false);
-
-  // Description Guide
-  const [showDescGuide, setShowDescGuide] = useState(false);
-  const [showDescExample, setShowDescExample] = useState(false);
-  // Documents Guide
-  const [showUploadGuide, setShowUploadGuide] = useState(false);
-  const [showRagExample, setShowRagExample] = useState(false);
-  // Which template was last copied — "desc" | "rag" | null, so the two Copy
-  // buttons confirm independently.
-  const [copiedTemplate, setCopiedTemplate] = useState<"desc" | "rag" | null>(null);
-
-  async function copyTemplate(which: "desc" | "rag") {
-    try {
-      await navigator.clipboard.writeText(
-        which === "desc" ? DESCRIPTION_TEMPLATE : RAG_TEMPLATE
-      );
-      setCopiedTemplate(which);
-      setTimeout(() => setCopiedTemplate(null), 2000);
-    } catch {
-      toast.error("Could not copy. Select the text and copy it manually.");
-    }
-  }
-
   // ─── Setup state (nothing here blocks an upload) ────────────────────────────
   // The 2026-09-18 pass removed the upload lock; 2026-09-20 removed the last block,
   // the review screen's refusal to apply a file that leaves the Description empty.
@@ -545,16 +382,18 @@ export default function KnowledgePage() {
   // `savedDescription` is only trustworthy for an owner: the whole ai_tune router is
   // owner-only, so `loadDescription()` swallows a 403 for a manager and leaves it "".
   // Anything that reasons about "is the Description empty" must be owner-gated, or it
-  // tells managers their description is missing when it isn't.
-  const hasDescription = savedDescription.trim().length > 0;
+  // tells managers their description is missing when it isn't -- which is why the
+  // readiness line asks GET /knowledge/readiness instead.
   const hasRubric = savedRubric.trim().length > 0;
   const showStartHint = setupLoaded && canManageKnowledge && !hasRubric;
   const canUpload = canManageKnowledge && setupLoaded;
 
-  // Description status row on the Documents tab: word count plus a link across.
-  // It used to hold an editable copy of the textarea; editing now happens only on
-  // the Description tab, so there is one editor rather than two.
-  const showDescBox = isOwner && setupLoaded;
+  // Re-check readiness whenever a file's status, the Description or the handover line changes.
+  const readinessKey = [
+    documents.map((d) => `${d.id}:${d.status}`).join(","),
+    savedDescription,
+    savedHandoverLine,
+  ].join("|");
 
   function goToDescription() {
     const params = new URLSearchParams(searchParams.toString());
@@ -1075,124 +914,6 @@ export default function KnowledgePage() {
     <div className="max-w-7xl mx-auto">
       {tab === "documents" ? (
         <div className="space-y-6">
-          {/* ── Plain-language guide (Collapsed by default) ────────────────── */}
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setShowUploadGuide((prev) => !prev)}
-              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
-            >
-              {showUploadGuide ? "Hide guide — what to upload on this page" : "Start here — what to upload on this page →"}
-            </button>
-            <span className="text-surface-mid select-none">•</span>
-            <button
-              type="button"
-              onClick={() => setShowRagExample((prev) => !prev)}
-              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
-            >
-              {showRagExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
-            </button>
-          </div>
-
-          {showUploadGuide && (
-            <div className="bg-gradient-to-br from-primary-50/70 via-surface to-surface border border-primary-100 rounded-2xl p-5 md:p-6 shadow-xs">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                  <Lightbulb size={18} />
-                </div>
-                <div className="min-w-0">
-                  <h4 className="font-display font-bold text-sm text-on-surface">
-                    Start here — what to upload on this page
-                  </h4>
-                  <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
-                    Your Description page is the note Aira reads before every reply. This
-                    page is the folder it goes and looks something up in when a customer
-                    actually asks. So everything long, detailed or likely to change belongs
-                    here — prices, FAQs, policies — not in the description.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {RAG_POINTS.map((point, i) => (
-                  <div
-                    key={point.title}
-                    className={cn(
-                      "p-3.5 bg-white rounded-xl border border-primary-100",
-                      RAG_POINTS.length % 2 === 1 &&
-                        i === RAG_POINTS.length - 1 &&
-                        "md:col-span-2"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
-                        {i + 1}
-                      </span>
-                      <p className="font-label text-xs font-bold text-on-surface">
-                        {point.title}
-                      </p>
-                    </div>
-                    <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
-                      {point.body}
-                    </p>
-                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-primary-200 leading-relaxed">
-                      {point.example}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-                  <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
-                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                    <span className="font-semibold text-on-surface">Plain beats pretty.</span>{" "}
-                    A simple Word or PDF with clear headings and short paragraphs gets
-                    searched far better than a designed brochure. One topic per file, and
-                    re-upload the file when the prices change.
-                  </p>
-                </div>
-                <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
-                  <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
-                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                    <span className="font-semibold text-on-surface">Leave out</span> your
-                    business intro and tone — those belong on the Description page. And never
-                    let prices sit inside a screenshot: a fully scanned file is read, but a
-                    PDF that mixes real text with a picture silently drops whatever is in
-                    the picture.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showRagExample && (
-            <div className="rounded-xl border border-primary-100 bg-white overflow-hidden shadow-xs">
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-primary-100 bg-primary-50/40">
-                <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
-                  Paste this into a document and replace the words in brackets
-                </p>
-                <button
-                  onClick={() => copyTemplate("rag")}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-primary-50 transition-colors shrink-0"
-                >
-                  {copiedTemplate === "rag" ? (
-                    <>
-                      <Check size={12} strokeWidth={3} /> Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={12} /> Copy
-                    </>
-                  )}
-                </button>
-              </div>
-              <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
-                {RAG_TEMPLATE}
-              </pre>
-            </div>
-          )}
-
           {/* ── Top Overview Stats ────────────────────────────────────────── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-surface rounded-2xl p-4 border border-surface-mid shadow-sm flex items-center justify-between">
@@ -1340,39 +1061,15 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            {/* ── Product description: status only ─────────────────────────
-                A word count and a link across to the Description tab. It used to be
-                an editable copy of the same textarea, which put two editors for one
-                field on screen and made this card look like it took two kinds of
-                input. Reading `savedDescription` is owner-only and safe here because
-                the row itself is gated on `isOwner` -- the ai_tune router is
-                require_owner, so a manager's copy of it is always "". */}
-            {showDescBox && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-surface-mid/60 px-4 py-3.5 sm:px-5">
-                <BookOpen size={15} className="shrink-0 text-primary" />
-                <span className="whitespace-nowrap font-display text-sm font-bold text-on-surface">
-                  Product description
-                </span>
-                {hasDescription ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-emerald-700">
-                    <Check size={10} strokeWidth={3} />
-                    {wordCount(savedDescription).toLocaleString()} words
-                  </span>
-                ) : (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 font-label text-[10.5px] font-bold text-amber-700">
-                    <AlertTriangle size={10} strokeWidth={2.5} />
-                    Not written yet
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={goToDescription}
-                  className="ml-auto flex shrink-0 items-center gap-1.5 rounded-xl border border-surface-mid bg-white px-3.5 py-2 font-label text-xs font-semibold text-primary transition-colors hover:bg-primary/5"
-                >
-                  {hasDescription ? "Open description" : "Write description"}
-                  <ArrowRight size={13} />
-                </button>
-              </div>
+            {/* ── Business Kit readiness: one line, nudges only (spec 2026-09-24) ── */}
+            {setupLoaded && (
+              <ReadinessLine
+                refreshKey={readinessKey}
+                isOwner={isOwner}
+                canManage={canManageKnowledge}
+                onOpenDescription={goToDescription}
+                onAddText={(file) => processUpload(file, null)}
+              />
             )}
 
             {/* Drag & Drop Area (plus a rubric hint while one is missing) */}
@@ -1480,6 +1177,8 @@ export default function KnowledgePage() {
                     className="hidden"
                   />
                 </div>
+
+                {canUpload && <KitStarter compact={documents.length > 0} />}
               </div>
 
               {uploadError && (
@@ -1971,182 +1670,10 @@ export default function KnowledgePage() {
             )}
           </div>
 
-          {/* ── Modern RAG Explainer Card ─────────────────────────────────── */}
-          <div className="bg-gradient-to-br from-primary-50/70 via-surface to-surface border border-primary-100 rounded-2xl p-5 shadow-xs">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                  <Sparkles size={18} />
-                </div>
-                <div>
-                  <h4 className="font-display font-bold text-sm text-on-surface">
-                    How AI Retrieval-Augmented Generation (RAG) Operates
-                  </h4>
-                  <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-2xl">
-                    When leads ask questions via WhatsApp or during telecalling, Aira converts their question into an embedding and performs a semantic vector search across your indexed documents. Only verified, factual snippets are provided to the LLM to construct completely hallucination-free replies.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowRagGuide(!showRagGuide)}
-                className="text-xs font-label font-bold text-primary hover:underline shrink-0 pt-1"
-              >
-                {showRagGuide ? "Hide Details" : "Read Architecture →"}
-              </button>
-            </div>
-
-            {showRagGuide && (
-              <div className="mt-4 pt-4 border-t border-primary-100/80 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-body">
-                <div className="p-3 bg-white rounded-xl border border-primary-100">
-                  <p className="font-bold text-primary font-label uppercase tracking-wider text-[10px]">
-                    1. Text Extraction & Chunking
-                  </p>
-                  <p className="text-on-surface-muted mt-1">
-                    Uploaded documents are parsed (Docx, PDF, Excel) and split into semantic chunks with 10% overlap to preserve context.
-                  </p>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-primary-100">
-                  <p className="font-bold text-primary font-label uppercase tracking-wider text-[10px]">
-                    2. Vector Embeddings
-                  </p>
-                  <p className="text-on-surface-muted mt-1">
-                    Each chunk is encoded into 512-dimensional vector space using high-precision embedding models and indexed with HNSW.
-                  </p>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-primary-100">
-                  <p className="font-bold text-primary font-label uppercase tracking-wider text-[10px]">
-                    3. Campaign Scoping
-                  </p>
-                  <p className="text-on-surface-muted mt-1">
-                    Documents scoped to a campaign tag only surface for leads belonging to that campaign, preventing cross-product confusion.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       ) : (
         /* ── Description Tab ─────────────────────────────────────────────── */
         <div className="space-y-6">
-          {/* ── Plain-language guide (Collapsed by default) ────────────────── */}
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setShowDescGuide((prev) => !prev)}
-              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
-            >
-              {showDescGuide ? "Hide guide — what to write on this page" : "Start here — what to write on this page →"}
-            </button>
-            <span className="text-surface-mid select-none">•</span>
-            <button
-              type="button"
-              onClick={() => setShowDescExample((prev) => !prev)}
-              className="text-xs font-label font-bold text-primary hover:underline cursor-pointer transition-colors"
-            >
-              {showDescExample ? "Hide the fill-in-the-blanks example" : "Show a fill-in-the-blanks example →"}
-            </button>
-          </div>
-
-          {showDescGuide && (
-            <div className="bg-gradient-to-br from-primary-50/70 via-surface to-surface border border-primary-100 rounded-2xl p-5 md:p-6 shadow-xs">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-primary-100/80 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                  <Lightbulb size={18} />
-                </div>
-                <div className="min-w-0">
-                  <h4 className="font-display font-bold text-sm text-on-surface">
-                    Start here — what to write on this page
-                  </h4>
-                  <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-3xl">
-                    Aira reads this before every single reply it sends. Think of it as the
-                    note you would hand a new employee on their first day: who we are, what
-                    we sell, what to get out of every conversation, and where to stop and
-                    fetch a person. Write it in plain sentences — there is nothing technical
-                    to get right here.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {DESCRIPTION_POINTS.map((point, i) => (
-                  <div
-                    key={point.title}
-                    className={cn(
-                      "p-3.5 bg-white rounded-xl border border-primary-100",
-                      // Odd count leaves the last card alone on its row — let it span.
-                      DESCRIPTION_POINTS.length % 2 === 1 &&
-                        i === DESCRIPTION_POINTS.length - 1 &&
-                        "md:col-span-2"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 shrink-0 rounded-full bg-primary/10 text-primary font-label text-[10px] font-bold flex items-center justify-center">
-                        {i + 1}
-                      </span>
-                      <p className="font-label text-xs font-bold text-on-surface">
-                        {point.title}
-                      </p>
-                    </div>
-                    <p className="font-body text-xs text-on-surface-muted mt-1.5 leading-relaxed">
-                      {point.body}
-                    </p>
-                    <p className="font-body text-xs text-on-surface/70 italic mt-2 pl-2.5 border-l-2 border-primary-200 leading-relaxed">
-                      {point.example}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50/50 p-3">
-                  <Check size={14} className="text-emerald-600 shrink-0 mt-0.5" strokeWidth={3} />
-                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                    <span className="font-semibold text-on-surface">Keep it short.</span>{" "}
-                    Stay under about 1,200 words. Every word here is re-read on every single
-                    reply, so anything you add competes for attention with everything else.
-                  </p>
-                </div>
-                <div className="flex items-start gap-2 rounded-xl border border-surface-mid bg-surface-low p-3">
-                  <X size={14} className="text-on-surface-muted shrink-0 mt-0.5" strokeWidth={3} />
-                  <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-                    <span className="font-semibold text-on-surface">Leave out</span> your
-                    opening hours, reply language and app link — Aira already gets those
-                    from Settings, live. Price lists, packages and FAQs belong in Documents
-                    (RAG), which Aira reads only when a customer actually asks.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showDescExample && (
-            <div className="rounded-xl border border-primary-100 bg-white overflow-hidden shadow-xs">
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-primary-100 bg-primary-50/40">
-                <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">
-                  Copy this and replace the words in brackets
-                </p>
-                <button
-                  onClick={() => copyTemplate("desc")}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-primary-200 bg-white font-label text-[11px] font-bold text-primary hover:bg-primary-50 transition-colors shrink-0"
-                >
-                  {copiedTemplate === "desc" ? (
-                    <>
-                      <Check size={12} strokeWidth={3} /> Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={12} /> Copy
-                    </>
-                  )}
-                </button>
-              </div>
-              <pre className="px-4 py-3.5 font-mono text-[11px] leading-relaxed text-on-surface whitespace-pre-wrap overflow-x-auto">
-                {DESCRIPTION_TEMPLATE}
-              </pre>
-            </div>
-          )}
-
           {/* Business Profile Editor */}
           <ProfileSectionsEditor
             canEdit={isOwner}

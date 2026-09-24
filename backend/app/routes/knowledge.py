@@ -8,6 +8,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services import knowledge_sort as ks
 from app.services import knowledge_versions as kv
+from app.services.knowledge_kit import readiness
 from app.services.knowledge_service import DOCS_BUCKET, process_document, reindex_tenant
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,26 @@ async def list_documents(tenant_id: str = Depends(get_tenant_id)):
         doc["searchable"] = doc.get("status") == "indexed" and has_chunks
         doc["search_issue"] = _search_issue(doc, has_chunks=has_chunks, has_jina_key=has_jina_key)
     return {"data": docs}
+
+
+@router.get("/readiness")
+async def get_readiness(tenant_id: str = Depends(get_tenant_id)):
+    """Which of the 8 Business Kit headings Aira already has. Only live (indexed)
+    documents count, since a file waiting for review isn't answering leads yet. Served
+    here rather than under /ai-tune (owner-only) so a manager sees the real state."""
+    db = get_supabase()
+    live = (
+        db.table("knowledge_documents")
+        .select("full_text")
+        .eq("tenant_id", tenant_id)
+        .eq("status", "indexed")
+        .execute()
+    )
+    return {"data": readiness(
+        description=get_setting("business_description", tenant_id=tenant_id) or "",
+        handover_line=get_setting("handover_line", tenant_id=tenant_id) or "",
+        facts=[row.get("full_text") or "" for row in (live.data or [])],
+    )}
 
 
 @router.post("/upload-document")

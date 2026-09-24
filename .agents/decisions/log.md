@@ -1452,3 +1452,10 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Migration:** 201 (`knowledge_reviews.suggested_handover`), applied live before the code shipped (additive, defaulted).
 - **Not done / open:** Astrotamil Pooja has no handover line and lacks its Homam date/place/booking details; rubric auto-update is Off for all three tenants; Jina key is shared by the three Astro Tamil tenants (same paying client) — separate clients each need their own.
 
+
+**2026-09-24 — Aira Business Kit (Stage 1): one 8-heading shape for every client; templates + AI prompt + readiness line**
+- **Decision:** self-serve clients get one document shape (8 headings) through three doors: copy our prompt into their own AI, download an industry Word template (12 industries, all invented example businesses — no client's material is reused), or upload anything. Spec: `docs/superpowers/specs/2026-09-24-aira-business-kit-design.md`.
+- **Placement (user: "make it simple"):** two buttons under the drop zone while the client has no documents, one quiet link after; the owner-only Description status row became a readiness line (`GET /knowledge/readiness`, knowledge.view, no AI call). The RAG explainer card and both guide/template panels were deleted.
+- **Kit files are routed by heading, not by AI label** (`knowledge_kit.split_kit` + `knowledge_sort.label_document`) — measured, not assumed: `evals/knowledge_sort/run_kit_eval.py` sorted 3/12 industry files cleanly before (short "About" packed with the title, labelled FACT, 9/12 Descriptions had no ABOUT US) and 12/12 after, on two runs.
+- **Safety:** `strip_example` cuts the template's example below its marker and `scrub_placeholders` drops `[OWNER TO CHECK]` / unfilled `[WRITE ...]` lines before sorting (shown to the client as "You left this blank"). The template's "how to use" box is a Word table, which `extract_text_from_file` never reads.
+- **Not done:** Stage 2 in-app question form (build only if clients without an AI habit get stuck); non-English Kit.

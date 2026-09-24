@@ -76,6 +76,40 @@ async def test_an_all_facts_file_goes_entirely_to_lookup(env, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_kit_placeholders_and_the_example_never_reach_facts(env, monkeypatch):
+    fake_model(monkeypatch, labels=lambda sid, text: ("FACT", []))
+    doc = add_doc(env.db)
+    source = (
+        "Pricing\nConsultation Rs 29.\nHome visit: [OWNER TO CHECK]\n\n"
+        "Q: Refund?\nA: [OWNER TO CHECK]\n\n"
+        "=== EXAMPLE BELOW - DELETE BEFORE UPLOADING ===\nFake Academy fee Rs 85,000"
+    )
+    review = await _sort(env, doc, source_text=source)
+
+    assert review["proposed_facts"] == "Pricing\nConsultation Rs 29."
+    blanks = [item["text"] for item in review["left_out"] if item["note"] == ks.BLANK_NOTE]
+    assert blanks == ["Home visit:", "Refund?"]
+
+
+@pytest.mark.asyncio
+async def test_a_kit_file_routes_by_heading_and_only_labels_the_rest(env, monkeypatch):
+    calls = fake_model(monkeypatch, labels=lambda sid, text: ("JUNK", []))
+    doc = add_doc(env.db)
+    source = (
+        "Owner notes.\n\nABOUT YOUR BUSINESS\nWe are AstroTamil.\n\nWHO YOUR CUSTOMERS ARE\nFamilies.\n\n"
+        "WHAT AIRA MUST NEVER SAY OR PROMISE\n- Never promise results.\n\n"
+        "PRODUCTS, SERVICES, PRICES\nConsultation Rs 29."
+    )
+    review = await _sort(env, doc, source_text=source)
+
+    assert review["proposed_facts"] == "PRODUCTS, SERVICES, PRICES\nConsultation Rs 29."
+    assert "We are AstroTamil." in review["proposed_description"]
+    assert "Never promise results." in review["proposed_description"]
+    assert [item["text"] for item in review["left_out"]] == ["Owner notes."]
+    assert calls.count("label") == 1
+
+
+@pytest.mark.asyncio
 async def test_an_all_rules_file_adds_nothing_to_lookup(env, monkeypatch):
     calls = fake_model(monkeypatch, labels=lambda sid, text: ("RULE", []))
     doc = add_doc(env.db)
