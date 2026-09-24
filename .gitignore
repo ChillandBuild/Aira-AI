@@ -68,3 +68,4 @@ backend/evals/scoring/results_*.json
 SCORING_LABELS_REVIEW.md
 backend/evals/replies/golden_real.json
 backend/evals/replies/results_*.json
+PROFILES_REVIEW.md

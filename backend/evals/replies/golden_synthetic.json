@@ -339,7 +339,7 @@
    "business": "saree",
    "thread": [],
    "message": "Do you have a showroom in Bangalore?",
-   "note": "Not in facts. Must not invent a showroom."
+   "note": "Not in facts. The description says the shop sells online, so saying it is an online store with no showroom is supported; inventing a showroom or an address is not."
   },
   {
    "id": "sr-return",
