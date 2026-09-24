@@ -68,7 +68,7 @@ function ProviderCard({ id, label, canManage }: { id: ProviderId; label: string;
         )}
       </div>
       <p className="font-body text-xs text-ink-secondary">
-        Paste this URL into your {label} account's webhook / lead-notification settings —
+        Paste this URL into your {label} account&apos;s webhook / lead-notification settings —
         new enquiries land as leads here automatically.
       </p>
 

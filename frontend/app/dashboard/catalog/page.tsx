@@ -691,7 +691,7 @@ function AddEditItemModal({
               />
               <p className="mt-1 text-xs text-ink-muted">
                 When set, Aira stops recommending this item for purchase once it hits 0 — but can still tell a
-                customer it's out of stock if asked.
+                customer it&apos;s out of stock if asked.
               </p>
             </div>
           )}
