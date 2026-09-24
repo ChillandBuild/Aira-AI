@@ -203,7 +203,6 @@ def _ensure_caller_profile(db, tenant_id: str, user_id: str, payload: UserPayloa
             db.table("callers").insert({
                 **updates,
                 "name": name or "Telecaller",
-                "overall_score": 0,
                 "status_changed_at": now,
             }).execute()
         return

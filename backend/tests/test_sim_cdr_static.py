@@ -29,10 +29,9 @@ def test_sim_cdr_endpoint_exists():
     # Dedup on (caller_id, call_sid) for sim_basic
     assert '.eq("call_sid", entry.entry_id)' in source
     assert '.eq("provider", "sim_basic")' in source
-    # Provider tag + scoring reuse
+    # Provider tag. SIM calls have no recording, so they are not scored.
     assert '"provider": "sim_basic"' in source
-    assert "score_from_outcome(apply_outcome, entry.duration)" in source
-    assert "recompute_caller_score(caller_id, db)" in source
+    assert "score_from_outcome" not in source
 
 
 def test_sim_cdr_enriches_pwa_row_not_duplicate():

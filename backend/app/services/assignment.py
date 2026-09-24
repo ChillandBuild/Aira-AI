@@ -440,7 +440,10 @@ _TELECALLING_CONFIG_DEFAULT: dict = {
     "scripts": {},
     "max_call_attempts": 4,
     "assignment_mode": "push",
-    "eval_daily_cap": 50,
+    "score_criteria": [
+        "greeting_quality", "communication_clarity", "product_knowledge", "requirement_understanding",
+        "conversation_engagement", "objection_handling", "professionalism", "tone",
+    ],
 }
 
 

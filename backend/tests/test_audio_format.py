@@ -92,20 +92,20 @@ class RecordingPipelineWiringTests(unittest.TestCase):
         return (Path(__file__).resolve().parents[1] / path).read_text(encoding="utf-8")
 
     def test_storage_upload_uses_the_detected_type(self):
-        source = self._read("app/routes/calls.py")
-        self.assertIn("extension, content_type = detect_audio_format(audio_bytes, recording_url)", source)
-        self.assertIn('storage_path = f"{call_log_id}.{extension}"', source)
+        source = self._read("app/services/call_ai_pipeline.py")
+        self.assertIn('extension, content_type = detect_audio_format(audio, row["recording_filename"])', source)
+        self.assertIn("storage_path = f\"{row['id']}.{extension}\"", source)
         self.assertIn('{"content-type": content_type, "upsert": "true"}', source)
         # The old hardcoded assumptions must not come back.
-        self.assertNotIn('storage_path = f"{call_log_id}.mp3"', source)
+        self.assertNotIn(".mp3\"", source)
         self.assertNotIn('{"content-type": "audio/mpeg", "upsert": "true"}', source)
 
     def test_transcription_sends_the_detected_mime_type(self):
-        source = self._read("app/services/call_summarizer.py")
-        self.assertIn("mime_type = detect_gemini_audio_mime(audio_bytes, recording_url)", source)
-        self.assertIn("gemini_speech_to_text(audio_bytes, mime_type", source)
-        self.assertNotIn('gemini_speech_to_text(audio_bytes, "audio/mp3"', source)
-
+        source = self._read("app/services/call_ai_pipeline.py")
+        self.assertIn('detect_gemini_audio_mime(audio, row["recording_url"])', source)
+        self.assertIn('detect_gemini_audio_mime(audio, row["recording_filename"])', source)
+        self.assertIn("transcribe_call(audio, mime_type", source)
+        self.assertNotIn('"audio/mp3"', source)
 
 if __name__ == "__main__":
     unittest.main()

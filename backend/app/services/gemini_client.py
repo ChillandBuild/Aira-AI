@@ -232,6 +232,110 @@ async def gemini_speech_to_text(
     return _gemini_output_text(data.get("steps") or [])
 
 
+_INCOMPLETE_STATUSES = {"incomplete", "max_tokens", "cancelled", "failed"}
+
+
+def _hit_output_cap(data: dict, max_tokens: int) -> bool:
+    """True when a response stopped early. The usage block is the reliable signal
+    (live-confirmed 2026-07-18); an explicit non-completed status is honoured too."""
+    status = str(data.get("status") or "").lower()
+    if status in _INCOMPLETE_STATUSES:
+        return True
+    output_tokens = (data.get("usage") or {}).get("total_output_tokens") or 0
+    return output_tokens >= int(max_tokens * 0.98)
+
+
+def _audio_part(audio_bytes: bytes, mime_type: str) -> dict:
+    return {"type": "audio", "data": base64.b64encode(audio_bytes).decode(), "mime_type": mime_type}
+
+
+async def gemini_transcribe_audio(
+    audio_bytes: bytes,
+    mime_type: str,
+    prompt: str,
+    model: str = DEFAULT_GEMINI_TEXT_MODEL,
+    tenant_id: str | None = None,
+    max_tokens: int = 24000,
+    timeout: float = 180.0,
+    purpose: str = "call_transcription",
+) -> tuple[str, bool]:
+    """Transcribe one piece of a call recording. Returns (text, complete); complete is
+    False when the output cap was hit, so the caller can cut the piece smaller instead
+    of scoring half a call. Separate from gemini_speech_to_text, which WhatsApp voice
+    notes still use unchanged."""
+    api_key = require_tenant_setting("gemini_api_key", tenant_id)
+    request_json = {
+        "model": model,
+        "input": [{
+            "type": "user_input",
+            "content": [{"type": "text", "text": prompt}, _audio_part(audio_bytes, mime_type)],
+        }],
+        "generation_config": {
+            "temperature": 0.1,
+            "max_output_tokens": max_tokens,
+            "thinking_level": "minimal",
+        },
+    }
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(
+            GEMINI_INTERACTIONS_URL,
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json=request_json,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    _record(tenant_id, purpose, model, data)
+    text = _gemini_output_text(data.get("steps") or [])
+    return text, not _hit_output_cap(data, max_tokens)
+
+
+async def gemini_analysis_json(
+    system_prompt: str,
+    user_prompt: str,
+    audio: list[tuple[bytes, str]] | None = None,
+    model: str = DEFAULT_GEMINI_TEXT_MODEL,
+    tenant_id: str | None = None,
+    max_tokens: int = 3000,
+    timeout: float = 120.0,
+    purpose: str = "call_analysis",
+) -> dict:
+    """JSON completion that can also carry audio (for the tone criterion). Same
+    prompt-only JSON discipline and single retry as gemini_chat_completion_json."""
+    api_key = require_tenant_setting("gemini_api_key", tenant_id)
+    content: list[dict] = [{"type": "text", "text": user_prompt}]
+    for audio_bytes, mime_type in audio or []:
+        content.append(_audio_part(audio_bytes, mime_type))
+    request_json = {
+        "model": model,
+        "system_instruction": system_prompt,
+        "input": [{"type": "user_input", "content": content}],
+        "generation_config": {
+            "temperature": 0.2,
+            "max_output_tokens": max_tokens,
+            "thinking_level": "minimal",
+        },
+    }
+    last_error: Exception = ValueError("gemini_analysis_json: no attempts made")
+    for _ in range(2):
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(
+                GEMINI_INTERACTIONS_URL,
+                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                json=request_json,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        _record(tenant_id, purpose, model, data)
+        cleaned = _gemini_output_text(data.get("steps") or [])
+        if cleaned.startswith("```"):
+            cleaned = cleaned.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as e:
+            last_error = e
+    raise last_error
+
+
 def _gemini_document_interaction(
     file_bytes: bytes,
     mime_type: str,

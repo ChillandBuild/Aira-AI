@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from app.config import settings
 from app.db.supabase import get_supabase
+from app.services.call_transcript import mask_transcripts
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, get_owner_tenant_id, require_permission
 from app.models.schemas import Lead, LeadUpdate, LeadWithMessages, Message, PaginatedResponse
 from app.services.ai_reply import (
@@ -1258,14 +1259,14 @@ async def get_lead_call_logs(lead_id: UUID, tenant_id: str = Depends(get_tenant_
     db = get_supabase()
     result = (
         db.table("call_logs")
-        .select("id,call_sid,status,outcome,duration_seconds,recording_url,score,ai_summary,transcript,created_at,callers(name)")
+        .select("id,call_sid,status,outcome,duration_seconds,recording_url,score,score_status,ai_status,flag_status,ai_summary,transcript,created_at,callers(name)")
         .eq("lead_id", str(lead_id))
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
         .limit(20)
         .execute()
     )
-    return {"data": result.data or []}
+    return {"data": mask_transcripts(result.data)}
 
 
 @router.post("/{lead_id}/compact")

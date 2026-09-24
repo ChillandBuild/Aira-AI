@@ -1,4 +1,3 @@
-import asyncio
 import hmac
 import json
 import logging
@@ -7,21 +6,19 @@ import re
 from datetime import datetime, timezone, timedelta
 from typing import Literal
 from uuid import UUID
-import httpx
 from fastapi import Depends, Query
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from app.config import settings
 from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id, get_tenant_and_role
-from app.services.call_scorer import score_from_outcome, recompute_caller_score
-from app.services.call_summarizer import transcribe_recording, analyze_call
+from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_permission
+from app.services.call_scorer import finalize_call_score
+from app.services.call_ai_pipeline import queue_call_ai, retry_call_ai, run_call_ai
+from app.services.call_transcript import mask_transcript, mask_transcripts
 from app.services.entitlements import meter, check_quota
-from app.services.knowledge_service import get_knowledge_context
 from app.services.growth import record_stage_event, sync_follow_up_jobs
-from app.services.telecmi_client import initiate_click2call, build_recording_url
-from app.services.audio_format import detect_audio_format
+from app.services.telecmi_client import initiate_click2call
 from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
 from app.services.attendance import mark_activity_today
@@ -29,6 +26,14 @@ from app.services.attendance import mark_activity_today
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# What a call card needs: score, its breakdown, processing stage, flag, summary and
+# the masked transcript preview (the full transcript never leaves the backend).
+CALL_CARD_FIELDS = (
+    "id,created_at,duration_seconds,status,outcome,provider,score,score_status,score_breakdown,"
+    "evaluation,ai_summary,ai_status,ai_error,recording_url,transcript,flag_status,flag_reason,"
+    "lead_id,caller_id"
+)
 public_router = APIRouter()  # No auth — TeleCMI calls these directly
 
 Outcome = Literal["converted", "interested", "callback", "not_interested", "no_answer"]
@@ -508,6 +513,7 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
                 "status": "no_answer",
                 "outcome": "no_answer",
             }).eq("id", call_log_id).execute()
+            finalize_call_score(db, call_log_id)
         else:
             logger.info(f"TeleCMI CDR leg A ignored (status={status}) for call {call_log_id}")
         return {"ok": True}
@@ -564,29 +570,23 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
     else:
         updates["status"] = "failed"
 
-    # Handle recording if present. CHUB only ever sends `filename` (+ `record`)
-    # on the leg B CDR — there is no record_url/recording_url field in the API.
-    recording_filename = cdr.get("filename")
-    if recording_filename:
-        tenant_id_for_rec = log_row.data.get("tenant_id")
-        appid = cdr.get("appid") or cdr.get("app_id") or get_setting("telecmi_app_id", tenant_id=tenant_id_for_rec)
-        secret = get_setting("telecmi_secret", tenant_id=tenant_id_for_rec)
-        if appid and secret:
-            full_url = build_recording_url(
-                appid=str(appid),
-                secret=secret,
-                filename=recording_filename,
-                base_url=get_setting("telecmi_recording_base_url", tenant_id=tenant_id_for_rec),
-            )
-            background_tasks.add_task(_process_telecmi_recording, call_log_id, full_url)
-        else:
-            logger.warning(
-                f"TeleCMI CDR carried recording {recording_filename} but appid/secret "
-                f"are not configured — skipping download for call {call_log_id}"
-            )
-
     if updates:
         db.table("call_logs").update(updates).eq("id", call_log_id).execute()
+
+    # CHUB only ever sends `filename` (+ `record`) on the leg B CDR — there is no
+    # record_url/recording_url field in the API. Queued after the duration is
+    # stored, because the pipeline reads it to decide whether to score. A
+    # redelivered CDR doesn't re-queue a recording that's already in progress.
+    recording_filename = cdr.get("filename")
+    if recording_filename and updates.get("status") == "completed":
+        existing = (
+            db.table("call_logs").select("ai_status,recording_filename").eq("id", call_log_id).maybe_single().execute()
+        )
+        existing_row = (existing.data if existing else None) or {}
+        if existing_row.get("recording_filename") != recording_filename or not existing_row.get("ai_status"):
+            queue_call_ai(db, call_log_id, recording_filename)
+            appid = cdr.get("appid") or cdr.get("app_id")
+            background_tasks.add_task(run_call_ai, call_log_id, str(appid) if appid else None)
 
     # Track-only usage metering: TeleCMI-provider calls only (never the SIM path,
     # which uses the client's own SIM and isn't billed per-minute). Best-effort —
@@ -599,14 +599,10 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
         if _tenant_id_for_meter:
             meter(db, _tenant_id_for_meter, "call_minute", math.ceil(updates["duration_seconds"] / 60))
 
-    # Recompute caller score on terminal statuses
     if updates.get("status") in ("completed", "no_answer"):
         row = log_row.data
-        score = score_from_outcome(updates.get("outcome"), updates.get("duration_seconds"))
-        db.table("call_logs").update({"score": score}).eq("id", call_log_id).execute()
-        if row.get("caller_id"):
-            recompute_caller_score(row["caller_id"], db)
-            
+        finalize_call_score(db, call_log_id)
+
         # Target achievement milestone check
         if updates.get("status") == "completed" and row.get("caller_id") and row.get("tenant_id"):
             try:
@@ -884,13 +880,6 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
         call_log_id = inserted.data[0]["id"] if inserted.data else None
         action = "created"
 
-    # 5. Score terminal statuses — but not if a manual outcome already owns the
-    #    row (the wrap-up flow scores those). Refresh the caller's rolling score.
-    if call_log_id and status in ("completed", "no_answer") and not pending_outcome:
-        score = score_from_outcome(apply_outcome, entry.duration)
-        db.table("call_logs").update({"score": score}).eq("id", call_log_id).execute()
-        recompute_caller_score(caller_id, db)
-
     return {
         "entry_id": entry.entry_id,
         "call_log_id": call_log_id,
@@ -958,244 +947,14 @@ async def telecmi_live_events(request: Request):
     return {"ok": True}
 
 
-# ── Recording Processing ─────────────────────────────────────────────
-
-# Max concurrent call-AI requests — prevents provider rate-limit failures
-# when many calls end at the same time (shift end, break, etc.)
-_CALL_AI_SEMAPHORE = asyncio.Semaphore(5)
-
-
-_MIN_AUDIO_BYTES = 1024
-
-
-def _is_audio_payload(resp: httpx.Response, body: bytes) -> bool:
-    """True when a /v2/play response body is plausibly an audio file.
-
-    TeleCMI returns HTTP 200 with a JSON error body on auth/lookup failure, so
-    the response has to be inspected rather than trusted. Recordings may be mp3
-    or wav, so this rejects what is clearly *not* audio instead of whitelisting
-    magic bytes for every possible container.
-    """
-    content_type = (resp.headers.get("content-type") or "").lower()
-    if "json" in content_type or "html" in content_type or "text/" in content_type:
-        return False
-    stripped = body.lstrip()[:1]
-    if stripped in (b"{", b"["):
-        return False
-    return len(body) >= _MIN_AUDIO_BYTES
-
-
-async def _process_telecmi_recording(call_log_id: str, recording_url: str) -> None:
-    """Download TeleCMI recording and run AI summarization."""
-    async with _CALL_AI_SEMAPHORE:
-        db = get_supabase()
-
-        for attempt in range(1, 4):
-            delay = 10 * attempt
-            logger.info(f"Recording download attempt {attempt}/3 for {call_log_id} — waiting {delay}s")
-            await asyncio.sleep(delay)
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    resp = await client.get(recording_url)
-                    if resp.status_code == 404:
-                        logger.warning(f"Recording not ready yet (attempt {attempt}) for call {call_log_id}")
-                        continue
-                    resp.raise_for_status()
-                    audio_bytes = resp.content
-
-                # TeleCMI answers a failed playback with HTTP 200 and a JSON error
-                # body (e.g. {"code":407,"msg":"Authentication Failed"}), so a
-                # status check alone is not enough — without this, the error blob
-                # gets stored as the call's .mp3 and handed to transcription.
-                if not _is_audio_payload(resp, audio_bytes):
-                    logger.warning(
-                        f"Recording download returned non-audio (attempt {attempt}) for call "
-                        f"{call_log_id}: content_type={resp.headers.get('content-type')!r} "
-                        f"body={audio_bytes[:200]!r}"
-                    )
-                    continue
-
-                # CHUB serves .wav as well as .mp3 (real CDRs carry .wav), and
-                # both the stored object and Gemini's transcription need the
-                # true type — so detect it instead of assuming mp3.
-                extension, content_type = detect_audio_format(audio_bytes, recording_url)
-                storage_path = f"{call_log_id}.{extension}"
-                db.storage.from_("call-recordings").upload(
-                    storage_path,
-                    audio_bytes,
-                    {"content-type": content_type, "upsert": "true"},
-                )
-                public_url = db.storage.from_("call-recordings").get_public_url(storage_path)
-                db.table("call_logs").update({"recording_url": public_url}).eq("id", call_log_id).execute()
-                logger.info(f"Recording saved for {call_log_id}: {public_url}")
-
-                # Run AI summarization
-                await _run_summarization(call_log_id, public_url)
-                return
-
-            except Exception as e:
-                logger.error(f"Recording download failed for call {call_log_id}: {type(e).__name__}")
-
-        logger.error(f"All recording attempts failed for {call_log_id}")
-
-
-_SKIP_OUTCOMES = {"no_answer", "voicemail"}
-_TRANSCRIBE_MIN_DURATION = 30
-_EVAL_MIN_DURATION = 60
-_EVAL_DAILY_CAP_DEFAULT = 50
-_NEW_CALLER_DAYS = 14
-
-
-def _should_evaluate(
-    duration: int | None,
-    caller_id: str | None,
-    tenant_id: str | None,
-    db,
-) -> bool:
-    """Layer 3 gate: decide whether a call gets full AI evaluation."""
-    dur = duration or 0
-
-    # New callers (< 14 days) bypass the duration gate
-    is_new_caller = False
-    if caller_id:
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=_NEW_CALLER_DAYS)).isoformat()
-            cr = (
-                db.table("callers")
-                .select("id")
-                .eq("id", caller_id)
-                .gte("created_at", cutoff)
-                .maybe_single()
-                .execute()
-            )
-            is_new_caller = bool(cr and cr.data)
-        except Exception:
-            pass
-
-    if not is_new_caller and dur < _EVAL_MIN_DURATION:
-        return False
-
-    # Per-tenant daily cap
-    if tenant_id:
-        try:
-            from app.services.assignment import get_telecalling_config
-            cfg = get_telecalling_config(tenant_id)
-            cap = cfg.get("eval_daily_cap", _EVAL_DAILY_CAP_DEFAULT)
-
-            today_start = datetime.now(timezone.utc).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            ).isoformat()
-            count_res = (
-                db.table("call_logs")
-                .select("id", count="exact")
-                .eq("tenant_id", tenant_id)
-                .not_.is_("evaluation", "null")
-                .gte("created_at", today_start)
-                .execute()
-            )
-            if (count_res.count or 0) >= cap:
-                logger.info(f"Eval daily cap ({cap}) reached for tenant {tenant_id}")
-                return False
-        except Exception as e:
-            logger.warning(f"Eval cap check failed: {e}")
-
-    return True
-
-
-async def _run_summarization(call_log_id: str, recording_url: str, force: bool = False) -> None:
-    try:
-        db = get_supabase()
-
-        call_row = (
-            db.table("call_logs")
-            .select("outcome,duration_seconds,lead_id,caller_id,tenant_id")
-            .eq("id", call_log_id)
-            .maybe_single()
-            .execute()
-        )
-        call_data = (call_row.data or {})
-        outcome = call_data.get("outcome")
-        duration = call_data.get("duration_seconds") or 0
-        tenant_id = call_data.get("tenant_id")
-        caller_id = call_data.get("caller_id")
-        lead_id = call_data.get("lead_id")
-
-        # ── Layer 2: Transcription gate ──────────────────────────────────
-        if not force and outcome in _SKIP_OUTCOMES:
-            logger.info(f"Skipping transcription for {call_log_id}: outcome={outcome}")
-            return
-
-        if not force and duration < _TRANSCRIBE_MIN_DURATION:
-            logger.info(f"Skipping transcription for {call_log_id}: duration={duration}s < {_TRANSCRIBE_MIN_DURATION}s")
-            return
-
-        transcript = await transcribe_recording(recording_url, tenant_id=tenant_id)
-        if not transcript:
-            return
-
-        db.table("call_logs").update({"transcript": transcript}).eq("id", call_log_id).execute()
-        logger.info(f"Transcript stored for {call_log_id} ({len(transcript)} chars)")
-
-        # ── Layer 3: Evaluation gate ─────────────────────────────────────
-        if not force and not _should_evaluate(duration, caller_id, tenant_id, db):
-            logger.info(f"Skipping evaluation for {call_log_id}: gated (duration={duration}s)")
-            return
-
-        lead_name: str | None = None
-        if lead_id:
-            lead_row = db.table("leads").select("name").eq("id", lead_id).maybe_single().execute()
-            lead_name = (lead_row.data or {}).get("name")
-
-        kb_context = ""
-        if tenant_id:
-            kb_context = await get_knowledge_context(tenant_id, query=transcript[:1500])
-
-        summary, evaluation = await analyze_call(
-            transcript,
-            lead_name=lead_name,
-            outcome=outcome,
-            kb_context=kb_context,
-            tenant_id=tenant_id,
-        )
-
-        updates: dict = {}
-        if summary:
-            updates["ai_summary"] = summary
-        if evaluation:
-            updates["evaluation"] = evaluation
-            logger.info(f"Call evaluation stored for {call_log_id}: score={evaluation.get('overall_score')}")
-
-        if updates:
-            db.table("call_logs").update(updates).eq("id", call_log_id).execute()
-
-        if summary.get("next_action") and lead_id:
-            note_row = {
-                "lead_id": lead_id,
-                "call_log_id": call_log_id,
-                "content": f"AI Summary: {summary.get('next_action', '')}",
-                "structured": summary,
-                "is_pinned": False,
-            }
-            if tenant_id:
-                note_row["tenant_id"] = tenant_id
-            db.table("lead_notes").insert(note_row).execute()
-
-        if caller_id and evaluation:
-            recompute_caller_score(caller_id, db)
-
-        logger.info(f"Summarization complete for {call_log_id}")
-    except Exception as e:
-        logger.error(f"Summarization failed for {call_log_id}: {e}")
-
-
-# ── Outcome & Other Endpoints (unchanged) ────────────────────────────
+# ── Outcome & Other Endpoints ────────────────────────────────────────
 
 @router.patch("/{call_log_id}/outcome")
 async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depends(get_tenant_and_role)):
     db = get_supabase()
     log = (
         db.table("call_logs")
-        .select("caller_id,duration_seconds,lead_id,follow_up_job_id,provider")
+        .select("caller_id,duration_seconds,lead_id,follow_up_job_id,provider,status,flag_status")
         .eq("id", call_log_id)
         .eq("tenant_id", ctx["tenant_id"])
         .maybe_single()
@@ -1209,6 +968,13 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
 
     if payload.outcome not in ("converted", "interested", "callback", "not_interested", "no_answer", "do_not_call", "do_not_contact", "in_progress", None):
         raise HTTPException(status_code=400, detail="Invalid outcome value")
+
+    # A flag raised by the no-answer safety gate is resolved only by an admin.
+    if log.data.get("flag_status"):
+        raise HTTPException(
+            status_code=409,
+            detail="This call was flagged for review, so its outcome can't be changed.",
+        )
 
     # Intercept DNC outcomes to handle them as lead-level actions
     dnc_outcome = None
@@ -1236,6 +1002,19 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
     # A disposition implies a business outcome for scoring; an explicit outcome wins.
     effective_outcome = payload.outcome or _DISPOSITION_TO_OUTCOME.get(payload.disposition or "")
 
+    # TeleCMI reports the real talk time. A call that never connected can only be
+    # No answer — this also blocks marking "converted" on a call nobody took.
+    is_telecmi = log.data.get("provider") == "telecmi"
+    never_connected = is_telecmi and (
+        log.data.get("status") in ("no_answer", "missed")
+        or (log.data.get("status") == "completed" and not log.data.get("duration_seconds"))
+    )
+    if never_connected and (dnc_outcome is not None or in_progress or effective_outcome not in (None, "no_answer")):
+        raise HTTPException(
+            status_code=400,
+            detail="This call never connected, so it can only be marked No answer.",
+        )
+
     log_updates: dict = {}
     if payload.manual_status is not None:
         log_updates["manual_status"] = payload.manual_status
@@ -1245,7 +1024,9 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         log_updates["notes"] = payload.notes.strip()
     if payload.quality_rating is not None:
         log_updates["quality_rating"] = payload.quality_rating
-    if payload.duration_seconds is not None:
+    # TeleCMI's measured talk time decides whether a call is scored; a typed-in
+    # duration must never override it.
+    if payload.duration_seconds is not None and not is_telecmi:
         log_updates["duration_seconds"] = payload.duration_seconds
     if payload.manual_started_at is not None:
         log_updates["manual_started_at"] = payload.manual_started_at.isoformat()
@@ -1255,18 +1036,12 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         log_updates["feedback_source"] = "manual"
         if payload.outcome or payload.disposition or payload.manual_status:
             log_updates["status"] = "completed"
-    score = None
     if effective_outcome is not None:
-        score_duration = log_updates.get("duration_seconds", log.data.get("duration_seconds"))
-        score = score_from_outcome(effective_outcome, score_duration)
         log_updates["outcome"] = effective_outcome
-        log_updates["score"] = score
     if log_updates:
         db.table("call_logs").update(log_updates).eq("id", call_log_id).eq("tenant_id", ctx["tenant_id"]).execute()
 
-    new_caller_score = None
-    if effective_outcome is not None and log.data.get("caller_id"):
-        new_caller_score = recompute_caller_score(log.data["caller_id"], db)
+    scoring = finalize_call_score(db, call_log_id) if effective_outcome is not None else None
 
     lead_id = log.data.get("lead_id")
     if lead_id and (effective_outcome is not None or dnc_outcome is not None or in_progress or payload.manual_status == "connected"):
@@ -1413,8 +1188,8 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         "outcome": effective_outcome,
         "disposition": payload.disposition,
         "manual_status": payload.manual_status,
-        "score": score,
-        "caller_overall_score": new_caller_score,
+        "score": (scoring or {}).get("score"),
+        "score_status": (scoring or {}).get("score_status"),
     }
 
 
@@ -1447,8 +1222,7 @@ async def recent_calls(
     query = (
         db.table("call_logs")
         .select(
-            "id,created_at,duration_seconds,status,outcome,score,evaluation,ai_summary,"
-            "recording_url,transcript,lead_id,caller_id,leads(name,phone),callers(name)"
+            f"{CALL_CARD_FIELDS},leads(name,phone),callers(name)"
         )
         .eq("tenant_id", ctx["tenant_id"])
     )
@@ -1457,7 +1231,7 @@ async def recent_calls(
     elif caller_id:
         query = query.eq("caller_id", caller_id)
     rows = query.order("created_at", desc=True).limit(limit).execute()
-    return {"data": rows.data or []}
+    return {"data": mask_transcripts(rows.data)}
 
 
 @router.get("/recent-by-leads")
@@ -1482,55 +1256,81 @@ async def recent_by_leads(lead_ids: str = Query(..., description="Comma-separate
     return seen
 
 
-@router.post("/backfill-summaries")
-async def backfill_summaries(background_tasks: BackgroundTasks, limit: int = Query(10, ge=1, le=50), ctx: dict = Depends(get_tenant_and_role)):
-    """Re-run summarization on call logs that have recording_url but no ai_summary."""
+@router.get("/flagged")
+async def flagged_calls(
+    status: Literal["open", "resolved"] = Query("open"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=50),
+    ctx: dict = Depends(require_permission("analytics.view")),
+):
+    """Calls the no-answer safety gate flagged: marked No answer, but the AI heard a conversation."""
     db = get_supabase()
-    rows = (
+    query = (
         db.table("call_logs")
-        .select("id,recording_url")
+        .select(f"{CALL_CARD_FIELDS},flagged_at,flag_resolved_at,leads(name,phone),callers(name)", count="exact")
         .eq("tenant_id", ctx["tenant_id"])
-        .not_.is_("recording_url", "null")
-        .is_("ai_summary", "null")
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    ).data or []
-
-    for row in rows:
-        background_tasks.add_task(_run_summarization, row["id"], row["recording_url"])
-
-    return {"queued": len(rows)}
+    )
+    query = query.eq("flag_status", "open") if status == "open" else query.in_("flag_status", ["confirmed", "dismissed"])
+    offset = (page - 1) * limit
+    rows = query.order("flagged_at", desc=True).range(offset, offset + limit - 1).execute()
+    open_count = (
+        db.table("call_logs").select("id", count="exact").eq("tenant_id", ctx["tenant_id"]).eq("flag_status", "open").limit(1).execute()
+    ).count or 0
+    return {"data": mask_transcripts(rows.data), "total": rows.count or 0, "open_count": open_count, "page": page, "limit": limit}
 
 
-@router.post("/{call_log_id}/generate-summary")
-async def generate_summary(call_log_id: str, ctx: dict = Depends(get_tenant_and_role)):
-    """On-demand AI summary (re)generation from a call's recording."""
+class FlagResolution(BaseModel):
+    action: Literal["confirm", "dismiss"]
+
+
+@router.post("/{call_log_id}/flag")
+async def resolve_flag(call_log_id: UUID, payload: FlagResolution, ctx: dict = Depends(require_permission("team.manage"))):
+    """Confirm keeps the call scored with 0/3 for the outcome; dismiss (the AI was wrong,
+    e.g. a long voicemail) returns it to an unscored No answer."""
     db = get_supabase()
-    log = (
+    new_status = "confirmed" if payload.action == "confirm" else "dismissed"
+    res = (
         db.table("call_logs")
-        .select("recording_url")
-        .eq("id", call_log_id)
+        .update({
+            "flag_status": new_status,
+            "flag_resolved_by": ctx.get("user_id"),
+            "flag_resolved_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", str(call_log_id))
         .eq("tenant_id", ctx["tenant_id"])
-        .maybe_single()
+        .eq("flag_status", "open")
         .execute()
     )
-    if not log.data:
-        raise HTTPException(status_code=404, detail="Call log not found")
-    if not log.data.get("recording_url"):
-        raise HTTPException(status_code=400, detail="No recording available for this call")
+    if not res.data:
+        raise HTTPException(status_code=404, detail="No open flag on this call")
+    finalize_call_score(db, str(call_log_id))
 
-    await _run_summarization(call_log_id, log.data["recording_url"], force=True)
+    caller_id = res.data[0].get("caller_id")
+    if caller_id:
+        caller = db.table("callers").select("user_id").eq("id", caller_id).maybe_single().execute()
+        user_id = ((caller.data if caller else None) or {}).get("user_id")
+        if user_id and user_id != ctx.get("user_id"):
+            from app.services.notify import notify_user
+            message = (
+                "Your admin confirmed the flag: the call stays scored with 0/3 for the outcome."
+                if new_status == "confirmed"
+                else "Your admin dismissed the flag: the call counts as No answer and isn't scored."
+            )
+            notify_user(ctx["tenant_id"], user_id, "call_flag_resolved", "Flag reviewed", message, db=db, push_url="/dashboard/telecalling")
 
-    result = (
-        db.table("call_logs")
-        .select("*")
-        .eq("id", call_log_id)
-        .eq("tenant_id", ctx["tenant_id"])
-        .maybe_single()
-        .execute()
-    )
-    return result.data
+    row = db.table("call_logs").select(CALL_CARD_FIELDS).eq("id", str(call_log_id)).maybe_single().execute()
+    return mask_transcript(row.data if row else None)
+
+
+@router.post("/{call_log_id}/retry-ai")
+async def retry_ai(call_log_id: UUID, background_tasks: BackgroundTasks, ctx: dict = Depends(get_tenant_and_role)):
+    """Re-run transcription + scoring for a call whose processing failed."""
+    db = get_supabase()
+    if not retry_call_ai(db, str(call_log_id), ctx["tenant_id"]):
+        raise HTTPException(status_code=404, detail="This call has no failed processing to retry")
+    finalize_call_score(db, str(call_log_id))
+    background_tasks.add_task(run_call_ai, str(call_log_id))
+    return {"ok": True}
 
 
 @router.get("/next-lead")
@@ -1738,7 +1538,7 @@ async def get_pending_wrapups(ctx: dict = Depends(get_tenant_and_role)):
         q = q.eq("caller_id", caller_id)
 
     result = q.execute()
-    return result.data or []
+    return mask_transcripts(result.data)
 
 
 @router.get("/{call_log_id}")
@@ -1754,7 +1554,7 @@ async def get_call_log(call_log_id: UUID, ctx: dict = Depends(get_tenant_and_rol
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Call log not found")
-    return result.data
+    return mask_transcript(result.data)
 
 
 @router.delete("/{call_log_id}")

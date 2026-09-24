@@ -14,7 +14,15 @@ from app.services.assignment import (
     save_telecalling_config,
 )
 from app.services.call_coach import coaching_tip
-from app.services.call_scorer import MIN_DAILY_CALLS, MIN_MONTHLY_CALLS
+from app.services.call_transcript import mask_transcripts
+from app.services.telecaller_performance import (
+    MIN_SCORED_DAILY,
+    MIN_SCORED_MONTHLY,
+    ist_day_bounds,
+    ist_month_bounds,
+    period_stats,
+    rank_winner,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -148,14 +156,14 @@ async def get_my_calls_today(ctx: dict = Depends(get_tenant_and_role)):
 
     result = (
         db.table("call_logs")
-        .select("id,lead_id,call_sid,duration_seconds,outcome,recording_url,score,status,ai_summary,transcript,created_at,leads(phone,name)")
+        .select("id,lead_id,call_sid,duration_seconds,outcome,recording_url,score,score_status,status,ai_summary,transcript,created_at,leads(phone,name)")
         .eq("caller_id", caller_id)
         .eq("tenant_id", ctx["tenant_id"])
         .gte("created_at", today_start)
         .order("created_at", desc=True)
         .execute()
     )
-    return {"data": result.data or []}
+    return {"data": mask_transcripts(result.data)}
 
 
 @router.get("/my-performance")
@@ -245,14 +253,15 @@ async def get_my_stats(ctx: dict = Depends(get_tenant_and_role)):
         .execute()
     )
 
-    # Overall score
     caller_res = (
         db.table("callers")
-        .select("overall_score,name,phone,status")
+        .select("name,phone,status")
         .eq("id", caller_id)
         .single()
         .execute()
     )
+    month_start, month_end = ist_month_bounds()
+    month = period_stats(db, ctx["tenant_id"], month_start, month_end, [caller_id]).get(str(caller_id))
 
     return {
         "calls_today": calls_today_res.count or 0,
@@ -260,7 +269,9 @@ async def get_my_stats(ctx: dict = Depends(get_tenant_and_role)):
         "conversion_rate_week": round(converted_week / total_week, 2) if total_week > 0 else 0,
         "avg_duration_seconds": avg_duration,
         "pending_hot_leads": pending_hot_res.count or 0,
-        "overall_score": float(caller_res.data.get("overall_score", 0)),
+        "avg_score_month": (month or {}).get("avg_score"),
+        "scored_calls_month": (month or {}).get("scored_calls", 0),
+        "total_calls_month": (month or {}).get("total_calls", 0),
         "name": caller_res.data.get("name"),
         "phone": caller_res.data.get("phone"),
         "status": caller_res.data.get("status", "active"),
@@ -448,7 +459,6 @@ async def create_caller(payload: CreateCaller, tenant_id: str = Depends(get_owne
         "phone": payload.phone.strip(),
         "active": True,
         "status": "active",
-        "overall_score": 7.0,
         "tenant_id": tenant_id,
     }).execute()
     return result.data[0]
@@ -459,7 +469,7 @@ async def list_callers(tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
     owner = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
     owner_user_id = (owner.data or {}).get("user_id")
-    all_callers = db.table("callers").select("*").eq("tenant_id", tenant_id).eq("active", True).order("overall_score", desc=True).execute()
+    all_callers = db.table("callers").select("*").eq("tenant_id", tenant_id).eq("active", True).order("name").execute()
     rows = all_callers.data or []
     admin_caller = None
     team = []
@@ -576,168 +586,52 @@ async def list_caller_logs(caller_id: UUID, tenant_id: str = Depends(get_owner_t
     db = get_supabase()
     result = (
         db.table("call_logs")
-        .select("id,lead_id,call_sid,duration_seconds,outcome,recording_url,score,status,ai_summary,transcript,created_at,leads(phone,name)")
+        .select("id,lead_id,call_sid,duration_seconds,outcome,recording_url,score,score_status,status,ai_summary,transcript,created_at,leads(phone,name)")
         .eq("caller_id", str(caller_id))
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
         .limit(20)
         .execute()
     )
-    return {"data": result.data or []}
+    return {"data": mask_transcripts(result.data)}
 
 
 # ── Winners (daily & monthly leaderboard) ────────────────────────────────────
 
 
+def _team_caller_ids(db, tenant_id: str) -> dict[str, str]:
+    """{caller_id: name} for active telecallers, owner excluded (Invariant 12)."""
+    owner = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").limit(1).execute()
+    owner_user_id = (owner.data[0] if owner.data else {}).get("user_id")
+    callers = db.table("callers").select("id,name,user_id").eq("tenant_id", tenant_id).eq("active", True).execute()
+    return {
+        str(c["id"]): c.get("name") or "Unknown"
+        for c in (callers.data or [])
+        if not owner_user_id or c.get("user_id") != owner_user_id
+    }
+
+
 @router.get("/winners")
 async def get_winners(tenant_id: str = Depends(get_owner_tenant_id)):
-    """
-    Return the daily winner (highest average call score today, min 3 calls)
-    and monthly winner (highest overall_score this month, min 20 calls).
-    Both fields can be None if no eligible callers exist.
-    """
+    """Daily and monthly winner: 70% average score + 30% volume (total calls vs the
+    busiest telecaller). Needs 3 scored calls in the IST day / 20 in the IST month."""
     db = get_supabase()
-    now = datetime.now(timezone.utc)
+    team = _team_caller_ids(db, tenant_id)
+    if not team:
+        return {"daily": None, "monthly": None}
+    caller_ids = list(team)
 
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
-
-    # Exclude owner from leaderboard (same pattern as list_callers)
-    owner = db.table("tenant_users").select("user_id").eq("tenant_id", tenant_id).eq("role", "owner").maybe_single().execute()
-    owner_user_id = (owner.data or {}).get("user_id")
-    excluded_caller_ids: set[str] = set()
-    if owner_user_id:
-        owner_callers = db.table("callers").select("id").eq("tenant_id", tenant_id).eq("user_id", owner_user_id).execute()
-        excluded_caller_ids = {c["id"] for c in (owner_callers.data or [])}
-
-    # ── Daily winner: highest average score today ───────────────────────────
-    # Uses per-call score (call_logs.score) which is written immediately on
-    # call completion — no AI evaluation delay.  Minimum call threshold
-    # prevents a single lucky call from gaming the ranking.
-    daily_logs = (
-        db.table("call_logs")
-        .select("caller_id,score")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", today_start)
-        .not_.is_("score", "null")
-        .execute()
-    )
-
-    daily_winner = None
-    if daily_logs.data:
-        caller_scores: dict[str, list[float]] = {}
-        for row in daily_logs.data:
-            cid = row.get("caller_id")
-            if cid and cid not in excluded_caller_ids:
-                caller_scores.setdefault(cid, []).append(float(row["score"]))
-        # Filter to callers who meet the minimum daily call threshold
-        eligible = [
-            (cid, round(sum(scores) / len(scores), 1))
-            for cid, scores in caller_scores.items()
-            if len(scores) >= MIN_DAILY_CALLS
-        ]
-        if eligible:
-            eligible.sort(key=lambda x: x[1], reverse=True)
-            top_cid, top_avg = eligible[0]
-            caller_row = (
-                db.table("callers")
-                .select("id,name,overall_score")
-                .eq("id", top_cid)
-                .eq("tenant_id", tenant_id)
-                .eq("active", True)
-                .maybe_single()
-                .execute()
-            )
-            if caller_row.data:
-                daily_winner = {
-                    "caller_id": top_cid,
-                    "name": caller_row.data.get("name", "Unknown"),
-                    "value": top_avg,
-                    "label": "avg score today",
-                }
-
-    # ── Monthly winner: highest overall_score (active callers) ────────────────
-    # Also compute calls this month for display
-    month_logs = (
-        db.table("call_logs")
-        .select("caller_id")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", month_start)
-        .execute()
-    )
-
-    month_call_counts: dict[str, int] = {}
-    for row in (month_logs.data or []):
-        cid = row.get("caller_id")
-        if cid and cid not in excluded_caller_ids:
-            month_call_counts[cid] = month_call_counts.get(cid, 0) + 1
-
-    # Only callers who have done enough calls this month are eligible.
-    # Prevents a caller with 2 lucky converted calls from beating someone
-    # who worked the full month.
-    eligible_ids = [
-        cid for cid, count in month_call_counts.items()
-        if count >= MIN_MONTHLY_CALLS
-    ]
-
-    monthly_winner = None
-    if eligible_ids:
-        top_callers = (
-            db.table("callers")
-            .select("id,name,overall_score")
-            .eq("tenant_id", tenant_id)
-            .eq("active", True)
-            .in_("id", eligible_ids)
-            .order("overall_score", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if top_callers.data:
-            best = top_callers.data[0]
-            cid = best["id"]
-            monthly_winner = {
-                "caller_id": cid,
-                "name": best.get("name", "Unknown"),
-                "value": float(best.get("overall_score") or 0),
-                "calls_this_month": month_call_counts.get(cid, 0),
-                "label": "overall score",
-            }
-
-    return {"daily": daily_winner, "monthly": monthly_winner}
-
-
-# ── Daily coaching digest ─────────────────────────────────────────────────────
-
-@router.get("/{caller_id}/digest")
-async def get_digest(
-    caller_id: UUID,
-    tenant_id: str = Depends(get_owner_tenant_id),
-    days: int = 7,
-):
-    """Return the last N days of coaching digests for a caller."""
-    db = get_supabase()
-    rows = (
-        db.table("caller_digests")
-        .select("digest_date,call_count,stats,coaching_report,created_at")
-        .eq("caller_id", str(caller_id))
-        .eq("tenant_id", tenant_id)
-        .order("digest_date", desc=True)
-        .limit(days)
-        .execute()
-    )
-    return {"data": rows.data or []}
-
-
-@router.post("/{caller_id}/digest/generate")
-async def trigger_digest(
-    caller_id: UUID,
-    tenant_id: str = Depends(get_owner_tenant_id),
-):
-    """Manually trigger today's digest for a caller (owner only, for testing)."""
-    from datetime import date as _date
-    from app.services.call_digest import generate_daily_digest
-    await generate_daily_digest(str(caller_id), tenant_id, _date.today())
-    return {"ok": True}
+    result = {}
+    for key, bounds, min_scored in (
+        ("daily", ist_day_bounds(), MIN_SCORED_DAILY),
+        ("monthly", ist_month_bounds(), MIN_SCORED_MONTHLY),
+    ):
+        winner = rank_winner(period_stats(db, tenant_id, bounds[0], bounds[1], caller_ids), min_scored)
+        if winner:
+            winner["name"] = team.get(winner["caller_id"], "Unknown")
+            winner["min_scored_calls"] = min_scored
+        result[key] = winner
+    return result
 
 
 @router.get("/{caller_id}/coaching")

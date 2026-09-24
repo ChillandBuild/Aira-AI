@@ -81,7 +81,6 @@ def create_tenant(payload: CreateTenantPayload, user: dict = Depends(get_current
             "name": "Admin",
             "active": True,
             "status": "active",
-            "overall_score": 10.0,
         }).execute()
     except Exception as e:
         logger.warning(f"Failed to seed admin caller for tenant {tenant_id}: {e}")

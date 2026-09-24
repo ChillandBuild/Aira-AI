@@ -153,7 +153,9 @@ class TeleCmiCdrLegTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
         self.metered = []
-        self.recordings = []
+        self.queued = []
+        self.runs = []
+        self.finalized = []
 
         # Key-aware, so `telecmi_recording_base_url` stays unset (the default
         # documented endpoint applies) instead of every key returning one value.
@@ -167,12 +169,15 @@ class TeleCmiCdrLegTests(unittest.TestCase):
         patches = [
             patch("app.routes.calls.get_setting", side_effect=lambda key, **kw: settings_map.get(key)),
             patch("app.routes.calls.meter", side_effect=lambda db, t, k, q: self.metered.append((t, k, q))),
-            patch("app.routes.calls.recompute_caller_score"),
-            patch("app.routes.calls.score_from_outcome", return_value=5),
+            patch("app.routes.calls.finalize_call_score", side_effect=lambda db, cid: self.finalized.append(cid)),
             patch("app.routes.calls.get_telecalling_config", return_value={"targets": {}}),
             patch(
-                "app.routes.calls._process_telecmi_recording",
-                side_effect=lambda cid, url: self.recordings.append((cid, url)),
+                "app.routes.calls.queue_call_ai",
+                side_effect=lambda db, cid, filename: self.queued.append((cid, filename)),
+            ),
+            patch(
+                "app.routes.calls.run_call_ai",
+                side_effect=lambda cid, appid=None: self.runs.append((cid, appid)),
             ),
         ]
         for p in patches:
@@ -241,21 +246,47 @@ class TeleCmiCdrLegTests(unittest.TestCase):
 
     # ── recording ─────────────────────────────────────────────────────
 
-    def test_recording_url_matches_play_record_docs(self):
+    def test_leg_b_recording_is_queued_and_processing_starts(self):
+        """The filename is stored so a restart can resume; processing starts at once."""
         db = FakeDB(_call_log())
         self._post(LEG_B_ANSWERED, db)
-        self.assertEqual(len(self.recordings), 1)
-        _, url = self.recordings[0]
-        self.assertIn("rest.telecmi.com/v2/play", url)
-        self.assertIn("secret=", url)
-        self.assertNotIn("piopiy", url)
-        self.assertNotIn("token=", url)
-        self.assertIn("file=16506305548176941220057791_2222223.mp3", url)
+        self.assertEqual(self.queued, [(CALL_LOG_ID, "16506305548176941220057791_2222223.mp3")])
+        self.assertEqual(self.runs, [(CALL_LOG_ID, "2222223")])
+
+    def test_recording_is_queued_after_the_talk_time_is_stored(self):
+        """The pipeline reads duration_seconds to decide whether to score."""
+        db = FakeDB(_call_log())
+        order = []
+        with patch(
+            "app.routes.calls.queue_call_ai",
+            side_effect=lambda *a: order.append(("queued", len(db.updates_to("call_logs")))),
+        ):
+            self._post(LEG_B_ANSWERED, db)
+        self.assertEqual(order, [("queued", 1)])
+
+    def test_redelivered_cdr_does_not_requeue_a_recording_in_progress(self):
+        row = _call_log(status="completed", duration_seconds=6)
+        row.update({"ai_status": "transcribing", "recording_filename": LEG_B_ANSWERED["filename"]})
+        db = FakeDB(row)
+        self._post(LEG_B_ANSWERED, db)
+        self.assertEqual(self.queued, [])
+        self.assertEqual(self.runs, [])
 
     def test_leg_a_never_triggers_a_recording_download(self):
         db = FakeDB(_call_log())
         self._post(LEG_A_ANSWERED, db)
-        self.assertEqual(self.recordings, [])
+        self.assertEqual(self.queued, [])
+        self.assertEqual(self.runs, [])
+
+    def test_terminal_cdr_recomputes_the_call_score(self):
+        db = FakeDB(_call_log())
+        self._post(LEG_B_ANSWERED, db)
+        self.assertEqual(self.finalized, [CALL_LOG_ID])
+
+    def test_leg_a_missed_recomputes_the_call_score(self):
+        db = FakeDB(_call_log())
+        self._post(LEG_A_MISSED, db)
+        self.assertEqual(self.finalized, [CALL_LOG_ID])
 
     # ── lead matching ─────────────────────────────────────────────────
 

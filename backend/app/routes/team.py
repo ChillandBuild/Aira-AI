@@ -91,7 +91,7 @@ def get_me(ctx: dict = Depends(get_tenant_and_role)):
 
     caller = (
         db.table("callers")
-        .select("id, name, phone, overall_score")
+        .select("id, name, phone")
         .eq("user_id", ctx["user_id"])
         .eq("tenant_id", ctx["tenant_id"])
         .limit(1)
@@ -131,7 +131,7 @@ def list_team(ctx: dict = Depends(require_team_view)):
     if user_ids:
         caller_rows = (
             db.table("callers")
-            .select("user_id, id, name, phone, overall_score, active, telecmi_agent_id")
+            .select("user_id, id, name, phone, active, telecmi_agent_id")
             .in_("user_id", user_ids)
             .eq("tenant_id", ctx["tenant_id"])
             .execute()

@@ -370,7 +370,7 @@ async def telecalling_analytics(
 
     logs_today_query = (
         db.table("call_logs")
-        .select("id,duration_seconds,outcome,disposition,manual_status,provider,feedback_source,caller_id,created_at,evaluation,lead_id,leads(created_at,assigned_at)")
+        .select("id,duration_seconds,outcome,disposition,manual_status,provider,feedback_source,caller_id,created_at,score,score_status,lead_id,leads(created_at,assigned_at)")
         .eq("tenant_id", tenant_id)
         .gte("created_at", range_start_iso)
     )
@@ -402,7 +402,7 @@ async def telecalling_analytics(
         asyncio.to_thread(status_logs_query.execute),
         asyncio.to_thread(
             db.table("callers")
-            .select("id,name,overall_score,user_id")
+            .select("id,name,user_id")
             .eq("tenant_id", tenant_id)
             .eq("active", True)
             .execute
@@ -623,18 +623,13 @@ async def telecalling_analytics(
                     all_speed_to_leads.append(diff)
         c_speed_to_lead_min = round(statistics.median(c_speed_to_lead_list), 1) if c_speed_to_lead_list else None
 
-        # quality_avg
-        c_quality_scores = []
-        for log in caller_calls:
-            eval_data = log.get("evaluation")
-            if isinstance(eval_data, dict) and "overall_score" in eval_data:
-                try:
-                    val = float(eval_data["overall_score"])
-                    c_quality_scores.append(val)
-                    all_quality_scores.append(val)
-                except (ValueError, TypeError):
-                    pass
-        c_quality_avg = round(sum(c_quality_scores) / len(c_quality_scores), 1) if c_quality_scores else None
+        # Average of this window's scored calls (short, no-answer and unscored calls don't count).
+        c_scores = [
+            float(log["score"]) for log in caller_calls
+            if log.get("score_status") == "scored" and log.get("score") is not None
+        ]
+        all_quality_scores.extend(c_scores)
+        c_avg_score = round(sum(c_scores) / len(c_scores), 1) if c_scores else None
 
         total = caller_total.get(cid_str, 0)
         converted = caller_converted.get(cid_str, 0)
@@ -644,7 +639,8 @@ async def telecalling_analytics(
             "caller_id": cid,
             "name": c.get("name"),
             "calls_today": c_calls_count,
-            "overall_score": c.get("overall_score"),
+            "overall_score": c_avg_score,
+            "scored_calls": len(c_scores),
             "total_minutes_today": c_talk_minutes_today,
             "conversion_rate": conv_rate,
             "connect_rate": c_connect_rate,
@@ -655,7 +651,6 @@ async def telecalling_analytics(
             "longest_idle_seconds": round(c_longest_idle, 1),
             "bunking_flag": c_bunking_flag,
             "speed_to_lead_min": c_speed_to_lead_min,
-            "quality_avg": c_quality_avg,
         })
 
     # Comparison block — fixed daily-report baselines anchored to REAL today (UTC),
@@ -831,43 +826,6 @@ async def caller_timeline(
     return {"data": events}
 
 
-@router.get("/qa-queue")
-async def qa_queue(
-    limit: int = Query(20, ge=1, le=100),
-    ctx: dict = Depends(require_analytics_view),
-):
-    tenant_id = ctx["tenant_id"]
-    db = get_supabase()
-    
-    res = (
-        await asyncio.to_thread(
-            db.table("call_logs")
-            .select("id,created_at,duration_seconds,outcome,manual_status,recording_url,transcript,ai_summary,evaluation,lead_id,caller_id,leads(name,phone)")
-            .eq("tenant_id", tenant_id)
-            .not_.is_("evaluation", "null")
-            .order("created_at", desc=True)
-            .limit(200)
-            .execute
-        )
-    ).data or []
-    
-    valid_calls = []
-    for call in res:
-        eval_data = call.get("evaluation")
-        if isinstance(eval_data, dict) and "overall_score" in eval_data:
-            try:
-                call["overall_score"] = float(eval_data["overall_score"])
-                valid_calls.append(call)
-            except (ValueError, TypeError):
-                pass
-                
-    valid_calls.sort(key=lambda x: x["overall_score"])
-    # `data` is the list key every other endpoint here uses, and what the QA
-    # feed reads. This returned `queue` instead, so the feed always rendered
-    # empty however many scored calls existed.
-    return {"data": valid_calls[:limit]}
-
-
 @router.get("/telecalling/export")
 async def export_telecalling(
     ctx: dict = Depends(require_analytics_view)
@@ -881,7 +839,7 @@ async def export_telecalling(
     rows = (
         await asyncio.to_thread(
             db.table("call_logs")
-            .select("id,created_at,caller_id,lead_id,duration_seconds,outcome,disposition,manual_status,status,provider,feedback_source,recording_url,score,transcript,ai_summary,evaluation,callers(name),leads(name,phone)")
+            .select("id,created_at,caller_id,lead_id,duration_seconds,outcome,disposition,manual_status,status,provider,feedback_source,recording_url,score,score_status,callers(name),leads(name,phone)")
             .eq("tenant_id", tenant_id)
             .gte("created_at", start_date)
             .order("created_at", desc=True)
@@ -895,18 +853,13 @@ async def export_telecalling(
         "call_log_id", "created_at", "caller_id", "caller_name",
         "lead_id", "lead_name", "lead_phone", "duration_seconds",
         "outcome", "disposition", "manual_status", "status", "provider", "feedback_source", "recording_url", "score",
-        "overall_score"
+        "score_status"
     ]
     
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
     
     for row in rows:
-        eval_data = row.get("evaluation")
-        overall_score = None
-        if isinstance(eval_data, dict) and "overall_score" in eval_data:
-            overall_score = eval_data.get("overall_score")
-            
         writer.writerow({
             "call_log_id": row["id"],
             "created_at": row["created_at"],
@@ -923,8 +876,8 @@ async def export_telecalling(
             "provider": row.get("provider") or "",
             "feedback_source": row.get("feedback_source") or "",
             "recording_url": row.get("recording_url") or "",
-            "score": row.get("score") or "",
-            "overall_score": overall_score or ""
+            "score": row.get("score") if row.get("score") is not None else "",
+            "score_status": row.get("score_status") or "",
         })
         
     filename = f"telecalling_calls_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"

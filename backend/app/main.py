@@ -45,13 +45,13 @@ if settings.sentry_dsn:
     )
     logger.info("Sentry SDK initialized successfully.")
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 _startup_time = datetime.now(timezone.utc)
 _heartbeats = {
     "scheduled-broadcasts": None,
     "callback-notifications": None,
     "number-quality-sync": None,
-    "daily-digest": None,
+    "call-ai-sweep": None,
     "ad-insights-sync": None,
     "astro-push-reconcile": None,
     "intake-staleness-sweep": None,
@@ -282,16 +282,14 @@ async def _sync_ad_insights() -> None:
         logger.error(f"Ad insights scheduler error: {e}")
 
 
-async def _generate_daily_digests() -> None:
-    """APScheduler cron job: generate daily coaching digests for all callers."""
-    _heartbeats["daily-digest"] = datetime.now(timezone.utc)
+async def _sweep_call_ai() -> None:
+    """APScheduler job: resume call recordings a restart interrupted and retry failures."""
+    _heartbeats["call-ai-sweep"] = datetime.now(timezone.utc)
     try:
-        from app.services.call_digest import generate_all_digests
-        from datetime import date
-        ist_date = (datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)).date()
-        await generate_all_digests(ist_date)
+        from app.services.call_ai_pipeline import sweep_call_ai
+        await sweep_call_ai()
     except Exception as e:
-        logger.error(f"Daily digest generation error: {e}")
+        logger.error(f"Call AI sweep error: {e}")
 
 
 async def _process_pending_whatsapp_alerts() -> None:
@@ -425,13 +423,13 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     _scheduler.add_job(
-        _generate_daily_digests,
-        trigger="cron",
-        hour=13,
-        minute=0,
-        timezone="UTC",
-        id="daily-digest",
+        _sweep_call_ai,
+        trigger="interval",
+        minutes=3,
+        id="call-ai-sweep",
         replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     _scheduler.add_job(
         _process_pending_whatsapp_alerts,
@@ -459,7 +457,7 @@ async def lifespan(app: FastAPI):
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + daily-digest(cron 13:00 UTC) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m)")
+    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m)")
 
     yield
 

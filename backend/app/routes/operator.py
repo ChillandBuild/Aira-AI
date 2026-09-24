@@ -260,7 +260,6 @@ def create_client(payload: CreateClientPayload, _admin: dict = Depends(get_syste
             "name": payload.contact_name,
             "active": True,
             "status": "active",
-            "overall_score": 10.0,
         }).execute()
     except Exception as e:
         logger.error(f"Tenant setup failed for user {user_id}, cleaning up: {e}")
@@ -1511,7 +1510,7 @@ def client_team(tenant_id: str, _admin: dict = Depends(get_system_admin)):
 
     callers_rows = (
         db.table("callers")
-        .select("id, name, active, overall_score, shift_start_hour, shift_end_hour, user_id")
+        .select("id, name, active, shift_start_hour, shift_end_hour, user_id")
         .eq("tenant_id", tenant_id)
         .order("name")
         .execute()
@@ -1525,13 +1524,18 @@ def client_team(tenant_id: str, _admin: dict = Depends(get_system_admin)):
     )
     role_map = {r["user_id"]: r["role"] for r in (tenant_users.data or [])}
 
+    from app.services.telecaller_performance import ist_month_bounds, period_stats
+
+    month_start, month_end = ist_month_bounds()
+    month_stats = period_stats(db, tenant_id, month_start, month_end)
+
     callers = []
     for c in (callers_rows.data or []):
         callers.append({
             "id": c["id"],
             "name": c["name"],
             "active": c["active"],
-            "overall_score": c["overall_score"],
+            "avg_score_month": (month_stats.get(str(c["id"])) or {}).get("avg_score"),
             "shift_start_hour": c.get("shift_start_hour"),
             "shift_end_hour": c.get("shift_end_hour"),
             "role": role_map.get(c.get("user_id"), "caller"),
@@ -2488,7 +2492,7 @@ _ALL_TENANT_TABLES = [
     "lead_tag_interest", "lead_conversation_state", "automation_flow_runs",
     "automation_logs", "automation_pending_executions", "automation_steps", "automations",
     "bot_flows", "call_logs", "call_scripts", "caller_attendance_overrides",
-    "caller_digests", "caller_status_logs", "callers", "conversations",
+    "caller_status_logs", "callers", "conversations",
     "incidents", "knowledge_chunks", "knowledge_documents", "message_templates",
     "meta_templates", "phone_number_quality_history", "phone_numbers",
     "reengagement_logs", "reengagement_steps", "segment_templates",

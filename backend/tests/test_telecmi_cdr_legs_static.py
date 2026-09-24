@@ -72,11 +72,11 @@ def test_recording_uses_documented_chub_endpoint():
 
 
 def test_recording_download_rejects_non_audio():
-    source = _read("app/routes/calls.py")
+    source = _read("app/services/call_ai_pipeline.py")
     # TeleCMI answers a failed playback with HTTP 200 + a JSON error body, so a
     # status check alone would store the error blob as the call's .mp3.
-    assert "def _is_audio_payload(" in source
-    assert "if not _is_audio_payload(resp, audio_bytes):" in source
+    assert "def is_audio_payload(" in source
+    assert "if not is_audio_payload(resp, resp.content):" in source
 
 
 def test_live_events_never_write_terminal_status():

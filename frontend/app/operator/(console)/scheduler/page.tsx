@@ -120,7 +120,7 @@ const JOB_LABELS: Record<string, { name: string; every: string }> = {
   "assignment-sweep": { name: "Unassigned-Lead Sweep", every: "2 min" },
   "recycle-contacts": { name: "Contact Recycling", every: "30 min" },
   "callback-reassignment": { name: "Callback Reassignment", every: "1 min" },
-  "daily-digest": { name: "Daily Caller Digest", every: "18:30 IST" },
+  "call-ai-sweep": { name: "Call Recording Processing", every: "3 min" },
 };
 
 const CRITICAL_JOB_IDS = new Set([
