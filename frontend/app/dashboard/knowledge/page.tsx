@@ -23,6 +23,7 @@ import KnowledgeReviewModal from "./KnowledgeReviewModal";
 import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
 import DeleteDocumentModal from "./DeleteDocumentModal";
 import ProfileSectionsEditor from "./ProfileSectionsEditor";
+import { AutoGrowTextarea } from "./useAutoGrow";
 import { wordCount } from "./descriptionDiff";
 
 // ─── Interfaces & Types ───────────────────────────────────────────────────────
@@ -2257,10 +2258,10 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            <textarea
+            <AutoGrowTextarea
               value={scoringRubric}
               onChange={(e) => setScoringRubric(e.target.value)}
-              rows={5}
+              minRows={5}
               spellCheck={false}
               placeholder={
                 "- Hot: Asked for pricing, booking slot, or callback; ready to proceed\n" +
