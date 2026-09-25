@@ -155,7 +155,7 @@ async def get_my_calls_today(ctx: dict = Depends(get_tenant_and_role)):
 
     result = (
         db.table("call_logs")
-        .select("id,lead_id,call_sid,duration_seconds,outcome,recording_url,score,score_status,status,ai_summary,transcript,created_at,leads(phone,name)")
+        .select("id,lead_id,call_sid,provider,duration_seconds,outcome,recording_url,score,score_status,ai_status,status,ai_summary,transcript,created_at,leads(phone,name)")
         .eq("caller_id", caller_id)
         .eq("tenant_id", ctx["tenant_id"])
         .gte("created_at", today_start)
@@ -585,7 +585,7 @@ async def list_caller_logs(caller_id: UUID, tenant_id: str = Depends(get_owner_t
     db = get_supabase()
     result = (
         db.table("call_logs")
-        .select("id,lead_id,call_sid,duration_seconds,outcome,recording_url,score,score_status,status,ai_summary,transcript,created_at,leads(phone,name)")
+        .select("id,lead_id,call_sid,provider,duration_seconds,outcome,recording_url,score,score_status,ai_status,status,ai_summary,transcript,created_at,leads(phone,name)")
         .eq("caller_id", str(caller_id))
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)

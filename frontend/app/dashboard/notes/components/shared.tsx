@@ -312,7 +312,10 @@ export function AiSummaryCard({
             )}
           </div>
         </div>
-        <div className="mt-3">
+        <div className="mt-3 space-y-2.5">
+          {log.recording_url && (
+            <audio controls preload="none" src={log.recording_url} className="w-full h-8" />
+          )}
           <CallAiDetail log={log} onChanged={() => void refresh()} />
         </div>
       </div>

@@ -1259,7 +1259,7 @@ async def get_lead_call_logs(lead_id: UUID, tenant_id: str = Depends(get_tenant_
     db = get_supabase()
     result = (
         db.table("call_logs")
-        .select("id,call_sid,status,outcome,duration_seconds,recording_url,score,score_status,ai_status,flag_status,ai_summary,transcript,created_at,callers(name)")
+        .select("id,call_sid,status,outcome,provider,duration_seconds,recording_url,score,score_status,score_breakdown,evaluation,ai_status,ai_error,flag_status,flag_reason,ai_summary,transcript,created_at,callers(name)")
         .eq("lead_id", str(lead_id))
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)

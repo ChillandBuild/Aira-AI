@@ -211,7 +211,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
   const filteredLeadNotes = filterTag
     ? leadNoteItems.filter((n: Note) => (n.tags ?? []).includes(filterTag))
     : leadNoteItems;
-  const aiLogs = callLogs.filter((l) => l.ai_summary || l.recording_url);
+  const aiLogs = callLogs.filter((l) => l.ai_summary || l.recording_url || l.ai_status);
   const leadTags = Array.from(new Set(leadNoteItems.flatMap((n: Note) => n.tags ?? [])));
 
   const boardTags = Array.from(new Set(allNotes.flatMap((n) => n.tags ?? [])));
