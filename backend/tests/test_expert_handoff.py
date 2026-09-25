@@ -753,6 +753,22 @@ async def test_addon_choice_explicit_decline_proceeds_with_no_addons():
 
 
 @pytest.mark.asyncio
+async def test_addon_choice_stale_package_key_cancels_instead_of_blank_menu():
+    """Live bug 2026-09-25: a session snapshotted "general_career_reading" then the
+    tenant replaced their package list entirely. Every later reply re-entered this
+    branch, found no matching leaf, and sent an addons-purpose wrapper around an
+    empty block (no package fact, no addon list) -- literally "{intro}\n\n\n\n{question}"
+    with nothing shown in between. Must cancel and fall through instead of looping
+    on that blank reply forever."""
+    session = {**_awaiting_addon_choice_session(), "package_key": "deleted_package_key"}
+    db = _nested_session_db(existing_session=session)
+    consumed = await eh.route_intake("lead-1", "t-1", "+91999", "hii", db=db)
+    assert consumed is False
+    update_patch = db.table("intake_sessions").update.call_args[0][0]
+    assert update_patch["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
 async def test_addon_choice_cancel_word_cancels_session():
     db = _nested_session_db(existing_session=_awaiting_addon_choice_session())
     consumed = await eh.route_intake("lead-1", "t-1", "+91999", "cancel", db=db)

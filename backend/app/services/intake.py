@@ -1038,7 +1038,24 @@ async def route_intake(
             packages = normalize_packages(config)
             found = _find_leaf(packages, session.get("package_key"))
             leaf = found[0] if found else None
-            active_addons = _active_children(leaf.get("addons") or []) if leaf else []
+            if leaf is None:
+                # The package this session snapshotted no longer exists in the
+                # tenant's current config -- e.g. the operator replaced the package
+                # list after this lead paused mid-flow. Showing the addon menu here
+                # would render the wrapper's intro/question around an empty block
+                # forever (no package fact, no addons to list) -- live evidence
+                # 2026-09-25: a lead stuck replying "hii" to a blank "pick your
+                # add-ons" bubble for a package (general_career_reading) deleted a
+                # month earlier, since this status has no staleness sweep (see
+                # sweep_stale_intake_sessions). Cancel instead and fall through to
+                # a normal reply / a fresh offer on the next matching intent.
+                _update_session(session["id"], {"status": "cancelled"}, db)
+                logger.warning(
+                    f"Intake session {session['id']} cancelled -- package_key "
+                    f"{session.get('package_key')!r} no longer in tenant {tenant_id} config"
+                )
+                return False
+            active_addons = _active_children(leaf.get("addons") or [])
 
             is_decline = body.strip().lower() in _ADDON_DECLINE_WORDS
             if not is_decline and classify_non_answer(body) == "cancel":
@@ -1593,6 +1610,17 @@ def resolve_intake_session(session_id: str, tenant_id: str, db=None) -> bool:
 
 _STALE_SESSION_HOURS = 48
 
+# Every pre-payment status a session can sit in mid-flow (package pick, addon
+# pick, field collection, confirmation) -- none of these had a staleness sweep
+# before, so a session left here (e.g. the customer went quiet, or the
+# tenant's package list changed out from under it) blocked that lead from a
+# fresh offer and, for awaiting_addon_choice specifically, could loop forever
+# on a broken empty-menu reply (live evidence 2026-09-25, see route_intake's
+# awaiting_addon_choice handler).
+_MID_FLOW_STALE_STATUSES = (
+    "awaiting_package_choice", "awaiting_addon_choice", "collecting", "awaiting_confirmation",
+)
+
 
 async def sweep_stale_intake_sessions(db=None) -> dict:
     """APScheduler job (every 5 min): clear intake sessions that have sat too
@@ -1611,6 +1639,9 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
     - paid older than 48h (by paid_at) -> resolved, same transition the
       dashboard's own Resolve button performs. Nothing else ever closes these
       out automatically; a human has to remember to click it.
+    - any _MID_FLOW_STALE_STATUSES row older than 48h (by updated_at, since
+      created_at would ignore forward progress the lead already made) ->
+      cancelled. Counted into the same `cancelled` total as awaiting_payment.
     """
     from datetime import datetime, timedelta, timezone
 
@@ -1649,6 +1680,32 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
         logger.error(f"Stale awaiting_payment sweep query failed: {e}")
 
     try:
+        stale_mid_flow = (
+            db.table("intake_sessions")
+            .select("id")
+            .in_("status", list(_MID_FLOW_STALE_STATUSES))
+            .lt("updated_at", cutoff)
+            .limit(200)
+            .execute()
+        )
+        for row in stale_mid_flow.data or []:
+            try:
+                result = (
+                    db.table("intake_sessions")
+                    .update({"status": "cancelled"})
+                    .eq("id", row["id"])
+                    .in_("status", list(_MID_FLOW_STALE_STATUSES))
+                    .execute()
+                )
+                if result.data:
+                    cancelled += 1
+                    _sync_deal(result, db)
+            except Exception as e:
+                logger.error(f"Stale mid-flow cancel failed for session {row['id']}: {e}")
+    except Exception as e:
+        logger.error(f"Stale mid-flow sweep query failed: {e}")
+
+    try:
         stale_paid = (
             db.table("intake_sessions")
             .select("id,tenant_id")
@@ -1667,7 +1724,7 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
         logger.error(f"Stale paid sweep query failed: {e}")
 
     if cancelled or resolved:
-        logger.info(f"Intake staleness sweep: cancelled {cancelled} awaiting_payment, resolved {resolved} paid")
+        logger.info(f"Intake staleness sweep: cancelled {cancelled} (awaiting_payment + mid-flow), resolved {resolved} paid")
     return {"cancelled": cancelled, "resolved": resolved}
 
 

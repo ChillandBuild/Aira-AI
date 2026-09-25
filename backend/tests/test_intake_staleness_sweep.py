@@ -1,6 +1,7 @@
 """Regressions for the intake staleness sweep: dead awaiting_payment links get
-cancelled, forgotten paid sessions get auto-resolved, both after 48h, and the
-sweep never lets one bad row stop the rest."""
+cancelled, forgotten paid sessions get auto-resolved, stale mid-flow sessions
+(package/addon choice, collecting, confirmation) get cancelled too, all after
+48h, and the sweep never lets one bad row stop the rest."""
 import sys
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from app.services.intake import sweep_stale_intake_sessions
 
 SID_AWAITING = "11111111-2222-3333-4444-555555555555"
 SID_PAID = "22222222-3333-4444-5555-666666666666"
+SID_MID_FLOW = "33333333-4444-5555-6666-777777777777"
 TENANT = "0f897915-2d34-4b67-8d69-f83f52e4fb6c"
 
 
@@ -61,6 +63,7 @@ async def test_sweep_cancels_stale_awaiting_payment_and_resolves_stale_paid():
         "intake_sessions": [
             _res([{"id": SID_AWAITING}]),          # stale awaiting_payment query
             _res([{"id": SID_AWAITING}]),           # cancel update
+            _res([]),                               # stale mid-flow query (none)
             _res([{"id": SID_PAID, "tenant_id": TENANT}]),  # stale paid query
             _res([{"id": SID_PAID}]),               # resolve update
         ],
@@ -76,10 +79,33 @@ async def test_sweep_cancels_stale_awaiting_payment_and_resolves_stale_paid():
 
 
 @pytest.mark.asyncio
+async def test_sweep_cancels_stale_mid_flow_session():
+    """Live bug 2026-09-25: a session stuck at awaiting_addon_choice for a package
+    the tenant later deleted from their config sat forever with no sweep -- only
+    awaiting_payment/paid were ever auto-cleared. Mid-flow statuses now expire on
+    updated_at (not created_at, since the lead may have made real progress first)."""
+    db = _SeqDb({
+        "intake_sessions": [
+            _res([]),                                    # no stale awaiting_payment
+            _res([{"id": SID_MID_FLOW}]),                 # stale mid-flow query
+            _res([{"id": SID_MID_FLOW}]),                 # cancel update
+            _res([]),                                     # no stale paid
+        ],
+    })
+
+    out = await sweep_stale_intake_sessions(db=db)
+
+    assert out == {"cancelled": 1, "resolved": 0}
+    updates = [(t, p) for t, op, p in db.writes if op == "update"]
+    assert updates == [("intake_sessions", {"status": "cancelled"})]
+
+
+@pytest.mark.asyncio
 async def test_sweep_no_stale_rows_is_a_clean_no_op():
     db = _SeqDb({
         "intake_sessions": [
             _res([]),  # no stale awaiting_payment
+            _res([]),  # no stale mid-flow
             _res([]),  # no stale paid
         ],
     })
@@ -96,6 +122,7 @@ async def test_sweep_survives_a_failing_cancel_and_continues_to_paid():
         "intake_sessions": [
             _res([{"id": SID_AWAITING}]),
             RuntimeError("db blip"),  # cancel update fails
+            _res([]),                # no stale mid-flow
             _res([{"id": SID_PAID, "tenant_id": TENANT}]),
             _res([{"id": SID_PAID}]),
         ],
