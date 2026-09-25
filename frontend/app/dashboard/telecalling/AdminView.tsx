@@ -73,8 +73,8 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
   const selectedCallerName = callers.find((c) => c.id === selectedCallerId)?.name ?? "Admin (me)";
 
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] flex-col bg-transparent xl:h-[calc(100vh-4rem)]">
-      <div className="grid flex-1 grid-cols-1 gap-4 pb-4 xl:grid-cols-12 xl:min-h-0">
+    <div className="flex min-h-[calc(100vh-8rem)] flex-col bg-transparent xl:h-[calc(100vh-7.5rem)] xl:min-h-0 xl:overflow-hidden">
+      <div className="grid flex-1 grid-cols-1 gap-4 pb-4 xl:grid-cols-12 xl:min-h-0 xl:pb-0">
         {/* Left Side: Admin Queue (4/12) */}
         <div className="flex flex-col gap-5 pr-0 xl:col-span-4 xl:min-h-0 xl:pr-1">
           <div className="flex flex-1 flex-col rounded-3xl border border-[#e8e3db] bg-[#faf8f5] p-4 shadow-sm xl:min-h-0 xl:p-5">
