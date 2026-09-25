@@ -57,6 +57,16 @@ class FindQuoteTests(unittest.TestCase):
         quote = "The plan is now refundable"
         self.assertIsNone(find_quote(quote, [line]))
 
+    def test_non_string_quote_rejected(self):
+        """Non-string quotes are rejected, not converted."""
+        self.assertIsNone(find_quote(12345, LINES))
+        self.assertIsNone(find_quote(["x"], LINES))
+
+    def test_clip_non_string(self):
+        """clip returns None for non-string inputs."""
+        self.assertIsNone(clip(5))
+        self.assertIsNone(clip(["text"]))
+
 
 if __name__ == "__main__":
     unittest.main()

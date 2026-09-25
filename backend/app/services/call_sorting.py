@@ -99,7 +99,8 @@ async def sort_call(lines: list[Line], tenant_id: str | None) -> SortResult:
     )
     signs = validate_signs(data.get("signs"), lines)
     group = group_for(len(signs))
-    summary = {k: v for k, v in (data.get("summary") or {}).items() if k in _SUMMARY_KEYS}
+    summary_data = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    summary = {k: v for k, v in summary_data.items() if k in _SUMMARY_KEYS}
     rude_quote = None if data.get("polite") is not False else _telecaller_quote(data.get("rude_quote"), lines)
     barrier_line = find_quote(data.get("language_barrier_quote"), lines) if data.get("language_barrier") is True else None
 

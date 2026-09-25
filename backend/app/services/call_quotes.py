@@ -26,7 +26,7 @@ def _norm_for_words(text: str) -> list[str]:
 
 
 def clip(text: str | None) -> str | None:
-    if text is None:
+    if not isinstance(text, str):
         return None
     return text if len(text) <= QUOTE_MAX_CHARS else text[: QUOTE_MAX_CHARS - 1].rstrip() + "…"
 
@@ -49,7 +49,9 @@ def _words_match(quote_words: list[str], line_words: list[str], start_idx: int) 
 
 
 def find_quote(quote: str | None, lines: list[Line], speakers: tuple[str, ...] = ("telecaller", "customer")) -> Line | None:
-    q_norm = _norm(quote or "")
+    if not isinstance(quote, str):
+        return None
+    q_norm = _norm(quote)
     if len(q_norm) < 2:
         return None
     quote_words = _norm_for_words(quote or "")

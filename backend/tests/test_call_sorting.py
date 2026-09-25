@@ -102,6 +102,22 @@ class SortCallTests(unittest.IsolatedAsyncioTestCase):
             result = await cs.sort_call(EARLY, tenant_id="t")
         self.assertEqual(result.early_exit_check["expected_crm"], "other")
 
+    async def test_malformed_ai_json_degrades(self):
+        ai = _ai(
+            [{"sign": 1, "quote": 12345}, "junk"],
+            summary="not a dict",
+            polite=False,
+            rude_quote=12345,
+            language_barrier=True,
+            language_barrier_quote=["x"]
+        )
+        with patch.object(cs, "gemini_analysis_json", AsyncMock(return_value=ai)):
+            result = await cs.sort_call(EARLY, tenant_id="t")
+        self.assertEqual(result.group, "early_exit")
+        self.assertEqual(result.summary, {})
+        self.assertIsNone(result.rude_quote)
+        self.assertFalse(result.language_barrier)
+
 
 if __name__ == "__main__":
     unittest.main()
