@@ -55,11 +55,12 @@ def raise_alert(
         "quote": quote, "detail": detail or {}, "created_at": now.isoformat(),
     }
     try:
-        db.table("call_alerts").insert(row).execute()
+        res = db.table("call_alerts").insert(row).execute()
     except Exception as e:
         if "duplicate" in str(e).lower() or "unique" in str(e).lower():
             return False
         raise
+    alert_id = (res.data or [{}])[0].get("id")
 
     if type in INSTANT_TYPES and caller_id:
         since = (now - timedelta(hours=1)).isoformat()
@@ -73,9 +74,7 @@ def raise_alert(
                 notify_user(tenant_id, user_id, f"call_alert_{type}", ALERT_LABELS[type],
                             f"{name}: {quote or ALERT_LABELS[type]}", db=db,
                             push_url="/dashboard/telecalling#needs-attention")
-            q = db.table("call_alerts").update({"notified_at": now.isoformat()}).eq("type", type)
-            q = q.eq("call_log_id", call_log_id) if call_log_id else q.eq("created_at", row["created_at"])
-            q.execute()
+            db.table("call_alerts").update({"notified_at": now.isoformat()}).eq("id", alert_id).execute()
     return True
 
 

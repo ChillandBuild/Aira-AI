@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS call_alerts (
 
 CREATE UNIQUE INDEX IF NOT EXISTS call_alerts_call_type_uniq
   ON call_alerts (call_log_id, type) WHERE call_log_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS call_alerts_lead_source_day_uniq
+  ON call_alerts (tenant_id, type, (detail->>'source'), (detail->>'day')) WHERE type = 'lead_source_quality';
 CREATE INDEX IF NOT EXISTS call_alerts_tenant_unseen_idx
   ON call_alerts (tenant_id, seen_at, created_at DESC);
 CREATE INDEX IF NOT EXISTS call_alerts_caller_notified_idx

@@ -277,7 +277,7 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
         if matches is False:
             raise_alert(db, tenant_id=row["tenant_id"], type="crm_mismatch", call_log_id=call_log_id,
                         caller_id=row.get("caller_id"),
-                        quote=f"Call looked like '{early.get('expected_crm')}', wrap-up says '{snap.get('manual_status') or snap.get('outcome')}'")
+                        quote=clip(f"Call looked like '{early.get('expected_crm')}', wrap-up says '{snap.get('manual_status') or snap.get('outcome')}'"))
         finalize_call_score(db, call_log_id)
         return True
 

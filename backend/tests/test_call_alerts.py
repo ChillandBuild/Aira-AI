@@ -1,6 +1,7 @@
 """Warnings: one row per call+type, instant pushes only for serious types, capped per hour."""
 import sys
 import unittest
+import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -44,7 +45,16 @@ class _Q:
             p = self.payload
             if p.get("call_log_id") and any(r.get("call_log_id") == p["call_log_id"] and r["type"] == p["type"] for r in rows):
                 raise Exception("duplicate key value violates unique constraint")
-            rows.append(dict(p))
+            if p["type"] == "lead_source_quality" and any(
+                r["type"] == "lead_source_quality" and r.get("tenant_id") == p.get("tenant_id")
+                and r.get("detail", {}).get("source") == p.get("detail", {}).get("source")
+                and r.get("detail", {}).get("day") == p.get("detail", {}).get("day")
+                for r in rows
+            ):
+                raise Exception("duplicate key value violates unique constraint")
+            p = dict(p)
+            p["id"] = str(uuid.uuid4())
+            rows.append(p)
             return MagicMock(data=[p])
         hit = [r for r in rows if all(f(r) for f in self.filters)]
         if self.op == "update":
@@ -75,10 +85,19 @@ class RaiseAlertTests(unittest.TestCase):
         self.assertEqual(notify.call_count, 2)
         self.assertEqual(notify.call_args.args[1], "admin-1")
         self.assertEqual(len(db.rows["call_alerts"]), 3)
+        self.assertEqual(sum(1 for r in db.rows["call_alerts"] if r.get("notified_at")), 2)
 
     def test_unknown_type_rejected(self):
         with self.assertRaises(ValueError):
             ca.raise_alert(self._db(), tenant_id="t", type="banana", now=NOW)
+
+    def test_lead_source_rerun_does_not_duplicate(self):
+        db = self._db()
+        detail = {"source": "facebook", "total": 10, "bad": 3, "day": "2026-09-25"}
+        with patch.object(ca, "notify_user"):
+            self.assertTrue(ca.raise_alert(db, tenant_id="t", type="lead_source_quality", detail=detail, now=NOW))
+            self.assertFalse(ca.raise_alert(db, tenant_id="t", type="lead_source_quality", detail=detail, now=NOW))
+        self.assertEqual(len(db.rows["call_alerts"]), 1)
 
 
 class LeadSourceTests(unittest.TestCase):
