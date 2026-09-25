@@ -6,12 +6,15 @@ Missing on a proven wrong statement, and computes every mark and the total.
 Check 10 (CRM update) is left pending here and marked from the wrap-up.
 """
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
-from app.services.call_lines import Line, clock, format_transcript
+from app.services.call_alerts import raise_alert
+from app.services.call_lines import Line, clock, format_transcript, parse_transcript
 from app.services.call_metrics import courtesy_cap, listening_cap_reason, lower_level, tips
 from app.services.call_quotes import clip, find_quote
+from app.services.call_scorer import finalize_call_score
 from app.services.gemini_client import gemini_analysis_json
-from app.services.scoring_rules import CHECK_MARKS, LEVEL_ORDER, LEVEL_SHARE
+from app.services.scoring_rules import CHECK_MARKS, LEVEL_ORDER, LEVEL_SHARE, WRAPUP_CUTOFF_HOURS
 
 CHECKS: list[dict] = [
     {"key": "opening", "label": "Opening", "stage": "connect"},
@@ -187,3 +190,124 @@ async def mark_call(
         proof_missing=proof_missing,
         tips=tips(talk_share, interruptions_per_5min),
     )
+
+
+# ── Check 10: CRM update, from the telecaller's wrap-up ─────────────────
+
+_CRM_ROW_FIELDS = (
+    "id,tenant_id,caller_id,lead_id,provider,call_group,ai_status,created_at,feedback_at,"
+    "outcome,manual_status,notes,wrapup_callback_at,transcript,evaluation"
+)
+
+_CRM_PROMPT = """A telecaller just finished this sales call and saved a wrap-up. Mark check 10 (CRM update).
+
+Transcript:
+{transcript}
+
+Wrap-up saved:
+- outcome: {outcome}
+- status: {manual_status}
+- do not call: {do_not_call}
+- callback date/time: {callback_at}
+- notes: {notes}
+
+Correct status guide (our system has no Hot/Warm/Cold: "interested" is right for both hot and warm customers):
+- converted: the customer bought/booked.
+- interested: ready soon or interested but needs time or information.
+- callback: the customer asked to be called later; a date and time must be set.
+- not_interested: low interest, not a fit, never enquired or clearly not interested.
+- do not call: the customer clearly asked not to be contacted again.
+
+Levels: "excellent" = status matches the call, the notes cover the key points (need, budget, next step) and the callback time is set if one was agreed; "good" = status correct, notes thin; "partial" = status slightly off; "poor" = status wrong; "missing" = nothing useful saved.
+Return JSON only: {{"level": "...", "reason": "one line"}}"""
+
+
+def crm_matches_expected(expected: str, wrapup: dict) -> bool | None:
+    """Early-exit check 3. None when our wrap-up has no status for that situation."""
+    if expected == "wrong_number":
+        return wrapup.get("manual_status") == "wrong_number"
+    if expected == "not_enquired":
+        return wrapup.get("outcome") == "not_interested" or bool(wrapup.get("do_not_call"))
+    if expected == "callback":
+        return wrapup.get("outcome") == "callback" and bool(wrapup.get("callback_at"))
+    return None
+
+
+def _load_row(db, call_log_id: str) -> dict | None:
+    res = db.table("call_logs").select(_CRM_ROW_FIELDS).eq("id", call_log_id).maybe_single().execute()
+    return res.data if res else None
+
+
+def wrapup_snapshot(db, row: dict) -> dict | None:
+    if not row.get("feedback_at"):
+        return None
+    dnc = False
+    if row.get("lead_id"):
+        lead = db.table("leads").select("do_not_call").eq("id", row["lead_id"]).maybe_single().execute()
+        dnc = bool(((lead.data if lead else None) or {}).get("do_not_call"))
+    return {
+        "outcome": row.get("outcome"), "manual_status": row.get("manual_status"), "notes": row.get("notes"),
+        "callback_at": row.get("wrapup_callback_at"), "do_not_call": dnc,
+    }
+
+
+def _past_cutoff(row: dict, now: datetime) -> bool:
+    created = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
+    return now - created >= timedelta(hours=WRAPUP_CUTOFF_HOURS)
+
+
+async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) -> bool:
+    """Mark (or re-mark) check 10 / the early-exit CRM check. Safe to call any time."""
+    now = now or datetime.now(timezone.utc)
+    row = _load_row(db, call_log_id)
+    evaluation = (row or {}).get("evaluation") or {}
+    if not row or row.get("ai_status") != "done" or evaluation.get("evaluation_version") != 4:
+        return False
+    snap = wrapup_snapshot(db, row)
+    group = evaluation.get("group")
+
+    if group == "early_exit":
+        early = dict(evaluation.get("early_exit_check") or {})
+        if snap is None or evaluation.get("crm_wrapup") == snap:
+            return False
+        matches = crm_matches_expected(early.get("expected_crm", "other"), snap)
+        early["crm_matches"] = matches
+        new_eval = {**evaluation, "early_exit_check": early, "crm_wrapup": snap}
+        db.table("call_logs").update({"evaluation": new_eval}).eq("id", call_log_id).execute()
+        if matches is False:
+            raise_alert(db, tenant_id=row["tenant_id"], type="crm_mismatch", call_log_id=call_log_id,
+                        caller_id=row.get("caller_id"),
+                        quote=f"Call looked like '{early.get('expected_crm')}', wrap-up says '{snap.get('manual_status') or snap.get('outcome')}'")
+        finalize_call_score(db, call_log_id)
+        return True
+
+    checks = [dict(c) for c in evaluation.get("checks") or []]
+    if not checks:
+        return False
+    crm = checks[-1]
+    if snap is None:
+        if crm.get("level") is not None or not _past_cutoff(row, now):
+            return False
+        crm.update({"level": "missing", "ai_level": None, "marks": 0.0,
+                    "reason": f"No wrap-up saved within {WRAPUP_CUTOFF_HOURS} hours of the call."})
+    else:
+        if evaluation.get("crm_wrapup") == snap and crm.get("level") is not None:
+            return False
+        data = await gemini_analysis_json(
+            system_prompt=_SYSTEM,
+            user_prompt=_CRM_PROMPT.format(transcript=format_transcript(parse_transcript(row.get("transcript"))), **{k: snap.get(k) or "—" for k in snap}),
+            tenant_id=row.get("tenant_id"), temperature=0.0, purpose="call_crm_check", max_tokens=400,
+        )
+        level = data.get("level")
+        if level not in LEVEL_ORDER:
+            raise CallMarkingError("no valid level for check crm_update")
+        crm.update({"level": level, "ai_level": level, "marks": round(check_marks("crm_update", level), 2),
+                    "reason": clip(data.get("reason"))})
+        if level in ("poor", "missing"):
+            raise_alert(db, tenant_id=row["tenant_id"], type="crm_mismatch", call_log_id=call_log_id,
+                        caller_id=row.get("caller_id"), quote=clip(data.get("reason")))
+    checks[-1] = crm
+    new_eval = {**evaluation, "checks": checks, "top_improve": top_improve(checks), "crm_wrapup": snap}
+    db.table("call_logs").update({"evaluation": new_eval}).eq("id", call_log_id).execute()
+    finalize_call_score(db, call_log_id)
+    return True
