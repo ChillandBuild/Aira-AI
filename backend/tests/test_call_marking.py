@@ -1,0 +1,158 @@
+"""Step 2: the AI picks levels, the system does every mark, cap and total."""
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.services import call_marking as cm
+from app.services.call_lines import Line
+
+LINES = [
+    Line(0, "telecaller", "Good morning sir, this is Priya from Aira Softwares, you enquired about billing software, is this a good time?"),
+    Line(9, "customer", "Yes. We have two branches actually."),
+    Line(15, "telecaller", "Our plan includes GST billing and stock tracking. It is 12000 per year."),
+    Line(30, "customer", "A bit costly, I'll think."),
+    Line(40, "telecaller", "Shall I book a demo for Friday at 11 AM?"),
+    Line(45, "customer", "Okay, Friday 11 is fine."),
+]
+
+
+def _level_map(levels: dict) -> list[dict]:
+    return [{"key": c["key"], "full": c["full"], "level": levels.get(c["key"])} for c in cm.CHECKS]
+
+
+class MarksMathsTests(unittest.TestCase):
+    def test_document_full_example_is_78_5(self):
+        levels = {
+            "opening": "excellent", "courtesy": "good", "questions": "good", "listening": "partial",
+            "product_info": "good", "doubts": "excellent", "clarity": "good", "next_step": "excellent",
+            "decision": "partial", "crm_update": "excellent",
+        }
+        checks = [dict(c, marks=cm.check_marks(c["key"], c["level"])) for c in _level_map(levels)]
+        self.assertEqual(cm.total_score(checks), 78.5)
+        self.assertEqual(cm.top_improve(checks), ["listening", "decision"])
+
+    def test_marks_per_level(self):
+        self.assertEqual(cm.check_marks("questions", "good"), 11.25)
+        self.assertEqual(cm.check_marks("decision", "partial"), 4.0)
+        self.assertEqual(cm.check_marks("crm_update", None), 0.0)
+
+    def test_top_improve_tie_prefers_bigger_check(self):
+        levels = {c["key"]: "excellent" for c in cm.CHECKS}
+        levels.update({"opening": "partial", "questions": "partial", "clarity": "partial"})
+        checks = [dict(c, marks=cm.check_marks(c["key"], c["level"])) for c in _level_map(levels)]
+        self.assertEqual(cm.top_improve(checks), ["questions", "clarity"])
+
+    def test_pending_crm_excluded_from_top_improve(self):
+        levels = {c["key"]: "excellent" for c in cm.CHECKS}
+        levels["crm_update"] = None
+        levels["clarity"] = "good"
+        checks = [dict(c, marks=cm.check_marks(c["key"], c["level"])) for c in _level_map(levels)]
+        self.assertNotIn("crm_update", cm.top_improve(checks))
+
+    def test_apply_level_caps_and_records_it(self):
+        check = {"key": "listening", "full": 10}
+        out = cm.apply_level(check, "excellent", "good", "interruptions")
+        self.assertEqual((out["level"], out["ai_level"], out["capped_by"], out["marks"]), ("good", "excellent", "interruptions", 7.5))
+        out = cm.apply_level(check, "partial", "good", "interruptions")
+        self.assertIsNone(out["capped_by"])
+
+
+def _ai(**overrides):
+    checks = {
+        "opening": {"level": "excellent", "reason": "all elements", "quote": "this is Priya from Aira Softwares"},
+        "courtesy": {"level": "good", "reason": "polite", "quote": "Good morning sir"},
+        "questions": {"level": "good", "reason": "asked need", "quote": "is this a good time"},
+        "listening": {"level": "excellent", "reason": "confirmed", "quote": "We have two branches actually"},
+        "product_info": {"level": "good", "reason": "correct", "quote": "GST billing and stock tracking"},
+        "doubts": {"level": "excellent", "reason": "handled", "quote": "A bit costly"},
+        "clarity": {"level": "good", "reason": "clear", "quote": "Our plan includes GST billing"},
+        "next_step": {"level": "excellent", "reason": "demo fixed", "quote": "Friday 11 is fine"},
+        "decision": {"level": "partial", "reason": "hinted", "quote": "Shall I book a demo"},
+    }
+    data = {"checks": checks, "rude": False, "rude_quote": None, "excused_interruptions": 0,
+            "wrong_info": [], "unverified_claims": []}
+    data.update(overrides)
+    return data
+
+
+class MarkCallTests(unittest.IsolatedAsyncioTestCase):
+    async def _run(self, ai, talk_share=50.0, ipm=0.5, count=0):
+        with patch.object(cm, "gemini_analysis_json", AsyncMock(return_value=ai)) as gem:
+            result = await cm.mark_call(
+                LINES, kb_context="Plan: 12000 per year", previous_notes="", talk_share=talk_share,
+                interruptions_per_5min=ipm, interruption_count=count, duration_seconds=60, tenant_id="t",
+            )
+        return result, gem
+
+    async def test_all_ten_checks_present_crm_pending(self):
+        result, gem = await self._run(_ai())
+        self.assertEqual([c["key"] for c in result.checks], [c["key"] for c in cm.CHECKS])
+        crm = result.checks[-1]
+        self.assertEqual((crm["key"], crm["level"], crm["marks"]), ("crm_update", None, None))
+        self.assertEqual(gem.call_args.kwargs["temperature"], 0.0)
+
+    async def test_quote_time_comes_from_transcript(self):
+        result, _ = await self._run(_ai())
+        listening = next(c for c in result.checks if c["key"] == "listening")
+        self.assertEqual(listening["time"], "00:09")
+
+    async def test_listening_capped_by_talk_share(self):
+        result, _ = await self._run(_ai(), talk_share=80.0, ipm=0.5)
+        listening = next(c for c in result.checks if c["key"] == "listening")
+        self.assertEqual((listening["level"], listening["capped_by"]), ("partial", "talk_share"))
+        self.assertTrue(result.tips)
+
+    async def test_excused_interruption_lifts_courtesy_cap(self):
+        ai = _ai(excused_interruptions=1)
+        # 4 interruptions in 1 minute = 20/5min; excusing 1 still leaves 15 → cap stays
+        result, _ = await self._run(ai, ipm=20.0, count=4)
+        courtesy = next(c for c in result.checks if c["key"] == "courtesy")
+        self.assertEqual(courtesy["level"], "good")
+
+    async def test_made_up_quote_flags_proof_missing(self):
+        ai = _ai()
+        ai["checks"]["clarity"]["quote"] = "Let me explain our cloud features"
+        result, _ = await self._run(ai)
+        clarity = next(c for c in result.checks if c["key"] == "clarity")
+        self.assertTrue(clarity["proof_missing"])
+        self.assertEqual(clarity["level"], "good")  # the mark still counts
+        self.assertIn("clarity", result.proof_missing)
+
+    async def test_missing_level_needs_no_quote(self):
+        ai = _ai()
+        ai["checks"]["decision"] = {"level": "missing", "reason": "never asked", "quote": None}
+        result, _ = await self._run(ai)
+        decision = next(c for c in result.checks if c["key"] == "decision")
+        self.assertFalse(decision["proof_missing"])
+
+    async def test_wrong_info_forces_product_info_missing(self):
+        ai = _ai(wrong_info=[{"quote": "It is 12000 per year", "kb_fact": "Plan is 15000 per year"}])
+        result, _ = await self._run(ai)
+        product = next(c for c in result.checks if c["key"] == "product_info")
+        self.assertEqual((product["level"], product["capped_by"], product["marks"]), ("missing", "wrong_info", 0.0))
+        self.assertEqual(result.wrong_info[0]["time"], "00:15")
+
+    async def test_wrong_info_needs_a_real_telecaller_quote(self):
+        ai = _ai(wrong_info=[{"quote": "Free for life", "kb_fact": "No free plan"}])
+        result, _ = await self._run(ai)
+        self.assertEqual(result.wrong_info, [])
+
+    async def test_rude_from_ai_creates_rude_quote(self):
+        ai = _ai(rude=True, rude_quote="Our plan includes GST billing")
+        result, _ = await self._run(ai)
+        self.assertTrue(result.rude_quote.startswith("[00:15]"))
+        courtesy = next(c for c in result.checks if c["key"] == "courtesy")
+        self.assertEqual(courtesy["level"], "missing")
+
+    async def test_missing_check_in_ai_reply_raises(self):
+        ai = _ai()
+        del ai["checks"]["clarity"]
+        with self.assertRaises(cm.CallMarkingError):
+            await self._run(ai)
+
+
+if __name__ == "__main__":
+    unittest.main()
