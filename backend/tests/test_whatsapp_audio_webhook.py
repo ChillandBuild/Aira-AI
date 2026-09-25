@@ -137,6 +137,8 @@ async def test_audio_background_transcribes_inserts_and_routes_reply():
         # The inbound media id doubles as the message id, so the reply can be
         # sent as a quoted reply to the voice note it answers.
         meta_message_id="media-1",
+        # A voice note is not a button tap.
+        interactive_id=None,
     )
 
 

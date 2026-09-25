@@ -1,8 +1,7 @@
-"use client";
-import { useSettingsForm } from "../SettingsFormContext";
-import { IntakeConfigPanel } from "../IntakeConfigPanel";
+import { redirect } from "next/navigation";
 
-export default function IntakeConfigSettingsPage() {
-  const { canManageSettings } = useSettingsForm();
-  return <IntakeConfigPanel canManage={canManageSettings} />;
+// Merged into the Packages page ("What Aira Sells") — kept as a redirect so
+// any bookmarked or hardcoded link to this URL still lands somewhere useful.
+export default function IntakeConfigRedirect() {
+  redirect("/dashboard/settings/packages");
 }

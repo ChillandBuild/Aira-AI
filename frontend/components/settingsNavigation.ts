@@ -1,7 +1,6 @@
 import {
   Building2,
   Calendar,
-  FileCheck,
   Headset,
   Megaphone,
   MessageSquare,
@@ -31,8 +30,7 @@ export const SETTINGS_ITEMS: SettingsNavItem[] = [
   { href: "/dashboard/settings/follow-ups", icon: Calendar, label: "Follow-Ups" },
   { href: "/dashboard/settings/inbox", icon: MessageSquare, label: "Inbox" },
   { href: "/dashboard/settings/telecalling-behavior", icon: Headset, label: "Telecalling Behavior" },
-  { href: "/dashboard/settings/intake-config", icon: FileCheck, label: "Intake Config" },
-  { href: "/dashboard/settings/packages", icon: Package, label: "Packages" },
+  { href: "/dashboard/settings/packages", icon: Package, label: "What Aira Sells" },
   { href: "/dashboard/settings/business-hours", icon: Calendar, label: "Business Hours", entitlement: "notifications" },
   { href: "/dashboard/settings/notifications", icon: Megaphone, label: "Notifications", entitlement: "notifications" },
   { href: "/dashboard/settings/quick-replies", icon: Reply, label: "Quick Replies" },

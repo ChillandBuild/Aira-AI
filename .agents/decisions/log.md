@@ -1467,3 +1467,9 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Migrations applied live 2026-09-25:** 192, 193, 194 (rewritten: price only), 195 (rewritten: DROP + CREATE `match_catalog_items` — CREATE OR REPLACE can't change return columns — with `search_path` restored), 204_deals. 196/197 deleted from the repo, never applied anywhere.
 - **Marketplace:** IndiaMART reads the `RESPONSE` envelope (the old code read top-level keys and silently dropped every real push). New enquiry → lead + note with what the buyer typed + tenant's welcome template (`marketplace_welcome_template` = message_templates id) + immediate assignment (segment gate skipped, telecalling on/off respected). Repeat enquiry → note only.
 
+
+## 2026-09-26 — Aira sells by itself: AI-native selling engine replaces the intake state machine (default for every tenant)
+- **Why:** the fixed `route_intake` script intercepted turns before the AI. Live failures: an empty "confirm your details" after a package tap (tenant with no required fields), and a customer who said they paid getting menus and "contact app support" for 5 minutes. Owner decision: no per-tenant switch, the AI handles packages, details, links, products and handoff for everyone.
+- **What:** `services/deal_engine.py` (prompt + schemas + price check), `deal_actions.py` (guarded executors for package AND catalog tools), `deal_turn.py` (one guarded loop for every reply); webhook no longer calls `route_intake`; settings pages merged. Full notes: subsystem-notes.md "AI-native selling engine".
+- **Kept:** intake_sessions, Deals board sync, Razorpay confirm, Astro bridge, staleness sweep, 24h window handling (owner: deliberately unchanged).
+- **Measured:** conversation evals in `backend/evals/conversations/` (see docs/plans/ai-native-conversation.md for numbers).

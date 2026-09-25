@@ -19,7 +19,7 @@ const SETTINGS_ROUTE_LABELS: Record<string, string> = {
   "follow-ups": "Follow-Ups",
   inbox: "Inbox",
   "telecalling-behavior": "Telecalling Behavior",
-  "intake-config": "Intake Config",
+  packages: "What Aira Sells",
   "business-hours": "Business Hours",
   notifications: "Notifications",
   "quick-replies": "Quick Replies",

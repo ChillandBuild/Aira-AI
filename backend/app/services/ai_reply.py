@@ -1366,6 +1366,61 @@ def _load_catalog_ai_rules(db, tenant_id: str) -> dict:
     return rules
 
 
+def catalog_prompt(items: list[dict], directive: str, rules: dict) -> tuple[str, list[dict], dict[str, dict], int]:
+    """Pure half of _build_catalog_context: the CATALOG prompt block and tool definitions for
+    the given candidate items. Split out so the conversation eval renders exactly this text."""
+    if not items and not directive:
+        return "", [], {}, 0
+
+    items_by_id = {row["id"]: row for row in items}
+    item_lines: list[str] = []
+    for row in items:
+        # stock_quantity is NULL for anything that isn't a tracked physical
+        # product (services, courses) -- NULL always means "available", only
+        # an explicit 0 means out of stock.
+        out_of_stock = row.get("stock_quantity") == 0
+        line = f"  • {row['name']} ({row['item_type']}) [id: {row['id']}]"
+        if row.get("price_paise") is not None:
+            price_rupees = row["price_paise"] / 100
+            price_str = f"₹{price_rupees:.0f}" if price_rupees == int(price_rupees) else f"₹{price_rupees:.2f}"
+            if row.get("price_note"):
+                price_str += f" ({row['price_note']})"
+            line += f" — {price_str}"
+        if row.get("description"):
+            line += f" — {row['description']}"
+        if out_of_stock:
+            line += " — OUT OF STOCK: if asked, say so honestly, but do NOT call recommend_catalog_item for this item"
+        elif row.get("stock_quantity") is not None:
+            line += f" — only {row['stock_quantity']} available right now; never promise more than that"
+        item_lines.append(line)
+
+    text_block = ""
+    if item_lines:
+        text_block = (
+            "\n\nCATALOG:\nWhen the customer asks about what's available or shows interest in a type of "
+            "product/service, use your catalog below. Mention items by name — and when you do, call the "
+            "recommend_catalog_item tool with the item's [id] so the customer receives its photo automatically. "
+            "Never call that tool for an item marked OUT OF STOCK. When the customer says they want to "
+            "buy an item and the item and quantity are clear, call send_quote in that same reply -- do "
+            "not ask for permission to send the link.\n"
+            + "\n".join(item_lines)
+        )
+    text_block += directive
+
+    try:
+        max_images = max(0, int(rules.get("max_images_per_reply", 3)))
+    except (TypeError, ValueError):
+        max_images = 3
+    tools: list[dict] = []
+    if rules.get("can_send_images", True) and items:
+        tools = [dict(_CATALOG_RECOMMEND_TOOL)]
+        text_block += f"\n\nYou may recommend up to {max_images} item(s) with photos per reply."
+    if any(row.get("price_paise") is not None for row in items):
+        tools.append(dict(_SEND_QUOTE_TOOL))
+
+    return text_block, tools, items_by_id, max_images
+
+
 async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str, list[dict], dict[str, dict], int]:
     """Fetch relevant catalog items for this message and build the prompt context + tool
     definitions, gating disambiguation when multiple variants of one item are in contention.
@@ -1434,52 +1489,48 @@ async def _build_catalog_context(db, tenant_id: str, message: str) -> tuple[str,
             logger.warning(f"Failed to load catalog items for tenant {tenant_id}: {e}")
             return "", [], {}, 0
 
-    if not items and not directive:
-        return "", [], {}, 0
+    return catalog_prompt(items, directive, rules)
 
-    items_by_id = {row["id"]: row for row in items}
-    item_lines: list[str] = []
-    for row in items:
-        # stock_quantity is NULL for anything that isn't a tracked physical
-        # product (services, courses) -- NULL always means "available", only
-        # an explicit 0 means out of stock.
-        out_of_stock = row.get("stock_quantity") == 0
-        line = f"  • {row['name']} ({row['item_type']}) [id: {row['id']}]"
-        if row.get("price_paise") is not None:
-            price_rupees = row["price_paise"] / 100
-            price_str = f"₹{price_rupees:.0f}" if price_rupees == int(price_rupees) else f"₹{price_rupees:.2f}"
-            if row.get("price_note"):
-                price_str += f" ({row['price_note']})"
-            line += f" — {price_str}"
-        if row.get("description"):
-            line += f" — {row['description']}"
-        if out_of_stock:
-            line += " — OUT OF STOCK: if asked, say so honestly, but do NOT call recommend_catalog_item for this item"
-        item_lines.append(line)
 
-    text_block = ""
-    if item_lines:
-        text_block = (
-            "\n\nCATALOG:\nWhen the customer asks about what's available or shows interest in a type of "
-            "product/service, use your catalog below. Mention items by name — and when you do, call the "
-            "recommend_catalog_item tool with the item's [id] so the customer receives its photo automatically. "
-            "Never call that tool for an item marked OUT OF STOCK.\n"
-            + "\n".join(item_lines)
-        )
-    text_block += directive
+def _load_catalog_images(
+    db, tenant_id: str, item_ids, max_images: int, items_by_id: dict,
+) -> list[tuple[str, bytes]]:
+    """(label, image bytes) for the recommended items, in the client's ranked order, capped
+    at max_images in total. A storage failure costs the photo, never the reply."""
+    images: list[tuple[str, bytes]] = []
+    for item_id in item_ids or ():
+        remaining = max_images - len(images)
+        if remaining <= 0:
+            break
+        item = items_by_id.get(item_id) or {}
+        try:
+            rows = (
+                db.table("catalog_media").select("id,storage_path,label")
+                .eq("catalog_item_id", item_id).eq("tenant_id", tenant_id)
+                .order("sort_order").limit(remaining).execute()
+            ).data or []
+            for row in rows:
+                data = db.storage.from_("catalog-media").download(row["storage_path"])
+                images.append((row["label"] or item.get("name") or "Photo", data))
+        except Exception as media_err:
+            logger.warning("Failed to load catalog media for item %s: %s", item_id, media_err)
+    return images
 
-    try:
-        max_images = max(0, int(rules.get("max_images_per_reply", 3)))
-    except (TypeError, ValueError):
-        max_images = 3
-    tools: list[dict] = []
-    if rules.get("can_send_images", True) and items:
-        tools = [dict(_CATALOG_RECOMMEND_TOOL)]
-        text_block += f"\n\nYou may recommend up to {max_images} item(s) with photos per reply."
-    if any(row.get("price_paise") is not None for row in items):
-        tools.append(dict(_SEND_QUOTE_TOOL))
 
-    return text_block, tools, items_by_id, max_images
+_HUMAN_TOUCH_BLOCK = (
+    "\n\nHUMAN TOUCH (you are one real person on this business's team, texting on WhatsApp):\n"
+    "- Speak as a person on the team (\"I\", \"we\"). Do not call yourself a bot, an AI or an "
+    "automated assistant. Only if they sincerely ask whether they are talking to a bot, answer "
+    "honestly in one light line and carry on helping.\n"
+    "- Personal or flirty questions: brush them off lightly in a few words and return to how you "
+    "can help.\n"
+    "- Match their mood. No emoji at all when they are upset, worried, grieving or asking "
+    "something serious.\n"
+    "- If they are angry or let down, first say sorry for the specific thing that went wrong.\n"
+    "- Never end two messages with the same sentence, and never send the same reply twice; vary "
+    "your words the way a person does.\n"
+    "- Keep it short: one or two small paragraphs. Answer exactly what they asked, directly."
+)
 
 
 def build_reply_system_prompt(
@@ -1494,6 +1545,7 @@ def build_reply_system_prompt(
     context_text: str = "",
     catalog_context: str = "",
     include_intake_context: bool = True,
+    tapped_option_key: str | None = None,
 ) -> tuple[str, str, bool]:
     """Assemble the main-brain system prompt, and return the reply language mode it
     was built with (the caller needs that mode for the post-generation script-mismatch
@@ -1549,6 +1601,7 @@ def build_reply_system_prompt(
     if reply_language_mode == "tanglish_escalate_tamil":
         reply_language_mode = _resolve_tamil_lock(db, lead_id, lead_data, message)
     system_prompt += _language_rule_block(reply_language_mode, message)
+    system_prompt += _HUMAN_TOUCH_BLOCK
 
     # Intake context takes priority over the generic escalation holding message --
     # it is the more specific, money-aware story (names the expert/service, forbids
@@ -1570,7 +1623,28 @@ def build_reply_system_prompt(
             # touch" / "reply so the payment can continue" -- pointing at a flow that
             # no longer runs, with no way out short of editing the rows by hand.
             intake_config = get_intake_config(tenant_id, db=db)
-            if intake_config.get("enabled"):
+            from app.services import deal_engine
+            if channel == "whatsapp" and deal_engine.is_enabled(intake_config):
+                # AI-native selling: the model sees the offerings, the required details and
+                # the deal state, and drives the sale itself through tools (deal_turn).
+                # Replaces the old "intake in progress" holding block, whose "do not
+                # re-offer" rule contradicts a lead asking which package to pick.
+                from app.services.intake import _IN_PROGRESS_STATUSES, _get_active_session
+                deal_session = _get_active_session(lead_id, tenant_id, db)
+                from app.services.intake import classify_non_answer
+                system_prompt += deal_engine.deal_prompt(
+                    intake_config, deal_session, tapped_key=tapped_option_key,
+                    returning=classify_non_answer(message) == "greeting" or deal_engine.is_blank_message(message),
+                )
+                status = (deal_session or {}).get("status")
+                if status == "paid":
+                    from app.config_dynamic import get_setting
+                    system_prompt += _intake_paid_prompt_block(
+                        intake_config["service_noun"],
+                        answer_in_app=bool(get_setting("app_download_link", tenant_id=tenant_id)),
+                    )
+                intake_active = status == "paid" or status in _IN_PROGRESS_STATUSES
+            elif intake_config.get("enabled"):
                 if get_paid_unresolved_session(lead_id, tenant_id, db=db):
                     from app.config_dynamic import get_setting
                     system_prompt += _intake_paid_prompt_block(
@@ -1610,6 +1684,16 @@ def build_reply_system_prompt(
                 lead_id,
             )
 
+    # The lead's recent product orders (quoted / link sent / paid), so a "did my order go
+    # through?" or "send the link again" is answered from facts. Never raises.
+    from app.services import deal_actions, deal_engine
+    system_prompt += deal_engine.orders_block(deal_actions.lead_orders(db, tenant_id, lead_id))
+    try:
+        from app.services.business_details import get_business_details
+        system_prompt += deal_engine.business_facts_block(get_business_details(tenant_id, db))
+    except Exception:
+        logger.warning("Business details block failed for tenant %s -- replying without it", tenant_id)
+
     if catalog_context:
         system_prompt += catalog_context
 
@@ -1628,6 +1712,7 @@ async def generate_reply(
     phone_number_id: str | None = None,
     inbound_media_type: str | None = None,
     meta_message_id: str | None = None,
+    interactive_id: str | None = None,
 ) -> None:
     """
     Core pipeline:
@@ -1795,6 +1880,26 @@ async def generate_reply(
     chosen_block: dict | None = None
     catalog_images_to_send: list[tuple[str, bytes]] = []  # (filename, image_bytes)
 
+    # Every reply runs through one guarded loop (services/deal_turn.py): package selling on
+    # WhatsApp, product photos and quotes, quick-reply blocks, the price guard and the
+    # payment-complaint handover. None of these steps raise.
+    from app.services import deal_turn
+    deal_outcome = None
+    deal_ctx = deal_turn.build_context(
+        db, tenant_id, lead_id, phone or lead_data.get("phone"),
+        channel=channel, catalog=catalog_items_by_id, max_images=catalog_max_images,
+    )
+    payment_guard_fired = deal_turn.pre_turn_guards(deal_ctx, message)
+    if payment_guard_fired:
+        logger.info(f"Payment complaint: lead {lead_id} handed to a person before the model ran")
+    # Save any required details in this message before the prompt is built, so the
+    # DEAL STATE the model reads is already up to date (see capture_details).
+    earlier_inbound = [
+        (row.get("content") or "") for row in reversed(recent_thread)
+        if row.get("direction") == "inbound" and (row.get("content") or "") != message
+    ]
+    await deal_turn.capture_details(deal_ctx, message, earlier=earlier_inbound)
+
     try:
         system_prompt, reply_language_mode, intake_active = build_reply_system_prompt(
             db,
@@ -1806,18 +1911,12 @@ async def generate_reply(
             campaign_name=campaign_name,
             context_text=context_text,
             catalog_context=catalog_context,
+            tapped_option_key=interactive_id,
         )
-        # A lead mid-payment or waiting on their expert's answer should not have the
-        # AI autonomously fire off an unrelated product photo -- the intake holding
-        # blocks tell the model not to re-sell in prose, but that has no effect on a
-        # live tool definition the model can still call regardless of what the prompt
-        # says. Drop the tool itself rather than trust prose to override it.
-        if intake_active:
-            catalog_tools = []
-
-        # Same reasoning as the catalog guard above, applied to quick reply blocks:
-        # a lead mid-payment must not be handed an unrelated button menu, and the
-        # only reliable way to stop that is to remove the tool.
+        # Product tools stay available mid-consultation: a lead can ask about a product at
+        # any point, and the prompt plus the executors (deal_actions) keep that safe.
+        # Quick reply blocks are different: a lead mid-payment must not be handed an
+        # unrelated button menu, and the only reliable way to stop that is to remove the tool.
         from app.services.quick_replies import should_offer_quick_replies
         if not should_offer_quick_replies(
             channel, intake_active, quick_reply_blocks, recent_thread
@@ -1842,163 +1941,51 @@ async def generate_reply(
         if not chat_messages or chat_messages[-1].get("role") != "user" or chat_messages[-1].get("content") != message:
             chat_messages.append({"role": "user", "content": message})
 
-        # One call with both tools. A second call for quick replies would double
-        # latency and cost on every reply for tenants using both features.
-        all_tools = catalog_tools + quick_reply_tool
-        if all_tools:
-            reply_text, tool_calls = await _llm_chat_with_tools(
-                chat_messages, tools=all_tools, max_tokens=600, tenant_id=tenant_id,
+        # The payment link and any product quote are appended below, after the
+        # script-mismatch rewrite, so a translation pass can never touch a URL or a price.
+        reply_text, tool_calls, deal_outcome = await deal_turn.converse_once(
+            chat_messages, catalog_tools + quick_reply_tool, deal_ctx, tenant_id=tenant_id,
+            append_link=False, handover_opened=payment_guard_fired,
+            handover_line=_handover_line(tenant_id),
+        )
+        # Resolved here, applied after reply_source is assigned below. A block
+        # wins over a catalog recommendation: sending both gives the lead a
+        # product photo and an unrelated button menu for one question.
+        from app.services.quick_replies import QUICK_REPLY_TOOL_NAME, resolve_block
+        for tc in tool_calls:
+            func = tc.get("function") or {}
+            if func.get("name") != QUICK_REPLY_TOOL_NAME:
+                continue
+            try:
+                args = json.loads(func.get("arguments") or "{}")
+            except (ValueError, TypeError):
+                continue
+            chosen_block = resolve_block(quick_reply_blocks, args.get("block_name"))
+            if chosen_block:
+                logger.info(
+                    "Quick reply block selected: lead %s -> %s", lead_id, chosen_block["name"]
+                )
+            else:
+                logger.warning(
+                    "Model asked for unknown quick reply block %r for lead %s; "
+                    "replying normally", args.get("block_name"), lead_id,
+                )
+            break
+
+        # Diagnostic for "why didn't my buttons show?" -- the one question a
+        # client will ask that logs must be able to answer. INFO, not WARNING:
+        # not calling the tool is usually correct.
+        if quick_reply_tool and not chosen_block:
+            logger.info(
+                "Quick reply blocks offered but none selected for lead %s (%d available)",
+                lead_id, len(quick_reply_blocks),
             )
-            reply_text = reply_text.strip()
 
-            # Resolved here, applied after reply_source is assigned below. A block
-            # wins over a catalog recommendation: sending both gives the lead a
-            # product photo and an unrelated button menu for one question.
-            from app.services.quick_replies import QUICK_REPLY_TOOL_NAME, resolve_block
-            for tc in tool_calls:
-                func = tc.get("function") or {}
-                if func.get("name") != QUICK_REPLY_TOOL_NAME:
-                    continue
-                try:
-                    args = json.loads(func.get("arguments") or "{}")
-                except (ValueError, TypeError):
-                    continue
-                chosen_block = resolve_block(quick_reply_blocks, args.get("block_name"))
-                if chosen_block:
-                    logger.info(
-                        "Quick reply block selected: lead %s -> %s", lead_id, chosen_block["name"]
-                    )
-                else:
-                    logger.warning(
-                        "Model asked for unknown quick reply block %r for lead %s; "
-                        "replying normally", args.get("block_name"), lead_id,
-                    )
-                break
-
-            # Diagnostic for "why didn't my buttons show?" -- the one question a
-            # client will ask that logs must be able to answer. INFO, not WARNING:
-            # not calling the tool is usually correct.
-            if quick_reply_tool and not chosen_block:
-                logger.info(
-                    "Quick reply blocks offered but none selected for lead %s (%d available)",
-                    lead_id, len(quick_reply_blocks),
-                )
-
-            # Handle tool calls — the model asked to recommend a catalog item or send a quote
-            for tc in tool_calls:
-                func = tc.get("function") or {}
-                tool_name = func.get("name")
-                if tool_name == "send_quote":
-                    try:
-                        args = json.loads(func.get("arguments") or "{}")
-                    except (ValueError, TypeError):
-                        continue
-                    item_ids = args.get("item_ids") or []
-                    quantities = args.get("quantities") or []
-                    from app.services.deals import create_deal, held_quantities
-                    tracked_ids = [iid for iid in item_ids if (catalog_items_by_id.get(iid) or {}).get("stock_quantity") is not None]
-                    try:
-                        held = held_quantities(tenant_id, tracked_ids, db)
-                    except Exception as e:
-                        logger.warning(f"held_quantities failed for lead {lead_id}: {e}")
-                        held = {}
-                    line_items = []
-                    for idx, iid in enumerate(item_ids):
-                        item = catalog_items_by_id.get(iid)
-                        qty = quantities[idx] if idx < len(quantities) and quantities[idx] > 0 else 1
-                        stock = (item or {}).get("stock_quantity")
-                        available = None if stock is None else stock - held.get(iid, 0)
-                        if not item or item.get("price_paise") is None or (available is not None and available < qty):
-                            # Defense in depth, same reasoning as the
-                            # recommend_catalog_item branch below: silently
-                            # drop an unpriced/unknown/not-enough-stock item
-                            # rather than trust the model to have obeyed the
-                            # prompt instruction not to quote it. "Enough"
-                            # counts units already held on other unpaid links.
-                            continue
-                        line_items.append({"catalog_item_id": iid, "name": item["name"], "qty": qty})
-                    if not line_items:
-                        continue
-                    result = None
-                    try:
-                        # Automation choice B: the customer confirmed item + qty,
-                        # so the link goes straight out -- inside this reply, so
-                        # send_link=False (no second WhatsApp message).
-                        created = await create_deal(
-                            tenant_id, lead_id, line_items, "whatsapp", "awaiting_payment", send_link=False, db=db,
-                        )
-                        if created.get("payment_link"):
-                            from app.services.deals import quote_summary_block
-                            result = {
-                                "summary_text": quote_summary_block(created["items"], created["deal"]["total_paise"])
-                                + f"\n\nPay here: {created['payment_link']}",
-                                "deal_id": created["deal"]["id"],
-                            }
-                    except Exception as e:
-                        logger.warning(f"create_deal (send_quote) failed for lead {lead_id}: {e}")
-                    if result:
-                        reply_text = result["summary_text"]
-                        logger.info(f"Quote sent: lead {lead_id} -> deal {result['deal_id']}")
-                    elif not reply_text:
-                        reply_text = "Sorry, I couldn't put that quote together right now — a team member will follow up."
-                    continue
-                if tool_name != "recommend_catalog_item":
-                    continue
-                try:
-                    args = json.loads(func.get("arguments") or "{}")
-                except (ValueError, TypeError):
-                    continue
-                item_id = args.get("item_id")
-                if not item_id or item_id not in catalog_items_by_id:
-                    continue
-
-                item = catalog_items_by_id[item_id]
-                # Defense in depth: the prompt already tells the model not to
-                # recommend an out-of-stock item, but a model can ignore an
-                # instruction. This is the backend actually enforcing it --
-                # no images, no quote recorded, regardless of what the model did.
-                if item.get("stock_quantity") == 0:
-                    logger.info(
-                        "Blocked out-of-stock recommendation: lead %s -> item %s (%s)", lead_id, item["name"], item_id
-                    )
-                    if not reply_text:
-                        reply_text = f"Sorry, {item['name']} is currently out of stock."
-                    continue
-                logger.info(
-                    "Catalog recommendation: lead %s -> item %s (%s)", lead_id, item["name"], item_id
-                )
-                if item.get("price_paise") is not None:
-                    # Interest, not a sale: one open "quoted" deal per lead on
-                    # the Deals board. Never deducts stock; never raises.
-                    from app.services.deals import upsert_quoted_deal
-                    upsert_quoted_deal(tenant_id, lead_id, {"catalog_item_id": item_id, "name": item["name"], "qty": 1}, db=db)
-                # Append a natural confirmation sentence to the reply if we're sending photos
-                # — only if no customer-facing text was generated by the model.
-                if not reply_text:
-                    reply_text = f"Here's our {item['name']}:"
-
-                # Load the item's images from the catalog-media storage bucket so we can
-                # send them as WhatsApp attachments, in the client's ranked order, capped
-                # at max_images_per_reply.
-                try:
-                    media_rows = (
-                        db.table("catalog_media")
-                        .select("id,storage_path,label")
-                        .eq("catalog_item_id", item_id)
-                        .eq("tenant_id", tenant_id)
-                        .order("sort_order")
-                        .limit(catalog_max_images)
-                        .execute()
-                    )
-                    for mrow in (media_rows.data or []):
-                        path = mrow["storage_path"]
-                        label = mrow["label"] or item["name"]
-                        file_bytes = db.storage.from_("catalog-media").download(path)
-                        catalog_images_to_send.append((label, file_bytes))
-                except Exception as media_err:
-                    logger.warning("Failed to load catalog media for item %s: %s", item_id, media_err)
-        else:
-            reply_text = (await _llm_chat(chat_messages, max_tokens=600, tenant_id=tenant_id)).strip()
+        # Product photos the model picked (validated by deal_actions: in the catalog,
+        # in stock, capped at max_images_per_reply).
+        catalog_images_to_send = _load_catalog_images(
+            db, tenant_id, deal_outcome.image_item_ids, catalog_max_images, catalog_items_by_id,
+        )
 
         is_ai = True
         reply_source = "knowledge" if context_text else "ai"
@@ -2069,6 +2056,11 @@ async def generate_reply(
                         reply_text = regenerated
                 except Exception as regen_err:
                     logger.warning(f"Script-mismatch regeneration failed for lead {lead_id}: {regen_err}")
+
+        if deal_outcome and deal_outcome.payment_link:
+            reply_text = f"{reply_text}\n{deal_outcome.payment_link}".strip()
+        if deal_outcome and deal_outcome.quote_text:
+            reply_text = f"{reply_text}\n\n{deal_outcome.quote_text}".strip()
 
         # Trigger A: AI gave a generic fallback reply
         if _is_generic_fallback(reply_text):
@@ -2160,6 +2152,13 @@ async def generate_reply(
                         phone_number_id=phone_number_id,
                         reply_to_message_id=reply_to_message_id,
                     )
+            elif deal_outcome and deal_outcome.menu:
+                from app.services import deal_turn
+                sid = await deal_turn.send_menu(
+                    _wa_phone, reply_text, deal_outcome.menu,
+                    tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id,
+                )
+                reply_text = deal_turn.menu_log_text(reply_text, deal_outcome.menu)
             else:
                 sid = await send_whatsapp(
                     _wa_phone,

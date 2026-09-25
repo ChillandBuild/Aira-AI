@@ -2030,6 +2030,13 @@ def _validate_packages(packages: list[dict]) -> None:
         raise HTTPException(status_code=400, detail="Duplicate package or addon keys")
 
 
+def _has_active_package(packages: list[dict]) -> bool:
+    """At least one leaf package the AI could actually offer and sell -- an
+    enabled tenant with every package switched off would show WhatsApp buttons
+    that lead nowhere, which is worse than staying disabled."""
+    return any(node.get("active", True) for node, is_leaf in _walk_packages(packages) if is_leaf)
+
+
 @router.get("/intake-config")
 async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
     return get_intake_config(ctx["tenant_id"])
@@ -2050,8 +2057,16 @@ async def patch_intake_config(
             raise HTTPException(status_code=400, detail="Duplicate field keys")
     if "packages" in patch:
         _validate_packages(patch["packages"])
-    if patch.get("enabled") and not (patch.get("packages") or current.get("packages") or current.get("amount_paise")):
-        raise HTTPException(status_code=400, detail="Add at least one package before enabling")
+    if patch.get("enabled"):
+        # Trigger description / offer message are dead fields (only the bypassed
+        # legacy route_intake ever read them) -- enabling only ever needs a real,
+        # active package to sell. "packages" may be absent from this patch (e.g.
+        # a fields-only save on an already-configured tenant), so fall back to
+        # the currently stored tree; the legacy single amount_paise fee is kept
+        # as a migration-only fallback for tenants who never moved to packages.
+        effective_packages = patch["packages"] if "packages" in patch else current.get("packages")
+        if not (_has_active_package(effective_packages or []) or current.get("amount_paise")):
+            raise HTTPException(status_code=400, detail="Add at least one active package before enabling")
     if "service_noun" in patch and not patch["service_noun"].strip():
         raise HTTPException(status_code=400, detail="service_noun cannot be blank")
     merged = {**current, **patch}
