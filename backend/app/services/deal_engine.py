@@ -48,7 +48,7 @@ _WORD_RE = re.compile(r"\w", re.UNICODE)
 
 
 _NUMBER = r"\d[\d,]*(?:\.\d+)?"
-_AMOUNT_BEFORE_RE = re.compile(rf"(?:₹|Rs\.?|INR)\s*({_NUMBER})", re.IGNORECASE)
+_AMOUNT_BEFORE_RE = re.compile(rf"(?:₹|\bRs\.?|\bINR)\s*({_NUMBER})", re.IGNORECASE)
 _AMOUNT_AFTER_RE = re.compile(rf"({_NUMBER})\s*(?:Rs\b|rupees?\b|ரூபாய்)", re.IGNORECASE)
 _NUMBER_RE = re.compile(_NUMBER)
 

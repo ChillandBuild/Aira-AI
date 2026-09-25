@@ -74,6 +74,10 @@ class TestNoInventedPrice:
         t = [_turn(replies=["With material it is ₹17,000 in total."])]
         assert _status("no_invented_price", t, config) == "pass"
 
+    def test_words_ending_in_rs_are_not_rupees(self):
+        t = [_turn(replies=["It covers 11th and 12th portions."])]
+        assert _status("no_invented_price", t) == "pass"
+
     def test_quantity_multiples_are_allowed(self):
         config = {"catalog": [{"id": "a", "price_paise": 249900}]}
         t = [_turn(replies=["2 pairs come to ₹4,998."])]

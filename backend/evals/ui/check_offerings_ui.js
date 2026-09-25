@@ -22,7 +22,7 @@ const BASE = "https://www.bloommatrix.in/aira";
     await p.waitForURL(/settings\/packages/, { timeout: 60000 });
     console.log(`${label}: old intake-config URL redirected to ${p.url()}`);
 
-    await p.getByText(/What Aira Sells/i).first().waitFor({ timeout: 90000 });
+    await p.locator(":text(\"Let Aira sell these in chat\"):visible").first().waitFor({ timeout: 90000 });
     await p.waitForTimeout(2000);
     const body = await p.locator("body").innerText();
     for (const gone of ["Trigger description", "Offer message"]) {

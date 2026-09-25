@@ -166,6 +166,10 @@ class TestUnknownPrices:
     def test_amount_the_customer_just_said_may_be_repeated(self):
         assert deal_engine.unknown_prices("Sorry, I cannot do ₹20.", CONFIG, "can you do 20 rupees") == []
 
+    def test_words_ending_in_rs_are_not_rupees(self):
+        text = "Covers 11th and 12th, offers 3 batches, hours 7 to 12"
+        assert deal_engine.unknown_prices(text, CONFIG, "") == []
+
     def test_text_without_prices_is_clean(self):
         assert deal_engine.unknown_prices("Vanakkam! How can I help?", CONFIG, "") == []
 
