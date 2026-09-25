@@ -112,6 +112,14 @@ class MarkCallTests(unittest.IsolatedAsyncioTestCase):
         courtesy = next(c for c in result.checks if c["key"] == "courtesy")
         self.assertEqual(courtesy["level"], "good")
 
+    async def test_excused_interruption_can_lift_courtesy_cap(self):
+        ai = _ai(excused_interruptions=1)
+        ai["checks"]["courtesy"]["level"] = "excellent"
+        # ipm=4.0, count=4 → remaining 3.0/5min → courtesy cap goes from "good" to "excellent"
+        result, _ = await self._run(ai, ipm=4.0, count=4)
+        courtesy = next(c for c in result.checks if c["key"] == "courtesy")
+        self.assertEqual((courtesy["level"], courtesy["capped_by"]), ("excellent", None))
+
     async def test_made_up_quote_flags_proof_missing(self):
         ai = _ai()
         ai["checks"]["clarity"]["quote"] = "Let me explain our cloud features"

@@ -49,6 +49,38 @@ def listening_cap(share: float | None, ipm: float | None) -> str:
     return "excellent"
 
 
+def listening_cap_reason(share: float | None, ipm: float | None) -> tuple[str, str | None]:
+    """Return (cap, reason) for listening — reason identifies which metric(s) caused the cap."""
+    cap = listening_cap(share, ipm)
+    if cap == "excellent":
+        return cap, None
+    if cap == "poor":
+        return cap, "talk_share_and_interruptions"
+
+    # Compute individual caps
+    share_cap = "excellent"
+    if share is not None and share > TALK_SHARE_HIGH_MAX:
+        share_cap = "partial"
+    elif share is not None and share > TALK_SHARE_HEALTHY_MAX:
+        share_cap = "good"
+
+    ipm_cap = "excellent"
+    if ipm is not None and ipm > INTERRUPTIONS_SOMETIMES_MAX:
+        ipm_cap = "partial"
+    elif ipm is not None and ipm > INTERRUPTIONS_GOOD_MAX:
+        ipm_cap = "good"
+
+    # Determine reason based on which individual caps match the combined cap
+    if share_cap == cap and ipm_cap == cap:
+        reason = "talk_share_and_interruptions"
+    elif share_cap == cap:
+        reason = "talk_share"
+    else:
+        reason = "interruptions"
+
+    return cap, reason
+
+
 def courtesy_cap(ipm: float | None) -> str:
     return "good" if ipm is not None and ipm > INTERRUPTIONS_SOMETIMES_MAX else "excellent"
 

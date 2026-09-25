@@ -8,7 +8,7 @@ Check 10 (CRM update) is left pending here and marked from the wrap-up.
 from dataclasses import dataclass, field
 
 from app.services.call_lines import Line, clock, format_transcript
-from app.services.call_metrics import courtesy_cap, listening_cap, lower_level, tips
+from app.services.call_metrics import courtesy_cap, listening_cap_reason, lower_level, tips
 from app.services.call_quotes import clip, find_quote
 from app.services.gemini_client import gemini_analysis_json
 from app.services.scoring_rules import CHECK_MARKS, LEVEL_ORDER, LEVEL_SHARE
@@ -142,12 +142,7 @@ async def mark_call(
             if line:
                 wrong.append({"quote": clip(item["quote"]), "time": clock(line.start), "kb_fact": clip(item.get("kb_fact"))})
 
-    lcap = listening_cap(talk_share, ipm_for_caps)
-    lcap_name = None
-    if lcap != "excellent":
-        hi_share = talk_share is not None and talk_share > 65
-        hi_int = ipm_for_caps is not None and ipm_for_caps > 1
-        lcap_name = "talk_share_and_interruptions" if hi_share and hi_int else ("talk_share" if hi_share else "interruptions")
+    lcap, lcap_name = listening_cap_reason(talk_share, ipm_for_caps)
 
     checks, proof_missing = [], []
     for base in CHECKS:

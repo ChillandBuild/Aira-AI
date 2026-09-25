@@ -55,6 +55,14 @@ class CapTests(unittest.TestCase):
         self.assertEqual(cm.listening_cap(80, 4), "poor")
         self.assertEqual(cm.listening_cap(None, None), "excellent")
 
+    def test_listening_cap_reason(self):
+        self.assertEqual(cm.listening_cap_reason(70, 4), ("partial", "interruptions"))
+        self.assertEqual(cm.listening_cap_reason(80, 2), ("partial", "talk_share"))
+        self.assertEqual(cm.listening_cap_reason(70, 2), ("good", "talk_share_and_interruptions"))
+        self.assertEqual(cm.listening_cap_reason(80, 4), ("poor", "talk_share_and_interruptions"))
+        self.assertEqual(cm.listening_cap_reason(60, 0.5), ("excellent", None))
+        self.assertEqual(cm.listening_cap_reason(None, None), ("excellent", None))
+
     def test_courtesy_cap(self):
         self.assertEqual(cm.courtesy_cap(3), "excellent")
         self.assertEqual(cm.courtesy_cap(3.5), "good")
