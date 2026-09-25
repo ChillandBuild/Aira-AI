@@ -1717,6 +1717,7 @@ async def generate_reply(
                 "engagement": _sr["engagement"],
                 "intent_reason": _sr["intent_reason"],
                 "arc_updated": _sr["arc_updated"],
+                "classification_reason": _sr.get("reason"),
                 "message_snippet": message[:150],
                 "channel": channel,
                 "reason": "ai_disabled_inbound",

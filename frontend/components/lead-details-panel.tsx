@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { ChevronRight, CheckCircle2, Calendar, TrendingUp, MessageCircle, Plus, Power, PowerOff } from "lucide-react";
 import { toast } from "sonner";
 import { SegmentBadge } from "./segment-badge";
+import { describeScoreEvent, type ScoreEventLike } from "./scoreHistory";
 import { NewDealDialog } from "./deals/NewDealDialog";
 import { StageBadge } from "./deals/StageBadge";
 import { formatRupees } from "./deals/money";
@@ -38,23 +39,8 @@ function FbIcon({ size = 11 }: { size?: number }) {
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type ScoreEvent = {
+type ScoreEvent = ScoreEventLike & {
   id: string;
-  event_type: "segment_changed" | "score_updated";
-  from_segment: string | null;
-  to_segment: string | null;
-  metadata: {
-    new_score?: number;
-    prev_score?: number;
-    message_snippet?: string;
-    channel?: string;
-    arc_score?: number;
-    intent_delta?: number;
-    engagement?: number;
-    decay?: number;
-    intent_reason?: string;
-    arc_updated?: boolean;
-  };
   created_at: string;
 };
 
@@ -78,13 +64,6 @@ function formatDate(dateStr: string): string {
     year: "numeric",
   });
 }
-
-const SEG_TEXT_COLOR: Record<string, string> = {
-  A: "text-red-600",
-  B: "text-amber-600",
-  C: "text-blue-600",
-  D: "text-gray-500",
-};
 
 function SourceBadge({ source }: { source: string }) {
   if (source === "instagram") {
@@ -147,80 +126,39 @@ const CHANNEL_BADGE: Record<string, string> = {
 
 // ─── Score event card ─────────────────────────────────────────────────────────
 function ScoreEventCard({ ev }: { ev: ScoreEvent }) {
-  const hasSegChange = ev.from_segment && ev.to_segment && ev.from_segment !== ev.to_segment;
-  const ch = ev.metadata.channel;
-
+  const d = describeScoreEvent(ev);
   return (
     <div className="rounded-xl bg-surface-low border border-surface-mid p-3 space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {/* Score arrow */}
-          {ev.metadata.prev_score != null && ev.metadata.new_score != null && (
-            <div className="flex items-center gap-1">
-              <span className="font-mono text-xs font-semibold text-on-surface-muted">{ev.metadata.prev_score}</span>
-              <span className="text-on-surface-muted text-xs">→</span>
-              <span className="font-mono text-sm font-bold text-primary">{ev.metadata.new_score}</span>
-            </div>
-          )}
-          {/* Segment change */}
-          {hasSegChange && (
-            <span className="font-label text-[10px] flex items-center gap-0.5">
-              <span className={SEG_TEXT_COLOR[ev.from_segment!]}>{ev.from_segment}</span>
-              <span className="text-on-surface-muted">→</span>
-              <span className={cn("font-bold", SEG_TEXT_COLOR[ev.to_segment!])}>{ev.to_segment}</span>
-            </span>
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {d.changed ? (
+            <>
+              {d.from && <SegmentBadge segment={d.from} />}
+              {d.from && <span className="text-on-surface-muted text-xs" aria-label="became">→</span>}
+              {d.to && <SegmentBadge segment={d.to} />}
+            </>
+          ) : (
+            <>
+              <span className="font-label text-[10px] text-on-surface-muted">Stayed</span>
+              {d.to && <SegmentBadge segment={d.to} />}
+            </>
           )}
         </div>
-        {/* Channel + time */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {ch && (
+          {d.channel && (
             <span className="font-label text-[10px] px-1.5 py-0.5 rounded bg-surface-mid text-on-surface-muted">
-              {CHANNEL_BADGE[ch] ?? ch}
+              {CHANNEL_BADGE[d.channel] ?? d.channel}
             </span>
           )}
           <span className="font-label text-[10px] text-on-surface-muted">{timeAgo(ev.created_at)}</span>
         </div>
       </div>
-      {/* Composite breakdown — only shown when v2 data is present */}
-      {ev.metadata.arc_score != null && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-surface-mid text-on-surface-muted">
-            arc {ev.metadata.arc_score}
-          </span>
-          {ev.metadata.intent_delta != null && ev.metadata.intent_delta !== 0 && (
-            <span className={cn(
-              "font-mono text-[10px] px-1.5 py-0.5 rounded",
-              ev.metadata.intent_delta > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-            )}>
-              {ev.metadata.intent_delta > 0 ? "+" : ""}{ev.metadata.intent_delta} intent
-            </span>
-          )}
-          {ev.metadata.engagement != null && ev.metadata.engagement > 0 && (
-            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
-              +{ev.metadata.engagement} eng
-            </span>
-          )}
-          {ev.metadata.decay != null && ev.metadata.decay !== 0 && (
-            <span className={cn(
-              "font-mono text-[10px] px-1.5 py-0.5 rounded",
-              ev.metadata.decay > 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-            )}>
-              {ev.metadata.decay > 0 ? "+" : ""}{ev.metadata.decay} decay
-            </span>
-          )}
-          {ev.metadata.intent_reason && ev.metadata.intent_reason !== "neutral" && (
-            <span className="font-label text-[10px] text-on-surface-muted italic">
-              {ev.metadata.intent_reason.replace(/_/g, " ")}
-            </span>
-          )}
-          {ev.metadata.arc_updated && (
-            <span className="font-label text-[10px] text-primary-500">⚡ arc</span>
-          )}
-        </div>
+      {d.reason && (
+        <p className="font-body text-xs text-on-surface leading-snug">{d.reason}</p>
       )}
-      {ev.metadata.message_snippet && (
+      {d.snippet && (
         <p className="font-body text-[11px] text-on-surface-muted italic leading-snug line-clamp-2">
-          &ldquo;{ev.metadata.message_snippet}&rdquo;
+          &ldquo;{d.snippet}&rdquo;
         </p>
       )}
     </div>
@@ -418,12 +356,12 @@ export function LeadDetailsPanel({ lead, onCollapse, onLeadUpdate }: LeadDetails
               <SegmentBadge segment={lead.segment} />
             </Section>
 
-            <Section icon={<TrendingUp size={12} />} title="Score History">
+            <Section icon={<TrendingUp size={12} />} title="Group history">
               {loadingHistory && <p className="font-body text-xs text-on-surface-muted">Loading…</p>}
               {!loadingHistory && historyError && <p className="font-body text-xs text-red-500">Failed to load history.</p>}
               {!loadingHistory && !historyError && history.length === 0 && (
                 <p className="font-body text-xs text-on-surface-muted">
-                  No score events yet.
+                  No group changes yet.
                   <br />
                   <span className="text-[10px]">Appears once this lead sends a message.</span>
                 </p>
