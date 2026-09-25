@@ -132,6 +132,11 @@ def _decode_wav(data: bytes) -> tuple[bytes, int, int] | None:
     return pcm[: len(pcm) - (len(pcm) % frame_bytes)], sample_rate, channels
 
 
+def decode_wav(data: bytes) -> tuple[bytes, int, int] | None:
+    """Public: (interleaved PCM16 little-endian, sample_rate, channels), or None if not a usable WAV."""
+    return _decode_wav(data)
+
+
 def _encode_mp3(pcm: bytes, sample_rate: int, channels: int) -> bytes:
     encoder = lameenc.Encoder()
     encoder.set_bit_rate(32 if channels == 1 else 48)
@@ -254,6 +259,13 @@ def split_audio(audio_bytes: bytes, mime_type: str, max_chunk_seconds: float = C
     except Exception as e:
         logger.warning(f"call_audio: could not split {mime_type} recording ({type(e).__name__}: {e}); sending whole")
     return [AudioChunk(audio_bytes, mime_type, 0.0, 0.0)]
+
+
+def split_pcm(pcm: bytes, sample_rate: int, channels: int) -> list[AudioChunk]:
+    """Transcribable MP3 pieces from raw PCM16, using the same length rules as split_audio."""
+    total = len(pcm) / (sample_rate * 2 * channels)
+    limit = CHUNK_SECONDS if total > SINGLE_PASS_SECONDS else total
+    return _split_wav(pcm, sample_rate, channels, max(limit, 1))
 
 
 def resplit_chunk(chunk: AudioChunk) -> list[AudioChunk] | None:
