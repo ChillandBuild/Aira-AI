@@ -3,7 +3,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronUp, Plus, Tag, X } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { api, type CallLog } from "@/lib/api";
-import { CallAiDetail } from "@/components/CallAi";
+import { CallAiDetail, MaskedTranscript } from "@/components/CallAi";
 
 // ─── Tag system ───────────────────────────────────────────────────────────────
 export const PRESET_TAGS = [
@@ -428,6 +428,7 @@ export function AiSummaryCard({
               </div>
             </div>
           )}
+          <MaskedTranscript preview={log.transcript_preview} />
         </div>
       )}
     </div>
