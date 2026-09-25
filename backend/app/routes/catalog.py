@@ -26,8 +26,51 @@ async def list_items(q: str | None = None, tenant_id: str = Depends(get_tenant_i
     query = db.table("catalog_items").select("*").eq("tenant_id", tenant_id)
     if q:
         query = query.ilike("name", f"%{q}%")
-    res = query.order("created_at", desc=True).execute()
-    return {"data": res.data or []}
+    items = query.order("created_at", desc=True).execute().data or []
+    if not items:
+        return {"data": []}
+    # held = units on unpaid payment links (services/deals.held_quantities);
+    # thumbnail = first photo by sort order, so the Products list can show it.
+    from app.services.deals import held_quantities
+    ids = [i["id"] for i in items]
+    held = held_quantities(tenant_id, [i["id"] for i in items if i.get("stock_quantity") is not None], db)
+    wanted = set(ids)
+    media = [
+        m for m in (
+            db.table("catalog_media").select("catalog_item_id, storage_path, sort_order")
+            .eq("tenant_id", tenant_id).order("sort_order").limit(10000).execute()
+        ).data or []
+        if m["catalog_item_id"] in wanted
+    ]
+    first_photo: dict[str, str] = {}
+    for m in media:
+        first_photo.setdefault(m["catalog_item_id"], m["storage_path"])
+    bucket = db.storage.from_("catalog-media")
+    return {
+        "data": [
+            {
+                **i,
+                "held_quantity": held.get(i["id"], 0),
+                "thumbnail_url": bucket.get_public_url(first_photo[i["id"]]) if i["id"] in first_photo else None,
+            }
+            for i in items
+        ]
+    }
+
+
+def _validate_gst_rate(value) -> None:
+    if value is not None and not (0 <= float(value) <= 40):
+        raise HTTPException(status_code=400, detail="gst_rate must be between 0 and 40")
+
+
+def _log_initial_stock(db, tenant_id: str, item_id: str, quantity: int, user_id: str | None) -> None:
+    """Stock set directly (new item, or an item that starts being tracked) gets
+    a matching 'restock' row, so the history always explains the number."""
+    if quantity > 0:
+        db.table("stock_movements").insert({
+            "tenant_id": tenant_id, "catalog_item_id": item_id, "delta": quantity,
+            "quantity_after": quantity, "reason": "restock", "note": "Opening stock", "created_by": user_id,
+        }).execute()
 
 
 @router.post("/items")
@@ -43,6 +86,7 @@ async def create_item(
     stock_quantity = payload.get("stock_quantity")
     if stock_quantity is not None and stock_quantity < 0:
         raise HTTPException(status_code=400, detail="stock_quantity must not be negative")
+    _validate_gst_rate(payload.get("gst_rate"))
     res = db.table("catalog_items").insert({
         "tenant_id": tenant_id,
         "name": payload.get("name"),
@@ -54,10 +98,13 @@ async def create_item(
         "price_paise": price_paise,
         "price_note": payload.get("price_note"),
         "stock_quantity": stock_quantity,
+        "gst_rate": payload.get("gst_rate"),
     }).execute()
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create catalog item")
     item = res.data[0]
+    if stock_quantity:
+        _log_initial_stock(db, tenant_id, item["id"], stock_quantity, _ctx.get("user_id"))
     try:
         await embed_and_store_catalog_item(
             db, tenant_id, item["id"], item["name"], item["item_type"],
@@ -78,7 +125,7 @@ async def update_item(
     db = get_supabase()
     updates = {
         k: v for k, v in payload.items()
-        if k in {"name", "item_type", "description", "status", "attributes", "variant_group_id", "price_paise", "price_note", "stock_quantity"}
+        if k in {"name", "item_type", "description", "status", "attributes", "variant_group_id", "price_paise", "price_note", "stock_quantity", "gst_rate"}
     }
     if "status" in updates and updates["status"] not in _VALID_STATUSES:
         raise HTTPException(status_code=400, detail=f"status must be one of {_VALID_STATUSES}")
@@ -86,6 +133,23 @@ async def update_item(
         raise HTTPException(status_code=400, detail="price_paise must not be negative")
     if updates.get("stock_quantity") is not None and updates["stock_quantity"] < 0:
         raise HTTPException(status_code=400, detail="stock_quantity must not be negative")
+    _validate_gst_rate(updates.get("gst_rate"))
+    stock_delta = None
+    if "stock_quantity" in updates:
+        current = (
+            db.table("catalog_items").select("stock_quantity").eq("id", str(item_id)).eq("tenant_id", tenant_id)
+            .maybe_single().execute()
+        )
+        if not current or not current.data:
+            raise HTTPException(status_code=404, detail="Catalog item not found")
+        before, after = current.data.get("stock_quantity"), updates["stock_quantity"]
+        if before is not None and after is not None:
+            # Tracked -> tracked goes through the ledger as a correction, so
+            # the history explains every change to the number.
+            updates.pop("stock_quantity")
+            stock_delta = after - before
+        elif before is None and after:
+            stock_delta = "opening"
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     res = (
@@ -98,6 +162,15 @@ async def update_item(
     if not res.data:
         raise HTTPException(status_code=404, detail="Catalog item not found")
     item = res.data[0]
+    if stock_delta == "opening":
+        _log_initial_stock(db, tenant_id, item["id"], item["stock_quantity"], _ctx.get("user_id"))
+    elif stock_delta:
+        from app.services.deals import adjust_stock
+        moved = adjust_stock(tenant_id, item["id"], stock_delta, "adjustment",
+                             note="Corrected in product form", created_by=_ctx.get("user_id"), db=db)
+        if not moved["ok"]:
+            raise HTTPException(status_code=409, detail="Stock changed meanwhile — reload and try again")
+        item["stock_quantity"] = moved["quantity_after"]
     if {"name", "item_type", "description", "attributes"} & updates.keys():
         try:
             await embed_and_store_catalog_item(
@@ -413,3 +486,55 @@ async def reindex_catalog(
     """Backfill embeddings for existing catalog items (run once after grouping variants)."""
     result = await reindex_catalog_items(tenant_id)
     return {"success": True, **result}
+
+
+@router.post("/items/{item_id}/stock")
+async def change_stock(
+    item_id: UUID,
+    payload: dict,
+    tenant_id: str = Depends(get_tenant_id),
+    ctx: dict = Depends(require_catalog_manage),
+):
+    """Restock / correct / return. An untracked item (NULL stock) starts being
+    tracked on its first restock."""
+    reason = payload.get("reason")
+    if reason not in {"restock", "adjustment", "return"}:
+        raise HTTPException(status_code=400, detail="reason must be restock, adjustment or return")
+    try:
+        delta = int(payload.get("delta"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="delta must be a whole number")
+    if delta == 0:
+        raise HTTPException(status_code=400, detail="delta must not be zero")
+    note = (payload.get("note") or "").strip()[:300] or None
+    db = get_supabase()
+    item = (
+        db.table("catalog_items").select("stock_quantity").eq("id", str(item_id)).eq("tenant_id", tenant_id)
+        .maybe_single().execute()
+    )
+    if not item or not item.data:
+        raise HTTPException(status_code=404, detail="Catalog item not found")
+    if item.data.get("stock_quantity") is None:
+        if delta < 0:
+            raise HTTPException(status_code=400, detail="This item doesn't track stock yet — restock it first")
+        db.table("catalog_items").update({"stock_quantity": 0}).eq("id", str(item_id)).eq("tenant_id", tenant_id).execute()
+    from app.services.deals import adjust_stock
+    result = adjust_stock(tenant_id, str(item_id), delta, reason, note=note, created_by=ctx.get("user_id"), db=db)
+    if not result["ok"]:
+        raise HTTPException(status_code=400, detail="Stock can't go below zero")
+    return result
+
+
+@router.get("/items/{item_id}/stock-movements")
+async def stock_movements(item_id: UUID, tenant_id: str = Depends(get_tenant_id)):
+    db = get_supabase()
+    rows = (
+        db.table("stock_movements")
+        .select("id, catalog_item_id, delta, quantity_after, reason, deal_id, note, created_at")
+        .eq("tenant_id", tenant_id)
+        .eq("catalog_item_id", str(item_id))
+        .order("created_at", desc=True)
+        .limit(100)
+        .execute()
+    ).data or []
+    return {"data": rows}

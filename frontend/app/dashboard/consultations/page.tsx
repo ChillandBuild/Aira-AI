@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function ConsultationsRedirect() {
-  redirect("/dashboard/intake");
+  redirect("/dashboard/deals?tab=forms");
 }

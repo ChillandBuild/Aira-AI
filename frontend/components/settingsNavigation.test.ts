@@ -34,4 +34,12 @@ describe("getVisibleSettingsItems", () => {
     expect(simLabels).not.toContain("Telecalling Credentials");
     expect(telecmiLabels).toContain("Telecalling Credentials");
   });
+
+  it("always exposes Business Details regardless of entitlements", () => {
+    const noEntitlements = getVisibleSettingsItems([], null).map((item) => item.label);
+    const simOnly = getVisibleSettingsItems(["telecalling_sim"], "sim_basic").map((item) => item.label);
+
+    expect(noEntitlements).toContain("Business Details");
+    expect(simOnly).toContain("Business Details");
+  });
 });

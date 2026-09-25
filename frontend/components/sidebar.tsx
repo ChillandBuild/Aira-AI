@@ -7,7 +7,7 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
-  ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, Headset,
+  ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, HandCoins,
   Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -332,13 +332,14 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Intake */}
-        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
+        {/* TOP LEVEL: Deals -- every sale attempt (chat, form, call, walk-in).
+            No messagingOn gate: walk-ins and calls are deals too. */}
+        {isSubscribed && can("leads.view") && (
           <CollapsedNavItem
-            href="/dashboard/intake"
-            active={pathname.startsWith("/dashboard/intake")}
-            icon={Headset}
-            label="Intake"
+            href="/dashboard/deals"
+            active={pathname.startsWith("/dashboard/deals") || pathname.startsWith("/dashboard/intake")}
+            icon={HandCoins}
+            label="Deals"
           />
         )}
 
@@ -412,13 +413,13 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Catalog */}
+        {/* TOP LEVEL: Products (route stays /dashboard/catalog) */}
         {isSubscribed && canAny(["catalog.view", "catalog.manage"]) && messagingOn && (
           <CollapsedNavItem
             href="/dashboard/catalog"
             active={pathname.startsWith("/dashboard/catalog")}
             icon={Package}
-            label="Catalog"
+            label="Products"
           />
         )}
 
@@ -607,13 +608,14 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Intake */}
-        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
+        {/* TOP LEVEL: Deals -- every sale attempt (chat, form, call, walk-in).
+            No messagingOn gate: walk-ins and calls are deals too. */}
+        {isSubscribed && can("leads.view") && (
           <MainNavItem
-            href="/dashboard/intake"
-            active={pathname.startsWith("/dashboard/intake")}
-            icon={Headset}
-            label="Intake"
+            href="/dashboard/deals"
+            active={pathname.startsWith("/dashboard/deals") || pathname.startsWith("/dashboard/intake")}
+            icon={HandCoins}
+            label="Deals"
           />
         )}
 
@@ -687,13 +689,13 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Catalog */}
+        {/* TOP LEVEL: Products (route stays /dashboard/catalog) */}
         {isSubscribed && canAny(["catalog.view", "catalog.manage"]) && messagingOn && (
           <MainNavItem
             href="/dashboard/catalog"
             active={pathname.startsWith("/dashboard/catalog")}
             icon={Package}
-            label="Catalog"
+            label="Products"
           />
         )}
 

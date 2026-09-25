@@ -20,6 +20,7 @@ from app.routes.intake import public_router as intake_public_router
 from app.routes import intake
 from app.routes.marketplace_intake import public_router as marketplace_public_router
 from app.routes import marketplace_intake
+from app.routes import deals, business_details
 
 # Configure logging
 logging.basicConfig(
@@ -622,6 +623,8 @@ app.include_router(intake.router, prefix="/api/v1/intake", tags=["intake"], depe
 # swallowed by the public POST /{provider}/{ingest_token}, which reads "token"
 # as the ingest token and 401s every "Generate URL" click.
 app.include_router(marketplace_intake.router, prefix="/api/v1/marketplace", tags=["marketplace"], dependencies=_auth)
+app.include_router(deals.router, prefix="/api/v1/deals", tags=["deals"], dependencies=_auth)
+app.include_router(business_details.router, prefix="/api/v1/business-details", tags=["business-details"], dependencies=_auth)
 app.include_router(marketplace_public_router, prefix="/api/v1/marketplace", tags=["marketplace-webhook"])
 # Legacy prefix. Razorpay's dashboard has /api/v1/expert-handoff/razorpay-webhook
 # registered externally; remove these two lines only after updating it there.

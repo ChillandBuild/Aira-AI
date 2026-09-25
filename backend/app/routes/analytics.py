@@ -961,6 +961,7 @@ async def funnel_analytics(tenant_id: str = Depends(get_analytics_tenant_id)):
     by_source: dict[str, int] = {
         "whatsapp": 0, "instagram": 0, "facebook": 0,
         "telegram": 0, "upload": 0, "manual": 0,
+        "indiamart": 0, "justdial": 0,
     }
     scores = []
     leads_this_week = 0
@@ -1089,10 +1090,12 @@ async def overview_analytics(
     channel_breakdown = {
         "whatsapp": 0, "instagram": 0, "facebook": 0,
         "telegram": 0, "upload": 0, "manual": 0,
+        "indiamart": 0, "justdial": 0,
     }
     channel_breakdown_today = {
         "whatsapp": 0, "instagram": 0, "facebook": 0,
         "telegram": 0, "upload": 0, "manual": 0,
+        "indiamart": 0, "justdial": 0,
     }
     converted_7d = 0
     converted_today = 0

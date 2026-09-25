@@ -2,13 +2,13 @@ import logging
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from app.config import settings as env_settings
 from app.config_dynamic import get_setting, save_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import require_permission
-from app.services.inbound_lead import create_inbound_lead
+from app.services.marketplace_leads import WELCOME_TEMPLATE_KEY, handle_enquiry, parse_enquiry
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ public_router = APIRouter()
 # marketplace account.
 router = APIRouter()
 require_settings_manage = require_permission("settings.manage")
+require_settings_view = require_permission("settings.view")
 
 PROVIDERS = ("indiamart", "justdial")
 _RENDER_BASE_URL = "https://aira-ai-5tfr.onrender.com"
@@ -88,7 +89,80 @@ def get_ingest_token(provider: str, ctx: dict = Depends(require_settings_manage)
     return {"ingest_url": f"{_base_url()}/api/v1/marketplace/{provider}/{token}"}
 
 
-@public_router.post("/{provider}/{ingest_token}")
+@router.get("/welcome-template")
+def get_welcome_template(ctx: dict = Depends(require_settings_view)):
+    return {"template_id": get_setting(WELCOME_TEMPLATE_KEY, tenant_id=ctx["tenant_id"]) or None}
+
+
+@router.put("/welcome-template")
+def set_welcome_template(payload: dict, ctx: dict = Depends(require_settings_manage)):
+    """The approved template sent to every new marketplace enquiry. Only
+    approved, text-only templates are accepted -- anything else would fail at
+    send time, silently, for every lead."""
+    template_id = (payload or {}).get("template_id") or ""
+    db = get_supabase()
+    if template_id:
+        rows = (
+            db.table("message_templates").select("status, header_media_type")
+            .eq("id", template_id).eq("tenant_id", ctx["tenant_id"]).limit(1).execute()
+        ).data or []
+        if not rows:
+            raise HTTPException(status_code=404, detail="Template not found")
+        if (rows[0].get("status") or "").upper() != "APPROVED" or rows[0].get("header_media_type"):
+            raise HTTPException(status_code=400, detail="Pick an approved template without an image or video header")
+    db.table("app_settings").upsert(
+        {"key": WELCOME_TEMPLATE_KEY, "value": template_id, "tenant_id": ctx["tenant_id"], "is_secret": False},
+        on_conflict="tenant_id,key",
+    ).execute()
+    return {"template_id": template_id or None}
+
+
+@router.get("/status")
+def marketplace_status(ctx: dict = Depends(require_settings_view)):
+    """Per provider: is a URL generated, when did the last enquiry arrive, and
+    how many this month -- so the owner can see the connection is alive."""
+    from datetime import datetime, timezone
+
+    db = get_supabase()
+    tenant_id = ctx["tenant_id"]
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    out = {}
+    for provider in PROVIDERS:
+        last = (
+            db.table("leads").select("created_at").eq("tenant_id", tenant_id).eq("source", provider)
+            .order("created_at", desc=True).limit(1).execute()
+        ).data or []
+        month = (
+            db.table("leads").select("id").eq("tenant_id", tenant_id).eq("source", provider)
+            .gte("created_at", month_start).limit(5000).execute()
+        ).data or []
+        out[provider] = {
+            "connected": bool(get_setting(_token_key(provider), tenant_id=tenant_id)),
+            "last_lead_at": last[0]["created_at"] if last else None,
+            "leads_this_month": len(month),
+        }
+    return out
+
+
+async def _read_payload(request: Request) -> dict:
+    """JSON, form fields or query params -- JustDial's push format depends on
+    how their team sets it up, so all three are accepted."""
+    if request.method == "GET":
+        return dict(request.query_params)
+    content_type = (request.headers.get("content-type") or "").lower()
+    if "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        form = await request.form()
+        return {k: v for k, v in form.items() if isinstance(v, str)}
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Expected a JSON object")
+    return payload
+
+
+@public_router.api_route("/{provider}/{ingest_token}", methods=["GET", "POST"])
 async def marketplace_webhook(provider: str, ingest_token: str, request: Request):
     if provider not in PROVIDERS:
         return _unauthorized()
@@ -99,41 +173,12 @@ async def marketplace_webhook(provider: str, ingest_token: str, request: Request
         logger.warning(f"marketplace_intake: unknown {provider} ingest token")
         return _unauthorized()
 
-    try:
-        payload = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    phone, name = _extract_contact(provider, payload)
-    if not phone:
-        logger.warning(f"marketplace_intake: no phone in {provider} payload for tenant {tenant_id}")
-        return {"status": "ignored", "detail": "no phone in payload"}
-
-    lead_id = create_inbound_lead(
-        tenant_id,
-        phone,
-        provider,
-        name=name,
-        collected_data={"raw_payload": payload},
-        opt_in_source=provider,
-        db=db,
-    )
-    if not lead_id:
-        return {"status": "ignored", "detail": "unusable phone"}
-
-    return {"status": "ok", "lead_id": lead_id}
-
-
-def _extract_contact(provider: str, payload: dict) -> tuple[str | None, str | None]:
-    """Each provider's enquiry payload shape. Both are documented as flat
-    JSON objects with the lead's mobile number and name as top-level keys;
-    field names differ between the two."""
-    if provider == "indiamart":
-        phone = payload.get("SENDER_MOBILE") or payload.get("mobile")
-        name = payload.get("SENDER_NAME") or payload.get("name")
-        return phone, name
+    payload = await _read_payload(request)
+    enquiry = parse_enquiry(provider, payload)
+    result = await handle_enquiry(tenant_id, provider, enquiry, db=db)
+    if result["status"] != "ok":
+        logger.warning(f"marketplace_intake: {provider} enquiry ignored for tenant {tenant_id}: {result.get('detail')}")
     if provider == "justdial":
-        phone = payload.get("mobile") or payload.get("phone")
-        name = payload.get("name")
-        return phone, name
-    return None, None
+        # JustDial integrations conventionally expect this plain-text ack.
+        return PlainTextResponse("RECEIVED")
+    return result

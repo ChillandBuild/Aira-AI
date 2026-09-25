@@ -39,6 +39,18 @@ const CHANNEL_CONFIG: Record<string, { label: string; color: string; bg: string;
     bg: "bg-sky-50 border-sky-200",
     dot: "bg-sky-500",
   },
+  indiamart: {
+    label: "IndiaMART",
+    color: "text-amber-800",
+    bg: "bg-amber-50 border-amber-200",
+    dot: "bg-amber-500",
+  },
+  justdial: {
+    label: "JustDial",
+    color: "text-orange-800",
+    bg: "bg-orange-50 border-orange-200",
+    dot: "bg-orange-500",
+  },
 };
 
 const SOURCE_OPTIONS = [

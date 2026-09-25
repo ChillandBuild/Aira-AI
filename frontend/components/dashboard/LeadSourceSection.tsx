@@ -7,6 +7,8 @@ const CHANNEL_LABELS: Record<string, string> = {
   telegram: "Telegram",
   upload: "Upload",
   manual: "Manual",
+  indiamart: "IndiaMART",
+  justdial: "JustDial",
 };
 
 export function LeadSourceSection({ overview }: { overview: AnalyticsOverview }) {

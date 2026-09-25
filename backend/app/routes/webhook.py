@@ -99,7 +99,7 @@ async def _handle_opt_out(phone: str, tenant_id: str, db) -> bool:
             # A text opt-out is a marketing opt-out, not a refund -- exclude 'paid'
             # (and 'resolved', already outside intake.py's _ACTIVE_STATUSES) so
             # someone who already paid still receives the consultation they bought.
-            db.table("intake_sessions").update({"status": "cancelled"}).eq(
+            cancelled_sessions = db.table("intake_sessions").update({"status": "cancelled"}).eq(
                 "lead_id", lead_id
             ).eq("tenant_id", tenant_id).in_(
                 "status",
@@ -108,6 +108,9 @@ async def _handle_opt_out(phone: str, tenant_id: str, db) -> bool:
                     "collecting", "awaiting_confirmation", "awaiting_payment",
                 ],
             ).execute()
+            from app.services.deals import sync_intake_session
+            for session in cancelled_sessions.data or []:
+                sync_intake_session(session, db=db)
         except Exception as e:
             logger.warning(f"Cancelling in-progress intake session on opt-out failed for lead {lead_id}: {e}")
         try:

@@ -117,8 +117,8 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     if (tab === "ai-rules") tabLabel = "AI Rules";
     if (tab === "insights") tabLabel = "Insights";
     return {
-      title: `Catalog / ${tabLabel}`,
-      description: "Manage the products, services and media Aira can recommend in chat.",
+      title: `Products / ${tabLabel}`,
+      description: "Your products, prices and stock — what Aira can recommend and sell.",
     };
   }
   if (pathname === "/dashboard/leads") {
@@ -177,10 +177,10 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "View and manage your profile details, passwords and API access.",
     };
   }
-  if (pathname === "/dashboard/intake") {
+  if (pathname === "/dashboard/deals") {
     return {
-      title: "Intake",
-      description: "Leads who completed a paid intake flow — awaiting payment, paid, and resolved.",
+      title: "Deals",
+      description: "Every sale in one place — WhatsApp, forms, calls and walk-ins, from quote to paid.",
     };
   }
   if (pathname === "/dashboard/notes") {

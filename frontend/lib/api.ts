@@ -67,6 +67,9 @@ export interface CatalogItem {
   price_paise: number | null;
   price_note: string | null;
   stock_quantity: number | null;
+  gst_rate: number | null;
+  held_quantity?: number;
+  thumbnail_url?: string | null;
 }
 
 export interface CatalogMedia {
@@ -352,6 +355,12 @@ export interface BroadcastResult {
   skipped_window: number;
 }
 
+export interface MarketplaceStatus {
+  connected: boolean;
+  last_lead_at: string | null;
+  leads_this_month: number;
+}
+
 export interface WabaTemplate {
   id: string;
   name: string;
@@ -530,8 +539,8 @@ export interface AnalyticsOverview {
   ai_handled_today: number;
   by_segment: Record<"A" | "B" | "C" | "D", number>;
   by_segment_today: Record<"A" | "B" | "C" | "D", number>;
-  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
-  channel_breakdown_today: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
+  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
+  channel_breakdown_today: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
   total_leads: number;
   ad_attributed_leads: number;
   ad_attributed_leads_today: number;
@@ -802,7 +811,7 @@ export interface AnalyticsOverviewExtended {
   converted_today: number;
   ai_handled_today: number;
   by_segment: Record<"A" | "B" | "C" | "D", number>;
-  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
+  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
   total_leads: number;
 }
 
@@ -875,7 +884,7 @@ export interface TelecallingAnalyticsExtended {
 export interface FunnelAnalyticsExtended {
   total_leads: number;
   by_segment: { A: number; B: number; C: number; D: number };
-  by_source: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number };
+  by_source: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
   leads_this_week: number;
   avg_score: number | null;
   score_histogram: { range: string; count: number }[];
@@ -1146,47 +1155,124 @@ export interface AssignmentLogSummary {
 
 export type IntakeStatus = "awaiting_payment" | "paid" | "resolved" | "cancelled";
 
-export interface IntakeBoardSession {
+// ---- Deals (docs/superpowers/specs/2026-09-25-deals-crm-design.md) ----
+export type DealStage = "quoted" | "awaiting_payment" | "won" | "lost";
+export type DealSource = "whatsapp" | "form" | "call" | "walk_in" | "manual" | "indiamart" | "justdial";
+export type PaymentMethod = "razorpay" | "cash" | "upi" | "card" | "bank_transfer" | "other";
+
+export interface DealItem {
   id: string;
-  lead_id: string;
-  status: IntakeStatus;
-  package_name: string | null;
-  amount_paise: number | null;
-  total_amount_paise: number | null;
-  payment_link: string | null;
-  paid_at: string | null;
-  created_at: string;
-  leads: { name: string | null; phone: string | null } | null;
+  catalog_item_id: string | null;
+  name: string;
+  qty: number;
+  unit_price_paise: number;
+  gst_rate: number | null;
+  line_total_paise: number;
 }
 
-export interface IntakeBoardColumn {
-  label: string;
+export interface DealSummary {
+  id: string;
+  deal_number: number;
+  deal_label: string;
+  stage: DealStage;
+  source: DealSource;
+  total_paise: number;
+  payment_method: PaymentMethod | null;
+  payment_link: string | null;
+  created_at: string;
+  won_at: string | null;
+  lost_at: string | null;
+  lost_reason: string | null;
+  lead: { id: string; name: string | null; phone: string | null };
+  item_summary: string;
+  item_count: number;
+}
+
+export interface Deal extends DealSummary {
+  items: DealItem[];
+  notes: string | null;
+  link_expires_at: string | null;
+  razorpay_payment_id: string | null;
+  intake_session_id: string | null;
+  intake_answers: Record<string, unknown> | null;
+}
+
+export interface DealBoardColumn {
   count: number;
   total_paise: number;
-  sessions: IntakeBoardSession[];
+  deals: DealSummary[];
   has_more: boolean;
 }
 
-export interface CatalogQuote {
-  id: string;
-  lead_id: string;
-  item_name: string;
-  amount_paise: number;
-  amount_is_estimate: boolean;
-  source: "ai_catalog" | "manual";
-  created_at: string;
-  leads: { name: string | null; phone: string | null } | null;
+export interface DealBoard {
+  columns: Record<DealStage, DealBoardColumn>;
 }
 
-export interface IntakeBoard {
-  columns: Record<"awaiting_payment" | "paid" | "resolved" | "cancelled", IntakeBoardColumn>;
-  catalog_quotes: {
-    label: string;
-    count: number;
-    total_paise: number;
-    quotes: CatalogQuote[];
-    has_more: boolean;
-  };
+export interface NewDealLine {
+  catalog_item_id?: string;
+  name: string;
+  qty: number;
+  unit_price_paise?: number;
+}
+
+export interface NewDealPayload {
+  lead_id?: string;
+  phone?: string;
+  name?: string;
+  items: NewDealLine[];
+  source: "call" | "walk_in" | "manual";
+  stage: "won" | "awaiting_payment" | "quoted";
+  payment_method?: PaymentMethod;
+  notes?: string;
+}
+
+export interface StockWarning {
+  catalog_item_id: string;
+  name: string;
+  available: number | null;
+}
+
+export interface DealMutationResult {
+  deal: Deal;
+  payment_link?: string | null;
+  message_sent?: boolean;
+  stock_warnings: StockWarning[];
+}
+
+export interface DealStats {
+  month: string;
+  won_count: number;
+  won_total_paise: number;
+  lost_count: number;
+  open_count: number;
+  open_total_paise: number;
+  by_source: Partial<Record<DealSource, { count: number; total_paise: number }>>;
+  by_day: { date: string; total_paise: number; count: number }[];
+  top_items: { name: string; qty: number; total_paise: number }[];
+  low_stock: { id: string; name: string; stock_quantity: number; held_quantity: number }[];
+}
+
+export interface BusinessProfile {
+  legal_name: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+  gstin: string;
+  email: string;
+  phone: string;
+  prices_include_gst: boolean;
+}
+
+export interface StockMovement {
+  id: string;
+  catalog_item_id: string;
+  delta: number;
+  quantity_after: number;
+  reason: "sale" | "restock" | "adjustment" | "return";
+  deal_id: string | null;
+  note: string | null;
+  created_at: string;
 }
 
 export interface IntakeField {
@@ -1307,14 +1393,6 @@ export const api = {
       apiFetch<Message>(`/api/v1/leads/${id}/send`, {
         method: "POST",
         body: JSON.stringify({ content }),
-      }),
-    addQuote: (
-      id: string,
-      data: { item_name: string; amount_paise: number; catalog_item_id?: string; qty?: number }
-    ) =>
-      apiFetch<{ recorded: boolean; stock_warning: boolean }>(`/api/v1/leads/${id}/quote`, {
-        method: "POST",
-        body: JSON.stringify(data),
       }),
     sendMedia: async (id: string, file: File, caption?: string): Promise<Message> => {
       const authHeaders = await getAuthHeaders();
@@ -1811,6 +1889,18 @@ export const api = {
     },
   },
   catalog: {
+    adjustStock: (
+      itemId: string,
+      data: { delta: number; reason: "restock" | "adjustment" | "return"; note?: string }
+    ) =>
+      apiFetch<{ ok: boolean; tracked: boolean; quantity_after: number | null }>(
+        `/api/v1/catalog/items/${itemId}/stock`,
+        { method: "POST", body: JSON.stringify(data) }
+      ),
+    stockMovements: async (itemId: string) => {
+      const res = await apiFetch<{ data: StockMovement[] }>(`/api/v1/catalog/items/${itemId}/stock-movements`);
+      return res.data || [];
+    },
     listItems: async (q?: string) => {
       const qs = q ? `?q=${encodeURIComponent(q)}` : "";
       const res = await apiFetch<{ data: CatalogItem[] }>(`/api/v1/catalog/items${qs}`);
@@ -1822,6 +1912,10 @@ export const api = {
       description?: string | null;
       attributes?: Record<string, string>;
       variant_group_id?: string | null;
+      price_paise?: number | null;
+      price_note?: string | null;
+      stock_quantity?: number | null;
+      gst_rate?: number | null;
     }) =>
       apiFetch<CatalogItem>(`/api/v1/catalog/items`, {
         method: "POST",
@@ -1829,7 +1923,21 @@ export const api = {
       }),
     updateItem: (
       id: string,
-      data: Partial<Pick<CatalogItem, "name" | "item_type" | "description" | "status" | "attributes" | "variant_group_id">>
+      data: Partial<
+        Pick<
+          CatalogItem,
+          | "name"
+          | "item_type"
+          | "description"
+          | "status"
+          | "attributes"
+          | "variant_group_id"
+          | "price_paise"
+          | "price_note"
+          | "stock_quantity"
+          | "gst_rate"
+        >
+      >
     ) =>
       apiFetch<CatalogItem>(`/api/v1/catalog/items/${id}`, {
         method: "PATCH",
@@ -2370,6 +2478,15 @@ export const api = {
       return res.data || [];
     },
   },
+  marketplace: {
+    status: () => apiFetch<Record<"indiamart" | "justdial", MarketplaceStatus>>("/api/v1/marketplace/status"),
+    getWelcomeTemplate: () => apiFetch<{ template_id: string | null }>("/api/v1/marketplace/welcome-template"),
+    setWelcomeTemplate: (templateId: string | null) =>
+      apiFetch<{ template_id: string | null }>("/api/v1/marketplace/welcome-template", {
+        method: "PUT",
+        body: JSON.stringify({ template_id: templateId ?? "" }),
+      }),
+  },
   notifications: {
     list: () => apiFetch<{ data: AppNotification[] }>("/api/v1/notifications"),
     pool: () => apiFetch<{ data: PoolItem[] }>("/api/v1/notifications/pool"),
@@ -2412,6 +2529,61 @@ export const api = {
         body: JSON.stringify({ caller_id: callerId }),
       }),
   },
+  deals: {
+    board: () => apiFetch<DealBoard>("/api/v1/deals/board"),
+    list: (params: {
+      stage?: DealStage;
+      source?: DealSource;
+      q?: string;
+      month?: string;
+      cursor?: string;
+      limit?: number;
+    } = {}) => {
+      const search = new URLSearchParams({ limit: String(params.limit ?? 50) });
+      if (params.stage) search.set("stage", params.stage);
+      if (params.source) search.set("source", params.source);
+      if (params.q) search.set("q", params.q);
+      if (params.month) search.set("month", params.month);
+      if (params.cursor) search.set("cursor", params.cursor);
+      return apiFetch<{ data: DealSummary[]; next_cursor: string | null }>(`/api/v1/deals?${search}`);
+    },
+    get: (dealId: string) => apiFetch<Deal>(`/api/v1/deals/${dealId}`),
+    create: (payload: NewDealPayload) =>
+      apiFetch<DealMutationResult>("/api/v1/deals", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    updateStage: (
+      dealId: string,
+      data: { stage: "won" | "lost"; payment_method?: PaymentMethod; lost_reason?: string }
+    ) =>
+      apiFetch<DealMutationResult>(`/api/v1/deals/${dealId}/stage`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    sendLink: (dealId: string) =>
+      apiFetch<{ payment_link: string | null; message_sent: boolean }>(`/api/v1/deals/${dealId}/send-link`, {
+        method: "POST",
+      }),
+    byLead: async (leadId: string) => {
+      const res = await apiFetch<{ data: DealSummary[] }>(`/api/v1/deals/by-lead/${leadId}`);
+      return res.data || [];
+    },
+    stats: (month: string) => apiFetch<DealStats>(`/api/v1/deals/stats?month=${encodeURIComponent(month)}`),
+    // Downloaded with a raw fetch + blob (auth header needed), same as intake.csvPath.
+    exportPath: (month: string, format: "xlsx" | "csv" = "xlsx") =>
+      `/api/v1/deals/export?month=${encodeURIComponent(month)}&format=${format}`,
+  },
+
+  businessProfile: {
+    get: () => apiFetch<BusinessProfile>("/api/v1/business-details"),
+    save: (data: BusinessProfile) =>
+      apiFetch<BusinessProfile>("/api/v1/business-details", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+  },
+
   intake: {
     listSessions: (params: {
       status: IntakeStatus | "all";
@@ -2435,7 +2607,6 @@ export const api = {
         body: JSON.stringify({ package_key: packageKey }),
       }),
     stats: () => apiFetch<IntakeStats>("/api/v1/intake/stats"),
-    board: () => apiFetch<IntakeBoard>("/api/v1/intake/board"),
     csvPath: (params: { status: IntakeStatus | "all"; packageKey?: string; q?: string }) => {
       const search = new URLSearchParams({ status: params.status });
       if (params.packageKey) search.set("package", params.packageKey);

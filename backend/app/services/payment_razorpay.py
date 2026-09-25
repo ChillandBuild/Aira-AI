@@ -60,9 +60,9 @@ async def create_payment_link(
     booking_id/booking_ref shape -- the webhook resolves what got paid purely
     from `notes` (see razorpay_webhook in routes/intake.py), so a second kind
     of payment (a quote, not an intake booking) needs its own notes key
-    (`quote_id`, not `booking_id`) to avoid the webhook conflating the two.
+    (`deal_id`, not `booking_id`) to avoid the webhook conflating the two.
     idempotency_key must stay unique per payable thing, e.g.
-    f"booking:{session_id}:payment_link" or f"quote:{quote_id}:payment_link".
+    f"booking:{session_id}:payment_link" or f"deal:{deal_id}:payment_link".
 
     Returns dict with keys:
       - payment_link_url: str

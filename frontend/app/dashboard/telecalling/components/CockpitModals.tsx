@@ -1,11 +1,17 @@
 "use client";
-import { AlertCircle, CalendarClock, Check, Copy, Phone, RefreshCw, Send, Star, X } from "lucide-react";
+import { useState } from "react";
+import { AlertCircle, CalendarClock, Check, Copy, HandCoins, Phone, RefreshCw, Send, Star, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { formatPhone } from "@/lib/utils";
 import { pendingCallLabel } from "../lib/feedbackLabels";
 import { QUICK_NOTE_TAGS } from "./LeadDetailPanel";
 import type { CallingCockpit } from "../lib/useCallingCockpit";
+import { NewDealDialog } from "@/components/deals/NewDealDialog";
+
+// Outcomes where the caller may have just made a sale. SIM has no "sold"
+// status, so connected/interested calls get the button too.
+const SALE_OUTCOMES = new Set(["converted", "connected", "interested"]);
 
 const TELECMI_OUTCOMES: { value: string; label: string; danger?: boolean }[] = [
   { value: "converted", label: "Converted" },
@@ -66,6 +72,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     wrapupCallbackTime,
     setWrapupCallbackTime,
   } = cockpit;
+  const [showSaleDialog, setShowSaleDialog] = useState(false);
 
   const simDurationSeconds = (() => {
     if (!wrapupStartedAt || !wrapupEndedAt) return null;
@@ -258,6 +265,16 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                 </div>
               </div>
 
+              {SALE_OUTCOMES.has(wrapupOutcome) && activeCallCtx.leadId && (
+                <button
+                  type="button"
+                  onClick={() => setShowSaleDialog(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 font-label text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                >
+                  <HandCoins size={13} /> Sold something? Log the sale
+                </button>
+              )}
+
               {wrapupOutcome === "callback" && activeCallCtx.leadId && (
                 <div className="flex flex-col gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
                   <h4 className="font-display text-[10px] font-black text-amber-700 tracking-widest uppercase flex items-center gap-1.5">
@@ -392,6 +409,19 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
             </div>
           </div>
         </div>
+      )}
+
+      {showSaleDialog && activeCallCtx?.leadId && (
+        <NewDealDialog
+          open
+          onClose={() => setShowSaleDialog(false)}
+          onCreated={() => {
+            setShowSaleDialog(false);
+            toast.success("Sale logged — you can finish the wrap-up now");
+          }}
+          defaultLead={{ id: activeCallCtx.leadId, name: activeCallCtx.name, phone: activeCallCtx.phone }}
+          defaultSource="call"
+        />
       )}
     </>
   );

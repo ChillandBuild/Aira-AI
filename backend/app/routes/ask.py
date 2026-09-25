@@ -97,8 +97,21 @@ _ANALYTICS_TOOLS = [
     },
 ]
 
+_ANALYTICS_TOOLS.append({
+    "type": "function",
+    "function": {
+        "name": "sales_summary",
+        "description": "Sales from the Deals board: number and rupee total of completed sales, top items sold, unpaid payment links (who hasn't paid), and products low on stock.",
+        "parameters": {
+            "type": "object",
+            "properties": {"period": {"type": "string", "description": "'today', 'this_week' or 'this_month'. Default today."}},
+            "required": [],
+        },
+    },
+})
+
 _UNANSWERABLE = (
-    "I can't answer that from the reports I have. Try asking about leads, messages, calls, or ad spend."
+    "I can't answer that from the reports I have. Try asking about leads, messages, calls, sales, or ad spend."
 )
 
 
@@ -115,6 +128,9 @@ async def _dispatch(name: str, tenant_id: str, args: dict):
         return await telecalling_analytics(tenant_id=tenant_id)
     if name == "ad_performance_summary":
         return await ad_performance_summary(tenant_id=tenant_id)
+    if name == "sales_summary":
+        from app.services.deals_reports import sales_summary
+        return sales_summary(tenant_id, args.get("period", "today"))
     if name == "compare_analytics":
         return await compare_analytics(tenant_id=tenant_id, preset=args.get("preset", "last_7d"))
     return None

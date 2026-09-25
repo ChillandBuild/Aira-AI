@@ -1278,7 +1278,8 @@ _SEND_QUOTE_TOOL = {
             "customer has clearly decided to buy -- not just shown interest in. The exact prices "
             "are read from the catalog, never invented. Only call this when the customer has "
             "confirmed what they want and is ready to pay; use recommend_catalog_item instead for "
-            "browsing or answering 'how much is X'. Do NOT call for an item marked OUT OF STOCK."
+            "browsing or answering 'how much is X'. If the item or the quantity is not clear, ask the "
+            "customer first instead of calling this. Do NOT call for an item marked OUT OF STOCK."
         ),
         "parameters": {
             "type": "object",
@@ -1893,37 +1894,50 @@ async def generate_reply(
                         continue
                     item_ids = args.get("item_ids") or []
                     quantities = args.get("quantities") or []
+                    from app.services.deals import create_deal, held_quantities
+                    tracked_ids = [iid for iid in item_ids if (catalog_items_by_id.get(iid) or {}).get("stock_quantity") is not None]
+                    try:
+                        held = held_quantities(tenant_id, tracked_ids, db)
+                    except Exception as e:
+                        logger.warning(f"held_quantities failed for lead {lead_id}: {e}")
+                        held = {}
                     line_items = []
                     for idx, iid in enumerate(item_ids):
                         item = catalog_items_by_id.get(iid)
-                        if not item or item.get("price_paise") is None or item.get("stock_quantity") == 0:
+                        qty = quantities[idx] if idx < len(quantities) and quantities[idx] > 0 else 1
+                        stock = (item or {}).get("stock_quantity")
+                        available = None if stock is None else stock - held.get(iid, 0)
+                        if not item or item.get("price_paise") is None or (available is not None and available < qty):
                             # Defense in depth, same reasoning as the
                             # recommend_catalog_item branch below: silently
-                            # drop an unpriced/unknown/out-of-stock item
+                            # drop an unpriced/unknown/not-enough-stock item
                             # rather than trust the model to have obeyed the
-                            # prompt instruction not to quote it.
+                            # prompt instruction not to quote it. "Enough"
+                            # counts units already held on other unpaid links.
                             continue
-                        qty = quantities[idx] if idx < len(quantities) and quantities[idx] > 0 else 1
-                        line_items.append({
-                            "catalog_item_id": iid, "name": item["name"],
-                            "price_paise": item["price_paise"], "qty": qty,
-                        })
+                        line_items.append({"catalog_item_id": iid, "name": item["name"], "qty": qty})
                     if not line_items:
                         continue
+                    result = None
                     try:
-                        from app.services.quotes import create_quote
-                        result = await create_quote(
-                            tenant_id, lead_id, line_items,
-                            customer_name=lead_data.get("name") or phone,
-                            customer_phone=lead_data.get("phone") or phone,
-                            db=db,
+                        # Automation choice B: the customer confirmed item + qty,
+                        # so the link goes straight out -- inside this reply, so
+                        # send_link=False (no second WhatsApp message).
+                        created = await create_deal(
+                            tenant_id, lead_id, line_items, "whatsapp", "awaiting_payment", send_link=False, db=db,
                         )
+                        if created.get("payment_link"):
+                            from app.services.deals import quote_summary_block
+                            result = {
+                                "summary_text": quote_summary_block(created["items"], created["deal"]["total_paise"])
+                                + f"\n\nPay here: {created['payment_link']}",
+                                "deal_id": created["deal"]["id"],
+                            }
                     except Exception as e:
-                        logger.warning(f"create_quote failed for lead {lead_id}: {e}")
-                        result = None
+                        logger.warning(f"create_deal (send_quote) failed for lead {lead_id}: {e}")
                     if result:
                         reply_text = result["summary_text"]
-                        logger.info(f"Quote sent: lead {lead_id} -> quote {result['quote_id']}")
+                        logger.info(f"Quote sent: lead {lead_id} -> deal {result['deal_id']}")
                     elif not reply_text:
                         reply_text = "Sorry, I couldn't put that quote together right now — a team member will follow up."
                     continue
@@ -1953,13 +1967,10 @@ async def generate_reply(
                     "Catalog recommendation: lead %s -> item %s (%s)", lead_id, item["name"], item_id
                 )
                 if item.get("price_paise") is not None:
-                    try:
-                        from app.services.catalog_quotes import record_catalog_quote
-                        record_catalog_quote(
-                            tenant_id, lead_id, item_id, item["name"], item["price_paise"], db=db,
-                        )
-                    except Exception as e:
-                        logger.warning(f"record_catalog_quote failed for lead {lead_id}: {e}")
+                    # Interest, not a sale: one open "quoted" deal per lead on
+                    # the Deals board. Never deducts stock; never raises.
+                    from app.services.deals import upsert_quoted_deal
+                    upsert_quoted_deal(tenant_id, lead_id, {"catalog_item_id": item_id, "name": item["name"], "qty": 1}, db=db)
                 # Append a natural confirmation sentence to the reply if we're sending photos
                 # — only if no customer-facing text was generated by the model.
                 if not reply_text:

@@ -36,23 +36,6 @@ require_conversations_reply = require_permission("conversations.reply")
 
 VISIBLE_STATUSES = ["awaiting_payment", "paid"]
 
-# The pipeline board groups sessions that have reached a real quote (a price
-# exists) through to their final outcome. Earlier chat-only statuses
-# (offer_pending, collecting, etc.) aren't shown as cards -- no price has been
-# named yet, so there's nothing to put a rupee figure on.
-BOARD_STATUSES = ["awaiting_payment", "paid", "resolved", "cancelled"]
-BOARD_LABELS = {
-    "awaiting_payment": "Awaiting Payment",
-    "paid": "Paid",
-    "resolved": "Resolved",
-    "cancelled": "Cancelled",
-}
-BOARD_ROW_CAP = 100
-# Mirrors the row cap already used by /stats below -- a tenant with more than
-# this many open+closed sessions would need real aggregate queries, not a
-# larger Python-side cap. Accepted limitation for the first version.
-BOARD_QUERY_CAP = 2000
-
 SESSION_COLUMNS = (
     "id, lead_id, status, collected_data, field_schema, amount_paise, "
     "amount_mismatch, package_key, package_name, package_amount_paise, "
@@ -164,71 +147,6 @@ def export_intake_sessions_csv(
     )
 
 
-@router.get("/board")
-def intake_board(ctx: dict = Depends(require_conversations_view)):
-    """Pipeline view: sessions grouped by status into columns, each with a
-    rupee total. Counts and totals are computed over every matching row, not
-    just the capped card list per column, so a busy tenant's board doesn't
-    under-report the money in it."""
-    db = get_supabase()
-    rows = (
-        db.table("intake_sessions")
-        .select(
-            "id, lead_id, status, package_name, amount_paise, "
-            "total_amount_paise, payment_link, paid_at, created_at, "
-            "leads(name, phone)"
-        )
-        .eq("tenant_id", ctx["tenant_id"])
-        .in_("status", BOARD_STATUSES)
-        .order("created_at", desc=True)
-        .limit(BOARD_QUERY_CAP)
-        .execute()
-    ).data or []
-
-    columns = {
-        status: {
-            "label": BOARD_LABELS[status],
-            "count": 0,
-            "total_paise": 0,
-            "sessions": [],
-            "has_more": False,
-        }
-        for status in BOARD_STATUSES
-    }
-    for row in rows:
-        column = columns[row["status"]]
-        amount = row.get("total_amount_paise") or row.get("amount_paise") or 0
-        column["count"] += 1
-        column["total_paise"] += amount
-        if len(column["sessions"]) < BOARD_ROW_CAP:
-            column["sessions"].append(row)
-        else:
-            column["has_more"] = True
-
-    # Catalog quotes have no stage machine (see 194_catalog_prices_and_deals.sql):
-    # a WhatsApp reply that quoted a real catalog price, nothing more. Kept
-    # separate from `columns` rather than forced into a stage -- it never
-    # progresses to "paid" on its own, so calling it "Awaiting Payment" would
-    # overstate what's known.
-    quote_rows = (
-        db.table("catalog_quotes")
-        .select("id, lead_id, item_name, amount_paise, amount_is_estimate, source, created_at, leads(name, phone)")
-        .eq("tenant_id", ctx["tenant_id"])
-        .order("created_at", desc=True)
-        .limit(BOARD_QUERY_CAP)
-        .execute()
-    ).data or []
-    catalog_quotes = {
-        "label": "Quotes & Sales",
-        "count": len(quote_rows),
-        "total_paise": sum(r.get("amount_paise") or 0 for r in quote_rows),
-        "quotes": quote_rows[:BOARD_ROW_CAP],
-        "has_more": len(quote_rows) > BOARD_ROW_CAP,
-    }
-
-    return {"columns": columns, "catalog_quotes": catalog_quotes}
-
-
 @router.get("/stats")
 def intake_stats(ctx: dict = Depends(require_conversations_view)):
     """Intake dashboard: message totals, answer progress and a 14-day trend for
@@ -315,24 +233,24 @@ async def razorpay_webhook(request: Request):
     payment_entity = payload_data.get("payment", {}).get("entity", {})
     notes = pl_entity.get("notes") or payment_entity.get("notes") or {}
     session_id = notes.get("booking_id")
-    quote_id = notes.get("quote_id")
+    deal_id = notes.get("deal_id")
 
-    if not session_id and not quote_id:
-        logger.error("Intake webhook: no session id or quote id in notes")
+    if not session_id and not deal_id:
+        logger.error("Intake webhook: no session id or deal id in notes")
         return {"status": "error", "detail": "no session id"}
 
     # Signature is verified per-tenant: each tenant configures its own
     # razorpay_webhook_secret, so the tenant must be known before the HMAC
     # check runs (see get_session_tenant_id's docstring for why this lookup
-    # is safe to do before the payload is trusted). quote_id follows the
-    # exact same reasoning via get_quote_tenant_id.
+    # is safe to do before the payload is trusted). deal_id follows the
+    # exact same reasoning via deals.get_deal_tenant_id.
     if session_id:
         tenant_id = get_session_tenant_id(session_id)
     else:
-        from app.services.quotes import get_quote_tenant_id
-        tenant_id = get_quote_tenant_id(quote_id)
+        from app.services.deals import get_deal_tenant_id
+        tenant_id = get_deal_tenant_id(deal_id)
     if not tenant_id:
-        logger.warning(f"Intake webhook: unknown session/quote id {session_id or quote_id}")
+        logger.warning(f"Intake webhook: unknown session/deal id {session_id or deal_id}")
         raise HTTPException(status_code=400, detail="Unknown session")
 
     if not verify_webhook_signature(raw_body, signature, tenant_id=tenant_id):
@@ -341,37 +259,8 @@ async def razorpay_webhook(request: Request):
 
     event = payload.get("event", "")
 
-    if quote_id:
-        # Quotes don't have expiry/failure handling yet -- only the paid path
-        # is built. An expired or failed quote payment is silently ignored
-        # rather than mishandled; the customer can ask for a new quote.
-        if event != "payment_link.paid":
-            return {"status": "ignored", "event": event}
-        razorpay_payment_id = (
-            payload.get("payload", {}).get("payment", {}).get("entity", {}).get("id", "")
-        )
-        from app.services.quotes import confirm_quote_payment
-        quote_result = confirm_quote_payment(quote_id, razorpay_payment_id)
-        if quote_result:
-            lead = (
-                get_supabase().table("leads")
-                .select("phone, name")
-                .eq("id", quote_result["lead_id"])
-                .eq("tenant_id", quote_result["tenant_id"])
-                .maybe_single()
-                .execute()
-            )
-            phone = (lead.data or {}).get("phone") if lead else None
-            if phone:
-                try:
-                    await send_whatsapp(
-                        phone,
-                        "Payment received, thank you! We'll be in touch shortly to arrange the next steps.",
-                        tenant_id=quote_result["tenant_id"],
-                    )
-                except Exception as e:
-                    logger.error(f"Quote receipt send failed for {phone}: {e}")
-        return {"status": "ok"}
+    if deal_id:
+        return await _handle_deal_payment_event(payload, event, deal_id, tenant_id)
 
     if event == "payment_link.expired":
         expired = expire_intake_session(session_id)
@@ -456,3 +345,37 @@ async def astro_reply(request: Request):
         return _astro_unauthorized()
 
     return await deliver_astro_reply(payload, tenant_id)
+
+
+async def _handle_deal_payment_event(payload: dict, event: str, deal_id: str, tenant_id: str) -> dict:
+    """Payment events for a deal's Razorpay link (services/deals.send_payment_link
+    puts notes.deal_id on it). Paid -> won (stock deducts once: mark_won's claim
+    makes a retried delivery a no-op); expired/cancelled -> lost; a failed
+    attempt is ignored because the customer can still retry the same link."""
+    from app.services.deals import mark_lost, mark_won
+
+    if event in ("payment_link.expired", "payment_link.cancelled"):
+        lost = mark_lost(tenant_id, deal_id, "Payment link expired")
+        return {"status": "ok" if lost else "ignored", "event": event}
+    if event != "payment_link.paid":
+        return {"status": "ignored", "event": event}
+
+    razorpay_payment_id = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("id", "")
+    result = mark_won(tenant_id, deal_id, payment_method="razorpay", razorpay_payment_id=razorpay_payment_id)
+    if not result:
+        return {"status": "ignored", "detail": "already won"}
+    lead = (
+        get_supabase().table("leads").select("phone").eq("id", result["deal"]["lead_id"])
+        .eq("tenant_id", tenant_id).maybe_single().execute()
+    )
+    phone = (lead.data or {}).get("phone") if lead else None
+    if phone:
+        try:
+            await send_whatsapp(
+                phone,
+                "Payment received, thank you! We'll be in touch shortly to arrange the next steps.",
+                tenant_id=tenant_id,
+            )
+        except Exception as e:
+            logger.error(f"Deal receipt send failed for {phone}: {e}")
+    return {"status": "ok"}

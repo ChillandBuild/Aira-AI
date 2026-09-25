@@ -654,7 +654,27 @@ def _create_session(lead_id: str, tenant_id: str, db) -> dict:
 
 
 def _update_session(session_id: str, patch: dict, db) -> None:
-    db.table("intake_sessions").update(patch).eq("id", session_id).execute()
+    result = db.table("intake_sessions").update(patch).eq("id", session_id).execute()
+    if "status" in patch:
+        _sync_deal(result, db)
+
+
+def _sync_deal(update_result, db) -> None:
+    """Mirror the session rows an UPDATE just returned onto their Deals-board
+    deal (services/deals.sync_intake_session). Uses the returned rows rather
+    than re-reading, so the conversation path pays for no extra query. Never
+    raises: the Deals board is a view of this flow and must never break the
+    WhatsApp conversation."""
+    try:
+        rows = getattr(update_result, "data", None)
+        if not isinstance(rows, list):
+            return
+        from app.services.deals import sync_intake_session
+        for row in rows:
+            if isinstance(row, dict) and row.get("tenant_id") and row.get("status"):
+                sync_intake_session(row, db=db)
+    except Exception as e:
+        logger.warning(f"Deal sync failed after intake update: {e}")
 
 
 def _package_patch(package: dict, path: list[dict] | None = None, total_amount_paise: int | None = None) -> dict:
@@ -1371,6 +1391,7 @@ def confirm_intake_payment(
     session = {**session, **(claimed.data[0] or {})}
     lead_id = session["lead_id"]
     tenant_id = session["tenant_id"]
+    _sync_deal(claimed, db)
 
     lead_row = (
         db.table("leads")
@@ -1433,6 +1454,7 @@ def expire_intake_session(session_id: str, db=None) -> bool:
         .eq("status", "awaiting_payment")
         .execute()
     )
+    _sync_deal(result, db)
     return bool(result and result.data)
 
 
@@ -1620,6 +1642,7 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
                 )
                 if result.data:
                     cancelled += 1
+                    _sync_deal(result, db)
             except Exception as e:
                 logger.error(f"Stale awaiting_payment cancel failed for session {row['id']}: {e}")
     except Exception as e:
@@ -1679,7 +1702,8 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
     # confirm_intake_payment records the amount that actually arrives rather
     # than assuming this one. See D16.
     patch = _package_patch(chosen, path, total_amount_paise=chosen["amount_paise"]) | {"payment_link": None, "amount_paise": None}
-    db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
+    updated = db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
+    _sync_deal(updated, db)
     return {**session, **patch}
 
 

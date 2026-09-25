@@ -1,4 +1,5 @@
 import {
+  Building2,
   Calendar,
   FileCheck,
   Headset,
@@ -23,6 +24,7 @@ export type SettingsNavItem = {
 
 export const SETTINGS_ITEMS: SettingsNavItem[] = [
   { href: "/dashboard/settings/general", icon: Users, label: "General" },
+  { href: "/dashboard/settings/business", icon: Building2, label: "Business Details" },
   { href: "/dashboard/settings/connect-channels", icon: RadioTower, label: "Connect Channels" },
   { href: "/dashboard/settings/telecalling", icon: Phone, label: "Telecalling Credentials", entitlement: "telecmi" },
   { href: "/dashboard/settings/auto-reply", icon: Sparkles, label: "Auto-Reply" },
