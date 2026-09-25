@@ -17,6 +17,7 @@
 | Q5 | The admin "which criteria to score" setting and the audio **Tone** check are **removed completely**. |
 | Q6 → Q8 | Every transcript line carries its time in the call. Because the AI swapped telecaller/customer on the 2026-09-25 test call, each audio track is **transcribed separately**, which makes speaker labels certain and times exact. |
 | Q7 | All warnings go to the **admin** (no "manager" role). No per-warning notifications: a **Needs attention** list with a sidebar count, one **morning summary** notification, and instant alerts only for **rudeness** and **wrong product information**, capped at 1 per telecaller per hour. Telecallers see their own warnings on the call card only. |
+| Q9 | Proof quotes (checks, signs, warnings) are sent to the browser, each clipped to 240 chars, for both telecaller and admin. The **full transcript stays masked** (first/last line only), as today. |
 | — | Calls under 30s and not-connected calls get no AI at all and are labelled **"Not scored · under 30s"** / **"Not scored · not connected"**. |
 
 ## 2. Verified facts this design relies on
