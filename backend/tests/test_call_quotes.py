@@ -39,6 +39,24 @@ class FindQuoteTests(unittest.TestCase):
         self.assertEqual(len(clip("x" * 500)), 240)
         self.assertIsNone(clip(None))
 
+    def test_negation_flip_rejected(self):
+        """Quote flips meaning: 'no' vs 'an' charge."""
+        line = Line(1.0, "telecaller", "Sir there is no extra charge for downloading the report anytime you like")
+        quote = "there is an extra charge for downloading the report anytime"
+        self.assertIsNone(find_quote(quote, [line]))
+
+    def test_long_word_misspelling_tolerated(self):
+        """'installation' vs 'instalation' (missing 'l') should match."""
+        line = Line(1.0, "telecaller", "We provide installation support for every customer")
+        quote = "We provide instalation support for every customer"
+        self.assertEqual(find_quote(quote, [line]).start, 1.0)
+
+    def test_short_word_swap_rejected(self):
+        """Short word swap: 'not' vs 'now' should not match."""
+        line = Line(1.0, "telecaller", "The plan is not refundable")
+        quote = "The plan is now refundable"
+        self.assertIsNone(find_quote(quote, [line]))
+
 
 if __name__ == "__main__":
     unittest.main()
