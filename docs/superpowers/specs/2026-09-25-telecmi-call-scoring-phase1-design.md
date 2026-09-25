@@ -67,6 +67,8 @@ Each unit has one job and is testable on its own.
 - Lines are merged by time into the stored `call_logs.transcript` format `"[mm:ss] Telecaller: …"` / `"[mm:ss] Customer: …"`.
 - Each line's AI time is snapped to the nearest start of a speech segment on its own track (within ±3 s). If no segment is near, the AI time is kept.
 - Transcription runs with **temperature 0**.
+- **Word-clue backup (user's suggestion, 2026-09-25).** If the recording is not stereo (`NotStereo`), the mixed audio is transcribed in one pass. The prompt then tells the AI to identify the telecaller by clues: saying the company name, "calling from…", introducing themselves, referring to the enquiry, or explaining the product/price. The customer is the one asking about it.
+- **Word-clue cross-check.** On stereo calls, the same clues are checked on both tracks by plain text matching (company name from tenant settings, plus phrases like "calling from", "பேசுறேன்", "from … company"). If the clues appear only on the customer track, a `tracks_swapped` warning is raised. It's a hint for the admin; the channel mapping is not changed automatically.
 
 ### 4.3 `services/call_metrics.py` (new, no AI)
 - `talk_share(lines) -> float | None`. Words per speaker, ignoring filler tokens (`hmm, uh, um, aah, ah, ok ok, mm`, Tamil/Hindi equivalents like `ம்ம்`, `ஆ`, `haan`). Tamil/English/mixed words each count as one word. Returns `None` under 50 total words.
@@ -101,7 +103,7 @@ Each unit has one job and is testable on its own.
 - Each re-run replaces check 10 and recomputes the total; the other 9 checks are never re-marked.
 
 ### 4.7 Warnings: `call_alerts` table + `services/call_alerts.py` (new)
-Types in Phase 1: `rude` (instant), `wrong_info` (instant), `crm_mismatch`, `no_proof`, `transcript_failed`, `language_barrier`, `lead_source_quality`.
+Types in Phase 1: `rude` (instant), `wrong_info` (instant), `crm_mismatch`, `no_proof`, `transcript_failed`, `language_barrier`, `lead_source_quality`, `tracks_swapped`.
 - `raise_alert(db, call, type, quote, detail)` inserts a row, deduped on `(call_log_id, type)`.
 - Instant types send `notify_user` to the tenant owner/admins, **max 1 per telecaller per hour**; extras only land in the list.
 - `lead_source_quality`: a daily job per tenant per `leads.source`. If ≥ 10 answered TeleCMI calls that day and ≥ 30% of them are wrong-number or not-enquired early exits, one alert is raised (no call_log_id).
