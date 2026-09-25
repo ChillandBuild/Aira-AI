@@ -298,9 +298,13 @@ export function AiSummaryCard({
     // processing stage (or Retry when it failed) instead of an on-demand button.
     if (log.provider !== "telecmi" || !log.ai_status) return null;
     return (
-      <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[#e8e3db] shadow-sm">
-        <div className="flex items-center justify-between gap-2">
-          <div>
+      <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[#e8e3db] shadow-sm hover:shadow-md transition-shadow">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 text-left"
+        >
+          <div className="flex-1 min-w-0">
             <p className="font-label text-xs font-semibold text-[#44403c]">
               {formatDateTime(log.created_at)}
               {log.duration_seconds != null && ` · ${log.duration_seconds}s`}
@@ -311,13 +315,18 @@ export function AiSummaryCard({
               </span>
             )}
           </div>
-        </div>
-        <div className="mt-3 space-y-2.5">
-          {log.recording_url && (
-            <audio controls preload="none" src={log.recording_url} className="w-full h-8" />
-          )}
-          <CallAiDetail log={log} onChanged={() => void refresh()} />
-        </div>
+          <span className="p-1.5 rounded-lg text-[#a8a29e] shrink-0">
+            {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </span>
+        </button>
+        {open && (
+          <div className="mt-3 space-y-2.5 pt-3 border-t border-[#f0ece4]">
+            {log.recording_url && (
+              <audio controls preload="none" src={log.recording_url} className="w-full h-8" />
+            )}
+            <CallAiDetail log={log} onChanged={() => void refresh()} />
+          </div>
+        )}
       </div>
     );
   }
