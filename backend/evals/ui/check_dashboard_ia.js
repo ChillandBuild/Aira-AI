@@ -21,7 +21,7 @@ const REDIRECTS = [
 const PAGES = [
   ["services", "/dashboard/services", ["Services"]],
   ["account", "/dashboard/settings/account", ["Business details"]],
-  ["knowledge", "/dashboard/knowledge", ["Business hours", "What Aira says when it brings in your team"]],
+  ["knowledge", "/dashboard/knowledge?tab=description", ["Business hours", "What Aira says when it brings in your team"]],
   ["quick_replies", "/dashboard/settings/quick-replies", ["Saved button messages"]],
 ];
 
@@ -55,7 +55,10 @@ const PAGES = [
     }
 
     if (label === "desktop") {
-      const nav = await p.locator("nav, aside").first().innerText().catch(() => "");
+      // The main menu, not the Settings sub-menu that replaces it on settings pages.
+      await p.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded", timeout: 90000 });
+      await p.waitForTimeout(6000);
+      const nav = await p.locator("body").innerText();
       if (!/Services/.test(nav)) fail("desktop: main sidebar has no Services item");
       await p.screenshot({ path: `${SP}/ia_sidebar_${label}.png` });
     }
