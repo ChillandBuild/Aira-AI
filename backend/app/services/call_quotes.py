@@ -12,6 +12,16 @@ from difflib import SequenceMatcher
 from app.services.call_lines import Line
 from app.services.scoring_rules import QUOTE_MAX_CHARS
 
+_NULLISH = {"", "null", "none", "n/a", "na", "-"}
+
+
+def clean_quote(value) -> str | None:
+    """None for anything that isn't a real quote: non-strings and AI placeholders like
+    the literal string "null" (Gemini sometimes returns this instead of a JSON null)."""
+    if not isinstance(value, str):
+        return None
+    return value if value.strip().lower() not in _NULLISH else None
+
 
 def _norm(text: str) -> str:
     """Normalize for substring matching: lowercase, punctuation to space, remove all whitespace."""
@@ -49,12 +59,13 @@ def _words_match(quote_words: list[str], line_words: list[str], start_idx: int) 
 
 
 def find_quote(quote: str | None, lines: list[Line], speakers: tuple[str, ...] = ("telecaller", "customer")) -> Line | None:
-    if not isinstance(quote, str):
+    quote = clean_quote(quote)
+    if quote is None:
         return None
     q_norm = _norm(quote)
     if len(q_norm) < 2:
         return None
-    quote_words = _norm_for_words(quote or "")
+    quote_words = _norm_for_words(quote)
     if not quote_words:
         return None
     for line in lines:

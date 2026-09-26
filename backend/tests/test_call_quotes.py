@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.call_lines import Line
-from app.services.call_quotes import clip, find_quote
+from app.services.call_quotes import clean_quote, clip, find_quote
 
 LINES = [
     Line(5.0, "telecaller", "Our plan includes GST billing and stock tracking."),
@@ -66,6 +66,24 @@ class FindQuoteTests(unittest.TestCase):
         """clip returns None for non-string inputs."""
         self.assertIsNone(clip(5))
         self.assertIsNone(clip(["text"]))
+
+    def test_null_string_quote_not_matched(self):
+        """The AI sometimes returns the literal string 'null' instead of a JSON null."""
+        self.assertIsNone(find_quote("null", LINES))
+
+
+class CleanQuoteTests(unittest.TestCase):
+    def test_null_like_strings_become_none(self):
+        for v in ("null", "NULL", "None", "n/a", "NA", "-", "", "   "):
+            self.assertIsNone(clean_quote(v))
+
+    def test_real_quote_passes_through(self):
+        self.assertEqual(clean_quote("Our plan includes GST billing"), "Our plan includes GST billing")
+
+    def test_non_string_rejected(self):
+        self.assertIsNone(clean_quote(12345))
+        self.assertIsNone(clean_quote(None))
+        self.assertIsNone(clean_quote(["x"]))
 
 
 if __name__ == "__main__":
