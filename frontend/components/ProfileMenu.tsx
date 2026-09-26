@@ -1,14 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LogOut, MessageSquarePlus, UserCircle } from "lucide-react";
+import { LogOut, MessageSquarePlus, TrendingUp, UserCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useLogout } from "@/hooks/useLogout";
 import { FeedbackModal } from "@/components/FeedbackModal";
 
 export function ProfileMenu() {
-  const { tenantName } = useAuthRole();
+  const { tenantName, role } = useAuthRole();
+  const isTelecaller = role === "caller";
   const [email, setEmail] = useState<string>("");
   const [fullName, setFullName] = useState<string>("");
   const [open, setOpen] = useState(false);
@@ -71,13 +72,23 @@ export function ProfileMenu() {
 
             <div className="py-1">
               <Link
-                href="/dashboard/profile"
+                href="/dashboard/settings/account"
                 onClick={() => setOpen(false)}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
               >
                 <UserCircle size={16} className="text-[#78716c]" />
-                <span>My Profile</span>
+                <span>Profile & Business</span>
               </Link>
+              {isTelecaller && (
+                <Link
+                  href="/dashboard/profile"
+                  onClick={() => setOpen(false)}
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
+                >
+                  <TrendingUp size={16} className="text-[#78716c]" />
+                  <span>My performance</span>
+                </Link>
+              )}
               <button
                 onClick={() => {
                   setOpen(false);

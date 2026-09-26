@@ -221,6 +221,30 @@ class IntakeConfigRouteTests(unittest.TestCase):
 
     @mock_patch("app.routes.app_settings.save_intake_config")
     @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_rejects_enabling_with_only_inactive_packages(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0}
+        res = self.client.patch("/api/v1/settings/intake-config", json={
+            "enabled": True,
+            "packages": [{"key": "basic", "name": "Basic", "amount_paise": 1000, "description": "", "active": False}],
+        })
+        self.assertEqual(res.status_code, 400)
+        mock_save.assert_not_called()
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_enabling_with_an_active_package_already_stored_succeeds(self, mock_get, mock_save):
+        # Enabling via a fields-only save must fall back to the currently stored
+        # package tree rather than treating an absent "packages" key as empty.
+        mock_get.return_value = {
+            "packages": [{"key": "basic", "name": "Basic", "amount_paise": 1000, "description": "", "active": True}],
+            "amount_paise": 0,
+        }
+        res = self.client.patch("/api/v1/settings/intake-config", json={"enabled": True})
+        self.assertEqual(res.status_code, 200)
+        mock_save.assert_called_once()
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
     def test_saves_valid_packages(self, mock_get, mock_save):
         mock_get.return_value = {"packages": [], "amount_paise": 0}
         res = self.client.patch("/api/v1/settings/intake-config", json={

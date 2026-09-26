@@ -393,13 +393,10 @@ async def _process_inbound_message_background(
                 record_tamil_lock_request(db, lead_id, tenant_id, body)
             except Exception as e:
                 logger.error(f"Tamil lock check failed for lead {lead_id}: {e}")
-            try:
-                from app.services.intake import route_intake
-                consumed = await route_intake(lead_id=lead_id, tenant_id=tenant_id, phone=phone, body=body, db=db, interactive_id=interactive_id or None)
-                if consumed:
-                    return
-            except Exception as e:
-                logger.error(f"Expert handoff routing failed for lead {lead_id}: {e}")
+            # No pre-AI interception any more: selling packages, collecting the client's
+            # required details and sending the payment link are tools the reply brain
+            # calls itself (services/deal_turn.py). route_intake stays in intake.py,
+            # unused, until the legacy state machine is removed.
             try:
                 from app.services.context_builder import build_scorer_context
                 context_block = build_scorer_context(lead_id, db)
@@ -412,6 +409,7 @@ async def _process_inbound_message_background(
                     phone_number_id=meta_phone_number_id or None,
                     inbound_media_type=msg_type,
                     meta_message_id=meta_message_id or meta_media_id or None,
+                    interactive_id=interactive_id or None,
                 )
             except Exception as e:
                 logger.error(f"Reply routing failed for lead {lead_id}: {e}")

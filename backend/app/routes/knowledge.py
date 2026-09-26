@@ -37,6 +37,13 @@ def _is_owner(ctx: dict) -> bool:
     return ctx.get("role") == "owner"
 
 
+def _recheck(background_tasks: BackgroundTasks, tenant_id: str) -> None:
+    """Knowledge changed: look again for anything that now disagrees with the Services page."""
+    from app.services.consistency import run_check_safely
+
+    background_tasks.add_task(run_check_safely, tenant_id)
+
+
 def _queue_rubric(tenant_id: str, result: dict) -> bool:
     if not result.get("description_changed"):
         return False
@@ -310,6 +317,7 @@ async def delete_preview(doc_id: UUID, tenant_id: str = Depends(get_tenant_id)):
 @router.delete("/documents/{doc_id}")
 async def delete_document(
     doc_id: UUID,
+    background_tasks: BackgroundTasks,
     body: Optional[DeleteDocumentBody] = Body(default=None),
     tenant_id: str = Depends(get_tenant_id),
     ctx: dict = Depends(require_knowledge_manage),
@@ -331,6 +339,7 @@ async def delete_document(
     except ks.KnowledgeError as e:
         raise _http(e)
     _queue_rubric(tenant_id, result)
+    _recheck(background_tasks, tenant_id)
     return {"success": True, "description_changed": result["description_changed"]}
 
 
@@ -366,6 +375,7 @@ async def apply_review(
     # Embedding runs after the response; the full-text fallback serves the facts meanwhile.
     background_tasks.add_task(ks.index_facts, tenant_id, str(doc_id), result["facts"], result["campaign_tag_id"])
     rubric_queued = _queue_rubric(tenant_id, result)
+    _recheck(background_tasks, tenant_id)
     return {"success": True, "description_changed": result["description_changed"], "rubric_queued": rubric_queued}
 
 
@@ -412,6 +422,7 @@ async def update_facts(
     except ks.KnowledgeError as e:
         raise _http(e)
     background_tasks.add_task(ks.index_facts, tenant_id, str(doc_id), result["facts"], result["campaign_tag_id"])
+    _recheck(background_tasks, tenant_id)
     return {"success": True, "full_text": result["facts"]}
 
 
@@ -448,4 +459,5 @@ async def restore_version(
         background_tasks.add_task(ks.index_facts, tenant_id, result["document_id"], result["facts"], result["campaign_tag_id"])
     else:
         _queue_rubric(tenant_id, result)
+    _recheck(background_tasks, tenant_id)
     return {"success": True, "kind": result["kind"]}

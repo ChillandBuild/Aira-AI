@@ -22,7 +22,8 @@ def test_handover_rule_uses_client_line_and_forbids_callback_promise():
 def test_handover_rule_default_when_client_line_missing():
     with patch.object(ai_reply, "get_setting", _settings({})):
         block = ai_reply._handover_rule_block(TENANT)
-    assert "team member will follow up" in block
+    assert "hand_to_human" in block and "they will reply here" in block
+    assert "callback" in block  # forbidden, not promised
 
 
 def test_base_prompt_routes_missing_link_to_handover_rule():

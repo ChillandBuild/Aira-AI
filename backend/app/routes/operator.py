@@ -1342,22 +1342,7 @@ def update_client_config(
     if not tenant or not tenant.data:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    secret_keys = {
-        "sarvam_api_key",
-        "groq_api_key",
-        "gemini_api_key",
-        "openai_api_key",
-        "jina_api_key",
-        "meta_access_token",
-        "meta_webhook_verify_token",
-        "meta_app_secret",
-        "telecmi_secret",
-        "telegram_bot_token",
-        "instagram_access_token",
-        "facebook_access_token",
-        "astro_bridge_api_key",
-        "astro_bridge_secret",
-    }
+    from app.config_dynamic import SECRET_SETTING_KEYS
 
     for key, value in payload.settings.items():
         db_val = str(value).lower() if isinstance(value, bool) else str(value)
@@ -1365,7 +1350,7 @@ def update_client_config(
             "tenant_id": tenant_id,
             "key": key,
             "value": db_val,
-            "is_secret": key in secret_keys,
+            "is_secret": key in SECRET_SETTING_KEYS,
             "updated_at": "now()",
         }, on_conflict="tenant_id,key").execute()
 
@@ -1373,7 +1358,7 @@ def update_client_config(
     invalidate_cache()
 
     redacted_settings = {
-        key: ("***redacted***" if key in secret_keys else value)
+        key: ("***redacted***" if key in SECRET_SETTING_KEYS else value)
         for key, value in payload.settings.items()
     }
     record_audit_event(
