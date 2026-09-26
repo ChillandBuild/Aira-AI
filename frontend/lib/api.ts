@@ -192,6 +192,7 @@ export interface EarlyExitCheck {
   enquiry_confirmed_early: boolean;
   expected_crm: "wrong_number" | "not_enquired" | "callback" | "language_barrier" | "voicemail" | "other";
   crm_matches: boolean | null;
+  no_wrapup?: boolean;
 }
 
 /** v4 evaluation (CallIQ Steps 1-2). Older rows have no evaluation_version 4 and are not shown. */

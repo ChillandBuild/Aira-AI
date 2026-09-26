@@ -78,7 +78,7 @@ function ProcessingBanner({ log, onRetried }: { log: CallLog; onRetried?: () => 
         <div className="min-w-0">
           <p className="font-body text-[11px] font-bold text-rose-800">Processing failed</p>
           <p className="font-label text-[10px] text-rose-700/80 truncate" title={log.ai_error ?? ""}>
-            This call wasn&apos;t transcribed or scored after 3 attempts.
+            This call wasn&apos;t transcribed or scored after 2 attempts.
           </p>
         </div>
       </div>
@@ -322,7 +322,13 @@ function EarlyExitCard({ log }: { log: CallLog }) {
       {row(check.enquiry_confirmed_early, check.enquiry_confirmed_early ? "Confirmed the enquiry early" : "Didn't confirm the enquiry in the first 30 seconds", "coaching only")}
       {row(
         check.crm_matches,
-        check.crm_matches === null ? "Wrap-up check pending" : check.crm_matches ? "Wrap-up matches the call" : "Wrap-up doesn't match the call",
+        check.crm_matches === null
+          ? "Wrap-up check pending"
+          : check.crm_matches
+          ? "Wrap-up matches the call"
+          : check.no_wrapup
+          ? "No wrap-up saved"
+          : "Wrap-up doesn't match the call",
         check.expected_crm !== "other" ? `expected: ${EXPECTED_CRM_LABEL[check.expected_crm]}` : undefined,
       )}
     </div>
