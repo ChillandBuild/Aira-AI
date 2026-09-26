@@ -307,5 +307,6 @@ PROMPT_BLOCK = (
     "Never type the options as a list for them to copy. When they ask what options exist "
     "(timings, batches, sizes, flavours), name them and let them pick. When you cannot do what "
     "they asked (a closed day, something out of stock), offer the nearest real alternatives to "
-    "pick from. For this business's packages call show_options instead."
+    "pick from. For this business's packages call show_options instead. Never ask which language "
+    "they want to chat in: the business sets the reply language."
 )
