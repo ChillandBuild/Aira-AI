@@ -45,7 +45,8 @@ const PAGES = [
 
     for (const [name, route, texts] of PAGES) {
       await p.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded", timeout: 90000 });
-      await p.waitForTimeout(6000);
+      await p.locator(`:text("${texts[texts.length - 1]}"):visible`).first().waitFor({ timeout: 45000 }).catch(() => {});
+      await p.waitForTimeout(1500);
       const body = await p.locator("body").innerText();
       for (const t of texts) if (!body.includes(t)) fail(`${label}: ${name} is missing "${t}"`);
       const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -57,9 +58,12 @@ const PAGES = [
     if (label === "desktop") {
       // The main menu, not the Settings sub-menu that replaces it on settings pages.
       await p.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded", timeout: 90000 });
-      await p.waitForTimeout(6000);
+      await p.locator(':text("Services"):visible').first().waitFor({ timeout: 45000 }).catch(() => {});
       const nav = await p.locator("body").innerText();
-      if (!/Services/.test(nav)) fail("desktop: main sidebar has no Services item");
+      // Services is gated like Products (messaging plan + permission): they appear together.
+      const hasServices = /\bServices\b/.test(nav), hasProducts = /\bProducts\b/.test(nav);
+      if (hasServices !== hasProducts) fail(`desktop: Services shown=${hasServices} but Products shown=${hasProducts}`);
+      else console.log(`desktop: sidebar Services shown=${hasServices}, Products shown=${hasProducts} (same gate)`);
       await p.screenshot({ path: `${SP}/ia_sidebar_${label}.png` });
     }
     await p.close();

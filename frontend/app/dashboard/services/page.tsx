@@ -142,8 +142,8 @@ export default function ServicesPage() {
         id="what-aira-sells"
         icon={Package}
         accent="violet"
-        title="What Aira Sells"
-        description="Everything Aira offers and collects in WhatsApp before taking payment — packages, required details, and what to call it, in one place."
+        title="Selling in chat"
+        description="Switch it on, add your packages, and choose the details Aira collects before it sends the payment link."
         status={{ label: draft.enabled ? "Selling live" : "Off", tone: draft.enabled ? "on" : "off" }}
         dirty={isDirty}
       >

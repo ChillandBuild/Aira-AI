@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Check, Loader2, Pencil, X } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { timeAgo } from "@/lib/utils";
@@ -215,6 +215,15 @@ export function ConsistencyPanel() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Never checked, or the setup changed since: check once on its own instead of asking.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (!report || autoChecked.current || (report.checked_at && !report.stale)) return;
+    autoChecked.current = true;
+    runCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report]);
+
   async function runCheck() {
     setChecking(true);
     setError(null);
@@ -250,8 +259,10 @@ export function ConsistencyPanel() {
     return (
       <div aria-live="polite" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-subtle bg-surface-low px-3.5 py-2.5">
         <span className="font-body text-xs text-ink-muted">
-          {needsCheck ? (
-            error ?? "Your setup changed."
+          {checking ? (
+            "Aira is checking that your description and knowledge agree with your Services page…"
+          ) : needsCheck ? (
+            error ?? (report?.checked_at ? "Your setup changed since Aira last checked." : "Aira hasn't checked your setup yet.")
           ) : (
             <>Everything Aira knows agrees with your Services page{report?.checked_at ? ` · Checked ${timeAgo(report.checked_at)}` : ""}</>
           )}
