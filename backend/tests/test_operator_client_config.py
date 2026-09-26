@@ -136,6 +136,7 @@ class OperatorClientConfigTests(unittest.TestCase):
                 "ai_voice_reply_enabled": True,
                 "ai_voice_reply_speaker": "Kore",
                 "sarvam_api_key": "client-secret",
+                "razorpay_key_secret": "rzp-secret",
             }
         }
         res = self.client.patch("/api/v1/operator/clients/tenant-1/config", json=payload)
@@ -145,13 +146,17 @@ class OperatorClientConfigTests(unittest.TestCase):
         upserted_rows = [call.args[0] for call in app_settings_table.upsert.call_args_list]
         sarvam_row = next(row for row in upserted_rows if row["key"] == "sarvam_api_key")
         self.assertTrue(sarvam_row["is_secret"])
+        razorpay_row = next(row for row in upserted_rows if row["key"] == "razorpay_key_secret")
+        self.assertTrue(razorpay_row["is_secret"])
         mock_invalidate_cache.assert_called_once()
         mock_record_audit.assert_called_once()
         audit_kwargs = mock_record_audit.call_args.kwargs
-        expected_settings = {**payload["settings"], "sarvam_api_key": "***redacted***"}
+        expected_settings = {**payload["settings"], "sarvam_api_key": "***redacted***",
+                             "razorpay_key_secret": "***redacted***"}
         self.assertEqual(audit_kwargs["metadata"], {"settings": expected_settings})
         self.assertNotIn("new_value", audit_kwargs)
         self.assertNotIn("client-secret", str(audit_kwargs))
+        self.assertNotIn("rzp-secret", str(audit_kwargs))
 
     @patch("app.routes.operator.get_supabase")
     def test_get_client_config_survives_usage_counter_lookup_failure(self, mock_get_db):

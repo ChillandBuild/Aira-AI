@@ -422,31 +422,11 @@ async def update_settings(
             db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", "telegram_webhook_secret").execute()
             db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", "telegram_status").execute()
 
-    _SECRET_KEYS = {
-        "meta_access_token",
-        "meta_webhook_verify_token",
-        "meta_app_secret",
-        "telecmi_secret",
-        "telecmi_agent_password",
-        "telecmi_webhook_secret",
-        "sarvam_api_key",
-        "groq_api_key",
-        "razorpay_key_secret",
-        "razorpay_webhook_secret",
-        "telegram_bot_token",
-        "telegram_webhook_secret",
-        "instagram_access_token",
-        "instagram_app_secret",
-        "facebook_access_token",
-        "meta_ads_access_token",
-        "astro_bridge_api_key",
-        "astro_bridge_secret",
-        "indiamart_ingest_token",
-        "justdial_ingest_token",
-    }
+    from app.config_dynamic import SECRET_SETTING_KEYS
+
     updated = []
     for key, value in payload.updates.items():
-        is_secret = key in _SECRET_KEYS
+        is_secret = key in SECRET_SETTING_KEYS
         if value == "":
             # Empty string means "clear this value" — delete the row rather than
             # storing "", which would otherwise still read back as is_set=True.
@@ -497,7 +477,7 @@ async def update_settings(
         target_id=tenant_id,
         metadata={
             "updated_keys": updated,
-            "secret_keys": [key for key in updated if key in _SECRET_KEYS],
+            "secret_keys": [key for key in updated if key in SECRET_SETTING_KEYS],
         },
     )
     return {"updated": updated}

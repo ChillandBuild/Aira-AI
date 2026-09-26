@@ -11,6 +11,35 @@ _TTL = 60.0
 # This is NOT a privileged tenant — all credentials resolve per-tenant from app_settings.
 _DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
 
+# Settings whose value is masked when shown (app_settings.is_secret). One list for every
+# save path: the operator console once kept its own shorter copy and saved Razorpay
+# secrets unmasked.
+SECRET_SETTING_KEYS = frozenset({
+    "sarvam_api_key",
+    "groq_api_key",
+    "gemini_api_key",
+    "openai_api_key",
+    "jina_api_key",
+    "meta_access_token",
+    "meta_webhook_verify_token",
+    "meta_app_secret",
+    "telecmi_secret",
+    "telecmi_agent_password",
+    "telecmi_webhook_secret",
+    "razorpay_key_secret",
+    "razorpay_webhook_secret",
+    "telegram_bot_token",
+    "telegram_webhook_secret",
+    "instagram_access_token",
+    "instagram_app_secret",
+    "facebook_access_token",
+    "meta_ads_access_token",
+    "astro_bridge_api_key",
+    "astro_bridge_secret",
+    "indiamart_ingest_token",
+    "justdial_ingest_token",
+})
+
 
 def get_setting(key: str, fallback: Optional[str] = None, tenant_id: Optional[str] = None) -> Optional[str]:
     """Read from cache → app_settings table → fallback. No env-var fallback: every
@@ -68,7 +97,7 @@ def save_setting(key: str, value: str, tenant_id: Optional[str] = None) -> None:
         from app.db.supabase import get_supabase
         db = get_supabase()
         db.table("app_settings").upsert(
-            {"key": key, "value": value, "tenant_id": resolved_tenant_id, "is_secret": False},
+            {"key": key, "value": value, "tenant_id": resolved_tenant_id, "is_secret": key in SECRET_SETTING_KEYS},
             on_conflict="key,tenant_id",
         ).execute()
     except Exception as e:
