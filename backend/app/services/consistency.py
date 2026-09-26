@@ -38,6 +38,12 @@ _DOC_TEXT_BUDGET = 24_000
 _LINE_MAX = 1_000
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
+# "Do not ask for DOB outside a booking" already allows asking for it when they book.
+_BOOKING_EXCEPTION_RE = re.compile(
+    r"\b(outside|unless|except|other than|apart from|until|only when|only if)\b[^.\n]{0,40}"
+    r"\b(book\w*|order\w*|pay\w*|consultation|purchase\w*|buy\w*)",
+    re.IGNORECASE,
+)
 _NEVER_ASK_RE = re.compile(
     r"\b(never|don'?t|do not|must not|should not|no need to)\b[^.\n]{0,40}\b(ask|request|collect|take|get)\b",
     re.IGNORECASE,
@@ -197,7 +203,7 @@ def never_ask_issues(src: dict) -> list[dict]:
         pattern = re.compile(r"\b(" + "|".join(re.escape(t) for t in terms) + r")\b", re.IGNORECASE)
         for where, doc_id, name, editable, text in _sources(src):
             for line in _sentences(text):
-                if _NEVER_ASK_RE.search(line) and pattern.search(line):
+                if _NEVER_ASK_RE.search(line) and pattern.search(line) and not _BOOKING_EXCEPTION_RE.search(line):
                     out.append(_issue(
                         "required_detail", where, doc_id, name, editable, line,
                         f"Says not to ask for {field['label']}, but your {TRUTH} needs it before payment",
@@ -303,20 +309,22 @@ def validate_model_issues(items, src: dict) -> list[dict]:
     return out
 
 
-async def _model_issues(src: dict, flagged: list[dict], tenant_id: str) -> list[dict]:
+async def _model_issues(src: dict, flagged: list[dict], tenant_id: str) -> tuple[list[dict], bool]:
+    """(issues, ran). ran is False when the model could not be reached: the code findings still
+    stand, and the missing wording is written on the next check (see current_report)."""
     from app.services.knowledge_sort import KnowledgeError, _llm_json
 
     if not (src["selling"] or src["catalog"]):
-        return []
+        return [], True
     try:
         data = await _llm_json(_SYSTEM, _user_prompt(src, flagged), tenant_id=tenant_id, max_tokens=2_500)
     except KnowledgeError as e:
         logger.warning("consistency: model pass skipped for tenant %s: %s", tenant_id, e)
-        return []
+        return [], False
     except Exception:
         logger.exception("consistency: model pass failed for tenant %s", tenant_id)
-        return []
-    return validate_model_issues(data.get("issues"), src)
+        return [], False
+    return validate_model_issues(data.get("issues"), src), True
 
 
 # ─── Report ───────────────────────────────────────────────────────────────────
@@ -367,10 +375,16 @@ async def run_check(db, tenant_id: str) -> dict:
     findings are still reported."""
     src = gather(db, tenant_id)
     found = deterministic_issues(src)
-    issues = merge(found, await _model_issues(src, found, tenant_id))
+    model, ran = await _model_issues(src, found, tenant_id)
+    issues = merge(found, model)
     previous = load_report(tenant_id)
     report = {
         "issues": issues,
+        # Every finding should come with Aira's wording. If the model was unreachable or skipped
+        # one, the next page open checks again instead of leaving the client to type the fix.
+        "suggestions_complete": ran and all(
+            i.get("proposed") is not None for i in issues if i.get("editable", True)
+        ),
         "dismissed": [k for k in previous.get("dismissed") or [] if any(i["id"] == k for i in issues)],
         "fingerprint": fingerprint(src),
         "checked_at": datetime.now(timezone.utc).isoformat(),
@@ -393,8 +407,14 @@ def current_report(db, tenant_id: str) -> dict:
     report = visible(load_report(tenant_id))
     if not report.get("fingerprint"):
         return {"issues": [], "checked_at": None, "stale": True}
-    stale = report["fingerprint"] != fingerprint(gather(db, tenant_id))
-    return {"issues": report["issues"], "checked_at": report.get("checked_at"), "stale": stale}
+    complete = report.get("suggestions_complete")
+    if complete is None:  # a report saved before this flag existed
+        complete = all(i.get("proposed") is not None for i in report["issues"] if i.get("editable", True))
+    stale = report["fingerprint"] != fingerprint(gather(db, tenant_id)) or not complete
+    return {
+        "issues": report["issues"], "checked_at": report.get("checked_at"), "stale": stale,
+        "suggestions_complete": complete,
+    }
 
 
 def dismiss(tenant_id: str, issue_id: str) -> None:

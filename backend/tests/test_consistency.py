@@ -56,6 +56,10 @@ class TestDeterministic:
         assert [i["quote"] for i in issues] == ["Never ask for DOB, TOB, or POB."]
         assert "Date of birth" in issues[0]["topic"]
 
+    def test_never_ask_outside_a_booking_is_fine(self):
+        src = _src(description="Do not ask for birth details (DOB, TOB, POB) outside a booking; when a user books, ask only what the booking needs.")
+        assert consistency.never_ask_issues(src) == []
+
     def test_never_ask_ignored_when_not_selling(self):
         assert consistency.never_ask_issues(_src(selling=False)) == []
 
@@ -180,15 +184,24 @@ def test_run_check_keeps_deterministic_findings_when_the_model_fails(monkeypatch
     monkeypatch.setattr(consistency, "_save_report", lambda tenant_id, report: saved.update(report))
 
     async def broken(*a, **k):
-        return []
+        return [], False
 
     monkeypatch.setattr(consistency, "_model_issues", broken)
     report = asyncio.run(consistency.run_check(object(), "t"))
     kinds = sorted(i["kind"] for i in report["issues"])
     assert kinds == ["handover", "price", "required_detail"]
-    assert saved["fingerprint"]
+    assert saved["fingerprint"] and saved["suggestions_complete"] is False  # rechecked on next open
 
 
 def test_dismissed_issues_are_hidden():
     report = {"issues": [{"id": "a"}, {"id": "b"}], "dismissed": ["a"]}
     assert [i["id"] for i in consistency.visible(report)["issues"]] == ["b"]
+
+
+def test_report_missing_a_suggestion_is_checked_again(monkeypatch):
+    issue = {"id": "a", "where": "description", "quote": "x", "proposed": None, "editable": True}
+    monkeypatch.setattr(consistency, "load_report", lambda t: {"issues": [issue], "fingerprint": "f", "checked_at": "now"})
+    monkeypatch.setattr(consistency, "gather", lambda db, t: {})
+    monkeypatch.setattr(consistency, "fingerprint", lambda src: "f")
+    report = consistency.current_report(object(), "t")
+    assert report["stale"] is True and report["suggestions_complete"] is False

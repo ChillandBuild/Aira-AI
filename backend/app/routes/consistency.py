@@ -24,7 +24,9 @@ async def get_report(ctx: dict = Depends(require_read)):
 @router.post("/check")
 async def check_now(ctx: dict = Depends(require_manage)):
     report = await consistency.run_check(get_supabase(), ctx["tenant_id"])
-    return {"issues": report["issues"], "checked_at": report["checked_at"], "stale": False}
+    complete = report.get("suggestions_complete", True)
+    return {"issues": report["issues"], "checked_at": report["checked_at"], "stale": not complete,
+            "suggestions_complete": complete}
 
 
 @router.post("/issues/{issue_id}/fix")

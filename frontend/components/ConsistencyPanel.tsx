@@ -24,6 +24,7 @@ interface Report {
   issues: Issue[];
   checked_at: string | null;
   stale: boolean;
+  suggestions_complete?: boolean;
 }
 
 const BASE = `${API_URL}/api/v1/consistency`;
@@ -112,12 +113,17 @@ function IssueCard({
 
       <p className="font-body text-xs italic text-ink-muted">&ldquo;{issue.quote}&rdquo;</p>
 
-      {issue.proposed !== null && (
+      {issue.proposed !== null ? (
         <p className="font-body text-xs text-ink-secondary">
           <span className="font-semibold text-ink">Suggested: </span>
           {issue.proposed === "" ? "remove this line" : issue.proposed}
         </p>
-      )}
+      ) : issue.editable ? (
+        <p className="font-body text-xs text-ink-muted">
+          Aira hasn&rsquo;t written a fix for this one yet. It tries again each time you open this
+          page, or press Check again. You can also edit it yourself.
+        </p>
+      ) : null}
 
       {editing && (
         <div className="space-y-2 pt-1">
