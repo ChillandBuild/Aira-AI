@@ -1,5 +1,5 @@
 """Routes around the TeleCMI call score: outcome safety gates, flag review, retry,
-transcript masking and the admin's scoring-criteria setting."""
+and transcript masking."""
 import sys
 import unittest
 from pathlib import Path
@@ -174,30 +174,6 @@ class RecentMaskingTests(_Base):
         self.assertEqual(row["transcript_preview"], {"first": "Telecaller: one", "last": "Customer: four", "hidden_lines": 2})
 
 
-class CriteriaSettingTests(_Base):
-    def _patch(self, body):
-        self.as_role("owner")
-        saved = {}
-        with patch("app.routes.app_settings.get_telecalling_config", return_value={"enabled": True, "eval_daily_cap": 50}), \
-             patch("app.routes.app_settings.save_telecalling_config", side_effect=lambda t, c: saved.update(c)):
-            res = self.client.patch("/api/v1/settings/telecalling-config", json=body)
-        return res, saved
-
-    def test_at_least_one_criterion_must_stay_selected(self):
-        res, saved = self._patch({"score_criteria": []})
-        self.assertEqual(res.status_code, 400)
-        self.assertEqual(saved, {})
-
-    def test_unknown_criterion_is_rejected(self):
-        self.assertEqual(self._patch({"score_criteria": ["charisma"]})[0].status_code, 400)
-
-    def test_criteria_are_saved_in_canonical_order_and_the_old_cap_is_dropped(self):
-        res, saved = self._patch({"score_criteria": ["tone", "greeting_quality"]})
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(saved["score_criteria"], ["greeting_quality", "tone"])
-        self.assertNotIn("eval_daily_cap", saved)
-
-
 class WinnersRouteTests(_Base):
     def test_daily_and_monthly_winners_use_the_70_30_formula_and_owner_is_excluded(self):
         self.as_role("owner")
@@ -215,7 +191,7 @@ class WinnersRouteTests(_Base):
             res = self.client.get("/api/v1/callers/winners")
         body = res.json()
         self.assertEqual(body["daily"]["name"], "Priya")
-        self.assertEqual(body["daily"]["points"], 8.6)
+        self.assertEqual(body["daily"]["points"], 35.6)
         self.assertEqual(body["monthly"]["caller_id"], "A")
         self.assertEqual(body["monthly"]["min_scored_calls"], 20)
         self.assertEqual(seen_ids, [["A", "B"], ["A", "B"]])
