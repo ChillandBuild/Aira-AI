@@ -233,11 +233,11 @@ export default function TemplatesPage() {
       {/* Stats and Action Bar */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
         {[
-          { label: "Approved Templates", count: countApproved, color: "#10b981", bg: "bg-emerald-50/50", border: "border-emerald-100" },
-          { label: "Pending Review", count: countPending, color: "#f59e0b", bg: "bg-amber-50/50", border: "border-amber-100" },
-          { label: "Rejected / Paused", count: countRejected, color: "#ef4444", bg: "bg-red-50/50", border: "border-red-100" },
+          { label: "Approved Templates", count: countApproved, color: "#10b981", bg: "bg-emerald-50/50", border: "border-emerald-100", tone: "border-t-emerald-400" },
+          { label: "Pending Review", count: countPending, color: "#f59e0b", bg: "bg-amber-50/50", border: "border-amber-100", tone: "border-t-amber-400" },
+          { label: "Rejected / Paused", count: countRejected, color: "#ef4444", bg: "bg-red-50/50", border: "border-red-100", tone: "border-t-rose-400" },
         ].map((s) => (
-          <div key={s.label} className={`card flex items-center gap-3 rounded-2xl border p-4 shadow-sm ${s.border} ${s.bg} sm:gap-4`}>
+          <div key={s.label} className={`card flex items-center gap-3 rounded-2xl border border-t-4 p-4 shadow-sm ${s.border} ${s.tone} ${s.bg} sm:gap-4`}>
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-white text-lg font-bold sm:h-12 sm:w-12" style={{ color: s.color }}>
               {s.count}
             </div>
