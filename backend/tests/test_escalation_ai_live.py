@@ -62,22 +62,21 @@ MON_OPEN = datetime(2026, 7, 20, 6, 30, tzinfo=timezone.utc)
 MON_CLOSED = datetime(2026, 7, 20, 15, 0, tzinfo=timezone.utc)
 
 
-def test_prompt_block_marks_office_open_in_hours():
-    block = ai_reply._escalation_prompt_block(_bh(), now=MON_OPEN)
-    assert "currently OPEN" in block
-    assert "contact them shortly" in block
-    assert "Monday to Saturday" in block
+def test_prompt_block_gives_the_current_indian_time():
+    """Hours live in the Description; the AI gets the time to apply them (12:00 IST here)."""
+    block = ai_reply._escalation_prompt_block(now=MON_OPEN)
+    assert "Monday 20 July 2026, 12:00 PM IST" in block
+    assert "team hours in your description" in block
 
 
-def test_prompt_block_marks_office_closed_out_of_hours():
-    block = ai_reply._escalation_prompt_block(_bh(), now=MON_CLOSED)
-    assert "currently CLOSED" in block
-    assert "call them tomorrow" in block
-    assert "Monday to Saturday" in block
+def test_prompt_block_keeps_the_customer_in_this_chat():
+    block = ai_reply._escalation_prompt_block(now=MON_CLOSED)
+    assert "reply in this chat" in block
+    assert "call them" not in block and "through the app" not in block
 
 
 def test_prompt_block_forbids_specific_promises():
-    block = ai_reply._escalation_prompt_block(_bh(), now=MON_OPEN)
+    block = ai_reply._escalation_prompt_block(now=MON_OPEN)
     assert "Never promise a specific time" in block
     assert "Never claim someone has already called" in block
     assert "Never say the request was resolved" in block
@@ -85,5 +84,5 @@ def test_prompt_block_forbids_specific_promises():
 
 def test_prompt_block_tells_ai_to_keep_answering():
     """The AI must not become a one-note holding-reply bot."""
-    block = ai_reply._escalation_prompt_block(_bh(), now=MON_OPEN)
+    block = ai_reply._escalation_prompt_block(now=MON_OPEN)
     assert "keep answering their questions normally" in block

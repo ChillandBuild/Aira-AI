@@ -124,6 +124,29 @@ def unknown_prices(reply: str, config: dict, customer_message: str, extra_allowe
     return sorted(found - allowed - said)
 
 
+BUSINESS_DETAIL_FIELDS = ("gstin", "email", "phone", "address")
+_ASKS_FOR_DETAILS_RE = re.compile(
+    r"\b(gst\w*|invoice|bill|receipt|tax|address|location|where|office|visit|email|e-?mail|mail|"
+    r"phone|number|contact|call|company|registered|legal|enga|yenga)\b|முகவரி|எங்கே",
+    re.IGNORECASE,
+)
+
+
+def business_detail_values(details: dict) -> dict[str, str]:
+    """The identifying details a reply must not volunteer, by field."""
+    details = details or {}
+    return {k: str(details.get(k) or "").strip() for k in BUSINESS_DETAIL_FIELDS if str(details.get(k) or "").strip()}
+
+
+def volunteered_details(reply: str, values: dict[str, str], customer_message: str) -> list[str]:
+    """Business details in a reply the customer did not ask for (Business Details page is final;
+    Aira shares a detail only when asked)."""
+    if not values or _ASKS_FOR_DETAILS_RE.search(customer_message or ""):
+        return []
+    text = re.sub(r"\s+", "", (reply or "").lower())
+    return [k for k, v in values.items() if len(v) >= 6 and re.sub(r"\s+", "", v.lower()) in text]
+
+
 def business_facts_block(details: dict) -> str:
     """The business's own identity (Settings > Business details), so a lead asking for the
     GST number, the registered address or an invoice name gets the real answer, not a
@@ -147,7 +170,13 @@ def business_facts_block(details: dict) -> str:
         if details.get("prices_include_gst", True)
         else "Listed prices exclude GST; a quote adds GST on top, so its total can be higher than the listed price."
     )
-    return "\n\nBUSINESS DETAILS (official, share when asked):\n" + "\n".join(lines) + f"\n{gst}"
+    return (
+        "\n\nBUSINESS DETAILS (official and final; they override anything your description or "
+        "knowledge says about them):\n" + "\n".join(lines) + f"\n{gst}\n"
+        "Share one of these only when the customer asks for it (an invoice, the GST number, the "
+        "company name, the address, an email or a phone number), and then only that one. Never "
+        "volunteer them."
+    )
 
 
 _ORDER_STAGE_TEXT = {

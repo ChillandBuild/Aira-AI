@@ -130,7 +130,7 @@ def _nudge_patches(link, line="Your answer is ready."):
         patch.object(ik, "gather_context", new=AsyncMock(return_value=([], ""))),
         patch.object(ik, "collector_identity", return_value=""),
         patch.object(ik, "compose_line", new=AsyncMock(return_value=line)),
-        patch("app.config_dynamic.get_setting", return_value=link),
+        patch("app.services.ai_reply.business_app_link", return_value=link or ""),
     ]
 
 

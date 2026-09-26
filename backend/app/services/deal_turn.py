@@ -118,7 +118,17 @@ def build_context(
         offerings_enabled=channel == "whatsapp" and deal_engine.is_enabled(config),
         known_prices=_known_prices(db, tenant_id, lead_id),
         buttons_enabled=channel == "whatsapp",
+        business_details=_business_details(db, tenant_id),
     )
+
+
+def _business_details(db, tenant_id: str) -> dict:
+    try:
+        from app.services.business_details import get_business_details
+        return deal_engine.business_detail_values(get_business_details(tenant_id, db))
+    except Exception:
+        logger.warning("Business details read failed for tenant %s", tenant_id)
+        return {}
 
 
 def pre_turn_guards(ctx: deal_actions.DealContext, message: str) -> bool:
@@ -280,6 +290,17 @@ def _asked_again(messages: list[dict], handover_line: str) -> bool:
         return False
     answer = assistants[-1]
     return bool(_NO_ANSWER_RE.search(answer)) or _said_handover_line(answer, handover_line)
+
+
+_DETAIL_NAMES = {"gstin": "GST number", "email": "email address", "phone": "phone number", "address": "address"}
+
+
+def _business_detail_refusals(text: str, ctx: deal_actions.DealContext, customer_message: str) -> tuple[str, ...]:
+    shared = deal_engine.volunteered_details(text, ctx.business_details, customer_message)
+    if not shared:
+        return ()
+    names = ", ".join(_DETAIL_NAMES[k] for k in shared)
+    return (f"Do not share the business's {names}: the customer did not ask for it. Leave it out.",)
 
 
 def _team_answer_refusals(text: str) -> tuple[str, ...]:
@@ -495,6 +516,7 @@ async def converse_once(
             *_repeated_line_refusals(draft, handover_line, line_said_before),
             *_payment_url_refusals(removed_url, attached),
             *_team_answer_refusals(draft),
+            *_business_detail_refusals(draft, ctx, customer_message),
         )
         if draft and not refusals:
             break

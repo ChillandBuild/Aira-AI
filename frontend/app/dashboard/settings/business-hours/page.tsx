@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 
-// Moved into the Knowledge page, next to the handover line — kept as a
-// redirect so any bookmarked or hardcoded link still lands somewhere useful.
+// Business hours now live in the Description (one place, nothing to contradict).
 export default function BusinessHoursRedirect() {
-  redirect("/dashboard/knowledge?tab=description#business-hours");
+  redirect("/dashboard/knowledge?tab=description");
 }

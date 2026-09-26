@@ -6,7 +6,7 @@ import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
-  BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package,
+  BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package, ShoppingBag,
   ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, HandCoins,
   Settings,
 } from "lucide-react";
@@ -398,7 +398,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           <CollapsedNavItem
             href="/dashboard/catalog"
             active={pathname.startsWith("/dashboard/catalog")}
-            icon={Package}
+            icon={ShoppingBag}
             label="Products"
           />
         )}
@@ -695,7 +695,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           <MainNavItem
             href="/dashboard/catalog"
             active={pathname.startsWith("/dashboard/catalog")}
-            icon={Package}
+            icon={ShoppingBag}
             label="Products"
           />
         )}

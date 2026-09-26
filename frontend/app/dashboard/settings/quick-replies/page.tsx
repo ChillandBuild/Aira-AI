@@ -1,8 +1,7 @@
-"use client";
-import { useSettingsForm } from "../SettingsFormContext";
-import { QuickRepliesPanel } from "../QuickRepliesPanel";
+import { redirect } from "next/navigation";
 
-export default function QuickRepliesSettingsPage() {
-  const { canManageSettings } = useSettingsForm();
-  return <QuickRepliesPanel canManage={canManageSettings} />;
+// Saved quick replies were removed: Aira turns every choice it offers into buttons itself,
+// and a saved message could quote prices that disagree with the Services page.
+export default function QuickRepliesRedirect() {
+  redirect("/dashboard/services");
 }

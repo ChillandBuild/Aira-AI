@@ -311,3 +311,19 @@ class TestBlankMessage:
             assert deal_engine.is_blank_message(msg), msg
         for msg in ("hi", "ok", "49 Rs", "yes"):
             assert not deal_engine.is_blank_message(msg), msg
+
+
+class TestBusinessDetailGuard:
+    VALUES = {"gstin": "33ABCDE1234F1Z5", "phone": "98765 43210", "address": "22 GST Road, Tambaram"}
+
+    def test_volunteered_gst_number_is_caught(self):
+        assert deal_engine.volunteered_details("Sure! Our GSTIN is 33ABCDE1234F1Z5.", self.VALUES, "how much is it?") == ["gstin"]
+
+    def test_asked_for_detail_may_be_shared(self):
+        assert deal_engine.volunteered_details("Our GSTIN is 33ABCDE1234F1Z5.", self.VALUES, "send your GST number for my invoice") == []
+
+    def test_phone_found_even_with_different_spacing(self):
+        assert deal_engine.volunteered_details("Call 9876543210 anytime", self.VALUES, "ok") == ["phone"]
+
+    def test_values_keep_only_filled_identifying_fields(self):
+        assert deal_engine.business_detail_values({"gstin": "X1", "legal_name": "Shop", "email": ""}) == {"gstin": "X1"}

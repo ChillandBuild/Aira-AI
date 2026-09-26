@@ -1906,13 +1906,14 @@ async def _compose_reply_nudge(lead_id: str, tenant_id: str, phone: str, db) -> 
         brain_prompt=collector_identity(db, lead_id, tenant_id, ""),
     )
 
-    app_link = get_setting("app_download_link", tenant_id=tenant_id)
+    from app.services.ai_reply import business_app_link
+    app_link = business_app_link(tenant_id)
     if not app_link:
         # Still worth telling them an answer exists — but without the link they
         # have no way to reach it, so this is a configuration error, not a nudge.
         logger.error(
             f"Tenant {tenant_id} has no app_download_link: telling {phone} their answer "
-            f"is ready with no way to open it. Set it in Settings."
+            f"is ready with no way to open it. Add the app link to the Description."
         )
         return line
     return f"{line}\n{app_link}"

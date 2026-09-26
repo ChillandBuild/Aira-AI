@@ -4,7 +4,6 @@ import {
   Megaphone,
   MessageSquare,
   RadioTower,
-  Reply,
   Sparkles,
   UserCircle,
 } from "lucide-react";
@@ -25,7 +24,6 @@ export const SETTINGS_ITEMS: SettingsNavItem[] = [
   { href: "/dashboard/settings/account", icon: UserCircle, label: "Profile & Business", group: "Account" },
   { href: "/dashboard/settings/connect-channels", icon: RadioTower, label: "Connect Channels", group: "Channels" },
   { href: "/dashboard/settings/auto-reply", icon: Sparkles, label: "Auto-Reply", group: "Aira" },
-  { href: "/dashboard/settings/quick-replies", icon: Reply, label: "Quick Replies", group: "Aira" },
   { href: "/dashboard/settings/follow-ups", icon: Calendar, label: "Follow-Ups", group: "Aira" },
   { href: "/dashboard/settings/inbox", icon: MessageSquare, label: "Inbox & Handover", group: "Aira" },
   { href: "/dashboard/settings/telecalling-behavior", icon: Headset, label: "Telecalling Behavior", group: "Calling" },

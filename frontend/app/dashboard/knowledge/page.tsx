@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search, Plus, Trash2, XCircle,
   Upload, FileText, Loader2, AlertCircle,
-  Save, Eye, Download, X, Link as LinkIcon,
+  Save, Eye, Download, X,
   HardDrive, Check, Copy,
   Sparkles, LayoutGrid, List,
   FileSpreadsheet, FileCode, Image as ImageIcon,
@@ -19,7 +19,6 @@ import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SwitchPill } from "@/components/ui/controls";
-import { BusinessHoursPanel } from "../settings/BusinessHoursPanel";
 import { ConsistencyPanel } from "@/components/ConsistencyPanel";
 import KnowledgeReviewModal from "./KnowledgeReviewModal";
 import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
@@ -334,9 +333,6 @@ export default function KnowledgePage() {
   // Product Description & AI Tuning (savedDescription is used in Documents tab status row)
   const [savedDescription, setSavedDescription] = useState<string>("");
 
-  const [appLink, setAppLink] = useState<string>("");
-  const [savedAppLink, setSavedAppLink] = useState<string>("");
-  const [appLinkSaving, setAppLinkSaving] = useState(false);
 
   const [scoringRubric, setScoringRubric] = useState<string>("");
   const [savedRubric, setSavedRubric] = useState<string>("");
@@ -410,7 +406,7 @@ export default function KnowledgePage() {
       .then(setCampaignTags)
       .catch(() => {});
     // Both tabs need these: Description renders them, Documents gates uploading on them.
-    Promise.all([loadDescription(), loadAppLink(), loadAiTuneSettings()]).finally(() =>
+    Promise.all([loadDescription(), loadAiTuneSettings()]).finally(() =>
       setSetupLoaded(true)
     );
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -525,14 +521,6 @@ export default function KnowledgePage() {
     try {
       const d = await api.aiTune.description();
       setSavedDescription(d);
-    } catch {}
-  }
-
-  async function loadAppLink() {
-    try {
-      const l = await api.aiTune.appLink();
-      setAppLink(l);
-      setSavedAppLink(l);
     } catch {}
   }
 
@@ -825,19 +813,6 @@ export default function KnowledgePage() {
   }
 
   // ─── AI Tuning Handlers ───────────────────────────────────────────────────
-
-  async function saveAppLink() {
-    setAppLinkSaving(true);
-    try {
-      await api.aiTune.updateAppLink(appLink);
-      setSavedAppLink(appLink);
-      toast.success("App link saved.");
-    } catch {
-      toast.error("Failed to save app link. Please try again.");
-    } finally {
-      setAppLinkSaving(false);
-    }
-  }
 
   async function saveRubric() {
     setRubricSaving(true);
@@ -1692,37 +1667,6 @@ export default function KnowledgePage() {
             }}
           />
 
-          {/* App / Download Link */}
-          <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
-            <div>
-              <h2 className="font-display text-lg font-bold text-primary flex items-center gap-2">
-                <LinkIcon size={18} /> Canonical App or Booking Link
-              </h2>
-              <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                Provide your official app download URL, booking page, or website link. When leads ask for your app or booking page, the AI will provide this exact link without hallucinating alternatives.
-              </p>
-            </div>
-
-            <input
-              type="url"
-              value={appLink}
-              onChange={(e) => setAppLink(e.target.value)}
-              disabled={!canManageKnowledge}
-              placeholder="https://yourapp.com/download or https://cal.com/yourbusiness"
-              className="w-full px-4 py-3 rounded-xl bg-surface-low border border-surface-mid font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
-            />
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={saveAppLink}
-                disabled={appLinkSaving || appLink === savedAppLink || !canManageKnowledge}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
-              >
-                <Save size={14} /> {appLinkSaving ? "Saving…" : "Save Link"}
-              </button>
-            </div>
-          </div>
-
           {/* Handover line */}
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
             <div>
@@ -1753,11 +1697,6 @@ export default function KnowledgePage() {
                 <Save size={14} /> {handoverSaving ? "Saving…" : "Save"}
               </button>
             </div>
-          </div>
-
-          {/* Business hours — anchor target for /dashboard/settings/business-hours's redirect */}
-          <div id="business-hours">
-            <BusinessHoursPanel canManage={canManageKnowledge} />
           </div>
 
           {/* Scoring Rubric */}

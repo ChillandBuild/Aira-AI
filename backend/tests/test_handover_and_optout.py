@@ -35,19 +35,15 @@ def test_base_prompt_routes_missing_link_to_handover_rule():
 
 
 def test_escalation_block_with_client_line_never_promises_contact():
-    block = ai_reply._escalation_prompt_block({}, handover_line=LINE)
+    block = ai_reply._escalation_prompt_block(handover_line=LINE)
     assert LINE in block
     assert "will follow up" not in block
     assert "will contact" not in block
 
 
-def test_escalation_block_without_line_keeps_team_follow_up():
-    bh = {"enabled": False}
-    with patch("app.services.business_hours.is_within_business_hours", return_value=True), \
-         patch("app.services.business_hours.describe_hours", return_value="9-5"), \
-         patch("app.services.business_hours.next_open_description", return_value="tomorrow"):
-        block = ai_reply._escalation_prompt_block(bh)
-    assert "will follow up" in block
+def test_escalation_block_without_line_says_the_team_replies_here():
+    block = ai_reply._escalation_prompt_block()
+    assert "will reply here" in block and "Never promise a specific time" in block
 
 
 def test_fallback_is_capped():

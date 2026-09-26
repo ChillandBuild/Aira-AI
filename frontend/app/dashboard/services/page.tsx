@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Package, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { CheckField } from "@/components/ui/controls";
+import { SwitchPill } from "@/components/ui/controls";
 import { ConsistencyPanel } from "@/components/ConsistencyPanel";
 import { useSettingsForm } from "../settings/SettingsFormContext";
-import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "../settings/SettingsSection";
+import { SaveButton, SaveStatus } from "../settings/SettingsSection";
 import { slugify } from "../settings/slugify";
 import { PackageEditor, type IntakePackage } from "./PackageEditor";
 
@@ -126,109 +126,116 @@ export default function ServicesPage() {
     setDraft({ ...draft, fields: draft.fields.filter((_, i) => i !== index) });
   }
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-ink sm:text-3xl">Services</h1>
-        <p className="mt-2 max-w-2xl font-body text-sm text-ink-muted">
-          What you sell in chat: packages, prices, and the details Aira collects before sending
-          the payment link. For physical goods, use Products.
-        </p>
-      </div>
+  const summary = sellingSummary(draft);
 
+  return (
+    <div className="mx-auto w-full max-w-5xl pb-28">
       <ConsistencyPanel />
 
-      <SettingsSection
-        id="what-aira-sells"
-        icon={Package}
-        accent="violet"
-        title="Selling in chat"
-        description="Switch it on, add your packages, and choose the details Aira collects before it sends the payment link."
-        status={{ label: draft.enabled ? "Selling live" : "Off", tone: draft.enabled ? "on" : "off" }}
-        dirty={isDirty}
-      >
-        <div className="space-y-6">
-          <div className="rounded-xl border border-primary/15 bg-primary-light/40 p-3.5">
-            <p className="font-body text-xs leading-relaxed text-ink-secondary">
-              Aira shows the active packages below as tappable buttons the moment a customer is
-              ready to buy, and answers any questions they ask in between. It collects the
-              details you list here in whatever order the conversation goes — no fixed script —
-              and only sends the Razorpay payment link once every detail is in. Prices charged
-              are taken exactly from the amounts set below.
-            </p>
+      <section aria-labelledby="sell-heading" className="mt-6 flex flex-wrap items-start justify-between gap-x-8 gap-y-4 rounded-2xl bg-surface px-5 py-5 shadow-[0_1px_0_rgba(28,25,23,0.04)] ring-1 ring-surface-mid sm:px-6">
+        <div className="min-w-0 max-w-2xl space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 id="sell-heading" className="font-display text-lg font-bold text-ink">Sell in chat</h2>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-label text-[11px] font-semibold uppercase tracking-wider ${
+                draft.enabled ? "bg-emerald-50 text-emerald-700" : "bg-surface-mid text-ink-secondary"
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${draft.enabled ? "bg-emerald-500" : "bg-ink-muted"}`} aria-hidden />
+              {draft.enabled ? "Live" : "Off"}
+            </span>
           </div>
-
-          <CheckField
-            checked={draft.enabled}
+          <p className="font-body text-sm leading-relaxed text-ink-secondary">
+            Aira offers your packages as buttons, answers questions in between, collects the details
+            below in any order, and sends the Razorpay link once every detail is in. Prices come only
+            from this page.
+          </p>
+          <p className="font-body text-xs text-ink-muted tabular-nums">{summary}</p>
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <span className="font-label text-sm font-medium text-ink-secondary">{draft.enabled ? "On" : "Off"}</span>
+          <SwitchPill
+            on={draft.enabled}
             disabled={!canManageSettings}
             onChange={(v) => setDraft({ ...draft, enabled: v })}
-            label="Let Aira sell these in chat"
-            description="Off by default. Turn on once at least one package below is active."
+            aria-label="Let Aira sell these in chat"
           />
+        </div>
+      </section>
 
-          <div>
-            <div className="font-label text-sm font-semibold text-ink mb-1">Packages</div>
-            <p className="font-body text-xs text-ink-muted mb-2">
-              Aira offers these when the customer shows interest and quotes these exact prices. A
-              package can contain sub-options nested to any depth, and a leaf package can offer
-              optional addons.
-            </p>
-            <PackageEditor
-              packages={draft.packages}
-              onChange={(packages) => setDraft({ ...draft, packages })}
-              canManage={canManageSettings}
-            />
-          </div>
+      <Row
+        title="Packages"
+        help="What Aira offers, at exactly these prices. Group options under one package (Long Term: 1 Year, 2 Year) and add optional add-ons to any package."
+      >
+        <PackageEditor
+          packages={draft.packages}
+          onChange={(packages) => setDraft({ ...draft, packages })}
+          canManage={canManageSettings}
+        />
+      </Row>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="font-label text-sm font-semibold text-ink">Details to collect before payment</div>
-              {canManageSettings && (
-                <button
-                  type="button"
-                  onClick={addField}
-                  className="inline-flex items-center gap-1 text-xs font-label font-semibold text-primary-600 hover:text-primary-700"
-                >
-                  <Plus size={14} /> Add field
-                </button>
-              )}
-            </div>
-            <p className="font-body text-xs text-ink-muted mb-3">
-              Collected in free-flowing conversation, in any order — no fixed script. Applies to
-              every package, and the payment link is only sent once all of these are filled in.
-            </p>
-            <div className="space-y-2">
-              {draft.fields.map((field, index) => (
-                <div key={index} className="space-y-2 p-3 rounded-xl border border-border bg-surface-subtle">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Label (e.g. Date of birth)"
-                      value={field.label}
-                      onChange={(e) => updateField(index, { label: e.target.value, key: slugify(e.target.value) })}
-                      disabled={!canManageSettings}
-                      className="flex-1 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
-                    />
-                    <select
-                      value={field.type}
-                      onChange={(e) => updateField(index, { type: e.target.value as FieldType })}
-                      disabled={!canManageSettings}
-                      className="px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+      <Row
+        title="Details to collect"
+        help="Asked naturally in the chat, in any order. The payment link goes out only when all of them are in. Applies to every package."
+        action={
+          canManageSettings ? (
+            <button
+              type="button"
+              onClick={addField}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-label text-xs font-semibold text-primary-600 hover:bg-primary-light/60 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+            >
+              <Plus size={14} /> Add detail
+            </button>
+          ) : null
+        }
+      >
+        {draft.fields.length === 0 ? (
+          <p className="font-body text-sm text-ink-muted">
+            None. Aira sends the payment link as soon as the customer picks a package.
+          </p>
+        ) : (
+          <ol className="divide-y divide-surface-mid rounded-xl ring-1 ring-surface-mid">
+            {draft.fields.map((field, index) => (
+              <li key={index} className="space-y-2 bg-surface px-3 py-3 first:rounded-t-xl last:rounded-b-xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-5 shrink-0 text-center font-label text-xs font-semibold text-ink-muted tabular-nums">{index + 1}</span>
+                  <input
+                    type="text"
+                    aria-label={`Detail ${index + 1} name`}
+                    placeholder="e.g. Date of birth"
+                    value={field.label}
+                    onChange={(e) => updateField(index, { label: e.target.value, key: slugify(e.target.value) })}
+                    disabled={!canManageSettings}
+                    className="min-w-0 flex-1 rounded-lg border border-transparent bg-surface-low px-3 py-1.5 font-body text-sm text-ink focus:border-primary/40 focus:bg-white focus:outline-none"
+                  />
+                  <select
+                    aria-label={`Detail ${index + 1} type`}
+                    value={field.type}
+                    onChange={(e) => updateField(index, { type: e.target.value as FieldType })}
+                    disabled={!canManageSettings}
+                    className="rounded-lg border border-transparent bg-surface-low px-2.5 py-1.5 font-body text-sm text-ink focus:border-primary/40 focus:outline-none"
+                  >
+                    <option value="text">Text</option>
+                    <option value="date">Date</option>
+                    <option value="choice">Choice</option>
+                  </select>
+                  {canManageSettings && (
+                    <button
+                      type="button"
+                      aria-label={`Remove detail ${index + 1}`}
+                      onClick={() => removeField(index)}
+                      className="rounded-lg p-1.5 text-ink-muted hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                     >
-                      <option value="text">Text</option>
-                      <option value="date">Date</option>
-                      <option value="choice">Choice</option>
-                    </select>
-                    {canManageSettings && (
-                      <button type="button" onClick={() => removeField(index)} className="text-ink-muted hover:text-red-600">
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
-                  {field.type === "choice" && (
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+                </div>
+                {field.type === "choice" && (
+                  <div className="pl-7">
                     <input
                       type="text"
-                      placeholder="Options, comma separated (e.g. Yes, No, Not sure)"
+                      aria-label={`Detail ${index + 1} options`}
+                      placeholder="Options, comma separated: Morning, Afternoon, Evening"
                       value={(field.options ?? []).join(", ")}
                       onChange={(e) =>
                         updateField(index, {
@@ -236,55 +243,90 @@ export default function ServicesPage() {
                         })
                       }
                       disabled={!canManageSettings}
-                      className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
+                      className="w-full rounded-lg border border-transparent bg-surface-low px-3 py-1.5 font-body text-sm text-ink focus:border-primary/40 focus:bg-white focus:outline-none"
                     />
-                  )}
-                </div>
-              ))}
-              {draft.fields.length === 0 && (
-                <p className="font-body text-xs text-ink-muted italic">No details needed — Aira sends the payment link as soon as the customer chooses a package.</p>
-              )}
-            </div>
-          </div>
+                    <p className="mt-1 font-body text-[11px] text-ink-muted">Aira shows these as buttons when it asks.</p>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </Row>
 
-          <div className="space-y-1">
-            <div className="font-label text-sm font-semibold text-ink">What you call it</div>
-            <p className="font-body text-xs text-ink-muted">
-              The word used in messages the customer receives — the payment receipt, the Razorpay
-              description, and how the assistant refers to it. Example: consultation, reading, session.
-            </p>
-            <input
-              type="text"
-              value={draft.service_noun}
-              onChange={(e) => setDraft({ ...draft, service_noun: e.target.value })}
-              disabled={!canManageSettings}
-              className="w-full px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
-            />
-          </div>
-        </div>
+      <Row
+        title="What you call it"
+        help="The word Aira and the payment receipt use for what you sell: consultation, reading, session, class."
+      >
+        <input
+          type="text"
+          aria-label="What you call it"
+          value={draft.service_noun}
+          onChange={(e) => setDraft({ ...draft, service_noun: e.target.value })}
+          disabled={!canManageSettings}
+          className="w-full max-w-sm rounded-lg border border-surface-mid bg-surface px-3 py-2 font-body text-sm text-ink focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/15"
+        />
+      </Row>
 
-        <SectionFooter
-          status={
-            loadFailed || saveError ? (
-              <span className="font-body text-[11px] font-semibold text-red-600">
-                {loadFailed ? "Couldn't load settings — reload the page before editing." : saveError}
-              </span>
-            ) : (
-              <SaveStatus
-                state={saveState}
-                dirty={isDirty}
-                idleLabel={
-                  draft.enabled
-                    ? `Selling ${draft.packages.length} package${draft.packages.length === 1 ? "" : "s"}`
-                    : "Off"
-                }
-              />
-            )
-          }
-        >
+      <div className="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-surface-mid bg-surface-low/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-surface-low/80 sm:mx-0 sm:rounded-2xl sm:border sm:px-5" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>
+        <div className="flex flex-wrap items-center justify-between gap-3" aria-live="polite">
+          {loadFailed || saveError ? (
+            <span className="font-body text-xs font-semibold text-red-600">
+              {loadFailed ? "Couldn't load your services. Reload the page before editing." : saveError}
+            </span>
+          ) : (
+            <SaveStatus state={saveState} dirty={isDirty} idleLabel={isDirty ? "Unsaved changes" : "All changes saved"} />
+          )}
           <SaveButton state={saveState} dirty={isDirty} disabled={!canManageSettings || !loaded} onClick={handleSave} />
-        </SectionFooter>
-      </SettingsSection>
+        </div>
+      </div>
     </div>
   );
+}
+
+function Row({
+  title,
+  help,
+  action,
+  children,
+}: {
+  title: string;
+  help: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="grid gap-4 border-b border-surface-mid py-8 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:gap-10">
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2 md:block">
+          <h2 className="font-display text-base font-bold text-ink">{title}</h2>
+          {action && <div className="md:mt-2 md:-ml-2">{action}</div>}
+        </div>
+        <p className="font-body text-xs leading-relaxed text-ink-secondary">{help}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </section>
+  );
+}
+
+function leafPrices(packages: IntakePackage[]): number[] {
+  return packages
+    .filter((p) => p.active !== false)
+    .flatMap((p) => (p.options && p.options.length ? leafPrices(p.options) : [p.amount_paise]))
+    .filter((v) => v > 0);
+}
+
+function rupees(paise: number): string {
+  return `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function sellingSummary(config: SellConfig): string {
+  const prices = leafPrices(config.packages);
+  const count = prices.length;
+  const range =
+    count === 0 ? "no prices yet" : Math.min(...prices) === Math.max(...prices)
+      ? rupees(prices[0])
+      : `${rupees(Math.min(...prices))} – ${rupees(Math.max(...prices))}`;
+  const details = config.fields.length;
+  return `${count} package${count === 1 ? "" : "s"} · ${range} · ${details} detail${details === 1 ? "" : "s"} before payment`;
 }

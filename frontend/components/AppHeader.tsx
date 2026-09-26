@@ -18,7 +18,6 @@ const SETTINGS_ROUTE_LABELS: Record<string, string> = {
   inbox: "Inbox & Handover",
   "telecalling-behavior": "Telecalling Behavior",
   notifications: "Notifications",
-  "quick-replies": "Quick Replies",
 };
 
 // Define a map of exact path matches and dynamic route prefixes

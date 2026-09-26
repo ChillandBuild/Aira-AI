@@ -28,10 +28,6 @@ class DescriptionUpdate(BaseModel):
     description: str
 
 
-class AppLinkUpdate(BaseModel):
-    app_link: str
-
-
 # The profile is capped at 700 words (~4,500 chars, more in Tamil script). The prompt used
 # to read only the first 1,500 chars, so a full profile's later sections -- how customers
 # buy, the business rules, never-do's -- never reached the rubric. 12,000 leaves room
@@ -155,19 +151,6 @@ async def update_description(
     save_description(get_supabase(), tenant_id, description, "edit", ctx.get("user_id"))
     rubric_queued = queue_rubric_for_description(tenant_id, description)
     return {"description": description, "rubric_queued": rubric_queued}
-
-
-@router.get("/app-link")
-async def get_app_link(tenant_id: str = Depends(get_tenant_id)):
-    return {"app_link": get_setting("app_download_link", tenant_id=tenant_id) or ""}
-
-
-@router.put("/app-link")
-async def update_app_link(payload: AppLinkUpdate, tenant_id: str = Depends(get_tenant_id)):
-    app_link = payload.app_link.strip()
-    save_setting("app_download_link", app_link, tenant_id=tenant_id)
-    invalidate_cache("app_download_link")
-    return {"app_link": app_link}
 
 
 # ─── Business Profile endpoints ────────────────────────────────────────────

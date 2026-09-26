@@ -315,14 +315,6 @@ def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
     if description:
         prompt += "\n\nBUSINESS DESCRIPTION:\n" + description
 
-    app_link = (get_setting("app_download_link", tenant_id=tenant_id) or "").strip()
-    if app_link:
-        prompt += (
-            f"\n\nAPP LINK (reference only): {app_link}\n"
-            "This is not a standing instruction to share it. Share it only where the "
-            "rules above already call for sharing the app or a download/consultation "
-            "link -- if you need one, use this exact URL instead of inventing one."
-        )
     prompt += _handover_rule_block(tenant_id)
     prompt += (
         "\n\nNEVER write a placeholder like \"[Insert Link Here]\" or \"[link]\" in a reply. "
@@ -330,6 +322,17 @@ def _build_base_prompt(channel: str, tenant_id: str | None) -> str:
     )
 
     return prompt
+
+
+_URL_IN_TEXT_RE = re.compile(r"https?://[^\s)>\]\"']+")
+
+
+def business_app_link(tenant_id: str | None) -> str:
+    """The business's app or booking link: the first link written in its Description. The
+    Description is the one place for it (a separate app-link field could disagree with it)."""
+    description = get_setting("business_description", tenant_id=tenant_id) or ""
+    found = _URL_IN_TEXT_RE.search(description)
+    return found.group(0).rstrip(".,;:!?") if found else ""
 
 
 def _handover_line(tenant_id: str | None) -> str:
@@ -1164,52 +1167,28 @@ def _trigger_chat_escalation(
         logger.exception("Escalation WhatsApp queue failed for lead %s", lead_id)
 
 
-def _escalation_prompt_block(bh: dict, now=None, handover_line: str = "") -> str:
-    """System-prompt section telling the AI this lead is already escalated and
-    how to answer while they wait, based on whether the office is open.
+def _escalation_prompt_block(handover_line: str = "", now=None) -> str:
+    """System-prompt section for a lead already waiting on a person: the team was alerted in
+    the Inbox and replies in this chat. The team's hours, if the business states them, are in
+    its Description; the current time is given so the AI can apply them."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
 
-    With a client handover line, the AI repeats that line instead of promising a
-    callback: the client decided how people get help, not this block."""
-    if handover_line:
-        return (
-            "\n\nESCALATION CONTEXT:\n"
-            "This customer has already asked for help beyond what you can answer. If they "
-            "ask for a person, ask about their request, or say nobody has helped them yet, "
-            f"tell them this in their language: \"{handover_line}\".\n"
-            "Rules:\n"
-            "- Never promise a callback, a time, or a named person.\n"
-            "- Never claim someone has already called or messaged them.\n"
-            "- Never say the request was resolved.\n"
-            "- Otherwise keep answering their questions normally and helpfully.\n"
-        )
-    from app.services.business_hours import (
-        is_within_business_hours, describe_hours, next_open_description,
+    now = (now or datetime.now(ZoneInfo("Asia/Kolkata"))).astimezone(ZoneInfo("Asia/Kolkata"))
+    when = now.strftime("%A %d %B %Y, %I:%M %p IST")
+    wording = (
+        f"use this business's own words, in their language, once: \"{handover_line}\". "
+        if handover_line else "say the team has their request and will reply here. "
     )
-
-    is_open = is_within_business_hours(bh, now=now)
-    status = "OPEN" if is_open else "CLOSED"
-    if is_open:
-        guidance = (
-            "Reassure them that the team has their request and will "
-            "contact them shortly. You may also mention they can self-serve "
-            "through the app in the meantime if that would help them sooner."
-        )
-    else:
-        guidance = (
-            f"Tell them the team will call them {next_open_description(bh, now=now)}, "
-            "and state the office hours. You may also mention they can self-serve "
-            "through the app right now instead of waiting, if that would help them sooner."
-        )
-
     return (
         "\n\nESCALATION CONTEXT:\n"
-        "This customer has already been escalated to the human team. A team member "
-        f"has been notified and will follow up. The office is currently {status}. "
-        f"Our office hours are {describe_hours(bh)}.\n"
-        "If the customer asks to speak to a person, asks about their request, or says "
-        f"nobody has contacted them yet: {guidance}\n"
+        "This customer is waiting for a person on this team, who has been alerted and will "
+        f"reply in this chat. It is now {when}. If they ask for a person, ask about their "
+        f"request, or say nobody has helped them yet, {wording}If they ask when, answer from "
+        "the team hours in your description if it gives them; otherwise say the team will reply "
+        "as soon as they can.\n"
         "Rules:\n"
-        "- Never promise a specific time, a named person, or a callback within N minutes.\n"
+        "- Never promise a specific time, a named person, a call or a callback.\n"
         "- Never claim someone has already called or messaged them.\n"
         "- Never say the request was resolved.\n"
         "- Otherwise keep answering their questions normally and helpfully.\n"
@@ -1651,7 +1630,7 @@ def build_reply_system_prompt(
                     from app.config_dynamic import get_setting
                     system_prompt += _intake_paid_prompt_block(
                         intake_config["service_noun"],
-                        answer_in_app=bool(get_setting("app_download_link", tenant_id=tenant_id)),
+                        answer_in_app=bool(business_app_link(tenant_id)),
                     )
                 intake_active = status == "paid" or status in _IN_PROGRESS_STATUSES
             elif intake_config.get("enabled"):
@@ -1659,7 +1638,7 @@ def build_reply_system_prompt(
                     from app.config_dynamic import get_setting
                     system_prompt += _intake_paid_prompt_block(
                         intake_config["service_noun"],
-                        answer_in_app=bool(get_setting("app_download_link", tenant_id=tenant_id)),
+                        answer_in_app=bool(business_app_link(tenant_id)),
                     )
                     intake_active = True
                 elif get_in_progress_session(lead_id, tenant_id, db=db):
@@ -1683,11 +1662,7 @@ def build_reply_system_prompt(
     # when intake already added its own holding message this turn.
     if lead_data.get("needs_human_attention") and not intake_active:
         try:
-            from app.services.business_hours import get_business_hours
-            system_prompt += _escalation_prompt_block(
-                get_business_hours(tenant_id, db=db),
-                handover_line=_handover_line(tenant_id),
-            )
+            system_prompt += _escalation_prompt_block(handover_line=_handover_line(tenant_id))
         except Exception:
             logger.exception(
                 "Escalation prompt block failed for lead %s — replying without it",
@@ -1874,24 +1849,10 @@ async def generate_reply(
         catalog_context = ""
         logger.warning(f"Catalog context build failed for tenant {tenant_id}")
 
-    # Client-authored button blocks. Loaded before the intake guard below, which may
-    # drop the tool again -- see should_offer_quick_replies for why the tool has to be
-    # removed rather than merely discouraged in the prompt.
-    quick_reply_blocks: list[dict] = []
-    quick_reply_tool: list[dict] = []
-    try:
-        from app.services.quick_replies import build_quick_reply_tool, load_active_blocks
-        if channel == "whatsapp":
-            quick_reply_blocks = load_active_blocks(db, tenant_id)
-            quick_reply_tool = build_quick_reply_tool(quick_reply_blocks)
-    except Exception:
-        logger.warning(f"Quick reply tool build failed for tenant {tenant_id}")
-
     # Bound out here, not inside the try below: that block's except does not return,
     # it falls through to the channel dispatch, which reads both of these. A variable
     # only assigned inside the try raises NameError on any LLM failure -- turning a
     # recoverable error into a lost reply. (catalog_images_to_send had this bug.)
-    chosen_block: dict | None = None
     catalog_images_to_send: list[tuple[str, bytes]] = []  # (filename, image_bytes)
 
     # Every reply runs through one guarded loop (services/deal_turn.py): package selling on
@@ -1930,16 +1891,6 @@ async def generate_reply(
             # only a package/addon key is a tapped offering.
             tapped_option_key=None if _is_choice_tap(interactive_id) else interactive_id,
         )
-        # Product tools stay available mid-consultation: a lead can ask about a product at
-        # any point, and the prompt plus the executors (deal_actions) keep that safe.
-        # Quick reply blocks are different: a lead mid-payment must not be handed an
-        # unrelated button menu, and the only reliable way to stop that is to remove the tool.
-        from app.services.quick_replies import should_offer_quick_replies
-        if not should_offer_quick_replies(
-            channel, intake_active, quick_reply_blocks, recent_thread
-        ):
-            quick_reply_tool = []
-
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]
         for row in reversed(recent_thread):  # oldest first
@@ -1961,43 +1912,10 @@ async def generate_reply(
         # The payment link and any product quote are appended below, after the
         # script-mismatch rewrite, so a translation pass can never touch a URL or a price.
         reply_text, tool_calls, deal_outcome = await deal_turn.converse_once(
-            chat_messages, catalog_tools + quick_reply_tool, deal_ctx, tenant_id=tenant_id,
+            chat_messages, catalog_tools, deal_ctx, tenant_id=tenant_id,
             append_link=False, handover_opened=payment_guard_fired,
             handover_line=_handover_line(tenant_id),
         )
-        # Resolved here, applied after reply_source is assigned below. A block
-        # wins over a catalog recommendation: sending both gives the lead a
-        # product photo and an unrelated button menu for one question.
-        from app.services.quick_replies import QUICK_REPLY_TOOL_NAME, resolve_block
-        for tc in tool_calls:
-            func = tc.get("function") or {}
-            if func.get("name") != QUICK_REPLY_TOOL_NAME:
-                continue
-            try:
-                args = json.loads(func.get("arguments") or "{}")
-            except (ValueError, TypeError):
-                continue
-            chosen_block = resolve_block(quick_reply_blocks, args.get("block_name"))
-            if chosen_block:
-                logger.info(
-                    "Quick reply block selected: lead %s -> %s", lead_id, chosen_block["name"]
-                )
-            else:
-                logger.warning(
-                    "Model asked for unknown quick reply block %r for lead %s; "
-                    "replying normally", args.get("block_name"), lead_id,
-                )
-            break
-
-        # Diagnostic for "why didn't my buttons show?" -- the one question a
-        # client will ask that logs must be able to answer. INFO, not WARNING:
-        # not calling the tool is usually correct.
-        if quick_reply_tool and not chosen_block:
-            logger.info(
-                "Quick reply blocks offered but none selected for lead %s (%d available)",
-                lead_id, len(quick_reply_blocks),
-            )
-
         # Product photos the model picked (validated by deal_actions: in the catalog,
         # in stock, capped at max_images_per_reply).
         catalog_images_to_send = _load_catalog_images(
@@ -2006,19 +1924,6 @@ async def generate_reply(
 
         is_ai = True
         reply_source = "knowledge" if context_text else "ai"
-
-        if chosen_block:
-            from app.services.quick_replies import format_block_log
-            reply_text = format_block_log(chosen_block)
-            reply_source = "quick_reply_block"
-            # The block replaces the reply, so a catalog photo from the same turn
-            # would arrive as an unrelated second message.
-            if catalog_images_to_send:
-                logger.warning(
-                    "Quick reply block and catalog recommendation both fired for lead %s; "
-                    "sending the block only", lead_id,
-                )
-                catalog_images_to_send = []
 
         if not reply_text:
             reply_text = _FALLBACK_BY_LANG.get(_detect_lang(message), _FALLBACK_BY_LANG["en"])
@@ -2123,7 +2028,7 @@ async def generate_reply(
             if sid:
                 outbound_media_type = "audio"
                 outbound_media_mime_type = "audio/mpeg"
-                if deal_outcome and deal_outcome.menu and not chosen_block:
+                if deal_outcome and deal_outcome.menu:
                     # A voice note cannot carry buttons; the options follow it so a
                     # choice is never left untappable.
                     from app.services import deal_turn
@@ -2153,31 +2058,7 @@ async def generate_reply(
                         reply_to_message_id = meta_message_id
                 except Exception as burst_err:
                     logger.warning(f"Burst check failed for lead {lead_id}: {burst_err}")
-            if chosen_block:
-                from app.services.meta_cloud import send_interactive_buttons
-                from app.services.quick_replies import to_send_buttons
-                try:
-                    _btn_data = await send_interactive_buttons(
-                        to_number=_wa_phone,
-                        body_text=chosen_block["body_text"],
-                        buttons=to_send_buttons(chosen_block),
-                        tenant_id=lead_data.get("tenant_id"),
-                        phone_number_id=phone_number_id,
-                    )
-                    sid = (_btn_data.get("messages") or [{}])[0].get("id")
-                except Exception:
-                    # Never lose the turn over a button failure -- fall back to the
-                    # block's body as ordinary text.
-                    logger.exception("Quick reply block send failed for lead %s", lead_id)
-                    reply_text = chosen_block["body_text"]
-                    sid = await send_whatsapp(
-                        _wa_phone,
-                        reply_text,
-                        tenant_id=lead_data.get("tenant_id"),
-                        phone_number_id=phone_number_id,
-                        reply_to_message_id=reply_to_message_id,
-                    )
-            elif deal_outcome and deal_outcome.menu:
+            if deal_outcome and deal_outcome.menu:
                 from app.services import deal_turn
                 sid = await deal_turn.send_menu(
                     _wa_phone, reply_text, deal_outcome.menu,
