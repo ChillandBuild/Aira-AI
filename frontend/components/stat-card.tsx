@@ -6,16 +6,17 @@ interface StatCardProps {
   value: number | string;
   sub?: string;
   accent?: boolean;
+  tone?: string;
 }
 
-export function StatCard({ label, value, sub, accent }: StatCardProps) {
+export function StatCard({ label, value, sub, accent, tone }: StatCardProps) {
   return (
     <div
       className={cn(
-        "card card-hover",
+        "card card-hover border-t-4",
         accent
           ? "border-transparent text-white"
-          : "bg-surface"
+          : cn("bg-surface", tone ?? "border-t-primary-500")
       )}
       style={accent ? { background: "linear-gradient(135deg, var(--primary-950), var(--primary-800))" } : {}}
     >

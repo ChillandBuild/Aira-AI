@@ -99,15 +99,16 @@ function ChannelBadge({ source }: { source: string }) {
 
 
 function StatCard({
-  label, value, icon: Icon, gradient,
+  label, value, icon: Icon, gradient, tone = "border-t-primary-500",
 }: {
   label: string;
   value: string | number;
   icon: typeof Users;
   gradient: string;
+  tone?: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-[#e8e3db]/80 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-200 group">
+    <div className={cn("bg-white rounded-2xl border border-[#e8e3db]/80 border-t-4 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-200 group", tone)}>
       <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110", gradient)}>
         <Icon size={19} className="text-white" />
       </div>
@@ -484,10 +485,10 @@ export function InboundLeadsClient({
       {/* ── Stats & Actions ────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-5">
         <div className="md:col-span-4 grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-primary-500 to-primary" />
-          <StatCard label="Showing Now" value={leads.length} icon={Users} gradient="bg-gradient-to-br from-blue-500 to-cyan-600" />
-          <StatCard label="Unique Keywords" value={uniqueKeywords} icon={MessageSquare} gradient="bg-gradient-to-br from-amber-500 to-orange-500" />
-          <StatCard label="Active Campaigns" value={uniqueCampaigns} icon={Megaphone} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
+          <StatCard label="Total Inbound Leads" value={total} icon={RadioTower} gradient="bg-gradient-to-br from-primary-500 to-primary" tone="border-t-primary-500" />
+          <StatCard label="Showing Now" value={leads.length} icon={Users} gradient="bg-gradient-to-br from-blue-500 to-cyan-600" tone="border-t-sky-400" />
+          <StatCard label="Unique Keywords" value={uniqueKeywords} icon={MessageSquare} gradient="bg-gradient-to-br from-amber-500 to-orange-500" tone="border-t-amber-400" />
+          <StatCard label="Active Campaigns" value={uniqueCampaigns} icon={Megaphone} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" tone="border-t-emerald-400" />
         </div>
         <div className="flex flex-col justify-between gap-2 p-1">
           <div className="flex gap-2">

@@ -20,12 +20,12 @@ interface Stats {
 export function OverviewView({ stats }: { stats: Stats }) {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-      <StatCard icon={<Users size={18} />} label="Total Leads" value={stats.total_leads} />
-      <StatCard icon={<Activity size={18} />} label="Active Leads (A+B)" value={stats.active_leads} />
-      <StatCard icon={<MessageSquare size={18} />} label="Msgs Sent (30d)" value={stats.messages_sent_30d} />
-      <StatCard icon={<MessageSquare size={18} />} label="Msgs Received (30d)" value={stats.messages_received_30d} />
-      <StatCard icon={<Users size={18} />} label="Team Members" value={stats.team_members} />
-      <StatCard icon={<Clock size={18} />} label="Last Activity" value={stats.last_activity ? relTime(stats.last_activity) : "—"} />
+      <StatCard icon={<Users size={18} />} label="Total Leads" value={stats.total_leads} tone="border-t-sky-400" />
+      <StatCard icon={<Activity size={18} />} label="Active Leads (A+B)" value={stats.active_leads} tone="border-t-emerald-400" />
+      <StatCard icon={<MessageSquare size={18} />} label="Msgs Sent (30d)" value={stats.messages_sent_30d} tone="border-t-blue-500" />
+      <StatCard icon={<MessageSquare size={18} />} label="Msgs Received (30d)" value={stats.messages_received_30d} tone="border-t-amber-400" />
+      <StatCard icon={<Users size={18} />} label="Team Members" value={stats.team_members} tone="border-t-purple-400" />
+      <StatCard icon={<Clock size={18} />} label="Last Activity" value={stats.last_activity ? relTime(stats.last_activity) : "—"} tone="border-t-slate-400" />
     </div>
   );
 }

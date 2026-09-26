@@ -643,7 +643,7 @@ function NumbersPageContent() {
           {/* ── KPI Overview Grid ───────────────────────────────────────────── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* KPI 1: Pool Utilization */}
-            <div className="p-5 rounded-2xl bg-white border border-border/80 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
+            <div className="p-5 rounded-2xl bg-white border border-border/80 border-t-4 border-t-primary-500 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary flex items-center justify-center shrink-0">
                   <Smartphone size={20} />
@@ -669,7 +669,7 @@ function NumbersPageContent() {
             </div>
 
             {/* KPI 2: Today's Dispatches */}
-            <div className="p-5 rounded-2xl bg-white border border-border/80 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
+            <div className="p-5 rounded-2xl bg-white border border-border/80 border-t-4 border-t-sky-400 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                   <Activity size={20} />
@@ -698,7 +698,7 @@ function NumbersPageContent() {
             </div>
 
             {/* KPI 3: Portfolio Health */}
-            <div className="p-5 rounded-2xl bg-white border border-border/80 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
+            <div className="p-5 rounded-2xl bg-white border border-border/80 border-t-4 border-t-emerald-400 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <ShieldCheck size={20} />
@@ -721,7 +721,7 @@ function NumbersPageContent() {
             </div>
 
             {/* KPI 4: Primary Sender */}
-            <div className="p-5 rounded-2xl bg-white border border-border/80 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
+            <div className="p-5 rounded-2xl bg-white border border-border/80 border-t-4 border-t-amber-400 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                   <Star size={20} className="fill-amber-400 text-amber-500" />

@@ -261,7 +261,7 @@ export function ProfileClient({
                 {stats.avg_score_month != null ? stats.avg_score_month.toFixed(1) : "\u2014"}
               </span>
               <span className="font-label text-sm text-on-surface-muted">
-                / 10
+                / 100
               </span>
             </div>
             <p className="font-label text-xs text-on-surface-muted mt-1">

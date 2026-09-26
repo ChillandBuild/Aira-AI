@@ -17,7 +17,7 @@ import PerformanceInsights from "./sections/PerformanceInsights";
 import OutcomeBreakdown from "./sections/OutcomeBreakdown";
 import CallsPerHour from "./sections/CallsPerHour";
 import ShiftTimeline from "./sections/ShiftTimeline";
-import FlaggedCalls from "./sections/FlaggedCalls";
+import NeedsAttention from "./sections/NeedsAttention";
 import QaReviewFeed from "./sections/QaReviewFeed";
 import BulkAssignment from "./sections/BulkAssignment";
 import LeadProfileModal from "./sections/LeadProfileModal";
@@ -204,8 +204,8 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
       {/* 1. Daily headline */}
       <PerformanceHeadline stats={stats} loading={loadingStats} flaggedCount={flaggedCount} isTodayView={isTodayView} />
 
-      {/* Calls the no-answer safety gate flagged (recorded TeleCMI calls only) */}
-      {callingProvider === "telecmi" && <FlaggedCalls canResolve={canManageTeam} onViewLead={setViewingLeadId} />}
+      {/* Call-scoring warnings (recorded TeleCMI calls only), admins only */}
+      {callingProvider === "telecmi" && canManageTeam && <NeedsAttention onViewLead={setViewingLeadId} />}
 
       {/* Live agent status strip */}
       <LiveAgentStatus
@@ -351,7 +351,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                       <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
                         {row.overall_score != null ? (
                           <>
-                            {row.overall_score.toFixed(1)}/10
+                            {row.overall_score.toFixed(1)}/100
                             <span className="block font-label text-[10px] font-semibold text-[#a8a29e]">
                               {row.scored_calls ?? 0} scored
                             </span>

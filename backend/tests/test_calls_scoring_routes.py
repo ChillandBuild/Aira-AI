@@ -1,16 +1,19 @@
-"""Routes around the TeleCMI call score: outcome safety gates, flag review, retry,
-transcript masking and the admin's scoring-criteria setting."""
+"""Routes around the TeleCMI call score: outcome safety gates, admin alerts, retry,
+and transcript masking."""
 import sys
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_and_role
+from app.routes import calls
 
 CALL_ID = "11111111-2222-3333-4444-555555555555"
 
@@ -22,7 +25,7 @@ def _log_db(row):
     return db
 
 
-class _Base(unittest.TestCase):
+class _Base(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.client = TestClient(app)
         app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
@@ -64,11 +67,6 @@ class OutcomeGateTests(_Base):
         self.assertEqual(res.status_code, 200)
         fin.assert_called_once()
 
-    def test_flagged_call_outcome_is_locked(self):
-        row = {"provider": "telecmi", "status": "completed", "duration_seconds": 250, "flag_status": "open", "lead_id": None}
-        res, _, _ = self._mark(row, {"outcome": "interested"})
-        self.assertEqual(res.status_code, 409)
-
     def test_typed_duration_never_overrides_telecmi_talk_time(self):
         """Otherwise a 4-minute call could be typed down to 10s to dodge scoring."""
         row = {"provider": "telecmi", "status": "completed", "duration_seconds": 240, "lead_id": None, "caller_id": "caller-1"}
@@ -90,59 +88,56 @@ class OutcomeGateTests(_Base):
         self.assertNotIn("caller_overall_score", res.json())
 
 
-class FlagReviewTests(_Base):
-    def test_telecaller_without_team_manage_cannot_resolve_a_flag(self):
-        res = self.client.post(f"/api/v1/calls/{CALL_ID}/flag", json={"action": "confirm"})
-        self.assertEqual(res.status_code, 403)
+class AlertRouteTests(_Base):
+    def test_alert_list_needs_team_manage(self):
+        self.assertEqual(self.client.get("/api/v1/calls/alerts").status_code, 403)
 
-    def _resolve(self, action, updated_rows):
+    def test_alert_list_returns_unseen_by_default(self):
         self.as_role("owner")
         db = MagicMock()
-        update_chain = db.table.return_value.update.return_value.eq.return_value.eq.return_value.eq.return_value
-        update_chain.execute.return_value = MagicMock(data=updated_rows)
-        card = db.table.return_value.select.return_value.eq.return_value.maybe_single.return_value
-        card.execute.return_value = MagicMock(data={"id": CALL_ID, "transcript": "Telecaller: hi\nCustomer: a\nCustomer: bye"})
-        with patch("app.routes.calls.get_supabase", return_value=db), \
-             patch("app.routes.calls.finalize_call_score") as fin, \
-             patch("app.services.notify.notify_user") as notify:
-            res = self.client.post(f"/api/v1/calls/{CALL_ID}/flag", json={"action": action})
-        return res, db, fin, notify
-
-    def test_dismiss_rescores_and_masks_the_returned_card(self):
-        res, db, fin, _ = self._resolve("dismiss", [{"id": CALL_ID, "caller_id": None}])
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(db.table.return_value.update.call_args.args[0]["flag_status"], "dismissed")
-        fin.assert_called_once()
-        body = res.json()
-        self.assertNotIn("transcript", body)
-        self.assertEqual(body["transcript_preview"], {"first": "Telecaller: hi", "last": "Customer: bye", "hidden_lines": 1})
-
-    def test_confirm_records_who_resolved_it(self):
-        res, db, _, _ = self._resolve("confirm", [{"id": CALL_ID, "caller_id": None}])
-        written = db.table.return_value.update.call_args.args[0]
-        self.assertEqual((written["flag_status"], written["flag_resolved_by"]), ("confirmed", "user-1"))
-
-    def test_no_open_flag_is_a_404(self):
-        res, _, fin, _ = self._resolve("confirm", [])
-        self.assertEqual(res.status_code, 404)
-        fin.assert_not_called()
-
-    def test_flag_list_needs_analytics_view(self):
-        self.assertEqual(self.client.get("/api/v1/calls/flagged").status_code, 403)
-
-    def test_flag_list_is_masked_and_counts_open_flags(self):
-        self.as_role("owner")
-        db = MagicMock()
-        rows = MagicMock(data=[{"id": CALL_ID, "transcript": "Telecaller: hello"}], count=1)
-        db.table.return_value.select.return_value.eq.return_value.eq.return_value.order.return_value.range.return_value.execute.return_value = rows
-        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(count=4)
+        rows = MagicMock(data=[{"id": "a1", "type": "rude"}], count=1)
+        db.table.return_value.select.return_value.eq.return_value.is_.return_value.order.return_value.range.return_value.execute.return_value = rows
         with patch("app.routes.calls.get_supabase", return_value=db):
-            res = self.client.get("/api/v1/calls/flagged")
+            res = self.client.get("/api/v1/calls/alerts")
         self.assertEqual(res.status_code, 200)
         body = res.json()
-        self.assertEqual(body["open_count"], 4)
-        self.assertEqual(body["data"][0]["transcript_preview"]["first"], "Telecaller: hello")
-        self.assertNotIn("transcript", body["data"][0])
+        self.assertEqual((body["total"], body["page"], body["limit"]), (1, 1, 20))
+        self.assertEqual(body["data"][0]["id"], "a1")
+
+    def test_alert_count_needs_team_manage(self):
+        self.assertEqual(self.client.get("/api/v1/calls/alerts/count").status_code, 403)
+
+    def test_alert_count_returns_unseen_count(self):
+        self.as_role("owner")
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.is_.return_value.limit.return_value.execute.return_value = MagicMock(count=3)
+        with patch("app.routes.calls.get_supabase", return_value=db):
+            res = self.client.get("/api/v1/calls/alerts/count")
+        self.assertEqual(res.json(), {"count": 3})
+
+    async def test_alert_seen_is_tenant_scoped(self):
+        db = MagicMock()
+        db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        with patch.object(calls, "get_supabase", return_value=db):
+            with self.assertRaises(HTTPException) as err:
+                await calls.mark_call_alert_seen(uuid4(), ctx={"tenant_id": "t", "user_id": "u"})
+        self.assertEqual(err.exception.status_code, 404)
+
+
+class WrapupCrmCheckTests(unittest.IsolatedAsyncioTestCase):
+    async def test_telecmi_wrapup_queues_crm_check(self):
+        row = {"provider": "telecmi", "status": "completed", "duration_seconds": 250, "lead_id": None}
+        db = _log_db(row)
+        background_tasks = MagicMock()
+        with patch("app.routes.calls.get_supabase", return_value=db), \
+             patch("app.routes.calls.finalize_call_score", return_value={"score": 8.3, "score_status": "scored"}):
+            await calls.set_outcome(
+                CALL_ID,
+                calls.OutcomeUpdate(outcome="interested"),
+                background_tasks,
+                ctx={"tenant_id": "tenant-1", "role": "caller", "user_id": "user-1", "caller_id": "caller-1", "permissions": []},
+            )
+        background_tasks.add_task.assert_called_once_with(calls.mark_crm_update_task, CALL_ID)
 
 
 class RetryTests(_Base):
@@ -174,30 +169,6 @@ class RecentMaskingTests(_Base):
         self.assertEqual(row["transcript_preview"], {"first": "Telecaller: one", "last": "Customer: four", "hidden_lines": 2})
 
 
-class CriteriaSettingTests(_Base):
-    def _patch(self, body):
-        self.as_role("owner")
-        saved = {}
-        with patch("app.routes.app_settings.get_telecalling_config", return_value={"enabled": True, "eval_daily_cap": 50}), \
-             patch("app.routes.app_settings.save_telecalling_config", side_effect=lambda t, c: saved.update(c)):
-            res = self.client.patch("/api/v1/settings/telecalling-config", json=body)
-        return res, saved
-
-    def test_at_least_one_criterion_must_stay_selected(self):
-        res, saved = self._patch({"score_criteria": []})
-        self.assertEqual(res.status_code, 400)
-        self.assertEqual(saved, {})
-
-    def test_unknown_criterion_is_rejected(self):
-        self.assertEqual(self._patch({"score_criteria": ["charisma"]})[0].status_code, 400)
-
-    def test_criteria_are_saved_in_canonical_order_and_the_old_cap_is_dropped(self):
-        res, saved = self._patch({"score_criteria": ["tone", "greeting_quality"]})
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(saved["score_criteria"], ["greeting_quality", "tone"])
-        self.assertNotIn("eval_daily_cap", saved)
-
-
 class WinnersRouteTests(_Base):
     def test_daily_and_monthly_winners_use_the_70_30_formula_and_owner_is_excluded(self):
         self.as_role("owner")
@@ -215,7 +186,7 @@ class WinnersRouteTests(_Base):
             res = self.client.get("/api/v1/callers/winners")
         body = res.json()
         self.assertEqual(body["daily"]["name"], "Priya")
-        self.assertEqual(body["daily"]["points"], 8.6)
+        self.assertEqual(body["daily"]["points"], 35.6)
         self.assertEqual(body["monthly"]["caller_id"], "A")
         self.assertEqual(body["monthly"]["min_scored_calls"], 20)
         self.assertEqual(seen_ids, [["A", "B"], ["A", "B"]])

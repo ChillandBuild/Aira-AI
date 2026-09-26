@@ -897,7 +897,7 @@ export default function KnowledgePage() {
         <div className="space-y-6">
           {/* ── Top Overview Stats ────────────────────────────────────────── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-surface rounded-2xl p-4 border border-surface-mid shadow-sm flex items-center justify-between">
+            <div className="bg-surface rounded-2xl p-4 border border-surface-mid border-t-4 border-t-sky-400 shadow-sm flex items-center justify-between">
               <div>
                 <p className="font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider">
                   Total Documents
@@ -914,7 +914,7 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            <div className="bg-surface rounded-2xl p-4 border border-surface-mid shadow-sm flex items-center justify-between">
+            <div className="bg-surface rounded-2xl p-4 border border-surface-mid border-t-4 border-t-emerald-400 shadow-sm flex items-center justify-between">
               <div>
                 <p className="font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider">
                   Active & Indexed
@@ -946,7 +946,7 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            <div className="bg-surface rounded-2xl p-4 border border-surface-mid shadow-sm flex items-center justify-between">
+            <div className="bg-surface rounded-2xl p-4 border border-surface-mid border-t-4 border-t-amber-400 shadow-sm flex items-center justify-between">
               <div>
                 <p className="font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider">
                   Storage Footprint
@@ -963,7 +963,7 @@ export default function KnowledgePage() {
               </div>
             </div>
 
-            <div className="bg-surface rounded-2xl p-4 border border-surface-mid shadow-sm flex items-center justify-between">
+            <div className="bg-surface rounded-2xl p-4 border border-surface-mid border-t-4 border-t-purple-400 shadow-sm flex items-center justify-between">
               <div>
                 <p className="font-label text-xs font-bold text-on-surface-muted uppercase tracking-wider">
                   Campaign Scopes

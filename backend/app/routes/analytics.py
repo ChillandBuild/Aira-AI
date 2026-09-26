@@ -777,8 +777,9 @@ async def qa_queue(
     query = (
         db.table("call_logs")
         .select(
-            "id,created_at,duration_seconds,status,outcome,provider,score,score_status,score_breakdown,"
-            "evaluation,ai_summary,ai_status,recording_url,transcript,flag_status,flag_reason,"
+            "id,created_at,duration_seconds,status,outcome,provider,score,score_status,"
+            "evaluation,ai_summary,ai_status,recording_url,transcript,"
+            "call_group,talk_share,interruption_count,interruptions_per_5min,score_final,"
             "lead_id,caller_id,leads(name,phone),callers(name)",
             count="exact",
         )

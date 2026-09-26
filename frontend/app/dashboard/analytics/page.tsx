@@ -110,14 +110,16 @@ function KpiCard({
   value,
   sub,
   valueClass,
+  tone = "border-t-primary-500",
 }: {
   label: string;
   value: string;
   sub?: string;
   valueClass?: string;
+  tone?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
+    <div className={`flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 border-t-4 ${tone} sm:p-6 transition-all`}>
       <p className="font-label text-xs text-on-surface-muted uppercase tracking-wider">{label}</p>
       <p className={`mt-1 font-display text-2xl font-bold text-on-surface sm:text-3xl ${valueClass ?? ""}`}>{value}</p>
       {sub && <p className="font-label text-xs text-on-surface-muted">{sub}</p>}
@@ -317,16 +319,18 @@ function ChannelsTab({
               ))
             ) : (
               <>
-                <KpiCard label="Sent Today" value={data.sent_today.toLocaleString()} />
-                <KpiCard label="Received Today" value={data.received_today.toLocaleString()} />
+                <KpiCard label="Sent Today" value={data.sent_today.toLocaleString()} tone="border-t-sky-400" />
+                <KpiCard label="Received Today" value={data.received_today.toLocaleString()} tone="border-t-amber-400" />
                 <KpiCard
                   label="AI Reply Rate"
                   value={data.ai_reply_rate !== null ? `${Math.round(data.ai_reply_rate * 100)}%` : "—"}
+                  tone="border-t-emerald-400"
                 />
                 <KpiCard
                   label="AI + KB vs Manual"
                   value={`${data.reply_source_breakdown.ai + data.reply_source_breakdown.knowledge}`}
                   sub={`Manual: ${data.reply_source_breakdown.manual}`}
+                  tone="border-t-purple-400"
                 />
               </>
             )}
@@ -456,10 +460,10 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
             ))
           ) : (
             <>
-              <KpiCard label="Total Sent" value={totals.sent.toLocaleString()} />
-              <KpiCard label="Read Rate" value={pct(totals.read, totals.sent)} sub={`${totals.read.toLocaleString()} read`} />
-              <KpiCard label="Reply Rate" value={pct(totals.replied, totals.sent)} sub={`${totals.replied.toLocaleString()} replied`} />
-              <KpiCard label="Hot Leads" value={totals.hot.toLocaleString()} />
+              <KpiCard label="Total Sent" value={totals.sent.toLocaleString()} tone="border-t-sky-400" />
+              <KpiCard label="Read Rate" value={pct(totals.read, totals.sent)} sub={`${totals.read.toLocaleString()} read`} tone="border-t-amber-400" />
+              <KpiCard label="Reply Rate" value={pct(totals.replied, totals.sent)} sub={`${totals.replied.toLocaleString()} replied`} tone="border-t-emerald-400" />
+              <KpiCard label="Hot Leads" value={totals.hot.toLocaleString()} tone="border-t-rose-400" />
             </>
           )}
         </div>
@@ -601,9 +605,9 @@ function InboundTab({
               ))
             ) : (
               <>
-                <KpiCard label="New Inbound Leads Today" value={data.kpis.today.total.toLocaleString()} sub={`Organic ${data.kpis.today.organic} · Ad ${data.kpis.today.ad}`} />
-                <KpiCard label="New Leads (range)" value={data.kpis.range.total.toLocaleString()} sub={`Organic ${data.kpis.range.organic} · Ad ${data.kpis.range.ad}`} />
-                <KpiCard label="Ad Share" value={`${data.kpis.range.total ? Math.round((data.kpis.range.ad / data.kpis.range.total) * 100) : 0}%`} sub="of inbound in range" />
+                <KpiCard label="New Inbound Leads Today" value={data.kpis.today.total.toLocaleString()} sub={`Organic ${data.kpis.today.organic} · Ad ${data.kpis.today.ad}`} tone="border-t-sky-400" />
+                <KpiCard label="New Leads (range)" value={data.kpis.range.total.toLocaleString()} sub={`Organic ${data.kpis.range.organic} · Ad ${data.kpis.range.ad}`} tone="border-t-amber-400" />
+                <KpiCard label="Ad Share" value={`${data.kpis.range.total ? Math.round((data.kpis.range.ad / data.kpis.range.total) * 100) : 0}%`} sub="of inbound in range" tone="border-t-emerald-400" />
               </>
             )}
           </div>

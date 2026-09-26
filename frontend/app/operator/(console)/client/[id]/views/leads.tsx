@@ -88,11 +88,12 @@ export function LeadsView({ tenantId, subSection }: { tenantId: string; subSecti
     <div className="space-y-6">
       {subSection === "segments" ? (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard icon={<Users size={18} />} label="Total" value={data.total} />
+          <StatCard icon={<Users size={18} />} label="Total" value={data.total} tone="border-t-sky-400" />
           {(["A", "B", "C", "D"] as const).map((seg) => {
             const style = SEGMENT_STYLES[seg];
+            const segBorder = seg === "A" ? "border-t-emerald-400" : seg === "B" ? "border-t-amber-400" : seg === "C" ? "border-t-blue-400" : "border-t-slate-400";
             return (
-              <div key={seg} className={`${style.bg} rounded-card border border-border p-5 shadow-sm`}>
+              <div key={seg} className={`${style.bg} rounded-card border border-border border-t-4 ${segBorder} p-5 shadow-sm`}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className={`text-xs font-medium uppercase tracking-wider font-label ${style.text}`}>
                     {seg} — {style.label}
@@ -105,8 +106,8 @@ export function LeadsView({ tenantId, subSection }: { tenantId: string; subSecti
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4">
-          <StatCard icon={<TrendingUp size={18} />} label={`${subSection} Leads`} value={data.total} />
-          <StatCard icon={<UserCheck size={18} />} label="Hot (A)" value={data.segments.A} />
+          <StatCard icon={<TrendingUp size={18} />} label={`${subSection} Leads`} value={data.total} tone="border-t-sky-400" />
+          <StatCard icon={<UserCheck size={18} />} label="Hot (A)" value={data.segments.A} tone="border-t-emerald-400" />
         </div>
       )}
 

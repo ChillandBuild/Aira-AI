@@ -16,6 +16,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_permission
 from app.services.call_scorer import finalize_call_score
 from app.services.call_ai_pipeline import queue_call_ai, retry_call_ai, run_call_ai
+from app.services.call_marking import mark_crm_update
 from app.services.call_transcript import mask_transcript, mask_transcripts
 from app.services.entitlements import meter, check_quota
 from app.services.growth import record_stage_event, sync_follow_up_jobs
@@ -28,11 +29,12 @@ from app.services.attendance import mark_activity_today
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# What a call card needs: score, its breakdown, processing stage, flag, summary and
+# What a call card needs: score, group, talk metrics, processing stage, summary and
 # the masked transcript preview (the full transcript never leaves the backend).
 CALL_CARD_FIELDS = (
-    "id,created_at,duration_seconds,status,outcome,provider,score,score_status,score_breakdown,"
-    "evaluation,ai_summary,ai_status,ai_error,recording_url,transcript,flag_status,flag_reason,"
+    "id,created_at,duration_seconds,status,outcome,provider,score,score_status,"
+    "evaluation,ai_summary,ai_status,ai_error,recording_url,transcript,"
+    "call_group,talk_share,interruption_count,interruptions_per_5min,score_final,"
     "lead_id,caller_id"
 )
 public_router = APIRouter()  # No auth — TeleCMI calls these directly
@@ -1020,12 +1022,19 @@ async def telecmi_live_events(request: Request):
 
 # ── Outcome & Other Endpoints ────────────────────────────────────────
 
+async def mark_crm_update_task(call_log_id: str) -> None:
+    try:
+        await mark_crm_update(get_supabase(), call_log_id)
+    except Exception as e:
+        logger.error(f"CRM check failed for call {call_log_id}: {e}")
+
+
 @router.patch("/{call_log_id}/outcome")
-async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depends(get_tenant_and_role)):
+async def set_outcome(call_log_id: str, payload: OutcomeUpdate, background_tasks: BackgroundTasks, ctx: dict = Depends(get_tenant_and_role)):
     db = get_supabase()
     log = (
         db.table("call_logs")
-        .select("caller_id,duration_seconds,lead_id,follow_up_job_id,provider,status,flag_status")
+        .select("caller_id,duration_seconds,lead_id,follow_up_job_id,provider,status")
         .eq("id", call_log_id)
         .eq("tenant_id", ctx["tenant_id"])
         .maybe_single()
@@ -1039,13 +1048,6 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
 
     if payload.outcome not in ("converted", "interested", "callback", "not_interested", "no_answer", "do_not_call", "do_not_contact", "in_progress", None):
         raise HTTPException(status_code=400, detail="Invalid outcome value")
-
-    # A flag raised by the no-answer safety gate is resolved only by an admin.
-    if log.data.get("flag_status"):
-        raise HTTPException(
-            status_code=409,
-            detail="This call was flagged for review, so its outcome can't be changed.",
-        )
 
     # Intercept DNC outcomes to handle them as lead-level actions
     dnc_outcome = None
@@ -1103,6 +1105,8 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         log_updates["manual_started_at"] = payload.manual_started_at.isoformat()
     if payload.manual_ended_at is not None:
         log_updates["manual_ended_at"] = payload.manual_ended_at.isoformat()
+    if payload.callback_time is not None:
+        log_updates["wrapup_callback_at"] = payload.callback_time.isoformat()
     if payload.outcome or payload.disposition or payload.manual_status or dnc_outcome or in_progress:
         log_updates["feedback_at"] = datetime.now(timezone.utc).isoformat()
     if log.data.get("provider") == "sim_basic":
@@ -1115,6 +1119,8 @@ async def set_outcome(call_log_id: str, payload: OutcomeUpdate, ctx: dict = Depe
         db.table("call_logs").update(log_updates).eq("id", call_log_id).eq("tenant_id", ctx["tenant_id"]).execute()
 
     scoring = finalize_call_score(db, call_log_id) if effective_outcome is not None else None
+    if is_telecmi and "feedback_at" in log_updates:
+        background_tasks.add_task(mark_crm_update_task, call_log_id)
 
     lead_id = log.data.get("lead_id")
     if lead_id and (effective_outcome is not None or dnc_outcome is not None or in_progress or payload.manual_status == "connected"):
@@ -1329,70 +1335,51 @@ async def recent_by_leads(lead_ids: str = Query(..., description="Comma-separate
     return seen
 
 
-@router.get("/flagged")
-async def flagged_calls(
-    status: Literal["open", "resolved"] = Query("open"),
+@router.get("/alerts")
+async def list_call_alerts(
+    type: str | None = Query(None),
+    caller_id: UUID | None = Query(None),
+    seen: bool = Query(False),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=50),
-    ctx: dict = Depends(require_permission("analytics.view")),
+    ctx: dict = Depends(require_permission("team.manage")),
 ):
-    """Calls the no-answer safety gate flagged: marked No answer, but the AI heard a conversation."""
+    """The admin's Needs-attention list."""
     db = get_supabase()
     query = (
-        db.table("call_logs")
-        .select(f"{CALL_CARD_FIELDS},flagged_at,flag_resolved_at,leads(name,phone),callers(name)", count="exact")
+        db.table("call_alerts")
+        .select("id,type,quote,detail,created_at,seen_at,caller_id,call_log_id,callers(name),"
+                "call_logs(id,created_at,duration_seconds,lead_id,leads(name,phone))", count="exact")
         .eq("tenant_id", ctx["tenant_id"])
     )
-    query = query.eq("flag_status", "open") if status == "open" else query.in_("flag_status", ["confirmed", "dismissed"])
+    query = query.not_.is_("seen_at", "null") if seen else query.is_("seen_at", "null")
+    if type:
+        query = query.eq("type", type)
+    if caller_id:
+        query = query.eq("caller_id", str(caller_id))
     offset = (page - 1) * limit
-    rows = query.order("flagged_at", desc=True).range(offset, offset + limit - 1).execute()
-    open_count = (
-        db.table("call_logs").select("id", count="exact").eq("tenant_id", ctx["tenant_id"]).eq("flag_status", "open").limit(1).execute()
-    ).count or 0
-    return {"data": mask_transcripts(rows.data), "total": rows.count or 0, "open_count": open_count, "page": page, "limit": limit}
+    rows = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    return {"data": rows.data or [], "total": rows.count or 0, "page": page, "limit": limit}
 
 
-class FlagResolution(BaseModel):
-    action: Literal["confirm", "dismiss"]
-
-
-@router.post("/{call_log_id}/flag")
-async def resolve_flag(call_log_id: UUID, payload: FlagResolution, ctx: dict = Depends(require_permission("team.manage"))):
-    """Confirm keeps the call scored with 0/3 for the outcome; dismiss (the AI was wrong,
-    e.g. a long voicemail) returns it to an unscored No answer."""
+@router.get("/alerts/count")
+async def count_call_alerts(ctx: dict = Depends(require_permission("team.manage"))):
     db = get_supabase()
-    new_status = "confirmed" if payload.action == "confirm" else "dismissed"
+    res = db.table("call_alerts").select("id", count="exact").eq("tenant_id", ctx["tenant_id"]).is_("seen_at", "null").limit(1).execute()
+    return {"count": res.count or 0}
+
+
+@router.post("/alerts/{alert_id}/seen")
+async def mark_call_alert_seen(alert_id: UUID, ctx: dict = Depends(require_permission("team.manage"))):
+    db = get_supabase()
     res = (
-        db.table("call_logs")
-        .update({
-            "flag_status": new_status,
-            "flag_resolved_by": ctx.get("user_id"),
-            "flag_resolved_at": datetime.now(timezone.utc).isoformat(),
-        })
-        .eq("id", str(call_log_id))
-        .eq("tenant_id", ctx["tenant_id"])
-        .eq("flag_status", "open")
-        .execute()
+        db.table("call_alerts")
+        .update({"seen_at": datetime.now(timezone.utc).isoformat(), "seen_by": ctx.get("user_id")})
+        .eq("id", str(alert_id)).eq("tenant_id", ctx["tenant_id"]).execute()
     )
     if not res.data:
-        raise HTTPException(status_code=404, detail="No open flag on this call")
-    finalize_call_score(db, str(call_log_id))
-
-    caller_id = res.data[0].get("caller_id")
-    if caller_id:
-        caller = db.table("callers").select("user_id").eq("id", caller_id).maybe_single().execute()
-        user_id = ((caller.data if caller else None) or {}).get("user_id")
-        if user_id and user_id != ctx.get("user_id"):
-            from app.services.notify import notify_user
-            message = (
-                "Your admin confirmed the flag: the call stays scored with 0/3 for the outcome."
-                if new_status == "confirmed"
-                else "Your admin dismissed the flag: the call counts as No answer and isn't scored."
-            )
-            notify_user(ctx["tenant_id"], user_id, "call_flag_resolved", "Flag reviewed", message, db=db, push_url="/dashboard/telecalling")
-
-    row = db.table("call_logs").select(CALL_CARD_FIELDS).eq("id", str(call_log_id)).maybe_single().execute()
-    return mask_transcript(row.data if row else None)
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return res.data[0]
 
 
 @router.post("/{call_log_id}/retry-ai")

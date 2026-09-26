@@ -15,14 +15,16 @@ interface HeroCardProps {
   trendPct: number | null;
   trendLabel: string;
   sub?: string;
+  tone?: string;
 }
 
 function HeroCard({
   icon, iconGradient, glowColor, label, value,
   sparklineData, sparklineColor, gradientId, trendPct, trendLabel, sub,
+  tone = "border-t-primary-500",
 }: HeroCardProps) {
   return (
-    <div className="group relative overflow-hidden card rounded-[32px] p-8 flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300">
+    <div className={`group relative overflow-hidden card rounded-[32px] p-8 flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 border-t-4 ${tone}`}>
       <div className={`absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 rounded-full ${glowColor} blur-2xl transition-all duration-300`} />
       <div>
         <div className="flex items-center justify-between mb-6">
@@ -89,6 +91,7 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
           gradientId="totalLeadsGrad"
           trendPct={pctVsYesterday(combinedDailyLeads)}
           trendLabel="vs yesterday"
+          tone="border-t-emerald-400"
         />
         <HeroCard
           icon={<TrendingUp size={18} />}
@@ -101,6 +104,7 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
           gradientId="hotLeadsGrad"
           trendPct={pctVsYesterday(overview.new_hot_leads_daily)}
           trendLabel="vs yesterday"
+          tone="border-t-amber-400"
         />
         <HeroCard
           icon={<CheckCircle2 size={18} />}
@@ -113,6 +117,7 @@ export function PipelinePulse({ overview }: { overview: AnalyticsOverview }) {
           gradientId="conversionsGrad"
           trendPct={null}
           trendLabel=""
+          tone="border-t-primary-500"
         />
       </div>
       <p className="pl-1 font-label text-xs font-medium text-ink-muted">

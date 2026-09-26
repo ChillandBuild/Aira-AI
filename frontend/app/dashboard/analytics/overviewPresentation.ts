@@ -33,6 +33,7 @@ export type PerformanceCard = {
   delta: number | null;
   scope: "Selected period";
   lowerIsBetter?: boolean;
+  tone?: string;
 };
 
 function count(summary: Summary, key: string): number {
@@ -96,6 +97,7 @@ export function buildOverviewCards({
     {
       label: "New leads",
       value: newLeads.toLocaleString(),
+      tone: "border-t-sky-400",
       ...buildPerformanceCard({
         current: newLeads,
         previous: previousSummary ? count(previousSummary, "new_leads") : null,
@@ -104,6 +106,7 @@ export function buildOverviewCards({
     {
       label: "Conversions",
       value: converted.toLocaleString(),
+      tone: "border-t-emerald-400",
       ...buildPerformanceCard({
         current: converted,
         previous: previousSummary ? count(previousSummary, "converted") : null,
@@ -113,6 +116,7 @@ export function buildOverviewCards({
       label: "Cost per lead",
       value: formatMoney(costPerLead),
       lowerIsBetter: true,
+      tone: "border-t-amber-400",
       ...buildPerformanceCard({
         current: costPerLead,
         previous: previous?.money.cost_per_lead ?? null,
@@ -122,6 +126,7 @@ export function buildOverviewCards({
       label: "Median reply time",
       value: formatSeconds(replyTime),
       lowerIsBetter: true,
+      tone: "border-t-purple-400",
       ...buildPerformanceCard({
         current: replyTime,
         previous: previous?.response.p50_seconds ?? null,

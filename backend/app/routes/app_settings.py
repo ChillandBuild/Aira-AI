@@ -144,7 +144,6 @@ class TelecallingConfigUpdate(BaseModel):
     scripts: dict[str, str] | None = None
     max_call_attempts: int | None = None
     assignment_mode: Literal["push", "pull"] | None = None
-    score_criteria: list[str] | None = None
     shift_mode: str | None = None
     shift_start_hour: int | None = None
     shift_end_hour: int | None = None
@@ -1926,14 +1925,6 @@ async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict =
     if "assignment_mode" in patch:
         if patch["assignment_mode"] not in ("push", "pull"):
             raise HTTPException(status_code=400, detail="Invalid assignment mode")
-    if "score_criteria" in patch:
-        from app.services.call_summarizer import SCORE_CRITERIA, normalize_criteria
-        bad = [c for c in patch["score_criteria"] if c not in SCORE_CRITERIA]
-        if bad:
-            raise HTTPException(status_code=400, detail=f"Invalid scoring criteria: {bad}")
-        patch["score_criteria"] = normalize_criteria(patch["score_criteria"])
-        if not patch["score_criteria"]:
-            raise HTTPException(status_code=400, detail="Select at least one scoring criterion")
     merged = {**current, **patch}
     merged.pop("eval_daily_cap", None)
     save_telecalling_config(tenant_id, merged)

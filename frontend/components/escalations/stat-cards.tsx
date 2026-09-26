@@ -9,28 +9,28 @@ const TONE: Record<StatTone, { dot: string; ring: string; value: string; bg: str
     ring: "ring-gray-200/60",
     value: "text-gray-900",
     bg: "bg-white",
-    border: "border-gray-200/80",
+    border: "border-gray-200/80 border-t-4 border-t-slate-300",
   },
   positive: {
     dot: "bg-emerald-500",
     ring: "ring-emerald-100",
     value: "text-emerald-600",
     bg: "bg-gradient-to-br from-white via-white to-emerald-50/25",
-    border: "border-emerald-100/90",
+    border: "border-emerald-100/90 border-t-4 border-t-emerald-400",
   },
   warning: {
     dot: "bg-amber-500",
     ring: "ring-amber-100",
     value: "text-amber-600",
     bg: "bg-gradient-to-br from-white via-white to-amber-50/25",
-    border: "border-amber-100/90",
+    border: "border-amber-100/90 border-t-4 border-t-amber-400",
   },
   critical: {
     dot: "bg-rose-500",
     ring: "ring-rose-100",
     value: "text-rose-600",
     bg: "bg-gradient-to-br from-white via-white to-rose-50/30",
-    border: "border-rose-100/90",
+    border: "border-rose-100/90 border-t-4 border-t-rose-400",
   },
 };
 

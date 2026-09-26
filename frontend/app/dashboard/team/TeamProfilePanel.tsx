@@ -167,7 +167,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
     return result;
   }, [timeline]);
 
-  const scoreRingPct = Math.min(avgScore / 10, 1);
+  const scoreRingPct = Math.min(avgScore / 100, 1);
   const RING_RADIUS = 30;
   const RING_CIRC = 2 * Math.PI * RING_RADIUS;
 
@@ -207,7 +207,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
             <svg width="70" height="70" viewBox="0 0 70 70" className="transform -rotate-90">
               <circle cx="35" cy="35" r={RING_RADIUS} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
               <circle cx="35" cy="35" r={RING_RADIUS} fill="none"
-                stroke={avgScore >= 7 ? "#10b981" : avgScore >= 4 ? "#f59e0b" : "#f43f5e"}
+                stroke={avgScore >= 70 ? "#10b981" : avgScore >= 40 ? "#f59e0b" : "#f43f5e"}
                 strokeWidth="6" strokeLinecap="round" strokeDasharray={`${scoreRingPct * RING_CIRC} ${RING_CIRC}`}
                 className="transition-all duration-700" />
             </svg>
