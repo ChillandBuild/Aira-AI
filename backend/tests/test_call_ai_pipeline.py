@@ -195,6 +195,20 @@ class RunCallAiTests(unittest.IsolatedAsyncioTestCase):
         alert.assert_called_once()
         self.assertEqual(alert.call_args.kwargs["type"], "transcript_failed")
 
+    async def test_a_broken_alert_insert_does_not_stop_scoring_or_the_crm_check(self):
+        """A non-duplicate error from raise_alert on the final-failure path must not
+        abort finalize_call_score / mark_crm_update."""
+        db = FakeDB(call_logs=[_call(ai_attempts=1)])  # bumped to MAX_ATTEMPTS(2) on claim
+        with patch.object(pipe, "get_supabase", return_value=db), \
+             patch.object(pipe, "_process", AsyncMock(side_effect=RuntimeError("still down"))), \
+             patch.object(pipe, "raise_alert", side_effect=RuntimeError("insert failed")), \
+             patch.object(pipe, "finalize_call_score") as finalize, \
+             patch.object(pipe, "mark_crm_update", AsyncMock()) as crm:
+            await pipe.run_call_ai("c1")
+        self.assertEqual(db.row()["ai_status"], "failed")
+        finalize.assert_called_once_with(db, "c1")
+        crm.assert_awaited_once_with(db, "c1")
+
 
 class LoadAudioTests(unittest.IsolatedAsyncioTestCase):
     async def test_first_run_downloads_from_telecmi_and_stores_the_recording(self):
@@ -263,17 +277,49 @@ class QueueAndSweepTests(unittest.IsolatedAsyncioTestCase):
         alert.assert_called_once()
         self.assertEqual(alert.call_args.kwargs["type"], "transcript_failed")
 
+    async def test_a_broken_alert_insert_does_not_abort_the_rest_of_the_sweep(self):
+        db = FakeDB(call_logs=[
+            _call(id="exhausted-first", ai_attempts=2),
+            _call(id="exhausted-second", ai_attempts=2),
+            _call(id="stale"),
+        ])
+        runs = []
+        with patch.object(pipe, "get_supabase", return_value=db), \
+             patch.object(pipe, "run_call_ai", AsyncMock(side_effect=lambda cid: runs.append(cid))), \
+             patch.object(pipe, "finalize_call_score") as finalize, \
+             patch.object(pipe, "raise_alert", side_effect=RuntimeError("insert failed")):
+            count = await pipe.sweep_call_ai()
+        self.assertEqual(count, 1)
+        self.assertEqual(runs, ["stale"])
+        self.assertEqual(finalize.call_count, 2)
+        for cid in ("exhausted-first", "exhausted-second"):
+            row = next(r for r in db.rows["call_logs"] if r["id"] == cid)
+            self.assertEqual(row["ai_status"], "failed")
+
 
 class SweepCrmCutoffTests(unittest.IsolatedAsyncioTestCase):
     async def test_only_provisional_real_conversations_past_cutoff_are_rechecked(self):
         db = MagicMock()
-        chain = db.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value.in_.return_value.lt.return_value.limit.return_value
-        chain.execute.return_value = MagicMock(data=[{"id": "c1"}, {"id": "c2"}])
+        select = db.table.return_value.select.return_value
+        eq1 = select.eq.return_value
+        eq2 = eq1.eq.return_value
+        eq3 = eq2.eq.return_value
+        in_ = eq3.in_.return_value
+        lt = in_.lt.return_value
+        lt.limit.return_value.execute.return_value = MagicMock(data=[{"id": "c1"}, {"id": "c2"}])
         with patch.object(pipe, "get_supabase", return_value=db), \
              patch.object(pipe, "mark_crm_update", AsyncMock(side_effect=[True, False])) as crm:
             changed = await pipe.sweep_crm_cutoff()
         self.assertEqual(changed, 1)
         self.assertEqual(crm.await_count, 2)
+        db.table.assert_called_with("call_logs")
+        select.eq.assert_called_once_with("provider", "telecmi")
+        eq1.eq.assert_called_once_with("ai_status", "done")
+        eq2.eq.assert_called_once_with("score_final", False)
+        eq3.in_.assert_called_once_with("call_group", ["real_conversation", "early_exit"])
+        lt_args = in_.lt.call_args.args
+        self.assertEqual(lt_args[0], "created_at")
+        self.assertIsInstance(lt_args[1], str)
 
 
 if __name__ == "__main__":

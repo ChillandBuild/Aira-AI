@@ -2,7 +2,7 @@
 
 Every placed call counts toward total calls; only scored calls feed the average.
 Winner points = 70% average score + 30% volume, where volume is the telecaller's
-total calls relative to the busiest telecaller in the same period (x10). Days and
+total calls relative to the busiest telecaller in the same period (x100). Days and
 months are IST calendar periods.
 """
 from datetime import datetime, timedelta, timezone

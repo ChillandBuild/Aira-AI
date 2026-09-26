@@ -286,8 +286,11 @@ async def run_call_ai(call_log_id: str, appid_override: str | None = None) -> No
                 "ai_updated_at": _now(),
             }).eq("id", call_log_id).execute()
             if final:
-                raise_alert(db, tenant_id=row.get("tenant_id"), type="transcript_failed", call_log_id=call_log_id,
-                            caller_id=row.get("caller_id"), quote=error[:240])
+                try:
+                    raise_alert(db, tenant_id=row.get("tenant_id"), type="transcript_failed", call_log_id=call_log_id,
+                                caller_id=row.get("caller_id"), quote=error[:240])
+                except Exception as alert_err:
+                    logger.error(f"transcript_failed alert failed for call {call_log_id}: {alert_err}")
         try:
             finalize_call_score(db, call_log_id)
         except Exception as e:
@@ -330,8 +333,11 @@ async def sweep_call_ai() -> int:
                 "ai_updated_at": _now(),
             }).eq("id", row["id"]).execute()
             finalize_call_score(db, row["id"])
-            raise_alert(db, tenant_id=row.get("tenant_id"), type="transcript_failed", call_log_id=row["id"],
-                        caller_id=row.get("caller_id"), quote="stopped after the maximum number of attempts")
+            try:
+                raise_alert(db, tenant_id=row.get("tenant_id"), type="transcript_failed", call_log_id=row["id"],
+                            caller_id=row.get("caller_id"), quote="stopped after the maximum number of attempts")
+            except Exception as alert_err:
+                logger.error(f"transcript_failed alert failed for call {row['id']}: {alert_err}")
         else:
             runnable.append(row["id"])
     if runnable:
