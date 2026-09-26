@@ -220,9 +220,10 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const telecallingOn = enabledFeatures.some(
     (f) => f === "telecalling_sim" || f === "telecalling_telecmi" || f.startsWith("telecalling.")
   );
+  const canManageTeam = role === "owner" || permissions.includes("team.manage");
 
   useEffect(() => {
-    if (!telecallingOn) return;
+    if (!telecallingOn || !canManageTeam) return;
     let stopped = false;
     const poll = async () => {
       try {
@@ -234,7 +235,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     void poll();
     const id = setInterval(poll, 60_000);
     return () => { stopped = true; clearInterval(id); };
-  }, [telecallingOn]);
+  }, [telecallingOn, canManageTeam]);
 
   useEffect(() => {
     if (!waEnabled) return;
