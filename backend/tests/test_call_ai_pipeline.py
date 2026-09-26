@@ -178,6 +178,20 @@ class NewFlowTests(unittest.IsolatedAsyncioTestCase):
         mark, _ = await self._process(MagicMock(), {"id": "c", "tenant_id": "t", "duration_seconds": 90, "lead_id": None}, "real_conversation")
         mark.assert_called_once()
 
+    async def test_kb_context_is_fetched_once_and_shared_with_sort_and_mark(self):
+        marking = MarkResult(checks=[{"key": c["key"], "full": c["full"], "level": "good" if c["key"] != "crm_update" else None} for c in CHECKS])
+        kb_mock = AsyncMock(return_value="Sells billing software")
+        with patch.object(pipe, "_load_audio", AsyncMock(return_value=(b"wav", "audio/wav"))), \
+             patch.object(pipe, "transcribe_tracks", AsyncMock(return_value=_tracks())), \
+             patch.object(pipe, "sort_call", AsyncMock(return_value=_sort("real_conversation"))) as sort_mock, \
+             patch.object(pipe, "mark_call", AsyncMock(return_value=marking)) as mark_mock, \
+             patch.object(pipe, "raise_alert"), \
+             patch("app.services.knowledge_service.get_knowledge_context", kb_mock):
+            await pipe._process(MagicMock(), {"id": "c", "tenant_id": "t", "duration_seconds": 90, "lead_id": None}, None)
+        kb_mock.assert_awaited_once()
+        self.assertEqual(sort_mock.call_args.kwargs["kb_context"], "Sells billing software")
+        self.assertEqual(mark_mock.call_args.kwargs["kb_context"], "Sells billing software")
+
 
 class RunCallAiTests(unittest.IsolatedAsyncioTestCase):
     async def test_success_path_finalizes_score_and_checks_crm(self):

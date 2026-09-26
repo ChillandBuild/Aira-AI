@@ -218,7 +218,8 @@ async def _process(db, row: dict, appid_override: str | None) -> None:
         raise_alert(db, tenant_id=tenant_id, type="tracks_swapped", call_log_id=call_log_id, caller_id=caller_id,
                     quote="The 'calling from…' words were heard on the customer's track.")
 
-    sorting = await sort_call(tracks.lines, tenant_id=tenant_id)
+    kb_context = await get_knowledge_context(tenant_id, query=transcript[:1500]) if tenant_id else ""
+    sorting = await sort_call(tracks.lines, tenant_id=tenant_id, kb_context=kb_context)
     evaluation: dict = {
         "evaluation_version": 4, "rules_version": RULES_VERSION, "group": sorting.group,
         "signs": sorting.signs, "valid_sign_count": len(sorting.signs),
@@ -226,7 +227,6 @@ async def _process(db, row: dict, appid_override: str | None) -> None:
     }
     rude_quote = sorting.rude_quote
     if sorting.group == "real_conversation":
-        kb_context = await get_knowledge_context(tenant_id, query=transcript[:1500]) if tenant_id else ""
         marking = await mark_call(
             tracks.lines, kb_context=kb_context, previous_notes=_previous_notes(db, row.get("lead_id"), call_log_id),
             talk_share=share, interruptions_per_5min=ipm, interruption_count=count,
