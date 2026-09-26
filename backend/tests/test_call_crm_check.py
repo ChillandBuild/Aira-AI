@@ -46,14 +46,14 @@ class CrmExpectedTests(unittest.TestCase):
 
 
 class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
-    async def _run(self, row, ai=None):
+    async def _run(self, row, ai=None, alert_error=None):
         db = MagicMock()
         writes = []
         db.table.return_value.update.side_effect = lambda payload: writes.append(payload) or db.table.return_value.update.return_value
         with patch.object(cm, "_load_row", return_value=row), \
              patch.object(cm, "wrapup_snapshot", side_effect=lambda db, r: None if not r.get("feedback_at") else {"outcome": r.get("outcome"), "manual_status": r.get("manual_status"), "notes": r.get("notes"), "callback_at": r.get("wrapup_callback_at"), "do_not_call": False}), \
              patch.object(cm, "gemini_analysis_json", AsyncMock(return_value=ai or {"level": "excellent", "reason": "matches"})) as gem, \
-             patch.object(cm, "raise_alert") as alert, \
+             patch.object(cm, "raise_alert", side_effect=alert_error) as alert, \
              patch.object(cm, "finalize_call_score") as fin:
             changed = await cm.mark_crm_update(db, "call-1", now=NOW)
         return changed, writes, gem, alert, fin
@@ -95,19 +95,91 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
         row = _row(feedback_at=NOW.isoformat(), outcome="interested")
         row["evaluation"]["checks"] = _checks(crm_level="excellent")
         row["evaluation"]["crm_wrapup"] = snap
-        changed, _, gem, _, _ = await self._run(row)
+        changed, writes, gem, _, fin = await self._run(row)
+        self.assertFalse(changed)
+        self.assertEqual(writes, [])
+        gem.assert_not_called()
+        fin.assert_called_once()  # score_final was never set on the row: self-heal
+
+    async def test_same_wrapup_with_score_final_already_true_skips_finalize(self):
+        snap = {"outcome": "interested", "manual_status": None, "notes": None, "callback_at": None, "do_not_call": False}
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested", score_final=True)
+        row["evaluation"]["checks"] = _checks(crm_level="excellent")
+        row["evaluation"]["crm_wrapup"] = snap
+        changed, _, gem, _, fin = await self._run(row)
         self.assertFalse(changed)
         gem.assert_not_called()
+        fin.assert_not_called()
 
     async def test_early_exit_mismatch_raises_alert_without_ai(self):
         row = _row(call_group="early_exit", feedback_at=NOW.isoformat(), outcome="interested",
                    evaluation={"evaluation_version": 4, "group": "early_exit",
                                "early_exit_check": {"expected_crm": "wrong_number", "crm_matches": None}})
-        changed, writes, gem, alert, _ = await self._run(row)
+        changed, writes, gem, alert, fin = await self._run(row)
         gem.assert_not_called()
         self.assertFalse(writes[0]["evaluation"]["early_exit_check"]["crm_matches"])
         self.assertEqual(alert.call_args.kwargs["type"], "crm_mismatch")
         self.assertEqual(alert.call_args.kwargs["quote"], "The call sounded like: Wrong number. Wrap-up saved: Interested.")
+        fin.assert_called_once()
+
+    async def test_early_exit_no_wrapup_after_cutoff_is_mismatch_with_alert(self):
+        row = _row(call_group="early_exit", created_at=(NOW - timedelta(hours=2, minutes=1)).isoformat(),
+                   evaluation={"evaluation_version": 4, "group": "early_exit",
+                               "early_exit_check": {"expected_crm": "wrong_number", "crm_matches": None}})
+        changed, writes, gem, alert, fin = await self._run(row)
+        self.assertTrue(changed)
+        gem.assert_not_called()
+        early = writes[0]["evaluation"]["early_exit_check"]
+        self.assertFalse(early["crm_matches"])
+        self.assertTrue(early["no_wrapup"])
+        self.assertEqual(alert.call_args.kwargs["type"], "crm_mismatch")
+        self.assertEqual(alert.call_args.kwargs["quote"], "No wrap-up saved within 2 hours")
+        fin.assert_called_once()
+
+    async def test_early_exit_alert_failure_still_saves_and_finalizes(self):
+        row = _row(call_group="early_exit", feedback_at=NOW.isoformat(), outcome="interested",
+                   evaluation={"evaluation_version": 4, "group": "early_exit",
+                               "early_exit_check": {"expected_crm": "wrong_number", "crm_matches": None}})
+        changed, writes, gem, alert, fin = await self._run(row, alert_error=RuntimeError("insert failed"))
+        self.assertTrue(changed)  # the exception from raise_alert must not propagate
+        self.assertFalse(writes[0]["evaluation"]["early_exit_check"]["crm_matches"])
+        fin.assert_called_once()
+
+    async def test_real_conversation_alert_failure_still_saves_and_finalizes(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested")
+        changed, writes, gem, alert, fin = await self._run(
+            row, ai={"level": "poor", "reason": "status wrong"}, alert_error=RuntimeError("insert failed"),
+        )
+        self.assertTrue(changed)  # the exception from raise_alert must not propagate
+        self.assertEqual(writes[0]["evaluation"]["checks"][-1]["level"], "poor")
+        fin.assert_called_once()
+
+    async def test_ai_failure_increments_crm_attempts_and_reraises(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested")
+        db = MagicMock()
+        writes = []
+        db.table.return_value.update.side_effect = lambda payload: writes.append(payload) or db.table.return_value.update.return_value
+        with patch.object(cm, "_load_row", return_value=row), \
+             patch.object(cm, "wrapup_snapshot", return_value={"outcome": "interested", "manual_status": None, "notes": None, "callback_at": None, "do_not_call": False}), \
+             patch.object(cm, "gemini_analysis_json", AsyncMock(side_effect=RuntimeError("timeout"))), \
+             patch.object(cm, "finalize_call_score") as fin:
+            with self.assertRaises(RuntimeError):
+                await cm.mark_crm_update(db, "call-1", now=NOW)
+        self.assertEqual(writes[-1]["evaluation"]["crm_attempts"], 1)
+        fin.assert_not_called()
+
+    async def test_third_ai_failure_marks_missing_and_alerts_no_proof(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested")
+        row["evaluation"]["crm_attempts"] = 3
+        changed, writes, gem, alert, fin = await self._run(row)
+        self.assertTrue(changed)
+        gem.assert_not_called()
+        crm = writes[0]["evaluation"]["checks"][-1]
+        self.assertEqual((crm["level"], crm["marks"], crm["reason"]),
+                         ("missing", 0.0, "The wrap-up couldn't be checked automatically."))
+        self.assertEqual(alert.call_args.kwargs["type"], "no_proof")
+        self.assertEqual(alert.call_args.kwargs["quote"], "Wrap-up check failed 3 times")
+        fin.assert_called_once()
 
     async def test_ai_not_done_yet_waits(self):
         changed, writes, _, _, _ = await self._run(_row(ai_status="scoring", feedback_at=NOW.isoformat(), evaluation=None))
