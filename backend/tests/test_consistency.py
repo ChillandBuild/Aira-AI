@@ -147,7 +147,7 @@ class TestApplyFix:
         monkeypatch.setattr(kv, "current_description", lambda tenant_id: DESCRIPTION)
         monkeypatch.setattr(kv, "save_description", lambda db, t, text, reason, user: writes.append((text, reason)))
         consistency.apply_fix(object(), "t", "i1", user_id="u", is_owner=True)
-        assert "Never ask for DOB" not in writes[0][0] and writes[0][1] == "consistency_fix"
+        assert "Never ask for DOB" not in writes[0][0] and writes[0][1] == "edit"
         assert saved["issues"] == []
 
     def test_handover_fix_writes_the_setting(self, monkeypatch):

@@ -454,7 +454,7 @@ def apply_fix(db, tenant_id: str, issue_id: str, *, user_id: str | None, is_owne
             raise FixError("Only an account owner can change the Description.", 403)
         current = kv.current_description(tenant_id)
         new_text = _replace_line(current, issue["quote"], proposed)
-        kv.save_description(db, tenant_id, new_text, "consistency_fix", user_id)
+        kv.save_description(db, tenant_id, new_text, "edit", user_id)  # knowledge_versions_reason_check allows only its fixed reasons
         result = {"where": "description", "description": new_text}
     elif issue["where"] == "handover_line":
         save_setting("handover_line", proposed, tenant_id=tenant_id)
