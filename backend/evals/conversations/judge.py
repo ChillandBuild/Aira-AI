@@ -92,7 +92,7 @@ def build_user_prompt(scenario: dict, transcript: list[dict], config: dict) -> s
     return (
         f"BUSINESS OFFERINGS:\n{_business_summary(config)}{starting}\n\n"
         f"EXPECTED:\n{expected}\n\n"
-        f"CONVERSATION (bracketed notes are what the system actually did):\n\n" + "\n\n".join(turns)
+        f"CONVERSATION (bracketed notes are what the system actually did; links like https://rzp.io/l/eval1 are real payment links the system created):\n\n" + "\n\n".join(turns)
     )
 
 

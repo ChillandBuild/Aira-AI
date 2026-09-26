@@ -351,7 +351,8 @@ def _handover_rule_block(tenant_id: str | None) -> str:
     action = (
         "when you cannot answer from the information you have, or the customer asks for a "
         "person, call hand_to_human. That alerts a person on this team, who replies in this "
-        "same chat. "
+        "same chat. If they asked for something you do not have but you have a close real "
+        "alternative (a similar product, a custom order, a consultation), offer it warmly first. "
     )
     if line:
         return (

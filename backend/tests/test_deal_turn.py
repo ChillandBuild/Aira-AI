@@ -639,3 +639,31 @@ class TestAskedAgain:
                 {"role": "assistant", "content": "We open at 10am, Tuesday to Sunday."},
                 {"role": "user", "content": "what time do you open"}]
         assert not deal_turn._asked_again(msgs, "")
+
+
+class TestMenuFits:
+    CTX = deal_actions.DealContext(
+        config={"enabled": True, "fields": [], "packages": [
+            {"key": "checkup", "name": "Check-up", "amount_paise": 50000},
+            {"key": "rct", "name": "Root canal", "amount_paise": 500000}]},
+        db=object(), lead_id="l", tenant_id="t", phone="", buttons_enabled=True)
+    MENU = {"kind": "buttons", "options": ["Check-up", "Root canal"], "buttons": []}
+
+    def test_menu_under_a_question_about_the_name_is_dropped(self):
+        assert not deal_turn._menu_fits("Great! Could you share your full name and a preferred day?", self.MENU, self.CTX)
+
+    def test_menu_under_which_one_is_kept(self):
+        assert deal_turn._menu_fits("Which one suits you?", self.MENU, self.CTX)
+
+    def test_menu_under_a_question_with_its_own_options_is_dropped(self):
+        assert not deal_turn._menu_fits("Which time works: morning or evening?", self.MENU, self.CTX)
+
+    def test_intro_without_a_question_keeps_the_menu(self):
+        assert deal_turn._menu_fits("Here's what we offer 👇", self.MENU, self.CTX)
+
+
+def test_named_category_opens_its_own_options():
+    packages = [{"key": "crash", "name": "Crash Course", "amount_paise": 1},
+                {"key": "long_term", "name": "Long Term", "options": [{"key": "y1", "name": "1 Year", "amount_paise": 2}]}]
+    assert deal_actions._named_category(packages, "long-term course details")["key"] == "long_term"
+    assert deal_actions._named_category(packages, "what courses do you have") is None

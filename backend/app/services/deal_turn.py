@@ -33,8 +33,10 @@ HANDOVER_OPENED_NOTE = (
     "the team is checking it and will reply here. Do NOT send them anywhere else (not the app, not a "
     "support desk, not the HANDOVER RULE line): a person here is already on it. Never say the payment "
     "is confirmed or missing, never promise a time, and do not send the exact same sentence you sent "
-    "before. If you already told them the team is checking, respond to their new point specifically "
-    "(their frustration, their question, the amount they mention)."
+    "before. If you already told them the team is checking, do not say it again: respond to their new "
+    "point specifically (their frustration, their question, the amount they mention), agree where "
+    "they are right, and ask for ONE thing that helps the team find it faster if you do not have it "
+    "yet (the payment time, the amount, or the UPI/transaction reference or a screenshot)."
 )
 
 
@@ -506,8 +508,8 @@ async def converse_once(
     if not text:
         text = await _final_text(messages, ctx, refusals, attached, tenant_id, llm)
     text, _ = strip_payment_urls(text)
-    if sombre(customer_message):
-        text = without_emoji(text)
+    if sombre(customer_message) or handover_opened or attached.handover:
+        text = without_emoji(text)  # a person is being brought in: no smileys
     if refusals and deal_engine.unknown_prices(text, ctx.config, customer_message, ctx.known_prices):
         logger.warning("Reply still quotes a price outside the catalog/offerings for lead %s", ctx.lead_id)
     if wanted_line_again and not attached.handover:
@@ -534,6 +536,11 @@ def _attach_choices(
     naming two or more packages, a question about a detail with fixed options, options
     written inline in the question ("Morning, Afternoon or Evening?")."""
     body, options = choices.extract(text)
+    if attached.menu and not _menu_fits(body, attached.menu, ctx):
+        # show_options under a message about something else ("your name and a time?"): the
+        # buttons would not answer the question, so drop them and look for the real options.
+        logger.info("Dropped a package menu that did not match the message for lead %s", ctx.lead_id)
+        attached.menu = None
     if attached.menu:
         return body
     options = offered or options
@@ -565,6 +572,37 @@ def _detail_options(text: str, ctx: deal_actions.DealContext) -> list[str]:
 
 
 PACKAGE_MENTION_MIN = 2
+_COMPARE_RE = re.compile(r"\b(difference|differ|compare|vs|versus|better|which one|or)\b|வித்தியாசம்", re.IGNORECASE)
+
+
+def _offering_names(ctx: deal_actions.DealContext) -> list[str]:
+    from app.services import intake
+
+    nodes = intake.normalize_packages(ctx.config)
+    names: list[str] = []
+
+    def walk(level):
+        for n in deal_engine._active(level):
+            names.extend(x for x in (n.get("name"), n.get("button_label")) if x)
+            walk(n.get("options") or [])
+    walk(nodes)
+    return names
+
+
+def _menu_fits(body: str, menu: dict, ctx: deal_actions.DealContext) -> bool:
+    """A package menu belongs under a message that is about the offerings: it names one, speaks
+    of options/packages, or has no question of its own ("Here's what we have 👇")."""
+    lowered = body.lower()
+    question = _last_question(body)
+    if not question:
+        return True
+    if any(t.lower() in lowered for t in [*menu.get("options", []), *_offering_names(ctx)]):
+        return True
+    if _OFFER_QUESTION_RE.search(body):
+        return True
+    # "Which one suits you?" picks from the menu; "Morning, afternoon or evening?" picks something else.
+    return bool(choices.PICK_CUE_RE.search(question)) and not choices.inline_options(body)
+
 
 
 def _open_session(ctx: deal_actions.DealContext) -> dict:
@@ -591,10 +629,12 @@ def _package_menu(
     whether to show them, gets them as buttons -- only while nothing is chosen yet, and not
     when that very menu was just sent and the customer's reply was vague (just_shown)."""
     question = _last_question(text)
-    if not ctx.offerings_enabled or not question:
+    comparing_now = bool(_COMPARE_RE.search(customer_message or ""))
+    if not ctx.offerings_enabled or not (question or comparing_now):
         return None, False
+    comparing = bool(_COMPARE_RE.search(customer_message or ""))
     session = _open_session(ctx)
-    if session.get("package_key") and session.get("status") != deal_engine.PAID_STATUS:
+    if session.get("package_key") and session.get("status") != deal_engine.PAID_STATUS and not comparing:
         return None, False  # mid-booking: the question is about a detail, not the packages
     level, menu = deal_actions.top_level_menu(ctx)
 
@@ -603,7 +643,8 @@ def _package_menu(
         return sum(1 for n in level if n["name"].lower() in lowered or (n.get("button_label") or "").lower() in lowered)
 
     offers_them = (
-        names(question) >= PACKAGE_MENTION_MIN
+        (comparing and names(text) >= PACKAGE_MENTION_MIN)  # "what's the difference between 49 and 99?"
+        or names(question) >= PACKAGE_MENTION_MIN
         or (names(text) >= PACKAGE_MENTION_MIN and bool(choices.PICK_CUE_RE.search(question)))
         or bool(_OFFER_QUESTION_RE.search(question))
     )

@@ -362,12 +362,25 @@ async def _show_options(ctx: DealContext, args: dict, turn: _Turn) -> str | None
         if not addons:
             return "show_options refused: that offering has no add-ons."
         return _menu_for(addons, ctx, turn, addons=True)
+    if not under:
+        named = _named_category(packages, turn.customer_message)
+        under = named["key"] if named else None  # "long term course details" -> that category's options
     if under:
         node = _find_node(packages, under)
         if not node or not node.get("options"):
             return f"show_options refused: '{under}' is not a category."
         return _menu_for(deal_engine._active(node["options"]), ctx, turn, addons=False)
     return _menu_for(deal_engine._active(packages), ctx, turn, addons=False)
+
+
+def _named_category(packages: list[dict], message: str) -> dict | None:
+    """The one top-level category the customer named, if exactly one."""
+    text = re.sub(r"[-_]", " ", (message or "").lower())
+    found = [
+        n for n in deal_engine._active(packages)
+        if n.get("options") and re.sub(r"[-_]", " ", n["name"].lower()) in text
+    ]
+    return found[0] if len(found) == 1 else None
 
 
 def _assigned_to(ctx: DealContext) -> str | None:

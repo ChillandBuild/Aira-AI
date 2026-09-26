@@ -116,6 +116,6 @@
      "state": {"selected": "bridal", "collected": {"name": "Divya", "preferred_date": "14th Dec", "preferred_time": "Morning"}},
      "lead_turns": ["does it include a trial?", "ok"],
      "expect": {"hard": ["link_needs_details", "no_invented_price", "no_invented_link"],
-                "behaviour": ["Answers yes, a trial is included (from the package description), then sends the ₹5000 link after 'ok'."]}}
+                "behaviour": ["Answers yes, a trial is included (from the package description). With every detail already in, sending the ₹5000 link in that same reply is correct, as is offering it and sending it after 'ok'; the link must go out exactly once."]}}
   ]
 }

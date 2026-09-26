@@ -331,6 +331,9 @@ def _rules_block(config: dict, tapped_key: str | None) -> str:
         "thing after a second ask. Follow the HANDOVER RULE wording for what you tell them, "
         "once. On later messages do not repeat that line word for word: acknowledge what they "
         "just said in your own words and say the team has been told, without promising a time.",
+        "When the customer wants what one of the OFFERINGS gives them (an answer, a reading, a "
+        "session), offer that offering right here in this chat with its price. Never send them to an "
+        "app, a website or a store for something sold here, even if your description says so.",
         "SOURCE OF TRUTH: OFFERINGS and REQUIRED DETAILS were set by the business on its packages "
         "page and override anything in your description or knowledge that disagrees: the price, "
         "what is sold in this chat, where to buy it, and which details to ask for. If your "

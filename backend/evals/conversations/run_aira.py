@@ -1,6 +1,6 @@
 """Run Aira (the production reply engine) through scripted conversations and grade them.
 
-    cd backend && .venv/bin/python -m evals.conversations.run_aira --key-tenant <tenant_uuid> \
+    cd backend && .venv/bin/python -m evals.conversations.run_aira --key-tenant <TEST tenant uuid> --test-key-tenant \
         [--files scenarios.json,scenarios_edge.json] [--only id1,id2] [--repeat 1] [--no-judge] [--out results.json]
 
 Every lead message goes through the same steps as generate_reply (see engine_sim.run_turn), with
@@ -108,6 +108,13 @@ def report(rows: list[dict]) -> None:
 
 
 async def main_async(args) -> None:
+    if not args.test_key_tenant:
+        # 2026-09-26: runs on a client's own key (Astro Tamil, shared by three client accounts)
+        # hit that key's spending cap twice, and the client's live replies failed until it reset.
+        raise SystemExit(
+            "Refusing to run: --key-tenant pays for every model call. Use a test account with its own "
+            "key and pass --test-key-tenant to confirm it is not a client's."
+        )
     if args.reply_model:
         engine_sim.EXTRA_SETTINGS["ai_reply_model"] = args.reply_model
     scenarios, configs = load(args.files)
@@ -138,6 +145,8 @@ def main() -> None:
     parser.add_argument("--no-judge", action="store_true")
     parser.add_argument("--reply-model", help="try another reply model, e.g. google/gemini-3.5-flash")
     parser.add_argument("--out")
+    parser.add_argument("--test-key-tenant", action="store_true",
+                        help="confirm --key-tenant is a test account with its own API key, not a client's")
     asyncio.run(main_async(parser.parse_args()))
 
 
