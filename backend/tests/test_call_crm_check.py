@@ -186,6 +186,60 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(changed)
         self.assertEqual(writes, [])
 
+    async def test_gemini_called_ai_votes_times(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested", notes="needs demo friday")
+        _, _, gem, _, _ = await self._run(row, ai={"level": "good", "reason": "notes thin"})
+        self.assertEqual(gem.await_count, cm.AI_VOTES)
+
+
+class MarkCrmUpdateVotingTests(unittest.IsolatedAsyncioTestCase):
+    """Check 10 also asks Gemini AI_VOTES times and decides by majority."""
+
+    async def _run_votes(self, row, votes):
+        db = MagicMock()
+        writes = []
+        db.table.return_value.update.side_effect = lambda payload: writes.append(payload) or db.table.return_value.update.return_value
+        snap = {"outcome": row.get("outcome"), "manual_status": row.get("manual_status"), "notes": row.get("notes"),
+                "callback_at": row.get("wrapup_callback_at"), "do_not_call": False}
+        with patch.object(cm, "_load_row", return_value=row), \
+             patch.object(cm, "wrapup_snapshot", return_value=snap), \
+             patch.object(cm, "gemini_analysis_json", AsyncMock(side_effect=votes)), \
+             patch.object(cm, "raise_alert"), \
+             patch.object(cm, "finalize_call_score"):
+            changed = await cm.mark_crm_update(db, "call-1", now=NOW)
+        return changed, writes
+
+    async def test_majority_level_from_three_runs(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested")
+        votes = [{"level": "good", "reason": "r1"}, {"level": "good", "reason": "r2"}, {"level": "poor", "reason": "r3"}]
+        changed, writes = await self._run_votes(row, votes)
+        self.assertTrue(changed)
+        crm = writes[0]["evaluation"]["checks"][-1]
+        self.assertEqual((crm["level"], crm["reason"]), ("good", "r1"))
+
+    async def test_all_differ_takes_median(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested")
+        votes = [{"level": "poor", "reason": "r1"}, {"level": "good", "reason": "r2"}, {"level": "excellent", "reason": "r3"}]
+        changed, writes = await self._run_votes(row, votes)
+        self.assertTrue(changed)
+        crm = writes[0]["evaluation"]["checks"][-1]
+        self.assertEqual(crm["level"], "good")
+
+    async def test_fewer_than_two_valid_votes_raises_and_counts_one_attempt(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested")
+        db = MagicMock()
+        writes = []
+        db.table.return_value.update.side_effect = lambda payload: writes.append(payload) or db.table.return_value.update.return_value
+        snap = {"outcome": "interested", "manual_status": None, "notes": None, "callback_at": None, "do_not_call": False}
+        votes = [{"level": "good", "reason": "r1"}, {"level": "not_a_real_level"}, {"level": None}]
+        with patch.object(cm, "_load_row", return_value=row), \
+             patch.object(cm, "wrapup_snapshot", return_value=snap), \
+             patch.object(cm, "gemini_analysis_json", AsyncMock(side_effect=votes)), \
+             patch.object(cm, "finalize_call_score"):
+            with self.assertRaises(cm.CallMarkingError):
+                await cm.mark_crm_update(db, "call-1", now=NOW)
+        self.assertEqual(writes[-1]["evaluation"]["crm_attempts"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

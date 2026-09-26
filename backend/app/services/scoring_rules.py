@@ -2,6 +2,11 @@
 
 RULES_VERSION = "v1"
 
+# Every AI judgement call (sorting, marking, the CRM check) is made this many times
+# with the identical prompt at temperature 0, and decided by majority — the same
+# transcript must get the same answer every time (method doc Step 1).
+AI_VOTES = 3
+
 # Step 1 — sorting
 MIN_SCORED_SECONDS = 30
 MIN_SIGNS = 2

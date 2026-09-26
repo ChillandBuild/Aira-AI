@@ -161,6 +161,92 @@ class MarkCallTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(cm.CallMarkingError):
             await self._run(ai)
 
+    async def test_null_string_quote_on_missing_is_not_proof_missing(self):
+        ai = _ai()
+        ai["checks"]["decision"] = {"level": "missing", "reason": "never asked", "quote": "null"}
+        result, _ = await self._run(ai)
+        decision = next(c for c in result.checks if c["key"] == "decision")
+        self.assertFalse(decision["proof_missing"])
+
+
+class QuoteOkTests(unittest.TestCase):
+    def test_null_string_on_missing_is_ok(self):
+        ok, line = cm._quote_ok("missing", "null", LINES)
+        self.assertTrue(ok)
+        self.assertIsNone(line)
+
+
+class MarkCallVotingTests(unittest.IsolatedAsyncioTestCase):
+    """Step 2 now asks Gemini AI_VOTES times with the identical prompt and decides by majority."""
+
+    async def _run_votes(self, ai_list, talk_share=50.0, ipm=0.5, count=0):
+        with patch.object(cm, "gemini_analysis_json", AsyncMock(side_effect=ai_list)) as gem:
+            result = await cm.mark_call(
+                LINES, kb_context="Plan: 12000 per year", previous_notes="", talk_share=talk_share,
+                interruptions_per_5min=ipm, interruption_count=count, duration_seconds=60, tenant_id="t",
+            )
+        return result, gem
+
+    async def test_gemini_called_ai_votes_times(self):
+        _, gem = await self._run_votes([_ai(), _ai(), _ai()])
+        self.assertEqual(gem.await_count, cm.AI_VOTES)
+
+    async def test_majority_picks_common_level(self):
+        a1, a2, a3 = _ai(), _ai(), _ai()
+        a3["checks"]["opening"]["level"] = "poor"  # a1/a2 keep the default "excellent"
+        result, _ = await self._run_votes([a1, a2, a3])
+        opening = next(c for c in result.checks if c["key"] == "opening")
+        self.assertEqual(opening["ai_level"], "excellent")
+
+    async def test_all_differ_takes_median(self):
+        a1, a2, a3 = _ai(), _ai(), _ai()
+        a1["checks"]["opening"]["level"] = "poor"
+        a2["checks"]["opening"]["level"] = "good"
+        a3["checks"]["opening"]["level"] = "excellent"
+        result, _ = await self._run_votes([a1, a2, a3])
+        opening = next(c for c in result.checks if c["key"] == "opening")
+        self.assertEqual(opening["ai_level"], "good")
+
+    async def test_fewer_than_two_valid_votes_raises(self):
+        a1, a2, a3 = _ai(), _ai(), _ai()
+        a2["checks"]["clarity"]["level"] = "not_a_real_level"
+        a3["checks"]["clarity"] = None
+        with self.assertRaises(cm.CallMarkingError):
+            await self._run_votes([a1, a2, a3])
+
+    async def test_rude_needs_two_runs(self):
+        a1, a2, a3 = _ai(), _ai(), _ai()
+        a1.update(rude=True, rude_quote="Our plan includes GST billing")
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertIsNone(result.rude_quote)
+        courtesy = next(c for c in result.checks if c["key"] == "courtesy")
+        self.assertNotEqual(courtesy["capped_by"], "rude")
+
+    async def test_rude_confirmed_by_two_runs(self):
+        a1, a2, a3 = _ai(), _ai(), _ai()
+        a1.update(rude=True, rude_quote="Our plan includes GST billing")
+        a2.update(rude=True, rude_quote="Our plan includes GST billing")
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertTrue(result.rude_quote.startswith("[00:15]"))
+        courtesy = next(c for c in result.checks if c["key"] == "courtesy")
+        self.assertEqual(courtesy["level"], "missing")
+
+    async def test_wrong_info_needs_two_runs_on_the_same_line(self):
+        a1, a2, a3 = _ai(), _ai(), _ai()
+        a1["wrong_info"] = [{"quote": "It is 12000 per year", "kb_fact": "Plan is 15000 per year"}]
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertEqual(result.wrong_info, [])
+
+    async def test_wrong_info_confirmed_by_two_runs_on_the_same_line(self):
+        a1, a2, a3 = _ai(), _ai(), _ai()
+        a1["wrong_info"] = [{"quote": "It is 12000 per year", "kb_fact": "Plan is 15000 per year"}]
+        a2["wrong_info"] = [{"quote": "It is 12000 per year", "kb_fact": "Plan is 15000 per year"}]
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertEqual(len(result.wrong_info), 1)
+        self.assertEqual(result.wrong_info[0]["time"], "00:15")
+        product = next(c for c in result.checks if c["key"] == "product_info")
+        self.assertEqual((product["level"], product["capped_by"]), ("missing", "wrong_info"))
+
 
 if __name__ == "__main__":
     unittest.main()

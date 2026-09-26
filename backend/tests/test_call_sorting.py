@@ -119,5 +119,63 @@ class SortCallTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.language_barrier)
 
 
+class SortCallVotingTests(unittest.IsolatedAsyncioTestCase):
+    """Step 1 now asks Gemini AI_VOTES times with the identical prompt and decides by majority."""
+
+    async def _run_votes(self, ai_list, lines=REAL, **kw):
+        with patch.object(cs, "gemini_analysis_json", AsyncMock(side_effect=ai_list)) as gem:
+            result = await cs.sort_call(lines, tenant_id="t", **kw)
+        return result, gem
+
+    async def test_gemini_called_ai_votes_times(self):
+        ai = _ai([{"sign": 3, "quote": "How much?"}, {"sign": 5, "quote": "A bit costly"}])
+        _, gem = await self._run_votes([ai, ai, ai])
+        self.assertEqual(gem.await_count, cs.AI_VOTES)
+
+    async def test_sign_found_by_only_one_run_does_not_count(self):
+        base_signs = [{"sign": 3, "quote": "How much?"}, {"sign": 5, "quote": "A bit costly"}]
+        a1 = _ai(base_signs + [{"sign": 6, "quote": "I'll send a demo link and call Friday at 11"}])
+        a2 = _ai(base_signs)
+        a3 = _ai(base_signs)
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertEqual([s["sign"] for s in result.signs], [3, 5])
+
+    async def test_sign_found_by_two_runs_counts_with_the_first_valid_quote(self):
+        base_signs = [{"sign": 3, "quote": "How much?"}]
+        a1 = _ai(base_signs + [{"sign": 5, "quote": "A bit costly"}])
+        a2 = _ai(base_signs + [{"sign": 5, "quote": "A bit costly"}])
+        a3 = _ai(base_signs)
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertEqual([s["sign"] for s in result.signs], [3, 5])
+
+    async def test_rude_needs_two_runs(self):
+        a1 = _ai([], polite=False, rude_quote="Our plan includes GST billing")
+        a2, a3 = _ai([]), _ai([])
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertIsNone(result.rude_quote)
+
+    async def test_rude_confirmed_by_two_runs(self):
+        a1 = _ai([], polite=False, rude_quote="Our plan includes GST billing")
+        a2 = _ai([], polite=False, rude_quote="Our plan includes GST billing")
+        a3 = _ai([])
+        result, _ = await self._run_votes([a1, a2, a3])
+        self.assertTrue(result.rude_quote.startswith("[00:08]"))
+
+    async def test_prompt_contains_kb_context_and_casual_talk_rule(self):
+        gem_mock = AsyncMock(return_value=_ai([]))
+        with patch.object(cs, "gemini_analysis_json", gem_mock):
+            await cs.sort_call(EARLY, tenant_id="t", kb_context="Sells billing software")
+        prompt = gem_mock.call_args.kwargs["user_prompt"]
+        self.assertIn("Sells billing software", prompt)
+        self.assertIn("casual talk", prompt)
+        self.assertIn("I'll do it and tell you", prompt)
+
+    async def test_missing_kb_context_shows_unknown(self):
+        gem_mock = AsyncMock(return_value=_ai([]))
+        with patch.object(cs, "gemini_analysis_json", gem_mock):
+            await cs.sort_call(EARLY, tenant_id="t")
+        self.assertIn("unknown", gem_mock.call_args.kwargs["user_prompt"])
+
+
 if __name__ == "__main__":
     unittest.main()

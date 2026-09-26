@@ -4,12 +4,14 @@ The AI only points at lines (the 6 signs). The system checks every quote against
 transcript and the allowed speaker, then counts. The group is never the AI's opinion.
 The same request also returns the call summary and the early-exit basic check.
 """
+import asyncio
+from collections import Counter
 from dataclasses import dataclass
 
 from app.services.call_lines import Line, clock, format_transcript
 from app.services.call_quotes import clip, find_quote
 from app.services.gemini_client import gemini_analysis_json
-from app.services.scoring_rules import MIN_SIGNS
+from app.services.scoring_rules import AI_VOTES, MIN_SIGNS
 
 SIGN_SPEAKERS: dict[int, tuple[str, ...]] = {
     1: ("customer",), 2: ("telecaller",), 3: ("telecaller", "customer"),
@@ -32,14 +34,20 @@ _SYSTEM = (
 _PROMPT = """Transcript:
 {transcript}
 
+What this business sells to its customers:
+{kb_block}
+Talk about anything else — the telecaller's own work, internal tools, personal matters, or
+anything not part of what this business sells to its customers — is casual talk, however long
+or sales-like it sounds, and NEVER counts as a sign.
+
 Find the signs of a real sales discussion. For each sign you find, copy ONE exact line (or part of a line) that proves it.
 1. The customer shared a need or situation (e.g. "I need software for my shop"). Must be the customer.
 2. The telecaller explained the product, service or offer: features, benefits or how it works. Just saying the company name or "I'm calling about your enquiry" does NOT count. Must be the telecaller.
 3. Price, cost, plan, discount or payment was discussed. Either person.
 4. The customer asked a question about the product or service (delivery, features, timing, warranty). "Who is this?" or "where did you get my number?" do NOT count. Must be the customer.
 5. The customer raised a concern or objection about the offer ("too costly", "I'll think about it", "already using another one"). "I never enquired", "wrong number" or "I'm busy" do NOT count. Must be the customer.
-6. A clear next step: a callback for a specific purpose, a demo, a visit, a meeting, sending a quote or a payment link. A plain "call me later" does NOT count. Either person.
-These NEVER count as signs, however long they go on: asking who is calling or where the number came from; wrong number or "I never enquired" with no further sales talk; "call me later", "I'm driving", "I'm busy"; not understanding each other's language; network problems, "hello? hello?", silence; voicemail, IVR or automated messages; casual talk unrelated to the product.
+6. A clear next step about the product: a demo, a visit, a meeting, sending a quote or a payment link, or a callback for a stated purpose. A vague "I'll do it and tell you", "I'll let you know" or a plain "call me later" does NOT count — it must be a specific, agreed action. Either person.
+These NEVER count as signs, however long they go on: asking who is calling or where the number came from; wrong number or "I never enquired" with no further sales talk; "call me later", "I'm driving", "I'm busy"; not understanding each other's language; network problems, "hello? hello?", silence; voicemail, IVR or automated messages; casual talk unrelated to what this business sells.
 
 Also answer:
 - polite: false only if the telecaller was rude, mocking, dismissive or abusive; then rude_quote = the telecaller's exact line.
@@ -89,29 +97,62 @@ def _telecaller_quote(quote, lines: list[Line]) -> str | None:
     return f"[{clock(line.start)}] {clip(quote)}" if line else None
 
 
-async def sort_call(lines: list[Line], tenant_id: str | None) -> SortResult:
-    data = await gemini_analysis_json(
-        system_prompt=_SYSTEM,
-        user_prompt=_PROMPT.format(transcript=format_transcript(lines)),
-        tenant_id=tenant_id,
-        temperature=0.0,
-        purpose="call_sorting",
-    )
-    signs = validate_signs(data.get("signs"), lines)
+async def sort_call(lines: list[Line], tenant_id: str | None, kb_context: str | None = None) -> SortResult:
+    prompt = _PROMPT.format(transcript=format_transcript(lines), kb_block=kb_context or "unknown")
+    runs = await asyncio.gather(*(
+        gemini_analysis_json(
+            system_prompt=_SYSTEM,
+            user_prompt=prompt,
+            tenant_id=tenant_id,
+            temperature=0.0,
+            purpose="call_sorting",
+        )
+        for _ in range(AI_VOTES)
+    ))
+
+    sign_votes: dict[int, list[dict]] = {}
+    for data in runs:
+        for s in validate_signs(data.get("signs"), lines):
+            sign_votes.setdefault(s["sign"], []).append(s)
+    signs = sorted((votes[0] for votes in sign_votes.values() if len(votes) >= 2), key=lambda s: s["sign"])
     group = group_for(len(signs))
-    summary_data = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+
+    summary_data = next((d.get("summary") for d in runs if isinstance(d.get("summary"), dict)), {})
     summary = {k: v for k, v in summary_data.items() if k in _SUMMARY_KEYS}
-    rude_quote = None if data.get("polite") is not False else _telecaller_quote(data.get("rude_quote"), lines)
-    barrier_line = find_quote(data.get("language_barrier_quote"), lines) if data.get("language_barrier") is True else None
+
+    rude_votes = []
+    for d in runs:
+        if d.get("polite") is False:
+            quote = _telecaller_quote(d.get("rude_quote"), lines)
+            if quote is not None:
+                rude_votes.append(quote)
+    rude_quote = rude_votes[0] if len(rude_votes) >= 2 else None
+
+    barrier_votes = []
+    for d in runs:
+        if d.get("language_barrier") is True:
+            line = find_quote(d.get("language_barrier_quote"), lines)
+            if line is not None:
+                barrier_votes.append((line, d.get("language_barrier_quote")))
+    language_barrier = len(barrier_votes) >= 2
+    barrier_line, barrier_quote_raw = barrier_votes[0] if language_barrier else (None, None)
+
+    confirmed_count = sum(1 for d in runs if d.get("enquiry_confirmed_early") is True)
+    enquiry_confirmed_early = confirmed_count > len(runs) / 2
+
+    expected_votes = [d.get("expected_crm") if d.get("expected_crm") in EXPECTED_CRM else "other" for d in runs]
+    counts = Counter(expected_votes)
+    top = max(counts.values())
+    winners = [v for v, n in counts.items() if n == top]
+    expected_crm = winners[0] if len(winners) == 1 else "other"
 
     early = None
     if group == "early_exit":
-        expected = data.get("expected_crm")
         early = {
             "polite": rude_quote is None,
             "rude_quote": rude_quote,
-            "enquiry_confirmed_early": data.get("enquiry_confirmed_early") is True,
-            "expected_crm": expected if expected in EXPECTED_CRM else "other",
+            "enquiry_confirmed_early": enquiry_confirmed_early,
+            "expected_crm": expected_crm,
             "crm_matches": None,
         }
     return SortResult(
@@ -119,7 +160,7 @@ async def sort_call(lines: list[Line], tenant_id: str | None) -> SortResult:
         signs=signs,
         summary=summary,
         early_exit_check=early,
-        language_barrier=barrier_line is not None,
-        language_barrier_quote=f"[{clock(barrier_line.start)}] {clip(data.get('language_barrier_quote'))}" if barrier_line else None,
+        language_barrier=language_barrier,
+        language_barrier_quote=f"[{clock(barrier_line.start)}] {clip(barrier_quote_raw)}" if barrier_line else None,
         rude_quote=rude_quote,
     )

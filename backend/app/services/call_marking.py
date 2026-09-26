@@ -5,17 +5,19 @@ every quote, applies the talk-share/interruption caps, forces product info to
 Missing on a proven wrong statement, and computes every mark and the total.
 Check 10 (CRM update) is left pending here and marked from the wrap-up.
 """
+import asyncio
 import logging
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from app.services.call_alerts import raise_alert
 from app.services.call_lines import Line, clock, format_transcript, parse_transcript
 from app.services.call_metrics import courtesy_cap, listening_cap_reason, lower_level, tips
-from app.services.call_quotes import clip, find_quote
+from app.services.call_quotes import clean_quote, clip, find_quote
 from app.services.call_scorer import finalize_call_score
 from app.services.gemini_client import gemini_analysis_json
-from app.services.scoring_rules import CHECK_MARKS, LEVEL_ORDER, LEVEL_SHARE, WRAPUP_CUTOFF_HOURS
+from app.services.scoring_rules import AI_VOTES, CHECK_MARKS, LEVEL_ORDER, LEVEL_SHARE, WRAPUP_CUTOFF_HOURS
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +117,23 @@ def _quote_ok(level: str, quote, lines: list[Line]) -> tuple[bool, Line | None]:
     line = find_quote(quote, lines)
     if line:
         return True, line
-    return level == "missing" and not quote, None
+    return level == "missing" and clean_quote(quote) is None, None
+
+
+def _majority_level(votes: list[str]) -> str:
+    """The most common level; on a full tie (every vote differs) the median by LEVEL_ORDER."""
+    counts = Counter(votes)
+    top = max(counts.values())
+    winners = [level for level, n in counts.items() if n == top]
+    if len(winners) == 1:
+        return winners[0]
+    ordered = sorted(votes, key=LEVEL_ORDER.index)
+    return ordered[(len(ordered) - 1) // 2]
+
+
+def _median_int(values: list[int]) -> int:
+    ordered = sorted(values)
+    return ordered[(len(ordered) - 1) // 2]
 
 
 async def mark_call(
@@ -130,29 +148,54 @@ async def mark_call(
         f"Previous notes on this lead:\n{previous_notes or 'none'}\n\n"
         f"{_numbers_block(talk_share, interruptions_per_5min, interruption_count)}\n{_RUBRIC}"
     )
-    data = await gemini_analysis_json(
-        system_prompt=_SYSTEM, user_prompt=prompt, tenant_id=tenant_id, temperature=0.0, purpose="call_marking",
-    )
-    raw = data.get("checks") if isinstance(data.get("checks"), dict) else {}
+    runs = await asyncio.gather(*(
+        gemini_analysis_json(
+            system_prompt=_SYSTEM, user_prompt=prompt, tenant_id=tenant_id, temperature=0.0, purpose="call_marking",
+        )
+        for _ in range(AI_VOTES)
+    ))
+    raw_list = [d.get("checks") if isinstance(d.get("checks"), dict) else {} for d in runs]
 
-    excused = data.get("excused_interruptions")
-    excused = excused if isinstance(excused, int) and not isinstance(excused, bool) and excused > 0 else 0
+    excused_values = []
+    for d in runs:
+        v = d.get("excused_interruptions")
+        excused_values.append(v if isinstance(v, int) and not isinstance(v, bool) and v > 0 else 0)
+    excused = _median_int(excused_values)
     ipm_for_caps = interruptions_per_5min
     if ipm_for_caps is not None and interruption_count and excused:
         remaining = max(0, interruption_count - excused)
         ipm_for_caps = round(ipm_for_caps * remaining / interruption_count, 2)
 
-    rude_line = find_quote(data.get("rude_quote"), lines, ("telecaller",)) if data.get("rude") is True else None
-    wrong = []
-    for item in data.get("wrong_info") or []:
-        if isinstance(item, dict):
-            line = find_quote(item.get("quote"), lines, ("telecaller",))
+    rude_votes = []
+    for d in runs:
+        if d.get("rude") is True:
+            line = find_quote(d.get("rude_quote"), lines, ("telecaller",))
             if line:
-                wrong.append({"quote": clip(item["quote"]), "time": clock(line.start), "kb_fact": clip(item.get("kb_fact"))})
+                rude_votes.append((d.get("rude_quote"), line))
+    rude_line = rude_votes[0][1] if len(rude_votes) >= 2 else None
+    rude_quote_raw = rude_votes[0][0] if len(rude_votes) >= 2 else None
+
+    wrong_seen: dict[int, dict] = {}  # id(line) -> {"count", "quote", "kb_fact", "line"}
+    for d in runs:
+        matched_this_run: set[int] = set()
+        for item in d.get("wrong_info") or []:
+            if not isinstance(item, dict):
+                continue
+            line = find_quote(item.get("quote"), lines, ("telecaller",))
+            if not line or id(line) in matched_this_run:
+                continue
+            matched_this_run.add(id(line))
+            entry = wrong_seen.setdefault(id(line), {"count": 0, "quote": item.get("quote"), "kb_fact": item.get("kb_fact"), "line": line})
+            entry["count"] += 1
+    wrong = [
+        {"quote": clip(e["quote"]), "time": clock(e["line"].start), "kb_fact": clip(e["kb_fact"])}
+        for e in sorted(wrong_seen.values(), key=lambda e: e["line"].start) if e["count"] >= 2
+    ]
 
     lcap, lcap_name = listening_cap_reason(talk_share, ipm_for_caps)
 
     checks, proof_missing = [], []
+    chosen_levels: dict[str, str] = {}
     for base in CHECKS:
         key = base["key"]
         slim = {"key": key, "full": base["full"]}
@@ -160,10 +203,17 @@ async def mark_call(
             checks.append({**slim, "level": None, "ai_level": None, "capped_by": None, "marks": None,
                            "reason": None, "quote": None, "time": None, "proof_missing": False})
             continue
-        item = raw.get(key)
-        level = item.get("level") if isinstance(item, dict) else None
-        if level not in LEVEL_ORDER:
-            raise CallMarkingError(f"no valid level for check {key}")
+        votes = []
+        for raw in raw_list:
+            item = raw.get(key)
+            lv = item.get("level") if isinstance(item, dict) else None
+            if lv in LEVEL_ORDER:
+                votes.append(lv)
+        if len(votes) < 2:
+            raise CallMarkingError(f"fewer than 2 valid votes for check {key}")
+        level = _majority_level(votes)
+        chosen_levels[key] = level
+        source = next(raw[key] for raw in raw_list if isinstance(raw.get(key), dict) and raw[key].get("level") == level)
         cap, cap_name = "excellent", None
         if key == "listening":
             cap, cap_name = lcap, lcap_name
@@ -176,10 +226,10 @@ async def mark_call(
         elif key == "product_info" and wrong:
             cap, cap_name = "missing", "wrong_info"
         check = apply_level(slim, level, cap, cap_name)
-        ok, line = _quote_ok(level, item.get("quote"), lines)
+        ok, line = _quote_ok(level, source.get("quote"), lines)
         check.update({
-            "reason": clip(item.get("reason")),
-            "quote": clip(item.get("quote")) if line else None,
+            "reason": clip(source.get("reason")),
+            "quote": clip(source.get("quote")) if line else None,
             "time": clock(line.start) if line else None,
             "proof_missing": not ok,
         })
@@ -187,11 +237,24 @@ async def mark_call(
             proof_missing.append(key)
         checks.append(check)
 
+    unverified: list[str] = []
+    for raw, d in zip(raw_list, runs):
+        item = raw.get("product_info")
+        level = item.get("level") if isinstance(item, dict) else None
+        if level != chosen_levels.get("product_info"):
+            continue
+        for c in d.get("unverified_claims") or []:
+            if isinstance(c, str):
+                cc = clip(c)
+                if cc not in unverified:
+                    unverified.append(cc)
+    unverified = unverified[:10]
+
     return MarkResult(
         checks=checks,
-        rude_quote=f"[{clock(rude_line.start)}] {clip(data.get('rude_quote'))}" if rude_line else None,
+        rude_quote=f"[{clock(rude_line.start)}] {clip(rude_quote_raw)}" if rude_line else None,
         wrong_info=wrong,
-        unverified_claims=[clip(c) for c in data.get("unverified_claims") or [] if isinstance(c, str)][:10],
+        unverified_claims=unverified,
         proof_missing=proof_missing,
         tips=tips(talk_share, interruptions_per_5min),
     )
@@ -344,21 +407,26 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
             alert = ("no_proof", "Wrap-up check failed 3 times")
         else:
             try:
-                data = await gemini_analysis_json(
-                    system_prompt=_SYSTEM,
-                    user_prompt=_CRM_PROMPT.format(transcript=format_transcript(parse_transcript(row.get("transcript"))), **{k: snap.get(k) or "—" for k in snap}),
-                    tenant_id=row.get("tenant_id"), temperature=0.0, purpose="call_crm_check", max_tokens=400,
-                )
-                level = data.get("level")
-                if level not in LEVEL_ORDER:
+                prompt = _CRM_PROMPT.format(transcript=format_transcript(parse_transcript(row.get("transcript"))), **{k: snap.get(k) or "—" for k in snap})
+                results = await asyncio.gather(*(
+                    gemini_analysis_json(
+                        system_prompt=_SYSTEM, user_prompt=prompt,
+                        tenant_id=row.get("tenant_id"), temperature=0.0, purpose="call_crm_check", max_tokens=400,
+                    )
+                    for _ in range(AI_VOTES)
+                ))
+                votes = [d.get("level") for d in results if d.get("level") in LEVEL_ORDER]
+                if len(votes) < 2:
                     raise CallMarkingError("no valid level for check crm_update")
+                level = _majority_level(votes)
+                source = next(d for d in results if d.get("level") == level)
             except Exception:
                 db.table("call_logs").update({"evaluation": {**evaluation, "crm_attempts": attempts + 1}}).eq("id", call_log_id).execute()
                 raise
             crm.update({"level": level, "ai_level": level, "marks": round(check_marks("crm_update", level), 2),
-                        "reason": clip(data.get("reason"))})
+                        "reason": clip(source.get("reason"))})
             if level in ("poor", "missing"):
-                alert = ("crm_mismatch", clip(data.get("reason")))
+                alert = ("crm_mismatch", clip(source.get("reason")))
     checks[-1] = crm
     new_eval = {**evaluation, "checks": checks, "top_improve": top_improve(checks), "crm_wrapup": snap}
     db.table("call_logs").update({"evaluation": new_eval}).eq("id", call_log_id).execute()
