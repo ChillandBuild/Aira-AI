@@ -106,6 +106,49 @@ class LeadSourceTests(unittest.TestCase):
         self.assertFalse(ca.lead_source_is_bad(total=10, bad=2))
         self.assertFalse(ca.lead_source_is_bad(total=9, bad=9))
 
+    def test_day_detail_is_the_ist_calendar_date(self):
+        # 19:00 UTC is 00:30 IST the next day
+        self.assertEqual(ca._ist_calendar_day("2026-09-25T19:00:00+00:00"), "2026-09-26")
+        self.assertEqual(ca._ist_calendar_day("2026-09-25T10:00:00+00:00"), "2026-09-25")
+
+    def test_run_lead_source_check_stamps_the_ist_day_not_the_utc_slice_start(self):
+        db = _FakeDb(users=[{"tenant_id": "t", "user_id": "admin-1", "role": "owner"}])
+        db.rows["call_logs"] = [
+            {"tenant_id": "t", "provider": "telecmi", "call_group": "early_exit",
+             "evaluation": {"early_exit_check": {"expected_crm": "wrong_number"}},
+             "created_at": "2026-09-25T19:15:00+00:00", "leads": {"source": "facebook"}}
+            for _ in range(10)
+        ]
+        with patch.object(ca, "notify_user"):
+            raised = ca.run_lead_source_check(db, "t", "2026-09-25T18:30:00+00:00", "2026-09-26T18:30:00+00:00")
+        self.assertEqual(raised, 1)
+        self.assertEqual(db.rows["call_alerts"][0]["detail"]["day"], "2026-09-26")
+
+
+class MorningSummaryTests(unittest.TestCase):
+    def test_one_tenant_raising_does_not_stop_the_rest(self):
+        db = _FakeDb(users=[{"tenant_id": "t-good", "user_id": "admin-good", "role": "owner"},
+                             {"tenant_id": "t-bad", "user_id": "admin-bad", "role": "owner"}])
+        db.rows["call_logs"] = [
+            {"tenant_id": "t-bad", "provider": "telecmi", "created_at": "2026-09-25T10:00:00+00:00"},
+            {"tenant_id": "t-good", "provider": "telecmi", "created_at": "2026-09-25T11:00:00+00:00"},
+        ]
+        db.rows["call_alerts"] = [
+            {"tenant_id": "t-good", "type": "rude", "created_at": "2026-09-25T11:30:00+00:00"},
+        ]
+
+        def fake_check(db, tenant_id, start, end):
+            if tenant_id == "t-bad":
+                raise RuntimeError("boom")
+            return 0
+
+        with patch.object(ca, "run_lead_source_check", side_effect=fake_check), \
+             patch.object(ca, "notify_user") as notify:
+            sent = ca.send_morning_summaries(db, now=NOW)
+        self.assertEqual(sent, 1)
+        notify.assert_called_once()
+        self.assertEqual(notify.call_args.args[1], "admin-good")
+
 
 if __name__ == "__main__":
     unittest.main()

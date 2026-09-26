@@ -82,8 +82,16 @@ def lead_source_is_bad(total: int, bad: int) -> bool:
     return total >= LEAD_SOURCE_MIN_CALLS and bad / total >= LEAD_SOURCE_BAD_RATE
 
 
+def _ist_calendar_day(day_start_iso: str) -> str:
+    from app.services.telecaller_performance import IST_OFFSET
+
+    start = datetime.fromisoformat(day_start_iso.replace("Z", "+00:00"))
+    return (start + IST_OFFSET).date().isoformat()
+
+
 def run_lead_source_check(db, tenant_id: str, day_start_iso: str, day_end_iso: str) -> int:
     """Raise one lead_source_quality alert per source that gave 30%+ wrong/never-enquired numbers."""
+    day = _ist_calendar_day(day_start_iso)
     rows = (
         db.table("call_logs").select("call_group,evaluation,leads(source)")
         .eq("tenant_id", tenant_id).eq("provider", "telecmi")
@@ -103,7 +111,7 @@ def run_lead_source_check(db, tenant_id: str, day_start_iso: str, day_end_iso: s
         if lead_source_is_bad(total, bad):
             raise_alert(db, tenant_id=tenant_id, type="lead_source_quality",
                         quote=f"{source}: {bad} of {total} answered calls were wrong numbers or never enquired",
-                        detail={"source": source, "total": total, "bad": bad, "day": day_start_iso[:10]})
+                        detail={"source": source, "total": total, "bad": bad, "day": day})
             raised += 1
     return raised
 
@@ -117,16 +125,19 @@ def send_morning_summaries(db, now: datetime | None = None) -> int:
     tenants = {r["tenant_id"] for r in (db.table("call_logs").select("tenant_id").eq("provider", "telecmi").gte("created_at", start).lt("created_at", end).execute()).data or []}
     sent = 0
     for tenant_id in tenants:
-        run_lead_source_check(db, tenant_id, start, end)
-        alerts = (db.table("call_alerts").select("type").eq("tenant_id", tenant_id).gte("created_at", start).lt("created_at", end).execute()).data or []
-        if not alerts:
-            continue
-        counts: dict[str, int] = {}
-        for a in alerts:
-            counts[a["type"]] = counts.get(a["type"], 0) + 1
-        text = ", ".join(f"{n} {ALERT_LABELS[t].lower()}" for t, n in sorted(counts.items(), key=lambda kv: -kv[1]))
-        for user_id in admin_user_ids(db, tenant_id):
-            notify_user(tenant_id, user_id, "call_alerts_summary", "Yesterday's calls need attention",
-                        f"{text}.", db=db, push_url="/dashboard/telecalling#needs-attention")
-            sent += 1
+        try:
+            run_lead_source_check(db, tenant_id, start, end)
+            alerts = (db.table("call_alerts").select("type").eq("tenant_id", tenant_id).gte("created_at", start).lt("created_at", end).execute()).data or []
+            if not alerts:
+                continue
+            counts: dict[str, int] = {}
+            for a in alerts:
+                counts[a["type"]] = counts.get(a["type"], 0) + 1
+            text = ", ".join(f"{n} {ALERT_LABELS[t].lower()}" for t, n in sorted(counts.items(), key=lambda kv: -kv[1]))
+            for user_id in admin_user_ids(db, tenant_id):
+                notify_user(tenant_id, user_id, "call_alerts_summary", "Yesterday's calls need attention",
+                            f"{text}.", db=db, push_url="/dashboard/telecalling#needs-attention")
+                sent += 1
+        except Exception as e:
+            logger.error(f"Morning summary failed for tenant {tenant_id}: {e}")
     return sent
