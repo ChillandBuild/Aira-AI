@@ -148,6 +148,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const router = useRouter();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
+  const [alertCount, setAlertCount] = useState(0);
   const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
   const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
   const [callingProvider, setCallingProvider] = useState<CallingProvider>(null);
@@ -219,6 +220,22 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const telecallingOn = enabledFeatures.some(
     (f) => f === "telecalling_sim" || f === "telecalling_telecmi" || f.startsWith("telecalling.")
   );
+
+  useEffect(() => {
+    if (!telecallingOn) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/calls/alerts/count`, { headers: auth });
+        if (res.ok && !stopped) setAlertCount((await res.json()).count ?? 0);
+      } catch {}
+    };
+    void poll();
+    const id = setInterval(poll, 60_000);
+    return () => { stopped = true; clearInterval(id); };
+  }, [telecallingOn]);
+
   useEffect(() => {
     if (!waEnabled) return;
     fetchCount();
@@ -484,6 +501,13 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
                 size={16}
                 className={isTcActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover/tc:text-[#1c1917] flex-shrink-0"}
               />
+              {alertCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex items-center justify-center">
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[10px] font-bold min-w-[16px]">
+                    {alertCount > 9 ? "9+" : alertCount}
+                  </span>
+                </span>
+              )}
             </button>
             <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
               Telecalling
@@ -806,6 +830,11 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
                         >
                           {item.label}
                         </span>
+                        {item.href === "/dashboard/telecalling" && alertCount > 0 && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
+                            {alertCount > 9 ? "9+" : alertCount}
+                          </span>
+                        )}
                       </Link>
                     </div>
                   );
