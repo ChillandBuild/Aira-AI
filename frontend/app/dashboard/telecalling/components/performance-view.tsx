@@ -351,7 +351,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                       <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
                         {row.overall_score != null ? (
                           <>
-                            {row.overall_score.toFixed(1)}/10
+                            {row.overall_score.toFixed(1)}/100
                             <span className="block font-label text-[10px] font-semibold text-[#a8a29e]">
                               {row.scored_calls ?? 0} scored
                             </span>
