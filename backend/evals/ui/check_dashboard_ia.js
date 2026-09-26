@@ -17,12 +17,12 @@ const REDIRECTS = [
   ["/dashboard/settings/business", /\/dashboard\/settings\/account/],
   ["/dashboard/settings/telecalling", /\/dashboard\/settings\/connect-channels/],
   ["/dashboard/settings/business-hours", /\/dashboard\/knowledge/],
+  ["/dashboard/settings/quick-replies", /\/dashboard\/services/],
 ];
 const PAGES = [
-  ["services", "/dashboard/services", ["Services"]],
+  ["services", "/dashboard/services", ["Sell in chat", "Details to collect", "What you call it"]],
   ["account", "/dashboard/settings/account", ["Business details"]],
-  ["knowledge", "/dashboard/knowledge?tab=description", ["Business hours", "What Aira says when it brings in your team"]],
-  ["quick_replies", "/dashboard/settings/quick-replies", ["Saved button messages"]],
+  ["knowledge", "/dashboard/knowledge?tab=description", ["What Aira says when it brings in your team"]],
 ];
 
 (async () => {

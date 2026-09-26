@@ -152,8 +152,7 @@ export default function ServicesPage() {
           </p>
           <p className="font-body text-xs text-ink-muted tabular-nums">{summary}</p>
         </div>
-        <div className="flex items-center gap-3 pt-1">
-          <span className="font-label text-sm font-medium text-ink-secondary">{draft.enabled ? "On" : "Off"}</span>
+        <div className="pt-1">
           <SwitchPill
             on={draft.enabled}
             disabled={!canManageSettings}
@@ -300,9 +299,10 @@ function Row({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2 md:block">
           <h2 className="font-display text-base font-bold text-ink">{title}</h2>
-          {action && <div className="md:mt-2 md:-ml-2">{action}</div>}
+          {action && <div className="md:hidden">{action}</div>}
         </div>
         <p className="font-body text-xs leading-relaxed text-ink-secondary">{help}</p>
+        {action && <div className="hidden pt-1 md:-ml-2 md:block">{action}</div>}
       </div>
       <div className="min-w-0">{children}</div>
     </section>
