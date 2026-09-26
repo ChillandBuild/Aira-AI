@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
-import { getVisibleSettingsItems, SETTINGS_ITEMS, type CallingProvider } from "@/components/settingsNavigation";
+import { getVisibleSettingsItems, SETTINGS_GROUP_ORDER, SETTINGS_ITEMS } from "@/components/settingsNavigation";
 
 type NavItem = {
   href: string;
@@ -148,9 +148,9 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const router = useRouter();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
   const [inboxCount, setInboxCount] = useState(0);
+  const [alertCount, setAlertCount] = useState(0);
   const [subStatus, setSubStatus] = useState<"loading" | "active" | "none" | "pending_approval">("loading");
   const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
-  const [callingProvider, setCallingProvider] = useState<CallingProvider>(null);
 
   useEffect(() => {
     let active = true;
@@ -172,26 +172,6 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const auth = await getAuthHeaders();
-        const res = await fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth });
-        if (!active) return;
-        if (res.ok) {
-          const data = await res.json();
-          setCallingProvider((data.calling_provider as Exclude<CallingProvider, null> | undefined) ?? "telecmi");
-        } else {
-          setCallingProvider("telecmi");
-        }
-      } catch {
-        if (active) setCallingProvider("telecmi");
-      }
-    })();
-    return () => { active = false; };
-  }, []);
-  
   // Track open/collapsed state of nested groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     Telecalling: true,
@@ -219,6 +199,23 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const telecallingOn = enabledFeatures.some(
     (f) => f === "telecalling_sim" || f === "telecalling_telecmi" || f.startsWith("telecalling.")
   );
+  const canManageTeam = role === "owner" || permissions.includes("team.manage");
+
+  useEffect(() => {
+    if (!telecallingOn || !canManageTeam) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const auth = await getAuthHeaders();
+        const res = await fetch(`${API_URL}/api/v1/calls/alerts/count`, { headers: auth });
+        if (res.ok && !stopped) setAlertCount((await res.json()).count ?? 0);
+      } catch {}
+    };
+    void poll();
+    const id = setInterval(poll, 60_000);
+    return () => { stopped = true; clearInterval(id); };
+  }, [telecallingOn, canManageTeam]);
+
   useEffect(() => {
     if (!waEnabled) return;
     fetchCount();
@@ -273,7 +270,8 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   // Auto-expand active groups
   const showTc = expandedGroups.Telecalling || isTcActive;
   const canSettings = canAny(["settings.view", "settings.manage"]);
-  const visibleSettingsItems = getVisibleSettingsItems(purchasedFeatures, callingProvider);
+  const visibleSettingsItems = getVisibleSettingsItems(purchasedFeatures);
+  const canServices = canAny(["settings.view", "settings.manage", "catalog.view", "catalog.manage"]);
   const isSettingsActive = SETTINGS_ITEMS.some(item => pathname.startsWith(item.href));
   const showSettings = expandedGroups.Settings || isSettingsActive;
 
@@ -423,6 +421,16 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           />
         )}
 
+        {/* TOP LEVEL: Services -- packages/prices sold in chat, next to Products */}
+        {isSubscribed && canServices && messagingOn && (
+          <CollapsedNavItem
+            href="/dashboard/services"
+            active={pathname.startsWith("/dashboard/services")}
+            icon={Package}
+            label="Services"
+          />
+        )}
+
         {/* TOP LEVEL: Analytics */}
         {isSubscribed && can("analytics.view") && messagingOn && (
           <CollapsedNavItem
@@ -484,6 +492,13 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
                 size={16}
                 className={isTcActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover/tc:text-[#1c1917] flex-shrink-0"}
               />
+              {alertCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex items-center justify-center">
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[10px] font-bold min-w-[16px]">
+                    {alertCount > 9 ? "9+" : alertCount}
+                  </span>
+                </span>
+              )}
             </button>
             <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
               Telecalling
@@ -495,7 +510,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
         {isSubscribed && canSettings && (
           <div className="group relative">
             <button
-              onClick={() => router.push(visibleSettingsItems[0]?.href ?? "/dashboard/settings/general")}
+              onClick={() => router.push(visibleSettingsItems[0]?.href ?? "/dashboard/settings/account")}
               className={cn(
                 "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/settings border relative",
                 isSettingsActive
@@ -533,42 +548,53 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
                 <span>Settings</span>
               </button>
 
-              {visibleSettingsItems.map((item) => {
-                const matches = visibleSettingsItems.filter(
-                  (i) => pathname === i.href || pathname.startsWith(i.href + "/")
-                );
-                const bestMatch = matches.reduce<NavItem | null>(
-                  (best, i) => (!best || i.href.length > best.href.length ? i : best), null
-                );
-                const active = bestMatch?.href === item.href;
-
+              {SETTINGS_GROUP_ORDER.map((group) => {
+                const groupItems = visibleSettingsItems.filter((i) => i.group === group);
+                if (groupItems.length === 0) return null;
                 return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    prefetch={true}
-                    onMouseEnter={() => router.prefetch(item.href)}
-                    className={cn(
-                      "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
-                      active
-                        ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
-                        : "border-transparent text-[#78716c] hover:text-[#1c1917] hover:bg-[#f0ece4]"
-                    )}
-                  >
-                    {active && (
-                      <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-                    )}
-                    <span
-                      className={cn(
-                        "truncate",
-                        active
-                          ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
-                          : "font-medium"
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                  </Link>
+                  <div key={group} className="pt-2 first:pt-0">
+                    <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-[#a8a29e]">
+                      {group}
+                    </div>
+                    {groupItems.map((item) => {
+                      const matches = visibleSettingsItems.filter(
+                        (i) => pathname === i.href || pathname.startsWith(i.href + "/")
+                      );
+                      const bestMatch = matches.reduce<NavItem | null>(
+                        (best, i) => (!best || i.href.length > best.href.length ? i : best), null
+                      );
+                      const active = bestMatch?.href === item.href;
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          prefetch={true}
+                          onMouseEnter={() => router.prefetch(item.href)}
+                          className={cn(
+                            "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
+                            active
+                              ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
+                              : "border-transparent text-[#78716c] hover:text-[#1c1917] hover:bg-[#f0ece4]"
+                          )}
+                        >
+                          {active && (
+                            <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
+                          )}
+                          <span
+                            className={cn(
+                              "truncate",
+                              active
+                                ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
+                                : "font-medium"
+                            )}
+                          >
+                            {item.label}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 );
               })}
             </div>
@@ -699,6 +725,16 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           />
         )}
 
+        {/* TOP LEVEL: Services -- packages/prices sold in chat, next to Products */}
+        {isSubscribed && canServices && messagingOn && (
+          <MainNavItem
+            href="/dashboard/services"
+            active={pathname.startsWith("/dashboard/services")}
+            icon={Package}
+            label="Services"
+          />
+        )}
+
         {/* TOP LEVEL: Analytics */}
         {isSubscribed && can("analytics.view") && messagingOn && (
           <MainNavItem
@@ -806,6 +842,11 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
                         >
                           {item.label}
                         </span>
+                        {item.href === "/dashboard/telecalling" && alertCount > 0 && (
+                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
+                            {alertCount > 9 ? "9+" : alertCount}
+                          </span>
+                        )}
                       </Link>
                     </div>
                   );

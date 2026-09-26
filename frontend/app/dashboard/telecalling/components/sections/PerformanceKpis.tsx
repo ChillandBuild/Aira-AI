@@ -176,9 +176,9 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
           loading={loading}
           icon={<Award size={16} />}
           iconClass="bg-primary-50 text-primary-600"
-          value={quality ? `${quality.toFixed(1)}/10` : "—"}
+          value={quality ? `${quality.toFixed(1)}/100` : "—"}
           label="Avg Score"
-          tooltip="Average of this period's scored calls: 7 points AI review + 3 points outcome. Short and no-answer calls count toward calls, not the score."
+          tooltip="Average of this period's fully scored calls, out of 100. Each real sales conversation is marked on 10 checks. Unanswered, under-30-second and early-exit calls count toward calls, not the score."
           tone="border-t-purple-400"
         />
       )}

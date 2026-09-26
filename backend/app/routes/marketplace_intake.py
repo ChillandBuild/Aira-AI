@@ -67,13 +67,10 @@ def generate_ingest_token(provider: str, ctx: dict = Depends(require_settings_ma
         raise HTTPException(status_code=404, detail="Unknown provider")
 
     token = secrets.token_urlsafe(24)
-    # save_setting() always writes is_secret=False; that column only controls
-    # masking on the general PATCH/GET /api/v1/settings surface, which this
-    # route never goes through. The generate-token/get-token pair below are
-    # this value's only read path, and neither echoes it unmasked to anyone
-    # but the tenant that generated it. _SECRET_KEYS in app_settings.py is
-    # extended separately so the general settings screen masks it too, for
-    # consistency, in case it's ever listed there.
+    # save_setting() marks this token is_secret (it is in SECRET_SETTING_KEYS); that
+    # column only controls masking on the general GET /api/v1/settings surface. The
+    # generate-token/get-token pair below are this value's only read path, and
+    # neither echoes it unmasked to anyone but the tenant that generated it.
     save_setting(_token_key(provider), token, tenant_id=ctx["tenant_id"])
     return {"ingest_url": f"{_base_url()}/api/v1/marketplace/{provider}/{token}"}
 

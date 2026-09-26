@@ -14,7 +14,8 @@ from app.dependencies.auth import get_current_user
 
 import os
 from app.config import settings
-from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac, quick_replies, feedback, ask
+from app.services.scoring_rules import MORNING_SUMMARY_HOUR_IST
+from app.routes import webhook, leads, messages, analytics, upload, segments, calls, callers, ai_tune, knowledge, system, follow_ups, numbers, incidents, lead_notes, voice_numbers, app_settings, templates, onboarding, team, media, todos, conversations, operator, chat_handovers, telegram, instagram, facebook, tags, inbound_leads, reengagement, notifications, assignment_log, call_scripts, telecalling_upload, push, subscriptions, catalog, rbac, quick_replies, feedback, ask, consistency
 from app.routes.calls import public_router as calls_public_router
 from app.routes.intake import public_router as intake_public_router
 from app.routes import intake
@@ -56,6 +57,8 @@ _heartbeats = {
     "ad-insights-sync": None,
     "astro-push-reconcile": None,
     "intake-staleness-sweep": None,
+    "crm-cutoff-sweep": None,
+    "call-alert-summary": None,
 }
 
 
@@ -324,6 +327,25 @@ async def _sweep_stale_intake_sessions() -> None:
         logger.error(f"Intake staleness sweep scheduler error: {e}")
 
 
+async def _sweep_crm_cutoff() -> None:
+    _heartbeats["crm-cutoff-sweep"] = datetime.now(timezone.utc)
+    try:
+        from app.services.call_ai_pipeline import sweep_crm_cutoff
+        await sweep_crm_cutoff()
+    except Exception as e:
+        logger.error(f"CRM cut-off sweep error: {e}")
+
+
+async def _send_call_alert_summaries() -> None:
+    _heartbeats["call-alert-summary"] = datetime.now(timezone.utc)
+    try:
+        from app.db.supabase import get_supabase
+        from app.services.call_alerts import send_morning_summaries
+        send_morning_summaries(get_supabase())
+    except Exception as e:
+        logger.error(f"Call alert summary error: {e}")
+
+
 _scheduler = AsyncIOScheduler()
 
 
@@ -453,12 +475,16 @@ async def lifespan(app: FastAPI):
         id="intake-staleness-sweep",
         replace_existing=True,
     )
+    _scheduler.add_job(_sweep_crm_cutoff, trigger="interval", minutes=10, id="crm-cutoff-sweep",
+                       replace_existing=True, max_instances=1, coalesce=True)
+    _scheduler.add_job(_send_call_alert_summaries, trigger="cron", hour=MORNING_SUMMARY_HOUR_IST, minute=0,
+                       timezone="Asia/Kolkata", id="call-alert-summary", replace_existing=True)
     _scheduler.add_listener(
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
     _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m)")
+    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + call-alert-summary(09:00 IST)")
 
     yield
 
@@ -641,6 +667,7 @@ app.include_router(calls.router, prefix="/api/v1/calls", tags=["calls"], depende
 app.include_router(callers.router, prefix="/api/v1/callers", tags=["callers"], dependencies=_auth)
 app.include_router(ai_tune.router, prefix="/api/v1/ai-tune", tags=["ai-tune"], dependencies=_auth)
 app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["knowledge"], dependencies=_auth)
+app.include_router(consistency.router, prefix="/api/v1/consistency", tags=["consistency"], dependencies=_auth)
 app.include_router(catalog.router, prefix="/api/v1/catalog", tags=["catalog"], dependencies=_auth)
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"], dependencies=_auth)
 app.include_router(follow_ups.router, prefix="/api/v1/follow-ups", tags=["follow-ups"], dependencies=_auth)

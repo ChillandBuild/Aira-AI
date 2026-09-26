@@ -19,6 +19,8 @@ import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SwitchPill } from "@/components/ui/controls";
+import { BusinessHoursPanel } from "../settings/BusinessHoursPanel";
+import { ConsistencyPanel } from "@/components/ConsistencyPanel";
 import KnowledgeReviewModal from "./KnowledgeReviewModal";
 import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
 import DeleteDocumentModal from "./DeleteDocumentModal";
@@ -912,6 +914,10 @@ export default function KnowledgePage() {
     // the top of the screen with the app header showing through it. Verified in Chrome:
     // the overlay's rect was y=24 h=776 in an 800px viewport.
     <div className="max-w-7xl mx-auto">
+      <div className="mb-6">
+        <ConsistencyPanel />
+      </div>
+
       {tab === "documents" ? (
         <div className="space-y-6">
           {/* ── Top Overview Stats ────────────────────────────────────────── */}
@@ -1721,14 +1727,12 @@ export default function KnowledgePage() {
           <div className="bg-surface rounded-2xl p-6 md:p-8 border border-surface-mid shadow-sm space-y-4">
             <div>
               <h2 className="font-display text-lg font-bold text-primary">
-                When Aira can&rsquo;t help
+                What Aira says when it brings in your team
               </h2>
               <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                What Aira tells a customer when it doesn&rsquo;t know the answer, or when they ask for a
-                person. Write it the way you want it said, for example &ldquo;Please call our office on
-                98400 00000&rdquo; or &ldquo;Use the Support option in our app&rdquo;. Aira says it in the
-                customer&rsquo;s language. Leave it empty and Aira says a team member will follow up, so
-                only leave it empty if someone on your team really does follow up.
+                When Aira can&rsquo;t answer or a customer asks for a person, it alerts your team in
+                the Inbox and tells the customer this. Your team replies in the same chat. Leave
+                empty to let Aira say it in its own words.
               </p>
             </div>
             <textarea
@@ -1737,7 +1741,7 @@ export default function KnowledgePage() {
               rows={2}
               maxLength={300}
               placeholder="Please call our office on 98400 00000, 10am to 6pm."
-              aria-label="When Aira can't help"
+              aria-label="What Aira says when it brings in your team"
               className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-body text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
             />
             <div className="flex justify-end">
@@ -1749,6 +1753,11 @@ export default function KnowledgePage() {
                 <Save size={14} /> {handoverSaving ? "Saving…" : "Save"}
               </button>
             </div>
+          </div>
+
+          {/* Business hours — anchor target for /dashboard/settings/business-hours's redirect */}
+          <div id="business-hours">
+            <BusinessHoursPanel canManage={canManageKnowledge} />
           </div>
 
           {/* Scoring Rubric */}

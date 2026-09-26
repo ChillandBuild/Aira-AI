@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.config import settings as env_settings
@@ -150,7 +150,6 @@ class TelecallingConfigUpdate(BaseModel):
     scripts: dict[str, str] | None = None
     max_call_attempts: int | None = None
     assignment_mode: Literal["push", "pull"] | None = None
-    score_criteria: list[str] | None = None
     shift_mode: str | None = None
     shift_start_hour: int | None = None
     shift_end_hour: int | None = None
@@ -382,6 +381,7 @@ async def list_settings(ctx: dict = Depends(require_settings_read)):
 @router.patch("/")
 async def update_settings(
     payload: SettingsUpdate,
+    background_tasks: BackgroundTasks,
     ctx: dict = Depends(require_settings_manage),
     user: dict = Depends(get_current_user),
 ):
@@ -422,31 +422,11 @@ async def update_settings(
             db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", "telegram_webhook_secret").execute()
             db.table("app_settings").delete().eq("tenant_id", tenant_id).eq("key", "telegram_status").execute()
 
-    _SECRET_KEYS = {
-        "meta_access_token",
-        "meta_webhook_verify_token",
-        "meta_app_secret",
-        "telecmi_secret",
-        "telecmi_agent_password",
-        "telecmi_webhook_secret",
-        "sarvam_api_key",
-        "groq_api_key",
-        "razorpay_key_secret",
-        "razorpay_webhook_secret",
-        "telegram_bot_token",
-        "telegram_webhook_secret",
-        "instagram_access_token",
-        "instagram_app_secret",
-        "facebook_access_token",
-        "meta_ads_access_token",
-        "astro_bridge_api_key",
-        "astro_bridge_secret",
-        "indiamart_ingest_token",
-        "justdial_ingest_token",
-    }
+    from app.config_dynamic import SECRET_SETTING_KEYS
+
     updated = []
     for key, value in payload.updates.items():
-        is_secret = key in _SECRET_KEYS
+        is_secret = key in SECRET_SETTING_KEYS
         if value == "":
             # Empty string means "clear this value" — delete the row rather than
             # storing "", which would otherwise still read back as is_set=True.
@@ -497,9 +477,12 @@ async def update_settings(
         target_id=tenant_id,
         metadata={
             "updated_keys": updated,
-            "secret_keys": [key for key in updated if key in _SECRET_KEYS],
+            "secret_keys": [key for key in updated if key in SECRET_SETTING_KEYS],
         },
     )
+    if {"business_description", "handover_line"} & set(updated):
+        from app.services.consistency import run_check_safely
+        background_tasks.add_task(run_check_safely, tenant_id)
     return {"updated": updated}
 
 
@@ -1990,14 +1973,6 @@ async def patch_telecalling_config(payload: TelecallingConfigUpdate, ctx: dict =
     if "assignment_mode" in patch:
         if patch["assignment_mode"] not in ("push", "pull"):
             raise HTTPException(status_code=400, detail="Invalid assignment mode")
-    if "score_criteria" in patch:
-        from app.services.call_summarizer import SCORE_CRITERIA, normalize_criteria
-        bad = [c for c in patch["score_criteria"] if c not in SCORE_CRITERIA]
-        if bad:
-            raise HTTPException(status_code=400, detail=f"Invalid scoring criteria: {bad}")
-        patch["score_criteria"] = normalize_criteria(patch["score_criteria"])
-        if not patch["score_criteria"]:
-            raise HTTPException(status_code=400, detail="Select at least one scoring criterion")
     merged = {**current, **patch}
     merged.pop("eval_daily_cap", None)
     save_telecalling_config(tenant_id, merged)
@@ -2030,6 +2005,13 @@ def _validate_packages(packages: list[dict]) -> None:
         raise HTTPException(status_code=400, detail="Duplicate package or addon keys")
 
 
+def _has_active_package(packages: list[dict]) -> bool:
+    """At least one leaf package the AI could actually offer and sell -- an
+    enabled tenant with every package switched off would show WhatsApp buttons
+    that lead nowhere, which is worse than staying disabled."""
+    return any(node.get("active", True) for node, is_leaf in _walk_packages(packages) if is_leaf)
+
+
 @router.get("/intake-config")
 async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
     return get_intake_config(ctx["tenant_id"])
@@ -2037,7 +2019,9 @@ async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
 
 @router.patch("/intake-config")
 async def patch_intake_config(
-    payload: IntakeConfigUpdate, ctx: dict = Depends(require_settings_manage)
+    payload: IntakeConfigUpdate,
+    background_tasks: BackgroundTasks,
+    ctx: dict = Depends(require_settings_manage),
 ):
     tenant_id = ctx["tenant_id"]
     current = get_intake_config(tenant_id)
@@ -2050,10 +2034,20 @@ async def patch_intake_config(
             raise HTTPException(status_code=400, detail="Duplicate field keys")
     if "packages" in patch:
         _validate_packages(patch["packages"])
-    if patch.get("enabled") and not (patch.get("packages") or current.get("packages") or current.get("amount_paise")):
-        raise HTTPException(status_code=400, detail="Add at least one package before enabling")
+    if patch.get("enabled"):
+        # Trigger description / offer message are dead fields (only the bypassed
+        # legacy route_intake ever read them) -- enabling only ever needs a real,
+        # active package to sell. "packages" may be absent from this patch (e.g.
+        # a fields-only save on an already-configured tenant), so fall back to
+        # the currently stored tree; the legacy single amount_paise fee is kept
+        # as a migration-only fallback for tenants who never moved to packages.
+        effective_packages = patch["packages"] if "packages" in patch else current.get("packages")
+        if not (_has_active_package(effective_packages or []) or current.get("amount_paise")):
+            raise HTTPException(status_code=400, detail="Add at least one active package before enabling")
     if "service_noun" in patch and not patch["service_noun"].strip():
         raise HTTPException(status_code=400, detail="service_noun cannot be blank")
     merged = {**current, **patch}
     save_intake_config(tenant_id, merged)
+    from app.services.consistency import run_check_safely
+    background_tasks.add_task(run_check_safely, tenant_id)
     return merged

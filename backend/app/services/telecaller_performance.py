@@ -2,12 +2,12 @@
 
 Every placed call counts toward total calls; only scored calls feed the average.
 Winner points = 70% average score + 30% volume, where volume is the telecaller's
-total calls relative to the busiest telecaller in the same period (x10). Days and
+total calls relative to the busiest telecaller in the same period (x100). Days and
 months are IST calendar periods.
 """
 from datetime import datetime, timedelta, timezone
 
-from app.services.call_summarizer import SCORE_CRITERIA
+from app.services.call_marking import CHECKS, check_marks
 
 IST_OFFSET = timedelta(hours=5, minutes=30)
 COUNTED_STATUSES = ("completed", "no_answer", "missed")
@@ -56,24 +56,24 @@ def _fetch_calls(db, tenant_id: str, start_iso: str, end_iso: str, caller_ids: l
 
 def summarize_calls(rows: list[dict]) -> dict:
     """Totals for one telecaller's calls in a period."""
-    scores = [float(r["score"]) for r in rows if r.get("score_status") == "scored" and r.get("score") is not None]
-    breakdown = {"scored": len(scores), "short_call": 0, "no_answer": 0, "not_scored": 0}
+    scores = [float(r["score"]) for r in rows if r.get("score_status") in ("scored",) and r.get("score") is not None]
+    breakdown = {"scored": len(scores), "provisional": 0, "early_exit": 0, "very_short": 0, "not_connected": 0, "not_scored": 0}
     criteria_sums: dict[str, float] = {}
     criteria_counts: dict[str, int] = {}
     for r in rows:
         status = r.get("score_status")
         if status == "scored":
             evaluation = r.get("evaluation") or {}
-            for key in evaluation.get("criteria") or []:
-                value = evaluation.get(key)
-                if key in SCORE_CRITERIA and isinstance(value, (int, float)) and not isinstance(value, bool):
-                    criteria_sums[key] = criteria_sums.get(key, 0.0) + float(value)
+            for check in evaluation.get("checks") or []:
+                if check.get("level") and check.get("full"):
+                    key = check["key"]
+                    criteria_sums[key] = criteria_sums.get(key, 0.0) + check_marks(key, check["level"]) / check["full"] * 100
                     criteria_counts[key] = criteria_counts.get(key, 0) + 1
-        elif status in ("short_call", "no_answer"):
+        elif status in ("provisional", "early_exit", "very_short", "not_connected"):
             breakdown[status] += 1
         else:
             breakdown["not_scored"] += 1
-    criteria_avg = {k: round(criteria_sums[k] / criteria_counts[k], 1) for k in SCORE_CRITERIA if k in criteria_counts}
+    criteria_avg = {c["key"]: round(criteria_sums[c["key"]] / criteria_counts[c["key"]], 1) for c in CHECKS if c["key"] in criteria_counts}
     return {
         "total_calls": len(rows),
         "scored_calls": len(scores),
@@ -102,7 +102,7 @@ def rank_winner(stats: dict[str, dict], min_scored: int) -> dict | None:
     for cid, s in stats.items():
         if s["scored_calls"] < min_scored or s["avg_score"] is None:
             continue
-        volume = s["total_calls"] / busiest * 10
+        volume = s["total_calls"] / busiest * 100
         points = QUALITY_WEIGHT * s["avg_score"] + VOLUME_WEIGHT * volume
         ranked.append((round(points, 2), s["total_calls"], cid, round(volume, 2)))
     if not ranked:

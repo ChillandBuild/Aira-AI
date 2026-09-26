@@ -24,7 +24,7 @@
 - Removal is total: no dead code, no rollback copies (old criteria, tone, 7+3 scorer, no-answer flag).
 - Backend tests run from `backend/`: `python -m pytest`. Frontend must pass **both** `npm run lint` and `npm run typecheck`.
 - Commits use explicit pathspecs (`git commit -- <paths>`). Commit only; **no push** without the user's go-ahead.
-- Migration `206` (column drops) is applied only **after** the new backend is deployed. Production must never select a dropped column.
+- Migration `207` (column drops) is applied only **after** the new backend is deployed. Production must never select a dropped column.
 
 ## Review Focus
 
@@ -59,7 +59,7 @@
 | `backend/app/services/telecaller_performance.py` (modify) | Check averages instead of criteria; volume on the 0–100 scale |
 | `backend/app/main.py` (modify) | Wrap-up cut-off sweep + morning summary jobs |
 | `backend/supabase/migrations/205_call_scoring_v4.sql` (new) | Add columns + `call_alerts` |
-| `backend/supabase/migrations/206_drop_call_flags.sql` (new) | Drop old flag/breakdown columns (after deploy) |
+| `backend/supabase/migrations/207_drop_call_flags.sql` (new) | Drop old flag/breakdown columns (after deploy) |
 | `frontend/lib/api.ts` (modify) | v4 types, alert API, remove flag API |
 | `frontend/components/CallAi.tsx` (rewrite) | New call card |
 | `frontend/app/dashboard/telecalling/components/sections/NeedsAttention.tsx` (new) | Admin list; replaces `FlaggedCalls.tsx` (deleted) |
@@ -1674,7 +1674,7 @@ git commit -m "feat(calls): step 2 marking — 10 checks, caps and system-comput
 - [ ] **Step 1: Write the migration** (`backend/supabase/migrations/205_call_scoring_v4.sql`)
 
 ```sql
--- TeleCMI call scoring v4 (CallIQ Steps 1-2). Additive only; drops live in 206.
+-- TeleCMI call scoring v4 (CallIQ Steps 1-2). Additive only; drops live in 207.
 ALTER TABLE call_logs
   ADD COLUMN IF NOT EXISTS call_group text
     CHECK (call_group IN ('not_connected','very_short','early_exit','real_conversation')),
@@ -3447,16 +3447,24 @@ Expected, both runs identical: `early_exit early_exit None` with 0–1 valid sig
 git commit -m "docs: call scoring v4 notes and decision log" -- .agents/context/subsystem-notes.md .agents/decisions/log.md graphify-out
 ```
 
-- [ ] **Step 6: Hand back.** Report to the user: test results, the re-scored test call, screenshots, and what's waiting on them. **Do not push.** Ask for the go-ahead to push/deploy. After the deploy, apply migration 206.
+- [ ] **Step 6: Hand back.** Report to the user: test results, the re-scored test call, screenshots, and what's waiting on them. **Do not push.** Ask for the go-ahead to push/deploy. After the deploy, apply migration 207.
 
 ---
 
-### Task 14 (after deploy only): Migration 206
+### Task 14 (after deploy only): Migration 207
 
-**Files:** Create `backend/supabase/migrations/206_drop_call_flags.sql`
+**Files:** Create `backend/supabase/migrations/207_drop_call_flags.sql`
+
+Note: migration 206 was already applied live during Task 8 (`206_call_score_status_v4.sql`, widening `call_logs_score_status_check` to old ∪ new values so the v4 code's writes wouldn't 500 pre-deploy) — this task's file moved from 206 to 207 as a result.
 
 ```sql
 -- Old no-answer safety-gate flag and 7+3 breakdown: replaced by call_alerts and evaluation v4.
+-- Fold the pre-v4 score_status values into the v4 set, then narrow the check
+-- (206 widened it to old ∪ new only so pre-deploy writes wouldn't fail).
+UPDATE call_logs SET score_status = 'very_short' WHERE score_status = 'short_call';
+UPDATE call_logs SET score_status = 'not_connected' WHERE score_status = 'no_answer';
+UPDATE call_logs SET score_status = 'processing' WHERE score_status IN ('pending', 'awaiting_outcome', 'no_recording');
+
 ALTER TABLE call_logs
   DROP COLUMN IF EXISTS flag_status,
   DROP COLUMN IF EXISTS flag_reason,
@@ -3464,8 +3472,24 @@ ALTER TABLE call_logs
   DROP COLUMN IF EXISTS flag_resolved_by,
   DROP COLUMN IF EXISTS flag_resolved_at,
   DROP COLUMN IF EXISTS score_breakdown;
+
+-- Old v3-scored rows carry a 0-10 scale score under the new v4 evaluation_version
+-- gate; clear them back to processing so the next AI sweep re-scores them on v4.
+UPDATE call_logs SET score = NULL, score_status = 'processing'
+  WHERE provider = 'telecmi' AND score IS NOT NULL
+    AND (evaluation->>'evaluation_version') IS DISTINCT FROM '4';
+
+ALTER TABLE call_logs DROP CONSTRAINT IF EXISTS call_logs_score_status_check;
+ALTER TABLE call_logs ADD CONSTRAINT call_logs_score_status_check
+  CHECK (score_status IS NULL OR score_status = ANY (ARRAY['processing','not_connected','very_short','early_exit','provisional','scored','failed']));
 ```
 
 - [ ] **Step 1:** Confirm the deployed backend no longer references these columns: `grep -rn "flag_status\|score_breakdown\|flagged_at\|flag_reason\|flag_resolved" backend/app frontend/app frontend/components frontend/lib` → no matches. Confirm Render's latest deploy is the merged commit (`deploy-check` skill).
-- [ ] **Step 2:** Apply it via Supabase MCP `apply_migration` (name `206_drop_call_flags`) and verify the columns are gone from `information_schema.columns`.
-- [ ] **Step 3:** Commit the file: `git commit -m "chore(db): drop old call flag columns" -- backend/supabase/migrations/206_drop_call_flags.sql`
+- [ ] **Step 2:** Apply it via Supabase MCP `apply_migration` (name `207_drop_call_flags`) and verify the columns are gone from `information_schema.columns` and the check constraint only allows the new set.
+- [ ] **Step 3:** Commit the file: `git commit -m "chore(db): drop old call flag columns, narrow score_status" -- backend/supabase/migrations/207_drop_call_flags.sql`
+- [ ] **Step 4: Re-score the test call.** On the live server (via Supabase MCP `execute_sql`), re-queue test call `ed296fa2` for AI processing now that 207 has cleared its stale v3 score:
+  ```sql
+  UPDATE call_logs SET ai_status = 'pending', ai_attempts = 0, ai_updated_at = now() - interval '5 minutes'
+    WHERE id = 'ed296fa2-b80b-465b-9a43-1ed023b64eaf';
+  ```
+  Wait for the 3-minute call-ai sweep to pick it up, then check `call_group`, `score_status` and `evaluation` on the row. Expected: `call_group = 'early_exit'` (this call was confirmed early-exit in Task 13's manual review) and the right-channel speaker in the evaluation is the telecaller (also confirmed in Task 13).

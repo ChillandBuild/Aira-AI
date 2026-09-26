@@ -9,7 +9,7 @@ export default function NotificationsSettingsPage() {
   const { canManageSettings, hasNotifications } = useSettingsForm();
 
   useEffect(() => {
-    if (!hasNotifications) router.replace("/dashboard/settings/general", { scroll: false });
+    if (!hasNotifications) router.replace("/dashboard/settings/account", { scroll: false });
   }, [hasNotifications, router]);
 
   if (!hasNotifications) return null;

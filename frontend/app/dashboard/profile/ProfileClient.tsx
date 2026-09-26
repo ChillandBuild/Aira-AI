@@ -23,7 +23,6 @@ import { toast } from "sonner";
 import { useMyStats, useMyPerformance, useCallerLogs } from "@/hooks/useApi";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import AttendanceMini from "../team/AttendanceMini";
-import { PasskeySettings } from "./PasskeySettings";
 
 export interface ProfileClientProps {
   fallbackStats: CallerStats | null;
@@ -138,7 +137,7 @@ export function ProfileClient({
     return (
       <div>
         <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-primary">My Profile</h1>
+          <h1 className="font-display text-3xl font-bold text-primary">My performance</h1>
           <p className="font-body text-on-surface-muted mt-1">{greeting}, {adminName.split(" ")[0]}</p>
         </div>
 
@@ -198,10 +197,6 @@ export function ProfileClient({
               <p className="font-body text-xs text-on-surface-muted mt-0.5">{link.desc}</p>
             </Link>
           ))}
-        </div>
-
-        <div className="mt-8">
-          <PasskeySettings />
         </div>
       </div>
     );
@@ -266,7 +261,7 @@ export function ProfileClient({
                 {stats.avg_score_month != null ? stats.avg_score_month.toFixed(1) : "\u2014"}
               </span>
               <span className="font-label text-sm text-on-surface-muted">
-                / 10
+                / 100
               </span>
             </div>
             <p className="font-label text-xs text-on-surface-muted mt-1">
@@ -424,11 +419,6 @@ export function ProfileClient({
       {/* Attendance History */}
       <div className="mb-8">
         <AttendanceMini callerId={stats.caller_id} readOnly={true} />
-      </div>
-
-      {/* Passkeys */}
-      <div className="mb-8">
-        <PasskeySettings />
       </div>
 
       {/* Call History */}

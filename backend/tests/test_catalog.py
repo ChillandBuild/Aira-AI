@@ -542,7 +542,9 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
         source = inspect.getsource(ai_reply.generate_reply)
         assert "_build_catalog_context" in source
-        assert "_llm_chat_with_tools" in source
+        # The model call itself now goes through deal_turn.converse_once, which uses
+        # _llm_chat_with_tools whenever tools are offered.
+        assert "deal_turn.converse_once" in source
         assert "catalog_images_to_send" in source
         assert "catalog_max_images" in source
 
@@ -551,14 +553,14 @@ class CatalogAiReplyIntegrationTests(unittest.IsolatedAsyncioTestCase):
         telling the model not to recommend an out-of-stock item isn't
         enough (a model can ignore instructions), so generate_reply's
         tool-call handler must itself refuse before sending images or
-        recording a quote. No existing test drives the tool-call loop
-        end-to-end (verified: nothing in this file or test_ai_reply_llm_wiring.py
-        does), so this is the same static-inspection technique as the test
-        above, not a substitute for one."""
+        recording a quote. The executor moved to deal_actions._recommend_item;
+        its behaviour is covered by tests/test_deal_actions.py
+        (TestRecommendItem.test_out_of_stock_is_refused). This static check
+        keeps the guard from being deleted there."""
         import inspect
-        from app.services import ai_reply
+        from app.services import deal_actions
 
-        source = inspect.getsource(ai_reply.generate_reply)
+        source = inspect.getsource(deal_actions._recommend_item)
         assert 'item.get("stock_quantity") == 0' in source
 
 

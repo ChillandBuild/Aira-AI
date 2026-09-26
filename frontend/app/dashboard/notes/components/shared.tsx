@@ -75,8 +75,8 @@ export function dotColorFor(note: { tags?: string[]; is_pinned: boolean }): stri
 
 // ─── Score pill ─────────────────────────────────────────────────────────────────
 export function scoreBadgeColor(score: number): string {
-  if (score >= 7) return "bg-emerald-50 text-emerald-600";
-  if (score >= 4) return "bg-amber-50 text-amber-600";
+  if (score >= 70) return "bg-emerald-50 text-emerald-600";
+  if (score >= 40) return "bg-amber-50 text-amber-600";
   return "bg-rose-50 text-rose-600";
 }
 
@@ -351,7 +351,7 @@ export function AiSummaryCard({
             )}
             {log.score != null && (
               <span className={`px-2 py-0.5 rounded-full font-label text-[10px] font-bold ${scoreBadgeColor(log.score)}`}>
-                Score {log.score}/10
+                Score {log.score}/100
               </span>
             )}
           </div>

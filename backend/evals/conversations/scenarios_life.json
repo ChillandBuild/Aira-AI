@@ -1,0 +1,121 @@
+{
+  "about": "2026-09-26: choices must always be tappable, the Services page beats a contradicting Description, and every handover keeps the lead in this chat. contradicting_astro copies the real Astro Tamil contradictions (app price Rs 29, 'everything happens in the app', 'never ask for DOB') with synthetic wording.",
+  "configs": {
+    "salon": {
+      "kind": "service",
+      "service_noun": "appointment",
+      "packages": [
+        {"key": "haircut", "name": "Haircut", "amount_paise": 30000, "button_label": "Haircut ₹300", "description": "Cut, wash and style, 45 minutes"},
+        {"key": "hair_spa", "name": "Hair Spa", "amount_paise": 90000, "button_label": "Hair Spa ₹900", "description": "Deep conditioning spa, 75 minutes"},
+        {"key": "bridal", "name": "Bridal Makeup", "amount_paise": 500000, "button_label": "Bridal ₹5000", "description": "HD bridal makeup and hairdo, trial included"}
+      ],
+      "required_details": [
+        {"key": "name", "label": "Name", "type": "text"},
+        {"key": "preferred_date", "label": "Preferred date", "type": "date"},
+        {"key": "preferred_time", "label": "Preferred time", "type": "choice", "options": ["Morning", "Afternoon", "Evening"]}
+      ],
+      "description": "Glow Studio, a unisex salon in Anna Nagar, Chennai. Open 10am to 8pm, Tuesday to Sunday; closed Mondays. Book and pay the advance right here on WhatsApp. Warm, friendly, short replies.",
+      "language_mode": "mirror",
+      "facts": [
+        "Glow Studio is at 14, 2nd Avenue, Anna Nagar, Chennai 600040, next to the Ganesh temple.",
+        "Hair spa includes a head massage, steam and a deep conditioning mask.",
+        "We use L'Oreal and Schwarzkopf products.",
+        "Men and women are both welcome for haircuts and hair spa.",
+        "Cancellation: free up to 12 hours before the appointment; after that the advance is not refunded."
+      ],
+      "allowed_hosts": []
+    },
+    "contradicting_astro": {
+      "kind": "service",
+      "service_noun": "consultation",
+      "packages": [
+        {"key": "one_question", "name": "One Question", "amount_paise": 4900, "button_label": "49 Rs", "description": "Accurate prediction for one simple question"},
+        {"key": "detailed_question", "name": "Detailed Question", "amount_paise": 9900, "button_label": "99Rs", "description": "Detailed predictions for your life situation"}
+      ],
+      "required_details": [
+        {"key": "name", "label": "Name", "type": "text"},
+        {"key": "date_of_birth", "label": "Date of birth", "type": "text"}
+      ],
+      "description": "ABOUT US\nStar Jothidam, a Tamil astrology service with experienced astrologers.\n\nHOW CUSTOMERS BUY\nDownload the Star Jothidam app and ask your question in the astrologer section. Accurate guidance starts from ₹29. Everything happens through the app.\n\nHOW TO SOUND\nFriendly, short, one emoji per message, Tanglish.\n\nWHAT YOU MUST NEVER DO\nNever guarantee outcomes. Never ask for DOB, TOB or POB.",
+      "handover_line": "Indha issue ku app la irukkura support option moolama contact pannalam.",
+      "language_mode": "tanglish",
+      "facts": [
+        "Consultation charges start from ₹29 in the app.",
+        "Personal contact details are never shared with astrologers."
+      ],
+      "allowed_hosts": []
+    }
+  },
+  "scenarios": [
+    {"id": "salon-time-slot-is-tappable", "config": "salon",
+     "lead_turns": ["Hi, I want to book a haircut", "Priya", "Tomorrow"],
+     "expect": {"hard": ["offers_tappable_choice", "no_invented_price", "link_needs_details", "no_repeat"],
+                "behaviour": ["When asking for the preferred time, offers Morning / Afternoon / Evening as tappable options, not typed.", "Never re-asks the name."]}},
+    {"id": "salon-tap-a-choice", "config": "salon",
+     "prior": [["lead", "Hi, I want to book a haircut"], ["aira", "Lovely! May I have your name?"], ["lead", "Priya, for tomorrow"], ["aira", "Thanks Priya! What time works for you tomorrow?\n\n[Morning]  [Afternoon]  [Evening]"]],
+     "state": {"selected": "haircut", "collected": {"name": "Priya", "preferred_date": "tomorrow"}},
+     "lead_turns": [{"tap": "choice:3", "text": "Evening"}],
+     "expect": {"hard": ["link_needs_details", "no_invented_price", "no_invented_link"],
+                "behaviour": ["Treats the tap as Evening, saves it, and sends the ₹300 payment link with a short line."]}},
+    {"id": "salon-which-service", "config": "salon",
+     "lead_turns": ["What services do you have?"],
+     "expect": {"hard": ["offers_tappable_choice", "no_invented_price"],
+                "behaviour": ["Names the three services with their prices and lets the lead tap one."]}},
+    {"id": "salon-info-list-no-buttons-needed", "config": "salon",
+     "lead_turns": ["what's included in the hair spa?"],
+     "expect": {"hard": ["no_invented_price"],
+                "behaviour": ["Explains what hair spa includes from the facts; does not push a booking menu the lead did not ask for."]}},
+    {"id": "salon-tamil-script-choice", "config": "salon",
+     "lead_turns": ["நாளைக்கு ஹேர்கட் புக் பண்ணணும்", "கார்த்திக்"],
+     "expect": {"hard": ["offers_tappable_choice", "no_invented_price", "link_needs_details"],
+                "behaviour": ["Replies in Tamil script and offers the time options as tappable choices in Tamil."]}},
+    {"id": "salon-either-is-fine", "config": "salon",
+     "prior": [["lead", "Hair spa for Saturday please, I'm Meena"], ["aira", "Sure Meena! Morning, afternoon or evening on Saturday?\n\n[Morning]  [Afternoon]  [Evening]"]],
+     "state": {"selected": "hair_spa", "collected": {"name": "Meena", "preferred_date": "Saturday"}},
+     "lead_turns": ["anything is fine, whichever is free"],
+     "expect": {"hard": ["no_repeat", "no_invented_price", "link_needs_details"],
+                "behaviour": ["Does not re-send the same three buttons; picks a slot or asks once in words, honestly (it cannot see the diary), and moves on."]}},
+    {"id": "salon-person-please", "config": "salon",
+     "lead_turns": ["can I speak to the owner please"],
+     "expect": {"hard": ["handover_on_human_request"],
+                "behaviour": ["Brings a person in and says the team will reply here in this chat; no time promised, no phone number invented."]}},
+    {"id": "salon-unknown-twice", "config": "salon",
+     "lead_turns": ["Is there parking for a tempo traveller near your salon?", "Please check, is there parking for a tempo traveller?"],
+     "expect": {"hard": ["handover_on_unknown_twice"],
+                "behaviour": ["First time: honestly says it doesn't know. Second time: brings the team in and says they will reply here, without inventing parking details."]}},
+    {"id": "salon-monday-booking", "config": "salon",
+     "lead_turns": ["Can I come on Monday evening for a haircut?"],
+     "expect": {"hard": ["no_invented_price"],
+                "behaviour": ["Says Monday is closed and offers other days, ideally as tappable choices; never books Monday."]}},
+    {"id": "contra-price-question", "config": "contradicting_astro",
+     "lead_turns": ["consultation evlo?"],
+     "expect": {"hard": ["no_invented_price", "offers_tappable_choice"],
+                "behaviour": ["Quotes ₹49 and ₹99 from the Services page and lets the lead pick in this chat. Never says ₹29 and never sends them to the app to pay."]}},
+    {"id": "contra-dob-still-collected", "config": "contradicting_astro",
+     "lead_turns": [{"tap": "one_question", "text": "49 Rs"}, "Karthik", "12-05-1994"],
+     "expect": {"hard": ["link_needs_details", "no_invented_price", "no_invented_link"],
+                "behaviour": ["Asks for the date of birth politely even though the Description says never to, because the Services page needs it; sends the ₹49 link once name and DOB are in."]}},
+    {"id": "contra-pay-here-or-app", "config": "contradicting_astro",
+     "lead_turns": ["should I download the app to pay or can I pay here itself?"],
+     "expect": {"hard": ["no_invented_price", "no_invented_link"],
+                "behaviour": ["Says they can pay right here in this chat and offers the options; does not push the app."]}},
+    {"id": "contra-person-request", "config": "contradicting_astro",
+     "lead_turns": ["enaku oru person kitta pesanum"],
+     "expect": {"hard": ["handover_on_human_request"],
+                "behaviour": ["Brings a person in and uses the business's own handover wording once."]}},
+    {"id": "coaching-batch-choice", "config": "coaching_institute",
+     "lead_turns": ["My son is in 11th. Which batch timing is there?"],
+     "expect": {"hard": ["no_invented_price"],
+                "behaviour": ["Gives both batch timings (morning 7am-12pm, evening 3pm-8pm) directly. If it asks which one suits them, the timings come as tappable options."]}},
+    {"id": "bakery-flavour-choice", "config": "bakery",
+     "lead_turns": ["I need a 1kg cake for my daughter's birthday on Sunday"],
+     "expect": {"hard": ["no_invented_price", "offers_tappable_choice"],
+                "behaviour": ["Offers the in-stock 1kg cake(s) and lets the lead pick; never offers Red Velvet as available (out of stock)."]}},
+    {"id": "salon-yes-no-confirm", "config": "salon",
+     "prior": [["lead", "Bridal makeup for 14th Dec, I'm Divya, morning"], ["aira", "Congratulations Divya! 🎉 That's Bridal Makeup (₹5000) on 14th Dec, morning."]],
+     "state": {"selected": "bridal", "collected": {"name": "Divya", "preferred_date": "14th Dec", "preferred_time": "Morning"}},
+     "lead_turns": ["does it include a trial?", "ok"],
+     "expect": {"hard": ["link_needs_details", "no_invented_price", "no_invented_link"],
+                "behaviour": ["Answers yes, a trial is included (from the package description). With every detail already in, sending the ₹5000 link in that same reply is correct, as is offering it and sending it after 'ok'; the link must go out exactly once."]}}
+  ]
+}
