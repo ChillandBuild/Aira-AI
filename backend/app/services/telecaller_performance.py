@@ -57,7 +57,7 @@ def _fetch_calls(db, tenant_id: str, start_iso: str, end_iso: str, caller_ids: l
 def summarize_calls(rows: list[dict]) -> dict:
     """Totals for one telecaller's calls in a period."""
     scores = [float(r["score"]) for r in rows if r.get("score_status") in ("scored",) and r.get("score") is not None]
-    breakdown = {"scored": len(scores), "short_call": 0, "no_answer": 0, "not_scored": 0}
+    breakdown = {"scored": len(scores), "provisional": 0, "early_exit": 0, "very_short": 0, "not_connected": 0, "not_scored": 0}
     criteria_sums: dict[str, float] = {}
     criteria_counts: dict[str, int] = {}
     for r in rows:
@@ -69,7 +69,7 @@ def summarize_calls(rows: list[dict]) -> dict:
                     key = check["key"]
                     criteria_sums[key] = criteria_sums.get(key, 0.0) + check_marks(key, check["level"]) / check["full"] * 100
                     criteria_counts[key] = criteria_counts.get(key, 0) + 1
-        elif status in ("short_call", "no_answer"):
+        elif status in ("provisional", "early_exit", "very_short", "not_connected"):
             breakdown[status] += 1
         else:
             breakdown["not_scored"] += 1

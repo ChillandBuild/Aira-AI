@@ -9,28 +9,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services import telecaller_performance as tp
 
 
-def _rows(scored=(), short=0, no_answer=0, pending=0):
+def _rows(scored=(), very_short=0, not_connected=0, provisional=0, early_exit=0, pending=0):
     checks = [{"key": "opening", "level": "good", "full": 5}]
     rows = [{"score_status": "scored", "score": s, "evaluation": {"checks": checks}} for s in scored]
-    rows += [{"score_status": "short_call", "score": None}] * short
-    rows += [{"score_status": "no_answer", "score": None}] * no_answer
-    rows += [{"score_status": "awaiting_outcome", "score": None}] * pending
+    rows += [{"score_status": "very_short", "score": None}] * very_short
+    rows += [{"score_status": "not_connected", "score": None}] * not_connected
+    rows += [{"score_status": "provisional", "score": None}] * provisional
+    rows += [{"score_status": "early_exit", "score": None}] * early_exit
+    rows += [{"score_status": "processing", "score": None}] * pending
     return rows
 
 
 class SummaryTests(unittest.TestCase):
     def test_every_call_counts_toward_total_but_only_scored_ones_average(self):
-        """The plan's example: 5 scored + 10 no answer + 5 short = 20 total calls."""
-        summary = tp.summarize_calls(_rows(scored=[8, 9, 7, 8, 8], no_answer=10, short=5))
+        """5 scored + 10 not connected + 5 very short = 20 total calls."""
+        summary = tp.summarize_calls(_rows(scored=[8, 9, 7, 8, 8], not_connected=10, very_short=5))
         self.assertEqual(summary["total_calls"], 20)
         self.assertEqual(summary["scored_calls"], 5)
         self.assertEqual(summary["avg_score"], 8.0)
-        self.assertEqual(summary["breakdown"], {"scored": 5, "short_call": 5, "no_answer": 10, "not_scored": 0})
+        self.assertEqual(summary["breakdown"], {"scored": 5, "provisional": 0, "early_exit": 0, "very_short": 5, "not_connected": 10, "not_scored": 0})
         self.assertEqual(summary["criteria_avg"], {"opening": 75.0})
         self.assertEqual(summary["weakest_criterion"], "opening")
 
     def test_no_scored_calls_means_no_average(self):
-        self.assertIsNone(tp.summarize_calls(_rows(short=3, pending=2))["avg_score"])
+        self.assertIsNone(tp.summarize_calls(_rows(very_short=3, pending=2))["avg_score"])
+
+    def test_provisional_and_early_exit_count_toward_breakdown_not_scored(self):
+        summary = tp.summarize_calls(_rows(scored=[8], provisional=2, early_exit=1, pending=1))
+        self.assertEqual(summary["breakdown"], {"scored": 1, "provisional": 2, "early_exit": 1, "very_short": 0, "not_connected": 0, "not_scored": 1})
 
 
 class WinnerTests(unittest.TestCase):
