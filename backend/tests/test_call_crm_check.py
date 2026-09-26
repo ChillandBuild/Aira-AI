@@ -155,6 +155,8 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
         fin.assert_called_once()
 
     async def test_ai_failure_increments_crm_attempts_and_reraises(self):
+        """All 3 votes raise: return_exceptions=True turns each into an invalid vote, and
+        fewer than 2 valid votes raises CallMarkingError (still one crm_attempts bump)."""
         row = _row(feedback_at=NOW.isoformat(), outcome="interested")
         db = MagicMock()
         writes = []
@@ -163,7 +165,7 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
              patch.object(cm, "wrapup_snapshot", return_value={"outcome": "interested", "manual_status": None, "notes": None, "callback_at": None, "do_not_call": False}), \
              patch.object(cm, "gemini_analysis_json", AsyncMock(side_effect=RuntimeError("timeout"))), \
              patch.object(cm, "finalize_call_score") as fin:
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(cm.CallMarkingError):
                 await cm.mark_crm_update(db, "call-1", now=NOW)
         self.assertEqual(writes[-1]["evaluation"]["crm_attempts"], 1)
         fin.assert_not_called()
@@ -239,6 +241,28 @@ class MarkCrmUpdateVotingTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(cm.CallMarkingError):
                 await cm.mark_crm_update(db, "call-1", now=NOW)
         self.assertEqual(writes[-1]["evaluation"]["crm_attempts"], 1)
+
+    async def test_one_run_fails_two_disagree_raises_no_proof_alert(self):
+        row = _row(feedback_at=NOW.isoformat(), outcome="interested")
+        db = MagicMock()
+        writes = []
+        db.table.return_value.update.side_effect = lambda payload: writes.append(payload) or db.table.return_value.update.return_value
+        snap = {"outcome": "interested", "manual_status": None, "notes": None, "callback_at": None, "do_not_call": False}
+        votes = [RuntimeError("boom"), {"level": "good", "reason": "r1"}, {"level": "poor", "reason": "r2"}]
+        alert_mock = MagicMock()
+        with patch.object(cm, "_load_row", return_value=row), \
+             patch.object(cm, "wrapup_snapshot", return_value=snap), \
+             patch.object(cm, "gemini_analysis_json", AsyncMock(side_effect=votes)), \
+             patch.object(cm, "raise_alert", alert_mock), \
+             patch.object(cm, "finalize_call_score"):
+            changed = await cm.mark_crm_update(db, "call-1", now=NOW)
+        self.assertTrue(changed)
+        crm = writes[0]["evaluation"]["checks"][-1]
+        self.assertEqual(crm["level"], "poor")  # the lower of good/poor
+        types = [c.kwargs["type"] for c in alert_mock.call_args_list]
+        quotes = [c.kwargs["quote"] for c in alert_mock.call_args_list]
+        self.assertIn("no_proof", types)
+        self.assertIn("Wrap-up check: the AI votes disagreed", quotes)
 
 
 if __name__ == "__main__":

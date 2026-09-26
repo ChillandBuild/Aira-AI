@@ -1,9 +1,22 @@
 """Talk share (by words) and the caps the two numbers put on Listening and Courtesy."""
+from collections import Counter
+from typing import Callable, TypeVar
+
 from app.services.call_lines import Line
 from app.services.scoring_rules import (
     INTERRUPTIONS_GOOD_MAX, INTERRUPTIONS_SOMETIMES_MAX, LEVEL_ORDER, TALK_SHARE_HEALTHY_MAX,
     TALK_SHARE_HIGH_MAX, TALK_SHARE_MIN_WORDS, TALK_SHARE_PASSIVE,
 )
+
+_T = TypeVar("_T")
+
+
+def plurality(votes: list[_T], tie_break: Callable[[list[_T]], _T]) -> _T:
+    """The most common vote; tie_break(winners) resolves when more than one value ties for the lead."""
+    counts = Counter(votes)
+    top = max(counts.values())
+    winners = [v for v, n in counts.items() if n == top]
+    return winners[0] if len(winners) == 1 else tie_break(winners)
 
 _FILLERS = {
     "hmm", "hm", "hmmm", "mm", "mmm", "uh", "uhh", "um", "umm", "aah", "ah", "aa", "haan",

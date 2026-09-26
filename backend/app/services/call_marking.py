@@ -7,13 +7,12 @@ Check 10 (CRM update) is left pending here and marked from the wrap-up.
 """
 import asyncio
 import logging
-from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from app.services.call_alerts import raise_alert
 from app.services.call_lines import Line, clock, format_transcript, parse_transcript
-from app.services.call_metrics import courtesy_cap, listening_cap_reason, lower_level, tips
+from app.services.call_metrics import courtesy_cap, listening_cap_reason, lower_level, plurality, tips
 from app.services.call_quotes import clean_quote, clip, find_quote
 from app.services.call_scorer import finalize_call_score
 from app.services.gemini_client import gemini_analysis_json
@@ -121,19 +120,29 @@ def _quote_ok(level: str, quote, lines: list[Line]) -> tuple[bool, Line | None]:
 
 
 def _majority_level(votes: list[str]) -> str:
-    """The most common level; on a full tie (every vote differs) the median by LEVEL_ORDER."""
-    counts = Counter(votes)
-    top = max(counts.values())
-    winners = [level for level, n in counts.items() if n == top]
-    if len(winners) == 1:
-        return winners[0]
-    ordered = sorted(votes, key=LEVEL_ORDER.index)
-    return ordered[(len(ordered) - 1) // 2]
+    """The most common level; on a tie (including exactly 2 votes that disagree) the median
+    by LEVEL_ORDER — the lower of the two when there are only two votes."""
+    return plurality(votes, lambda _winners: sorted(votes, key=LEVEL_ORDER.index)[(len(votes) - 1) // 2])
 
 
 def _median_int(values: list[int]) -> int:
     ordered = sorted(values)
     return ordered[(len(ordered) - 1) // 2]
+
+
+async def _gather_votes(coros, *, label: str) -> list[dict]:
+    """Run the AI votes concurrently; a failing run counts as an invalid vote instead of
+    sinking every other run (asyncio.gather with return_exceptions=True)."""
+    results = await asyncio.gather(*coros, return_exceptions=True)
+    valid = []
+    for r in results:
+        if isinstance(r, Exception):
+            logger.warning(f"{label} vote failed: {type(r).__name__}: {r}")
+        elif isinstance(r, dict):
+            valid.append(r)
+        else:
+            logger.warning(f"{label} vote returned an unexpected type: {type(r).__name__}")
+    return valid
 
 
 async def mark_call(
@@ -148,12 +157,12 @@ async def mark_call(
         f"Previous notes on this lead:\n{previous_notes or 'none'}\n\n"
         f"{_numbers_block(talk_share, interruptions_per_5min, interruption_count)}\n{_RUBRIC}"
     )
-    runs = await asyncio.gather(*(
+    runs = await _gather_votes((
         gemini_analysis_json(
             system_prompt=_SYSTEM, user_prompt=prompt, tenant_id=tenant_id, temperature=0.0, purpose="call_marking",
         )
         for _ in range(AI_VOTES)
-    ))
+    ), label="mark_call")
     raw_list = [d.get("checks") if isinstance(d.get("checks"), dict) else {} for d in runs]
 
     excused_values = []
@@ -212,6 +221,7 @@ async def mark_call(
         if len(votes) < 2:
             raise CallMarkingError(f"fewer than 2 valid votes for check {key}")
         level = _majority_level(votes)
+        disagreement = len(votes) == 2 and votes[0] != votes[1]
         chosen_levels[key] = level
         source = next(raw[key] for raw in raw_list if isinstance(raw.get(key), dict) and raw[key].get("level") == level)
         cap, cap_name = "excellent", None
@@ -227,13 +237,14 @@ async def mark_call(
             cap, cap_name = "missing", "wrong_info"
         check = apply_level(slim, level, cap, cap_name)
         ok, line = _quote_ok(level, source.get("quote"), lines)
+        needs_review = not ok or disagreement
         check.update({
             "reason": clip(source.get("reason")),
             "quote": clip(source.get("quote")) if line else None,
             "time": clock(line.start) if line else None,
-            "proof_missing": not ok,
+            "proof_missing": needs_review,
         })
-        if not ok:
+        if needs_review:
             proof_missing.append(key)
         checks.append(check)
 
@@ -389,7 +400,7 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
     if not checks:
         return False
     crm = checks[-1]
-    alert = None  # (type, quote) fired only after the mark is saved and the score finalized
+    alerts: list[tuple[str, str]] = []  # (type, quote), fired only after the mark is saved and the score finalized
     if snap is None:
         if crm.get("level") is not None or not _past_cutoff(row, now):
             return False
@@ -404,37 +415,40 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
         if attempts >= CRM_AI_ATTEMPT_CAP:
             crm.update({"level": "missing", "ai_level": None, "marks": 0.0,
                         "reason": "The wrap-up couldn't be checked automatically."})
-            alert = ("no_proof", "Wrap-up check failed 3 times")
+            alerts.append(("no_proof", "Wrap-up check failed 3 times"))
         else:
             try:
                 prompt = _CRM_PROMPT.format(transcript=format_transcript(parse_transcript(row.get("transcript"))), **{k: snap.get(k) or "—" for k in snap})
-                results = await asyncio.gather(*(
+                results = await _gather_votes((
                     gemini_analysis_json(
                         system_prompt=_SYSTEM, user_prompt=prompt,
                         tenant_id=row.get("tenant_id"), temperature=0.0, purpose="call_crm_check", max_tokens=400,
                     )
                     for _ in range(AI_VOTES)
-                ))
+                ), label="mark_crm_update")
                 votes = [d.get("level") for d in results if d.get("level") in LEVEL_ORDER]
                 if len(votes) < 2:
                     raise CallMarkingError("no valid level for check crm_update")
                 level = _majority_level(votes)
+                disagreement = len(votes) == 2 and votes[0] != votes[1]
                 source = next(d for d in results if d.get("level") == level)
             except Exception:
                 db.table("call_logs").update({"evaluation": {**evaluation, "crm_attempts": attempts + 1}}).eq("id", call_log_id).execute()
                 raise
             crm.update({"level": level, "ai_level": level, "marks": round(check_marks("crm_update", level), 2),
                         "reason": clip(source.get("reason"))})
+            if disagreement:
+                alerts.append(("no_proof", "Wrap-up check: the AI votes disagreed"))
             if level in ("poor", "missing"):
-                alert = ("crm_mismatch", clip(source.get("reason")))
+                alerts.append(("crm_mismatch", clip(source.get("reason"))))
     checks[-1] = crm
     new_eval = {**evaluation, "checks": checks, "top_improve": top_improve(checks), "crm_wrapup": snap}
     db.table("call_logs").update({"evaluation": new_eval}).eq("id", call_log_id).execute()
     finalize_call_score(db, call_log_id)
-    if alert:
+    for alert_type, quote in alerts:
         try:
-            raise_alert(db, tenant_id=row["tenant_id"], type=alert[0], call_log_id=call_log_id,
-                        caller_id=row.get("caller_id"), quote=alert[1])
+            raise_alert(db, tenant_id=row["tenant_id"], type=alert_type, call_log_id=call_log_id,
+                        caller_id=row.get("caller_id"), quote=quote)
         except Exception as e:
-            logger.error(f"{alert[0]} alert failed for call {call_log_id}: {e}")
+            logger.error(f"{alert_type} alert failed for call {call_log_id}: {e}")
     return True

@@ -176,6 +176,17 @@ class SortCallVotingTests(unittest.IsolatedAsyncioTestCase):
             await cs.sort_call(EARLY, tenant_id="t")
         self.assertIn("unknown", gem_mock.call_args.kwargs["user_prompt"])
 
+    async def test_one_run_fails_still_counts_signs_from_the_other_two(self):
+        base_signs = [{"sign": 3, "quote": "How much?"}, {"sign": 5, "quote": "A bit costly"}]
+        a1, a2 = _ai(base_signs), _ai(base_signs)
+        result, gem = await self._run_votes([RuntimeError("boom"), a1, a2])
+        self.assertEqual(gem.await_count, cs.AI_VOTES)
+        self.assertEqual([s["sign"] for s in result.signs], [3, 5])
+
+    async def test_fewer_than_two_valid_runs_raises(self):
+        with self.assertRaises(RuntimeError):
+            await self._run_votes([RuntimeError("boom1"), RuntimeError("boom2"), _ai([])])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -247,6 +247,27 @@ class MarkCallVotingTests(unittest.IsolatedAsyncioTestCase):
         product = next(c for c in result.checks if c["key"] == "product_info")
         self.assertEqual((product["level"], product["capped_by"]), ("missing", "wrong_info"))
 
+    async def test_one_run_fails_two_agree_no_error(self):
+        a1, a2 = _ai(), _ai()
+        result, gem = await self._run_votes([RuntimeError("boom"), a1, a2])
+        self.assertEqual(gem.await_count, cm.AI_VOTES)
+        opening = next(c for c in result.checks if c["key"] == "opening")
+        self.assertEqual(opening["ai_level"], "excellent")
+        self.assertFalse(opening["proof_missing"])
+
+    async def test_one_run_fails_two_disagree_flags_proof_missing(self):
+        a1, a2 = _ai(), _ai()
+        a2["checks"]["opening"]["level"] = "poor"
+        result, _ = await self._run_votes([RuntimeError("boom"), a1, a2])
+        opening = next(c for c in result.checks if c["key"] == "opening")
+        self.assertEqual(opening["ai_level"], "poor")  # the lower of excellent/poor
+        self.assertTrue(opening["proof_missing"])
+        self.assertIn("opening", result.proof_missing)
+
+    async def test_two_runs_fail_raises(self):
+        with self.assertRaises(cm.CallMarkingError):
+            await self._run_votes([RuntimeError("boom1"), RuntimeError("boom2"), _ai()])
+
 
 if __name__ == "__main__":
     unittest.main()

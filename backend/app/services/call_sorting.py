@@ -5,13 +5,16 @@ transcript and the allowed speaker, then counts. The group is never the AI's opi
 The same request also returns the call summary and the early-exit basic check.
 """
 import asyncio
-from collections import Counter
+import logging
 from dataclasses import dataclass
 
 from app.services.call_lines import Line, clock, format_transcript
+from app.services.call_metrics import plurality
 from app.services.call_quotes import clip, find_quote
 from app.services.gemini_client import gemini_analysis_json
 from app.services.scoring_rules import AI_VOTES, MIN_SIGNS
+
+logger = logging.getLogger(__name__)
 
 SIGN_SPEAKERS: dict[int, tuple[str, ...]] = {
     1: ("customer",), 2: ("telecaller",), 3: ("telecaller", "customer"),
@@ -99,7 +102,7 @@ def _telecaller_quote(quote, lines: list[Line]) -> str | None:
 
 async def sort_call(lines: list[Line], tenant_id: str | None, kb_context: str | None = None) -> SortResult:
     prompt = _PROMPT.format(transcript=format_transcript(lines), kb_block=kb_context or "unknown")
-    runs = await asyncio.gather(*(
+    raw_runs = await asyncio.gather(*(
         gemini_analysis_json(
             system_prompt=_SYSTEM,
             user_prompt=prompt,
@@ -108,7 +111,17 @@ async def sort_call(lines: list[Line], tenant_id: str | None, kb_context: str | 
             purpose="call_sorting",
         )
         for _ in range(AI_VOTES)
-    ))
+    ), return_exceptions=True)
+    runs = []
+    for r in raw_runs:
+        if isinstance(r, Exception):
+            logger.warning(f"sort_call vote failed: {type(r).__name__}: {r}")
+        elif isinstance(r, dict):
+            runs.append(r)
+        else:
+            logger.warning(f"sort_call vote returned an unexpected type: {type(r).__name__}")
+    if len(runs) < 2:
+        raise RuntimeError("fewer than 2 valid sorting votes")
 
     sign_votes: dict[int, list[dict]] = {}
     for data in runs:
@@ -141,10 +154,7 @@ async def sort_call(lines: list[Line], tenant_id: str | None, kb_context: str | 
     enquiry_confirmed_early = confirmed_count > len(runs) / 2
 
     expected_votes = [d.get("expected_crm") if d.get("expected_crm") in EXPECTED_CRM else "other" for d in runs]
-    counts = Counter(expected_votes)
-    top = max(counts.values())
-    winners = [v for v, n in counts.items() if n == top]
-    expected_crm = winners[0] if len(winners) == 1 else "other"
+    expected_crm = plurality(expected_votes, lambda _winners: "other")
 
     early = None
     if group == "early_exit":
