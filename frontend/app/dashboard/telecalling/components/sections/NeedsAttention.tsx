@@ -107,7 +107,7 @@ export default function NeedsAttention({ onViewLead }: NeedsAttentionProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-body text-xs font-bold text-[#292524] truncate">
-                    {a.callers?.name ?? "—"}
+                    {a.callers?.name ?? "All telecallers"}
                     {lead && <span className="font-semibold text-[#78716c]"> · {lead.name || formatPhone(lead.phone ?? "")}</span>}
                   </p>
                   {a.quote && <p className="font-body text-[11px] text-[#57534e] mt-0.5 break-words">{a.quote}</p>}

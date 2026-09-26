@@ -107,6 +107,7 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
         gem.assert_not_called()
         self.assertFalse(writes[0]["evaluation"]["early_exit_check"]["crm_matches"])
         self.assertEqual(alert.call_args.kwargs["type"], "crm_mismatch")
+        self.assertEqual(alert.call_args.kwargs["quote"], "The call sounded like: Wrong number. Wrap-up saved: Interested.")
 
     async def test_ai_not_done_yet_waits(self):
         changed, writes, _, _, _ = await self._run(_row(ai_status="scoring", feedback_at=NOW.isoformat(), evaluation=None))

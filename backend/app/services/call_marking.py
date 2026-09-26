@@ -222,6 +222,30 @@ Levels: "excellent" = status matches the call, the notes cover the key points (n
 Return JSON only: {{"level": "...", "reason": "one line"}}"""
 
 
+EXPECTED_CRM_LABEL = {
+    "wrong_number": "Wrong number", "not_enquired": "Never enquired", "callback": "Callback with a date and time",
+    "language_barrier": "Language barrier", "voicemail": "Voicemail / IVR", "other": "Other",
+}
+MANUAL_STATUS_LABEL = {
+    "wrong_number": "Wrong number", "connected": "Connected", "not_picked": "Not picked", "busy": "Busy",
+    "interested": "Interested", "not_interested": "Not interested", "callback": "Callback",
+}
+OUTCOME_LABEL = {
+    "converted": "Converted", "interested": "Interested", "callback": "Callback",
+    "not_interested": "Not interested", "no_answer": "No answer",
+}
+
+
+def _wrapup_label(snap: dict) -> str:
+    if snap.get("manual_status") in MANUAL_STATUS_LABEL:
+        return MANUAL_STATUS_LABEL[snap["manual_status"]]
+    if snap.get("outcome") in OUTCOME_LABEL:
+        return OUTCOME_LABEL[snap["outcome"]]
+    if snap.get("do_not_call"):
+        return "Do not call"
+    return "Nothing"
+
+
 def crm_matches_expected(expected: str, wrapup: dict) -> bool | None:
     """Early-exit check 3. None when our wrap-up has no status for that situation."""
     if expected == "wrong_number":
@@ -277,7 +301,7 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
         if matches is False:
             raise_alert(db, tenant_id=row["tenant_id"], type="crm_mismatch", call_log_id=call_log_id,
                         caller_id=row.get("caller_id"),
-                        quote=clip(f"Call looked like '{early.get('expected_crm')}', wrap-up says '{snap.get('manual_status') or snap.get('outcome')}'"))
+                        quote=clip(f"The call sounded like: {EXPECTED_CRM_LABEL.get(early.get('expected_crm'), 'Other')}. Wrap-up saved: {_wrapup_label(snap)}."))
         finalize_call_score(db, call_log_id)
         return True
 
