@@ -116,10 +116,6 @@ class FallbackTests(unittest.TestCase):
         self.assertIs(chunks[0].data, blob)
         self.assertIsNone(ca.resplit_chunk(chunks[0]))
 
-    def test_evaluation_audio_stops_at_the_request_cap(self):
-        pieces = [ca.AudioChunk(bytes(5 * 1024 * 1024), "audio/mpeg", i * 300, (i + 1) * 300) for i in range(4)]
-        self.assertEqual(len(ca.audio_for_evaluation(pieces)), 2)
-
 
 if __name__ == "__main__":
     unittest.main()

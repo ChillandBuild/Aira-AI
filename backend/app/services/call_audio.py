@@ -282,15 +282,3 @@ def resplit_chunk(chunk: AudioChunk) -> list[AudioChunk] | None:
         piece.start_seconds += chunk.start_seconds
         piece.end_seconds += chunk.start_seconds
     return pieces
-
-
-def audio_for_evaluation(chunks: list[AudioChunk]) -> list[AudioChunk]:
-    """The leading pieces that fit in one request, for the tone criterion."""
-    picked: list[AudioChunk] = []
-    total = 0
-    for chunk in chunks:
-        if total + len(chunk.data) > MAX_INLINE_BYTES:
-            break
-        picked.append(chunk)
-        total += len(chunk.data)
-    return picked

@@ -293,7 +293,6 @@ async def gemini_transcribe_audio(
 async def gemini_analysis_json(
     system_prompt: str,
     user_prompt: str,
-    audio: list[tuple[bytes, str]] | None = None,
     model: str = DEFAULT_GEMINI_TEXT_MODEL,
     tenant_id: str | None = None,
     max_tokens: int = 3000,
@@ -301,12 +300,9 @@ async def gemini_analysis_json(
     purpose: str = "call_analysis",
     temperature: float = 0.2,
 ) -> dict:
-    """JSON completion that can also carry audio (for the tone criterion). Same
-    prompt-only JSON discipline and single retry as gemini_chat_completion_json."""
+    """JSON completion with prompt-only JSON discipline and a single retry."""
     api_key = require_tenant_setting("gemini_api_key", tenant_id)
     content: list[dict] = [{"type": "text", "text": user_prompt}]
-    for audio_bytes, mime_type in audio or []:
-        content.append(_audio_part(audio_bytes, mime_type))
     request_json = {
         "model": model,
         "system_instruction": system_prompt,

@@ -16,12 +16,19 @@ import httpx
 from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.services.audio_format import detect_audio_format, detect_gemini_audio_mime
-from app.services.call_scorer import SCORE_MIN_SECONDS, finalize_call_score
-from app.services.call_summarizer import DEFAULT_CRITERIA, analyze_call, normalize_criteria, transcribe_call
+from app.services.call_alerts import raise_alert
+from app.services.call_lines import format_transcript
+from app.services.call_marking import mark_call, mark_crm_update, top_improve
+from app.services.call_metrics import talk_share as compute_talk_share
+from app.services.call_scorer import finalize_call_score
+from app.services.call_sorting import sort_call
+from app.services.call_tracks import count_interruptions, per_5_min
+from app.services.call_transcribe import transcribe_tracks, tracks_look_swapped
+from app.services.scoring_rules import MIN_SCORED_SECONDS, RULES_VERSION, WRAPUP_CUTOFF_HOURS
 
 logger = logging.getLogger(__name__)
 
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 2
 RETRY_AFTER = timedelta(minutes=2)
 STUCK_AFTER = timedelta(minutes=15)
 SWEEP_BATCH = 20
@@ -135,19 +142,10 @@ async def _load_audio(db, row: dict, appid_override: str | None) -> tuple[bytes,
     return audio, detect_gemini_audio_mime(audio, row["recording_filename"])
 
 
-def _selected_criteria(tenant_id: str | None, db) -> list[str]:
-    from app.services.assignment import get_telecalling_config
-
-    if not tenant_id:
-        return list(DEFAULT_CRITERIA)
-    cfg = get_telecalling_config(tenant_id, db=db)
-    return normalize_criteria(cfg.get("score_criteria")) or list(DEFAULT_CRITERIA)
-
-
 def _claim(db, call_log_id: str) -> dict | None:
     res = (
         db.table("call_logs")
-        .select("id,tenant_id,caller_id,lead_id,duration_seconds,recording_url,recording_filename,ai_status,ai_attempts")
+        .select("id,tenant_id,caller_id,lead_id,status,duration_seconds,recording_url,recording_filename,ai_status,ai_attempts")
         .eq("id", call_log_id)
         .maybe_single()
         .execute()
@@ -172,54 +170,98 @@ def _claim(db, call_log_id: str) -> dict | None:
     return row
 
 
+def _company_name(db, tenant_id: str | None) -> str | None:
+    if not tenant_id:
+        return None
+    res = db.table("tenants").select("name").eq("id", tenant_id).maybe_single().execute()
+    name = ((res.data if res else None) or {}).get("name")
+    return name if isinstance(name, str) else None
+
+
+def _previous_notes(db, lead_id: str | None, call_log_id: str) -> str:
+    if not lead_id:
+        return ""
+    rows = (
+        db.table("lead_notes").select("content,created_at").eq("lead_id", lead_id)
+        .neq("call_log_id", call_log_id).order("created_at", desc=True).limit(5).execute()
+    ).data or []
+    return "\n".join(f"- {r['content']}" for r in rows if r.get("content"))
+
+
 async def _process(db, row: dict, appid_override: str | None) -> None:
     from app.services.knowledge_service import get_knowledge_context
 
     call_log_id = row["id"]
     tenant_id = row.get("tenant_id")
-    audio, mime_type = await _load_audio(db, row, appid_override)
-
-    transcript, chunks = await transcribe_call(audio, mime_type, tenant_id=tenant_id)
-    if not transcript.strip():
-        raise RuntimeError("the transcript came back empty")
-    db.table("call_logs").update({"transcript": transcript}).eq("id", call_log_id).execute()
-    logger.info(f"Transcript stored for {call_log_id} ({len(transcript)} chars)")
-
-    if (row.get("duration_seconds") or 0) < SCORE_MIN_SECONDS:
+    duration = row.get("duration_seconds") or 0
+    if duration < MIN_SCORED_SECONDS:
+        # Very short calls get no AI at all — not even a transcript.
         db.table("call_logs").update({"ai_status": "done", "ai_error": None, "ai_updated_at": _now()}).eq("id", call_log_id).execute()
         return
 
-    _set_stage(db, call_log_id, "scoring")
-    lead_name = None
-    if row.get("lead_id"):
-        lead = db.table("leads").select("name").eq("id", row["lead_id"]).maybe_single().execute()
-        lead_name = ((lead.data if lead else None) or {}).get("name")
-    kb_context = await get_knowledge_context(tenant_id, query=transcript[:1500]) if tenant_id else ""
-
-    summary, evaluation = await analyze_call(
-        transcript,
-        _selected_criteria(tenant_id, db),
-        lead_name=lead_name,
-        kb_context=kb_context,
-        tenant_id=tenant_id,
-        chunks=chunks,
-    )
+    audio, mime_type = await _load_audio(db, row, appid_override)
+    tracks = await transcribe_tracks(audio, mime_type, tenant_id=tenant_id)
+    if not tracks.lines:
+        raise RuntimeError("the transcript came back empty")
+    transcript = format_transcript(tracks.lines)
+    share = compute_talk_share(tracks.lines)
+    count = count_interruptions(tracks.telecaller_segments, tracks.customer_segments) if tracks.stereo else None
+    ipm = per_5_min(count, duration)
     db.table("call_logs").update({
-        "ai_summary": summary,
-        "evaluation": evaluation,
-        "ai_status": "done",
-        "ai_error": None,
-        "ai_updated_at": _now(),
+        "transcript": transcript, "talk_share": share,
+        "interruption_count": count, "interruptions_per_5min": ipm,
     }).eq("id", call_log_id).execute()
-    logger.info(f"Call {call_log_id} evaluated: AI average {evaluation.get('ai_average')}")
 
-    if summary.get("next_action") and row.get("lead_id"):
+    _set_stage(db, call_log_id, "scoring")
+    caller_id = row.get("caller_id")
+    if tracks.stereo and tracks_look_swapped(tracks.lines, _company_name(db, tenant_id)):
+        raise_alert(db, tenant_id=tenant_id, type="tracks_swapped", call_log_id=call_log_id, caller_id=caller_id,
+                    quote="The 'calling from…' words were heard on the customer's track.")
+
+    sorting = await sort_call(tracks.lines, tenant_id=tenant_id)
+    evaluation: dict = {
+        "evaluation_version": 4, "rules_version": RULES_VERSION, "group": sorting.group,
+        "signs": sorting.signs, "valid_sign_count": len(sorting.signs),
+        "language_barrier": sorting.language_barrier,
+    }
+    rude_quote = sorting.rude_quote
+    if sorting.group == "real_conversation":
+        kb_context = await get_knowledge_context(tenant_id, query=transcript[:1500]) if tenant_id else ""
+        marking = await mark_call(
+            tracks.lines, kb_context=kb_context, previous_notes=_previous_notes(db, row.get("lead_id"), call_log_id),
+            talk_share=share, interruptions_per_5min=ipm, interruption_count=count,
+            duration_seconds=duration, tenant_id=tenant_id,
+        )
+        evaluation.update({
+            "checks": marking.checks, "top_improve": top_improve(marking.checks), "tips": marking.tips,
+            "wrong_info": marking.wrong_info, "unverified_claims": marking.unverified_claims,
+        })
+        rude_quote = rude_quote or marking.rude_quote
+        for item in marking.wrong_info:
+            raise_alert(db, tenant_id=tenant_id, type="wrong_info", call_log_id=call_log_id, caller_id=caller_id,
+                        quote=f"[{item['time']}] {item['quote']}", detail={"kb_fact": item.get("kb_fact")})
+        if marking.proof_missing:
+            raise_alert(db, tenant_id=tenant_id, type="no_proof", call_log_id=call_log_id, caller_id=caller_id,
+                        quote=f"No proof for: {', '.join(marking.proof_missing)}", detail={"checks": marking.proof_missing})
+    else:
+        evaluation["early_exit_check"] = sorting.early_exit_check
+    if rude_quote:
+        raise_alert(db, tenant_id=tenant_id, type="rude", call_log_id=call_log_id, caller_id=caller_id, quote=rude_quote)
+    if sorting.language_barrier:
+        raise_alert(db, tenant_id=tenant_id, type="language_barrier", call_log_id=call_log_id, caller_id=caller_id,
+                    quote=sorting.language_barrier_quote)
+
+    db.table("call_logs").update({
+        "ai_summary": sorting.summary, "evaluation": evaluation, "ai_status": "done",
+        "ai_error": None, "ai_updated_at": _now(),
+    }).eq("id", call_log_id).execute()
+    logger.info(f"Call {call_log_id} sorted as {sorting.group} ({len(sorting.signs)} signs)")
+
+    if sorting.summary.get("next_action") and row.get("lead_id"):
         note_row = {
-            "lead_id": row["lead_id"],
-            "call_log_id": call_log_id,
-            "content": f"AI Summary: {summary['next_action']}",
-            "structured": summary,
-            "is_pinned": False,
+            "lead_id": row["lead_id"], "call_log_id": call_log_id,
+            "content": f"AI Summary: {sorting.summary['next_action']}",
+            "structured": sorting.summary, "is_pinned": False,
         }
         if tenant_id:
             note_row["tenant_id"] = tenant_id
@@ -243,10 +285,17 @@ async def run_call_ai(call_log_id: str, appid_override: str | None = None) -> No
                 "ai_error": error,
                 "ai_updated_at": _now(),
             }).eq("id", call_log_id).execute()
+            if final:
+                raise_alert(db, tenant_id=row.get("tenant_id"), type="transcript_failed", call_log_id=call_log_id,
+                            caller_id=row.get("caller_id"), quote=error[:240])
         try:
             finalize_call_score(db, call_log_id)
         except Exception as e:
             logger.error(f"Scoring failed for call {call_log_id}: {e}")
+        try:
+            await mark_crm_update(db, call_log_id)
+        except Exception as e:
+            logger.error(f"CRM check failed for call {call_log_id}: {e}")
 
 
 async def sweep_call_ai() -> int:
@@ -255,7 +304,7 @@ async def sweep_call_ai() -> int:
     now = datetime.now(timezone.utc)
     due_pending = (
         db.table("call_logs")
-        .select("id,ai_attempts")
+        .select("id,ai_attempts,tenant_id,caller_id")
         .eq("ai_status", "pending")
         .lt("ai_updated_at", (now - RETRY_AFTER).isoformat())
         .order("ai_updated_at")
@@ -264,7 +313,7 @@ async def sweep_call_ai() -> int:
     ).data or []
     stuck = (
         db.table("call_logs")
-        .select("id,ai_attempts")
+        .select("id,ai_attempts,tenant_id,caller_id")
         .in_("ai_status", ["transcribing", "scoring"])
         .lt("ai_updated_at", (now - STUCK_AFTER).isoformat())
         .order("ai_updated_at")
@@ -281,9 +330,31 @@ async def sweep_call_ai() -> int:
                 "ai_updated_at": _now(),
             }).eq("id", row["id"]).execute()
             finalize_call_score(db, row["id"])
+            raise_alert(db, tenant_id=row.get("tenant_id"), type="transcript_failed", call_log_id=row["id"],
+                        caller_id=row.get("caller_id"), quote="stopped after the maximum number of attempts")
         else:
             runnable.append(row["id"])
     if runnable:
         logger.info(f"Call AI sweep: resuming {len(runnable)} call(s)")
         await asyncio.gather(*(run_call_ai(cid) for cid in runnable))
     return len(runnable)
+
+
+async def sweep_crm_cutoff() -> int:
+    """Check 10 for real conversations whose wrap-up never came (Missing after the cut-off),
+    or whose wrap-up arrived while the AI was still running."""
+    db = get_supabase()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=WRAPUP_CUTOFF_HOURS)).isoformat()
+    rows = (
+        db.table("call_logs").select("id")
+        .eq("provider", "telecmi").eq("ai_status", "done").eq("score_final", False)
+        .in_("call_group", ["real_conversation", "early_exit"])
+        .lt("created_at", cutoff).limit(SWEEP_BATCH).execute()
+    ).data or []
+    changed = 0
+    for r in rows:
+        try:
+            changed += int(await mark_crm_update(db, r["id"]))
+        except Exception as e:
+            logger.error(f"CRM cut-off sweep failed for {r['id']}: {e}")
+    return changed

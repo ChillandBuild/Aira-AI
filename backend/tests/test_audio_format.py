@@ -104,7 +104,7 @@ class RecordingPipelineWiringTests(unittest.TestCase):
         source = self._read("app/services/call_ai_pipeline.py")
         self.assertIn('detect_gemini_audio_mime(audio, row["recording_url"])', source)
         self.assertIn('detect_gemini_audio_mime(audio, row["recording_filename"])', source)
-        self.assertIn("transcribe_call(audio, mime_type", source)
+        self.assertIn("transcribe_tracks(audio, mime_type", source)
         self.assertNotIn('"audio/mp3"', source)
 
 if __name__ == "__main__":

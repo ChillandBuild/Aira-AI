@@ -1,4 +1,5 @@
-"""The durable recording pipeline: claiming, stages, retries and the restart sweep."""
+"""The durable recording pipeline: claiming, stages, retries, the restart sweep, and the
+new v4 flow (per-track transcription -> sorting -> marking -> alerts -> check 10)."""
 import sys
 import unittest
 from pathlib import Path
@@ -7,6 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import call_ai_pipeline as pipe
+from app.services.call_lines import Line
+from app.services.call_marking import CHECKS, MarkResult
+from app.services.call_sorting import SortResult
+from app.services.call_transcribe import TrackTranscript
 
 
 class _Res:
@@ -88,70 +93,9 @@ def _call(**over):
     return row
 
 
-EVALUATION = {"evaluation_version": 3, "ai_average": 8.0}
-
-
-class RunTests(unittest.IsolatedAsyncioTestCase):
-    def _patches(self, db, transcript="Telecaller: Hello\nCustomer: Hi", analyze=None):
-        return [
-            patch.object(pipe, "get_supabase", return_value=db),
-            patch.object(pipe, "_load_audio", AsyncMock(return_value=(b"audio", "audio/mpeg"))),
-            patch.object(pipe, "transcribe_call", AsyncMock(return_value=(transcript, []))),
-            patch.object(pipe, "analyze_call", analyze or AsyncMock(return_value=({"next_action": "Call back"}, dict(EVALUATION)))),
-            patch.object(pipe, "_selected_criteria", return_value=["greeting_quality"]),
-            patch("app.services.knowledge_service.get_knowledge_context", AsyncMock(return_value="")),
-            patch.object(pipe, "finalize_call_score"),
-        ]
-
-    async def _run(self, db, **kw):
-        patches = self._patches(db, **kw)
-        for p in patches:
-            p.start()
-        try:
-            await pipe.run_call_ai("c1")
-        finally:
-            for p in patches:
-                p.stop()
-
-    async def test_full_run_stores_transcript_summary_and_evaluation(self):
-        db = FakeDB(call_logs=[_call()], leads=[{"id": "l1", "name": "Ravi"}])
-        await self._run(db)
-        row = db.row()
-        self.assertEqual(row["ai_status"], "done")
-        self.assertEqual(row["ai_attempts"], 1)
-        self.assertEqual(row["transcript"], "Telecaller: Hello\nCustomer: Hi")
-        self.assertEqual(row["evaluation"], EVALUATION)
-        stages = [u[1]["ai_status"] for u in db.updates if "ai_status" in u[1]]
-        self.assertEqual(stages, ["transcribing", "scoring", "done"])
-        self.assertEqual(db.inserts[0][0], "lead_notes")
-
-    async def test_short_call_is_transcribed_but_never_evaluated(self):
-        db = FakeDB(call_logs=[_call(duration_seconds=20)], leads=[])
-        analyze = AsyncMock()
-        await self._run(db, analyze=analyze)
-        self.assertEqual(db.row()["ai_status"], "done")
-        self.assertIn("transcript", db.row())
-        analyze.assert_not_called()
-
-    async def test_failure_goes_back_to_pending_for_the_sweep(self):
-        db = FakeDB(call_logs=[_call()], leads=[])
-        await self._run(db, analyze=AsyncMock(side_effect=RuntimeError("gemini 503")))
-        self.assertEqual(db.row()["ai_status"], "pending")
-        self.assertIn("gemini 503", db.row()["ai_error"])
-
-    async def test_third_failure_is_final(self):
-        db = FakeDB(call_logs=[_call(ai_attempts=2)], leads=[])
-        await self._run(db, analyze=AsyncMock(side_effect=RuntimeError("still down")))
-        self.assertEqual(db.row()["ai_status"], "failed")
-
-    async def test_empty_transcript_is_a_failure_not_a_score(self):
-        db = FakeDB(call_logs=[_call()], leads=[])
-        await self._run(db, transcript="  ")
-        self.assertEqual(db.row()["ai_status"], "pending")
-        self.assertNotIn("evaluation", db.row())
-
+class ClaimTests(unittest.IsolatedAsyncioTestCase):
     async def test_finished_or_exhausted_calls_are_not_claimed(self):
-        for row in (_call(ai_status="done"), _call(ai_status="failed"), _call(ai_attempts=3)):
+        for row in (_call(ai_status="done"), _call(ai_status="failed"), _call(ai_attempts=2)):
             db = FakeDB(call_logs=[row])
             self.assertIsNone(pipe._claim(db, "c1"))
 
@@ -178,6 +122,78 @@ class RunTests(unittest.IsolatedAsyncioTestCase):
         db = FakeDB(call_logs=[_call(ai_attempts=1, ai_status="transcribing")])
         self.assertEqual(pipe._claim(db, "c1")["ai_attempts"], 2)
         self.assertEqual(db.row()["ai_status"], "transcribing")
+
+
+def _tracks():
+    return TrackTranscript([Line(1, "telecaller", "Hello"), Line(3, "customer", "I need a demo")], [(1.0, 2.0)], [(3.0, 5.0)], True)
+
+
+def _sort(group):
+    early = None if group == "real_conversation" else {"polite": True, "rude_quote": None, "enquiry_confirmed_early": False, "expected_crm": "other", "crm_matches": None}
+    return SortResult(group, [], {"next_action": "Call back"}, early, False, None, None)
+
+
+class NewFlowTests(unittest.IsolatedAsyncioTestCase):
+    async def _process(self, db, row, group):
+        marking = MarkResult(checks=[{"key": c["key"], "full": c["full"], "level": "good" if c["key"] != "crm_update" else None} for c in CHECKS])
+        with patch.object(pipe, "_load_audio", AsyncMock(return_value=(b"wav", "audio/wav"))), \
+             patch.object(pipe, "transcribe_tracks", AsyncMock(return_value=_tracks())), \
+             patch.object(pipe, "sort_call", AsyncMock(return_value=_sort(group))), \
+             patch.object(pipe, "mark_call", AsyncMock(return_value=marking)) as mark, \
+             patch.object(pipe, "raise_alert") as alert, \
+             patch("app.services.knowledge_service.get_knowledge_context", AsyncMock(return_value="")):
+            await pipe._process(db, row, None)
+        return mark, alert
+
+    async def test_very_short_call_is_never_transcribed(self):
+        db = MagicMock()
+        with patch.object(pipe, "transcribe_tracks", AsyncMock()) as tr:
+            await pipe._process(db, {"id": "c", "tenant_id": "t", "duration_seconds": 20}, None)
+        tr.assert_not_called()
+
+    async def test_early_exit_skips_marking(self):
+        mark, _ = await self._process(MagicMock(), {"id": "c", "tenant_id": "t", "duration_seconds": 90, "lead_id": None}, "early_exit")
+        mark.assert_not_called()
+
+    async def test_real_conversation_is_marked(self):
+        mark, _ = await self._process(MagicMock(), {"id": "c", "tenant_id": "t", "duration_seconds": 90, "lead_id": None}, "real_conversation")
+        mark.assert_called_once()
+
+
+class RunCallAiTests(unittest.IsolatedAsyncioTestCase):
+    async def test_success_path_finalizes_score_and_checks_crm(self):
+        db = FakeDB(call_logs=[_call()])
+        with patch.object(pipe, "get_supabase", return_value=db), \
+             patch.object(pipe, "_process", AsyncMock()), \
+             patch.object(pipe, "finalize_call_score") as finalize, \
+             patch.object(pipe, "mark_crm_update", AsyncMock()) as crm:
+            await pipe.run_call_ai("c1")
+        finalize.assert_called_once_with(db, "c1")
+        crm.assert_awaited_once_with(db, "c1")
+
+    async def test_non_final_failure_goes_back_to_pending_without_an_alert(self):
+        db = FakeDB(call_logs=[_call()])
+        with patch.object(pipe, "get_supabase", return_value=db), \
+             patch.object(pipe, "_process", AsyncMock(side_effect=RuntimeError("gemini 503"))), \
+             patch.object(pipe, "raise_alert") as alert, \
+             patch.object(pipe, "finalize_call_score"), \
+             patch.object(pipe, "mark_crm_update", AsyncMock()):
+            await pipe.run_call_ai("c1")
+        self.assertEqual(db.row()["ai_status"], "pending")
+        self.assertIn("gemini 503", db.row()["ai_error"])
+        alert.assert_not_called()
+
+    async def test_final_failure_is_marked_failed_and_raises_a_transcript_failed_alert(self):
+        db = FakeDB(call_logs=[_call(ai_attempts=1)])  # bumped to MAX_ATTEMPTS(2) on claim
+        with patch.object(pipe, "get_supabase", return_value=db), \
+             patch.object(pipe, "_process", AsyncMock(side_effect=RuntimeError("still down"))), \
+             patch.object(pipe, "raise_alert") as alert, \
+             patch.object(pipe, "finalize_call_score"), \
+             patch.object(pipe, "mark_crm_update", AsyncMock()):
+            await pipe.run_call_ai("c1")
+        self.assertEqual(db.row()["ai_status"], "failed")
+        alert.assert_called_once()
+        self.assertEqual(alert.call_args.kwargs["type"], "transcript_failed")
 
 
 class LoadAudioTests(unittest.IsolatedAsyncioTestCase):
@@ -230,19 +246,34 @@ class QueueAndSweepTests(unittest.IsolatedAsyncioTestCase):
         db = FakeDB(call_logs=[
             _call(id="stale"),
             _call(id="stuck", ai_status="transcribing"),
-            _call(id="exhausted", ai_attempts=3),
+            _call(id="exhausted", ai_attempts=2),
             _call(id="fresh", ai_updated_at="9999-01-01T00:00:00+00:00"),
         ])
         runs = []
         with patch.object(pipe, "get_supabase", return_value=db), \
              patch.object(pipe, "run_call_ai", AsyncMock(side_effect=lambda cid: runs.append(cid))), \
-             patch.object(pipe, "finalize_call_score") as finalize:
+             patch.object(pipe, "finalize_call_score") as finalize, \
+             patch.object(pipe, "raise_alert") as alert:
             count = await pipe.sweep_call_ai()
         self.assertEqual(sorted(runs), ["stale", "stuck"])
         self.assertEqual(count, 2)
         exhausted = next(r for r in db.rows["call_logs"] if r["id"] == "exhausted")
         self.assertEqual(exhausted["ai_status"], "failed")
         finalize.assert_called_once_with(db, "exhausted")
+        alert.assert_called_once()
+        self.assertEqual(alert.call_args.kwargs["type"], "transcript_failed")
+
+
+class SweepCrmCutoffTests(unittest.IsolatedAsyncioTestCase):
+    async def test_only_provisional_real_conversations_past_cutoff_are_rechecked(self):
+        db = MagicMock()
+        chain = db.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value.in_.return_value.lt.return_value.limit.return_value
+        chain.execute.return_value = MagicMock(data=[{"id": "c1"}, {"id": "c2"}])
+        with patch.object(pipe, "get_supabase", return_value=db), \
+             patch.object(pipe, "mark_crm_update", AsyncMock(side_effect=[True, False])) as crm:
+            changed = await pipe.sweep_crm_cutoff()
+        self.assertEqual(changed, 1)
+        self.assertEqual(crm.await_count, 2)
 
 
 if __name__ == "__main__":
