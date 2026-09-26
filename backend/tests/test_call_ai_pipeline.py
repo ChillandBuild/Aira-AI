@@ -1,5 +1,6 @@
 """The durable recording pipeline: claiming, stages, retries, the restart sweep, and the
 new v4 flow (per-track transcription -> sorting -> marking -> alerts -> check 10)."""
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -17,6 +18,16 @@ from app.services.call_transcribe import TrackTranscript
 class _Res:
     def __init__(self, data):
         self.data = data
+
+
+def _json_path_get(row: dict, path: str):
+    """Resolve a postgrest-style 'a->b->>c' column path against a nested dict."""
+    value = row
+    for part in re.split(r"->>|->", path):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
 
 
 class _Q:
@@ -46,7 +57,13 @@ class _Q:
         self.filters.append(lambda r: (r.get(col) or "") < val)
         return self
 
-    def order(self, *a, **k):
+    def is_(self, col, val):
+        getter = (lambda r: _json_path_get(r, col)) if "->" in col else (lambda r: r.get(col))
+        self.filters.append((lambda r: getter(r) is None) if val == "null" else (lambda r: getter(r) is not None))
+        return self
+
+    def order(self, col, desc=False, **k):
+        self.order_col, self.order_desc = col, desc
         return self
 
     def limit(self, *a):
@@ -58,6 +75,8 @@ class _Q:
 
     def execute(self):
         rows = [r for r in self.db.rows.get(self.table, []) if all(f(r) for f in self.filters)]
+        if getattr(self, "order_col", None):
+            rows = sorted(rows, key=lambda r: r.get(self.order_col) or "", reverse=self.order_desc)
         if self.op == "update":
             for r in rows:
                 r.update(self.payload)
@@ -298,28 +317,39 @@ class QueueAndSweepTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SweepCrmCutoffTests(unittest.IsolatedAsyncioTestCase):
-    async def test_only_provisional_real_conversations_past_cutoff_are_rechecked(self):
-        db = MagicMock()
-        select = db.table.return_value.select.return_value
-        eq1 = select.eq.return_value
-        eq2 = eq1.eq.return_value
-        eq3 = eq2.eq.return_value
-        in_ = eq3.in_.return_value
-        lt = in_.lt.return_value
-        lt.limit.return_value.execute.return_value = MagicMock(data=[{"id": "c1"}, {"id": "c2"}])
+    _OLDER = "2010-01-01T00:00:00+00:00"
+    _PAST = "2020-01-01T00:00:00+00:00"
+    _RECENT = "2099-01-01T00:00:00+00:00"
+
+    def _row(self, id, call_group, **over):
+        row = {"id": id, "provider": "telecmi", "ai_status": "done", "score_final": False,
+               "call_group": call_group, "created_at": self._PAST}
+        if call_group == "early_exit":
+            row.update(score_final=True, feedback_at=None, evaluation={"early_exit_check": {"crm_matches": None}})
+        row.update(over)
+        return row
+
+    async def test_real_conversations_and_pending_early_exits_past_cutoff_are_rechecked(self):
+        rows = [
+            self._row("rc-old", "real_conversation"),
+            self._row("rc-older", "real_conversation", created_at=self._OLDER),
+            self._row("rc-final", "real_conversation", score_final=True),
+            self._row("rc-recent", "real_conversation", created_at=self._RECENT),
+            self._row("ee-pending", "early_exit"),
+            self._row("ee-has-feedback", "early_exit", feedback_at=self._PAST),
+            self._row("ee-marked", "early_exit", evaluation={"early_exit_check": {"crm_matches": False}}),
+            self._row("ee-recent", "early_exit", created_at=self._RECENT),
+        ]
+        db = FakeDB(call_logs=rows)
+        results = {"rc-old": True, "rc-older": True, "ee-pending": False}
         with patch.object(pipe, "get_supabase", return_value=db), \
-             patch.object(pipe, "mark_crm_update", AsyncMock(side_effect=[True, False])) as crm:
+             patch.object(pipe, "mark_crm_update", AsyncMock(side_effect=lambda d, cid: results[cid])) as crm:
             changed = await pipe.sweep_crm_cutoff()
-        self.assertEqual(changed, 1)
-        self.assertEqual(crm.await_count, 2)
-        db.table.assert_called_with("call_logs")
-        select.eq.assert_called_once_with("provider", "telecmi")
-        eq1.eq.assert_called_once_with("ai_status", "done")
-        eq2.eq.assert_called_once_with("score_final", False)
-        eq3.in_.assert_called_once_with("call_group", ["real_conversation", "early_exit"])
-        lt_args = in_.lt.call_args.args
-        self.assertEqual(lt_args[0], "created_at")
-        self.assertIsInstance(lt_args[1], str)
+        self.assertEqual(changed, 2)
+        called_ids = [c.args[1] for c in crm.await_args_list]
+        self.assertEqual(set(called_ids), {"rc-old", "rc-older", "ee-pending"})
+        self.assertEqual(called_ids[:2], ["rc-older", "rc-old"],
+                          "real-conversation rows must be processed oldest-created_at first")
 
 
 if __name__ == "__main__":

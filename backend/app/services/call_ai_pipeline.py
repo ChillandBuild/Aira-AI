@@ -347,18 +347,27 @@ async def sweep_call_ai() -> int:
 
 
 async def sweep_crm_cutoff() -> int:
-    """Check 10 for real conversations whose wrap-up never came (Missing after the cut-off),
-    or whose wrap-up arrived while the AI was still running."""
+    """Check 10 for real conversations whose wrap-up never came (Missing after the cut-off)
+    or arrived while the AI was still running, plus early-exit calls whose wrap-up check is
+    still pending after the cut-off. Early-exit rows are always score_final=True (see
+    call_scorer.compute_call_score), so they need their own query keyed on crm_matches
+    instead of score_final."""
     db = get_supabase()
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=WRAPUP_CUTOFF_HOURS)).isoformat()
-    rows = (
+    real_conversation_rows = (
         db.table("call_logs").select("id")
         .eq("provider", "telecmi").eq("ai_status", "done").eq("score_final", False)
-        .in_("call_group", ["real_conversation", "early_exit"])
-        .lt("created_at", cutoff).limit(SWEEP_BATCH).execute()
+        .eq("call_group", "real_conversation")
+        .lt("created_at", cutoff).order("created_at").limit(SWEEP_BATCH).execute()
+    ).data or []
+    early_exit_rows = (
+        db.table("call_logs").select("id")
+        .eq("provider", "telecmi").eq("ai_status", "done").eq("call_group", "early_exit")
+        .is_("feedback_at", "null").is_("evaluation->early_exit_check->>crm_matches", "null")
+        .lt("created_at", cutoff).order("created_at").limit(SWEEP_BATCH).execute()
     ).data or []
     changed = 0
-    for r in rows:
+    for r in real_conversation_rows + early_exit_rows:
         try:
             changed += int(await mark_crm_update(db, r["id"]))
         except Exception as e:
