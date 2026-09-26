@@ -24,11 +24,11 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent.parent))
 
 from evals.conversations import engine_sim, judge  # noqa: E402
-from evals.conversations.checks import FAIL, PASS, SKIP, run_check  # noqa: E402
+from evals.conversations.checks import ALWAYS_CHECKS, FAIL, PASS, SKIP, run_check  # noqa: E402
 
 CONCURRENCY = 3
 NETWORK_RETRIES = 1  # a provider timeout is not a finding; a second one is reported
-DEFAULT_FILES = "scenarios.json,scenarios_edge.json"
+DEFAULT_FILES = "scenarios.json,scenarios_edge.json,scenarios_life.json"
 
 
 def load(files: str) -> tuple[list[dict], dict]:
@@ -66,7 +66,8 @@ async def _one(scenario: dict, config: dict, tenant: str, use_judge: bool, gate:
                     return {"id": scenario["id"], "crash": repr(e), "transcript": [], "checks": [], "judge": None}
             except Exception as e:  # a crash is a finding, not a reason to stop the run
                 return {"id": scenario["id"], "crash": repr(e), "transcript": [], "checks": [], "judge": None}
-        hard = [run_check(n, transcript, _check_config(config)) for n in scenario.get("expect", {}).get("hard", [])]
+        names = list(dict.fromkeys([*scenario.get("expect", {}).get("hard", []), *ALWAYS_CHECKS]))
+        hard = [run_check(n, transcript, _check_config(config)) for n in names]
         verdict = await judge.judge_conversation(scenario, transcript, config, tenant) if use_judge else None
         return {
             "id": scenario["id"], "transcript": transcript, "judge": verdict,

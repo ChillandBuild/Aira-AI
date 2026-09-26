@@ -341,19 +341,28 @@ def _handover_line(tenant_id: str | None) -> str:
 def _handover_rule_block(tenant_id: str | None) -> str:
     """One place that decides what the AI says when it can't answer or a human is
     asked for. Every other block (knowledge, campaign, missing link, escalation, the
-    master prompt) points here instead of hardcoding "a team member will contact you",
-    which a client like Astro Tamil forbids and which promised callbacks nobody made."""
+    master prompt) points here instead of hardcoding its own wording.
+
+    The model brings a person in with the hand_to_human tool (offered to every reply,
+    see deal_turn.converse_once), which alerts the team in the inbox, so the default
+    wording is the truth: the team replies here. A client's own handover line replaces
+    that wording."""
     line = _handover_line(tenant_id)
+    action = (
+        "when you cannot answer from the information you have, or the customer asks for a "
+        "person, call hand_to_human. That alerts a person on this team, who replies in this "
+        "same chat. "
+    )
     if line:
         return (
-            "\n\nHANDOVER RULE (this business's own instruction): when you cannot answer "
-            "from the information you have, or the customer asks for a person, tell them "
-            f"this in the customer's language: \"{line}\". Do not say anyone will contact "
-            "them unless that line says so."
+            f"\n\nHANDOVER RULE (this business's own instruction): {action}"
+            "Tell the customer this business's own words for it, in the customer's language: "
+            f"\"{line}\". Say it once. Do not say anyone will contact them unless that line "
+            "says so, and never promise a time or a named person."
         )
-    return (
-        "\n\nHANDOVER RULE: when you cannot answer from the information you have, or the "
-        "customer asks for a person, say a team member will follow up."
+    return f"\n\nHANDOVER RULE: {action}" + (
+        "Tell the customer, in your own words, that you are checking with the team and they "
+        "will reply here. Never promise a time, a callback or a named person."
     )
 
 
@@ -1697,6 +1706,10 @@ def build_reply_system_prompt(
     if catalog_context:
         system_prompt += catalog_context
 
+    # Last, so it is the freshest instruction when the model decides how to ask a question.
+    from app.services.choices import PROMPT_BLOCK as _CHOICES_BLOCK
+    system_prompt += _CHOICES_BLOCK
+
     return system_prompt, reply_language_mode, intake_active
 
 
@@ -1884,6 +1897,7 @@ async def generate_reply(
     # WhatsApp, product photos and quotes, quick-reply blocks, the price guard and the
     # payment-complaint handover. None of these steps raise.
     from app.services import deal_turn
+    from app.services.choices import is_choice_tap as _is_choice_tap
     deal_outcome = None
     deal_ctx = deal_turn.build_context(
         db, tenant_id, lead_id, phone or lead_data.get("phone"),
@@ -1911,7 +1925,9 @@ async def generate_reply(
             campaign_name=campaign_name,
             context_text=context_text,
             catalog_context=catalog_context,
-            tapped_option_key=interactive_id,
+            # A tap on a choice Aira offered in words ("choice:2") is just its title as text;
+            # only a package/addon key is a tapped offering.
+            tapped_option_key=None if _is_choice_tap(interactive_id) else interactive_id,
         )
         # Product tools stay available mid-consultation: a lead can ask about a product at
         # any point, and the prompt plus the executors (deal_actions) keep that safe.
@@ -2106,6 +2122,14 @@ async def generate_reply(
             if sid:
                 outbound_media_type = "audio"
                 outbound_media_mime_type = "audio/mpeg"
+                if deal_outcome and deal_outcome.menu and not chosen_block:
+                    # A voice note cannot carry buttons; the options follow it so a
+                    # choice is never left untappable.
+                    from app.services import deal_turn
+                    await deal_turn.send_menu(
+                        _wa_phone, deal_turn.CHOICE_BODY_FALLBACK, deal_outcome.menu,
+                        tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id,
+                    )
         if _wa_phone and not sid:
             reply_to_message_id = None
             if meta_message_id:

@@ -108,7 +108,7 @@ export function QuickRepliesPanel({ canManage }: { canManage: boolean }) {
       icon={MessageSquareMore}
       accent="violet"
       title="Quick Reply Buttons"
-      description="Save a message with tappable buttons. The AI sends it when a lead asks something matching your description."
+      description="Saved button messages. When a customer asks something that matches “Use when”, Aira sends your message with its buttons exactly as written. Aira also turns any choice it offers on its own into tappable buttons automatically."
       status={{
         label: `${blocks.filter((b) => b.is_active).length} active`,
         tone: blocks.some((b) => b.is_active) ? "on" : "off",

@@ -40,7 +40,7 @@ class Script:
             raise response
         return response
 
-    async def _apply(self, tool_calls, ctx, *, last_assistant_text="", auto_link=False):
+    async def _apply(self, tool_calls, ctx, *, last_assistant_text="", auto_link=False, customer_message=""):
         self.seen_last_text.append(last_assistant_text)
         return self.outcomes.pop(0)
 
@@ -428,20 +428,21 @@ class TestBuildContext:
         assert ctx.offerings_enabled is False and ctx.config == {}
 
 
-class TestNoTools:
-    def test_without_any_tools_the_text_model_is_used(self, monkeypatch):
+class TestNoPackageTools:
+    def test_without_packages_the_model_can_still_bring_a_person_in(self, monkeypatch):
         ctx = deal_actions.DealContext(config={}, db=object(), lead_id="l", tenant_id="t", phone="p", offerings_enabled=False)
-        seen = []
+        seen_tools = []
 
-        async def llm(messages, max_tokens, tenant_id):
-            seen.append(messages)
-            return "Hello there, how can I help today?"
+        async def with_tools(messages, tools, max_tokens, tenant_id):
+            seen_tools.append([t["function"]["name"] for t in tools])
+            return "Hello there, how can I help today?", []
 
-        async def never(*a, **k):
-            raise AssertionError("tool model must not be called without tools")
+        async def text_llm(messages, max_tokens, tenant_id):
+            raise AssertionError("the words came in the first call")
 
-        text, calls, _o = asyncio.run(deal_turn.converse_once(BASE, [], ctx, tenant_id="t", llm_with_tools=never, llm=llm))
-        assert text == "Hello there, how can I help today?" and calls == [] and len(seen) == 1
+        text, calls, _o = asyncio.run(deal_turn.converse_once(BASE, [], ctx, tenant_id="t", llm_with_tools=with_tools, llm=text_llm))
+        assert text == "Hello there, how can I help today?" and calls == []
+        assert seen_tools == [["hand_to_human", "offer_choices"]]
 
 
 class TestProductsAttached:
@@ -496,3 +497,145 @@ class TestSombreMessages:
         script = Script(monkeypatch, [("Romba varuthama irukku 🙏 unga kooda irukkom 😊", [])], [])
         text, _c, _o = script.run(messages)
         assert "🙏" not in text and "😊" not in text and text.startswith("Romba varuthama irukku")
+
+
+class TestChoicesGoOutTappable:
+    """Options Aira offers in words always leave as buttons on WhatsApp (services/choices.py)."""
+
+    def _run(self, monkeypatch, draft, ctx, outcome=OK):
+        async def llm(messages, tools, max_tokens, tenant_id):
+            return draft, []
+
+        async def llm_text(messages, max_tokens, tenant_id):
+            return ""
+
+        monkeypatch.setattr(deal_turn, "_state_line", lambda ctx: "DEAL STATE stub")
+        return asyncio.run(deal_turn.converse_once(BASE, [], ctx, tenant_id="t-1", llm_with_tools=llm, llm=llm_text))
+
+    def test_choices_line_becomes_buttons_and_leaves_the_text(self, monkeypatch):
+        ctx = deal_actions.DealContext(config={}, db=object(), lead_id="l", tenant_id="t", phone="", buttons_enabled=True)
+        text, _c, outcome = self._run(monkeypatch, "Morning or evening?\nCHOICES: Morning | Evening", ctx)
+        assert text == "Morning or evening?"
+        assert outcome.menu["kind"] == "buttons" and outcome.menu["options"] == ["Morning", "Evening"]
+
+    def test_forgotten_marker_list_still_becomes_buttons(self, monkeypatch):
+        ctx = deal_actions.DealContext(config={}, db=object(), lead_id="l", tenant_id="t", phone="", buttons_enabled=True)
+        text, _c, outcome = self._run(monkeypatch, "Which batch suits you?\n1. Weekday\n2. Weekend", ctx)
+        assert outcome.menu["options"] == ["Weekday", "Weekend"] and "1." not in text
+
+    def test_channel_without_buttons_gets_the_options_written_out(self, monkeypatch):
+        ctx = deal_actions.DealContext(config={}, db=object(), lead_id="l", tenant_id="t", phone="", buttons_enabled=False)
+        text, _c, outcome = self._run(monkeypatch, "Which slot?\nCHOICES: Morning | Evening", ctx)
+        assert outcome.menu is None and text.endswith("1. Morning\n2. Evening") and "CHOICES" not in text
+
+    def test_only_a_marker_still_sends_a_body(self, monkeypatch):
+        ctx = deal_actions.DealContext(config={}, db=object(), lead_id="l", tenant_id="t", phone="", buttons_enabled=True)
+        text, _c, outcome = self._run(monkeypatch, "CHOICES: Yes | No", ctx)
+        assert text == deal_turn.CHOICE_BODY_FALLBACK and outcome.menu["options"] == ["Yes", "No"]
+
+
+class TestChoiceBackstops:
+    def _ctx(self, **kw):
+        return deal_actions.DealContext(config=kw.pop("config", {}), db=object(), lead_id="l", tenant_id="t",
+                                        phone="", buttons_enabled=True, **kw)
+
+    def _run(self, monkeypatch, ctx, draft, calls=(), messages=None):
+        async def llm(messages, tools, max_tokens, tenant_id):
+            return draft, list(calls)
+
+        async def llm_text(messages, max_tokens, tenant_id):
+            return ""
+
+        monkeypatch.setattr(deal_turn, "_state_line", lambda ctx: "DEAL STATE stub")
+        monkeypatch.setattr(deal_actions, "apply_tool_calls", lambda calls, ctx, **kw: _async(OK))
+        return asyncio.run(deal_turn.converse_once(messages or BASE, [], ctx, tenant_id="t", llm_with_tools=llm, llm=llm_text))
+
+    def test_offer_choices_tool_supplies_the_message_and_buttons(self, monkeypatch):
+        call = _call("offer_choices", message="Which day suits you?", options=["Tuesday", "Wednesday"])
+        text, _c, outcome = self._run(monkeypatch, self._ctx(), "", [call])
+        assert text == "Which day suits you?" and outcome.menu["options"] == ["Tuesday", "Wednesday"]
+
+    def test_inline_options_in_the_question_get_buttons(self, monkeypatch):
+        text, _c, outcome = self._run(monkeypatch, self._ctx(), "Thanks Priya. What time would you prefer: Morning, Afternoon, or Evening?")
+        assert outcome.menu["options"] == ["Morning", "Afternoon", "Evening"]
+        assert text.endswith("Morning, Afternoon, or Evening?")
+
+    def test_question_about_a_choice_detail_gets_its_options(self, monkeypatch):
+        config = {"enabled": True, "packages": [{"key": "cut", "name": "Haircut", "amount_paise": 30000}],
+                  "fields": [{"key": "slot", "label": "Preferred time", "type": "choice", "options": ["Morning", "Evening"]}]}
+        monkeypatch.setattr(deal_actions, "_session", lambda ctx: {"package_key": "cut", "collected_data": {}})
+        _t, _c, outcome = self._run(monkeypatch, self._ctx(config=config), "What time suits you tomorrow?")
+        assert outcome.menu["options"] == ["Morning", "Evening"]
+
+    def test_question_naming_two_packages_gets_the_package_menu(self, monkeypatch):
+        config = {"enabled": True, "fields": [], "packages": [
+            {"key": "one", "name": "One Question", "amount_paise": 4900, "button_label": "49 Rs"},
+            {"key": "two", "name": "Detailed Question", "amount_paise": 9900, "button_label": "99Rs"}]}
+        _t, _c, outcome = self._run(monkeypatch, self._ctx(config=config),
+                                    "One Question is ₹49 and Detailed Question is ₹99. Which one do you want?")
+        assert outcome.menu["options"] == ["49 Rs", "99Rs"]
+
+    def test_same_package_menu_is_not_resent(self, monkeypatch):
+        config = {"enabled": True, "fields": [], "packages": [
+            {"key": "one", "name": "One Question", "amount_paise": 4900, "button_label": "49 Rs"},
+            {"key": "two", "name": "Detailed Question", "amount_paise": 9900, "button_label": "99Rs"}]}
+        history = [{"role": "system", "content": "s"}, {"role": "assistant", "content": "Pick\n\n[49 Rs]  [99Rs]"},
+                   {"role": "user", "content": "hmm"}]
+        _t, _c, outcome = self._run(monkeypatch, self._ctx(config=config),
+                                    "One Question or Detailed Question, which feels right?", messages=history)
+        assert outcome.menu is None
+
+    def test_plain_statement_gets_no_buttons(self, monkeypatch):
+        _t, _c, outcome = self._run(monkeypatch, self._ctx(), "Your order ships tomorrow morning.")
+        assert outcome.menu is None
+
+
+class TestTeamClaimsAreMadeTrue:
+    def test_saying_the_team_is_checking_opens_a_handover(self, monkeypatch):
+        opened = []
+        monkeypatch.setattr(deal_actions, "open_handover", lambda ctx, reason: opened.append(reason))
+        ctx = deal_actions.DealContext(config={}, db=object(), lead_id="l", tenant_id="t", phone="")
+
+        async def llm(messages, tools, max_tokens, tenant_id):
+            return "I don't know that. I'm checking with my team and they will reply here.", []
+
+        text, _c, outcome = asyncio.run(deal_turn.converse_once(BASE, [], ctx, tenant_id="t", llm_with_tools=llm, llm=llm))
+        assert opened == [deal_turn.TEAM_CLAIM_REASON] and outcome.handover
+
+    def test_claiming_the_team_answered_is_refused(self):
+        assert deal_turn._team_answer_refusals("I've checked with the team, and we don't have parking.")
+        assert deal_turn._team_answer_refusals("The team confirmed it's fine.")
+        assert not deal_turn._team_answer_refusals("Our team offers haircuts and spa.")
+
+
+def test_asking_to_see_options_attaches_the_package_menu():
+    ctx = deal_actions.DealContext(
+        config={"enabled": True, "fields": [], "packages": [
+            {"key": "one", "name": "One Question", "amount_paise": 4900, "button_label": "49 Rs"},
+            {"key": "two", "name": "Detailed Question", "amount_paise": 9900, "button_label": "99Rs"}]},
+        db=object(), lead_id="l", tenant_id="t", phone="", buttons_enabled=True)
+    menu, shown = deal_turn._package_menu("Neenga ingaye pay pannalaam. Options paakanuma?", ctx, "")
+    assert menu["options"] == ["49 Rs", "99Rs"] and not shown
+
+
+class TestAskedAgain:
+    def test_same_question_after_no_answer_brings_a_person(self):
+        msgs = [{"role": "system", "content": "s"},
+                {"role": "user", "content": "Is there parking for a tempo traveller?"},
+                {"role": "assistant", "content": "Sorry, I don't have information about parking."},
+                {"role": "user", "content": "Please check, is there parking for a tempo traveller?"}]
+        assert deal_turn._asked_again(msgs, "")
+
+    def test_a_new_question_is_not_asked_again(self):
+        msgs = [{"role": "system", "content": "s"},
+                {"role": "user", "content": "Is there parking?"},
+                {"role": "assistant", "content": "I don't know, sorry."},
+                {"role": "user", "content": "What are your timings on Sunday?"}]
+        assert not deal_turn._asked_again(msgs, "")
+
+    def test_repeat_after_a_real_answer_is_not_a_handover(self):
+        msgs = [{"role": "system", "content": "s"},
+                {"role": "user", "content": "What time do you open?"},
+                {"role": "assistant", "content": "We open at 10am, Tuesday to Sunday."},
+                {"role": "user", "content": "what time do you open"}]
+        assert not deal_turn._asked_again(msgs, "")

@@ -14,7 +14,7 @@ import json
 import logging
 import re
 
-from app.services import deal_actions, deal_engine, intake
+from app.services import choices, deal_actions, deal_engine, intake
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,7 @@ def build_context(
         catalog=dict(catalog or {}), max_images=max_images,
         offerings_enabled=channel == "whatsapp" and deal_engine.is_enabled(config),
         known_prices=_known_prices(db, tenant_id, lead_id),
+        buttons_enabled=channel == "whatsapp",
     )
 
 
@@ -235,6 +236,59 @@ def _bare_handover_refusals(draft: str, handover_line: str, handover_opened: boo
     )
 
 
+# "I'm checking with my team" is only true if a person was alerted: code makes it true.
+_TEAM_CHECKING_RE = re.compile(
+    r"\b(checking with|check with|asking|informing|informed|alerting|alerted|passing (?:this|it) (?:on|to)|"
+    r"looping in|bringing in|notif\w+)\b[^.?!\n]{0,30}\b(team|colleague|owner|manager|staff)\b"
+    r"|\b(team|colleague|owner|manager|staff)\b[^.?!\n]{0,40}\b(will|shall|going to)\b[^.?!\n]{0,30}"
+    r"\b(reply|respond|get back|check|look into|message|call|contact)\w*"
+    r"|\bteam\s*(?:kitta|kitte|ku)\b",
+    re.IGNORECASE,
+)
+# "I've checked with the team, they said..." -- only a person can report that.
+_TEAM_ANSWERED_RE = re.compile(
+    r"\b(i(?:'ve| have)? (?:checked|confirmed|spoken|talked|asked) with (?:the|my|our) (?:team|owner|manager|staff)"
+    r"|(?:the|my|our) (?:team|owner|manager|staff) (?:has |have )?(?:said|says|confirmed|told me|replied|checked))\b",
+    re.IGNORECASE,
+)
+TEAM_CLAIM_REASON = "Aira told the customer it is checking with the team"
+ASKED_AGAIN_SIMILARITY = 0.6
+# How Aira says it has no answer, in the languages seen in production.
+_NO_ANSWER_RE = re.compile(
+    r"\b(don'?t (?:have|know)|do not (?:have|know)|not sure|no (?:information|details)|couldn'?t find|"
+    r"theriyala|theriyadhu|illa(?:\s+info)?|therila)\b|தெரியவில்லை|தகவல் இல்லை",
+    re.IGNORECASE,
+)
+TEAM_ALERTED_NOTE = (
+    "\n\nA PERSON HAS BEEN ALERTED: the customer asked the same thing again and you had no answer "
+    "last time, so a person on this team has just been alerted and will reply in this chat. Do "
+    "not guess or invent an answer. Acknowledge their question and say the team will reply here, "
+    "without promising a time."
+)
+
+
+def _asked_again(messages: list[dict], handover_line: str) -> bool:
+    """The customer repeats a question Aira could not answer: a person, not a third try."""
+    users = [m.get("content") or "" for m in messages if m.get("role") == "user"]
+    assistants = _earlier_assistant_texts(messages)
+    if len(users) < 2 or not assistants:
+        return False
+    now, before = users[-1].strip().lower(), users[-2].strip().lower()
+    if not now or difflib.SequenceMatcher(None, now, before).ratio() < ASKED_AGAIN_SIMILARITY:
+        return False
+    answer = assistants[-1]
+    return bool(_NO_ANSWER_RE.search(answer)) or _said_handover_line(answer, handover_line)
+
+
+def _team_answer_refusals(text: str) -> tuple[str, ...]:
+    if not _TEAM_ANSWERED_RE.search(text or ""):
+        return ()
+    return (
+        "You have not heard back from the team, so never say they checked, said or confirmed "
+        "anything. If you do not know the answer, say so honestly and call hand_to_human.",
+    )
+
+
 def _payment_url_refusals(removed_url: bool, attached: "_Attached") -> tuple[str, ...]:
     """The model wrote a payment link itself. If code attached a real one this turn, dropping the
     model's copy is enough; otherwise its words promise a link that will not be there."""
@@ -297,6 +351,11 @@ class _Attached:
         if self.images:
             names = ", ".join((ctx.catalog.get(i) or {}).get("name", i) for i in self.images)
             lines.append(f"Photos of {names} will be sent after your message.")
+        if self.handover:
+            lines.append(
+                "A person on the team has been alerted and will reply in this chat. Tell the "
+                "customer so, following the HANDOVER RULE, without promising a time."
+            )
         return lines
 
     def outcome(self, refusals: tuple[str, ...]) -> deal_actions.Outcome:
@@ -369,7 +428,11 @@ async def converse_once(
         from app.services import ai_reply
         llm_with_tools = llm_with_tools or ai_reply._llm_chat_with_tools
         llm = llm or ai_reply._llm_chat
-    tools = (deal_engine.deal_tools(ctx.config) if ctx.offerings_enabled else []) + list(other_tools)
+    tools = (
+        (deal_engine.deal_tools(ctx.config) if ctx.offerings_enabled else deal_engine.handover_tools())
+        + [choices.tool_def()] + list(other_tools)
+    )
+    offered: list[str] = []
     last_text = _last_assistant_text(chat_messages)
     customer_message = _last_user_text(chat_messages)
     line_said_before = any(_said_handover_line(t, handover_line) for t in _earlier_assistant_texts(chat_messages))
@@ -381,6 +444,11 @@ async def converse_once(
         messages[0] = {**messages[0], "content": messages[0]["content"] + HANDOVER_OPENED_NOTE}
     all_calls: list[dict] = []
     attached = _Attached()
+    if not handover_opened and _asked_again(messages, handover_line):
+        deal_actions.open_handover(ctx, REPEATED_HANDOVER_REASON)
+        attached.handover = True
+        if messages and messages[0].get("role") == "system":
+            messages[0] = {**messages[0], "content": messages[0]["content"] + TEAM_ALERTED_NOTE}
     text = ""
     refusals: tuple[str, ...] = ()
     text_only = not tools
@@ -399,6 +467,10 @@ async def converse_once(
                 raise
             logger.exception("Deal reply second round failed -- keeping what we have")
             break
+        from_tool = choices.from_tool_calls(calls)
+        if from_tool:
+            message, offered = from_tool
+            draft = draft or message
         draft, removed_url = strip_payment_urls(strip_placeholders(draft))
         if attempt == 0 and line_said_before and _said_handover_line(draft, handover_line):
             # The model reached for the "I can't help" line a second time: it has nothing
@@ -408,7 +480,9 @@ async def converse_once(
         all_calls.extend(calls)
         outcome = (
             deal_actions.Outcome() if not calls
-            else await deal_actions.apply_tool_calls(calls, ctx, last_assistant_text=last_text, auto_link=True)
+            else await deal_actions.apply_tool_calls(
+                calls, ctx, last_assistant_text=last_text, auto_link=True, customer_message=customer_message,
+            )
         )
         attached.add(outcome)
         refusals = (
@@ -418,6 +492,7 @@ async def converse_once(
             *_bare_handover_refusals(draft, handover_line, handover_opened),
             *_repeated_line_refusals(draft, handover_line, line_said_before),
             *_payment_url_refusals(removed_url, attached),
+            *_team_answer_refusals(draft),
         )
         if draft and not refusals:
             break
@@ -438,29 +513,102 @@ async def converse_once(
     if wanted_line_again and not attached.handover:
         deal_actions.open_handover(ctx, REPEATED_HANDOVER_REASON)
         attached.handover = True
+    if not attached.handover and _TEAM_CHECKING_RE.search(text):
+        deal_actions.open_handover(ctx, TEAM_CLAIM_REASON)
+        attached.handover = True
+    text = _attach_choices(text, ctx, attached, offered, last_text, customer_message)
     if attached.link and append_link:
         text = f"{text}\n{attached.link}".strip()
     return text, all_calls, attached.outcome(refusals)
 
 
-async def send_menu(phone: str, body: str, menu: dict, *, tenant_id: str, phone_number_id: str | None = None) -> str | None:
-    """Send the AI's text with tappable options attached. Falls back to plain text with the
-    options listed, so a WhatsApp interactive-message failure never costs the customer the turn."""
-    from app.services import meta_cloud
+CHOICE_BODY_FALLBACK = "👇"
+
+
+def _attach_choices(
+    text: str, ctx: deal_actions.DealContext, attached: _Attached, offered: list[str], last_text: str,
+    customer_message: str = "",
+) -> str:
+    """Options offered in words always go out tappable (services/choices.py). In order: a
+    package menu from show_options, offer_choices, a CHOICES line or a typed list, a question
+    naming two or more packages, a question about a detail with fixed options, options
+    written inline in the question ("Morning, Afternoon or Evening?")."""
+    body, options = choices.extract(text)
+    if attached.menu:
+        return body
+    options = offered or options
+    if not options and ctx.buttons_enabled:
+        attached.menu, just_shown = _package_menu(body, ctx, last_text, customer_message)
+        if attached.menu or just_shown:
+            return body  # the same packages were just shown to a vague reply: ask in words this time
+    options = (
+        options or _detail_options(body, ctx) or choices.inline_options(body) or choices.yes_no_options(body)
+    )
+    if not options:
+        return body
+    if not ctx.buttons_enabled:
+        return choices.as_text(body, options)
+    attached.menu = choices.build_menu(options)
+    return body or CHOICE_BODY_FALLBACK
+
+
+def _detail_options(text: str, ctx: deal_actions.DealContext) -> list[str]:
+    fields = ctx.config.get("fields") or []
+    if not ctx.offerings_enabled or not any(f.get("options") for f in fields):
+        return []
+    session = _open_session(ctx)
+    if not session.get("package_key"):
+        return []
+    missing = deal_engine.missing_details(fields, session.get("collected_data") or {}, session.get("skipped_fields") or [])
+    field = next((f for f in fields if missing and f["key"] == missing[0]), None)
+    return choices.field_options_for(text, field)
+
+
+PACKAGE_MENTION_MIN = 2
+
+
+def _open_session(ctx: deal_actions.DealContext) -> dict:
+    """The lead's booking row, or {} -- a read failure must not cost the customer the reply."""
     try:
-        if menu["kind"] == "buttons":
-            data = await meta_cloud.send_interactive_buttons(
-                to_number=phone, body_text=body, buttons=menu["buttons"],
-                tenant_id=tenant_id, phone_number_id=phone_number_id,
-            )
-        else:
-            data = await meta_cloud.send_list_message(
-                to_number=phone, body_text=body, button_text=menu["button_text"], sections=menu["sections"],
-                tenant_id=tenant_id, phone_number_id=phone_number_id,
-            )
-        return (data.get("messages") or [{}])[0].get("id")
+        return deal_actions._session(ctx) or {}
     except Exception:
-        logger.exception("Interactive menu send failed -- falling back to plain text")
-        from app.services.ai_reply import send_whatsapp
-        listing = "\n".join(f"• {title}" for title in menu["options"])
-        return await send_whatsapp(phone, f"{body}\n\n{listing}", tenant_id=tenant_id, phone_number_id=phone_number_id)
+        logger.warning("Session read failed for lead %s while attaching options", ctx.lead_id)
+        return {}
+# "Want to see the options?" -- asking whether to show them is showing them.
+_OFFER_QUESTION_RE = re.compile(r"\b(options?|packages?|plans?|prices?|pricing)\b", re.IGNORECASE)
+
+
+def _last_question(text: str) -> str:
+    found = re.findall(r"[^.!?？\n]*[?？]", text or "")
+    return found[-1] if found else ""
+
+
+
+def _package_menu(
+    text: str, ctx: deal_actions.DealContext, last_text: str, customer_message: str = "",
+) -> tuple[dict | None, bool]:
+    """(menu, just_shown). A closing question that names two or more of the offerings, or asks
+    whether to show them, gets them as buttons -- only while nothing is chosen yet, and not
+    when that very menu was just sent and the customer's reply was vague (just_shown)."""
+    question = _last_question(text)
+    if not ctx.offerings_enabled or not question:
+        return None, False
+    session = _open_session(ctx)
+    if session.get("package_key") and session.get("status") != deal_engine.PAID_STATUS:
+        return None, False  # mid-booking: the question is about a detail, not the packages
+    level, menu = deal_actions.top_level_menu(ctx)
+
+    def names(segment: str) -> int:
+        lowered = segment.lower()
+        return sum(1 for n in level if n["name"].lower() in lowered or (n.get("button_label") or "").lower() in lowered)
+
+    offers_them = (
+        names(question) >= PACKAGE_MENTION_MIN
+        or (names(text) >= PACKAGE_MENTION_MIN and bool(choices.PICK_CUE_RE.search(question)))
+        or bool(_OFFER_QUESTION_RE.search(question))
+    )
+    if not offers_them or menu is None:
+        return None, False
+    if last_text and all(f"[{title}]" in last_text for title in menu["options"]) and choices.is_vague(customer_message):
+        return None, True
+    return menu, False

@@ -1,17 +1,7 @@
-"use client";
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useSettingsForm } from "../SettingsFormContext";
-import { BusinessHoursPanel } from "../BusinessHoursPanel";
+import { redirect } from "next/navigation";
 
-export default function BusinessHoursSettingsPage() {
-  const router = useRouter();
-  const { canManageSettings, hasNotifications } = useSettingsForm();
-
-  useEffect(() => {
-    if (!hasNotifications) router.replace("/dashboard/settings/general", { scroll: false });
-  }, [hasNotifications, router]);
-
-  if (!hasNotifications) return null;
-  return <BusinessHoursPanel canManage={canManageSettings} />;
+// Moved into the Knowledge page, next to the handover line — kept as a
+// redirect so any bookmarked or hardcoded link still lands somewhere useful.
+export default function BusinessHoursRedirect() {
+  redirect("/dashboard/knowledge#business-hours");
 }

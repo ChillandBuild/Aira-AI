@@ -25,6 +25,9 @@ SCORING (each 1-5, 5 = what a great human employee would do):
   happened (link sent, payment confirmed, team told) unless the bracketed system notes show it.
   If Aira could not know something, it says so and brings in a person.
 - goal: did Aira handle THIS situation the way the business would want (see EXPECTED)?
+  On WhatsApp every question that asks the lead to pick between options must carry them as
+  tappable options (the bracketed [buttons: ...] or [list: ...] note); asking the lead to pick
+  in words only is a goal miss.
 
 Return JSON only:
 {"human": n, "answered_first": n, "memory": n, "honesty": n, "goal": n,

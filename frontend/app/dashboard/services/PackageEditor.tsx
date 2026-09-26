@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { collectAllKeys, hasOversizedLevel, uniqueKey } from "./packageKeys";
-import { slugify } from "../slugify";
+import { slugify } from "../settings/slugify";
 
 export interface IntakeAddon {
   key: string;

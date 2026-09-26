@@ -25,7 +25,7 @@ import {
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn, isActive } from "@/lib/utils";
-import { getVisibleSettingsItems, type CallingProvider } from "@/components/settingsNavigation";
+import { getVisibleSettingsItems, SETTINGS_GROUP_ORDER } from "@/components/settingsNavigation";
 
 type MoreMenuItem = {
   href: string;
@@ -48,6 +48,7 @@ const MORE_ITEMS: MoreMenuItem[] = [
   { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/catalog", icon: Package, label: "Products", permissionAny: ["catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: "/dashboard/services", icon: Package, label: "Services", permissionAny: ["settings.view", "settings.manage", "catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", permissionAny: ["analytics.view"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/team", icon: Grid3X3, label: "Team", permissionAny: ["team.view", "team.manage"] },
   { href: "/dashboard/roles", icon: ShieldCheck, label: "Roles", permissionAny: ["roles.view", "roles.manage"] },
@@ -65,11 +66,10 @@ export function MoreMenu() {
   const { role, enabledFeatures, permissions } = useAuthRole();
   const [isOpen, setIsOpen] = useState(false);
   const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
-  const [callingProvider, setCallingProvider] = useState<CallingProvider>(null);
 
   const items = MORE_ITEMS.filter((item) => isVisible(item, role, enabledFeatures, permissions));
   const canSettings = role === "owner" || permissions.includes("settings.view") || permissions.includes("settings.manage");
-  const settingsItems = getVisibleSettingsItems(purchasedFeatures, callingProvider);
+  const settingsItems = getVisibleSettingsItems(purchasedFeatures);
   const settingsActive = pathname.startsWith("/dashboard/settings");
 
   useEffect(() => {
@@ -78,25 +78,13 @@ export function MoreMenu() {
     (async () => {
       try {
         const auth = await getAuthHeaders();
-        const [subscriptionRes, telecallingRes] = await Promise.all([
-          fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth }),
-          fetch(`${API_URL}/api/v1/settings/telecalling-config`, { headers: auth }),
-        ]);
+        const res = await fetch(`${API_URL}/api/v1/subscriptions/me`, { headers: auth });
         if (!active) return;
-
-        if (subscriptionRes.ok) {
-          const data = await subscriptionRes.json();
+        if (res.ok) {
+          const data = await res.json();
           setPurchasedFeatures((data.items ?? []).map((item: { feature_key: string }) => item.feature_key));
         }
-        if (telecallingRes.ok) {
-          const data = await telecallingRes.json();
-          setCallingProvider((data.calling_provider as Exclude<CallingProvider, null> | undefined) ?? "telecmi");
-        } else {
-          setCallingProvider("telecmi");
-        }
-      } catch {
-        if (active) setCallingProvider("telecmi");
-      }
+      } catch { /* fail open — see getVisibleSettingsItems */ }
     })();
     return () => { active = false; };
   }, [canSettings]);
@@ -169,24 +157,35 @@ export function MoreMenu() {
                       <span>Settings</span>
                     </div>
                     <div className="mt-1 flex flex-col gap-1 border-l border-border pl-2">
-                      {settingsItems.map((item) => {
-                        const Icon = item.icon;
-                        const active = isActive(pathname, item.href);
+                      {SETTINGS_GROUP_ORDER.map((group) => {
+                        const groupItems = settingsItems.filter((i) => i.group === group);
+                        if (groupItems.length === 0) return null;
                         return (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setIsOpen(false)}
-                            className={cn(
-                              "flex min-h-10 items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] font-semibold",
-                              active
-                                ? "bg-primary-light text-primary"
-                                : "text-ink-secondary hover:bg-white hover:text-ink",
-                            )}
-                          >
-                            <Icon size={15} />
-                            <span className="min-w-0 truncate">{item.label}</span>
-                          </Link>
+                          <div key={group} className="pt-1.5 first:pt-0">
+                            <div className="px-2 pb-0.5 font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                              {group}
+                            </div>
+                            {groupItems.map((item) => {
+                              const Icon = item.icon;
+                              const active = isActive(pathname, item.href);
+                              return (
+                                <Link
+                                  key={item.href}
+                                  href={item.href}
+                                  onClick={() => setIsOpen(false)}
+                                  className={cn(
+                                    "flex min-h-10 items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] font-semibold",
+                                    active
+                                      ? "bg-primary-light text-primary"
+                                      : "text-ink-secondary hover:bg-white hover:text-ink",
+                                  )}
+                                >
+                                  <Icon size={15} />
+                                  <span className="min-w-0 truncate">{item.label}</span>
+                                </Link>
+                              );
+                            })}
+                          </div>
                         );
                       })}
                     </div>

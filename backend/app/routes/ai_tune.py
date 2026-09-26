@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
 from app.config_dynamic import get_setting, save_setting, invalidate_cache
@@ -239,6 +239,7 @@ async def get_profile(tenant_id: str = Depends(get_tenant_id)):
 @router.put("/profile")
 async def update_profile(
     payload: ProfileUpdatePayload,
+    background_tasks: BackgroundTasks,
     tenant_id: str = Depends(get_tenant_id),
     ctx: dict = Depends(require_owner),
 ):
@@ -254,6 +255,8 @@ async def update_profile(
     text = render(payload.sections, payload.other)
     save_description(get_supabase(), tenant_id, text, "edit", ctx.get("user_id"))
     queue_rubric_for_description(tenant_id, text)
+    from app.services.consistency import run_check_safely
+    background_tasks.add_task(run_check_safely, tenant_id)
     
     # Return updated profile
     parsed = parse(text)

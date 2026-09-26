@@ -211,6 +211,35 @@ def respects_opt_out(transcript: list[dict], config: dict) -> CheckResult:
     return CheckResult("respects_opt_out", PASS)
 
 
+_MARKER_RESIDUE_RE = re.compile(r"\bCHOICES?\s*[:：]", re.IGNORECASE)
+
+
+def choices_tappable(transcript: list[dict], config: dict) -> CheckResult:
+    """Options offered in a plain-text reply must have gone out as buttons or a list, and the
+    model's CHOICES line must never reach the customer (services/choices.py)."""
+    from app.services import choices
+
+    for i, turn in enumerate(transcript):
+        for reply in _replies(turn):
+            if reply.get("kind") != "text":
+                continue
+            text = reply["text"]
+            if _MARKER_RESIDUE_RE.search(text):
+                return CheckResult("choices_tappable", FAIL, f"turn {i}: CHOICES line leaked to the customer")
+            if choices.extract(text)[1] or choices.inline_options(text):
+                return CheckResult("choices_tappable", FAIL, f"turn {i}: options listed as plain text, no buttons")
+    return CheckResult("choices_tappable", PASS)
+
+
+def offers_tappable_choice(transcript: list[dict], config: dict) -> CheckResult:
+    """The scenario is built so that Aira has to ask the lead to pick: some reply must carry
+    buttons or a list."""
+    for turn in transcript:
+        if any(reply.get("kind") in MENU_KINDS for reply in _replies(turn)):
+            return CheckResult("offers_tappable_choice", PASS)
+    return CheckResult("offers_tappable_choice", FAIL, "no reply carried tappable options")
+
+
 def _undecidable(name: str, why: str):
     def check(transcript: list[dict], config: dict) -> CheckResult:
         return CheckResult(name, SKIP, why)
@@ -227,9 +256,14 @@ HARD_CHECKS = {
     "handover_on_unknown_twice": handover_on_unknown_twice,
     "handover_on_human_request": handover_on_human_request,
     "respects_opt_out": respects_opt_out,
+    "choices_tappable": choices_tappable,
+    "offers_tappable_choice": offers_tappable_choice,
     "window_respected": _undecidable("window_respected", "needs the real send path; not testable offline"),
     "language_matches": _undecidable("language_matches", "graded by the LLM judge, not a fixed rule"),
 }
+
+
+ALWAYS_CHECKS = ("choices_tappable",)  # run on every scenario, listed or not
 
 
 def run_check(name: str, transcript: list[dict], config: dict) -> CheckResult:

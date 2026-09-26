@@ -331,7 +331,15 @@ def _rules_block(config: dict, tapped_key: str | None) -> str:
         "thing after a second ask. Follow the HANDOVER RULE wording for what you tell them, "
         "once. On later messages do not repeat that line word for word: acknowledge what they "
         "just said in your own words and say the team has been told, without promising a time.",
+        "SOURCE OF TRUTH: OFFERINGS and REQUIRED DETAILS were set by the business on its packages "
+        "page and override anything in your description or knowledge that disagrees: the price, "
+        "what is sold in this chat, where to buy it, and which details to ask for. If your "
+        "description says never to ask for something REQUIRED DETAILS lists, ask for it anyway, "
+        f"politely, because it is needed to prepare their {noun}.",
         "Never invent an offering, discount, deadline or policy that is not in your knowledge.",
+        f"Never say the {noun} is booked, confirmed or reserved until DEAL STATE shows PAID; before "
+        "that, say it gets confirmed once the payment is done. You cannot see a diary or slots, so "
+        "never claim a time is free or held.",
         "While a booking is open or after they have paid, show products or photos only if the "
         "customer asks about a product; never push one on your own.",
         "If they clearly say no or ask you to stop, stop selling and close politely in one line.",
@@ -377,6 +385,12 @@ def deal_prompt(config: dict, session: dict | None, *, tapped_key: str | None = 
     return body + (_resume_note(config, session) if returning else "")
 
 
+def handover_tools() -> list[dict]:
+    """hand_to_human alone, for replies with no package selling: every business can bring a
+    person in, whether or not it sells packages in chat."""
+    return [tool for tool in _all_tools({}) if tool["function"]["name"] == TOOL_HAND_TO_HUMAN]
+
+
 def _tool(name: str, description: str, properties: dict, required: list[str] | None = None) -> dict:
     return {
         "type": "function",
@@ -389,6 +403,10 @@ def _tool(name: str, description: str, properties: dict, required: list[str] | N
 
 
 def deal_tools(config: dict) -> list[dict]:
+    return _all_tools(config)
+
+
+def _all_tools(config: dict) -> list[dict]:
     packages = _intake().normalize_packages(config)
     keys = [leaf["key"] for leaf in _leaves(packages)]
     fields = config.get("fields") or []

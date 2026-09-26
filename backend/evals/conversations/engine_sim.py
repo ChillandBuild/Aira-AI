@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import app.services.ai_reply as ai_reply
 import app.services.business_details as business_details
+import app.services.choices as choices
 import app.services.deal_actions as deal_actions
 import app.services.deal_engine as deal_engine
 import app.services.deal_turn as deal_turn
@@ -92,7 +93,7 @@ class World:
     def seed(self, state: dict) -> None:
         package = next((p for p in self.config.get("packages", []) if p["key"] == state.get("selected")), None)
         if package:
-            saved = {k: "seeded" for k in state.get("details_saved", [])}
+            saved = {k: "seeded" for k in state.get("details_saved", [])} | dict(state.get("collected") or {})
             session = self.new_session("collecting", {
                 "collected_data": saved, "package_key": package["key"], "package_name": package["name"],
                 "package_amount_paise": package["amount_paise"], "total_amount_paise": package["amount_paise"],
@@ -239,7 +240,8 @@ async def run_turn(world: World, history: list[dict], body: str, tap: str | None
             "tamil_locked": world.tamil_locked}
     system_prompt, _mode, _active = ai_reply.build_reply_system_prompt(
         db, LEAD_ID, world.tenant_id, lead, body, "whatsapp",
-        context_text=knowledge, catalog_context=catalog_text, tapped_option_key=tap,
+        context_text=knowledge, catalog_context=catalog_text,
+        tapped_option_key=None if choices.is_choice_tap(tap) else tap,
     )
     messages = [{"role": "system", "content": system_prompt}, *history, {"role": "user", "content": body}]
     text, calls, outcome = await deal_turn.converse_once(
@@ -276,7 +278,10 @@ def settings_for(config: dict) -> dict:
     """Synthetic businesses bring their own description/handover line; Astro configs use the real tenant's."""
     keys = {"description": "business_description", "handover_line": "handover_line",
             "language_mode": "reply_language_mode", "app_link": "app_download_link"}
-    return {setting: config[key] for key, setting in keys.items() if key in config} | EXTRA_SETTINGS
+    # A synthetic business with no handover line or app link has none: it must not borrow the
+    # key tenant's real ones (the salon once told customers to use "support in the app").
+    defaults = {"handover_line": "", "app_download_link": ""} if "description" in config else {}
+    return defaults | {setting: config[key] for key, setting in keys.items() if key in config} | EXTRA_SETTINGS
 
 
 async def run_scenario(scenario: dict, config: dict, tenant_id: str) -> list[dict]:

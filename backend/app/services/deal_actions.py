@@ -39,6 +39,7 @@ class DealContext:
     offerings_enabled: bool = True  # package tools + DEAL STATE (WhatsApp tenants with packages)
     known_prices: frozenset = frozenset()  # rupee figures from the catalog and orders, for the price guard
     payment_concern: bool = False  # they say they paid / want a refund: no new link or quote this turn
+    buttons_enabled: bool = False  # the channel can show tappable options (WhatsApp)
 
 
 @dataclass(frozen=True)
@@ -54,8 +55,9 @@ class Outcome:
 class _Turn:
     """Mutable accumulator for one turn's tool calls (an implementation detail)."""
 
-    def __init__(self, last_assistant_text: str = ""):
+    def __init__(self, last_assistant_text: str = "", customer_message: str = ""):
         self.last_assistant_text = last_assistant_text
+        self.customer_message = customer_message
         self.menu: dict | None = None
         self.payment_link: str | None = None
         self.refusals: list[str] = []
@@ -312,20 +314,33 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
     return None
 
 
-def _menu_for(kind_level: list[dict], ctx: DealContext, turn: _Turn, *, addons: bool) -> str | None:
-    level = kind_level + [intake._NO_ADDONS_OPTION] if addons else kind_level
+def build_level_menu(level: list[dict]) -> dict | None:
+    """Buttons or a list for one level of offerings; None when WhatsApp can't show them."""
     mode = intake._tap_mode(level)
     if mode == "text":
-        return "show_options refused: there are too few or too many choices for buttons. Describe them in words."
+        return None
     if mode == "buttons":
         buttons = intake._build_buttons(level)
-        menu = {"kind": "buttons", "options": [b["title"] for b in buttons], "buttons": buttons}
-    else:
-        sections = intake._build_list_sections(level)
-        titles = [row["title"] for s in sections for row in s["rows"]]
-        menu = {"kind": "list", "options": titles, "sections": sections, "button_text": MENU_BUTTON_TEXT}
+        return {"kind": "buttons", "options": [b["title"] for b in buttons], "buttons": buttons}
+    sections = intake._build_list_sections(level)
+    titles = [row["title"] for s in sections for row in s["rows"]]
+    return {"kind": "list", "options": titles, "sections": sections, "button_text": MENU_BUTTON_TEXT}
+
+
+def top_level_menu(ctx: DealContext) -> tuple[list[dict], dict | None]:
+    """The active top-level offerings and their menu."""
+    level = deal_engine._active(intake.normalize_packages(ctx.config))
+    return level, build_level_menu(level)
+
+
+def _menu_for(kind_level: list[dict], ctx: DealContext, turn: _Turn, *, addons: bool) -> str | None:
+    level = kind_level + [intake._NO_ADDONS_OPTION] if addons else kind_level
+    menu = build_level_menu(level)
+    if menu is None:
+        return "show_options refused: there are too few or too many choices for buttons. Describe them in words."
     previous = turn.last_assistant_text
-    if previous and all(f"[{title}]" in previous for title in menu["options"]):
+    from app.services.choices import is_vague
+    if previous and all(f"[{title}]" in previous for title in menu["options"]) and is_vague(turn.customer_message):
         return (
             "show_options refused: those exact options were just shown in your previous message. "
             "Answer in words instead, or ask which one they prefer."
@@ -582,10 +597,11 @@ async def _auto_link(ctx: DealContext, turn: _Turn) -> None:
 
 async def apply_tool_calls(
     tool_calls: list[dict], ctx: DealContext, *, last_assistant_text: str = "", auto_link: bool = False,
+    customer_message: str = "",
 ) -> Outcome:
     """Run the deal tools in the order the model asked. Unknown tool names (catalog, quick
     replies) are left for the caller. Never raises: a failure becomes a refusal."""
-    turn = _Turn(last_assistant_text)
+    turn = _Turn(last_assistant_text, customer_message)
     changed_state = False
     for call in tool_calls or []:
         func = call.get("function") or {}

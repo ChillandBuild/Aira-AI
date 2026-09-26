@@ -99,8 +99,8 @@ export function BusinessHoursPanel({ canManage = true }: { canManage?: boolean }
       id="business-hours"
       icon={Clock}
       accent="sky"
-      title="Business Hours"
-      description="When your team is reachable. The AI uses this to tell escalated customers when to expect a call."
+      title="Business hours"
+      description="Aira uses these to tell customers when your team is available after it brings a person in."
       status={
         draft.enabled
           ? { label: `${draft.open_time}-${draft.close_time}`, tone: "on" }

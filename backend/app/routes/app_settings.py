@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.config import settings as env_settings
@@ -382,6 +382,7 @@ async def list_settings(ctx: dict = Depends(require_settings_read)):
 @router.patch("/")
 async def update_settings(
     payload: SettingsUpdate,
+    background_tasks: BackgroundTasks,
     ctx: dict = Depends(require_settings_manage),
     user: dict = Depends(get_current_user),
 ):
@@ -480,6 +481,9 @@ async def update_settings(
             "secret_keys": [key for key in updated if key in SECRET_SETTING_KEYS],
         },
     )
+    if {"business_description", "handover_line"} & set(updated):
+        from app.services.consistency import run_check_safely
+        background_tasks.add_task(run_check_safely, tenant_id)
     return {"updated": updated}
 
 
@@ -2024,7 +2028,9 @@ async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
 
 @router.patch("/intake-config")
 async def patch_intake_config(
-    payload: IntakeConfigUpdate, ctx: dict = Depends(require_settings_manage)
+    payload: IntakeConfigUpdate,
+    background_tasks: BackgroundTasks,
+    ctx: dict = Depends(require_settings_manage),
 ):
     tenant_id = ctx["tenant_id"]
     current = get_intake_config(tenant_id)
@@ -2051,4 +2057,6 @@ async def patch_intake_config(
         raise HTTPException(status_code=400, detail="service_noun cannot be blank")
     merged = {**current, **patch}
     save_intake_config(tenant_id, merged)
+    from app.services.consistency import run_check_safely
+    background_tasks.add_task(run_check_safely, tenant_id)
     return merged

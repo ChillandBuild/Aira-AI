@@ -1,3 +1,4 @@
+from fastapi import BackgroundTasks
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,6 +22,7 @@ async def test_manual_credential_save_marks_only_the_touched_channel_as_manual()
          patch("app.routes.app_settings.record_audit_event"):
         await update_settings(
             SettingsUpdate(updates={"instagram_access_token": "IGQV-token"}),
+            background_tasks=BackgroundTasks(),
             ctx={"tenant_id": "tenant-1"},
             user={"user_id": "user-1"},
         )
@@ -45,6 +47,7 @@ async def test_manual_credential_save_still_resets_channel_status_to_configured(
          patch("app.routes.app_settings.record_audit_event"):
         await update_settings(
             SettingsUpdate(updates={"meta_access_token": "EAAG-token"}),
+            background_tasks=BackgroundTasks(),
             ctx={"tenant_id": "tenant-1"},
             user={"user_id": "user-1"},
         )
@@ -66,6 +69,7 @@ async def test_non_channel_settings_never_stamp_a_connection_source():
          patch("app.routes.app_settings.record_audit_event"):
         await update_settings(
             SettingsUpdate(updates={"groq_api_key": "gsk-token"}),
+            background_tasks=BackgroundTasks(),
             ctx={"tenant_id": "tenant-1"},
             user={"user_id": "user-1"},
         )

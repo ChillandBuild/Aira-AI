@@ -5,22 +5,18 @@ import { ChevronsDownUp, ChevronsUpDown, ClipboardList, Clock, LayoutGrid, List,
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
-import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { api } from "@/lib/api";
 import { useHeaderAccordion } from "@/lib/headerAccordion";
 
 import { cn } from "@/lib/utils";
 
 const SETTINGS_ROUTE_LABELS: Record<string, string> = {
-  general: "General",
+  account: "Profile & Business",
   "connect-channels": "Connect Channels",
-  telecalling: "Telecalling Credentials",
   "auto-reply": "Auto-Reply",
   "follow-ups": "Follow-Ups",
-  inbox: "Inbox",
+  inbox: "Inbox & Handover",
   "telecalling-behavior": "Telecalling Behavior",
-  packages: "What Aira Sells",
-  "business-hours": "Business Hours",
   notifications: "Notifications",
   "quick-replies": "Quick Replies",
 };
@@ -121,6 +117,12 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "Your products, prices and stock — what Aira can recommend and sell.",
     };
   }
+  if (pathname === "/dashboard/services") {
+    return {
+      title: "Services",
+      description: "What you sell in chat: packages, prices, and the details Aira collects before sending the payment link.",
+    };
+  }
   if (pathname === "/dashboard/leads") {
     let tabLabel = "Leads";
     if (tab === "reengagement") tabLabel = "Re-engagement";
@@ -173,8 +175,8 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/profile") {
     return {
-      title: "My Profile",
-      description: "View and manage your profile details, passwords and API access.",
+      title: "My performance",
+      description: "Your calls, attendance and performance at a glance.",
     };
   }
   if (pathname === "/dashboard/deals") {
@@ -215,16 +217,10 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { role } = useAuthRole();
   // Section count + expand/collapse-all, published by a settings accordion.
   const accordion = useHeaderAccordion();
 
-  let { title, description } = getRouteMetadata(pathname || "", searchParams);
-
-  if (pathname === "/dashboard/profile" && role !== "owner") {
-    title = "Overview";
-    description = "Your performance at a glance";
-  }
+  const { title, description } = getRouteMetadata(pathname || "", searchParams);
 
   const tab = searchParams.get("tab") || "";
   const leadSegment = searchParams.get("segment") || "A";
