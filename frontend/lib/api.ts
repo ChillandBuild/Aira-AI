@@ -165,71 +165,73 @@ export interface TemplatePerformanceRow {
   last_sent: string | null;
 }
 
-export type ScoreCriterion =
-  | "greeting_quality"
-  | "communication_clarity"
-  | "product_knowledge"
-  | "requirement_understanding"
-  | "conversation_engagement"
-  | "objection_handling"
-  | "professionalism"
-  | "tone";
+export type CallGroup = "not_connected" | "very_short" | "early_exit" | "real_conversation";
+export type CheckKey =
+  | "opening" | "courtesy" | "questions" | "listening" | "product_info"
+  | "doubts" | "clarity" | "next_step" | "decision" | "crm_update";
+export type CheckLevel = "excellent" | "good" | "partial" | "poor" | "missing";
 
-/** v3 AI evaluation. Only the criteria listed in `criteria` were scored for this call. */
+export interface CallCheck {
+  key: CheckKey;
+  full: number;
+  level: CheckLevel | null;
+  ai_level: CheckLevel | null;
+  capped_by: "talk_share" | "interruptions" | "talk_share_and_interruptions" | "wrong_info" | "rude" | null;
+  marks: number | null;
+  reason: string | null;
+  quote: string | null;
+  time: string | null;
+  proof_missing: boolean;
+}
+
+export interface CallSign { sign: number; speaker: "telecaller" | "customer"; quote: string; time: string }
+
+export interface EarlyExitCheck {
+  polite: boolean;
+  rude_quote: string | null;
+  enquiry_confirmed_early: boolean;
+  expected_crm: "wrong_number" | "not_enquired" | "callback" | "language_barrier" | "voicemail" | "other";
+  crm_matches: boolean | null;
+}
+
+/** v4 evaluation (CallIQ Steps 1-2). Older rows have no evaluation_version 4 and are not shown. */
 export interface CallEvaluation {
-  evaluation_version?: number;
-  criteria?: ScoreCriterion[];
-  criteria_skipped?: ScoreCriterion[];
-  ai_average?: number;
-  quality_label?: "Excellent" | "Good" | "Average" | "Bad";
-  greeting_quality?: number;
-  greeting_quality_reason?: string;
-  communication_clarity?: number;
-  communication_clarity_reason?: string;
-  product_knowledge?: number;
-  product_knowledge_reason?: string;
-  requirement_understanding?: number;
-  requirement_understanding_reason?: string;
-  conversation_engagement?: number;
-  conversation_engagement_reason?: string;
-  objection_handling?: number;
-  objection_handling_reason?: string;
-  professionalism?: number;
-  professionalism_reason?: string;
-  tone?: number;
-  tone_reason?: string;
-  closing_move?: number;
-  closing_move_reason?: string;
-  detected_outcome?: string;
-  acceptable_outcomes?: string[];
-  real_conversation?: boolean;
-  talk_ratio?: number;
-  clear_next_step?: boolean;
-  next_step_summary?: string | null;
-  purchase_intent?: "high" | "medium" | "low";
-  missed_opportunity?: boolean;
-  missed_opportunity_note?: string | null;
-  coaching_tip?: string;
+  evaluation_version: number;
+  rules_version?: string;
+  group?: "early_exit" | "real_conversation";
+  signs?: CallSign[];
+  valid_sign_count?: number;
+  early_exit_check?: EarlyExitCheck;
+  checks?: CallCheck[];
+  top_improve?: CheckKey[];
+  tips?: string[];
+  wrong_info?: { quote: string; time: string; kb_fact: string | null }[];
+  unverified_claims?: string[];
+  language_barrier?: boolean;
 }
 
 export type CallAiStatus = "pending" | "transcribing" | "scoring" | "done" | "failed";
 export type CallScoreStatus =
-  | "pending"
-  | "awaiting_outcome"
-  | "scored"
-  | "short_call"
-  | "no_answer"
-  | "no_recording"
-  | "failed";
+  | "processing" | "not_connected" | "very_short" | "early_exit" | "provisional" | "scored" | "failed";
 
-export interface CallScoreBreakdown {
-  ai_points: number;
-  ai_average: number;
-  criteria: ScoreCriterion[];
-  accuracy_point: number;
-  closing_points: number;
-  outcome_points: number;
-  marked_outcome: string;
+export type CallAlertType =
+  | "rude" | "wrong_info" | "crm_mismatch" | "no_proof" | "transcript_failed"
+  | "language_barrier" | "lead_source_quality" | "tracks_swapped";
+
+export interface CallAlert {
+  id: string;
+  type: CallAlertType;
+  quote: string | null;
+  detail: Record<string, unknown>;
+  created_at: string;
+  seen_at: string | null;
+  caller_id: string | null;
+  call_log_id: string | null;
+  callers: { name: string | null } | null;
+  call_logs: {
+    id: string; created_at: string; duration_seconds: number | null; lead_id: string | null;
+    leads: { name: string | null; phone: string | null } | null;
+  } | null;
 }
 
 /** The full transcript never leaves the backend: only its first and last line. */
@@ -276,13 +278,13 @@ export interface CallLog {
   notes?: string | null;
   provider?: "telecmi" | "sim_basic";
   score_status?: CallScoreStatus | null;
-  score_breakdown?: CallScoreBreakdown | null;
   ai_status?: CallAiStatus | null;
   ai_error?: string | null;
-  flag_status?: "open" | "confirmed" | "dismissed" | null;
-  flag_reason?: string | null;
-  flagged_at?: string | null;
-  flag_resolved_at?: string | null;
+  call_group?: CallGroup | null;
+  talk_share?: number | null;
+  interruption_count?: number | null;
+  interruptions_per_5min?: number | null;
+  score_final?: boolean;
   feedback_source?: "automatic" | "manual";
   manual_started_at?: string | null;
   manual_ended_at?: string | null;
@@ -786,7 +788,6 @@ export interface TelecallingConfig {
   channels?: string[];
   scripts?: Record<string, string>;
   assignment_mode?: "push" | "pull";
-  score_criteria?: ScoreCriterion[];
 }
 
 export interface FunnelAnalytics {
@@ -1672,15 +1673,18 @@ export const api = {
       apiFetch<CallLog>(`/api/v1/calls/${callLogId}`),
     retryAi: (callLogId: string) =>
       apiFetch<{ ok: boolean }>(`/api/v1/calls/${callLogId}/retry-ai`, { method: "POST" }),
-    flagged: (status: "open" | "resolved" = "open", page = 1, limit = 20) =>
-      apiFetch<{ data: CallLog[]; total: number; open_count: number; page: number; limit: number }>(
-        `/api/v1/calls/flagged?status=${status}&page=${page}&limit=${limit}`,
-      ),
-    resolveFlag: (callLogId: string, action: "confirm" | "dismiss") =>
-      apiFetch<CallLog>(`/api/v1/calls/${callLogId}/flag`, {
-        method: "POST",
-        body: JSON.stringify({ action }),
-      }),
+    alerts: (params: { type?: CallAlertType; caller_id?: string; seen?: boolean; page?: number; limit?: number } = {}) => {
+      const q = new URLSearchParams();
+      if (params.type) q.set("type", params.type);
+      if (params.caller_id) q.set("caller_id", params.caller_id);
+      q.set("seen", String(params.seen ?? false));
+      q.set("page", String(params.page ?? 1));
+      q.set("limit", String(params.limit ?? 20));
+      return apiFetch<{ data: CallAlert[]; total: number; page: number; limit: number }>(`/api/v1/calls/alerts?${q}`);
+    },
+    alertCount: () => apiFetch<{ count: number }>("/api/v1/calls/alerts/count"),
+    markAlertSeen: (alertId: string) =>
+      apiFetch<CallAlert>(`/api/v1/calls/alerts/${alertId}/seen`, { method: "POST" }),
     getPendingWrapups: () =>
       apiFetch<CallLog[]>(`/api/v1/calls/pending-wrapups`),
     pendingWrapupsSummary: () =>

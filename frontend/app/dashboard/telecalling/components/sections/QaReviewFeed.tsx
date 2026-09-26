@@ -100,7 +100,6 @@ export default function QaReviewFeed({ from, to, callerId, callerName, onViewLea
                     <p className="font-label text-[10px] text-[#a8a29e] mt-0.5">
                       {timeAgo(log.created_at)}
                       {log.outcome ? ` · ${OUTCOME_LABEL[log.outcome] ?? log.outcome}` : ""}
-                      {log.evaluation?.quality_label ? ` · AI: ${log.evaluation.quality_label}` : ""}
                     </p>
                   </div>
                   <ChevronDown size={14} className={`shrink-0 text-[#a8a29e] transition-transform ${open ? "rotate-180" : ""}`} />

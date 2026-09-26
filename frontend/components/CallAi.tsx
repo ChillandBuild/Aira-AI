@@ -1,44 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, Flag, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Lightbulb, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { api, type CallLog, type ScoreCriterion, type TranscriptPreview } from "@/lib/api";
-
-export const SCORE_CRITERIA: { key: ScoreCriterion; label: string; hint: string }[] = [
-  { key: "greeting_quality", label: "Greeting", hint: "Introduced themselves and the company clearly" },
-  { key: "communication_clarity", label: "Clarity", hint: "Speech was clear and easy to follow" },
-  { key: "product_knowledge", label: "Product knowledge", hint: "Information matched your knowledge base" },
-  { key: "requirement_understanding", label: "Requirement understanding", hint: "Asked good questions, understood the need" },
-  { key: "conversation_engagement", label: "Engagement", hint: "Worked to engage the customer, listened and responded" },
-  { key: "objection_handling", label: "Objection handling", hint: "Dealt with doubts and objections well" },
-  { key: "professionalism", label: "Professionalism", hint: "Polite, no rudeness or arguing" },
-  { key: "tone", label: "Tone", hint: "Sounded warm, confident and energetic (the AI listens to the audio)" },
-];
-
-const CRITERION_LABEL = Object.fromEntries(SCORE_CRITERIA.map((c) => [c.key, c.label])) as Record<ScoreCriterion, string>;
-
-const OUTCOME_LABEL: Record<string, string> = {
-  converted: "Converted",
-  interested: "Interested",
-  callback: "Callback",
-  not_interested: "Not interested",
-  no_answer: "No answer",
-};
-
-export function scoreColor(score: number): string {
-  if (score >= 8) return "text-emerald-700 bg-emerald-50 border-emerald-200";
-  if (score >= 6) return "text-cyan-700 bg-cyan-50 border-cyan-200";
-  if (score >= 4) return "text-amber-700 bg-amber-50 border-amber-200";
-  return "text-rose-700 bg-rose-50 border-rose-200";
-}
-
-function barColor(value: number): string {
-  if (value >= 8) return "bg-emerald-500";
-  if (value >= 6) return "bg-cyan-500";
-  if (value >= 4) return "bg-amber-500";
-  return "bg-rose-500";
-}
+import { api, type CallCheck, type CallLog, type CheckKey, type CheckLevel, type EarlyExitCheck, type TranscriptPreview } from "@/lib/api";
 
 function isProcessing(log: CallLog): boolean {
   return log.ai_status === "pending" || log.ai_status === "transcribing" || log.ai_status === "scoring";
@@ -49,40 +14,6 @@ export function anyProcessing(logs: CallLog[]): boolean {
 }
 
 const PILL = "shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full border font-label text-[9px] font-bold";
-
-/** Compact status for a call row: processing stage, score, or why it isn't scored. */
-export function CallScorePill({ log }: { log: CallLog }) {
-  if (log.provider !== "telecmi") return null;
-  if (log.flag_status === "open") {
-    return (
-      <span className={`${PILL} bg-rose-50 text-rose-700 border-rose-200`}>
-        <Flag size={9} /> Flagged
-      </span>
-    );
-  }
-  if (isProcessing(log)) {
-    return (
-      <span className={`${PILL} bg-[#faf8f5] text-[#78716c] border-[#e8e3db]`}>
-        <Loader2 size={9} className="animate-spin" />
-        {log.ai_status === "scoring" ? "Scoring…" : "Transcribing…"}
-      </span>
-    );
-  }
-  switch (log.score_status) {
-    case "scored":
-      return log.score != null ? <span className={`${PILL} ${scoreColor(log.score)}`}>{log.score.toFixed(1)}/10</span> : null;
-    case "short_call":
-      return <span className={`${PILL} bg-[#faf8f5] text-[#a8a29e] border-[#e8e3db]`}>Short call</span>;
-    case "no_answer":
-      return <span className={`${PILL} bg-[#faf8f5] text-[#a8a29e] border-[#e8e3db]`}>Not scored</span>;
-    case "awaiting_outcome":
-      return <span className={`${PILL} bg-amber-50 text-amber-700 border-amber-200`}>Mark outcome to score</span>;
-    case "failed":
-      return <span className={`${PILL} bg-rose-50 text-rose-700 border-rose-200`}>Processing failed</span>;
-    default:
-      return null;
-  }
-}
 
 /** First and last line only; the middle is never sent to the browser. */
 export function MaskedTranscript({ preview }: { preview?: TranscriptPreview | null }) {
@@ -163,99 +94,236 @@ function ProcessingBanner({ log, onRetried }: { log: CallLog; onRetried?: () => 
   );
 }
 
-export function FlagNotice({ log }: { log: CallLog }) {
-  if (!log.flag_status) return null;
-  const tone =
-    log.flag_status === "open"
-      ? "border-rose-200 bg-rose-50 text-rose-800"
-      : log.flag_status === "confirmed"
-        ? "border-amber-200 bg-amber-50 text-amber-800"
-        : "border-[#e8e3db] bg-[#faf8f5] text-[#57534e]";
-  const verdict =
-    log.flag_status === "open"
-      ? "Waiting for admin review. The outcome can't be changed."
-      : log.flag_status === "confirmed"
-        ? "Admin confirmed: scored with 0/3 for the outcome."
-        : "Admin dismissed: counts as No answer, not scored.";
+export const CHECK_LABEL: Record<CheckKey, string> = {
+  opening: "Opening", courtesy: "Courtesy & empathy", questions: "Asking questions",
+  listening: "Listening", product_info: "Correct product information", doubts: "Clearing doubts",
+  clarity: "Clarity", next_step: "Next step", decision: "Asking for the decision", crm_update: "CRM update",
+};
+const STAGES: { name: string; keys: CheckKey[] }[] = [
+  { name: "Connect", keys: ["opening", "courtesy"] },
+  { name: "Understand", keys: ["questions", "listening"] },
+  { name: "Explain", keys: ["product_info", "doubts", "clarity"] },
+  { name: "Close", keys: ["next_step", "decision", "crm_update"] },
+];
+const LEVEL_LABEL: Record<CheckLevel, string> = {
+  excellent: "Excellent", good: "Good", partial: "Partial", poor: "Poor", missing: "Missing",
+};
+const LEVEL_TONE: Record<CheckLevel, string> = {
+  excellent: "text-emerald-700 bg-emerald-50 border-emerald-200",
+  good: "text-cyan-700 bg-cyan-50 border-cyan-200",
+  partial: "text-amber-700 bg-amber-50 border-amber-200",
+  poor: "text-orange-700 bg-orange-50 border-orange-200",
+  missing: "text-rose-700 bg-rose-50 border-rose-200",
+};
+const CAP_NOTE: Record<string, string> = {
+  talk_share: "capped by talk share",
+  interruptions: "capped by interruptions",
+  talk_share_and_interruptions: "capped by talk share and interruptions",
+  wrong_info: "wrong information given",
+  rude: "rude on the call",
+};
+const EXPECTED_CRM_LABEL: Record<EarlyExitCheck["expected_crm"], string> = {
+  wrong_number: "Wrong number", not_enquired: "Not enquired", callback: "Callback with a date and time",
+  language_barrier: "Language barrier", voicemail: "Voicemail / IVR", other: "—",
+};
+
+export function scoreColor(score: number): string {
+  if (score >= 80) return "text-emerald-700 bg-emerald-50 border-emerald-200";
+  if (score >= 60) return "text-cyan-700 bg-cyan-50 border-cyan-200";
+  if (score >= 40) return "text-amber-700 bg-amber-50 border-amber-200";
+  return "text-rose-700 bg-rose-50 border-rose-200";
+}
+
+const MUTED_PILL = `${PILL} bg-[#faf8f5] text-[#a8a29e] border-[#e8e3db]`;
+
+/** Compact status for a call row. */
+export function CallScorePill({ log }: { log: CallLog }) {
+  if (log.provider !== "telecmi") return null;
+  if (isProcessing(log)) {
+    return (
+      <span className={`${PILL} bg-[#faf8f5] text-[#78716c] border-[#e8e3db]`}>
+        <Loader2 size={9} className="animate-spin" />
+        {log.ai_status === "scoring" ? "Marking…" : "Transcribing…"}
+      </span>
+    );
+  }
+  switch (log.score_status) {
+    case "scored":
+    case "provisional":
+      return log.score != null ? (
+        <span className={`${PILL} ${scoreColor(log.score)}`} title={log.score_status === "provisional" ? "Provisional until the wrap-up is saved" : undefined}>
+          {log.score.toFixed(1)}/100{log.score_status === "provisional" ? " · provisional" : ""}
+        </span>
+      ) : null;
+    case "early_exit":
+      return <span className={MUTED_PILL}>Early exit</span>;
+    case "very_short":
+      return <span className={MUTED_PILL}>Not scored · under 30s</span>;
+    case "not_connected":
+      return <span className={MUTED_PILL}>Not scored · not connected</span>;
+    case "failed":
+      return <span className={`${PILL} bg-rose-50 text-rose-700 border-rose-200`}>Processing failed</span>;
+    default:
+      return null;
+  }
+}
+
+function Quote({ time, text }: { time: string | null; text: string | null }) {
+  if (!text) return null;
   return (
-    <div className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 ${tone}`}>
-      <Flag size={13} className="shrink-0 mt-0.5" />
-      <div>
-        <p className="font-body text-[11px] font-bold">{log.flag_reason || "Marked No answer, but the customer spoke."}</p>
-        <p className="font-label text-[10px] opacity-80 mt-0.5">{verdict}</p>
-      </div>
+    <p className="font-body text-[11px] leading-relaxed text-[#44403c]">
+      {time && <span className="font-label text-[10px] font-bold text-[#a8a29e] mr-1.5">[{time}]</span>}
+      &ldquo;{text}&rdquo;
+    </p>
+  );
+}
+
+function CheckRow({ check }: { check: CallCheck }) {
+  const [open, setOpen] = useState(false);
+  const pending = check.level === null;
+  return (
+    <div className="rounded-lg">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={pending}
+        aria-expanded={open}
+        className="grid w-full grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-2 px-2 py-1.5 text-left rounded-lg hover:bg-[#faf8f5] disabled:hover:bg-transparent"
+      >
+        <span className="font-label text-[11px] font-semibold text-[#57534e] truncate">
+          {CHECK_LABEL[check.key]}
+          {check.proof_missing && <span className="ml-1.5 text-[9px] font-bold text-amber-700">· needs review</span>}
+        </span>
+        {pending ? (
+          <span className={MUTED_PILL}>Waiting for wrap-up</span>
+        ) : (
+          <span className={`${PILL} ${LEVEL_TONE[check.level as CheckLevel]}`}>{LEVEL_LABEL[check.level as CheckLevel]}</span>
+        )}
+        <span className="font-label text-[11px] font-bold text-[#292524] text-right tabular-nums">
+          {pending ? "—" : (check.marks ?? 0).toFixed(1)}<span className="text-[#a8a29e] font-semibold"> /{check.full}</span>
+        </span>
+      </button>
+      {open && !pending && (
+        <div className="ml-2 border-l-2 border-[#f0ece4] pl-3 pb-2 space-y-1">
+          {check.reason && <p className="font-body text-[11px] text-[#57534e]">{check.reason}</p>}
+          {check.capped_by && (
+            <p className="font-label text-[10px] text-amber-700">
+              AI said {check.ai_level ? LEVEL_LABEL[check.ai_level] : "—"}; {CAP_NOTE[check.capped_by]}.
+            </p>
+          )}
+          <Quote time={check.time} text={check.quote} />
+        </div>
+      )}
     </div>
   );
 }
 
-function ScoreBreakdown({ log }: { log: CallLog }) {
-  const breakdown = log.score_breakdown;
+function NumbersLine({ log }: { log: CallLog }) {
+  const share = log.talk_share;
+  const ipm = log.interruptions_per_5min;
+  if (share == null && ipm == null) return null;
+  return (
+    <p className="font-body text-[11px] text-[#57534e]">
+      {share != null && (
+        <span className={share > 65 ? "text-amber-700 font-bold" : ""}>Talk share {Math.round(share)}%</span>
+      )}
+      {share != null && ipm != null && <span className="text-[#a8a29e]"> · </span>}
+      {ipm != null && (
+        <span className={ipm > 1 ? "text-amber-700 font-bold" : ""}>
+          Interruptions {ipm.toFixed(1)} per 5 min{log.interruption_count != null ? ` (${log.interruption_count})` : ""}
+        </span>
+      )}
+    </p>
+  );
+}
+
+function RealConversationCard({ log }: { log: CallLog }) {
   const evaluation = log.evaluation;
-  if (log.score_status !== "scored" || log.score == null || !breakdown || !evaluation) return null;
-  const outcome = OUTCOME_LABEL[breakdown.marked_outcome] ?? breakdown.marked_outcome;
+  const checks = evaluation?.checks ?? [];
+  if (log.score == null || !checks.length) return null;
+  const byKey = Object.fromEntries(checks.map((c) => [c.key, c])) as Record<CheckKey, CallCheck>;
+  const provisional = log.score_status === "provisional";
   return (
     <div className="rounded-xl border border-[#e8e3db] bg-white px-3 py-3 space-y-3">
       <div className="flex items-center gap-3">
-        <div className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl border ${scoreColor(log.score)}`}>
-          <span className="font-display text-base font-extrabold leading-none">{log.score.toFixed(1)}</span>
-          <span className="font-label text-[8px] font-bold opacity-70">/ 10</span>
+        <div className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border ${scoreColor(log.score)}`}>
+          <span className="font-display text-lg font-extrabold leading-none tabular-nums">{log.score.toFixed(1)}</span>
+          <span className="font-label text-[8px] font-bold opacity-70">/ 100</span>
         </div>
-        <div className="grid flex-1 grid-cols-2 gap-2">
-          <div className="rounded-lg bg-[#faf8f5] px-2.5 py-1.5">
-            <p className="font-label text-[9px] uppercase tracking-wider font-extrabold text-[#a8a29e]">AI review</p>
-            <p className="font-body text-xs font-bold text-[#292524]">{breakdown.ai_points.toFixed(1)} <span className="text-[#a8a29e] font-semibold">/ 7</span></p>
-          </div>
-          <div className="rounded-lg bg-[#faf8f5] px-2.5 py-1.5">
-            <p className="font-label text-[9px] uppercase tracking-wider font-extrabold text-[#a8a29e]">Outcome</p>
-            <p className="font-body text-xs font-bold text-[#292524]">{breakdown.outcome_points.toFixed(1)} <span className="text-[#a8a29e] font-semibold">/ 3</span></p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        {breakdown.criteria.map((key) => {
-          const value = evaluation[key];
-          if (typeof value !== "number") return null;
-          const reason = evaluation[`${key}_reason` as keyof typeof evaluation];
-          return (
-            <div key={key} title={typeof reason === "string" ? reason : undefined} className="grid grid-cols-[minmax(0,9rem)_1fr_2rem] items-center gap-2 cursor-help">
-              <span className="font-label text-[10px] font-semibold text-[#57534e] truncate">{CRITERION_LABEL[key] ?? key}</span>
-              <span className="h-1.5 rounded-full bg-[#f0ece4] overflow-hidden">
-                <span className={`block h-full rounded-full ${barColor(value)}`} style={{ width: `${value * 10}%` }} />
-              </span>
-              <span className="font-label text-[10px] font-bold text-[#292524] text-right">{value}</span>
-            </div>
-          );
-        })}
-        {evaluation.criteria_skipped?.includes("tone") && (
-          <p className="font-label text-[10px] text-[#a8a29e]">Tone wasn&apos;t scored: the recording was too large to attach.</p>
-        )}
-      </div>
-
-      {breakdown.marked_outcome === "no_answer" ? (
-        <p className="flex items-start gap-1.5 border-t border-[#f0ece4] pt-2.5 font-body text-[11px] text-[#57534e]">
-          <AlertTriangle size={12} className="text-rose-600 shrink-0 mt-0.5" />
-          <span>Marked <span className="font-bold text-[#292524]">No answer</span> on a real conversation, so the outcome part is 0/3.</span>
-        </p>
-      ) : (
-      <div className="space-y-1 border-t border-[#f0ece4] pt-2.5">
-        <p className="flex items-start gap-1.5 font-body text-[11px] text-[#57534e]">
-          {breakdown.accuracy_point > 0 ? (
-            <CheckCircle2 size={12} className="text-emerald-600 shrink-0 mt-0.5" />
-          ) : (
-            <AlertTriangle size={12} className="text-amber-600 shrink-0 mt-0.5" />
-          )}
-          <span>
-            Marked <span className="font-bold text-[#292524]">{outcome}</span>
-            {breakdown.accuracy_point > 0 ? ": matches the call (+1)." : ": doesn't match what happened on the call (+0)."}
-          </span>
-        </p>
-        {evaluation.closing_move_reason && (
-          <p className="font-body text-[11px] text-[#57534e]">
-            <span className="font-bold text-[#292524]">Closing move {breakdown.closing_points.toFixed(1)}/2:</span> {evaluation.closing_move_reason}
+        <div className="min-w-0 space-y-0.5">
+          <p className="font-body text-xs font-bold text-[#292524]">
+            Real conversation{provisional && <span className="ml-1.5 font-label text-[10px] font-bold text-amber-700">· provisional until the wrap-up is saved</span>}
           </p>
-        )}
+          <NumbersLine log={log} />
+        </div>
       </div>
+
+      {(evaluation?.tips?.length ?? 0) > 0 && (
+        <div className="space-y-1">
+          {evaluation!.tips!.map((tip) => (
+            <p key={tip} className="flex items-start gap-1.5 font-body text-[11px] text-amber-800">
+              <Lightbulb size={12} className="shrink-0 mt-0.5" /> {tip}
+            </p>
+          ))}
+        </div>
+      )}
+
+      {(evaluation?.top_improve?.length ?? 0) > 0 && (
+        <div className="rounded-lg bg-[#faf8f5] px-2.5 py-2">
+          <p className="font-label text-[9px] uppercase tracking-wider font-extrabold text-[#a8a29e] mb-0.5">Top things to improve</p>
+          <p className="font-body text-[11px] font-semibold text-[#292524]">
+            {evaluation!.top_improve!.map((k) => `${CHECK_LABEL[k]} ${(byKey[k]?.marks ?? 0).toFixed(1)}/${byKey[k]?.full}`).join(" · ")}
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {STAGES.map((stage) => (
+          <div key={stage.name}>
+            <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e] px-2 mb-0.5">{stage.name}</p>
+            {stage.keys.map((k) => byKey[k] && <CheckRow key={k} check={byKey[k]} />)}
+          </div>
+        ))}
+      </div>
+
+      {(evaluation?.unverified_claims?.length ?? 0) > 0 && (
+        <div className="border-t border-[#f0ece4] pt-2">
+          <p className="font-label text-[9px] uppercase tracking-wider font-extrabold text-[#a8a29e] mb-1">Not in the knowledge base (not marked down)</p>
+          {evaluation!.unverified_claims!.map((c) => (
+            <p key={c} className="font-body text-[11px] text-[#57534e]">&ldquo;{c}&rdquo;</p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EarlyExitCard({ log }: { log: CallLog }) {
+  const check = log.evaluation?.early_exit_check;
+  if (!check) return null;
+  const row = (ok: boolean | null, label: string, note?: string) => (
+    <p className="flex items-start gap-1.5 font-body text-[11px] text-[#57534e]">
+      {ok === null ? <Clock size={12} className="text-[#a8a29e] shrink-0 mt-0.5" /> : ok ? (
+        <CheckCircle2 size={12} className="text-emerald-600 shrink-0 mt-0.5" />
+      ) : (
+        <AlertTriangle size={12} className="text-rose-600 shrink-0 mt-0.5" />
+      )}
+      <span>{label}{note && <span className="text-[#a8a29e]"> · {note}</span>}</span>
+    </p>
+  );
+  return (
+    <div className="rounded-xl border border-[#e8e3db] bg-white px-3 py-3 space-y-2">
+      <div>
+        <p className="font-body text-xs font-bold text-[#292524]">Early exit · not scored</p>
+        <p className="font-label text-[10px] text-[#a8a29e]">No real sales discussion happened, so this call doesn&apos;t count in quality or effort.</p>
+      </div>
+      {row(check.polite, check.polite ? "Stayed polite" : "Not polite on this call")}
+      {!check.polite && <Quote time={null} text={check.rude_quote} />}
+      {row(check.enquiry_confirmed_early, check.enquiry_confirmed_early ? "Confirmed the enquiry early" : "Didn't confirm the enquiry in the first 30 seconds", "coaching only")}
+      {row(
+        check.crm_matches,
+        check.crm_matches === null ? "Wrap-up check pending" : check.crm_matches ? "Wrap-up matches the call" : "Wrap-up doesn't match the call",
+        check.expected_crm !== "other" ? `expected: ${EXPECTED_CRM_LABEL[check.expected_crm]}` : undefined,
       )}
     </div>
   );
@@ -265,17 +333,18 @@ function ScoreBreakdown({ log }: { log: CallLog }) {
 export function CallAiDetail({ log, onChanged }: { log: CallLog; onChanged?: () => void }) {
   if (log.provider !== "telecmi") return null;
   const brief = log.ai_summary?.brief;
+  const v4 = log.evaluation?.evaluation_version === 4;
   return (
     <div className="space-y-2.5">
       <ProcessingBanner log={log} onRetried={onChanged} />
-      <FlagNotice log={log} />
-      {log.score_status === "short_call" && (
-        <p className="font-label text-[10px] text-[#a8a29e]">Under 30 seconds of talk time: counted, but not scored.</p>
+      {log.score_status === "very_short" && (
+        <p className="font-label text-[10px] text-[#a8a29e]">Not scored · under 30 seconds of talk time. Counted as a dial only.</p>
       )}
-      {log.score_status === "awaiting_outcome" && (
-        <p className="font-label text-[10px] text-amber-700">The AI review is ready. Mark the outcome to get the score.</p>
+      {log.score_status === "not_connected" && (
+        <p className="font-label text-[10px] text-[#a8a29e]">Not scored · the customer didn&apos;t answer. Counted as a dial only.</p>
       )}
-      <ScoreBreakdown log={log} />
+      {v4 && log.call_group === "real_conversation" && <RealConversationCard log={log} />}
+      {v4 && log.call_group === "early_exit" && <EarlyExitCard log={log} />}
       {brief && (
         <div className="rounded-xl border border-[#f0ece4] bg-white px-3 py-2.5">
           <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-primary mb-1 flex items-center gap-1">
@@ -285,12 +354,6 @@ export function CallAiDetail({ log, onChanged }: { log: CallLog; onChanged?: () 
         </div>
       )}
       <MaskedTranscript preview={log.transcript_preview} />
-      {log.evaluation?.coaching_tip && (
-        <p className="font-body text-[11px] leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-2">
-          <span className="font-bold">Coaching: </span>
-          {log.evaluation.coaching_tip}
-        </p>
-      )}
     </div>
   );
 }
