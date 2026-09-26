@@ -145,11 +145,13 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
           icon={<TrendingUp size={18} />}
           label="Delivery Rate"
           value={data.delivery_rate != null ? `${data.delivery_rate.toFixed(1)}%` : "—"}
+          tone="border-t-emerald-400"
         />
         <StatCard
           icon={<Target size={18} />}
           label="Avg Score"
           value={data.avg_score != null ? data.avg_score.toFixed(1) : "—"}
+          tone="border-t-sky-400"
         />
         {hasTelecalling && (
           <>
@@ -157,11 +159,13 @@ export function AnalyticsView({ tenantId }: { tenantId: string }) {
               icon={<Phone size={18} />}
               label="Total Calls"
               value={data.total_calls!}
+              tone="border-t-blue-500"
             />
             <StatCard
               icon={<Percent size={18} />}
               label="Connect Rate"
               value={data.connect_rate != null ? `${data.connect_rate.toFixed(1)}%` : "—"}
+              tone="border-t-teal-400"
             />
           </>
         )}

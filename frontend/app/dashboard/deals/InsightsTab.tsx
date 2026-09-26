@@ -85,10 +85,10 @@ export function InsightsTab() {
   const maxSource = Math.max(1, ...sources.map(([, v]) => v.total_paise));
 
   const cards = [
-    { label: "Won total", value: formatRupees(stats.won_total_paise), sub: `${stats.won_count} deals` },
-    { label: "Open pipeline", value: formatRupees(stats.open_total_paise), sub: `${stats.open_count} deals` },
-    { label: "Lost", value: stats.lost_count, sub: "this month" },
-    { label: "Won deals", value: stats.won_count, sub: "this month" },
+    { label: "Won total", value: formatRupees(stats.won_total_paise), sub: `${stats.won_count} deals`, tone: "border-t-emerald-400" },
+    { label: "Open pipeline", value: formatRupees(stats.open_total_paise), sub: `${stats.open_count} deals`, tone: "border-t-amber-400" },
+    { label: "Lost", value: stats.lost_count, sub: "this month", tone: "border-t-rose-400" },
+    { label: "Won deals", value: stats.won_count, sub: "this month", tone: "border-t-teal-400" },
   ];
 
   return (
@@ -108,7 +108,7 @@ export function InsightsTab() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.label} className="rounded-2xl border border-border bg-white p-4">
+          <div key={c.label} className={`rounded-2xl border border-border border-t-4 bg-white p-4 ${c.tone}`}>
             <p className="font-display text-2xl font-bold leading-none text-ink">{c.value}</p>
             <p className="mt-1.5 font-label text-xs font-semibold text-ink">{c.label}</p>
             <p className="font-body text-[11px] text-ink-muted">{c.sub}</p>

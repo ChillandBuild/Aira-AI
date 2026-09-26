@@ -97,15 +97,17 @@ function StatCard({
   sub,
   delta,
   sense,
+  tone = "border-t-primary-500",
 }: {
   label: string;
   value: string;
   sub?: string;
   delta?: number | null;
   sense?: DeltaSense;
+  tone?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15">
+    <div className={`flex flex-col gap-1 rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 border-t-4 ${tone} transition-all`}>
       <p className="font-label text-xs uppercase tracking-wider text-on-surface-muted">{label}</p>
       <p className="mt-1 font-display text-2xl font-bold text-on-surface">{value}</p>
       <div className="flex items-center gap-2">
@@ -581,6 +583,7 @@ export function CompareTab({
                 delta={hasComparison ? data.money_metrics.spend?.delta_pct : undefined}
                 sense="neutral"
                 sub={previous ? `was ${money(previous.money.spend)}` : undefined}
+                tone="border-t-sky-400"
               />
               <StatCard
                 label="Cost per lead"
@@ -588,6 +591,7 @@ export function CompareTab({
                 delta={hasComparison ? data.money_metrics.cost_per_lead?.delta_pct : undefined}
                 sense="lower"
                 sub={previous ? `was ${money(previous.money.cost_per_lead)}` : undefined}
+                tone="border-t-amber-400"
               />
               <StatCard
                 label="Cost per hot lead"
@@ -595,12 +599,14 @@ export function CompareTab({
                 delta={hasComparison ? data.money_metrics.cost_per_hot_lead?.delta_pct : undefined}
                 sense="lower"
                 sub={previous ? `was ${money(previous.money.cost_per_hot_lead)}` : undefined}
+                tone="border-t-rose-400"
               />
               <StatCard
                 label="Ad-attributed leads"
                 value={(data.current.money.ad_leads ?? 0).toLocaleString()}
                 delta={hasComparison ? data.money_metrics.ad_leads?.delta_pct : undefined}
                 sub={`${data.current.money.ad_hot_leads ?? 0} hot`}
+                tone="border-t-emerald-400"
               />
             </div>
           )}
@@ -614,6 +620,7 @@ export function CompareTab({
                 delta={hasComparison ? data.response_metrics.p50_seconds?.delta_pct : undefined}
                 sense="lower"
                 sub="median"
+                tone="border-t-sky-400"
               />
               <StatCard
                 label="Slowest 10%"
@@ -621,17 +628,20 @@ export function CompareTab({
                 delta={hasComparison ? data.response_metrics.p90_seconds?.delta_pct : undefined}
                 sense="lower"
                 sub="90th percentile"
+                tone="border-t-amber-400"
               />
               <StatCard
                 label="Messages answered"
                 value={(data.current.response.answered ?? 0).toLocaleString()}
                 sub={`of ${(data.current.response.inbound_total ?? 0).toLocaleString()} received`}
+                tone="border-t-emerald-400"
               />
               <StatCard
                 label="Leads warmed up"
                 value={data.current.movement.promoted.toLocaleString()}
                 delta={hasComparison ? data.movement_metrics.promoted?.delta_pct : undefined}
                 sub={`${data.current.movement.promoted_to_hot} became hot`}
+                tone="border-t-teal-400"
               />
             </div>
           )}

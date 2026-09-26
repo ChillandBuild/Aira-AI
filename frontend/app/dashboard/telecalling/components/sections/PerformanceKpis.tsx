@@ -2,6 +2,7 @@
 
 import { Phone, TrendingUp, Clock, Coffee, Award, BarChart2, Loader2, Zap, Headphones } from "lucide-react";
 import type { TelecallingAnalyticsExtended } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import {
   formatTalk, formatPct, formatMinutes,
   computeDelta, deltaColor, deltaLabel, type Delta,
@@ -51,11 +52,12 @@ interface TileProps {
   loading: boolean;
   deltas?: TileDeltas;
   deltaOpts?: { asPct?: boolean; unit?: string };
+  tone?: string;
 }
 
-function Tile({ icon, iconClass, value, label, tooltip, loading, deltas, deltaOpts }: TileProps) {
+function Tile({ icon, iconClass, value, label, tooltip, loading, deltas, deltaOpts, tone = "border-t-primary-500" }: TileProps) {
   return (
-    <div className="bg-surface rounded-card p-4 shadow-card ring-1 ring-[#c4c7c7]/15" title={tooltip}>
+    <div className={cn("bg-surface rounded-card border-t-4 p-4 shadow-card ring-1 ring-[#c4c7c7]/15", tone)} title={tooltip}>
       <div className={`p-2 rounded-lg w-fit mb-2 ${iconClass}`}>{icon}</div>
       <span className="block text-2xl font-display font-black text-[#292524]">
         {loading ? <Loader2 className="animate-spin text-[#a8a29e]" size={20} /> : value}
@@ -124,6 +126,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         tooltip="Connect Rate = answered ÷ dialed"
         deltas={isTeam ? connectDeltas : teamOnly}
         deltaOpts={{ unit: "pts" }}
+        tone="border-t-sky-400"
       />
       <Tile
         loading={loading}
@@ -134,6 +137,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         tooltip="Avg Talk Time = total talk seconds ÷ calls"
         deltas={isTeam ? talkDeltas : teamOnly}
         deltaOpts={{ asPct: true }}
+        tone="border-t-blue-500"
       />
       <Tile
         loading={loading}
@@ -144,6 +148,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         tooltip="Idle = active (logged-in) minutes minus talk minutes. Lower is better."
         deltas={isTeam ? idleDeltas : teamOnly}
         deltaOpts={{ unit: "min" }}
+        tone="border-t-amber-400"
       />
       <Tile
         loading={loading}
@@ -153,6 +158,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         label="Conversions"
         tooltip="Conversions = calls with a 'converted' outcome today"
         deltas={isTeam ? convDeltas : teamOnly}
+        tone="border-t-emerald-400"
       />
       <Tile
         loading={loading}
@@ -163,6 +169,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         tooltip="Conversion Rate = converted ÷ calls"
         deltas={isTeam ? convRateDeltas : teamOnly}
         deltaOpts={{ unit: "pts" }}
+        tone="border-t-teal-400"
       />
       {!isTeam && (
         <Tile
@@ -172,6 +179,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
           value={quality ? `${quality.toFixed(1)}/10` : "—"}
           label="Avg Score"
           tooltip="Average of this period's scored calls: 7 points AI review + 3 points outcome. Short and no-answer calls count toward calls, not the score."
+          tone="border-t-purple-400"
         />
       )}
       {!isTeam && (
@@ -182,6 +190,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
           value={speedToLead != null ? `${speedToLead.toFixed(1)} min` : "—"}
           label="Speed to Lead"
           tooltip="Median minutes before calling back a new lead. Lower is better."
+          tone="border-t-yellow-400"
         />
       )}
       {!isTeam && (
@@ -192,6 +201,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
           value={formatMinutes(talkMinutes)}
           label="Total Talk Time"
           tooltip="Total minutes spent talking today"
+          tone="border-t-cyan-400"
         />
       )}
       <Tile
@@ -202,6 +212,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         label="Total Calls Today"
         tooltip="Total dialed calls in the selected window"
         deltas={isTeam ? callsDeltas : teamOnly}
+        tone="border-t-rose-400"
       />
     </div>
   );

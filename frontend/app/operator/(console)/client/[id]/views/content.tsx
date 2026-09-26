@@ -69,9 +69,9 @@ function TemplatesSection({ tenantId }: { tenantId: string }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
-        <StatCard icon={<Hash size={18} />} label="Total" value={data.total} />
-        <StatCard icon={<CheckCircle size={18} />} label="Approved" value={data.approved} />
-        <StatCard icon={<Clock size={18} />} label="Pending" value={data.pending} />
+        <StatCard icon={<Hash size={18} />} label="Total" value={data.total} tone="border-t-sky-400" />
+        <StatCard icon={<CheckCircle size={18} />} label="Approved" value={data.approved} tone="border-t-emerald-400" />
+        <StatCard icon={<Clock size={18} />} label="Pending" value={data.pending} tone="border-t-amber-400" />
       </div>
       {data.templates.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-ink-muted">
@@ -154,8 +154,8 @@ function NumbersSection({ tenantId }: { tenantId: string }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
-        <StatCard icon={<Hash size={18} />} label="Total Numbers" value={data.total} />
-        <StatCard icon={<CheckCircle size={18} />} label="Active" value={data.active} />
+        <StatCard icon={<Hash size={18} />} label="Total Numbers" value={data.total} tone="border-t-sky-400" />
+        <StatCard icon={<CheckCircle size={18} />} label="Active" value={data.active} tone="border-t-emerald-400" />
       </div>
       {data.numbers.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-ink-muted">
@@ -238,8 +238,8 @@ function KnowledgeSection({ tenantId }: { tenantId: string }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
-        <StatCard icon={<BookOpen size={18} />} label="Documents" value={data.total_docs} />
-        <StatCard icon={<Hash size={18} />} label="Total Chunks" value={data.total_chunks} />
+        <StatCard icon={<BookOpen size={18} />} label="Documents" value={data.total_docs} tone="border-t-blue-500" />
+        <StatCard icon={<Hash size={18} />} label="Total Chunks" value={data.total_chunks} tone="border-t-purple-400" />
       </div>
       {data.documents.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-ink-muted">

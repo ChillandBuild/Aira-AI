@@ -128,15 +128,17 @@ function PerformanceKpiCard({
   description,
   icon: Icon,
   gradient,
+  tone = "border-t-primary-500",
 }: {
   label: string;
   value: string;
   description: string;
   icon: LucideIcon;
   gradient: string;
+  tone?: string;
 }) {
   return (
-    <div className="group flex items-center gap-4 rounded-2xl border border-[#e8e3db]/80 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md">
+    <div className={cn("group flex items-center gap-4 rounded-2xl border border-[#e8e3db]/80 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md border-t-4", tone)}>
       <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white transition-transform group-hover:scale-110", gradient)}>
         <Icon size={19} />
       </span>
@@ -486,6 +488,7 @@ export function AdPerformanceTab() {
                 description="Clicked the ad and opened WhatsApp"
                 icon={MousePointerClick}
                 gradient="bg-gradient-to-br from-primary-500 to-primary"
+                tone="border-t-primary-500"
               />
               <PerformanceKpiCard
                 label="Messages Sent"
@@ -493,6 +496,7 @@ export function AdPerformanceTab() {
                 description="Clicked and sent the WhatsApp message"
                 icon={MessageCircle}
                 gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
+                tone="border-t-sky-400"
               />
               <PerformanceKpiCard
                 label="No Message"
@@ -500,6 +504,7 @@ export function AdPerformanceTab() {
                 description="Clicked but did not send the message"
                 icon={MessageSquareOff}
                 gradient="bg-gradient-to-br from-amber-500 to-orange-500"
+                tone="border-t-amber-400"
               />
               <PerformanceKpiCard
                 label="Message Rate"
@@ -507,6 +512,7 @@ export function AdPerformanceTab() {
                 description="Messages sent out of WhatsApp clicks"
                 icon={Percent}
                 gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
+                tone="border-t-emerald-400"
               />
         </div>
 
