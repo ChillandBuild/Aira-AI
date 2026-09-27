@@ -229,9 +229,11 @@ export default function TemplatesPage() {
   const countRejected = templates.filter((t) => t.status === "REJECTED" || t.status === "PAUSED").length;
 
   return (
-    <div className="min-w-0 space-y-5 sm:space-y-6">
-      {/* Stats and Action Bar */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
+    <div className="flex flex-col min-w-0 h-[calc(100dvh-11.5rem)] md:h-[calc(100dvh-7.5rem)] overflow-hidden">
+      {/* Top Locked Section: Stats, Actions & Filters */}
+      <div className="shrink-0 space-y-4 pb-4">
+        {/* Stats and Action Bar */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 md:gap-4">
         {[
           { label: "Approved Templates", count: countApproved, color: "#10b981", tone: "border-t-emerald-400" },
           { label: "Pending Review", count: countPending, color: "#f59e0b", tone: "border-t-amber-400" },
@@ -391,9 +393,12 @@ export default function TemplatesPage() {
           </div>
         </div>
       </div>
+    </div>
 
-      {/* Main Content Area */}
-      {loading ? (
+      {/* Scrollable Templates Content */}
+      <div className="flex-1 overflow-y-auto min-h-0 pr-1 pb-6">
+        {/* Main Content Area */}
+        {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="card h-64 border border-border-subtle rounded-2xl animate-pulse bg-surface-subtle" />
@@ -465,7 +470,7 @@ export default function TemplatesPage() {
           </div>
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-surface-subtle">
                 <tr className="bg-surface-subtle border-b border-border-subtle text-ink-muted text-[11px] font-bold uppercase tracking-wider">
                   <th className="px-5 py-3.5">Template Name</th>
                   <th className="px-5 py-3.5">Category</th>
@@ -552,6 +557,7 @@ export default function TemplatesPage() {
           </div>
         </div>
       )}
+      </div>
 
       {/* ── View Detail Drawer/Modal ─────────────────────────────────────────── */}
       {selectedTemplate && (
