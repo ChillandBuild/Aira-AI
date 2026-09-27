@@ -7,6 +7,7 @@ Check 10 (CRM update) is left pending here and marked from the wrap-up.
 """
 import asyncio
 import logging
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +16,9 @@ from app.services.call_lines import Line, clock, format_transcript, parse_transc
 from app.services.call_metrics import courtesy_cap, listening_cap_reason, lower_level, plurality, tips
 from app.services.call_quotes import clean_quote, clip, find_quote
 from app.services.call_scorer import finalize_call_score
+from app.services.call_wrapup import (
+    AI_CALL_STATUSES, CONNECT_LABEL, LANGUAGE_LABEL, OUTCOME_LABEL, TEMPERATURE_FOR_OUTCOME, TEMPERATURES,
+)
 from app.services.gemini_client import gemini_analysis_json
 from app.services.scoring_rules import AI_VOTES, CHECK_MARKS, LEVEL_ORDER, LEVEL_SHARE, WRAPUP_CUTOFF_HOURS
 
@@ -275,64 +279,67 @@ async def mark_call(
 
 _CRM_ROW_FIELDS = (
     "id,tenant_id,caller_id,lead_id,provider,call_group,ai_status,created_at,feedback_at,"
-    "outcome,manual_status,notes,wrapup_callback_at,transcript,evaluation,score_final"
+    "outcome,manual_status,outcome_reason,preferred_language,next_action_at,notes,transcript,evaluation,score_final"
 )
 
-_CRM_PROMPT = """A telecaller just finished this sales call and saved a wrap-up. Mark check 10 (CRM update).
+_CRM_PROMPT = """A telecaller just finished this sales call and saved a wrap-up. Mark check 10 (CRM update) and give your own reading of how interested the customer is.
 
 Transcript:
 {transcript}
 
 Wrap-up saved:
-- outcome: {outcome}
-- status: {manual_status}
+- did the call connect: {manual_status}
+- what happened: {outcome}
+- reason: {reason}
+- preferred language: {preferred_language}
+- next step / follow-up / callback time: {next_action_at}
 - do not call: {do_not_call}
-- callback date/time: {callback_at}
 - notes: {notes}
 
-Correct status guide (our system has no Hot/Warm/Cold: "interested" is right for both hot and warm customers):
-- converted: the customer bought/booked.
-- interested: ready soon or interested but needs time or information.
-- callback: the customer asked to be called later; a date and time must be set.
-- not_interested: low interest, not a fit, never enquired or clearly not interested.
-- do not call: the customer clearly asked not to be contacted again.
+Correct status guide:
+- Interested, next step booked (hot): interested and a specific next step with a date and time was agreed.
+- Interested, needs time or more information (warm): interested but wants time, information or to think it over.
+- Maybe later (cold): low interest now, maybe in future.
+- Call later (customer asked): the customer asked to be called later; a date and time must be set.
+- Converted: the customer bought or booked.
+- Not interested: clearly not interested (reason: price, already bought, no need, other).
+- Disqualified: never enquired, not a fit, or not the decision maker.
+- Wrong number: the person is not the lead.
+- Language barrier: they could not understand each other; the customer's language must be set.
+- Do not call: the customer asked not to be contacted again.
 
-Levels: "excellent" = status matches the call, the notes cover the key points (need, budget, next step) and the callback time is set if one was agreed; "good" = status correct, notes thin; "partial" = status slightly off; "poor" = status wrong; "missing" = nothing useful saved.
-Return JSON only: {{"level": "...", "reason": "one line"}}"""
+Levels: "excellent" = status matches the call, the notes cover the key points (need, budget, next step) and the time is set if one was agreed; "good" = status correct, notes thin; "partial" = status slightly off; "poor" = status wrong; "missing" = nothing useful saved.
+customer = your own reading of the customer by the guide: "hot", "warm" or "cold"; "none" if they were not a buying prospect on this call (converted, not interested, disqualified, wrong number, language barrier, do not call).
+Return JSON only: {{"level": "...", "reason": "one line", "customer": "hot|warm|cold|none"}}"""
 
 
 EXPECTED_CRM_LABEL = {
     "wrong_number": "Wrong number", "not_enquired": "Never enquired", "callback": "Callback with a date and time",
     "language_barrier": "Language barrier", "voicemail": "Voicemail / IVR", "other": "Other",
 }
-MANUAL_STATUS_LABEL = {
-    "wrong_number": "Wrong number", "connected": "Connected", "not_picked": "Not picked", "busy": "Busy",
-    "interested": "Interested", "not_interested": "Not interested", "callback": "Callback",
-}
-OUTCOME_LABEL = {
-    "converted": "Converted", "interested": "Interested", "callback": "Callback",
-    "not_interested": "Not interested", "no_answer": "No answer",
-}
 
 
 def _wrapup_label(snap: dict) -> str:
-    if snap.get("manual_status") in MANUAL_STATUS_LABEL:
-        return MANUAL_STATUS_LABEL[snap["manual_status"]]
     if snap.get("outcome") in OUTCOME_LABEL:
         return OUTCOME_LABEL[snap["outcome"]]
+    if snap.get("manual_status") in CONNECT_LABEL:
+        return CONNECT_LABEL[snap["manual_status"]]
     if snap.get("do_not_call"):
         return "Do not call"
     return "Nothing"
 
 
 def crm_matches_expected(expected: str, wrapup: dict) -> bool | None:
-    """Early-exit check 3. None when our wrap-up has no status for that situation."""
+    """Early-exit check 3. None when no wrap-up status fits that situation (voicemail, other)."""
+    outcome = wrapup.get("outcome")
     if expected == "wrong_number":
-        return wrapup.get("manual_status") == "wrong_number"
+        return outcome == "wrong_number"
     if expected == "not_enquired":
-        return wrapup.get("outcome") == "not_interested" or bool(wrapup.get("do_not_call"))
+        return outcome == "not_interested" or (outcome == "disqualified" and wrapup.get("reason") == "never_enquired")
     if expected == "callback":
-        return wrapup.get("outcome") == "callback" and bool(wrapup.get("callback_at"))
+        return outcome == "call_later" and bool(wrapup.get("next_action_at"))
+    if expected == "language_barrier":
+        return outcome == "language_barrier"
     return None
 
 
@@ -349,9 +356,38 @@ def wrapup_snapshot(db, row: dict) -> dict | None:
         lead = db.table("leads").select("do_not_call").eq("id", row["lead_id"]).maybe_single().execute()
         dnc = bool(((lead.data if lead else None) or {}).get("do_not_call"))
     return {
-        "outcome": row.get("outcome"), "manual_status": row.get("manual_status"), "notes": row.get("notes"),
-        "callback_at": row.get("wrapup_callback_at"), "do_not_call": dnc,
+        "outcome": row.get("outcome"), "manual_status": row.get("manual_status"), "reason": row.get("outcome_reason"),
+        "preferred_language": row.get("preferred_language"), "notes": row.get("notes"),
+        "next_action_at": row.get("next_action_at"), "do_not_call": dnc,
     }
+
+
+def _prompt_values(snap: dict) -> dict:
+    return {
+        "manual_status": CONNECT_LABEL.get(snap.get("manual_status"), "—"),
+        "outcome": OUTCOME_LABEL.get(snap.get("outcome"), "—"),
+        "reason": (snap.get("reason") or "—").replace("_", " "),
+        "preferred_language": LANGUAGE_LABEL.get(snap.get("preferred_language"), "—"),
+        "next_action_at": snap.get("next_action_at") or "—",
+        "do_not_call": "yes" if snap.get("do_not_call") else "no",
+        "notes": snap.get("notes") or "—",
+    }
+
+
+def _majority_customer(results: list[dict]) -> str:
+    votes = [d.get("customer") for d in results if d.get("customer") in AI_CALL_STATUSES]
+    if not votes:
+        return "none"
+    top, count = Counter(votes).most_common(1)[0]
+    return top if count >= 2 else "none"
+
+
+def _temperature_correction(snap: dict | None, customer: str | None) -> dict | None:
+    """D10: only the telecaller's Hot/Warm/Cold is corrected, and only by a clear AI majority."""
+    chosen = TEMPERATURE_FOR_OUTCOME.get((snap or {}).get("outcome"))
+    if chosen and customer in TEMPERATURES and customer != chosen:
+        return {"from": chosen, "to": customer}
+    return None
 
 
 def _past_cutoff(row: dict, now: datetime) -> bool:
@@ -401,6 +437,7 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
         return False
     crm = checks[-1]
     alerts: list[tuple[str, str]] = []  # (type, quote), fired only after the mark is saved and the score finalized
+    customer: str | None = None  # the AI's Hot/Warm/Cold reading; None when the AI didn't run
     if snap is None:
         if crm.get("level") is not None or not _past_cutoff(row, now):
             return False
@@ -418,7 +455,9 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
             alerts.append(("no_proof", "Wrap-up check failed 3 times"))
         else:
             try:
-                prompt = _CRM_PROMPT.format(transcript=format_transcript(parse_transcript(row.get("transcript"))), **{k: snap.get(k) or "—" for k in snap})
+                prompt = _CRM_PROMPT.format(
+                    transcript=format_transcript(parse_transcript(row.get("transcript"))), **_prompt_values(snap),
+                )
                 results = await _gather_votes((
                     gemini_analysis_json(
                         system_prompt=_SYSTEM, user_prompt=prompt,
@@ -432,6 +471,7 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
                 level = _majority_level(votes)
                 disagreement = len(votes) == 2 and votes[0] != votes[1]
                 source = next(d for d in results if d.get("level") == level)
+                customer = _majority_customer(results)
             except Exception:
                 db.table("call_logs").update({"evaluation": {**evaluation, "crm_attempts": attempts + 1}}).eq("id", call_log_id).execute()
                 raise
@@ -441,10 +481,25 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
                 alerts.append(("no_proof", "Wrap-up check: the AI votes disagreed"))
             if level in ("poor", "missing"):
                 alerts.append(("crm_mismatch", clip(source.get("reason"))))
+    correction = _temperature_correction(snap, customer)
     checks[-1] = crm
-    new_eval = {**evaluation, "checks": checks, "top_improve": top_improve(checks), "crm_wrapup": snap}
-    db.table("call_logs").update({"evaluation": new_eval}).eq("id", call_log_id).execute()
+    new_eval = {**evaluation, "checks": checks, "top_improve": top_improve(checks), "crm_wrapup": snap,
+                "crm_correction": correction}
+    updates: dict = {"evaluation": new_eval}
+    if customer is not None:
+        updates["ai_call_status"] = customer
+    db.table("call_logs").update(updates).eq("id", call_log_id).execute()
     finalize_call_score(db, call_log_id)
+    if correction and row.get("lead_id"):
+        # Guarded: a newer wrap-up or a conversion since this call must not be overwritten.
+        try:
+            (
+                db.table("leads").update({"call_status": correction["to"]})
+                .eq("id", row["lead_id"]).eq("tenant_id", row["tenant_id"]).eq("call_status", correction["from"])
+                .execute()
+            )
+        except Exception as e:
+            logger.error(f"AI status correction failed for call {call_log_id}: {e}")
     for alert_type, quote in alerts:
         try:
             raise_alert(db, tenant_id=row["tenant_id"], type=alert_type, call_log_id=call_log_id,
