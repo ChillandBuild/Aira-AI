@@ -137,6 +137,37 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
         gem.assert_not_called()
         fin.assert_not_called()
 
+    async def test_same_wrapup_reapplies_a_pending_correction(self):
+        """W5: a telecaller re-saving an unchanged wrap-up must not leave the lead on its own
+        value while evaluation.crm_correction / ai_call_status still say the AI overrode it."""
+        row = _row(**WARM, score_final=True)
+        row["evaluation"]["checks"] = _checks(crm_level="excellent")
+        row["evaluation"]["crm_wrapup"] = _snap(row)
+        row["evaluation"]["crm_correction"] = {"from": "warm", "to": "hot"}
+        changed, writes, gem, _, fin, db = await self._run(row)
+        self.assertFalse(changed)
+        gem.assert_not_called()
+        fin.assert_not_called()
+        self.assertEqual(writes, [{"call_status": "hot"}])
+        db.table.assert_any_call("leads")
+        id_eq = db.table.return_value.update.return_value.eq
+        tenant_eq = id_eq.return_value.eq
+        status_eq = tenant_eq.return_value.eq
+        id_eq.assert_called_with("id", "lead-1")
+        tenant_eq.assert_called_with("tenant_id", "t")
+        status_eq.assert_called_with("call_status", "warm")
+
+    async def test_same_wrapup_without_a_correction_does_not_touch_leads(self):
+        row = _row(**WARM, score_final=True)
+        row["evaluation"]["checks"] = _checks(crm_level="excellent")
+        row["evaluation"]["crm_wrapup"] = _snap(row)
+        changed, writes, gem, _, fin, db = await self._run(row)
+        self.assertFalse(changed)
+        gem.assert_not_called()
+        fin.assert_not_called()
+        self.assertEqual(writes, [])
+        db.table.assert_not_called()
+
     async def test_early_exit_mismatch_raises_alert_without_ai(self):
         row = _row(call_group="early_exit", **WARM,
                    evaluation={"evaluation_version": 4, "group": "early_exit",
@@ -168,6 +199,7 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
         early = writes[0]["evaluation"]["early_exit_check"]
         self.assertFalse(early["crm_matches"])
         self.assertTrue(early["no_wrapup"])
+        self.assertEqual(alert.call_args.kwargs["type"], "crm_mismatch")
         self.assertEqual(alert.call_args.kwargs["quote"], "No wrap-up saved within 2 hours")
         fin.assert_called_once()
 
@@ -209,7 +241,9 @@ class MarkCrmUpdateTests(unittest.IsolatedAsyncioTestCase):
         gem.assert_not_called()
         crm = writes[0]["evaluation"]["checks"][-1]
         self.assertEqual((crm["level"], crm["marks"], crm["reason"]), ("missing", 0.0, "The wrap-up couldn't be checked automatically."))
+        self.assertEqual(alert.call_args.kwargs["type"], "no_proof")
         self.assertEqual(alert.call_args.kwargs["quote"], "Wrap-up check failed 3 times")
+        self.assertIsNone(writes[0]["ai_call_status"])
         fin.assert_called_once()
 
     async def test_ai_not_done_yet_waits(self):
@@ -248,8 +282,11 @@ class TemperatureCorrectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_correction_only_replaces_the_telecallers_value(self):
         votes = [{"level": "good", "reason": "r", "customer": "cold"}] * 3
         _, db = await self._run(_row(**WARM), votes)
-        chain = db.table.return_value.update.return_value.eq.return_value.eq.return_value.eq
-        chain.assert_called_with("call_status", "warm")
+        id_eq = db.table.return_value.update.return_value.eq
+        tenant_eq = id_eq.return_value.eq
+        status_eq = tenant_eq.return_value.eq
+        tenant_eq.assert_called_with("tenant_id", "t")
+        status_eq.assert_called_with("call_status", "warm")
 
     async def test_agreement_means_no_correction(self):
         votes = [{"level": "good", "reason": "r", "customer": "warm"}] * 3
@@ -299,9 +336,18 @@ class MarkCrmUpdateVotingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_fewer_than_two_valid_votes_raises_and_counts_one_attempt(self):
         row = _row(**WARM)
+        db = MagicMock()
+        writes = []
+        db.table.return_value.update.side_effect = lambda payload: writes.append(payload) or db.table.return_value.update.return_value
         votes = [{"level": "good", "reason": "r1"}, {"level": "not_a_real_level"}, {"level": None}]
-        with self.assertRaises(cm.CallMarkingError):
-            await self._run_votes(row, votes)
+        with patch.object(cm, "_load_row", return_value=row), \
+             patch.object(cm, "wrapup_snapshot", return_value=_snap(row)), \
+             patch.object(cm, "gemini_analysis_json", AsyncMock(side_effect=votes)), \
+             patch.object(cm, "finalize_call_score") as fin:
+            with self.assertRaises(cm.CallMarkingError):
+                await cm.mark_crm_update(db, "call-1", now=NOW)
+        self.assertEqual(writes[-1]["evaluation"]["crm_attempts"], 1)
+        fin.assert_not_called()
 
     async def test_one_run_fails_two_disagree_raises_no_proof_alert(self):
         alert = MagicMock()
@@ -309,7 +355,8 @@ class MarkCrmUpdateVotingTests(unittest.IsolatedAsyncioTestCase):
         changed, writes = await self._run_votes(_row(**WARM), votes, alert=alert)
         self.assertTrue(changed)
         self.assertEqual(writes[0]["evaluation"]["checks"][-1]["level"], "poor")
-        self.assertIn("Wrap-up check: the AI votes disagreed", [c.kwargs["quote"] for c in alert.call_args_list])
+        pairs = [(c.kwargs["type"], c.kwargs["quote"]) for c in alert.call_args_list]
+        self.assertIn(("no_proof", "Wrap-up check: the AI votes disagreed"), pairs)
 
 
 if __name__ == "__main__":

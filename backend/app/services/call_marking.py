@@ -390,6 +390,21 @@ def _temperature_correction(snap: dict | None, customer: str | None) -> dict | N
     return None
 
 
+def _apply_correction(db, row: dict, correction: dict | None, call_log_id: str) -> None:
+    """Guarded, idempotent: a newer wrap-up or a conversion since this call must not be
+    overwritten, so the write only lands while the lead still shows the telecaller's value."""
+    if not (correction and row.get("lead_id")):
+        return
+    try:
+        (
+            db.table("leads").update({"call_status": correction["to"]})
+            .eq("id", row["lead_id"]).eq("tenant_id", row["tenant_id"]).eq("call_status", correction["from"])
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"AI status correction failed for call {call_log_id}: {e}")
+
+
 def _past_cutoff(row: dict, now: datetime) -> bool:
     created = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
     return now - created >= timedelta(hours=WRAPUP_CUTOFF_HOURS)
@@ -438,6 +453,7 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
     crm = checks[-1]
     alerts: list[tuple[str, str]] = []  # (type, quote), fired only after the mark is saved and the score finalized
     customer: str | None = None  # the AI's Hot/Warm/Cold reading; None when the AI didn't run
+    clear_ai_status = False  # attempt-cap path: the AI reading can no longer be trusted, so wipe it
     if snap is None:
         if crm.get("level") is not None or not _past_cutoff(row, now):
             return False
@@ -447,12 +463,16 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
         if evaluation.get("crm_wrapup") == snap and crm.get("level") is not None:
             if not row.get("score_final"):
                 finalize_call_score(db, call_log_id)
+            # The lead may have drifted back to the telecaller's value since the correction was
+            # applied (e.g. a later manual edit); re-apply it so it doesn't silently go stale.
+            _apply_correction(db, row, evaluation.get("crm_correction"), call_log_id)
             return False
         attempts = evaluation.get("crm_attempts") or 0
         if attempts >= CRM_AI_ATTEMPT_CAP:
             crm.update({"level": "missing", "ai_level": None, "marks": 0.0,
                         "reason": "The wrap-up couldn't be checked automatically."})
             alerts.append(("no_proof", "Wrap-up check failed 3 times"))
+            clear_ai_status = True
         else:
             try:
                 prompt = _CRM_PROMPT.format(
@@ -488,18 +508,11 @@ async def mark_crm_update(db, call_log_id: str, *, now: datetime | None = None) 
     updates: dict = {"evaluation": new_eval}
     if customer is not None:
         updates["ai_call_status"] = customer
+    elif clear_ai_status:
+        updates["ai_call_status"] = None
     db.table("call_logs").update(updates).eq("id", call_log_id).execute()
     finalize_call_score(db, call_log_id)
-    if correction and row.get("lead_id"):
-        # Guarded: a newer wrap-up or a conversion since this call must not be overwritten.
-        try:
-            (
-                db.table("leads").update({"call_status": correction["to"]})
-                .eq("id", row["lead_id"]).eq("tenant_id", row["tenant_id"]).eq("call_status", correction["from"])
-                .execute()
-            )
-        except Exception as e:
-            logger.error(f"AI status correction failed for call {call_log_id}: {e}")
+    _apply_correction(db, row, correction, call_log_id)
     for alert_type, quote in alerts:
         try:
             raise_alert(db, tenant_id=row["tenant_id"], type=alert_type, call_log_id=call_log_id,
