@@ -41,14 +41,37 @@ async def apply_wrapup(
     elif outcome not in REMINDER_OUTCOMES:
         next_at = None
 
+    status = None
+    if lead_id:
+        no_connects_total = sum(1 for r in earlier if is_no_connect(r)) + (1 if manual_status in NO_CONNECTS else 0)
+        max_attempts = get_telecalling_config(tenant_id).get("max_call_attempts", 4)
+        status = lead_status_after(manual_status, outcome, no_connects_total, max_attempts)
+        if status == "unreachable":
+            # Nobody should be dialled for an unreachable lead -- no more retry reminders.
+            next_at = None
+
     # The sale first: if the deal can't be created (unknown product, no price) nothing is written.
+    # A conditional update claims the conversion atomically (scoped to this call_logs row, only when
+    # its outcome isn't already 'converted'), so a double-tap or a retry racing another request's
+    # write can never create a second won deal or deduct stock twice.
     deal_id = None
-    if outcome == "converted" and lead_id and log.get("outcome") != "converted":
-        result = await create_deal(
-            tenant_id, lead_id, sale_lines(wrapup.get("products") or [], wrapup.get("amount_paise")), "call", "won",
-            payment_method="other", notes=notes, created_by=user_id, db=db,
-        )
-        deal_id = result["deal"]["id"]
+    if outcome == "converted" and lead_id:
+        claimed = (
+            db.table("call_logs").update({"outcome": "converted"})
+            .eq("id", call_log_id).eq("tenant_id", tenant_id)
+            .or_("outcome.is.null,outcome.neq.converted")
+            .execute()
+        ).data or []
+        if claimed:
+            try:
+                result = await create_deal(
+                    tenant_id, lead_id, sale_lines(wrapup.get("products") or [], wrapup.get("amount_paise")), "call", "won",
+                    payment_method="other", notes=notes, created_by=user_id, db=db,
+                )
+                deal_id = result["deal"]["id"]
+            except Exception:
+                db.table("call_logs").update({"outcome": log.get("outcome")}).eq("id", call_log_id).eq("tenant_id", tenant_id).execute()
+                raise
 
     log_updates = {
         **log_extra,
@@ -77,9 +100,6 @@ async def apply_wrapup(
         return summary
     lead = rows[0]
 
-    no_connects_total = sum(1 for r in earlier if is_no_connect(r)) + (1 if manual_status in NO_CONNECTS else 0)
-    max_attempts = get_telecalling_config(tenant_id).get("max_call_attempts", 4)
-    status = lead_status_after(manual_status, outcome, no_connects_total, max_attempts)
     lead_updates: dict = {"call_status": status}
     if outcome == "converted":
         lead_updates["converted_at"] = now.isoformat()

@@ -86,6 +86,9 @@ class ApplyWrapupTests(unittest.IsolatedAsyncioTestCase):
         self.earlier_call("2026-09-26T05:00:00+00:00", manual_status="not_picked")
         out = await self.run_wrapup(manual_status="switched_off")
         self.assertEqual(out["call_status"], "unreachable")
+        self.assertIsNone(out["next_action_at"])
+        self.assertIsNone(self.call()["next_action_at"])
+        self.assertEqual(self.reminders(), [])
         self.mocks["maybe_assign_lead"].assert_not_called()
 
     # ── connected ──────────────────────────────────────────────────
@@ -135,14 +138,52 @@ class ApplyWrapupTests(unittest.IsolatedAsyncioTestCase):
                          [{"name": "Sale on call", "qty": 1, "unit_price_paise": 150000}])
 
     async def test_resubmitted_conversion_does_not_create_a_second_deal(self):
-        await self.run_wrapup(log_patch={"outcome": "converted"}, outcome="converted", notes="cash", amount_paise=150000)
+        await self.run_wrapup(outcome="converted", notes="cash", amount_paise=150000)
+        self.mocks["create_deal"].reset_mock()
+        await self.run_wrapup(outcome="converted", notes="cash", amount_paise=150000)
         self.mocks["create_deal"].assert_not_awaited()
+
+    async def test_two_back_to_back_conversions_from_the_same_stale_snapshot_create_one_deal(self):
+        # Simulates a genuine double-tap / retry race: both requests read the call_logs row
+        # while its outcome is still None, before either one's write lands. The conditional
+        # update -- not the caller's stale snapshot -- has to be what stops the second deal.
+        stale_log = dict(self.call())  # a true snapshot -- not a live reference into the fake table
+        body = {"manual_status": "connected", "outcome": "converted", "notes": "cash", "next_action_at": None,
+                "reason": None, "preferred_language": None, "stop_messages": False, "products": [],
+                "amount_paise": 150000}
+        for _ in range(2):
+            await wa.apply_wrapup(self.db, tenant_id="t1", user_id="user-1", caller_id="caller-1",
+                                   call_log_id="call-1", log=stale_log, wrapup=body, log_extra={}, now=NOW)
+        self.mocks["create_deal"].assert_awaited_once()
+        self.assertEqual(self.call()["outcome"], "converted")
 
     async def test_a_failed_deal_writes_nothing(self):
         self.mocks["create_deal"].side_effect = DealError("No price for Pen")
         with self.assertRaises(DealError):
             await self.run_wrapup(outcome="converted", notes="x", products=[{"catalog_item_id": "pen", "qty": 1}])
         self.assertIsNone(self.call()["manual_status"])
+        self.assertIsNone(self.call()["outcome"])
+        self.assertEqual(self.lead()["call_status"], "trying")
+
+    async def test_a_failed_deal_after_the_claim_reverts_the_outcome_and_still_writes_nothing_else(self):
+        # The claim succeeds (outcome flips to 'converted'), then create_deal blows up. The
+        # revert has to put outcome back exactly as the caller's snapshot had it, so a retry
+        # of the same wrap-up can claim it again instead of being permanently locked out.
+        self.db.add("call_logs", id="call-2", tenant_id="t1", lead_id="lead-1", provider="telecmi",
+                     status="completed", duration_seconds=60, caller_id="caller-1", follow_up_job_id=None,
+                     outcome="not_interested", manual_status="connected", created_at="2026-09-27T07:00:00+00:00")
+        self.mocks["create_deal"].side_effect = DealError("No price for Pen")
+        log = dict(next(r for r in self.db.rows("call_logs") if r["id"] == "call-2"))  # a snapshot, not a live reference
+        body = {"manual_status": "connected", "outcome": "converted", "notes": "x", "next_action_at": None,
+                "reason": None, "preferred_language": None, "stop_messages": False,
+                "products": [{"catalog_item_id": "pen", "qty": 1}], "amount_paise": None}
+        with self.assertRaises(DealError):
+            await wa.apply_wrapup(self.db, tenant_id="t1", user_id="user-1", caller_id="caller-1",
+                                   call_log_id="call-2", log=log, wrapup=body, log_extra={}, now=NOW)
+        reverted = next(r for r in self.db.rows("call_logs") if r["id"] == "call-2")
+        self.assertEqual(reverted["outcome"], "not_interested")
+        self.assertEqual(reverted["manual_status"], "connected")
+        self.assertIsNone(reverted.get("feedback_at"))
         self.assertEqual(self.lead()["call_status"], "trying")
 
     async def test_not_interested_and_disqualified_save_the_reason(self):
@@ -196,6 +237,37 @@ class ApplyWrapupTests(unittest.IsolatedAsyncioTestCase):
         self.lead()["assigned_to"] = None
         await self.run_wrapup(outcome="interested_needs_time", next_action_at=datetime(2026, 9, 29, 5, 0, tzinfo=UTC), notes="x")
         self.mocks["maybe_assign_lead"].assert_called_once_with("lead-1", "t1", "B", None, reason="call_interested_needs_time")
+
+    async def test_segment_is_never_in_the_lead_update(self):
+        captured = []
+        real_table = self.db.table
+
+        def spying_table(name):
+            query = real_table(name)
+            if name == "leads":
+                original_update = query.update
+
+                def update(payload, original_update=original_update):
+                    captured.append(payload)
+                    return original_update(payload)
+
+                query.update = update
+            return query
+
+        with patch.object(self.db, "table", side_effect=spying_table):
+            for outcome, extra in [
+                ("interested_booked", {"next_action_at": datetime(2026, 10, 2, 5, 30, tzinfo=UTC), "notes": "x"}),
+                ("maybe_later", {}),
+                ("wrong_number", {}),
+                ("do_not_call", {}),
+                ("language_barrier", {"preferred_language": "tamil"}),
+                ("converted", {"notes": "cash", "amount_paise": 100}),
+            ]:
+                await self.run_wrapup(outcome=outcome, **extra)
+
+        self.assertTrue(captured)
+        for payload in captured:
+            self.assertNotIn("segment", payload)
 
     async def test_sim_rows_are_completed_manually_with_typed_timing(self):
         await self.run_wrapup(log_patch={"provider": "sim_basic"}, log_extra={"duration_seconds": 95}, outcome="maybe_later")
