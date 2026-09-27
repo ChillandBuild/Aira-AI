@@ -237,9 +237,6 @@ class SourceContractTests(unittest.TestCase):
     def test_ingest_writes_direction(self):
         self.assertIn('"direction": _sim_direction(entry.call_type)', self.src)
 
-    def test_set_outcome_stamps_feedback_at(self):
-        self.assertIn('log_updates["feedback_at"]', self.src)
-
     def test_apk_updates_never_stamp_feedback_at(self):
         start = self.src.index("updates: dict = {")
         block = self.src[start:start + 400]
@@ -286,3 +283,24 @@ class LeadNumbersTests(unittest.TestCase):
         out, q, _ = self._call([full, [{"phone": "+919000000001"}]])
         self.assertEqual(q.execute.call_count, 2)
         self.assertEqual(out["count"], calls._LEAD_NUMBERS_PAGE + 1)
+
+
+class CloudPendingTests(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_and_role] = lambda: {
+            "tenant_id": "tenant-1", "role": "caller", "caller_id": "caller-1", "user_id": "user-1", "permissions": [],
+        }
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    @patch("app.routes.calls.get_supabase")
+    def test_cloud_pending_skips_wrapped_up_calls(self, mock_get_db):
+        db = FakeDb({"call_logs": []})
+        mock_get_db.return_value = db
+        self.client.get("/api/v1/calls/pending-wrapups")
+        other_q = db.queries["call_logs"][1]
+        self.assertTrue(other_q.has("eq", "status", "completed"))
+        self.assertTrue(other_q.has("is_", "manual_status", "null"))

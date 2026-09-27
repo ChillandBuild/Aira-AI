@@ -19,7 +19,11 @@ from app.services.call_ai_pipeline import queue_call_ai, retry_call_ai, run_call
 from app.services.call_marking import mark_crm_update
 from app.services.call_transcript import mask_transcript, mask_transcripts
 from app.services.entitlements import meter, check_quota
-from app.services.growth import record_stage_event, sync_follow_up_jobs
+from app.services.call_wrapup import (
+    WrapupError, as_aware, cloud_never_connected, consecutive_no_connects, validate_wrapup, wrapup_context,
+)
+from app.services.deals import DealError
+from app.services.wrapup_apply import apply_wrapup
 from app.services.telecmi_client import initiate_click2call
 from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
@@ -32,47 +36,21 @@ router = APIRouter()
 # What a call card needs: score, group, talk metrics, processing stage, summary and
 # the masked transcript preview (the full transcript never leaves the backend).
 CALL_CARD_FIELDS = (
-    "id,created_at,duration_seconds,status,outcome,provider,score,score_status,"
+    "id,created_at,duration_seconds,status,outcome,manual_status,next_action_at,provider,score,score_status,"
     "evaluation,ai_summary,ai_status,ai_error,recording_url,transcript,"
     "call_group,talk_share,interruption_count,interruptions_per_5min,score_final,"
     "lead_id,caller_id"
 )
 public_router = APIRouter()  # No auth — TeleCMI calls these directly
 
-Outcome = Literal["converted", "interested", "callback", "not_interested", "no_answer"]
-Disposition = Literal["answered", "no_answer", "busy", "switched_off", "followup_required"]
-ManualStatus = Literal["connected", "not_picked", "busy", "wrong_number", "interested", "not_interested", "callback"]
-
-# Map a connection-state disposition to the business outcome that drives scoring/segments.
-# "answered" alone implies no business result (caller may set outcome separately), so it
-# maps to None — disposition + notes are still recorded, but scoring stays untouched.
-_DISPOSITION_TO_OUTCOME: dict[str, str | None] = {
-    "answered": None,
-    "no_answer": "no_answer",
-    "busy": "no_answer",
-    "switched_off": "no_answer",
-    "followup_required": "callback",
-}
-
-_MANUAL_STATUS_TO_DISPOSITION: dict[str, str] = {
-    "connected": "answered",
-    "not_picked": "no_answer",
-    "busy": "busy",
-    "wrong_number": "answered",
-    "interested": "answered",
-    "not_interested": "answered",
-    "callback": "followup_required",
-}
-
-_MANUAL_STATUS_TO_OUTCOME: dict[str, str | None] = {
-    "connected": None,
-    "not_picked": "no_answer",
-    "busy": "no_answer",
-    "wrong_number": None,
-    "interested": "interested",
-    "not_interested": "not_interested",
-    "callback": "callback",
-}
+# Wrap-up v2 (spec 2026-09-27). Kept equal to services/call_wrapup.py by test_call_wrapup_routes.
+ConnectValue = Literal["connected", "not_picked", "busy", "switched_off"]
+OutcomeValue = Literal[
+    "interested_booked", "interested_needs_time", "maybe_later", "call_later", "converted",
+    "not_interested", "disqualified", "wrong_number", "language_barrier", "do_not_call",
+]
+ReasonValue = Literal["price", "already_bought", "no_need", "other", "never_enquired", "not_a_fit", "not_decision_maker"]
+LanguageValue = Literal["tamil", "english", "hindi", "telugu", "malayalam", "kannada", "other"]
 
 _MESSAGE_LEAD_SOURCES = {"whatsapp", "instagram", "facebook", "telegram", "indiamart", "justdial"}
 _SEGMENT_RANK = {"A": 0, "B": 1, "C": 2, "D": 3}
@@ -124,13 +102,21 @@ class SendToMobilePayload(BaseModel):
 
 
 
-class OutcomeUpdate(BaseModel):
-    outcome: str | None = None
-    disposition: Disposition | None = None
-    manual_status: ManualStatus | None = None
-    notes: str | None = None
-    callback_time: datetime | None = None
-    quality_rating: int | None = Field(default=None, ge=1, le=5)
+class WrapupProduct(BaseModel):
+    catalog_item_id: str = Field(min_length=1, max_length=64)
+    qty: int = Field(1, ge=1, le=1000)
+
+
+class WrapupIn(BaseModel):
+    manual_status: ConnectValue
+    outcome: OutcomeValue | None = None
+    notes: str | None = Field(None, max_length=2000)
+    next_action_at: datetime | None = None
+    reason: ReasonValue | None = None
+    preferred_language: LanguageValue | None = None
+    stop_messages: bool = False
+    products: list[WrapupProduct] = Field(default_factory=list, max_length=20)
+    amount_paise: int | None = Field(None, ge=100, le=10_000_000_000)
     manual_started_at: datetime | None = None
     manual_ended_at: datetime | None = None
     duration_seconds: int | None = Field(default=None, ge=0, le=24 * 60 * 60)
@@ -274,7 +260,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
                     "score": initial_score,
                     "segment": initial_segment,
                     "tenant_id": tenant_id,
-                    "call_status": "in_progress",
+                    "call_status": "trying",
                 }).execute()
                 if new_lead.data:
                     matched_lead_id = new_lead.data[0]["id"]
@@ -315,7 +301,7 @@ async def initiate_call(payload: InitiateCall, ctx: dict = Depends(get_tenant_an
 
     if calling_provider == "sim_basic":
         if matched_lead_id:
-            db.table("leads").update({"call_status": "in_progress"}).eq("id", matched_lead_id).eq("tenant_id", tenant_id).execute()
+            db.table("leads").update({"call_status": "trying"}).eq("id", matched_lead_id).eq("tenant_id", tenant_id).execute()
         return {
             "call_log_id": call_log_id,
             "call_sid": "",
@@ -512,10 +498,7 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
     if leg == "a":
         if status == "missed" and current_status != "completed":
             logger.info(f"TeleCMI CDR leg A missed: agent never answered call {call_log_id}")
-            db.table("call_logs").update({
-                "status": "no_answer",
-                "outcome": "no_answer",
-            }).eq("id", call_log_id).execute()
+            db.table("call_logs").update({"status": "no_answer"}).eq("id", call_log_id).execute()
             finalize_call_score(db, call_log_id)
         else:
             logger.info(f"TeleCMI CDR leg A ignored (status={status}) for call {call_log_id}")
@@ -540,7 +523,7 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
                     new_lead = db.table("leads").insert({
                         "phone": dialed, "source": "manual", "score": initial_score,
                         "segment": initial_segment, "tenant_id": tenant_id,
-                        "call_status": "in_progress",
+                        "call_status": "trying",
                     }).execute()
                     resolved_lead_id = new_lead.data[0]["id"] if new_lead.data else None
                 except Exception as e:
@@ -569,7 +552,6 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
                 pass
     elif status in ("missed", "no_answer"):
         updates["status"] = "no_answer"
-        updates["outcome"] = "no_answer"
     else:
         updates["status"] = "failed"
 
@@ -669,16 +651,17 @@ def _normalize_sim_phone(phone: str) -> str:
     return digits
 
 
-def _sim_status_from_type(call_type: int, duration: int) -> tuple[str, str | None, str | None]:
-    """Map an Android CallLog type + duration to (status, disposition, outcome)."""
+def _sim_status_from_type(call_type: int, duration: int) -> tuple[str, str | None]:
+    """Map an Android CallLog type + duration to (status, disposition). Never an outcome:
+    tap 2 of the wrap-up is the telecaller's."""
     # 2 = outgoing, 1 = incoming, 3 = missed (rejected/blocked/voicemail → failed)
     if call_type in (1, 2) and duration > 0:
-        return "completed", "answered", None
+        return "completed", "answered"
     if call_type == 2 and duration == 0:
-        return "no_answer", "no_answer", "no_answer"
+        return "no_answer", "no_answer"
     if call_type == 3:
-        return "no_answer", "no_answer", "no_answer"
-    return "failed", None, None
+        return "no_answer", "no_answer"
+    return "failed", None
 
 
 # Calls created before this instant never owe feedback (gate go-live cutoff).
@@ -881,13 +864,13 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
             new_lead = db.table("leads").insert({
                 "phone": dialed, "source": "manual", "score": initial_score,
                 "segment": initial_segment, "tenant_id": tenant_id,
-                "call_status": "in_progress",
+                "call_status": "trying",
             }).execute()
             if new_lead.data:
                 lead_id = new_lead.data[0]["id"]
                 is_new_lead = True
 
-    status, disposition, outcome = _sim_status_from_type(entry.call_type, entry.duration)
+    status, disposition = _sim_status_from_type(entry.call_type, entry.duration)
     call_dt = datetime.fromtimestamp(entry.timestamp / 1000, tz=timezone.utc)
 
     # 3. Reconcile: find a recent PWA-created row for this caller+lead to
@@ -898,12 +881,11 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
     #    is `call_sid IS NULL`: once a row has a call_sid, dedup (step 1)
     #    already owns it, so it's not a candidate to re-enrich.
     pending_id = None
-    pending_outcome = None
     if lead_id:
         window_start = (call_dt - timedelta(hours=_SIM_ENRICH_WINDOW_HOURS)).isoformat()
         pending = (
             db.table("call_logs")
-            .select("id,outcome")
+            .select("id")
             .eq("caller_id", caller_id)
             .eq("lead_id", lead_id)
             .eq("provider", "sim_basic")
@@ -915,12 +897,11 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
         )
         if pending and pending.data:
             pending_id = pending.data[0]["id"]
-            pending_outcome = pending.data[0].get("outcome")
 
     # 4a. Enrich the existing PWA row, or 4b. create a fresh one.
     # `updates` only ever carries "hard facts" the APK measured directly
-    # (call_sid, status, disposition, duration). It must NEVER include notes,
-    # tags, quality_rating, or manual_started_at/ended_at — those are always
+    # (call_sid, status, disposition, duration). It must NEVER include an
+    # outcome, notes, or manual_started_at/ended_at — those are always
     # human-owned via the wrap-up form, whether it ran before or after this.
     updates: dict = {
         "call_sid": entry.entry_id,
@@ -929,11 +910,6 @@ def _ingest_sim_call(db, caller_id: str, tenant_id: str, entry: "SimCallEntry") 
         "duration_seconds": entry.duration,
         "direction": _sim_direction(entry.call_type),
     }
-    # Only stamp the APK-derived outcome when the caller hasn't already tagged
-    # one via the wrap-up form — never clobber a human's outcome.
-    apply_outcome = outcome if (outcome and not pending_outcome) else None
-    if apply_outcome:
-        updates["outcome"] = apply_outcome
 
     if pending_id:
         db.table("call_logs").update(updates).eq("id", pending_id).execute()
@@ -1030,243 +1006,66 @@ async def mark_crm_update_task(call_log_id: str) -> None:
 
 
 @router.patch("/{call_log_id}/outcome")
-async def set_outcome(call_log_id: str, payload: OutcomeUpdate, background_tasks: BackgroundTasks, ctx: dict = Depends(get_tenant_and_role)):
+async def set_outcome(call_log_id: str, payload: WrapupIn, background_tasks: BackgroundTasks, ctx: dict = Depends(get_tenant_and_role)):
+    """Save the two-tap wrap-up (v2). Rules: services/call_wrapup.py; writes: services/wrapup_apply.py."""
     db = get_supabase()
     log = (
         db.table("call_logs")
-        .select("caller_id,duration_seconds,lead_id,follow_up_job_id,provider,status")
+        .select("caller_id,duration_seconds,lead_id,follow_up_job_id,provider,status,outcome")
         .eq("id", call_log_id)
         .eq("tenant_id", ctx["tenant_id"])
         .maybe_single()
         .execute()
     )
-    if not log.data:
+    if not log or not log.data:
         raise HTTPException(status_code=404, detail="Call log not found")
-
-    if not payload.outcome and not payload.disposition and not payload.manual_status:
-        raise HTTPException(status_code=400, detail="Provide an outcome, disposition, or manual status")
-
-    if payload.outcome not in ("converted", "interested", "callback", "not_interested", "no_answer", "do_not_call", "do_not_contact", "in_progress", None):
-        raise HTTPException(status_code=400, detail="Invalid outcome value")
-
-    # Intercept DNC outcomes to handle them as lead-level actions
-    dnc_outcome = None
-    wrong_number = payload.manual_status == "wrong_number"
-    if payload.outcome in ("do_not_call", "do_not_contact"):
-        dnc_outcome = payload.outcome
-        payload.outcome = None
-        payload.disposition = "answered"
-    elif wrong_number:
-        dnc_outcome = "wrong_number"
-        payload.outcome = None
-        payload.disposition = "answered"
-
-    if payload.manual_status and not dnc_outcome:
-        payload.disposition = _MANUAL_STATUS_TO_DISPOSITION[payload.manual_status]  # type: ignore[assignment]
-        payload.outcome = _MANUAL_STATUS_TO_OUTCOME[payload.manual_status]
-
-    # "in_progress" is a call_status, not a call_logs.outcome (CHECK-constrained) —
-    # record it as an "answered" disposition with no business outcome.
-    in_progress = payload.outcome == "in_progress"
-    if in_progress:
-        payload.outcome = None
-        payload.disposition = "answered"
-
-    # A disposition implies a business outcome for scoring; an explicit outcome wins.
-    effective_outcome = payload.outcome or _DISPOSITION_TO_OUTCOME.get(payload.disposition or "")
-
-    # TeleCMI reports the real talk time. A call that never connected can only be
-    # No answer — this also blocks marking "converted" on a call nobody took.
-    is_telecmi = log.data.get("provider") == "telecmi"
-    never_connected = is_telecmi and (
-        log.data.get("status") in ("no_answer", "missed")
-        or (log.data.get("status") == "completed" and not log.data.get("duration_seconds"))
-    )
-    if never_connected and (dnc_outcome is not None or in_progress or effective_outcome not in (None, "no_answer")):
-        raise HTTPException(
-            status_code=400,
-            detail="This call never connected, so it can only be marked No answer.",
+    row = log.data
+    is_telecmi = row.get("provider") == "telecmi"
+    now = datetime.now(timezone.utc)
+    next_at = as_aware(payload.next_action_at) if payload.next_action_at else None
+    try:
+        validate_wrapup(
+            never_connected=is_telecmi and cloud_never_connected(row),
+            manual_status=payload.manual_status, outcome=payload.outcome, notes=payload.notes,
+            next_action_at=next_at, reason=payload.reason, preferred_language=payload.preferred_language,
+            has_products=bool(payload.products), amount_paise=payload.amount_paise, now=now,
         )
+    except WrapupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    log_updates: dict = {}
-    if payload.manual_status is not None:
-        log_updates["manual_status"] = payload.manual_status
-    if payload.disposition is not None:
-        log_updates["disposition"] = payload.disposition
-    if payload.notes is not None and payload.notes.strip():
-        log_updates["notes"] = payload.notes.strip()
-    if payload.quality_rating is not None:
-        log_updates["quality_rating"] = payload.quality_rating
-    # TeleCMI's measured talk time decides whether a call is scored; a typed-in
-    # duration must never override it.
-    if payload.duration_seconds is not None and not is_telecmi:
-        log_updates["duration_seconds"] = payload.duration_seconds
-    if payload.manual_started_at is not None:
-        log_updates["manual_started_at"] = payload.manual_started_at.isoformat()
-    if payload.manual_ended_at is not None:
-        log_updates["manual_ended_at"] = payload.manual_ended_at.isoformat()
-    if payload.callback_time is not None:
-        log_updates["wrapup_callback_at"] = payload.callback_time.isoformat()
-    if payload.outcome or payload.disposition or payload.manual_status or dnc_outcome or in_progress:
-        log_updates["feedback_at"] = datetime.now(timezone.utc).isoformat()
-    if log.data.get("provider") == "sim_basic":
-        log_updates["feedback_source"] = "manual"
-        if payload.outcome or payload.disposition or payload.manual_status:
-            log_updates["status"] = "completed"
-    if effective_outcome is not None:
-        log_updates["outcome"] = effective_outcome
-    if log_updates:
-        db.table("call_logs").update(log_updates).eq("id", call_log_id).eq("tenant_id", ctx["tenant_id"]).execute()
+    # TeleCMI's measured talk time decides scoring; a typed-in duration must never override it.
+    log_extra: dict = {}
+    if not is_telecmi:
+        if payload.duration_seconds is not None:
+            log_extra["duration_seconds"] = payload.duration_seconds
+        if payload.manual_started_at is not None:
+            log_extra["manual_started_at"] = payload.manual_started_at.isoformat()
+        if payload.manual_ended_at is not None:
+            log_extra["manual_ended_at"] = payload.manual_ended_at.isoformat()
+    wrapup = {
+        "manual_status": payload.manual_status, "outcome": payload.outcome, "notes": payload.notes,
+        "next_action_at": next_at, "reason": payload.reason, "preferred_language": payload.preferred_language,
+        "stop_messages": payload.stop_messages, "products": [p.model_dump() for p in payload.products],
+        "amount_paise": payload.amount_paise,
+    }
+    try:
+        result = await apply_wrapup(
+            db, tenant_id=ctx["tenant_id"], user_id=ctx.get("user_id"), caller_id=ctx.get("caller_id"),
+            call_log_id=call_log_id, log=row, wrapup=wrapup, log_extra=log_extra, now=now,
+        )
+    except DealError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    scoring = finalize_call_score(db, call_log_id) if effective_outcome is not None else None
-    if is_telecmi and "feedback_at" in log_updates:
+    scoring = finalize_call_score(db, call_log_id)
+    if is_telecmi:
         background_tasks.add_task(mark_crm_update_task, call_log_id)
-
-    lead_id = log.data.get("lead_id")
-    if lead_id and (effective_outcome is not None or dnc_outcome is not None or in_progress or payload.manual_status == "connected"):
-        lead = (
-            db.table("leads")
-            .select("segment,phone,ai_enabled,converted_at,tenant_id,assigned_to")
-            .eq("id", str(lead_id))
-            .maybe_single()
-            .execute()
-        )
-        lead_data = lead.data or {}
-        if lead_data:
-            lead_updates: dict = {}
-            event_type = "call_outcome"
-            
-            if dnc_outcome == "do_not_call":
-                lead_updates["do_not_call"] = True
-                lead_updates["call_status"] = "dnc"
-            elif dnc_outcome == "do_not_contact":
-                lead_updates["do_not_call"] = True
-                lead_updates["opted_out"] = True
-                lead_updates["call_status"] = "dnc"
-            elif dnc_outcome == "wrong_number":
-                lead_updates["do_not_call"] = True
-                lead_updates["call_status"] = "dnc"
-            elif in_progress:
-                lead_updates["call_status"] = "in_progress"
-            elif effective_outcome == "converted":
-                lead_updates["call_status"] = "converted"
-                lead_updates["converted_at"] = datetime.now(timezone.utc).isoformat()
-                event_type = "converted"
-            elif effective_outcome == "interested":
-                lead_updates["call_status"] = "in_progress"
-            elif effective_outcome == "callback":
-                lead_updates["call_status"] = "callback"
-            elif effective_outcome == "not_interested":
-                lead_updates["call_status"] = "not_interested"
-            elif effective_outcome == "no_answer":
-                # count this lead's no-answer/missed/failed calls in call_logs
-                cfg = get_telecalling_config(ctx["tenant_id"])
-                max_attempts = cfg.get("max_call_attempts", 4)
-                
-                # Fetch all logs for this lead to count attempts
-                logs_res = db.table("call_logs").select("id, status, outcome").eq("lead_id", str(lead_id)).eq("tenant_id", ctx["tenant_id"]).execute()
-                logs = logs_res.data or []
-                
-                no_answer_count = 0
-                for lg in logs:
-                    if lg["id"] == call_log_id:
-                        # This is the current call, count it as no_answer since effective_outcome == "no_answer"
-                        no_answer_count += 1
-                    elif lg.get("status") in ("no_answer", "missed", "failed") or lg.get("outcome") == "no_answer":
-                        no_answer_count += 1
-                
-                if no_answer_count >= max_attempts:
-                    lead_updates["call_status"] = "unreachable"
-                else:
-                    lead_updates["call_status"] = "in_progress"
-            else:
-                # Any other answered-with-no-business-outcome (e.g. None or anything else)
-                lead_updates["call_status"] = "in_progress"
-
-            if lead_updates:
-                updated_lead = db.table("leads").update(lead_updates).eq("id", str(lead_id)).eq("tenant_id", ctx["tenant_id"]).execute()
-                if updated_lead.data:
-                    lead_data = updated_lead.data[0]
-
-            record_stage_event(
-                str(lead_id),
-                from_segment=lead.data.get("segment"),
-                to_segment=lead_data.get("segment"),
-                event_type=event_type,
-                metadata={
-                    "outcome": dnc_outcome or ("in_progress" if in_progress else effective_outcome or payload.manual_status),
-                    "disposition": payload.disposition,
-                    "manual_status": payload.manual_status,
-                    "call_status": lead_updates.get("call_status"),
-                },
-                tenant_id=lead_data.get("tenant_id"),
-                db=db,
-            )
-
-            outcome_reason = "in_progress" if in_progress else (effective_outcome or payload.manual_status)
-
-            if dnc_outcome is not None:
-                # Explicitly cancel all pending follow-up jobs
-                db.table("follow_up_jobs").update({
-                    "status": "canceled",
-                    "skip_reason": f"dnc_{dnc_outcome}",
-                }).eq("lead_id", str(lead_id)).eq("status", "pending").execute()
-            else:
-                sync_follow_up_jobs(
-                    str(lead_id),
-                    segment=lead_data.get("segment"),
-                    phone=lead_data.get("phone"),
-                    converted_at=lead_data.get("converted_at"),
-                    ai_enabled=lead_data.get("ai_enabled", True),
-                    reason=f"call_{outcome_reason}",
-                    tenant_id=lead_data.get("tenant_id"),
-                    db=db,
-                )
-
-            if (
-                effective_outcome not in ("converted",)
-                and dnc_outcome is None
-                and lead_updates.get("call_status") != "unreachable"
-                and not lead_data.get("assigned_to")
-            ):
-                from app.services.assignment import maybe_assign_lead
-                maybe_assign_lead(
-                    str(lead_id), ctx["tenant_id"],
-                    lead_data.get("segment"), None,
-                    reason=f"call_{outcome_reason}",
-                )
-
-            linked_job_id = log.data.get("follow_up_job_id")
-            if effective_outcome == "callback":
-                target_time = (payload.callback_time or (datetime.now(timezone.utc) + timedelta(days=1))).isoformat()
-                target_job_id = linked_job_id
-                if not target_job_id:
-                    job = (
-                        db.table("follow_up_jobs")
-                        .select("id")
-                        .eq("lead_id", str(lead_id))
-                        .eq("status", "pending")
-                        .order("scheduled_for")
-                        .limit(1)
-                        .execute()
-                    )
-                    target_job_id = job.data[0]["id"] if job.data else None
-                if target_job_id:
-                    db.table("follow_up_jobs").update({
-                        "scheduled_for": target_time,
-                    }).eq("id", target_job_id).eq("tenant_id", ctx["tenant_id"]).execute()
-            elif (effective_outcome is not None or dnc_outcome is not None) and linked_job_id:
-                db.table("follow_up_jobs").update({
-                    "status": "sent" if dnc_outcome is None else "canceled",
-                    "sent_at": datetime.now(timezone.utc).isoformat() if dnc_outcome is None else None,
-                    "skip_reason": f"dnc_{dnc_outcome}" if dnc_outcome is not None else None,
-                }).eq("id", linked_job_id).eq("tenant_id", ctx["tenant_id"]).execute()
-
     return {
         "call_log_id": call_log_id,
-        "outcome": effective_outcome,
-        "disposition": payload.disposition,
         "manual_status": payload.manual_status,
+        "outcome": payload.outcome,
+        "call_status": result["call_status"],
+        "next_action_at": result["next_action_at"],
+        "deal_id": result["deal_id"],
         "score": (scoring or {}).get("score"),
         "score_status": (scoring or {}).get("score_status"),
     }
@@ -1610,6 +1409,7 @@ async def get_pending_wrapups(ctx: dict = Depends(get_tenant_and_role)):
         .eq("tenant_id", tenant_id)
         .neq("provider", "sim_basic")
         .eq("status", "completed")
+        .is_("manual_status", "null")
         .is_("outcome", "null")
         .is_("disposition", "null")
     )
@@ -1665,6 +1465,39 @@ async def pending_wrapups_summary(ctx: dict = Depends(get_tenant_and_role)):
         }
         for c in callers
     ]
+
+
+@router.get("/wrapup-context")
+async def get_wrapup_context(
+    lead_id: UUID | None = Query(None),
+    call_log_id: UUID | None = Query(None),
+    ctx: dict = Depends(get_tenant_and_role),
+):
+    """What the wrap-up form needs up front: the cloud pre-fill of tap 1 and the retry suggestions."""
+    db = get_supabase()
+    tenant_id = ctx["tenant_id"]
+    row = None
+    if call_log_id:
+        rows = (
+            db.table("call_logs").select("id,provider,status,duration_seconds,lead_id")
+            .eq("id", str(call_log_id)).eq("tenant_id", tenant_id).limit(1).execute()
+        ).data or []
+        if not rows:
+            raise HTTPException(status_code=404, detail="Call log not found")
+        row = rows[0]
+    lead = str(lead_id) if lead_id else (row or {}).get("lead_id")
+    failed_before = 0
+    # Only meaningful once there's a concrete call to count consecutive failures *before* —
+    # a bare lead_id (no call logged yet) has no anchor to exclude, so it stays 0.
+    if call_log_id and lead:
+        history = (
+            db.table("call_logs").select("id,manual_status,status,created_at")
+            .eq("lead_id", lead).eq("tenant_id", tenant_id)
+            .order("created_at", desc=True).limit(20).execute()
+        ).data or []
+        current = str(call_log_id)
+        failed_before = consecutive_no_connects([r for r in history if r["id"] != current])
+    return wrapup_context(row, failed_before, datetime.now(timezone.utc))
 
 
 class DismissFeedback(BaseModel):

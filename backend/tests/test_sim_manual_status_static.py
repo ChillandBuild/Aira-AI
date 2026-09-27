@@ -25,15 +25,12 @@ def test_sim_manual_status_migration_contract():
     assert "'sim_started'" in source
 
 
-def test_calls_route_maps_all_manual_statuses():
+def test_calls_route_uses_the_wrapup_v2_contract():
     source = _read("app/routes/calls.py")
-    assert "ManualStatus = Literal" in source
-    assert "_MANUAL_STATUS_TO_DISPOSITION" in source
-    assert "_MANUAL_STATUS_TO_OUTCOME" in source
-    assert '"wrong_number": None' in source
-    assert 'dnc_outcome = "wrong_number"' in source
-    assert 'lead_updates["do_not_call"] = True' in source
-    assert 'effective_outcome == "interested"' in source
+    assert "ConnectValue = Literal" in source
+    assert "_MANUAL_STATUS_TO_OUTCOME" not in source
+    assert "_MANUAL_STATUS_TO_DISPOSITION" not in source
+    assert "await apply_wrapup(" in source
 
 
 def test_push_missing_keys_are_graceful_in_frontend():

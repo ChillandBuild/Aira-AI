@@ -21,7 +21,7 @@ ROW = {
     "created_at": "2026-09-19T08:03:07+00:00",
     "duration_seconds": 177,
     "status": "completed",
-    "outcome": "interested",
+    "outcome": "interested_needs_time",
     "score": 7.5,
     "evaluation": {"overall_score": 7.6},
     "ai_summary": {"brief": "Discussed pricing."},
