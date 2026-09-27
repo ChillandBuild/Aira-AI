@@ -97,7 +97,7 @@ class AppVersionTests(unittest.TestCase):
 
     def test_latest_version_reads_version_json_and_caches(self):
         import asyncio
-        calls._sim_app_version_cache.update(at=0.0, value=None)
+        calls._sim_app_version_cache.update(at=float("-inf"), value=None)
         resp = MagicMock()
         resp.json.return_value = {"versionCode": 7}
         client = MagicMock()
@@ -118,10 +118,10 @@ class AppVersionTests(unittest.TestCase):
 
     def test_latest_version_none_when_unreachable(self):
         import asyncio
-        calls._sim_app_version_cache.update(at=0.0, value=None)
+        calls._sim_app_version_cache.update(at=float("-inf"), value=None)
         with patch.object(calls.httpx, "AsyncClient", side_effect=RuntimeError("down")):
             self.assertIsNone(asyncio.run(calls._latest_sim_app_version()))
-        calls._sim_app_version_cache.update(at=0.0, value=None)
+        calls._sim_app_version_cache.update(at=float("-inf"), value=None)
 
 
 class GateRouteTests(unittest.TestCase):
