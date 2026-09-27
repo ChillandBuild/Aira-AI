@@ -15,11 +15,13 @@ interface SalePickerProps {
 }
 
 const STEP = "grid h-6 w-6 place-items-center rounded-lg border border-[#e8e3db] text-[#57534e] hover:bg-[#faf8f5]";
+const MAX_PRODUCTS = 20;
 
 /** Converted: products from the catalog (price comes from the catalog) or one amount. */
 export default function SalePicker({ mode, products, amountRupees, catalogItems, onChange }: SalePickerProps) {
   const available = catalogItems.filter((item) => !products.some((p) => p.catalogItemId === item.id));
   const total = products.reduce((sum, p) => sum + (p.pricePaise ?? 0) * p.qty, 0);
+  const atLimit = products.length >= MAX_PRODUCTS;
 
   function add(id: string) {
     const item = catalogItems.find((i) => i.id === id);
@@ -79,9 +81,12 @@ export default function SalePicker({ mode, products, amountRupees, catalogItems,
             value=""
             onChange={(e) => add(e.target.value)}
             aria-label="Add a product"
-            className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs text-[#44403c] focus:outline-none focus:ring-2 focus:ring-primary"
+            disabled={atLimit || catalogItems.length === 0}
+            className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs text-[#44403c] focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
           >
-            <option value="">{catalogItems.length === 0 ? "No products yet — enter the amount instead" : "Add a product…"}</option>
+            <option value="">
+              {atLimit ? `Limit reached — ${MAX_PRODUCTS} products max` : catalogItems.length === 0 ? "No products yet — enter the amount instead" : "Add a product…"}
+            </option>
             {available.map((item) => (
               <option key={item.id} value={item.id} disabled={item.price_paise == null}>
                 {item.name}{item.price_paise == null ? " (no price)" : ` · ${formatRupees(item.price_paise)}`}

@@ -3,6 +3,7 @@ import { AlertCircle, Copy, Phone, RefreshCw, Send, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { formatPhone } from "@/lib/utils";
+import { formatIstWhen } from "@/lib/call-wrapup";
 import { pendingCallLabel } from "../lib/feedbackLabels";
 import type { CallingCockpit } from "../lib/useCallingCockpit";
 import WrapupModal from "./wrapup/WrapupModal";
@@ -186,7 +187,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                       {log.leads?.name || "Unnamed Lead"} ({formatPhone(log.leads?.phone || "")})
                     </p>
                     <p className="font-label text-xs text-[#78716c] mt-1">
-                      {pendingCallLabel(log)} · {log.duration_seconds || 0}s · {new Date(log.created_at).toLocaleString()}
+                      {pendingCallLabel(log)} · {log.duration_seconds || 0}s · {formatIstWhen(new Date(log.created_at), new Date())}
                     </p>
                   </div>
                   <button

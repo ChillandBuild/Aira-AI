@@ -6,7 +6,7 @@ import type { NotesResponse, CallbackJob } from "../types";
 import { useActiveCall } from "../../contexts/ActiveCallContext";
 import { fetchNotes, fetchTodayCallbacks, saveNote, createCallback } from "./notes-api";
 import { isMobileDialSurface, openNativeDialer } from "./sim-dialer";
-import { formatIstWhen } from "@/lib/call-wrapup";
+import { formatIstWhen, fromIstInputs, toIstInputs } from "@/lib/call-wrapup";
 import { applyContext, draftError, draftToPayload, emptyDraft, type WrapupDraft } from "./wrapup-draft";
 import type { LeadDetailPanelProps } from "../components/LeadDetailPanel";
 
@@ -119,18 +119,24 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     }
   }, []);
 
+  // SIM call timing is entered as tenant-local IST, whatever timezone the telecaller's device is
+  // set to -- these always go through call-wrapup.ts's IST helpers, never the machine's own zone.
   function toDateTimeInput(date: Date) {
-    const offsetMs = date.getTimezoneOffset() * 60_000;
-    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+    const { date: d, time: t } = toIstInputs(date);
+    return `${d}T${t}`;
   }
 
   function inputToIso(value: string) {
-    return value ? new Date(value).toISOString() : undefined;
+    if (!value) return undefined;
+    const [d, t] = value.split("T");
+    return fromIstInputs(d, t)?.toISOString();
   }
 
   function secondsBetween(start: string, end: string) {
-    if (!start || !end) return undefined;
-    const diff = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000);
+    const startIso = inputToIso(start);
+    const endIso = inputToIso(end);
+    if (!startIso || !endIso) return undefined;
+    const diff = Math.round((new Date(endIso).getTime() - new Date(startIso).getTime()) / 1000);
     return Number.isFinite(diff) ? Math.max(0, diff) : undefined;
   }
 
@@ -648,7 +654,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
 
   async function handleWrapupSubmit() {
     if (!activeCallCtx) return;
-    const problem = draftError(wrapupDraft, new Date());
+    const problem = draftError(wrapupDraft, new Date(), !!wrapupContext?.never_connected);
     if (problem) {
       toast.error(problem);
       return;

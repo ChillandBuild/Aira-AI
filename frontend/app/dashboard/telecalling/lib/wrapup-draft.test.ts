@@ -6,7 +6,7 @@ const NOW = new Date("2026-09-27T08:30:00Z");
 const LATER = "2026-09-27T12:30:00.000Z";
 const CTX: WrapupContext = {
   connect_prefill: "not_picked",
-  never_connected: true,
+  never_connected: false,
   failed_before: 0,
   retry_suggestions: { not_picked: "2026-09-27T10:30:00+00:00", busy: "2026-09-27T09:00:00+00:00", switched_off: "2026-09-28T04:30:00+00:00" },
 };
@@ -34,8 +34,37 @@ describe("selecting", () => {
     expect(applyContext(emptyDraft(), CTX)).toMatchObject({ manualStatus: "not_picked", nextActionAt: CTX.retry_suggestions.not_picked });
     const mine = selectConnect(emptyDraft(), "connected", null);
     expect(applyContext(mine, CTX)).toBe(mine);
-    const waiting = { ...emptyDraft(), manualStatus: "switched_off" as const };
+    const waiting = { ...emptyDraft(), manualStatus: "switched_off" as const, retrySuggested: true };
     expect(applyContext(waiting, CTX).nextActionAt).toBe(CTX.retry_suggestions.switched_off);
+  });
+
+  it("overwrites a still-suggested retry time when a later, more accurate context arrives (W4/W7)", () => {
+    // Lead-only context (before the SIM call's log id is known): 1st failure, so "+2h".
+    const first = selectConnect(emptyDraft(), "not_picked", CTX);
+    expect(first.nextActionAt).toBe(CTX.retry_suggestions.not_picked);
+    // The call-id-scoped re-fetch reveals this is actually the 3rd failure in a row.
+    const laterCtx: WrapupContext = {
+      ...CTX, failed_before: 2,
+      retry_suggestions: { ...CTX.retry_suggestions, not_picked: "2026-09-28T04:30:00+00:00" },
+    };
+    expect(applyContext(first, laterCtx).nextActionAt).toBe(laterCtx.retry_suggestions.not_picked);
+  });
+
+  it("keeps a time the telecaller picked themselves, even if a fresher context arrives", () => {
+    const picked: WrapupDraft = {
+      ...selectConnect(emptyDraft(), "not_picked", CTX),
+      nextActionAt: "2026-09-30T05:00:00.000Z",
+      retrySuggested: false,
+    };
+    const laterCtx: WrapupContext = { ...CTX, retry_suggestions: { ...CTX.retry_suggestions, not_picked: "2026-09-29T00:00:00+00:00" } };
+    expect(applyContext(picked, laterCtx)).toBe(picked);
+  });
+
+  it("never lets a never-connected lead be logged as Connected (W7)", () => {
+    const neverConnectedCtx: WrapupContext = { ...CTX, never_connected: true, connect_prefill: null };
+    const flipped = applyContext(selectConnect(emptyDraft(), "connected", null), neverConnectedCtx);
+    expect(flipped.manualStatus).toBe("not_picked");
+    expect(flipped.nextActionAt).toBe(neverConnectedCtx.retry_suggestions.not_picked);
   });
 });
 
@@ -56,6 +85,11 @@ describe("validation mirrors the server", () => {
 
   it("rejects past times", () => {
     expect(draftError(connected("call_later", { nextActionAt: "2026-09-27T08:00:00Z" }), NOW)).toBe("Pick a time in the future.");
+  });
+
+  it("blocks Save for Connected on a never-connected call, even before the draft is auto-flipped (W7)", () => {
+    expect(draftError(connected("maybe_later"), NOW, true)).toBe("The call record shows nobody answered.");
+    expect(draftError(connected("maybe_later"), NOW, false)).toBeNull();
   });
 });
 
@@ -81,5 +115,16 @@ describe("payload", () => {
 
   it("never sends a result for a call that didn't connect", () => {
     expect(draftToPayload(selectConnect(emptyDraft(), "busy", CTX))).toMatchObject({ manual_status: "busy", outcome: null });
+  });
+
+  it("sends no explicit time while the retry time is still just a suggestion (W7)", () => {
+    const suggested = selectConnect(emptyDraft(), "busy", CTX);
+    expect(suggested.retrySuggested).toBe(true);
+    expect(draftToPayload(suggested).next_action_at).toBeNull();
+  });
+
+  it("sends the exact time once the telecaller has picked it themselves", () => {
+    const picked = { ...selectConnect(emptyDraft(), "busy", CTX), nextActionAt: "2026-09-30T05:00:00.000Z", retrySuggested: false };
+    expect(draftToPayload(picked).next_action_at).toBe("2026-09-30T05:00:00.000Z");
   });
 });

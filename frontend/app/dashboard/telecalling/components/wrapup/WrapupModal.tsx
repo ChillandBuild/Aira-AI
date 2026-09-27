@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, PhoneCall, PhoneMissed, PhoneOff, Power, RefreshCw } from "lucide-react";
 import type { CallConnect, CatalogItem, WrapupContext } from "@/lib/api";
 import {
@@ -38,9 +38,12 @@ export interface WrapupModalProps {
   onSubmit: () => void;
   catalogItems: CatalogItem[];
   simTiming: SimTiming | null;
-  /** Fixed "now" for previews; defaults to when the form opened. */
+  /** Fixed "now" for previews/tests — omit for live use, where the clock ticks every 30s so a
+   * suggestion that's gone stale (e.g. "in 1 hour" after an hour) can't leave Save enabled. */
   now?: Date;
 }
+
+const CLOCK_INTERVAL_MS = 30_000;
 
 function simSeconds(t: SimTiming): number | null {
   if (!t.startedAt || !t.endedAt) return null;
@@ -52,14 +55,23 @@ function simSeconds(t: SimTiming): number | null {
 export default function WrapupModal({
   callee, provider, context, draft, onChange, saving, onSubmit, catalogItems, simTiming, now,
 }: WrapupModalProps) {
-  const [openedAt] = useState(() => now ?? new Date());
-  const problem = draftError(draft, openedAt);
+  const [clock, setClock] = useState(() => now ?? new Date());
+  useEffect(() => {
+    if (now) return; // a fixed value was supplied (tests/previews): never tick
+    const id = setInterval(() => setClock(new Date()), CLOCK_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [now]);
+  const neverConnected = !!context?.never_connected;
+  const problem = draftError(draft, clock, neverConnected);
   const option = draft.outcome ? resultOption(draft.outcome) : null;
   const noConnect = draft.manualStatus !== null && draft.manualStatus !== "connected";
   const streak = (context?.failed_before ?? 0) + 1;
   const suggested = draft.manualStatus && draft.manualStatus !== "connected" ? context?.retry_suggestions[draft.manualStatus] ?? null : null;
   const seconds = simTiming ? simSeconds(simTiming) : null;
-  const setTime = (iso: string | null) => onChange({ ...draft, nextActionAt: iso });
+  // Any time the telecaller sets themselves — quick chip, custom pick, or clearing an optional
+  // follow-up — stops tracking the server's suggestion (W7); only selectConnect/applyContext may
+  // set retrySuggested back to true.
+  const setTime = (iso: string | null) => onChange({ ...draft, nextActionAt: iso, retrySuggested: false });
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#1c1917]/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
@@ -113,7 +125,7 @@ export default function WrapupModal({
               {CONNECT_OPTIONS.map((o) => {
                 const Icon = CONNECT_ICON[o.value];
                 const selected = draft.manualStatus === o.value;
-                const blocked = o.value === "connected" && !!context?.never_connected;
+                const blocked = o.value === "connected" && neverConnected;
                 return (
                   <button
                     key={o.value}
@@ -134,7 +146,7 @@ export default function WrapupModal({
                 );
               })}
             </div>
-            {provider === "telecmi" && context?.connect_prefill && (
+            {provider === "telecmi" && context?.connect_prefill && draft.manualStatus === context.connect_prefill && (
               <p className="mt-2 font-label text-[10px] text-[#a8a29e]">Filled in from the call record. Change it if it&apos;s wrong.</p>
             )}
           </section>
@@ -145,7 +157,7 @@ export default function WrapupModal({
               {streak >= 3 && (
                 <p className="mb-2 font-body text-[11px] text-amber-800">{streak} missed calls in a row, so the next try is tomorrow morning.</p>
               )}
-              <QuickTimePicker value={draft.nextActionAt} onChange={setTime} now={openedAt} suggested={suggested} />
+              <QuickTimePicker value={draft.nextActionAt} onChange={setTime} now={clock} suggested={suggested} />
               <p className="mt-2 font-label text-[10px] text-amber-700/80">Saving adds this to Scheduled Calls.</p>
             </section>
           )}
@@ -178,7 +190,7 @@ export default function WrapupModal({
           {option?.time && (
             <section>
               <p className={LABEL}>{option.timeLabel}{option.time === "required" ? " *" : ""}</p>
-              <QuickTimePicker value={draft.nextActionAt} onChange={setTime} now={openedAt} optional={option.time === "optional"} />
+              <QuickTimePicker value={draft.nextActionAt} onChange={setTime} now={clock} optional={option.time === "optional"} />
             </section>
           )}
 
@@ -243,6 +255,7 @@ export default function WrapupModal({
               onChange={(e) => onChange({ ...draft, notes: e.target.value })}
               placeholder="What did the customer say? Need, budget, next step…"
               rows={3}
+              maxLength={2000}
               className="w-full resize-none rounded-2xl border border-[#e8e3db] bg-[#faf8f5] px-4 py-3 font-body text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </section>
