@@ -3,11 +3,16 @@ import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from fastapi.testclient import TestClient
+
+from app.dependencies.auth import get_current_user
+from app.dependencies.tenant import get_tenant_and_role
+from app.main import app
 from app.routes import analytics
 from app.services import assignment, contact_recycler
 from app.services.ai_reply import _call_context_block
@@ -72,6 +77,70 @@ class AiCallContextTests(unittest.TestCase):
         ])
         self.assertIn("outcome: Interested, needs time or more information", block)
         self.assertIn("2026-09-26 — Busy — retry", block)
+
+
+LEAD_ID = "0761bbde-8626-42c3-963e-327f162ca37e"
+
+
+class PreCallBriefTests(unittest.TestCase):
+    """Regression: the pre-call brief's calls_res select once left out manual_status,
+    so a not_picked/busy call showed 'outcome: unknown' here while ai_reply's identical
+    _call_context_block correctly showed 'Not picked' -- the two call-facing surfaces
+    disagreed about the same call. Covers the fetch path, not just the pure function."""
+
+    def setUp(self):
+        self.client = TestClient(app)
+        app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
+        app.dependency_overrides[get_tenant_and_role] = lambda: {
+            "tenant_id": "t1", "role": "owner", "permissions": [],
+        }
+
+    def tearDown(self):
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _table_mock(data):
+        m = MagicMock()
+        for method in ("select", "eq", "order", "limit", "maybe_single", "update"):
+            getattr(m, method).return_value = m
+        m.execute.return_value = MagicMock(data=data)
+        return m
+
+    def _db(self, call_rows):
+        lead_row = {
+            "name": "Priya", "score": 7, "segment": "A", "source": "whatsapp",
+            "ad_campaign_id": None, "assigned_at": "2026-09-27T04:00:00+00:00",
+            "needs_human_attention": False, "precall_brief": None,
+            "precall_brief_fingerprint": None,
+        }
+        tables = {
+            "leads": self._table_mock(lead_row),
+            "messages": self._table_mock([]),
+            "call_logs": self._table_mock(call_rows),
+            "lead_conversation_state": self._table_mock([]),
+        }
+        db = MagicMock()
+        db.table.side_effect = lambda name: tables[name]
+        return db, tables
+
+    @patch("app.routes.leads.gemini_chat_completion_json", new_callable=AsyncMock)
+    @patch("app.routes.leads.get_supabase")
+    def test_not_picked_call_reads_not_picked_not_unknown(self, mock_get_db, mock_gemini):
+        db, tables = self._db([
+            {"outcome": None, "manual_status": "not_picked", "duration_seconds": 0,
+             "created_at": "2026-09-27T05:00:00+00:00", "ai_summary": None},
+        ])
+        mock_get_db.return_value = db
+        mock_gemini.return_value = {"brief": "b", "opener": "o"}
+
+        res = self.client.post(f"/api/v1/leads/{LEAD_ID}/pre-call-brief")
+
+        self.assertEqual(res.status_code, 200)
+        select_arg = tables["call_logs"].select.call_args[0][0]
+        self.assertIn("manual_status", select_arg)
+        prompt = mock_gemini.call_args.kwargs["user_prompt"]
+        self.assertIn("outcome: Not picked", prompt)
+        self.assertNotIn("outcome: unknown", prompt)
 
 
 class StaticReaderTests(unittest.TestCase):

@@ -1105,7 +1105,7 @@ async def pre_call_brief(
 
     calls_res = (
         db.table("call_logs")
-        .select("outcome,duration_seconds,created_at,ai_summary")
+        .select("outcome,manual_status,duration_seconds,created_at,ai_summary")
         .eq("lead_id", str(lead_id))
         .eq("tenant_id", tenant_id)
         .order("created_at", desc=True)
