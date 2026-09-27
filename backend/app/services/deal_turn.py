@@ -180,6 +180,29 @@ async def capture_details(
         return {}
 
 
+async def send_menu(phone: str, body: str, menu: dict, *, tenant_id: str, phone_number_id: str | None = None) -> str | None:
+    """Send the AI's text with tappable options attached. Falls back to plain text with the
+    options listed, so a WhatsApp interactive-message failure never costs the customer the turn."""
+    from app.services import meta_cloud
+    try:
+        if menu["kind"] == "buttons":
+            data = await meta_cloud.send_interactive_buttons(
+                to_number=phone, body_text=body, buttons=menu["buttons"],
+                tenant_id=tenant_id, phone_number_id=phone_number_id,
+            )
+        else:
+            data = await meta_cloud.send_list_message(
+                to_number=phone, body_text=body, button_text=menu["button_text"], sections=menu["sections"],
+                tenant_id=tenant_id, phone_number_id=phone_number_id,
+            )
+        return (data.get("messages") or [{}])[0].get("id")
+    except Exception:
+        logger.exception("Interactive menu send failed -- falling back to plain text")
+        from app.services.ai_reply import send_whatsapp
+        listing = "\n".join(f"• {title}" for title in menu["options"])
+        return await send_whatsapp(phone, f"{body}\n\n{listing}", tenant_id=tenant_id, phone_number_id=phone_number_id)
+
+
 def menu_log_text(body: str, menu: dict) -> str:
     return body + "\n\n" + "  ".join(f"[{title}]" for title in menu["options"])
 
