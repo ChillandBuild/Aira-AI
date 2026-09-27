@@ -11,6 +11,7 @@ from app.dependencies.auth import get_current_user
 from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
+from app.services.call_wrapup import connect_rate as wrapup_connect_rate
 from app.services.entitlements import compute_period_key, get_billing_period
 from app.services.token_pricing import estimate_cost, get_rates, upsert_rate
 from app.services.subscription_requests import approve_request, reject_request
@@ -35,22 +36,6 @@ def operator_me(user: dict = Depends(get_current_user)):
     if not result.data:
         raise HTTPException(status_code=403, detail="Access denied.")
     return {"is_system_admin": True, "user_id": user["user_id"]}
-
-
-def _is_connected_call(log: dict) -> bool:
-    manual_status = log.get("manual_status")
-    if manual_status in {"connected", "interested", "not_interested", "callback"}:
-        return True
-    if manual_status in {"not_picked", "busy", "wrong_number"}:
-        return False
-    disposition = log.get("disposition")
-    if disposition in {"answered", "followup_required"}:
-        return True
-    if disposition in {"no_answer", "busy", "switched_off"}:
-        return False
-    return (log.get("duration_seconds") or 0) > 0 or (
-        log.get("outcome") is not None and log.get("outcome") != "no_answer"
-    )
 
 
 _SERVICE_CATALOG: dict[str, list[str]] = {
@@ -1791,16 +1776,15 @@ def client_dashboard_analytics(tenant_id: str, _admin: dict = Depends(get_system
     if "telecalling" in (tenant.data.get("enabled_features") or []):
         calls = (
             db.table("call_logs")
-            .select("id,duration_seconds,outcome,disposition,manual_status")
+            .select("id,manual_status")
             .eq("tenant_id", tenant_id)
             .gte("created_at", thirty_days_ago)
             .execute()
         )
         call_rows = calls.data or []
         call_count = len(call_rows)
-        connect_count = sum(1 for row in call_rows if _is_connected_call(row))
         result["total_calls"] = call_count
-        result["connect_rate"] = round((connect_count / call_count) * 100, 1) if call_count > 0 else 0
+        result["connect_rate"] = round(wrapup_connect_rate(call_rows) * 100, 1)
 
     return result
 
@@ -1920,7 +1904,7 @@ def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin
         today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0).isoformat()
         calls_today = (
             db.table("call_logs")
-            .select("id,duration_seconds,outcome,disposition,manual_status")
+            .select("id,manual_status")
             .eq("tenant_id", tenant_id)
             .gte("created_at", today)
             .execute()
@@ -1935,10 +1919,9 @@ def client_dashboard_telecalling(tenant_id: str, section: str = "dialer", _admin
         )
         call_rows = calls_today.data or []
         call_count = len(call_rows)
-        connect_count = sum(1 for row in call_rows if _is_connected_call(row))
         return {
             "calls_today": call_count,
-            "connect_rate": round((connect_count / call_count) * 100, 1) if call_count > 0 else 0,
+            "connect_rate": round(wrapup_connect_rate(call_rows) * 100, 1),
             "recent_calls": recent_calls.data or [],
         }
 

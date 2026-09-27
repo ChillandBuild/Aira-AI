@@ -58,7 +58,7 @@ def recycle_leads_for_tenant(tenant_id: str) -> int:
         db.table("leads")
         .select("id")
         .eq("tenant_id", tenant_id)
-        .eq("call_status", "in_progress")
+        .eq("call_status", "trying")
         .is_("converted_at", "null")
         .is_("deleted_at", "null")
         .neq("do_not_call", True)
@@ -89,7 +89,8 @@ def recycle_leads_for_tenant(tenant_id: str) -> int:
         last_outcome = last_call_data.get("outcome")
         last_created_at = last_call_data.get("created_at")
 
-        if last_outcome not in ("no_answer", None):
+        # Tap 2 exists only for connected calls: any outcome means someone already reached this lead.
+        if last_outcome is not None:
             continue
 
         if last_created_at and last_created_at > cutoff_time:

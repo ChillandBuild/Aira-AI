@@ -7,7 +7,6 @@ from uuid import UUID
 SourceType = Literal["whatsapp", "instagram", "facebook", "telegram", "upload", "csv", "manual", "indiamart", "justdial"]
 SegmentType = Literal["A", "B", "C", "D"]
 DirectionType = Literal["inbound", "outbound"]
-OutcomeType = Literal["converted", "interested", "callback", "not_interested", "no_answer"]
 PlatformType = Literal["instagram", "facebook", "google"]
 
 # --- Lead Models ---

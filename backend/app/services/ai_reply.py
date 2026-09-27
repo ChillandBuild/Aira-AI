@@ -169,7 +169,7 @@ def _fetch_call_context(db, lead_id: str, tenant_id: str) -> list[dict]:
     try:
         rows = (
             db.table("call_logs")
-            .select("outcome,created_at,ai_summary")
+            .select("outcome,manual_status,created_at,ai_summary")
             .eq("lead_id", str(lead_id))
             .eq("tenant_id", tenant_id)
             .order("created_at", desc=True)
@@ -189,6 +189,8 @@ def _call_context_block(calls: list[dict]) -> str:
 
     Shared with the telecaller-facing pre-call brief (routes/leads.py) so both
     surfaces describe the same call the same way."""
+    from app.services.call_wrapup import call_result_label
+
     if not calls:
         return ""
 
@@ -197,7 +199,7 @@ def _call_context_block(calls: list[dict]) -> str:
 
     latest = calls[0]
     s = latest.get("ai_summary") or {}
-    lines = [f"Most recent call ({_date(latest)}, outcome: {latest.get('outcome') or 'unknown'}):"]
+    lines = [f"Most recent call ({_date(latest)}, outcome: {call_result_label(latest) or 'unknown'}):"]
     if s.get("brief"):
         lines.append(f"- What was discussed: {s['brief']}")
     if s.get("budget"):
@@ -218,7 +220,7 @@ def _call_context_block(calls: list[dict]) -> str:
         lines.append("\nEarlier calls:")
         for c in older:
             os_ = (c.get("ai_summary") or {}).get("next_action") or "no next step recorded"
-            lines.append(f"- {_date(c)} — {c.get('outcome') or 'unknown'} — {os_}")
+            lines.append(f"- {_date(c)} — {call_result_label(c) or 'unknown'} — {os_}")
 
     return (
         "\n\nPHONE CALL HISTORY:\n"

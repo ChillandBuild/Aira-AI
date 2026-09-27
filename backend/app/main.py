@@ -217,7 +217,7 @@ async def _sweep_unassigned_leads() -> None:
 
 
 async def _recycle_contacts() -> None:
-    """APScheduler job: re-queue no_answer leads within calling hours."""
+    """APScheduler job: re-queue leads nobody has reached yet, within calling hours."""
     try:
         from app.services.contact_recycler import recycle_all_tenants
         count = recycle_all_tenants()
