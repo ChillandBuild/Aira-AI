@@ -13,7 +13,7 @@ export function StatCard({ label, value, sub, accent, tone }: StatCardProps) {
   return (
     <div
       className={cn(
-        "card card-hover border-t-4",
+        "rounded-card border border-border border-t-4 p-6 shadow-card transition-all hover:shadow-md",
         accent
           ? "border-transparent text-white"
           : cn("bg-surface", tone ?? "border-t-primary-500")

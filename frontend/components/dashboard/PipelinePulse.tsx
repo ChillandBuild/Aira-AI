@@ -24,7 +24,7 @@ function HeroCard({
   tone = "border-t-primary-500",
 }: HeroCardProps) {
   return (
-    <div className={`group relative overflow-hidden card rounded-[32px] p-8 flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 border-t-4 ${tone}`}>
+    <div className={`group relative overflow-hidden rounded-[32px] border border-border border-t-4 bg-white p-8 flex flex-col justify-between hover:-translate-y-1 hover:shadow-md transition-all duration-300 ${tone}`}>
       <div className={`absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 rounded-full ${glowColor} blur-2xl transition-all duration-300`} />
       <div>
         <div className="flex items-center justify-between mb-6">
