@@ -155,6 +155,72 @@ export type Disposition = "answered" | "no_answer" | "busy" | "switched_off" | "
 export type ManualCallStatus = "connected" | "not_picked" | "busy" | "wrong_number" | "interested" | "not_interested" | "callback";
 export type CallOutcome = "converted" | "interested" | "callback" | "not_interested" | "no_answer" | "do_not_call" | "do_not_contact" | "in_progress";
 
+/** Wrap-up v2 tap 1 (call_logs.manual_status). */
+export type CallConnect = "connected" | "not_picked" | "busy" | "switched_off";
+export type NoConnect = Exclude<CallConnect, "connected">;
+/** Wrap-up v2 tap 2 (call_logs.outcome). */
+export type CallResult =
+  | "interested_booked" | "interested_needs_time" | "maybe_later" | "call_later" | "converted"
+  | "not_interested" | "disqualified" | "wrong_number" | "language_barrier" | "do_not_call";
+export type LeadCallStatus =
+  | "new" | "trying" | "unreachable" | "hot" | "warm" | "cold" | "callback" | "converted"
+  | "not_interested" | "disqualified" | "wrong_number" | "language_barrier" | "dnc";
+export type OutcomeReason =
+  | "price" | "already_bought" | "no_need" | "other" | "never_enquired" | "not_a_fit" | "not_decision_maker";
+export type PreferredLanguage = "tamil" | "english" | "hindi" | "telugu" | "malayalam" | "kannada" | "other";
+export type CallTemperature = "hot" | "warm" | "cold";
+
+export interface WrapupPayload {
+  manual_status: CallConnect;
+  outcome: CallResult | null;
+  notes: string | null;
+  next_action_at: string | null;
+  reason: OutcomeReason | null;
+  preferred_language: PreferredLanguage | null;
+  stop_messages: boolean;
+  products: { catalog_item_id: string; qty: number }[];
+  amount_paise: number | null;
+  duration_seconds?: number;
+  manual_started_at?: string;
+  manual_ended_at?: string;
+}
+
+export interface WrapupContext {
+  connect_prefill: CallConnect | null;
+  never_connected: boolean;
+  failed_before: number;
+  retry_suggestions: Record<NoConnect, string>;
+}
+
+export interface WrapupSaved {
+  call_log_id: string;
+  manual_status: CallConnect;
+  outcome: CallResult | null;
+  call_status: LeadCallStatus | null;
+  next_action_at: string | null;
+  deal_id: string | null;
+  score: number | null;
+  score_status: CallScoreStatus | null;
+}
+
+export interface SendDetailsVariable {
+  key: string;
+  role: "customer_name" | "business_name" | "details" | "next_step" | null;
+  value: string;
+}
+
+export interface SendDetailsTemplate {
+  id: string;
+  name: string;
+  language: string;
+  body_text: string;
+  variables: SendDetailsVariable[];
+}
+
+export type SendDetailsContext =
+  | { available: false }
+  | { available: true; window_open: boolean; last_inbound_at: string | null; free_text: string; templates: SendDetailsTemplate[] };
+
 export interface TemplatePerformanceRow {
   template_name: string;
   broadcasts: number;
@@ -209,6 +275,8 @@ export interface CallEvaluation {
   wrong_info?: { quote: string; time: string; kb_fact: string | null }[];
   unverified_claims?: string[];
   language_barrier?: boolean;
+  /** D10: the AI's Hot/Warm/Cold reading replaced the telecaller's. */
+  crm_correction?: { from: CallTemperature; to: CallTemperature } | null;
 }
 
 export type CallAiStatus = "pending" | "transcribing" | "scoring" | "done" | "failed";
@@ -292,6 +360,10 @@ export interface CallLog {
   transcript_preview?: TranscriptPreview | null;
   direction?: "outgoing" | "incoming" | "missed" | null;
   feedback_at?: string | null;
+  next_action_at?: string | null;
+  outcome_reason?: OutcomeReason | null;
+  preferred_language?: PreferredLanguage | null;
+  ai_call_status?: CallTemperature | "none" | null;
   created_at: string;
   leads?: { phone: string | null; name: string | null } | null;
   callers?: { name: string | null } | null;
@@ -1125,6 +1197,7 @@ export interface TimelineEvent {
   id: string;
   status?: string;
   outcome?: string;
+  manual_status?: string | null;
   started_at: string;
   ended_at?: string | null;
   duration_seconds: number | null;
@@ -1386,6 +1459,13 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ notes: notes ?? null }),
       }),
+    sendDetailsContext: (leadId: string) =>
+      apiFetch<SendDetailsContext>(`/api/v1/leads/${leadId}/send-details`),
+    sendDetails: (leadId: string, body: { text: string } | { template_id: string; variables: string[] }) =>
+      apiFetch<Message>(`/api/v1/leads/${leadId}/send-details`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     toggleAI: (id: string, enabled: boolean) =>
       apiFetch<Lead>(`/api/v1/leads/${id}/ai`, {
         method: "PATCH",
@@ -1619,6 +1699,17 @@ export const api = {
       if (callerId) qs.set("caller_id", callerId);
       const res = await apiFetch<{ data: CallLog[] }>(`/api/v1/calls/recent?${qs.toString()}`);
       return res.data || [];
+    },
+    saveWrapup: (callLogId: string, payload: WrapupPayload) =>
+      apiFetch<WrapupSaved>(`/api/v1/calls/${callLogId}/outcome`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }),
+    wrapupContext: (target: { leadId?: string; callLogId?: string }) => {
+      const q = new URLSearchParams();
+      if (target.leadId) q.set("lead_id", target.leadId);
+      if (target.callLogId) q.set("call_log_id", target.callLogId);
+      return apiFetch<WrapupContext>(`/api/v1/calls/wrapup-context?${q.toString()}`);
     },
     setOutcome: (
       callLogId: string,
