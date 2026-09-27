@@ -1,11 +1,13 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api, Lead, CallLog, Message, TelecallingConfig } from "@/lib/api";
+import { api, Lead, CallLog, Message, TelecallingConfig, type CatalogItem, type WrapupContext } from "@/lib/api";
 import type { NotesResponse, CallbackJob } from "../types";
 import { useActiveCall } from "../../contexts/ActiveCallContext";
 import { fetchNotes, fetchTodayCallbacks, saveNote, createCallback } from "./notes-api";
 import { isMobileDialSurface, openNativeDialer } from "./sim-dialer";
+import { formatIstWhen } from "@/lib/call-wrapup";
+import { applyContext, draftError, draftToPayload, emptyDraft, type WrapupDraft } from "./wrapup-draft";
 import type { LeadDetailPanelProps } from "../components/LeadDetailPanel";
 
 interface UseCallingCockpitArgs {
@@ -76,17 +78,15 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
   const [simHandoffLead, setSimHandoffLead] = useState<Lead | null>(null);
   const [simHandoffSending, setSimHandoffSending] = useState(false);
 
-  // Mandatory wrap-up
+  // Mandatory wrap-up (two taps, identical for SIM and cloud)
   const [showWrapupModal, setShowWrapupModal] = useState(false);
-  const [wrapupOutcome, setWrapupOutcome] = useState<string>("");
-  const [wrapupNotes, setWrapupNotes] = useState<string>("");
+  const [wrapupDraft, setWrapupDraft] = useState<WrapupDraft>(emptyDraft);
+  const [wrapupContext, setWrapupContext] = useState<WrapupContext | null>(null);
+  const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
+  const catalogLoaded = useRef(false);
   const [wrapupSaving, setWrapupSaving] = useState(false);
-  const [wrapupTags, setWrapupTags] = useState<string[]>([]);
-  const [wrapupQualityRating, setWrapupQualityRating] = useState(0);
   const [wrapupStartedAt, setWrapupStartedAt] = useState("");
   const [wrapupEndedAt, setWrapupEndedAt] = useState("");
-  const [wrapupCallbackDate, setWrapupCallbackDate] = useState("");
-  const [wrapupCallbackTime, setWrapupCallbackTime] = useState("");
   const [pendingWrapups, setPendingWrapups] = useState<CallLog[]>([]);
 
   // Live script panel
@@ -297,7 +297,12 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
           setCallStatus("ended");
           setShowWrapupModal(true);
           clearInterval(pollInterval);
-        } else if (log.status === "no_answer" || log.status === "failed") {
+        } else if (log.status === "no_answer") {
+          // Nobody picked up: open the wrap-up pre-filled "Not picked" so the retry gets scheduled.
+          setCallStatus("ended");
+          setShowWrapupModal(true);
+          clearInterval(pollInterval);
+        } else if (log.status === "failed") {
           setCallStatus("ended");
           setActiveCallCtx(null);
           clearInterval(pollInterval);
@@ -319,6 +324,36 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     const timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);
     return () => clearInterval(timer);
   }, [callStatus]);
+
+  // Wrap-up context: cloud pre-fill of tap 1 + retry suggestions (refetched once a SIM call gets its log id).
+  const wrapLeadId = activeCallCtx?.leadId ?? null;
+  const wrapLogId = activeCallCtx?.callLogId ?? null;
+  useEffect(() => {
+    if (!showWrapupModal) return;
+    let cancelled = false;
+    api.calls
+      .wrapupContext({ leadId: wrapLeadId ?? undefined, callLogId: wrapLogId ?? undefined })
+      .then((ctx) => {
+        if (cancelled) return;
+        setWrapupContext(ctx);
+        setWrapupDraft((draft) => applyContext(draft, ctx));
+      })
+      .catch(() => {
+        if (!cancelled) setWrapupContext(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showWrapupModal, wrapLeadId, wrapLogId]);
+
+  // Catalog for "Converted", loaded once the first time a wrap-up opens.
+  useEffect(() => {
+    if (!showWrapupModal || catalogLoaded.current) return;
+    catalogLoaded.current = true;
+    api.catalog.listItems().then(setCatalogItems).catch(() => {
+      catalogLoaded.current = false;
+    });
+  }, [showWrapupModal]);
 
   // Fetch full details when a lead is selected
   useEffect(() => {
@@ -570,14 +605,10 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
 
   function resetWrapup() {
     setShowWrapupModal(false);
-    setWrapupOutcome("");
-    setWrapupNotes("");
-    setWrapupTags([]);
-    setWrapupQualityRating(0);
+    setWrapupDraft(emptyDraft());
+    setWrapupContext(null);
     setWrapupStartedAt("");
     setWrapupEndedAt("");
-    setWrapupCallbackDate("");
-    setWrapupCallbackTime("");
   }
 
   async function sendSimHandoffToMobile() {
@@ -599,10 +630,6 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     }
   }
 
-  const toggleWrapupTag = useCallback((tag: string) => {
-    setWrapupTags((tags) => (tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]));
-  }, []);
-
   function openWrapupFromLog(log: CallLog) {
     setActiveCallCtx({
       leadId: log.lead_id,
@@ -621,13 +648,9 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
 
   async function handleWrapupSubmit() {
     if (!activeCallCtx) return;
-    if (!wrapupOutcome) {
-      toast.error("Outcome is required");
-      return;
-    }
-    const needsCallbackSchedule = wrapupOutcome === "callback" && !!activeCallCtx.leadId;
-    if (needsCallbackSchedule && (!wrapupCallbackDate || !wrapupCallbackTime)) {
-      toast.error("Pick a date and time for the callback");
+    const problem = draftError(wrapupDraft, new Date());
+    if (problem) {
+      toast.error(problem);
       return;
     }
     setWrapupSaving(true);
@@ -645,53 +668,29 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
             callerId ?? undefined,
           );
           callLogId = res.call_log_id;
-          setActiveCallCtx({
-            ...activeCallCtx,
-            callLogId: res.call_log_id,
-          });
+          setActiveCallCtx({ ...activeCallCtx, callLogId: res.call_log_id });
         } catch (initErr) {
           throw new Error("Failed to create call log on server: " + (initErr instanceof Error ? initErr.message : String(initErr)));
         }
       }
 
-      const simOutcomeMap: Record<string, NonNullable<CallLog["outcome"]>> = {
-        connected: "in_progress",
-        not_picked: "no_answer",
-        busy: "no_answer",
-        wrong_number: "in_progress",
-        interested: "interested",
-        not_interested: "not_interested",
-        callback: "callback",
-      };
-      const outcomeToSubmit = activeCallProvider === "sim_basic"
-        ? simOutcomeMap[wrapupOutcome]
-        : wrapupOutcome as NonNullable<CallLog["outcome"]>;
-
-      await api.calls.setOutcome(callLogId, outcomeToSubmit, {
-        notes: wrapupNotes.trim() || undefined,
-        qualityRating: wrapupQualityRating || undefined,
-        manualStatus: activeCallProvider === "sim_basic" ? wrapupOutcome as NonNullable<CallLog["manual_status"]> : undefined,
-        durationSeconds: activeCallProvider === "sim_basic" ? secondsBetween(wrapupStartedAt, wrapupEndedAt) : undefined,
-        manualStartedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupStartedAt) : undefined,
-        manualEndedAt: activeCallProvider === "sim_basic" ? inputToIso(wrapupEndedAt) : undefined,
+      const isSim = activeCallProvider === "sim_basic";
+      const saved = await api.calls.saveWrapup(callLogId, {
+        ...draftToPayload(wrapupDraft),
+        duration_seconds: isSim ? secondsBetween(wrapupStartedAt, wrapupEndedAt) : undefined,
+        manual_started_at: isSim ? inputToIso(wrapupStartedAt) : undefined,
+        manual_ended_at: isSim ? inputToIso(wrapupEndedAt) : undefined,
       });
-
-      if (wrapupOutcome === "converted" && activeCallCtx.leadId) {
-        await api.leads.convert(activeCallCtx.leadId, wrapupNotes);
-      } else if (wrapupOutcome !== "converted" && activeCallCtx.leadId && (wrapupNotes.trim() || wrapupTags.length > 0)) {
-        await saveNote(activeCallCtx.leadId, wrapupNotes, false, wrapupTags);
+      const notes = wrapupDraft.notes.trim();
+      if (notes && activeCallCtx.leadId) {
+        await saveNote(activeCallCtx.leadId, notes, false, []);
       }
 
-      if (needsCallbackSchedule && activeCallCtx.leadId) {
-        await createCallback(
-          activeCallCtx.leadId,
-          new Date(`${wrapupCallbackDate}T${wrapupCallbackTime}`).toISOString(),
-          wrapupNotes.trim() || undefined,
-        );
-        loadCallbacks();
-      }
-
-      toast.success("Wrap-up completed");
+      toast.success(
+        saved.next_action_at
+          ? `Wrap-up saved · reminder ${formatIstWhen(new Date(saved.next_action_at), new Date())}`
+          : "Wrap-up saved",
+      );
       resetWrapup();
       setActiveCallProvider("telecmi");
       setActiveCallCtx(null);
@@ -808,22 +807,14 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     dialTarget,
     cancelDial,
     showWrapupModal,
-    wrapupOutcome,
-    setWrapupOutcome,
-    wrapupNotes,
-    setWrapupNotes,
-    wrapupTags,
-    toggleWrapupTag,
-    wrapupQualityRating,
-    setWrapupQualityRating,
+    wrapupDraft,
+    setWrapupDraft,
+    wrapupContext,
+    catalogItems,
     wrapupStartedAt,
     setWrapupStartedAt,
     wrapupEndedAt,
     setWrapupEndedAt,
-    wrapupCallbackDate,
-    setWrapupCallbackDate,
-    wrapupCallbackTime,
-    setWrapupCallbackTime,
     wrapupSaving,
     handleWrapupSubmit,
     pendingWrapups,
