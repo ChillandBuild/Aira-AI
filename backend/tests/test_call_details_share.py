@@ -115,6 +115,10 @@ class ContextTests(_Base):
     async def test_unknown_lead(self):
         self.assertIsNone(share.share_context(self.db, "t1", "nope", now=NOW))
 
+    async def test_soft_deleted_lead_is_treated_as_not_found(self):
+        self.lead()["deleted_at"] = NOW.isoformat()
+        self.assertIsNone(share.share_context(self.db, "t1", "lead-1", now=NOW))
+
 
 class SendTests(_Base):
     async def test_free_text_goes_out_and_lands_in_conversations(self):

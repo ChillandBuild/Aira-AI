@@ -107,7 +107,7 @@ def window_open(last_inbound_at: str | None, now: datetime) -> bool:
 def _lead(db, tenant_id: str, lead_id: str) -> dict | None:
     rows = (
         db.table("leads").select("id,name,phone,opted_out,last_inbound_at")
-        .eq("id", lead_id).eq("tenant_id", tenant_id).limit(1).execute()
+        .eq("id", lead_id).eq("tenant_id", tenant_id).is_("deleted_at", "null").limit(1).execute()
     ).data or []
     return rows[0] if rows else None
 
