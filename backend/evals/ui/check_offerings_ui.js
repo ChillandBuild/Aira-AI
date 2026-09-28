@@ -1,4 +1,4 @@
-// "What Aira sells" settings page check on the LIVE site (https://www.bloommatrix.in/aira), logged in
+// "What Aira sells" (Services page) check on the LIVE site (https://www.bloommatrix.in/aira), logged in
 // as the "Aira UI Test (Claude)" test owner. Read-only: it never clicks Save.
 //   node backend/evals/ui/check_offerings_ui.js   -> screenshots in backend/evals/ui/screenshots/
 // Also checks the old Intake Config URL redirects here. Credentials: backend/evals/ui/.test-account.json
@@ -18,11 +18,12 @@ const BASE = "https://www.bloommatrix.in/aira";
     await p.fill('input[type="email"]', acct.email); await p.fill('input[placeholder="••••••••"]', acct.password);
     await p.click('button[type="submit"]'); await p.waitForURL(/\/dashboard/, { timeout: 90000 });
 
+    // Since 7400cf7f the Services page is the home for offerings; the old URL lands there.
     await p.goto(`${BASE}/dashboard/settings/intake-config`, { waitUntil: "domcontentloaded", timeout: 90000 });
-    await p.waitForURL(/settings\/packages/, { timeout: 60000 });
+    await p.waitForURL(/dashboard\/services/, { timeout: 60000, waitUntil: "commit" });
     console.log(`${label}: old intake-config URL redirected to ${p.url()}`);
 
-    await p.locator(":text(\"Let Aira sell these in chat\"):visible").first().waitFor({ timeout: 90000 });
+    await p.locator('[aria-label="Let Aira sell these in chat"]').first().waitFor({ timeout: 90000 });
     await p.waitForTimeout(2000);
     const body = await p.locator("body").innerText();
     for (const gone of ["Trigger description", "Offer message"]) {

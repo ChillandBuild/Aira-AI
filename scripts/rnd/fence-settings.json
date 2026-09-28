@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"/Users/prem/Documents/Aira AI/scripts/rnd/fence.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

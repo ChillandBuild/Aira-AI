@@ -16,6 +16,17 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/scripts/rnd/check-gstack.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -37,6 +48,17 @@
     "land-and-deploy": "user-invocable-only",
     "gstack-land-and-deploy": "user-invocable-only",
     "setup-deploy": "user-invocable-only",
-    "gstack-setup-deploy": "user-invocable-only"
+    "gstack-setup-deploy": "user-invocable-only",
+    "ios-clean": "off", "gstack-ios-clean": "off",
+    "ios-design-review": "off", "gstack-ios-design-review": "off",
+    "ios-fix": "off", "gstack-ios-fix": "off",
+    "ios-qa": "off", "gstack-ios-qa": "off",
+    "ios-sync": "off", "gstack-ios-sync": "off",
+    "setup-gbrain": "off", "gstack-setup-gbrain": "off",
+    "sync-gbrain": "off", "gstack-sync-gbrain": "off",
+    "benchmark-models": "off", "gstack-benchmark-models": "off",
+    "pair-agent": "off", "gstack-pair-agent": "off",
+    "design-html": "off", "gstack-design-html": "off",
+    "landing-report": "off", "gstack-landing-report": "off"
   }
 }

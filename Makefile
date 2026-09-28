@@ -2,7 +2,7 @@
 # graphify python is resolved from the env graphify wrote; falls back to python3.
 PY := $(shell cat graphify-out/.graphify_python 2>/dev/null || echo python3)
 
-.PHONY: wiki wiki-refresh second-brain-close doctor
+.PHONY: wiki wiki-refresh second-brain-close doctor verify rnd-night rnd-strategy
 
 # Rebuild the curated module wiki from the EXISTING graph.json (fast, no extraction).
 # Use after running `make wiki-refresh`, or when you only tweaked labels in scripts/build_wiki.py.
@@ -30,3 +30,16 @@ second-brain-close:
 # Uses the CURRENT interpreter on purpose — run it from the venv you suspect.
 doctor:
 	python scripts/check_env_integrity.py
+
+# One answer to "is it really done?": backend tests, frontend typecheck + lint, the R&D
+# fence tests, read-only live UI checks as the test account, and AI evals when a TEST key
+# tenant is set. PASS / FAIL / SKIPPED per stage. See scripts/verify.sh.
+verify:
+	bash scripts/verify.sh
+
+# The unattended R&D team (report-only). Normally started by launchd at night; these run it now.
+rnd-night:
+	bash scripts/rnd/run.sh night
+
+rnd-strategy:
+	bash scripts/rnd/run.sh strategy

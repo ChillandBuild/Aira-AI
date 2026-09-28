@@ -73,3 +73,6 @@ PROFILES_REVIEW.md
 # UI test account credentials (local only, never commit)
 backend/evals/ui/.test-account.json
 backend/evals/ui/screenshots/
+
+# R&D run reports: may hold aggregated customer patterns, local only (scripts/rnd/run.sh)
+/rnd/
