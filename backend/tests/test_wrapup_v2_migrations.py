@@ -44,5 +44,29 @@ class Migration208Tests(unittest.TestCase):
         self.assertNotIn("UPDATE ", self.sql.upper())
 
 
+class Migration209Tests(unittest.TestCase):
+    path = ROOT / "supabase/migrations/209_call_wrapup_v2_narrow.sql"
+
+    def setUp(self):
+        self.sql = self.path.read_text(encoding="utf-8")
+
+    def test_checks_are_exactly_the_new_sets(self):
+        self.assertEqual(check_values(self.sql, "call_logs_outcome_check"), set(cw.OUTCOMES))
+        self.assertEqual(check_values(self.sql, "call_logs_manual_status_check"), set(cw.CONNECTS))
+        self.assertEqual(check_values(self.sql, "leads_call_status_check"), set(cw.LEAD_CALL_STATUSES))
+
+    def test_every_old_value_is_mapped_before_narrowing(self):
+        upper = self.sql.upper()
+        for old in ("'INTERESTED'", "'CALLBACK'", "'NO_ANSWER'", "'IN_PROGRESS'", "'WRONG_NUMBER'", "'NOT_INTERESTED'"):
+            self.assertIn(old, upper)
+        self.assertLess(upper.index("UPDATE PUBLIC.CALL_LOGS"), upper.index("ADD CONSTRAINT CALL_LOGS_OUTCOME_CHECK"))
+        self.assertLess(upper.index("UPDATE PUBLIC.LEADS"), upper.index("ADD CONSTRAINT LEADS_CALL_STATUS_CHECK"))
+
+    def test_replaced_columns_are_dropped_after_copying_callback_times(self):
+        self.assertIn("next_action_at = wrapup_callback_at", self.sql)
+        self.assertIn("DROP COLUMN IF EXISTS wrapup_callback_at", self.sql)
+        self.assertIn("DROP COLUMN IF EXISTS quality_rating", self.sql)
+
+
 if __name__ == "__main__":
     unittest.main()
