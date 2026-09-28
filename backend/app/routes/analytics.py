@@ -322,6 +322,7 @@ async def telecalling_analytics(
     tenant_id: str = Depends(get_analytics_tenant_id),
 ):
     db = get_supabase()
+    is_sim = get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi") == "sim_basic"
 
     # Tenant is IST -- "today" is the IST calendar day, not UTC's.
     now = datetime.now(timezone.utc)
@@ -618,12 +619,10 @@ async def telecalling_analytics(
         converted = caller_converted.get(cid_str, 0)
         conv_rate = round(converted / total, 4) if total > 0 else None
 
-        per_caller.append({
+        per_caller_row = {
             "caller_id": cid,
             "name": c.get("name"),
             "calls_today": c_calls_count,
-            "overall_score": c_avg_score,
-            "scored_calls": len(c_scores),
             "total_minutes_today": c_talk_minutes_today,
             "conversion_rate": conv_rate,
             "connect_rate": c_connect_rate,
@@ -634,7 +633,12 @@ async def telecalling_analytics(
             "longest_idle_seconds": round(c_longest_idle, 1),
             "bunking_flag": c_bunking_flag,
             "speed_to_lead_min": c_speed_to_lead_min,
-        })
+        }
+        # SIM clients get no evaluation: no per-caller score, no scored-call count.
+        if not is_sim:
+            per_caller_row["overall_score"] = c_avg_score
+            per_caller_row["scored_calls"] = len(c_scores)
+        per_caller.append(per_caller_row)
 
     # Comparison block — fixed daily-report baselines anchored to REAL today (UTC),
     # independent of the from/to reporting window. yesterday = the day before today;
@@ -681,7 +685,7 @@ async def telecalling_analytics(
     team_speed_to_lead_min = round(statistics.median(all_speed_to_leads), 1) if all_speed_to_leads else None
     team_quality_avg = round(sum(all_quality_scores) / len(all_quality_scores), 1) if all_quality_scores else None
 
-    return {
+    result = {
         "calls_today": calls_today,
         "calls_attempted": calls_today,
         "connected_calls": len(team_connected_calls),
@@ -703,9 +707,12 @@ async def telecalling_analytics(
         "longest_idle_seconds": team_longest_idle_seconds,
         "bunking_flag": team_bunking_flag,
         "speed_to_lead_min": team_speed_to_lead_min,
-        "quality_avg": team_quality_avg,
         "comparison": comparison,
     }
+    # SIM clients get no evaluation: no team-wide quality average either.
+    if not is_sim:
+        result["quality_avg"] = team_quality_avg
+    return result
 
 
 @router.get("/qa-queue")
@@ -719,11 +726,14 @@ async def qa_queue(
 ):
     """QA review feed: the window's scored calls, lowest score first, so the
     weakest calls get reviewed. Same IST-day window as the Performance filter;
-    the owner's own calls are left out like every other telecaller metric."""
+    the owner's own calls are left out like every other telecaller metric.
+    SIM clients get no evaluation at all -- this route doesn't exist for them."""
     from app.services.call_transcript import mask_transcripts
 
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
+    if get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi") == "sim_basic":
+        raise HTTPException(status_code=404, detail="Not available for this client")
     today = (datetime.now(timezone.utc) + IST_OFFSET).date()
     try:
         start_day = date.fromisoformat(from_date) if from_date else today

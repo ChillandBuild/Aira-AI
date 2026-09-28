@@ -85,6 +85,16 @@ class QaQueueTests(unittest.TestCase):
     def test_bad_date_is_a_400(self):
         self.assertEqual(self.client.get("/api/v1/analytics/qa-queue?from=yesterday").status_code, 400)
 
+    def test_sim_tenant_gets_404_no_evaluation_at_all(self):
+        with patch("app.routes.analytics.get_telecalling_config", return_value={"calling_provider": "sim_basic"}):
+            res = self.client.get("/api/v1/analytics/qa-queue")
+        self.assertEqual(res.status_code, 404)
+
+    def test_telecmi_tenant_is_unchanged(self):
+        with patch("app.routes.analytics.get_telecalling_config", return_value={"calling_provider": "telecmi"}):
+            res = self.client.get("/api/v1/analytics/qa-queue")
+        self.assertEqual(res.status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

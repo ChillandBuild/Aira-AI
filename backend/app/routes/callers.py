@@ -262,20 +262,23 @@ async def get_my_stats(ctx: dict = Depends(get_tenant_and_role)):
     month_start, month_end = ist_month_bounds()
     month = period_stats(db, ctx["tenant_id"], month_start, month_end, [caller_id]).get(str(caller_id))
 
-    return {
+    result = {
         "calls_today": calls_today_res.count or 0,
         "calls_this_week": total_week,
         "conversion_rate_week": round(converted_week / total_week, 2) if total_week > 0 else 0,
         "avg_duration_seconds": avg_duration,
         "pending_hot_leads": pending_hot_res.count or 0,
-        "avg_score_month": (month or {}).get("avg_score"),
-        "scored_calls_month": (month or {}).get("scored_calls", 0),
         "total_calls_month": (month or {}).get("total_calls", 0),
         "name": caller_res.data.get("name"),
         "phone": caller_res.data.get("phone"),
         "status": caller_res.data.get("status", "active"),
         "caller_id": caller_id,
     }
+    # SIM clients get no evaluation: no avg score, no scored-call count.
+    if get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") != "sim_basic":
+        result["avg_score_month"] = (month or {}).get("avg_score")
+        result["scored_calls_month"] = (month or {}).get("scored_calls", 0)
+    return result
 
 
 # ── Status summary (admin view) ──────────────────────────────────────────────
@@ -614,8 +617,11 @@ def _team_caller_ids(db, tenant_id: str) -> dict[str, str]:
 @router.get("/winners")
 async def get_winners(tenant_id: str = Depends(get_owner_tenant_id)):
     """Daily and monthly winner: 70% average score + 30% volume (total calls vs the
-    busiest telecaller). Needs 3 scored calls in the IST day / 20 in the IST month."""
+    busiest telecaller). Needs 3 scored calls in the IST day / 20 in the IST month.
+    SIM clients get no evaluation at all -- this route doesn't exist for them."""
     db = get_supabase()
+    if get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi") == "sim_basic":
+        raise HTTPException(status_code=404, detail="Not available for this client")
     team = _team_caller_ids(db, tenant_id)
     if not team:
         return {"daily": None, "monthly": None}

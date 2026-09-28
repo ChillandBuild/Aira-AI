@@ -125,6 +125,22 @@ class WinnersRouteTests(_Base):
         with patch("app.routes.callers.get_supabase"), patch("app.routes.callers._team_caller_ids", return_value={}):
             self.assertEqual(self.client.get("/api/v1/callers/winners").json(), {"daily": None, "monthly": None})
 
+    def test_sim_tenant_gets_404_no_evaluation_at_all(self):
+        self.as_role("owner")
+        with patch("app.routes.callers.get_supabase"), \
+             patch("app.routes.callers.get_telecalling_config", return_value={"calling_provider": "sim_basic"}), \
+             patch("app.routes.callers._team_caller_ids") as team_lookup:
+            res = self.client.get("/api/v1/callers/winners")
+        self.assertEqual(res.status_code, 404)
+        team_lookup.assert_not_called()
+
+    def test_telecmi_tenant_is_unchanged(self):
+        self.as_role("owner")
+        with patch("app.routes.callers.get_supabase"), \
+             patch("app.routes.callers.get_telecalling_config", return_value={"calling_provider": "telecmi"}), \
+             patch("app.routes.callers._team_caller_ids", return_value={}):
+            self.assertEqual(self.client.get("/api/v1/callers/winners").status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()

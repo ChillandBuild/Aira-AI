@@ -1059,16 +1059,20 @@ async def set_outcome(call_log_id: str, payload: WrapupIn, background_tasks: Bac
     scoring = finalize_call_score(db, call_log_id)
     if is_telecmi:
         background_tasks.add_task(mark_crm_update_task, call_log_id)
-    return {
+    response = {
         "call_log_id": call_log_id,
         "manual_status": payload.manual_status,
         "outcome": payload.outcome,
         "call_status": result["call_status"],
         "next_action_at": result["next_action_at"],
         "deal_id": result["deal_id"],
-        "score": (scoring or {}).get("score"),
-        "score_status": (scoring or {}).get("score_status"),
     }
+    # scoring is None for providers that never get scored (e.g. sim_basic) --
+    # no evaluation, so no score fields at all, not even null ones.
+    if scoring is not None:
+        response["score"] = scoring.get("score")
+        response["score_status"] = scoring.get("score_status")
+    return response
 
 
 @router.get("/stats-today")

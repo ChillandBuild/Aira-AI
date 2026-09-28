@@ -1496,22 +1496,27 @@ def client_team(tenant_id: str, _admin: dict = Depends(get_system_admin)):
 
     from app.services.telecaller_performance import ist_month_bounds, period_stats
 
+    calling_provider = get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi")
+    is_sim = calling_provider == "sim_basic"
     month_start, month_end = ist_month_bounds()
-    month_stats = period_stats(db, tenant_id, month_start, month_end)
+    month_stats = None if is_sim else period_stats(db, tenant_id, month_start, month_end)
 
     callers = []
     for c in (callers_rows.data or []):
-        callers.append({
+        row = {
             "id": c["id"],
             "name": c["name"],
             "active": c["active"],
-            "avg_score_month": (month_stats.get(str(c["id"])) or {}).get("avg_score"),
             "shift_start_hour": c.get("shift_start_hour"),
             "shift_end_hour": c.get("shift_end_hour"),
             "role": role_map.get(c.get("user_id"), "caller"),
-        })
+        }
+        # SIM clients get no evaluation: no avg score for their team either.
+        if not is_sim:
+            row["avg_score_month"] = (month_stats.get(str(c["id"])) or {}).get("avg_score")
+        callers.append(row)
 
-    return {"owner": owner_info, "callers": callers}
+    return {"owner": owner_info, "callers": callers, "calling_provider": calling_provider}
 
 
 @router.get("/clients/{tenant_id}/roles")
