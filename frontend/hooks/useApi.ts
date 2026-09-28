@@ -12,7 +12,6 @@ import {
   AdFilterTree,
   AdPerformanceRow,
   AdPerformanceParams,
-  TelecallingConfig,
 } from "@/lib/api";
 
 import { fetchNotes } from "@/app/dashboard/telecalling/lib/notes-api";
@@ -122,17 +121,6 @@ export function useMyPerformance(enabled = true, fallbackData?: { target: number
     enabled ? "callers/my-performance" : null,
     () => api.callers.myPerformance(),
     { ...defaultConfig, fallbackData },
-  );
-}
-
-/** SIM clients get no telecaller evaluation anywhere -- components that need to
- * know whether to render score/winner UI share this one fetch instead of each
- * hitting /settings/telecalling-config on its own. */
-export function useTelecallingConfig(enabled = true) {
-  return useSWR<TelecallingConfig>(
-    enabled ? "settings/telecalling-config" : null,
-    () => api.settings.getTelecallingConfig(),
-    defaultConfig,
   );
 }
 

@@ -3,6 +3,7 @@
 import { Phone, TrendingUp, Clock, Coffee, Award, BarChart2, Loader2, Zap, Headphones } from "lucide-react";
 import type { TelecallingAnalyticsExtended } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { showsEvaluation } from "@/lib/evaluation-visibility";
 import {
   formatTalk, formatPct, formatMinutes,
   computeDelta, deltaColor, deltaLabel, type Delta,
@@ -18,8 +19,9 @@ interface PerformanceKpisProps {
   // Deltas compare against real yesterday / trailing-7d, so only show them when
   // the KPI values themselves cover "today" (no custom from/to range applied).
   showDeltas: boolean;
-  // SIM clients get no evaluation at all: no Avg Score tile.
-  isSim: boolean;
+  // SIM clients get no evaluation at all: no Avg Score tile. undefined = not
+  // loaded yet, which hides the tile same as SIM (no flash before confirmed).
+  callingProvider?: "telecmi" | "sim_basic";
 }
 
 interface TileDeltas {
@@ -70,8 +72,9 @@ function Tile({ icon, iconClass, value, label, tooltip, loading, deltas, deltaOp
   );
 }
 
-export default function PerformanceKpis({ stats, callerStats, selectedCallerId, loading, showDeltas, isSim }: PerformanceKpisProps) {
+export default function PerformanceKpis({ stats, callerStats, selectedCallerId, loading, showDeltas, callingProvider }: PerformanceKpisProps) {
   const isTeam = !selectedCallerId;
+  const evaluationVisible = showsEvaluation(callingProvider);
   // Deltas only at team level (comparison is team-wide) AND only on the today view.
   const comp = isTeam && showDeltas ? stats?.comparison : undefined;
 
@@ -116,9 +119,15 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
   };
 
   const teamOnly = isTeam ? undefined : { yesterday: null, avg7d: null };
+  // Per-caller view drops to 8 tiles instead of 9 when the Avg Score tile is
+  // hidden -- 4 columns (2x4) keeps the last row full instead of leaving a
+  // gap. Team view is always 6 tiles regardless of provider, so unaffected.
+  const gridClass = !isTeam && !evaluationVisible
+    ? "grid grid-cols-2 md:grid-cols-4 gap-4"
+    : "grid grid-cols-2 md:grid-cols-3 gap-4";
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+    <div className={gridClass}>
       <Tile
         loading={loading}
         icon={<Phone size={16} />}
@@ -173,7 +182,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         deltaOpts={{ unit: "pts" }}
         tone="border-t-teal-400"
       />
-      {!isTeam && !isSim && (
+      {!isTeam && evaluationVisible && (
         <Tile
           loading={loading}
           icon={<Award size={16} />}

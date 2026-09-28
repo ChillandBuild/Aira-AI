@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { api, API_URL, getAuthHeaders, type Caller, type TelecallingAnalyticsExtended } from "@/lib/api";
 import { istTodayIso } from "@/lib/utils";
+import { showsEvaluation } from "@/lib/evaluation-visibility";
 import { formatTalk } from "./sections/performance-format";
 import TeamAttendanceGrid from "../../team/TeamAttendanceGrid";
 import LiveAgentStatus from "./sections/LiveAgentStatus";
@@ -26,7 +27,15 @@ import { useAuthRole } from "../../contexts/AuthRoleContext";
 type SortField =
   | "name" | "calls_today" | "connect_rate" | "avg_talk_seconds" | "idle_minutes_today" | "overall_score";
 
-export default function PerformanceView({ callers, adminCaller }: { callers: Caller[]; adminCaller?: Caller | null }) {
+interface PerformanceViewProps {
+  callers: Caller[];
+  adminCaller?: Caller | null;
+  /** From team/list, prefetched server-side -- the trustworthy tri-state
+   * source for evaluation gating. undefined = not loaded yet. */
+  callingProvider?: "telecmi" | "sim_basic";
+}
+
+export default function PerformanceView({ callers, adminCaller, callingProvider }: PerformanceViewProps) {
   const { role, permissions } = useAuthRole();
   const canManageTeam = role === "owner" || permissions.includes("team.manage");
   const [stats, setStats] = useState<TelecallingAnalyticsExtended | null>(null);
@@ -55,7 +64,6 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
   const [shiftConfig, setShiftConfig] = useState<{ shift_mode: "common" | "individual"; shift_start_hour: number; shift_end_hour: number }>({
     shift_mode: "common", shift_start_hour: 9, shift_end_hour: 19,
   });
-  const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
 
   // Lead profile modal
   const [viewingLeadId, setViewingLeadId] = useState<string | null>(null);
@@ -103,7 +111,6 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
             shift_start_hour: data.shift_start_hour ?? 9,
             shift_end_hour: data.shift_end_hour ?? 19,
           });
-          setCallingProvider((data.calling_provider as "telecmi" | "sim_basic" | undefined) ?? "telecmi");
         }
       } catch {}
     })();
@@ -195,8 +202,10 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
   const today = istTodayIso();
   const isTodayView = statsFrom === today && statsTo === today;
   // SIM clients get no evaluation at all: no score column, no QA review feed.
-  const isSim = callingProvider === "sim_basic";
-  const leaderboardColumnCount = isSim ? 7 : 8;
+  // Unknown (still loading) and SIM both hide -- nothing about evaluation can
+  // flash in before the tenant's calling provider is confirmed.
+  const evaluationVisible = showsEvaluation(callingProvider);
+  const leaderboardColumnCount = evaluationVisible ? 8 : 7;
   const sortIcon = (field: SortField) =>
     sortField === field
       ? (sortDirection === "asc" ? <ChevronUp size={10} className="inline ml-1" /> : <ChevronDown size={10} className="inline ml-1" />)
@@ -208,7 +217,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
       <PerformanceHeadline stats={stats} loading={loadingStats} flaggedCount={flaggedCount} isTodayView={isTodayView} />
 
       {/* Call-scoring warnings (recorded TeleCMI calls only), admins only */}
-      {callingProvider === "telecmi" && canManageTeam && <NeedsAttention onViewLead={setViewingLeadId} />}
+      {evaluationVisible && canManageTeam && <NeedsAttention onViewLead={setViewingLeadId} />}
 
       {/* Live agent status strip */}
       <LiveAgentStatus
@@ -223,7 +232,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         onCallersChange={setCallersList}
         shiftConfig={shiftConfig}
         onShiftConfigSave={handleShiftConfigSave}
-        callingProvider={callingProvider}
+        callingProvider={callingProvider ?? "telecmi"}
         canManageShifts={canManageTeam}
       />
 
@@ -257,7 +266,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         selectedCallerId={selectedCallerId}
         loading={loadingStats}
         showDeltas={isTodayView}
-        isSim={isSim}
+        callingProvider={callingProvider}
       />
 
       {/* 3. Results — team-level outcome distribution + hourly volume (team view only) */}
@@ -277,9 +286,9 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
           <div>
             <h2 className="font-display text-base font-bold text-primary">Agent Performance Leaderboard</h2>
             <p className="font-label text-xs text-on-surface-muted">
-              {isSim
-                ? "Sort by connect rate or idle time to manage team output."
-                : "Sort by connect rate, idle time, or average call score to manage team output."}
+              {evaluationVisible
+                ? "Sort by connect rate, idle time, or average call score to manage team output."
+                : "Sort by connect rate or idle time to manage team output."}
             </p>
           </div>
           <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
@@ -317,7 +326,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("connect_rate")}>Connect Rate {sortIcon("connect_rate")}</th>
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("avg_talk_seconds")}>Avg Talk Time {sortIcon("avg_talk_seconds")}</th>
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("idle_minutes_today")}>Idle Minutes {sortIcon("idle_minutes_today")}</th>
-                {!isSim && (
+                {evaluationVisible && (
                   <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("overall_score")} title="Average of this period's scored calls">Avg Score {sortIcon("overall_score")}</th>
                 )}
                 <th className="py-3 px-4">Bunking Alert</th>
@@ -358,7 +367,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                       <td className="py-3.5 px-4 text-[#57534e] font-medium">
                         {row.idle_minutes_today ? `${Math.round(row.idle_minutes_today)} min` : "0 min"}
                       </td>
-                      {!isSim && (
+                      {evaluationVisible && (
                         <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
                           {row.overall_score != null ? (
                             <>
@@ -449,14 +458,14 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
           <div className="text-left">
             <h2 className="font-display text-base font-bold text-primary">Tools</h2>
             <p className="font-label text-xs text-on-surface-muted">
-              {isSim ? "Bulk lead assignment." : "QA call review & bulk lead assignment."}
+              {evaluationVisible ? "QA call review & bulk lead assignment." : "Bulk lead assignment."}
             </p>
           </div>
           {toolsOpen ? <ChevronUp size={16} className="text-[#a8a29e]" /> : <ChevronDown size={16} className="text-[#a8a29e]" />}
         </button>
         {toolsOpen && (
-          <div className={isSim ? "px-6 pb-6" : "px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-8"}>
-            {!isSim && (
+          <div className={evaluationVisible ? "px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-8" : "px-6 pb-6"}>
+            {evaluationVisible && (
               <QaReviewFeed
                 from={statsFrom}
                 to={statsTo}

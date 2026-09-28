@@ -9,7 +9,6 @@ import { format, differenceInSeconds, subDays, startOfDay, isSameDay } from "dat
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from "recharts";
 import { formatDuration, initials } from "./helpers";
 import AttendanceMini from "./AttendanceMini";
-import { useTelecallingConfig } from "@/hooks/useApi";
 
 interface StatusSummary {
   active_minutes_today: number;
@@ -33,9 +32,6 @@ interface GapEvent {
 type DisplayEvent = TimelineEvent | GapEvent;
 
 export default function TeamProfilePanel({ callerId, callerName }: { callerId: string, callerName: string }) {
-  const { data: telecallingConfig } = useTelecallingConfig();
-  // SIM clients get no evaluation at all: no Avg Score ring.
-  const isSim = telecallingConfig?.calling_provider === "sim_basic";
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
@@ -188,21 +184,19 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
               </div>
             </div>
           </div>
-          {!isSim && (
-            <div className="flex flex-col items-center gap-1 relative">
-              <svg width="70" height="70" viewBox="0 0 70 70" className="transform -rotate-90">
-                <circle cx="35" cy="35" r={RING_RADIUS} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
-                <circle cx="35" cy="35" r={RING_RADIUS} fill="none"
-                  stroke={avgScore >= 70 ? "#10b981" : avgScore >= 40 ? "#f59e0b" : "#f43f5e"}
-                  strokeWidth="6" strokeLinecap="round" strokeDasharray={`${scoreRingPct * RING_CIRC} ${RING_CIRC}`}
-                  className="transition-all duration-700" />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center mt-[-4px]">
-                 <span className="text-white font-display text-sm font-bold">{avgScore}</span>
-              </div>
-              <span className="text-[9px] font-label text-[#a8a29e] uppercase tracking-wide">Avg Score</span>
+          <div className="flex flex-col items-center gap-1 relative">
+            <svg width="70" height="70" viewBox="0 0 70 70" className="transform -rotate-90">
+              <circle cx="35" cy="35" r={RING_RADIUS} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="6" />
+              <circle cx="35" cy="35" r={RING_RADIUS} fill="none"
+                stroke={avgScore >= 70 ? "#10b981" : avgScore >= 40 ? "#f59e0b" : "#f43f5e"}
+                strokeWidth="6" strokeLinecap="round" strokeDasharray={`${scoreRingPct * RING_CIRC} ${RING_CIRC}`}
+                className="transition-all duration-700" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center mt-[-4px]">
+               <span className="text-white font-display text-sm font-bold">{avgScore}</span>
             </div>
-          )}
+            <span className="text-[9px] font-label text-[#a8a29e] uppercase tracking-wide">Avg Score</span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1 mt-4 text-xs text-[#a8a29e] font-body">
           {summary?.first_login_at && (

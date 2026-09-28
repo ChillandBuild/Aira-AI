@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Caller, TeamMember } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { showsEvaluation } from "@/lib/evaluation-visibility";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { useCallers, useTeamList } from "@/hooks/useApi";
 
@@ -36,8 +37,8 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
   const callers = callersData?.data ?? [];
   const adminCaller = callersData?.admin_caller ?? null;
   // SIM clients get no evaluation at all: no winner banner, no /winners request.
-  // Wait for the data before showing it, so a SIM tenant never sees it flash in.
-  const showWinners = teamData ? teamData.calling_provider !== "sim_basic" : false;
+  // Unknown (still loading) resolves to false, so it can't flash in for SIM.
+  const showWinners = showsEvaluation(teamData?.calling_provider);
 
   const [showTelecallerHint, setShowTelecallerHint] = useState(true);
   const [dismissingHint, setDismissingHint] = useState(false);
@@ -90,7 +91,7 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
       {tab === "log" ? (
         <AssignmentLog callers={callers} />
       ) : (
-        <PerformanceView callers={callers} adminCaller={adminCaller} />
+        <PerformanceView callers={callers} adminCaller={adminCaller} callingProvider={teamData?.calling_provider} />
       )}
     </div>
   );

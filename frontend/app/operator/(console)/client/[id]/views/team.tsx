@@ -92,12 +92,10 @@ export function TeamView({ tenantId }: { tenantId: string }) {
 
   if (!data) return null;
 
-  // SIM clients get no evaluation at all: no Score (month) column. Key off the
-  // client's calling_provider when the API sends it; otherwise fall back to
-  // whether the field is actually present on any caller row.
-  const isSim = data.calling_provider
-    ? data.calling_provider === "sim_basic"
-    : data.callers.every((c) => c.avg_score_month === undefined);
+  // SIM clients get no evaluation at all: no Score (month) column. Default to
+  // TeleCMI (show the column) when calling_provider is missing -- an empty
+  // caller list isn't evidence of a SIM client.
+  const isSim = data.calling_provider === "sim_basic";
 
   return (
     <div className="space-y-6">
