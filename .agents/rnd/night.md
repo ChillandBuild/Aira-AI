@@ -62,8 +62,17 @@ it (a removed function, a migration, a changed prompt, a deleted test) that no t
 Write `$AIRA_RND_OUT/<YYYY-MM-DD>-night.md` (today's date) and copy it to
 `$AIRA_RND_OUT/LATEST-night.md`. Plain language — the founder reads it over coffee.
 
+If `$AIRA_RND_OUT/builds-<today>.md` exists, the builder worked on items the founder approved
+earlier tonight: put that file's content first, under `## Built for you (review, then merge
+or drop)`, and add one plain line per build on whether you would merge it and why (read the
+builder's summary it links to).
+
+Keep each "Read this first" item EXACTLY as `### <n>. <title>` with its own
+`- [ ] Approve` line: the builder finds approved work by that shape.
+
 ```
 # Aira night report — <date>
+## Built for you (review, then merge or drop)   ← only when builds-<today>.md exists
 ## Read this first
 Up to 3 items that matter most. Each: what is wrong · evidence (FACT + source) · who it hurts
 and how many · proposed fix · effort · risk if ignored · `- [ ] Approve`
