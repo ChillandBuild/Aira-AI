@@ -12,6 +12,7 @@ import {
   AdFilterTree,
   AdPerformanceRow,
   AdPerformanceParams,
+  TelecallingConfig,
 } from "@/lib/api";
 
 import { fetchNotes } from "@/app/dashboard/telecalling/lib/notes-api";
@@ -89,8 +90,11 @@ export function useLeads(
   );
 }
 
-export function useTeamList(enabled = true, fallbackData?: { data: TeamMember[] }) {
-  return useSWR<{ data: TeamMember[] }>(
+export function useTeamList(
+  enabled = true,
+  fallbackData?: { data: TeamMember[]; calling_provider?: "telecmi" | "sim_basic" },
+) {
+  return useSWR<{ data: TeamMember[]; calling_provider?: "telecmi" | "sim_basic" }>(
     enabled ? "team/list" : null,
     () => api.team.list(),
     { ...defaultConfig, fallbackData },
@@ -118,6 +122,17 @@ export function useMyPerformance(enabled = true, fallbackData?: { target: number
     enabled ? "callers/my-performance" : null,
     () => api.callers.myPerformance(),
     { ...defaultConfig, fallbackData },
+  );
+}
+
+/** SIM clients get no telecaller evaluation anywhere -- components that need to
+ * know whether to render score/winner UI share this one fetch instead of each
+ * hitting /settings/telecalling-config on its own. */
+export function useTelecallingConfig(enabled = true) {
+  return useSWR<TelecallingConfig>(
+    enabled ? "settings/telecalling-config" : null,
+    () => api.settings.getTelecallingConfig(),
+    defaultConfig,
   );
 }
 

@@ -6,14 +6,14 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { Caller, TeamMember } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useAuthRole } from "../contexts/AuthRoleContext";
-import { useCallers } from "@/hooks/useApi";
+import { useCallers, useTeamList } from "@/hooks/useApi";
 
 import AssignmentLog from "../telecalling/components/assignment-log";
 import PerformanceView from "../telecalling/components/performance-view";
 import WinnerBanner from "./WinnerBanner";
 
 interface TeamClientProps {
-  fallbackTeam: { data: TeamMember[] } | null;
+  fallbackTeam: { data: TeamMember[]; calling_provider?: "telecmi" | "sim_basic" } | null;
   fallbackCallers: Caller[] | null;
 }
 
@@ -28,9 +28,16 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
     canViewTeam,
     fallbackCallers ?? undefined,
   );
+  // team/list is gated on the same team.view permission as this page, so it's
+  // a safe source for calling_provider (unlike settings, which callers with
+  // only team.view may not be able to read).
+  const { data: teamData } = useTeamList(canViewTeam, fallbackTeam ?? undefined);
 
   const callers = callersData?.data ?? [];
   const adminCaller = callersData?.admin_caller ?? null;
+  // SIM clients get no evaluation at all: no winner banner, no /winners request.
+  // Wait for the data before showing it, so a SIM tenant never sees it flash in.
+  const showWinners = teamData ? teamData.calling_provider !== "sim_basic" : false;
 
   const [showTelecallerHint, setShowTelecallerHint] = useState(true);
   const [dismissingHint, setDismissingHint] = useState(false);
@@ -78,7 +85,7 @@ export function TeamClient({ fallbackTeam, fallbackCallers }: TeamClientProps) {
         </div>
       )}
 
-      <WinnerBanner />
+      {showWinners && <WinnerBanner />}
 
       {tab === "log" ? (
         <AssignmentLog callers={callers} />

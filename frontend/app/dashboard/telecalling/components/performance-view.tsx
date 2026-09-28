@@ -194,6 +194,9 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
   const flaggedCount = (stats?.per_caller || []).filter((c) => c.bunking_flag).length;
   const today = istTodayIso();
   const isTodayView = statsFrom === today && statsTo === today;
+  // SIM clients get no evaluation at all: no score column, no QA review feed.
+  const isSim = callingProvider === "sim_basic";
+  const leaderboardColumnCount = isSim ? 7 : 8;
   const sortIcon = (field: SortField) =>
     sortField === field
       ? (sortDirection === "asc" ? <ChevronUp size={10} className="inline ml-1" /> : <ChevronDown size={10} className="inline ml-1" />)
@@ -254,6 +257,7 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         selectedCallerId={selectedCallerId}
         loading={loadingStats}
         showDeltas={isTodayView}
+        isSim={isSim}
       />
 
       {/* 3. Results — team-level outcome distribution + hourly volume (team view only) */}
@@ -272,7 +276,11 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         <div className="flex items-center justify-between mb-5 flex-wrap gap-4">
           <div>
             <h2 className="font-display text-base font-bold text-primary">Agent Performance Leaderboard</h2>
-            <p className="font-label text-xs text-on-surface-muted">Sort by connect rate, idle time, or average call score to manage team output.</p>
+            <p className="font-label text-xs text-on-surface-muted">
+              {isSim
+                ? "Sort by connect rate or idle time to manage team output."
+                : "Sort by connect rate, idle time, or average call score to manage team output."}
+            </p>
           </div>
           <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
             <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Export Performance:</span>
@@ -309,7 +317,9 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("connect_rate")}>Connect Rate {sortIcon("connect_rate")}</th>
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("avg_talk_seconds")}>Avg Talk Time {sortIcon("avg_talk_seconds")}</th>
                 <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("idle_minutes_today")}>Idle Minutes {sortIcon("idle_minutes_today")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("overall_score")} title="Average of this period's scored calls">Avg Score {sortIcon("overall_score")}</th>
+                {!isSim && (
+                  <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("overall_score")} title="Average of this period's scored calls">Avg Score {sortIcon("overall_score")}</th>
+                )}
                 <th className="py-3 px-4">Bunking Alert</th>
                 <th className="py-3 px-4">Daily Target</th>
               </tr>
@@ -317,13 +327,13 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
             <tbody>
               {loadingStats ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-[#a8a29e] font-medium">
+                  <td colSpan={leaderboardColumnCount} className="text-center py-8 text-[#a8a29e] font-medium">
                     <Loader2 className="animate-spin text-[#a8a29e] inline mr-2" size={16} /> Loading performance logs...
                   </td>
                 </tr>
               ) : getSortedPerformers().length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-[#a8a29e]">No performance records for today.</td>
+                  <td colSpan={leaderboardColumnCount} className="text-center py-8 text-[#a8a29e]">No performance records for today.</td>
                 </tr>
               ) : (
                 getSortedPerformers().map((row) => {
@@ -348,18 +358,20 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
                       <td className="py-3.5 px-4 text-[#57534e] font-medium">
                         {row.idle_minutes_today ? `${Math.round(row.idle_minutes_today)} min` : "0 min"}
                       </td>
-                      <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
-                        {row.overall_score != null ? (
-                          <>
-                            {row.overall_score.toFixed(1)}/100
-                            <span className="block font-label text-[10px] font-semibold text-[#a8a29e]">
-                              {row.scored_calls ?? 0} scored
-                            </span>
-                          </>
-                        ) : (
-                          "\u2014"
-                        )}
-                      </td>
+                      {!isSim && (
+                        <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
+                          {row.overall_score != null ? (
+                            <>
+                              {row.overall_score.toFixed(1)}/100
+                              <span className="block font-label text-[10px] font-semibold text-[#a8a29e]">
+                                {row.scored_calls ?? 0} scored
+                              </span>
+                            </>
+                          ) : (
+                            "\u2014"
+                          )}
+                        </td>
+                      )}
                       <td className="py-3.5 px-4">
                         {row.bunking_flag ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 text-red-600 font-bold text-[9px] uppercase border border-red-200">
@@ -436,19 +448,23 @@ export default function PerformanceView({ callers, adminCaller }: { callers: Cal
         >
           <div className="text-left">
             <h2 className="font-display text-base font-bold text-primary">Tools</h2>
-            <p className="font-label text-xs text-on-surface-muted">QA call review &amp; bulk lead assignment.</p>
+            <p className="font-label text-xs text-on-surface-muted">
+              {isSim ? "Bulk lead assignment." : "QA call review & bulk lead assignment."}
+            </p>
           </div>
           {toolsOpen ? <ChevronUp size={16} className="text-[#a8a29e]" /> : <ChevronDown size={16} className="text-[#a8a29e]" />}
         </button>
         {toolsOpen && (
-          <div className="px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <QaReviewFeed
-              from={statsFrom}
-              to={statsTo}
-              callerId={selectedCallerId}
-              callerName={selectedCallerName}
-              onViewLead={setViewingLeadId}
-            />
+          <div className={isSim ? "px-6 pb-6" : "px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-8"}>
+            {!isSim && (
+              <QaReviewFeed
+                from={statsFrom}
+                to={statsTo}
+                callerId={selectedCallerId}
+                callerName={selectedCallerName}
+                onViewLead={setViewingLeadId}
+              />
+            )}
             <BulkAssignment callers={callersList} />
           </div>
         )}

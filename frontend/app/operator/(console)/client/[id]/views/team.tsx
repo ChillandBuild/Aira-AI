@@ -24,7 +24,8 @@ interface CallerRow {
   name: string;
   role: string;
   active: boolean;
-  avg_score_month: number | null;
+  /** Absent entirely for SIM clients -- they get no evaluation at all. */
+  avg_score_month?: number | null;
   shift_start_hour: number | null;
   shift_end_hour: number | null;
 }
@@ -32,6 +33,7 @@ interface CallerRow {
 interface TeamData {
   owner: { user_id: string | null; email: string | null; created_at: string | null };
   callers: CallerRow[];
+  calling_provider?: "telecmi" | "sim_basic";
 }
 
 function formatShift(start: number | null, end: number | null): string {
@@ -90,6 +92,13 @@ export function TeamView({ tenantId }: { tenantId: string }) {
 
   if (!data) return null;
 
+  // SIM clients get no evaluation at all: no Score (month) column. Key off the
+  // client's calling_provider when the API sends it; otherwise fall back to
+  // whether the field is actually present on any caller row.
+  const isSim = data.calling_provider
+    ? data.calling_provider === "sim_basic"
+    : data.callers.every((c) => c.avg_score_month === undefined);
+
   return (
     <div className="space-y-6">
       {/* Owner Card */}
@@ -146,7 +155,9 @@ export function TeamView({ tenantId }: { tenantId: string }) {
                 <th className="text-left px-4 py-3 font-medium">Name</th>
                 <th className="text-left px-4 py-3 font-medium">Role</th>
                 <th className="text-left px-4 py-3 font-medium">Status</th>
-                <th className="text-left px-4 py-3 font-medium" title="Average of this month's scored calls">Score (month)</th>
+                {!isSim && (
+                  <th className="text-left px-4 py-3 font-medium" title="Average of this month's scored calls">Score (month)</th>
+                )}
                 <th className="text-left px-4 py-3 font-medium">Shift Hours</th>
                 <th className="text-left px-4 py-3 font-medium w-12"></th>
               </tr>
@@ -168,7 +179,9 @@ export function TeamView({ tenantId }: { tenantId: string }) {
                       <span className="text-xs text-ink-secondary">{c.active ? "Active" : "Inactive"}</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-ink">{c.avg_score_month != null ? c.avg_score_month.toFixed(1) : "—"}</td>
+                  {!isSim && (
+                    <td className="px-4 py-3 text-ink">{c.avg_score_month != null ? c.avg_score_month.toFixed(1) : "—"}</td>
+                  )}
                   <td className="px-4 py-3 text-ink-secondary text-xs">{formatShift(c.shift_start_hour, c.shift_end_hour)}</td>
                   <td className="px-4 py-3">
                     {c.role !== "owner" && (

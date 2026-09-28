@@ -178,6 +178,11 @@ export function ProfileClient({
     );
   }
 
+  // SIM clients get no evaluation at all: /callers/my-stats already omits
+  // avg_score_month for them, so its absence is the tenant's own signal --
+  // no extra request, and no dependency on a permission a caller may lack.
+  const isSim = stats.avg_score_month === undefined;
+
   return (
     <div>
       {/* Profile Card + Stats */}
@@ -219,7 +224,8 @@ export function ProfileClient({
             </div>
           </div>
 
-          {/* This month's average call score */}
+          {/* This month's average call score -- SIM clients get no evaluation at all */}
+          {!isSim && (
           <div className="mt-4 pt-4 border-t border-surface-mid">
             <p className="font-label text-xs text-on-surface-muted uppercase tracking-wider mb-1">
               Avg Call Score · This Month
@@ -236,6 +242,7 @@ export function ProfileClient({
               {stats.scored_calls_month} scored of {stats.total_calls_month} calls
             </p>
           </div>
+          )}
         </div>
 
         {/* Stats Grid */}

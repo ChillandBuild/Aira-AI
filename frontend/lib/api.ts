@@ -141,9 +141,10 @@ export interface CallerStats {
   conversion_rate_week: number;
   avg_duration_seconds: number | null;
   pending_hot_leads: number;
-  /** Average of this IST month's scored calls; null until one is scored. */
-  avg_score_month: number | null;
-  scored_calls_month: number;
+  /** Average of this IST month's scored calls; null until one is scored.
+   *  Absent entirely for SIM clients -- they get no evaluation at all. */
+  avg_score_month?: number | null;
+  scored_calls_month?: number;
   total_calls_month: number;
   name: string;
   phone: string;
@@ -827,8 +828,9 @@ export interface TelecallingAnalytics {
     caller_id: string;
     name: string;
     calls_today: number;
-    /** Average score of the selected window's scored calls. */
-    overall_score: number | null;
+    /** Average score of the selected window's scored calls. Absent entirely
+     *  for SIM clients -- they get no evaluation at all. */
+    overall_score?: number | null;
     scored_calls?: number;
     connect_rate?: number;
     avg_talk_seconds?: number | null;
@@ -915,8 +917,9 @@ export interface TelecallingAnalyticsExtended {
     caller_id: string;
     name: string;
     calls_today: number;
-    /** Average score of the selected window's scored calls. */
-    overall_score: number | null;
+    /** Average score of the selected window's scored calls. Absent entirely
+     *  for SIM clients -- they get no evaluation at all. */
+    overall_score?: number | null;
     scored_calls?: number;
     total_minutes_today: number;
     conversion_rate: number | null;

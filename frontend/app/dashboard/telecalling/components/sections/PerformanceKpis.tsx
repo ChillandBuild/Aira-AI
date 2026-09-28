@@ -18,6 +18,8 @@ interface PerformanceKpisProps {
   // Deltas compare against real yesterday / trailing-7d, so only show them when
   // the KPI values themselves cover "today" (no custom from/to range applied).
   showDeltas: boolean;
+  // SIM clients get no evaluation at all: no Avg Score tile.
+  isSim: boolean;
 }
 
 interface TileDeltas {
@@ -68,7 +70,7 @@ function Tile({ icon, iconClass, value, label, tooltip, loading, deltas, deltaOp
   );
 }
 
-export default function PerformanceKpis({ stats, callerStats, selectedCallerId, loading, showDeltas }: PerformanceKpisProps) {
+export default function PerformanceKpis({ stats, callerStats, selectedCallerId, loading, showDeltas, isSim }: PerformanceKpisProps) {
   const isTeam = !selectedCallerId;
   // Deltas only at team level (comparison is team-wide) AND only on the today view.
   const comp = isTeam && showDeltas ? stats?.comparison : undefined;
@@ -171,7 +173,7 @@ export default function PerformanceKpis({ stats, callerStats, selectedCallerId, 
         deltaOpts={{ unit: "pts" }}
         tone="border-t-teal-400"
       />
-      {!isTeam && (
+      {!isTeam && !isSim && (
         <Tile
           loading={loading}
           icon={<Award size={16} />}
