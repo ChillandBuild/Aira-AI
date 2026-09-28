@@ -8,8 +8,10 @@ import LeadAttribution from "./LeadAttribution";
 import { getMessageDisplayMeta } from "../lib/message-display";
 import { TickMark } from "@/components/ui/controls";
 import { SegmentBadge } from "@/components/segment-badge";
+import SendDetailsCard from "./SendDetailsCard";
+import { TONE_DOT, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
 
-export const QUICK_NOTE_TAGS = [
+const QUICK_NOTE_TAGS = [
   "Meeting scheduled",
   "Not interested",
   "Discussed pricing",
@@ -58,7 +60,6 @@ export interface LeadDetailPanelProps {
   setQuickNoteContent: (val: string) => void;
   quickNoteSaving: boolean;
   saveQuickNote: (leadId: string) => void;
-  handleQuickOutcome: (outcome: string) => void;
   quickNoteTags: string[];
   setQuickNoteTags: (tags: string[]) => void;
   quickNotePinned: boolean;
@@ -100,7 +101,6 @@ export default function LeadDetailPanel({
   setQuickNoteContent,
   quickNoteSaving,
   saveQuickNote,
-  handleQuickOutcome,
   quickNoteTags,
   setQuickNoteTags,
   quickNotePinned,
@@ -166,27 +166,6 @@ export default function LeadDetailPanel({
       ? { label: "Active this week", sublabel: "Replied recently", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", dot: "bg-amber-400" }
       : { label: "Gone cold", sublabel: "No recent WhatsApp activity", color: "text-[#78716c]", bg: "bg-[#faf8f5] border-[#e8e3db]", dot: "bg-[#d6cfc9]" };
 
-  // Call attempt trail
-  const outcomeStyle: Record<string, string> = {
-    converted: "bg-emerald-500 ring-emerald-200",
-    interested: "bg-cyan-500 ring-cyan-200",
-    callback: "bg-amber-400 ring-amber-200",
-    not_interested: "bg-[#a8a29e] ring-[#e8e3db]",
-    no_answer: "bg-rose-400 ring-rose-200",
-    do_not_call: "bg-red-600 ring-red-200",
-    do_not_contact: "bg-red-600 ring-red-200",
-    unreachable: "bg-orange-400 ring-orange-200",
-  };
-  const outcomeLabel: Record<string, string> = {
-    converted: "Converted",
-    interested: "Interested",
-    callback: "Callback",
-    not_interested: "Not Interested",
-    no_answer: "No Answer",
-    do_not_call: "DNC",
-    do_not_contact: "DNC",
-    unreachable: "Unreachable",
-  };
   const recentCallLogs = selectedLeadCallLogs.slice(0, 7);
   const recentMessages = selectedLeadMessages.slice(-4);
 
@@ -224,7 +203,7 @@ export default function LeadDetailPanel({
     })),
     ...selectedLeadCallLogs.map(l => ({
       type: "call" as const, id: l.id, created_at: l.created_at,
-      outcome: l.outcome, duration_seconds: l.duration_seconds,
+      outcome: l.outcome, manual_status: l.manual_status, duration_seconds: l.duration_seconds,
     })),
     ...selectedLeadMessages.map(m => ({
       type: "message" as const, id: m.id, created_at: m.created_at,
@@ -346,9 +325,9 @@ export default function LeadDetailPanel({
 
         {(activeProfileTab === "overview" || activeProfileTab === "attribution") && (
           <>
-            {/* ── Quick Note + Call Outcome ── */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+            {/* ── Quick Note + Send details on WhatsApp ── */}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+              <div className="min-w-0 flex-1 bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm flex flex-col gap-3">
                 <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5">
                   <StickyNote size={12} className="text-orange-400" /> Quick Note
                 </h3>
@@ -468,30 +447,7 @@ export default function LeadDetailPanel({
                 </div>
               </div>
 
-              <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-                <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5">
-                  <Phone size={12} className="text-orange-400" /> Call Outcome
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: "converted", label: "✓ Converted", style: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" },
-                    { id: "in_progress", label: "In Progress", style: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100" },
-                    { id: "not_interested", label: "Not Interested", style: "border-[#e8e3db] bg-white text-[#57534e] hover:bg-[#faf8f5]" },
-                    { id: "no_answer", label: "No Answer", style: "border-[#e8e3db] bg-white text-[#57534e] hover:bg-[#faf8f5]" },
-                    { id: "do_not_call", label: "Do Not Call", style: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100" },
-                    { id: "unreachable", label: "Unreachable", style: "border-[#e8e3db] bg-white text-[#57534e] hover:bg-[#faf8f5]" },
-                  ].map((o) => (
-                    <button
-                      key={o.id}
-                      onClick={() => handleQuickOutcome(o.id)}
-                      disabled={readOnly}
-                      className={`py-2 px-2 text-[10px] font-extrabold rounded-xl border transition-all hover:scale-[1.01] active:scale-[0.99] shadow-sm text-center ${o.style}`}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <SendDetailsCard leadId={selectedLead.id} readOnly={readOnly} />
             </div>
 
             {/* ── AI Pre-Call Brief ── */}
@@ -591,9 +547,9 @@ export default function LeadDetailPanel({
                   <div className="flex items-center gap-2 flex-wrap">
                     {recentCallLogs.map((log) => (
                       <div key={log.id} className="group relative">
-                        <div className={`w-6 h-6 rounded-full ring-2 ring-offset-1 ${outcomeStyle[log.outcome ?? ""] ?? "bg-[#e8e3db] ring-[#f0ece4]"} cursor-default shadow-sm`} />
+                        <div className={`w-6 h-6 rounded-full ring-2 ring-offset-1 ring-[#f0ece4] ${TONE_DOT[callResultTone(callResultKey(log))]} cursor-default shadow-sm`} />
                         <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden group-hover:block z-20 bg-[#292524] text-white text-[9px] font-bold px-2.5 py-1.5 rounded-xl whitespace-nowrap shadow-xl">
-                          {outcomeLabel[log.outcome ?? ""] ?? "Unknown"} · {timeAgo(log.created_at)}
+                          {callResultLabel(callResultKey(log)) ?? "Not wrapped up"} · {timeAgo(log.created_at)}
                           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#292524]" />
                         </div>
                       </div>
@@ -766,7 +722,7 @@ export default function LeadDetailPanel({
                       {item.type === "call" && (
                         <div className="bg-primary-light/40 border border-primary-muted p-3 rounded-xl flex items-center justify-between">
                           <span className="font-label text-xs font-bold text-[#44403c]">
-                            {outcomeLabel[item.outcome ?? ""] ?? "Call logged"}
+                            {callResultLabel(callResultKey(item)) ?? "Call logged"}
                           </span>
                           {(item.duration_seconds ?? 0) > 0 && (
                             <span className="font-mono text-[10px] text-[#a8a29e]">
@@ -833,7 +789,7 @@ export default function LeadDetailPanel({
                         </div>
                         <div className="bg-primary-light/40 border border-primary-muted p-3 rounded-xl flex items-center justify-between">
                           <span className="font-label text-xs font-bold text-[#44403c]">
-                            {outcomeLabel[log.outcome ?? ""] ?? "Call logged"}
+                            {callResultLabel(callResultKey(log)) ?? "Call logged"}
                           </span>
                           {(log.duration_seconds ?? 0) > 0 && (
                             <span className="font-mono text-[10px] text-[#a8a29e]">

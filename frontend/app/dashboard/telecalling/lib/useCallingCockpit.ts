@@ -710,33 +710,6 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     }
   }
 
-  async function handleQuickOutcome(outcome: string) {
-    if (!selectedLead) return;
-    if (!activeCallCtx?.callLogId) {
-      toast.error("Please call the lead first to log an outcome.");
-      return;
-    }
-    setQuickNoteSaving(true);
-    try {
-      await api.calls.setOutcome(activeCallCtx.callLogId, outcome as NonNullable<CallLog["outcome"]>, {
-        notes: quickNoteContent.trim() || undefined,
-      });
-      if (outcome === "converted") {
-        await api.leads.convert(selectedLead.id, composeNoteContent());
-      } else if (quickNoteContent.trim() || quickNoteTitle.trim() || quickNoteTags.length > 0) {
-        await saveNote(selectedLead.id, composeNoteContent(), quickNotePinned, quickNoteTags);
-      }
-      setActiveCallCtx(null);
-      toast.success(`Outcome "${outcome.replace("_", " ")}" logged successfully`);
-      resetQuickNote();
-      refreshQueueRef.current();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save outcome");
-    } finally {
-      setQuickNoteSaving(false);
-    }
-  }
-
   // Props bag for LeadDetailPanel. selectedLead is cast: the panel itself
   // renders a loader when it's null, and pages only mount it once a lead is chosen.
   const leadDetailProps: LeadDetailPanelProps = {
@@ -759,7 +732,6 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
     setQuickNoteContent,
     quickNoteSaving,
     saveQuickNote,
-    handleQuickOutcome,
     quickNoteTags,
     setQuickNoteTags,
     quickNotePinned,
