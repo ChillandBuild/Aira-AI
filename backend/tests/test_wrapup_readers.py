@@ -32,6 +32,15 @@ class AnalyticsTests(unittest.TestCase):
         out = analytics._window_aggregate(logs, [], [], datetime(2026, 9, 27, tzinfo=UTC), datetime(2026, 9, 28, tzinfo=UTC), 1)
         self.assertEqual((out["calls"], out["connect_rate"], out["conversions"]), (3.0, 0.5, 1.0))
 
+    def test_followups_scheduled_counts_only_call_later_outcomes(self):
+        logs = [
+            {"outcome": "call_later", "next_action_at": "2026-09-27T10:00:00+00:00"},
+            {"outcome": "interested_booked", "next_action_at": "2026-09-27T11:00:00+00:00"},
+            {"outcome": None, "manual_status": "not_picked", "next_action_at": "2026-09-27T12:00:00+00:00"},
+            {"outcome": "call_later", "next_action_at": "2026-09-27T13:00:00+00:00"},
+        ]
+        self.assertEqual(analytics._followups_scheduled(logs), 2)
+
     def test_manual_status_breakdown_is_the_four_connect_values(self):
         counts = analytics._manual_status_breakdown([{"manual_status": "busy"}, {"manual_status": "switched_off"}, {"manual_status": None}])
         self.assertEqual(set(counts), set(CONNECTS))

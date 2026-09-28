@@ -195,6 +195,13 @@ def _manual_status_breakdown(logs: list[dict]) -> dict[str, int]:
     return counts
 
 
+def _followups_scheduled(logs: list[dict]) -> int:
+    """"Callback Today" (TeamCallsSection) counts wrap-ups where the telecaller
+    picked call_later, not every call that happens to carry a next_action_at (a retry
+    reminder from a no-connect, or a hot/warm next-step time, are not callbacks)."""
+    return sum(1 for log in logs if log.get("outcome") == "call_later")
+
+
 def _caller_idle_minutes(
     caller_logs: list[dict],
     caller_status_logs: list[dict],
@@ -678,7 +685,7 @@ async def telecalling_analytics(
         "calls_today": calls_today,
         "calls_attempted": calls_today,
         "connected_calls": len(team_connected_calls),
-        "followups_scheduled": sum(1 for l in logs_today_res if l.get("next_action_at")),
+        "followups_scheduled": _followups_scheduled(logs_today_res),
         "calls_this_week": calls_this_week,
         "avg_duration_seconds": avg_duration_seconds,
         "outcome_breakdown": outcome_breakdown,
