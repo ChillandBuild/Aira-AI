@@ -96,14 +96,31 @@ class SaveWrapupTests(_Base):
                          ("warm", "2030-01-06T04:30:00+00:00", 72.5, "provisional"))
 
     def test_sim_wrapup_has_no_score_fields_at_all(self):
-        """finalize_call_score returns None for providers it never scores (sim_basic) --
+        """SIM clients get no evaluation at all -- gated on the tenant's own
+        calling_provider, not on whether this particular call got scored, so
         the response must drop the keys entirely, not send them as null."""
         apply = AsyncMock(return_value={"call_status": "warm", "next_action_at": "2030-01-06T04:30:00+00:00", "deal_id": None})
         crm_task = AsyncMock()
         with patch("app.routes.calls.get_supabase", return_value=_log_db(SIM)), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "sim_basic"}), \
              patch("app.routes.calls.apply_wrapup", apply), \
              patch("app.routes.calls.mark_crm_update_task", crm_task), \
              patch("app.routes.calls.finalize_call_score", return_value=None):
+            res = self.client.patch(f"/api/v1/calls/{CALL_ID}/outcome", json=WARM)
+        body = res.json()
+        self.assertEqual(res.status_code, 200)
+        self.assertNotIn("score", body)
+        self.assertNotIn("score_status", body)
+
+    def test_sim_wrapup_has_no_score_fields_even_if_scoring_somehow_ran(self):
+        """The gate is the tenant's calling_provider, not finalize_call_score's
+        return -- even a stray non-None scoring result must not leak through."""
+        apply = AsyncMock(return_value={"call_status": "warm", "next_action_at": "2030-01-06T04:30:00+00:00", "deal_id": None})
+        with patch("app.routes.calls.get_supabase", return_value=_log_db(SIM)), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "sim_basic"}), \
+             patch("app.routes.calls.apply_wrapup", apply), \
+             patch("app.routes.calls.mark_crm_update_task", AsyncMock()), \
+             patch("app.routes.calls.finalize_call_score", return_value={"score": 72.5, "score_status": "provisional"}):
             res = self.client.patch(f"/api/v1/calls/{CALL_ID}/outcome", json=WARM)
         body = res.json()
         self.assertEqual(res.status_code, 200)

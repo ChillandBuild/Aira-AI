@@ -60,6 +60,41 @@ class AlertRouteTests(_Base):
             res = self.client.get("/api/v1/calls/alerts/count")
         self.assertEqual(res.json(), {"count": 3})
 
+    def test_sim_tenant_alert_list_excludes_scoring_alert_types(self):
+        self.as_role("owner")
+        db = MagicMock()
+        base = db.table.return_value.select.return_value.eq.return_value.is_.return_value
+        base.not_.in_.return_value.order.return_value.range.return_value.execute.return_value = MagicMock(data=[], count=0)
+        with patch("app.routes.calls.get_supabase", return_value=db), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "sim_basic"}):
+            res = self.client.get("/api/v1/calls/alerts")
+        self.assertEqual(res.status_code, 200)
+        base.not_.in_.assert_called_once_with(
+            "type", ["rude", "wrong_info", "crm_mismatch", "no_proof", "transcript_failed", "tracks_swapped"]
+        )
+
+    def test_telecmi_tenant_alert_list_is_unchanged(self):
+        self.as_role("owner")
+        db = MagicMock()
+        base = db.table.return_value.select.return_value.eq.return_value.is_.return_value
+        base.order.return_value.range.return_value.execute.return_value = MagicMock(data=[], count=0)
+        with patch("app.routes.calls.get_supabase", return_value=db), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "telecmi"}):
+            res = self.client.get("/api/v1/calls/alerts")
+        self.assertEqual(res.status_code, 200)
+        base.not_.in_.assert_not_called()
+
+    def test_sim_tenant_alert_count_excludes_scoring_alert_types(self):
+        self.as_role("owner")
+        db = MagicMock()
+        base = db.table.return_value.select.return_value.eq.return_value.is_.return_value
+        base.not_.in_.return_value.limit.return_value.execute.return_value = MagicMock(count=0)
+        with patch("app.routes.calls.get_supabase", return_value=db), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "sim_basic"}):
+            res = self.client.get("/api/v1/calls/alerts/count")
+        self.assertEqual(res.status_code, 200)
+        base.not_.in_.assert_called_once()
+
     async def test_alert_seen_is_tenant_scoped(self):
         db = MagicMock()
         db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
@@ -82,6 +117,23 @@ class RetryTests(_Base):
     def test_retry_without_a_failure_is_a_404(self):
         with patch("app.routes.calls.get_supabase"), patch("app.routes.calls.retry_call_ai", return_value=False):
             self.assertEqual(self.client.post(f"/api/v1/calls/{CALL_ID}/retry-ai").status_code, 404)
+
+    def test_sim_tenant_gets_404_no_evaluation_at_all(self):
+        with patch("app.routes.calls.get_supabase"), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "sim_basic"}), \
+             patch("app.routes.calls.retry_call_ai") as retry:
+            res = self.client.post(f"/api/v1/calls/{CALL_ID}/retry-ai")
+        self.assertEqual(res.status_code, 404)
+        retry.assert_not_called()
+
+    def test_telecmi_tenant_is_unchanged(self):
+        with patch("app.routes.calls.get_supabase"), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "telecmi"}), \
+             patch("app.routes.calls.retry_call_ai", return_value=True), \
+             patch("app.routes.calls.finalize_call_score"), \
+             patch("app.routes.calls.run_call_ai"):
+            res = self.client.post(f"/api/v1/calls/{CALL_ID}/retry-ai")
+        self.assertEqual(res.status_code, 200)
 
 
 class RecentMaskingTests(_Base):

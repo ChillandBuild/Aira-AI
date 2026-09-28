@@ -17,6 +17,7 @@ from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_
 from app.services.call_scorer import finalize_call_score
 from app.services.call_ai_pipeline import queue_call_ai, retry_call_ai, run_call_ai
 from app.services.call_marking import mark_crm_update
+from app.services.call_alerts import EVALUATION_ALERT_TYPES
 from app.services.call_evaluation import strip_evaluation
 from app.services.call_transcript import mask_transcript, mask_transcripts
 from app.services.entitlements import meter, check_quota
@@ -1068,11 +1069,13 @@ async def set_outcome(call_log_id: str, payload: WrapupIn, background_tasks: Bac
         "next_action_at": result["next_action_at"],
         "deal_id": result["deal_id"],
     }
-    # scoring is None for providers that never get scored (e.g. sim_basic) --
-    # no evaluation, so no score fields at all, not even null ones.
-    if scoring is not None:
-        response["score"] = scoring.get("score")
-        response["score_status"] = scoring.get("score_status")
+    # SIM clients get no evaluation at all -- gated on the tenant's own
+    # calling_provider, same as every other route, not on whether this
+    # particular call happened to get scored.
+    is_sim = get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic"
+    if not is_sim:
+        response["score"] = (scoring or {}).get("score")
+        response["score_status"] = (scoring or {}).get("score_status")
     return response
 
 
@@ -1149,8 +1152,11 @@ async def list_call_alerts(
     limit: int = Query(20, ge=1, le=50),
     ctx: dict = Depends(require_permission("team.manage")),
 ):
-    """The admin's Needs-attention list."""
+    """The admin's Needs-attention list. SIM clients get no evaluation at all --
+    the scoring-derived alert types (rude, wrong_info, etc.) never show for them,
+    only the operational ones (language_barrier, lead_source_quality)."""
     db = get_supabase()
+    is_sim = get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic"
     query = (
         db.table("call_alerts")
         .select("id,type,quote,detail,created_at,seen_at,caller_id,call_log_id,callers(name),"
@@ -1158,6 +1164,8 @@ async def list_call_alerts(
         .eq("tenant_id", ctx["tenant_id"])
     )
     query = query.not_.is_("seen_at", "null") if seen else query.is_("seen_at", "null")
+    if is_sim:
+        query = query.not_.in_("type", list(EVALUATION_ALERT_TYPES))
     if type:
         query = query.eq("type", type)
     if caller_id:
@@ -1170,7 +1178,11 @@ async def list_call_alerts(
 @router.get("/alerts/count")
 async def count_call_alerts(ctx: dict = Depends(require_permission("team.manage"))):
     db = get_supabase()
-    res = db.table("call_alerts").select("id", count="exact").eq("tenant_id", ctx["tenant_id"]).is_("seen_at", "null").limit(1).execute()
+    is_sim = get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic"
+    query = db.table("call_alerts").select("id", count="exact").eq("tenant_id", ctx["tenant_id"]).is_("seen_at", "null")
+    if is_sim:
+        query = query.not_.in_("type", list(EVALUATION_ALERT_TYPES))
+    res = query.limit(1).execute()
     return {"count": res.count or 0}
 
 
@@ -1189,8 +1201,11 @@ async def mark_call_alert_seen(alert_id: UUID, ctx: dict = Depends(require_permi
 
 @router.post("/{call_log_id}/retry-ai")
 async def retry_ai(call_log_id: UUID, background_tasks: BackgroundTasks, ctx: dict = Depends(get_tenant_and_role)):
-    """Re-run transcription + scoring for a call whose processing failed."""
+    """Re-run transcription + scoring for a call whose processing failed.
+    SIM clients get no evaluation at all -- this route doesn't exist for them."""
     db = get_supabase()
+    if get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic":
+        raise HTTPException(status_code=404, detail="Not available for this client")
     if not retry_call_ai(db, str(call_log_id), ctx["tenant_id"]):
         raise HTTPException(status_code=404, detail="This call has no failed processing to retry")
     finalize_call_score(db, str(call_log_id))

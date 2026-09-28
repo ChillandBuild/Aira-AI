@@ -20,6 +20,13 @@ ALERT_TYPES = (
     "language_barrier", "lead_source_quality", "tracks_swapped",
 )
 INSTANT_TYPES = ("rude", "wrong_info")
+# SIM clients get no evaluation at all: these types only ever come from call
+# scoring, which never runs for them, so they're excluded from every alert
+# read for a SIM tenant. language_barrier/lead_source_quality are operational
+# (wrap-up and lead-quality signals, not call scoring) and stay for everyone.
+EVALUATION_ALERT_TYPES = (
+    "rude", "wrong_info", "crm_mismatch", "no_proof", "transcript_failed", "tracks_swapped",
+)
 ALERT_LABELS = {
     "rude": "Rude or dismissive on a call",
     "wrong_info": "Wrong product information",
