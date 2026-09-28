@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, Plus, Tag, X } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { api, type CallLog } from "@/lib/api";
 import { CallAiDetail, MaskedTranscript } from "@/components/CallAi";
+import { TONE_CHIP, TONE_DOT, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
 
 // ─── Tag system ───────────────────────────────────────────────────────────────
 export const PRESET_TAGS = [
@@ -81,28 +82,9 @@ export function scoreBadgeColor(score: number): string {
 }
 
 // ─── Call outcome → dot color ───────────────────────────────────────────────────
-const OUTCOME_DOT_COLOR: Record<string, string> = {
-  converted: "bg-emerald-400",
-  not_interested: "bg-rose-400",
-  no_answer: "bg-[#a8a29e]",
-  do_not_call: "bg-red-400",
-  unreachable: "bg-gray-400",
-};
-
-export function outcomeDotColor(outcome?: string | null): string {
-  return (outcome && OUTCOME_DOT_COLOR[outcome]) || "bg-primary/70";
-}
-
-const OUTCOME_BADGE_COLOR: Record<string, string> = {
-  converted: "bg-emerald-50 text-emerald-600",
-  not_interested: "bg-rose-50 text-rose-600",
-  no_answer: "bg-[#f0ece4] text-[#78716c]",
-  do_not_call: "bg-red-50 text-red-600",
-  unreachable: "bg-gray-100 text-gray-500",
-};
-
-export function outcomeBadgeColor(outcome?: string | null): string {
-  return (outcome && OUTCOME_BADGE_COLOR[outcome]) || "bg-[var(--primary-50)] text-primary";
+export function outcomeDotColor(log: Pick<CallLog, "outcome" | "manual_status">): string {
+  const key = callResultKey(log);
+  return key ? TONE_DOT[callResultTone(key)] : "bg-primary/70";
 }
 
 // ─── Sentiment ──────────────────────────────────────────────────────────────────
@@ -309,9 +291,9 @@ export function AiSummaryCard({
               {formatDateTime(log.created_at)}
               {log.duration_seconds != null && ` · ${log.duration_seconds}s`}
             </p>
-            {log.outcome && (
-              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full font-label text-[10px] font-bold uppercase tracking-wide capitalize ${outcomeBadgeColor(log.outcome)}`}>
-                {log.outcome.replace("_", " ")}
+            {callResultKey(log) && (
+              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full border font-label text-[10px] font-bold ${TONE_CHIP[callResultTone(callResultKey(log))]}`}>
+                {callResultLabel(callResultKey(log))}
               </span>
             )}
           </div>
@@ -344,9 +326,9 @@ export function AiSummaryCard({
             {log.duration_seconds != null && ` · ${log.duration_seconds}s`}
           </p>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {log.outcome && (
-              <span className={`px-2 py-0.5 rounded-full font-label text-[10px] font-bold uppercase tracking-wide capitalize ${outcomeBadgeColor(log.outcome)}`}>
-                {log.outcome.replace("_", " ")}
+            {callResultKey(log) && (
+              <span className={`px-2 py-0.5 rounded-full border font-label text-[10px] font-bold ${TONE_CHIP[callResultTone(callResultKey(log))]}`}>
+                {callResultLabel(callResultKey(log))}
               </span>
             )}
             {log.score != null && (

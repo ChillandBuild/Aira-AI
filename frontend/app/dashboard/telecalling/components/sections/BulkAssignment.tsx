@@ -6,6 +6,7 @@ import { Users, Search, Loader2 } from "lucide-react";
 import { api, type Caller, type Lead } from "@/lib/api";
 import { formatPhone } from "@/lib/utils";
 import { CheckTick } from "@/components/ui/controls";
+import { LEAD_STATUS_LABEL, TONE_CHIP, leadStatusTone } from "@/lib/call-wrapup";
 
 interface BulkAssignmentProps {
   callers: Caller[];
@@ -146,13 +147,8 @@ export default function BulkAssignment({ callers }: BulkAssignmentProps) {
                       <span className="bg-[#f0ece4] px-1 py-0.5 rounded font-black text-[9px] uppercase">{lead.segment || "—"}</span>
                     </td>
                     <td className="py-2 px-2">
-                      <span className={`px-1.5 py-0.5 rounded font-label text-[9px] font-black uppercase ${
-                        lead.call_status === "converted" ? "bg-emerald-100 text-emerald-800" :
-                        lead.call_status === "dnc" ? "bg-red-100 text-red-800" :
-                        lead.call_status === "unreachable" ? "bg-rose-100 text-rose-800" :
-                        "bg-[#f0ece4] text-[#57534e]"
-                      }`}>
-                        {lead.call_status || "new"}
+                      <span className={`px-1.5 py-0.5 rounded border font-label text-[9px] font-black uppercase ${TONE_CHIP[leadStatusTone(lead.call_status ?? "new")]}`}>
+                        {LEAD_STATUS_LABEL[lead.call_status ?? "new"]}
                         {lead.do_not_call ? " (DNC)" : ""}
                       </span>
                     </td>

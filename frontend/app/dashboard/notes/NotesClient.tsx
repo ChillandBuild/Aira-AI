@@ -494,7 +494,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                       ) : (
                         <div>
                           {aiLogs.map((log, i) => (
-                            <TimelineItem key={log.id} color={outcomeDotColor(log.outcome)} isLast={i === aiLogs.length - 1}>
+                            <TimelineItem key={log.id} color={outcomeDotColor(log)} isLast={i === aiLogs.length - 1}>
                               <AiSummaryCard
                                 log={log}
                                 prevSummary={aiLogs[i + 1]?.ai_summary ?? undefined}

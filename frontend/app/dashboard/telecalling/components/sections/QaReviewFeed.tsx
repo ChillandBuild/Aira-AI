@@ -5,6 +5,7 @@ import { Award, ChevronDown, Eye, Loader2 } from "lucide-react";
 import { api, type CallLog } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import { CallAiDetail, scoreColor } from "@/components/CallAi";
+import { callResultKey, callResultLabel } from "@/lib/call-wrapup";
 
 interface QaReviewFeedProps {
   from: string;
@@ -13,14 +14,6 @@ interface QaReviewFeedProps {
   callerName?: string | null;
   onViewLead: (leadId: string) => void;
 }
-
-const OUTCOME_LABEL: Record<string, string> = {
-  converted: "Converted",
-  interested: "Interested",
-  callback: "Callback",
-  not_interested: "Not interested",
-  no_answer: "No answer",
-};
 
 /** The period's scored calls, weakest first, so reviews start where coaching matters most. */
 export default function QaReviewFeed({ from, to, callerId, callerName, onViewLead }: QaReviewFeedProps) {
@@ -99,7 +92,7 @@ export default function QaReviewFeed({ from, to, callerId, callerName, onViewLea
                     </p>
                     <p className="font-label text-[10px] text-[#a8a29e] mt-0.5">
                       {timeAgo(log.created_at)}
-                      {log.outcome ? ` · ${OUTCOME_LABEL[log.outcome] ?? log.outcome}` : ""}
+                      {callResultLabel(callResultKey(log)) ? ` · ${callResultLabel(callResultKey(log))}` : ""}
                     </p>
                   </div>
                   <ChevronDown size={14} className={`shrink-0 text-[#a8a29e] transition-transform ${open ? "rotate-180" : ""}`} />

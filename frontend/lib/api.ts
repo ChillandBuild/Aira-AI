@@ -37,7 +37,7 @@ export interface Lead {
   tag_name?: string | null;
   ad_campaign_name?: string | null;
   channel?: string | null;
-  call_status?: "new" | "in_progress" | "callback" | "converted" | "not_interested" | "dnc" | "unreachable" | null;
+  call_status?: LeadCallStatus | null;
   do_not_call?: boolean;
   needs_human_attention?: boolean;
   archived_at?: string | null;
@@ -150,10 +150,6 @@ export interface CallerStats {
   status: string;
   caller_id: string;
 }
-
-export type Disposition = "answered" | "no_answer" | "busy" | "switched_off" | "followup_required";
-export type ManualCallStatus = "connected" | "not_picked" | "busy" | "wrong_number" | "interested" | "not_interested" | "callback";
-export type CallOutcome = "converted" | "interested" | "callback" | "not_interested" | "no_answer" | "do_not_call" | "do_not_contact" | "in_progress";
 
 /** Wrap-up v2 tap 1 (call_logs.manual_status). */
 export type CallConnect = "connected" | "not_picked" | "busy" | "switched_off";
@@ -327,9 +323,9 @@ export interface CallLog {
   lead_id: string | null;
   call_sid: string | null;
   duration_seconds: number | null;
-  outcome: CallOutcome | null;
+  outcome: CallResult | null;
   disposition: string | null;
-  manual_status?: ManualCallStatus | null;
+  manual_status?: CallConnect | null;
   recording_url: string | null;
   score: number | null;
   status: string;
@@ -343,7 +339,6 @@ export interface CallLog {
     brief?: string;
   } | null;
   evaluation: CallEvaluation | null;
-  quality_rating: number | null;
   notes?: string | null;
   provider?: "telecmi" | "sim_basic";
   score_status?: CallScoreStatus | null;
@@ -824,10 +819,10 @@ export interface TelecallingAnalytics {
   calls_today: number;
   calls_this_week: number;
   avg_duration_seconds: number | null;
-  outcome_breakdown: { converted: number; interested: number; callback: number; not_interested: number; no_answer: number };
+  outcome_breakdown: Record<CallResult, number>;
   conversions_today?: number;
   followups_scheduled?: number;
-  manual_status_breakdown?: Record<ManualCallStatus, number>;
+  manual_status_breakdown?: Record<CallConnect, number>;
   per_caller: {
     caller_id: string;
     name: string;
@@ -912,14 +907,9 @@ export interface TelecallingAnalyticsExtended {
   total_minutes_today: number;
   calls_attempted?: number;
   connected_calls?: number;
-  not_picked_calls?: number;
-  busy_calls?: number;
-  wrong_number_calls?: number;
-  interested_leads?: number;
   followups_scheduled?: number;
-  outcome_breakdown: { converted: number; interested: number; callback: number; not_interested: number; no_answer: number };
-  manual_status_breakdown: Record<ManualCallStatus, number>;
-  manual_status_all_time_breakdown?: Record<ManualCallStatus, number>;
+  outcome_breakdown: Record<CallResult, number>;
+  manual_status_breakdown: Record<CallConnect, number>;
   conversions_today?: number;
   per_caller: {
     caller_id: string;
@@ -1711,48 +1701,6 @@ export const api = {
       if (target.callLogId) q.set("call_log_id", target.callLogId);
       return apiFetch<WrapupContext>(`/api/v1/calls/wrapup-context?${q.toString()}`);
     },
-    setOutcome: (
-      callLogId: string,
-      outcome: NonNullable<CallLog["outcome"]>,
-      opts?: { callbackTime?: string; notes?: string; qualityRating?: number; durationSeconds?: number; manualStartedAt?: string; manualEndedAt?: string; manualStatus?: ManualCallStatus }
-    ) =>
-      apiFetch<{
-        call_log_id: string;
-        outcome: string;
-        score: number | null;
-        score_status: CallScoreStatus | null;
-      }>(`/api/v1/calls/${callLogId}/outcome`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          outcome,
-          manual_status: opts?.manualStatus ?? null,
-          callback_time: opts?.callbackTime ?? null,
-          notes: opts?.notes ?? null,
-          quality_rating: opts?.qualityRating ?? null,
-          duration_seconds: opts?.durationSeconds ?? null,
-          manual_started_at: opts?.manualStartedAt ?? null,
-          manual_ended_at: opts?.manualEndedAt ?? null,
-        }),
-      }),
-    setDisposition: (
-      callLogId: string,
-      disposition: Disposition,
-      opts?: { notes?: string; callbackTime?: string },
-    ) =>
-      apiFetch<{
-        call_log_id: string;
-        outcome: string | null;
-        disposition: string | null;
-        score: number | null;
-        score_status: CallScoreStatus | null;
-      }>(`/api/v1/calls/${callLogId}/outcome`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          disposition,
-          notes: opts?.notes ?? null,
-          callback_time: opts?.callbackTime ?? null,
-        }),
-      }),
     statsToday: () =>
       apiFetch<{ calls_today: number; conversions_today: number }>(`/api/v1/calls/stats-today`),
     recentByLeads: (leadIds: string[]) =>

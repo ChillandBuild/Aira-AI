@@ -4,6 +4,8 @@ import { useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock, Lightbulb, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { api, type CallCheck, type CallLog, type CheckKey, type CheckLevel, type EarlyExitCheck, type TranscriptPreview } from "@/lib/api";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
+import { TEMPERATURE_LABEL } from "@/lib/call-wrapup";
 
 function isProcessing(log: CallLog): boolean {
   return log.ai_status === "pending" || log.ai_status === "transcribing" || log.ai_status === "scoring";
@@ -238,6 +240,7 @@ function NumbersLine({ log }: { log: CallLog }) {
 }
 
 function RealConversationCard({ log }: { log: CallLog }) {
+  const { role, permissions } = useAuthRole();
   const evaluation = log.evaluation;
   const checks = evaluation?.checks ?? [];
   if (log.score == null || !checks.length) return null;
@@ -257,6 +260,14 @@ function RealConversationCard({ log }: { log: CallLog }) {
           <NumbersLine log={log} />
         </div>
       </div>
+
+      {evaluation?.crm_correction && (role === "owner" || permissions.includes("team.manage")) && (
+        <p className="flex items-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-1.5 font-label text-[11px] font-bold text-indigo-800">
+          <Sparkles size={12} className="shrink-0" />
+          AI changed {TEMPERATURE_LABEL[evaluation.crm_correction.from]} → {TEMPERATURE_LABEL[evaluation.crm_correction.to]}
+          <span className="font-semibold text-indigo-700/70">· from the recording</span>
+        </p>
+      )}
 
       {(evaluation?.tips?.length ?? 0) > 0 && (
         <div className="space-y-1">

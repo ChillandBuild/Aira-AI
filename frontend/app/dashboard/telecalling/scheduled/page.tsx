@@ -22,6 +22,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { api, CallbackBoardItem, CallLog } from "@/lib/api";
+import { TONE_CHIP, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import { fetchAllNotes, markCallbackDone } from "../lib/notes-api";
 import { isMobileDialSurface, openNativeDialer } from "../lib/sim-dialer";
@@ -556,14 +557,8 @@ export default function ScheduledCallsPage() {
                       callLogs.map((log) => (
                         <div key={log.id} className="p-3 bg-[#faf8f5] border border-[#f0ece4] rounded-xl space-y-2 hover:border-[#e8e3db] transition-colors">
                           <div className="flex items-center justify-between">
-                            <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase ${
-                              log.outcome === "converted" ? "bg-emerald-50 text-emerald-700" :
-                              log.outcome === "interested" ? "bg-cyan-50 text-cyan-700" :
-                              log.outcome === "callback" ? "bg-amber-50 text-amber-700" :
-                              log.outcome === "not_interested" ? "bg-rose-50 text-rose-700" :
-                              "bg-[#e8e3db] text-[#57534e]"
-                            }`}>
-                              {log.outcome || "No Outcome"}
+                            <span className={`px-2 py-0.5 rounded border text-[8px] font-bold uppercase ${TONE_CHIP[callResultTone(callResultKey(log))]}`}>
+                              {callResultLabel(callResultKey(log)) ?? "Not wrapped up"}
                             </span>
                             <span className="text-[9px] text-[#a8a29e]">{timeAgo(log.created_at)}</span>
                           </div>

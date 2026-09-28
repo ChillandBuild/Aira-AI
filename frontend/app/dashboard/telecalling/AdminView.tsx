@@ -2,6 +2,7 @@
 import { useCallback, useState } from "react";
 import { Phone, ChevronDown, Sparkles, User, Inbox, Clock, Search } from "lucide-react";
 import type { Caller, Lead } from "@/lib/api";
+import { LEAD_CALL_STATUSES, LEAD_STATUS_LABEL, isClosedLeadStatus } from "@/lib/call-wrapup";
 import { useAdminDashboard, useLeads } from "@/hooks/useApi";
 import type { AdminDashboardData } from "@/hooks/useApi";
 import { formatPhone } from "@/lib/utils";
@@ -151,7 +152,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
                 <div className="grid grid-cols-3 gap-2 mb-4 shrink-0">
                   {[
                     { value: queueSegment, set: setQueueSegment, label: "Segment", opts: [["all", "All Seg"], ["A", "A"], ["B", "B"], ["C", "C"], ["D", "D"]] },
-                    { value: queueStatus, set: setQueueStatus, label: "Status", opts: [["all", "All"], ["new", "New"], ["in_progress", "In Prog"], ["callback", "Callback"], ["converted", "Converted"], ["not_interested", "Not Int."], ["dnc", "DNC"], ["unreachable", "Unreach."]] },
+                    { value: queueStatus, set: setQueueStatus, label: "Status", opts: [["all", "All"], ...LEAD_CALL_STATUSES.map((s) => [s, LEAD_STATUS_LABEL[s]] as [string, string])] },
                     { value: queueAssignedTo, set: setQueueAssignedTo, label: "Assigned", opts: [["all", "All"], ["unassigned", "Unassigned"], ...callers.map((c) => [c.id, c.name] as [string, string])] },
                   ].map((f) => (
                     <div key={f.label}>
@@ -196,7 +197,7 @@ export default function AdminView({ fallbackData, readOnly = false }: { fallback
                         borderAccent = "border-l-red-500"; avatarBg = "bg-red-500"; callBtnBg = "bg-rose-500 hover:bg-rose-600";
                       } else if (lead.call_status === "callback") {
                         borderAccent = "border-l-amber-500"; avatarBg = "bg-amber-500"; callBtnBg = "bg-amber-500 hover:bg-amber-600";
-                      } else if (lead.call_status && ["converted", "not_interested", "dnc", "unreachable"].includes(lead.call_status)) {
+                      } else if (isClosedLeadStatus(lead.call_status)) {
                         borderAccent = "border-l-[#d6cfc9]"; avatarBg = "bg-[#a8a29e]"; callBtnBg = "bg-[#a8a29e] hover:bg-[#78716c]";
                       }
 
