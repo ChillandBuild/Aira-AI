@@ -688,23 +688,40 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
         manual_ended_at: isSim ? inputToIso(wrapupEndedAt) : undefined,
       });
       const notes = wrapupDraft.notes.trim();
+      let noteFailed = false;
       if (notes && activeCallCtx.leadId) {
-        await saveNote(activeCallCtx.leadId, notes, false, []);
+        // The wrap-up itself is already saved server-side -- a note failure here is a
+        // separate, lesser problem. Don't reopen/keep open the modal or claim the whole
+        // wrap-up failed; just tell the telecaller the note needs a manual re-save.
+        try {
+          await saveNote(activeCallCtx.leadId, notes, false, []);
+        } catch {
+          noteFailed = true;
+        }
       }
 
-      toast.success(
-        saved.next_action_at
-          ? `Wrap-up saved · reminder ${formatIstWhen(new Date(saved.next_action_at), new Date())}`
-          : "Wrap-up saved",
-      );
+      if (noteFailed) {
+        toast.error("Wrap-up saved, but the note didn't save");
+      } else {
+        toast.success(
+          saved.next_action_at
+            ? `Wrap-up saved · reminder ${formatIstWhen(new Date(saved.next_action_at), new Date())}`
+            : "Wrap-up saved",
+        );
+      }
       resetWrapup();
       setActiveCallProvider("telecmi");
       setActiveCallCtx(null);
       refreshQueueRef.current();
       loadCallbacks();
       loadPendingWrapups();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to submit wrap-up");
+    } catch (err: unknown) {
+      const errorObj = err as { status?: number; message?: string };
+      if (errorObj?.status === 422) {
+        toast.error("The app was updated — please refresh the page and save again.");
+      } else {
+        toast.error(err instanceof Error ? err.message : "Failed to submit wrap-up");
+      }
     } finally {
       setWrapupSaving(false);
     }
