@@ -45,6 +45,16 @@ prepare_worktree() {
   return 0
 }
 
+# The checks run here, by this script, not by the agent: tests, typecheck, lint and the
+# live UI checks (a real browser) need things the agent's sandbox rightly refuses. The
+# agent only reads the results and the screenshots.
+run_checks() {
+  local log="$1" checks="$OUT/checks-$(date +%Y-%m-%d).txt"
+  echo "[$(date)] running make verify in the worktree" >>"$log"
+  (cd "$WT" && timeout 1800 bash scripts/verify.sh) >"$checks" 2>&1 || true
+  echo "[$(date)] checks written to $checks" >>"$log"
+}
+
 run_one() {
   local kind="$1" model="$2" budget="$3"
   local log prompt started rc=0
@@ -52,6 +62,7 @@ run_one() {
   prompt="$(cat "$MAIN/.agents/rnd/$kind.md")"
   started="$(mktemp "$STATE/.started.XXXXXX")"
   echo "[$(date)] $kind run starting (model=$model budget=\$$budget)" >>"$log"
+  [ "$kind" = "night" ] && run_checks "$log"
   (
     cd "$WT"
     export AIRA_AUTONOMOUS=1 AIRA_RND_ROOT="$WT" AIRA_RND_OUT="$OUT"

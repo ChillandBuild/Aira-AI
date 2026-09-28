@@ -12,5 +12,44 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "deny": [
+      "Read(//Users/prem/Documents/Aira AI/backend/.env)",
+      "Read(//Users/prem/Documents/Aira AI/backend/.env.*)",
+      "Read(//Users/prem/Documents/Aira AI/frontend/.env.local)",
+      "Read(//Users/prem/.aira-rnd/env)",
+      "Read(//Users/prem/.claude/settings.json)",
+      "Read(//Users/prem/.claude.json)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "network": {
+      "allowedDomains": ["www.bloommatrix.in", "bloommatrix.in"],
+      "strictAllowlist": true
+    },
+    "filesystem": {
+      "denyRead": [
+        "/Users/prem/Documents/Aira AI/backend/.env",
+        "/Users/prem/Documents/Aira AI/frontend/.env.local",
+        "/Users/prem/.aira-rnd/env",
+        "/Users/prem/.claude/settings.json",
+        "/Users/prem/.claude.json",
+        "/Users/prem/.ssh",
+        "/Users/prem/.config/gh"
+      ]
+    },
+    "credentials": {
+      "envVars": [
+        { "name": "RENDER_API_KEY", "mode": "deny" },
+        { "name": "SUPABASE_ACCESS_TOKEN", "mode": "deny" },
+        { "name": "GH_TOKEN", "mode": "deny" },
+        { "name": "GITHUB_TOKEN", "mode": "deny" },
+        { "name": "ANTHROPIC_API_KEY", "mode": "deny" }
+      ]
+    }
   }
 }

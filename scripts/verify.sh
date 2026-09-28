@@ -19,9 +19,17 @@ PY="$ROOT/backend/.venv/bin/python"
 declare -a NAMES=() RESULTS=()
 FAILED=0
 
+skipped() {  # "ui-live" in VERIFY_SKIP also skips every "ui-live:<check>" stage
+  local name="$1" entry
+  for entry in ${VERIFY_SKIP:-}; do
+    [[ "$name" == "$entry" || "$name" == "$entry:"* ]] && return 0
+  done
+  return 1
+}
+
 stage() {
   local name="$1"; shift
-  if [[ " ${VERIFY_SKIP:-} " == *" $name "* ]]; then
+  if skipped "$name"; then
     NAMES+=("$name"); RESULTS+=("SKIPPED (VERIFY_SKIP)"); return
   fi
   echo "▶ $name"
@@ -35,7 +43,9 @@ stage() {
 
 skip() { NAMES+=("$1"); RESULTS+=("SKIPPED — $2"); }
 
-stage backend bash -c "cd backend && '$PY' -m pytest -q -p no:cacheprovider"
+# Same placeholders as CI: the suite never talks to a real database, and a clean worktree
+# (the R&D runs) has no backend/.env.
+stage backend bash -c "cd backend && SUPABASE_URL=\${SUPABASE_URL:-https://dummy.supabase.co} SUPABASE_SERVICE_KEY=\${SUPABASE_SERVICE_KEY:-dummy} '$PY' -m pytest -q -p no:cacheprovider"
 stage frontend-types bash -c "cd frontend && npm run -s typecheck"
 stage frontend-lint bash -c "cd frontend && npm run -s lint"
 stage fence "$PY" -m pytest -q -p no:cacheprovider scripts/rnd/test_fence.py

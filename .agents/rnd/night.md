@@ -40,17 +40,22 @@ Per tenant (tenant name, not customer data):
 5. Anything else that changed sharply versus the previous 7-day daily average.
 Report counts, rates and the trend; give message ids only when a person must look.
 
-**Scout C — the live dashboard (read-only).** Run each `node backend/evals/ui/check_*.js`
-(they log in to https://www.bloommatrix.in/aira as the "Aira UI Test (Claude)" test
-account and save screenshots to `backend/evals/ui/screenshots/`). A script failing may mean
-the site is broken OR the script is stale — check the frontend code before deciding which.
-Open the screenshots with the Read tool and look at them: broken layout, overflow on the
-phone width, error banners, empty states that should not be empty. Never click Save/Apply.
+The runner already ran `make verify` in this worktree before you started (you cannot run
+tests or a browser yourself: your commands are sandboxed). Its output is
+`$AIRA_RND_OUT/checks-<today>.txt`; the live-site screenshots are in
+`backend/evals/ui/screenshots/`.
 
-**Scout D — code health.** Run `VERIFY_SKIP="ui-live" bash scripts/verify.sh` and report
-each stage. Summarise `git log --since='24 hours ago' --stat` (both authors): what changed,
-and anything risky in it (a removed function, a migration, a changed prompt, a deleted
-test) that no test covers.
+**Scout C — the live dashboard.** Read the `ui-live:*` lines and their logs in the checks
+file (the checks log in to https://www.bloommatrix.in/aira as the "Aira UI Test (Claude)"
+test account). A failed check may mean the site is broken OR the check is stale — read the
+frontend code before deciding which, and say which. Open every screenshot with the Read
+tool and look at it: broken layout, overflow at phone width, error banners, empty states
+that should not be empty.
+
+**Scout D — code health.** Report each stage of the checks file (backend, frontend-types,
+frontend-lint, fence, evals) and the failure lines. Summarise
+`git log --since='24 hours ago' --stat` (both authors): what changed, and anything risky in
+it (a removed function, a migration, a changed prompt, a deleted test) that no test covers.
 
 ## Step 2 — write ONE report
 
