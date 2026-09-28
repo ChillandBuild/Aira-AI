@@ -8,6 +8,7 @@ quick-reply blocks all run through the same guarded loop.
 The pure prompt and tool schemas are in services/deal_engine.py, the guarded executors in
 services/deal_actions.py. Design: docs/plans/ai-native-conversation.md.
 """
+import ast
 import dataclasses
 import difflib
 import json
@@ -83,6 +84,46 @@ def strip_placeholders(text: str) -> str:
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
+
+
+_WRITTEN_CALL_RE = re.compile(r"^[ \t]*`*[ \t]*([a-z_][a-z0-9_]*)[ \t]*\((.*)\)[ \t]*`*[ \t]*$", re.MULTILINE)
+
+
+def _names(calls: list[dict]) -> list[str]:
+    return [(c.get("function") or {}).get("name") for c in calls]
+
+
+def _literal_kwargs(args: str) -> dict | None:
+    """of='packages', under="x" -> {"of": "packages", "under": "x"}; None unless every
+    argument is a named plain literal."""
+    try:
+        call = ast.parse(f"f({args})", mode="eval").body
+        if call.args or any(kw.arg is None for kw in call.keywords):
+            return None
+        return {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords}
+    except (SyntaxError, ValueError):
+        return None
+
+
+def written_tool_calls(text: str, tool_names: frozenset[str]) -> tuple[str, list[dict]]:
+    """A tool call the model wrote as a line of text ("show_options(of='packages')") instead of
+    making it -- live 2026-09-28 on Gemini 3.1 Flash Lite. The line never reaches the customer;
+    when its arguments are plain literals it becomes the real call, so it runs through the same
+    checks as one the model made."""
+    calls: list[dict] = []
+
+    def take(match: re.Match) -> str:
+        name = match.group(1)
+        if name not in tool_names:
+            return match.group(0)
+        args = _literal_kwargs(match.group(2))
+        if args is not None:
+            calls.append({"id": f"written-{len(calls)}", "type": "function",
+                          "function": {"name": name, "arguments": json.dumps(args)}})
+        return ""
+
+    cleaned = _WRITTEN_CALL_RE.sub(take, text or "")
+    return re.sub(r"\n{3,}", "\n\n", cleaned).strip(), calls
 
 
 def _known_prices(db, tenant_id: str, lead_id: str) -> frozenset:
@@ -478,6 +519,7 @@ async def converse_once(
         (deal_engine.deal_tools(ctx.config) if ctx.offerings_enabled else deal_engine.handover_tools())
         + [choices.tool_def()] + list(other_tools)
     )
+    tool_names = frozenset((t.get("function") or {}).get("name") for t in tools) - {None}
     offered: list[str] = []
     last_text = _last_assistant_text(chat_messages)
     customer_message = _last_user_text(chat_messages)
@@ -513,6 +555,12 @@ async def converse_once(
                 raise
             logger.exception("Deal reply second round failed -- keeping what we have")
             break
+        draft, written = written_tool_calls(draft, tool_names)
+        made = {(c.get("function") or {}).get("name") for c in calls}
+        written = [c for c in written if c["function"]["name"] not in made]
+        if written:
+            logger.info("Model wrote %s as text for lead %s -- running it as the call", _names(written), ctx.lead_id)
+            calls = [*calls, *written]
         from_tool = choices.from_tool_calls(calls)
         if from_tool:
             message, offered = from_tool
@@ -552,6 +600,7 @@ async def converse_once(
             ]
     if not text:
         text = await _final_text(messages, ctx, refusals, attached, tenant_id, llm)
+    text, _ = written_tool_calls(text, tool_names)  # the tool-free last call can write one too
     text, _ = strip_payment_urls(text)
     if sombre(customer_message) or handover_opened or attached.handover:
         text = without_emoji(text)  # a person is being brought in: no smileys

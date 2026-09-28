@@ -78,3 +78,29 @@ async def test_empty_thread_still_produces_a_prompt():
         out = await ar.generate_silence_nudge("lead-1", db=_db())
     assert out == "ok"
     assert "No prior conversation history available." in spy.await_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_prompt_carries_the_tenants_language_rule():
+    """Astro Tamil (reply_language_mode=tanglish) got English nudges in a Tanglish chat:
+    the nudge prompt never said which language to write in."""
+    from app.services import ai_reply as ar
+    spy = AsyncMock(return_value="ok")
+    with patch.object(ar, "_recent_thread", return_value=_THREAD), \
+         patch.object(ar, "_resolve_reply_language_mode", return_value="tanglish"), \
+         patch.object(ar, "_llm_complete", new=spy):
+        await ar.generate_silence_nudge("lead-1", db=_db())
+    prompt = spy.await_args.args[0]
+    assert "LANGUAGE STYLE: Your reply style is always Tanglish" in prompt
+
+
+@pytest.mark.asyncio
+async def test_mirror_mode_reads_the_customers_latest_message():
+    from app.services import ai_reply as ar
+    spy = AsyncMock(return_value="ok")
+    with patch.object(ar, "_recent_thread", return_value=_THREAD), \
+         patch.object(ar, "_resolve_reply_language_mode", return_value="mirror"), \
+         patch.object(ar, "_llm_complete", new=spy):
+        await ar.generate_silence_nudge("lead-1", db=_db())
+    prompt = spy.await_args.args[0]
+    assert "LANGUAGE RULE: Reply in the SAME language style" in prompt

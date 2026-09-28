@@ -959,6 +959,12 @@ async def generate_silence_nudge(lead_id: str, db=None) -> str:
         for row in history_rows
         if (row.get("content") or "").strip()
     ) or "No prior conversation history available."
+    latest_inbound = next(
+        (row.get("content") or "" for row in reversed(history_rows) if row.get("direction") == "inbound"), "",
+    )
+    # The same LANGUAGE block live replies get: without it the English prompt below made
+    # Tanglish tenants' nudges English (Astro Tamil, 2026-09-28).
+    language_rule = _language_rule_block(_resolve_reply_language_mode(tenant_id), latest_inbound)
 
     prompt = f"""A customer was mid-conversation with a business on WhatsApp and has gone quiet.
 Write ONE short line checking in on them.
@@ -973,7 +979,7 @@ Rules:
 - Refer naturally to whatever was just being discussed.
 - Offer to help further. Low pressure, never pushy.
 - NEVER include links, URLs, prices, discounts, or new offers.
-- No markdown, no quotes, at most one emoji."""
+- No markdown, no quotes, at most one emoji.{language_rule}"""
 
     try:
         text = await _llm_complete(prompt, max_tokens=60, tenant_id=tenant_id)
