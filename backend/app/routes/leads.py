@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from app.config import settings
 from app.db.supabase import get_supabase
+from app.services.call_evaluation import strip_evaluation
 from app.services.call_transcript import mask_transcripts
 from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, get_owner_tenant_id, require_permission
 from app.models.schemas import Lead, LeadUpdate, LeadWithMessages, Message, PaginatedResponse
@@ -17,7 +18,7 @@ from app.services.ai_reply import (
     _call_context_block, _fetch_conversation_summary,
 )
 from app.services.growth import record_stage_event, sync_follow_up_jobs
-from app.services.assignment import record_assignment_event
+from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
@@ -1211,7 +1212,8 @@ async def get_lead_call_logs(lead_id: UUID, tenant_id: str = Depends(get_tenant_
         .limit(20)
         .execute()
     )
-    return {"data": mask_transcripts(result.data)}
+    is_sim = get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi") == "sim_basic"
+    return {"data": strip_evaluation(mask_transcripts(result.data), is_sim)}
 
 
 @router.post("/{lead_id}/compact")

@@ -19,6 +19,7 @@ from app.dependencies.tenant import get_tenant_and_role
 from app.services.pagination import fetch_all_rows
 from app.services.inbound_leads_logic import INBOUND_SOURCES, aggregate_inbound
 from app.services.assignment import get_telecalling_config
+from app.services.call_evaluation import strip_evaluation
 from app.services.call_wrapup import CONNECTS, OUTCOMES, connect_rate as wrapup_connect_rate
 from app.services.analytics_compare import (
     CSV_FIELDNAMES,
@@ -865,10 +866,11 @@ async def export_telecalling(
 ):
     tenant_id = ctx["tenant_id"]
     db = get_supabase()
-    
+    is_sim = get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi") == "sim_basic"
+
     now = datetime.now(timezone.utc)
     start_date = (now - timedelta(days=90)).isoformat()
-    
+
     rows = (
         await asyncio.to_thread(
             db.table("call_logs")
@@ -880,20 +882,23 @@ async def export_telecalling(
             .execute
         )
     ).data or []
-    
+    rows = strip_evaluation(rows, is_sim)
+
     output = io.StringIO()
     fieldnames = [
         "call_log_id", "created_at", "caller_id", "caller_name",
         "lead_id", "lead_name", "lead_phone", "duration_seconds",
-        "outcome", "disposition", "manual_status", "status", "provider", "feedback_source", "recording_url", "score",
-        "score_status"
+        "outcome", "disposition", "manual_status", "status", "provider", "feedback_source", "recording_url",
     ]
-    
+    # SIM clients get no evaluation at all: no score columns in the export either.
+    if not is_sim:
+        fieldnames += ["score", "score_status"]
+
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    
+
     for row in rows:
-        writer.writerow({
+        record = {
             "call_log_id": row["id"],
             "created_at": row["created_at"],
             "caller_id": row.get("caller_id") or "",
@@ -909,9 +914,11 @@ async def export_telecalling(
             "provider": row.get("provider") or "",
             "feedback_source": row.get("feedback_source") or "",
             "recording_url": row.get("recording_url") or "",
-            "score": row.get("score") if row.get("score") is not None else "",
-            "score_status": row.get("score_status") or "",
-        })
+        }
+        if not is_sim:
+            record["score"] = row.get("score") if row.get("score") is not None else ""
+            record["score_status"] = row.get("score_status") or ""
+        writer.writerow(record)
         
     filename = f"telecalling_calls_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
     return StreamingResponse(

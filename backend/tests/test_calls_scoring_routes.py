@@ -97,6 +97,54 @@ class RecentMaskingTests(_Base):
         self.assertNotIn("transcript", row)
         self.assertEqual(row["transcript_preview"], {"first": "Telecaller: one", "last": "Customer: four", "hidden_lines": 2})
 
+    def _scored_row_response(self, calling_provider):
+        db = MagicMock()
+        base = db.table.return_value.select.return_value.eq.return_value
+        base.eq.return_value.order.return_value.limit.return_value.execute.return_value = MagicMock(
+            data=[{"id": "c1", "score": 82.0, "score_status": "scored", "score_final": True,
+                   "evaluation": {"checks": []}, "call_group": "real_conversation", "talk_share": 0.6,
+                   "interruption_count": 1, "interruptions_per_5min": 0.5}]
+        )
+        with patch("app.routes.calls.get_supabase", return_value=db), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": calling_provider}):
+            return self.client.get("/api/v1/calls/recent")
+
+    def test_sim_recent_calls_have_no_evaluation_fields(self):
+        row = self._scored_row_response("sim_basic").json()["data"][0]
+        for field in ("score", "score_status", "score_final", "evaluation", "call_group", "talk_share",
+                      "interruption_count", "interruptions_per_5min"):
+            self.assertNotIn(field, row)
+
+    def test_telecmi_recent_calls_are_unchanged(self):
+        row = self._scored_row_response("telecmi").json()["data"][0]
+        self.assertEqual(row["score"], 82.0)
+        self.assertEqual(row["score_status"], "scored")
+
+
+class SingleCallLogTests(_Base):
+    def _call(self, calling_provider):
+        db = MagicMock()
+        chain = db.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value
+        chain.execute.return_value = MagicMock(data={
+            "id": CALL_ID, "score": 82.0, "score_status": "scored", "score_final": True,
+            "evaluation": {"checks": []}, "call_group": "real_conversation", "talk_share": 0.6,
+            "interruption_count": 1, "interruptions_per_5min": 0.5, "transcript": "hi",
+        })
+        with patch("app.routes.calls.get_supabase", return_value=db), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": calling_provider}):
+            return self.client.get(f"/api/v1/calls/{CALL_ID}")
+
+    def test_sim_call_detail_has_no_evaluation_fields(self):
+        body = self._call("sim_basic").json()
+        for field in ("score", "score_status", "score_final", "evaluation", "call_group", "talk_share",
+                      "interruption_count", "interruptions_per_5min"):
+            self.assertNotIn(field, body)
+
+    def test_telecmi_call_detail_is_unchanged(self):
+        body = self._call("telecmi").json()
+        self.assertEqual(body["score"], 82.0)
+        self.assertEqual(body["score_status"], "scored")
+
 
 class WinnersRouteTests(_Base):
     def test_daily_and_monthly_winners_use_the_70_30_formula_and_owner_is_excluded(self):

@@ -328,7 +328,8 @@ export interface CallLog {
   disposition: string | null;
   manual_status?: CallConnect | null;
   recording_url: string | null;
-  score: number | null;
+  /** Absent entirely for SIM clients -- they get no evaluation at all. */
+  score?: number | null;
   status: string;
   ai_summary: {
     course?: string;
@@ -339,7 +340,8 @@ export interface CallLog {
     sentiment?: string;
     brief?: string;
   } | null;
-  evaluation: CallEvaluation | null;
+  /** Absent entirely for SIM clients -- they get no evaluation at all. */
+  evaluation?: CallEvaluation | null;
   notes?: string | null;
   provider?: "telecmi" | "sim_basic";
   score_status?: CallScoreStatus | null;

@@ -78,8 +78,9 @@ class RecentCallsTests(unittest.TestCase):
 
         self.assertEqual(self.client.get("/api/v1/calls/recent").status_code, 200)
 
+    @patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "telecmi"})
     @patch("app.routes.calls.get_supabase")
-    def test_a_caller_only_sees_their_own_calls(self, mock_get_db):
+    def test_a_caller_only_sees_their_own_calls(self, mock_get_db, _cfg):
         self._as("caller", caller_id="caller-1")
         _, base = self._mock_db(mock_get_db)
 
@@ -87,8 +88,9 @@ class RecentCallsTests(unittest.TestCase):
 
         base.eq.assert_called_with("caller_id", "caller-1")
 
+    @patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "telecmi"})
     @patch("app.routes.calls.get_supabase")
-    def test_an_admin_can_filter_by_caller(self, mock_get_db):
+    def test_an_admin_can_filter_by_caller(self, mock_get_db, _cfg):
         self._as("owner")
         _, base = self._mock_db(mock_get_db)
 
@@ -96,8 +98,9 @@ class RecentCallsTests(unittest.TestCase):
 
         base.eq.assert_called_with("caller_id", "caller-2")
 
+    @patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "telecmi"})
     @patch("app.routes.calls.get_supabase")
-    def test_an_admin_without_a_caller_filter_sees_every_caller(self, mock_get_db):
+    def test_an_admin_without_a_caller_filter_sees_every_caller(self, mock_get_db, _cfg):
         self._as("owner")
         _, base = self._mock_db(mock_get_db)
 
@@ -123,6 +126,29 @@ class RecentCallsTests(unittest.TestCase):
         self._mock_db(mock_get_db, rows=())
 
         self.assertEqual(self.client.get("/api/v1/calls/recent").json()["data"], [])
+
+    @patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "sim_basic"})
+    @patch("app.routes.calls.get_supabase")
+    def test_sim_tenant_has_no_evaluation_fields(self, mock_get_db, _cfg):
+        self._as("owner")
+        self._mock_db(mock_get_db)
+
+        row = self.client.get("/api/v1/calls/recent").json()["data"][0]
+
+        for field in ("score", "score_status", "score_final", "evaluation", "call_group", "talk_share",
+                      "interruption_count", "interruptions_per_5min"):
+            self.assertNotIn(field, row)
+
+    @patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": "telecmi"})
+    @patch("app.routes.calls.get_supabase")
+    def test_telecmi_tenant_keeps_evaluation_fields(self, mock_get_db, _cfg):
+        self._as("owner")
+        self._mock_db(mock_get_db)
+
+        row = self.client.get("/api/v1/calls/recent").json()["data"][0]
+
+        self.assertEqual(row["score"], 7.5)
+        self.assertEqual(row["evaluation"], {"overall_score": 7.6})
 
 
 if __name__ == "__main__":

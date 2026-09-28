@@ -13,6 +13,7 @@ from app.services.assignment import (
     get_telecalling_config,
     save_telecalling_config,
 )
+from app.services.call_evaluation import strip_evaluation
 from app.services.call_transcript import mask_transcripts
 from app.services.telecaller_performance import (
     MIN_SCORED_DAILY,
@@ -162,7 +163,8 @@ async def get_my_calls_today(ctx: dict = Depends(get_tenant_and_role)):
         .order("created_at", desc=True)
         .execute()
     )
-    return {"data": mask_transcripts(result.data)}
+    is_sim = get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic"
+    return {"data": strip_evaluation(mask_transcripts(result.data), is_sim)}
 
 
 @router.get("/my-performance")
@@ -596,7 +598,8 @@ async def list_caller_logs(caller_id: UUID, tenant_id: str = Depends(get_owner_t
         .limit(20)
         .execute()
     )
-    return {"data": mask_transcripts(result.data)}
+    is_sim = get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi") == "sim_basic"
+    return {"data": strip_evaluation(mask_transcripts(result.data), is_sim)}
 
 
 # ── Winners (daily & monthly leaderboard) ────────────────────────────────────

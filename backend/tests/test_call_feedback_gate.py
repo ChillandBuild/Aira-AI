@@ -156,6 +156,31 @@ class GateRouteTests(unittest.TestCase):
         self.assertTrue(sim_q.has("eq", "caller_id", "caller-1"))
         self.assertFalse(any(c[0] == "eq" and c[1][0] == "status" for c in sim_q.calls))
 
+    def _pending_row_response(self, calling_provider):
+        self._as("caller", "caller-1")
+        row = {
+            "id": "c1", "created_at": "2026-09-25T10:00:00+00:00", "provider": "sim_basic",
+            "score": 82.0, "score_status": "scored", "score_final": True, "evaluation": {"checks": []},
+            "call_group": "real_conversation", "talk_share": 0.6, "interruption_count": 1,
+            "interruptions_per_5min": 0.5,
+        }
+        db = FakeDb({"call_logs": [row]})
+        with patch("app.routes.calls.get_supabase", return_value=db), \
+             patch("app.routes.calls.get_telecalling_config", return_value={"calling_provider": calling_provider}):
+            return self.client.get("/api/v1/calls/pending-wrapups")
+
+    def test_sim_pending_wrapups_have_no_evaluation_fields(self):
+        body = self._pending_row_response("sim_basic").json()
+        row = body[0]
+        for field in ("score", "score_status", "score_final", "evaluation", "call_group", "talk_share",
+                      "interruption_count", "interruptions_per_5min"):
+            self.assertNotIn(field, row)
+
+    def test_telecmi_pending_wrapups_are_unchanged(self):
+        body = self._pending_row_response("telecmi").json()
+        self.assertEqual(body[0]["score"], 82.0)
+        self.assertEqual(body[0]["score_status"], "scored")
+
     @patch("app.routes.calls.get_supabase")
     def test_pending_route_not_shadowed_and_sorted_oldest_first(self, mock_get_db):
         self._as("caller", "caller-1")

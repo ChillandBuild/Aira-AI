@@ -17,6 +17,7 @@ from app.dependencies.tenant import get_tenant_id, get_tenant_and_role, require_
 from app.services.call_scorer import finalize_call_score
 from app.services.call_ai_pipeline import queue_call_ai, retry_call_ai, run_call_ai
 from app.services.call_marking import mark_crm_update
+from app.services.call_evaluation import strip_evaluation
 from app.services.call_transcript import mask_transcript, mask_transcripts
 from app.services.entitlements import meter, check_quota
 from app.services.call_wrapup import (
@@ -1113,7 +1114,8 @@ async def recent_calls(
     elif caller_id:
         query = query.eq("caller_id", caller_id)
     rows = query.order("created_at", desc=True).limit(limit).execute()
-    return {"data": mask_transcripts(rows.data)}
+    is_sim = get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic"
+    return {"data": strip_evaluation(mask_transcripts(rows.data), is_sim)}
 
 
 @router.get("/recent-by-leads")
@@ -1424,7 +1426,8 @@ async def get_pending_wrapups(ctx: dict = Depends(get_tenant_and_role)):
         other_q = other_q.eq("caller_id", caller_id)
 
     rows = (sim_q.execute().data or []) + (other_q.execute().data or [])
-    return mask_transcripts(sorted(rows, key=lambda r: r.get("created_at") or ""))
+    is_sim = get_telecalling_config(tenant_id, db=db).get("calling_provider", "telecmi") == "sim_basic"
+    return strip_evaluation(mask_transcripts(sorted(rows, key=lambda r: r.get("created_at") or "")), is_sim)
 
 
 @router.get("/pending-wrapups/summary")
@@ -1545,7 +1548,8 @@ async def get_call_log(call_log_id: UUID, ctx: dict = Depends(get_tenant_and_rol
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Call log not found")
-    return mask_transcript(result.data)
+    is_sim = get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic"
+    return strip_evaluation(mask_transcript(result.data), is_sim)
 
 
 @router.delete("/{call_log_id}")
