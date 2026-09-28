@@ -208,3 +208,39 @@ export function resolveConnectionSource(channelId: string, settings: Setting[]):
 
   return settings.find(s => s.key === "meta_business_access_token")?.is_set ? "embedded" : "manual";
 }
+
+function storedPlainValue(settings: Setting[], key: string): string {
+  const row = settings.find(s => s.key === key);
+  return !row || row.display_value === "Not set" ? "" : row.display_value;
+}
+
+/**
+ * The settings to PATCH for one channel form.
+ *
+ * A blank secret means "keep what is stored": the form shows a stored secret as
+ * dots with an empty draft, and the backend deletes any key sent as "". Sending
+ * the blank draft wiped every secret the user had not retyped. Plain fields are
+ * still sent when emptied, so they can be cleared. Removing a secret is the
+ * channel's Disconnect action.
+ */
+export function buildSettingsUpdates(
+  fields: FieldDef[],
+  drafts: SettingsMap,
+  settings: Setting[],
+): SettingsMap {
+  const updates: SettingsMap = {};
+  for (const field of fields) {
+    const draft = drafts[field.key];
+    if (draft === undefined) continue;
+    if (field.secret) {
+      if (draft.length > 0) updates[field.key] = draft;
+    } else if (draft !== storedPlainValue(settings, field.key)) {
+      updates[field.key] = draft;
+    }
+  }
+  return updates;
+}
+
+export function hasUnsavedChanges(fields: FieldDef[], drafts: SettingsMap, settings: Setting[]): boolean {
+  return Object.keys(buildSettingsUpdates(fields, drafts, settings)).length > 0;
+}

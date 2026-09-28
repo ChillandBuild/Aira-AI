@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { fetchSettings, saveSettings } from "./api";
-import { CHANNELS, META_CHANNELS, resolveConnectionSource } from "./channels";
+import { CHANNELS, META_CHANNELS, buildSettingsUpdates, hasUnsavedChanges, resolveConnectionSource } from "./channels";
 import type { ActivateResult, ChannelConfig, EmbeddedSignupTarget, SaveState, Setting, SettingsMap, WebhookHealth } from "./channels";
 import { useMetaSignup } from "./useMetaSignup";
 import { useMetaChannelSignup } from "./useMetaChannelSignup";
@@ -116,10 +116,6 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   const busyTarget: EmbeddedSignupTarget | null =
     meta.activeMode === "whatsapp_only" ? "whatsapp" : channelSignup.busyTarget;
 
-  function settingFor(key: string) {
-    return settings.find(s => s.key === key);
-  }
-
   // Check if a channel's fields are completely set in DB
   // Optional fields must not gate activation. Counting them made the Instagram
   // App Secret mandatory in practice, and the only way to light the button back
@@ -129,41 +125,17 @@ export default function ConnectChannelsPanel({ canManage = true }: { canManage?:
   }, [settings]);
 
   // Check if modal channel has drafts changes
-  const isModalDirty = useMemo(() => {
-    if (!selectedChannel) return false;
-    return selectedChannel.fields.some(f => {
-      const meta = settings.find(s => s.key === f.key);
-      const draft = drafts[f.key];
-      if (draft === undefined) return false;
-      // Emptying a stored secret is a change too — treating it as "no change"
-      // left no way to remove a credential once saved.
-      if (f.secret) return draft.length > 0 || Boolean(meta?.is_set);
-      const stored = meta?.display_value === "Not set" ? "" : (meta?.display_value ?? "");
-      return draft !== stored;
-    });
-  }, [selectedChannel, drafts, settings]);
+  const isModalDirty = useMemo(
+    () => (selectedChannel ? hasUnsavedChanges(selectedChannel.fields, drafts, settings) : false),
+    [selectedChannel, drafts, settings],
+  );
 
   async function handleSave() {
     if (!canManage) return;
     if (!selectedChannel) return;
     setSaveState("saving");
     setError(null);
-    const updates: SettingsMap = {};
-    selectedChannel.fields.forEach(f => {
-      const draft = drafts[f.key];
-      if (draft === undefined) return;
-      // A never-saved key has no settings row yet; fall back to the field def
-      // so first-time saves (e.g. instagram_app_secret) aren't dropped.
-      const current = settingFor(f.key);
-      if (f.secret) {
-        // Send the empty string when clearing an existing secret; skip it only
-        // when there was nothing stored to clear.
-        if (draft.length > 0 || current?.is_set) updates[f.key] = draft;
-      } else {
-        const stored = current?.display_value === "Not set" ? "" : (current?.display_value ?? "");
-        if (draft !== stored) updates[f.key] = draft;
-      }
-    });
+    const updates = buildSettingsUpdates(selectedChannel.fields, drafts, settings);
 
     try {
       if (Object.keys(updates).length > 0) await saveSettings(updates);
