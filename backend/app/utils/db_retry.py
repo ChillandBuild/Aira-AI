@@ -6,6 +6,7 @@ than a 500. See dependencies/auth.py's _verify_remote for the auth-critical
 variant (retries then raises 503) and chat_handovers.py's handover_count for
 the catch-and-fallback variant used by non-critical polling endpoints.
 """
+import asyncio
 
 
 def is_transient_db_error(e: Exception) -> bool:
@@ -25,3 +26,13 @@ def execute_with_retry(query):
         if is_transient_db_error(e):
             return query.execute()
         raise
+
+
+async def execute_with_retry_async(query):
+    """execute_with_retry for async routes, off the event loop.
+
+    Same thing the async call sites already do by hand
+    (`await asyncio.to_thread(query.execute)`), with the retry added. Only for
+    queries that are safe to replay: reads and read-only RPCs, never a write.
+    """
+    return await asyncio.to_thread(execute_with_retry, query)

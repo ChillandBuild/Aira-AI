@@ -32,6 +32,7 @@ from app.services.analytics_compare import (
     resolve_period,
     summarise_movement,
 )
+from app.utils.db_retry import execute_with_retry_async
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1157,15 +1158,20 @@ async def overview_analytics(
     # p_timezone='Asia/Kolkata' so "Inbound Today"/"Outbound Today" on the
     # dashboard home reset at IST midnight, not UTC midnight -- this field is
     # only consumed by AiWorkloadSection.tsx, nothing else shares these keys.
+    # execute_with_retry_async, not a bare to_thread: postgrest sends an RPC as
+    # a POST, and _RetryTransport (db/supabase.py) replays only GET/HEAD/OPTIONS
+    # because a dropped write may already have landed. These four RPCs are
+    # read-only aggregates, so replaying one is safe -- without it a single
+    # "Server disconnected" turned the whole dashboard into an error card.
     daily_msg_rows = (
-        await asyncio.to_thread(
+        await execute_with_retry_async(
             db.rpc("analytics_daily_messages", {
                 "p_tenant_id": tenant_id,
                 "p_start": window_start_dt.isoformat(),
                 "p_end": now.isoformat(),
                 "p_channel": None,
                 "p_timezone": "Asia/Kolkata",
-            }).execute
+            })
         )
     ).data or []
 
@@ -1239,27 +1245,27 @@ async def overview_analytics(
     )
 
     money_res, response_res, returning_res = await asyncio.gather(
-        asyncio.to_thread(
+        execute_with_retry_async(
             db.rpc("analytics_period_money", {
                 "p_tenant_id": tenant_id,
                 "p_start": window_start_dt.isoformat(),
                 "p_end": now.isoformat(),
-            }).execute
+            })
         ),
-        asyncio.to_thread(
+        execute_with_retry_async(
             db.rpc("analytics_response_times", {
                 "p_tenant_id": tenant_id,
                 "p_start": window_start_dt.isoformat(),
                 "p_end": now.isoformat(),
-            }).execute
+            })
         ),
-        asyncio.to_thread(
+        execute_with_retry_async(
             db.rpc("analytics_daily_returning_ad_leads", {
                 "p_tenant_id": tenant_id,
                 "p_start": returning_window_start.isoformat(),
                 "p_end": now.isoformat(),
                 "p_timezone": "Asia/Kolkata",
-            }).execute
+            })
         ),
     )
     money_rows = money_res.data or []
