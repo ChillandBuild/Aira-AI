@@ -3,7 +3,7 @@
 ## Core Commands
 - **Backend Dev**: `cd backend && uvicorn app.main:app --reload`
 - **Backend Build/Deps**: `cd backend && pip install -r requirements.txt`
-- **Backend Test**: `cd backend && pytest` (runs tests under `backend/tests/`)
+- **Backend Test**: `cd backend && python -m pytest` (runs tests under `backend/tests/`). Use `python -m pytest`, not bare `pytest` — several test modules import `app.*` without adding the backend dir to `sys.path`, so bare `pytest` fails at collection.
 - **Frontend Dev**: `cd frontend && npm run dev`
 - **Frontend Build**: `cd frontend && npm run build`
 - **Frontend Typecheck**: `cd frontend && npm run typecheck`
@@ -37,3 +37,9 @@ To prevent context dilution, general invariants and rules have been split into m
 5.  **Subsystem Notes & Load-Bearing Gotchas**:
     *   Location: [.agents/context/subsystem-notes.md](.agents/context/subsystem-notes.md)
     *   Read when: Editing broadcasts/delivery, scoring, call evaluation, knowledge RAG, frontend perf, telecalling, chat escalation, or operator console — holds the *why* and the traps the wiki can't.
+6.  **Security & Vulnerability Guidance**:
+    *   Location: [.agents/context/security-checklist.md](.agents/context/security-checklist.md)
+    *   Read when: Touching auth, webhooks, payments (Razorpay), file uploads, RLS policies, or any route reading `tenant_id`.
+7.  **AI Reply Master Prompt**:
+    *   Location: [docs/whatsapp-master-prompt.md](docs/whatsapp-master-prompt.md)
+    *   Read when: Touching `_build_base_prompt()` / `ai_reply.py`'s prompt assembly — this is the canonical text.

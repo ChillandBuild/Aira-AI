@@ -16,7 +16,7 @@
 ## Provider Decisions (Locked)
 - **WhatsApp**: Meta Cloud API Direct.
 - **Voice**: TeleCMI (click-to-call + recording).
-- **AI providers (per-workload, updated 2026-07-18)**: WhatsApp AI replies route to the tenant's explicit `ai_reply_model` choice — Sarvam, Groq, Gemini, or OpenAI as **equal peers**, no hardcoded default (operator picks per tenant, same contract as provider keys). STT (voice notes + call recordings), knowledge doc digitization, and `analyze_call` run on Gemini 3.1 Flash-Lite via the `/v1beta/interactions` endpoint; voice-reply TTS on Gemini. Groq powers scoring, coaching/digests, AI tuning, lead briefs, and conversation compaction. Every provider key is strictly per-tenant (see subsystem-notes) — never add a platform-key fallback.
+- **AI providers (per-workload, updated 2026-07-18)**: WhatsApp AI replies route to the tenant's explicit `ai_reply_model` choice — Sarvam, Groq, Gemini, or OpenAI as **equal peers**, no hardcoded default (operator picks per tenant, same contract as provider keys). STT (voice notes + call recordings), knowledge doc digitization, TeleCMI call evaluation (v4, 2026-09-28), lead scoring, conversation compaction and AI tuning run on Gemini 3.1 Flash-Lite; voice-reply TTS on Gemini. Groq survives only as a tenant-selectable reply model (updated 2026-09-28). Every provider key is strictly per-tenant (see subsystem-notes) — never add a platform-key fallback.
 - **Payments**: Razorpay (Payment Links API — no SDK, direct httpx/httpx-async calls).
 
 ## Production Configs
@@ -74,11 +74,11 @@ repo.
 - **TelecallingConfigPanel**: Auto-assign, per-segment routing (A/B/C/D), channels, contact recycling configurations, and shift hour limits.
 
 ## File Map & Routing Guidelines
-- WhatsApp/Meta: [routes/webhook.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/webhook.py), [services/meta_cloud.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/meta_cloud.py), [services/outbound_router.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/outbound_router.py)
-- Voice/Telecalling: [routes/calls.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/calls.py), [services/telecmi_client.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/telecmi_client.py), [services/call_summarizer.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/call_summarizer.py)
-- Reassignment/Round-Robin: [services/assignment.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/assignment.py), [routes/assignment_log.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/assignment_log.py), [main.py (scheduler sweeps)](file:///Users/prem/Documents/Aira%20AI/backend/app/main.py)
-- Upload/Scripts/Recycler: [routes/telecalling_upload.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/telecalling_upload.py), [routes/call_scripts.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/call_scripts.py), [services/contact_recycler.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/contact_recycler.py)
-- Leads & Scoring: [routes/leads.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/leads.py), [services/scoring_engine.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/scoring_engine.py)
-- Incidents: [routes/numbers.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/numbers.py), [services/failover.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/failover.py), [routes/incidents.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/incidents.py)
-- Broadcasts/Templates: [routes/upload.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/upload.py), [services/broadcast_executor.py](file:///Users/prem/Documents/Aira%20AI/backend/app/services/broadcast_executor.py), [routes/templates.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/templates.py)
-- Settings & Health: [routes/app_settings.py](file:///Users/prem/Documents/Aira%20AI/backend/app/routes/app_settings.py)
+- WhatsApp/Meta: [routes/webhook.py](../../backend/app/routes/webhook.py), [services/meta_cloud.py](../../backend/app/services/meta_cloud.py), [services/outbound_router.py](../../backend/app/services/outbound_router.py)
+- Voice/Telecalling: [routes/calls.py](../../backend/app/routes/calls.py), [services/telecmi_client.py](../../backend/app/services/telecmi_client.py), [services/call_ai_pipeline.py](../../backend/app/services/call_ai_pipeline.py), [services/call_wrapup.py](../../backend/app/services/call_wrapup.py)
+- Reassignment/Round-Robin: [services/assignment.py](../../backend/app/services/assignment.py), [routes/assignment_log.py](../../backend/app/routes/assignment_log.py), [main.py (scheduler sweeps)](../../backend/app/main.py)
+- Upload/Scripts/Recycler: [routes/telecalling_upload.py](../../backend/app/routes/telecalling_upload.py), [routes/call_scripts.py](../../backend/app/routes/call_scripts.py), [services/contact_recycler.py](../../backend/app/services/contact_recycler.py)
+- Leads & Scoring: [routes/leads.py](../../backend/app/routes/leads.py), [services/scoring_engine.py](../../backend/app/services/scoring_engine.py)
+- Incidents: [routes/numbers.py](../../backend/app/routes/numbers.py), [services/failover.py](../../backend/app/services/failover.py), [routes/incidents.py](../../backend/app/routes/incidents.py)
+- Broadcasts/Templates: [routes/upload.py](../../backend/app/routes/upload.py), [services/broadcast_executor.py](../../backend/app/services/broadcast_executor.py), [routes/templates.py](../../backend/app/routes/templates.py)
+- Settings & Health: [routes/app_settings.py](../../backend/app/routes/app_settings.py)
