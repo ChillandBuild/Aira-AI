@@ -22,6 +22,7 @@ from app.routes import intake
 from app.routes.marketplace_intake import public_router as marketplace_public_router
 from app.routes import marketplace_intake
 from app.routes import deals, business_details
+from app.routes import lead_details_share
 
 # Configure logging
 logging.basicConfig(
@@ -217,7 +218,7 @@ async def _sweep_unassigned_leads() -> None:
 
 
 async def _recycle_contacts() -> None:
-    """APScheduler job: re-queue no_answer leads within calling hours."""
+    """APScheduler job: re-queue leads nobody has reached yet, within calling hours."""
     try:
         from app.services.contact_recycler import recycle_all_tenants
         count = recycle_all_tenants()
@@ -657,6 +658,7 @@ app.include_router(marketplace_public_router, prefix="/api/v1/marketplace", tags
 app.include_router(intake_public_router, prefix="/api/v1/expert-handoff", tags=["intake-webhook-legacy"])
 app.include_router(intake.router, prefix="/api/v1/expert-handoff", tags=["intake-legacy"], dependencies=_auth)
 # API routes — all require auth
+app.include_router(lead_details_share.router, prefix="/api/v1/leads", tags=["leads"], dependencies=_auth)
 app.include_router(leads.router, prefix="/api/v1/leads", tags=["leads"], dependencies=_auth)
 app.include_router(messages.router, prefix="/api/v1/messages", tags=["messages"], dependencies=_auth)
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"], dependencies=_auth)

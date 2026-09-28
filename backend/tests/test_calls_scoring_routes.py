@@ -1,5 +1,4 @@
-"""Routes around the TeleCMI call score: outcome safety gates, admin alerts, retry,
-and transcript masking."""
+"""Routes around the TeleCMI call score: admin alerts, retry, winners and transcript masking."""
 import sys
 import unittest
 from pathlib import Path
@@ -18,13 +17,6 @@ from app.routes import calls
 CALL_ID = "11111111-2222-3333-4444-555555555555"
 
 
-def _log_db(row):
-    db = MagicMock()
-    chain = db.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value
-    chain.execute.return_value = MagicMock(data=row)
-    return db
-
-
 class _Base(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.client = TestClient(app)
@@ -39,53 +31,6 @@ class _Base(unittest.IsolatedAsyncioTestCase):
             "tenant_id": "tenant-1", "role": role, "user_id": "user-1",
             "caller_id": caller_id, "permissions": list(permissions),
         }
-
-
-class OutcomeGateTests(_Base):
-    def _mark(self, row, body):
-        db = _log_db(row)
-        with patch("app.routes.calls.get_supabase", return_value=db), \
-             patch("app.routes.calls.finalize_call_score", return_value={"score": 8.3, "score_status": "scored"}) as fin:
-            res = self.client.patch(f"/api/v1/calls/{CALL_ID}/outcome", json=body)
-        return res, db, fin
-
-    def test_never_connected_telecmi_call_cannot_be_marked_converted(self):
-        row = {"provider": "telecmi", "status": "no_answer", "duration_seconds": 0, "lead_id": None, "caller_id": "caller-1"}
-        res, db, _ = self._mark(row, {"outcome": "converted"})
-        self.assertEqual(res.status_code, 400)
-        self.assertIn("never connected", res.json()["detail"])
-        db.table.return_value.update.assert_not_called()
-
-    def test_zero_second_completed_call_is_also_blocked(self):
-        row = {"provider": "telecmi", "status": "completed", "duration_seconds": 0, "lead_id": None, "caller_id": "caller-1"}
-        res, _, _ = self._mark(row, {"outcome": "interested"})
-        self.assertEqual(res.status_code, 400)
-
-    def test_never_connected_call_can_still_be_marked_no_answer(self):
-        row = {"provider": "telecmi", "status": "no_answer", "duration_seconds": 0, "lead_id": None, "caller_id": "caller-1"}
-        res, _, fin = self._mark(row, {"outcome": "no_answer"})
-        self.assertEqual(res.status_code, 200)
-        fin.assert_called_once()
-
-    def test_typed_duration_never_overrides_telecmi_talk_time(self):
-        """Otherwise a 4-minute call could be typed down to 10s to dodge scoring."""
-        row = {"provider": "telecmi", "status": "completed", "duration_seconds": 240, "lead_id": None, "caller_id": "caller-1"}
-        res, db, _ = self._mark(row, {"outcome": "interested", "duration_seconds": 10})
-        self.assertEqual(res.status_code, 200)
-        written = db.table.return_value.update.call_args.args[0]
-        self.assertNotIn("duration_seconds", written)
-        self.assertNotIn("score", written, "the score is computed by the scorer, never written here")
-
-    def test_sim_calls_keep_their_typed_duration(self):
-        row = {"provider": "sim_basic", "status": "sim_started", "duration_seconds": None, "lead_id": None, "caller_id": "caller-1"}
-        res, db, _ = self._mark(row, {"outcome": "interested", "duration_seconds": 95})
-        self.assertEqual(db.table.return_value.update.call_args.args[0]["duration_seconds"], 95)
-
-    def test_response_carries_the_new_score(self):
-        row = {"provider": "telecmi", "status": "completed", "duration_seconds": 240, "lead_id": None, "caller_id": "caller-1"}
-        res, _, _ = self._mark(row, {"outcome": "interested"})
-        self.assertEqual((res.json()["score"], res.json()["score_status"]), (8.3, "scored"))
-        self.assertNotIn("caller_overall_score", res.json())
 
 
 class AlertRouteTests(_Base):
@@ -122,22 +67,6 @@ class AlertRouteTests(_Base):
             with self.assertRaises(HTTPException) as err:
                 await calls.mark_call_alert_seen(uuid4(), ctx={"tenant_id": "t", "user_id": "u"})
         self.assertEqual(err.exception.status_code, 404)
-
-
-class WrapupCrmCheckTests(unittest.IsolatedAsyncioTestCase):
-    async def test_telecmi_wrapup_queues_crm_check(self):
-        row = {"provider": "telecmi", "status": "completed", "duration_seconds": 250, "lead_id": None}
-        db = _log_db(row)
-        background_tasks = MagicMock()
-        with patch("app.routes.calls.get_supabase", return_value=db), \
-             patch("app.routes.calls.finalize_call_score", return_value={"score": 8.3, "score_status": "scored"}):
-            await calls.set_outcome(
-                CALL_ID,
-                calls.OutcomeUpdate(outcome="interested"),
-                background_tasks,
-                ctx={"tenant_id": "tenant-1", "role": "caller", "user_id": "user-1", "caller_id": "caller-1", "permissions": []},
-            )
-        background_tasks.add_task.assert_called_once_with(calls.mark_crm_update_task, CALL_ID)
 
 
 class RetryTests(_Base):

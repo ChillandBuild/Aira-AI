@@ -94,6 +94,31 @@ class _Query:
         self.filters.append(lambda r: r.get(column) in allowed)
         return self
 
+    def or_(self, filter_string: str):
+        """Minimal PostgREST `or_` support: "col.op.val,col2.op2.val2", OR'd together.
+        Mirrors real Postgres null semantics: `neq`/`eq` never match a NULL column --
+        that's why a conditional update needs an explicit `is.null` clause alongside `neq`."""
+        clauses = [part.split(".", 2) for part in filter_string.split(",")]
+
+        def predicate(r, clauses=clauses):
+            for column, op, value in clauses:
+                actual = r.get(column)
+                if op == "is":
+                    if value == "null" and actual is None:
+                        return True
+                elif op == "neq":
+                    if actual is not None and str(actual) != value:
+                        return True
+                elif op == "eq":
+                    if actual is not None and str(actual) == value:
+                        return True
+                else:
+                    raise AssertionError(f"fake or_ doesn't support op {op!r}")
+            return False
+
+        self.filters.append(predicate)
+        return self
+
     def order(self, column, desc: bool = False):
         self._order = (column, desc)
         return self

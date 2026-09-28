@@ -40,8 +40,8 @@ def test_sim_cdr_enriches_pwa_row_not_duplicate():
     assert '.is_("call_sid", "null")' in source
     assert 'action = "enriched"' in source
     assert 'action = "created"' in source
-    # Never clobber a human-tagged outcome from the wrap-up form.
-    assert "not pending_outcome" in source
+    # The APK never writes an outcome: tap 2 of the wrap-up belongs to the telecaller.
+    assert "pending_outcome" not in source
     # Regression (2026-07-03): the enrichment lookup must NOT be scoped to
     # sim_started/initiated only. That restriction made merging depend on
     # ordering — if the wrap-up form completed the row first, the APK's
@@ -67,7 +67,7 @@ def test_sim_cdr_never_writes_human_owned_fields():
     start = source.index('"call_sid": entry.entry_id,')
     end = source.index("}", start)
     updates_block = source[start:end]
-    for forbidden in ("notes", "tags", "quality_rating", "manual_started_at", "manual_ended_at"):
+    for forbidden in ("notes", "tags", "quality_rating", "manual_started_at", "manual_ended_at", "outcome"):
         assert forbidden not in updates_block, f"{forbidden!r} must not be in the hard-facts updates dict"
     for required in ("call_sid", "status", "disposition", "duration_seconds"):
         assert required in updates_block
@@ -88,9 +88,10 @@ def test_sim_status_mapping_contract():
     source = _read("app/routes/calls.py")
     assert "def _sim_status_from_type" in source
     # outgoing/incoming answered -> completed
-    assert 'return "completed", "answered", None' in source
-    # outgoing unanswered + missed -> no_answer
-    assert 'return "no_answer", "no_answer", "no_answer"' in source
+    assert 'return "completed", "answered"' in source
+    # outgoing unanswered + missed -> no_answer, and never an outcome
+    assert 'return "no_answer", "no_answer"' in source
+    assert '"no_answer", "no_answer", "no_answer"' not in source
 
 
 def test_sim_phone_normalization_strips_india_prefix():

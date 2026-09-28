@@ -1,41 +1,16 @@
 "use client";
-import { useState } from "react";
-import { AlertCircle, CalendarClock, Check, Copy, HandCoins, Phone, RefreshCw, Send, Star, X } from "lucide-react";
+import { AlertCircle, Copy, Phone, RefreshCw, Send, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 import { formatPhone } from "@/lib/utils";
+import { formatIstWhen } from "@/lib/call-wrapup";
 import { pendingCallLabel } from "../lib/feedbackLabels";
-import { QUICK_NOTE_TAGS } from "./LeadDetailPanel";
 import type { CallingCockpit } from "../lib/useCallingCockpit";
-import { NewDealDialog } from "@/components/deals/NewDealDialog";
-
-// Outcomes where the caller may have just made a sale. SIM has no "sold"
-// status, so connected/interested calls get the button too.
-const SALE_OUTCOMES = new Set(["converted", "connected", "interested"]);
-
-const TELECMI_OUTCOMES: { value: string; label: string; danger?: boolean }[] = [
-  { value: "converted", label: "Converted" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "interested", label: "Interested" },
-  { value: "not_interested", label: "Not Interested (Nurture)" },
-  { value: "no_answer", label: "No Answer" },
-  { value: "do_not_call", label: "Do Not Call", danger: true },
-  { value: "do_not_contact", label: "Do Not Contact at All", danger: true },
-];
-
-const SIM_MANUAL_STATUSES: { value: string; label: string; danger?: boolean }[] = [
-  { value: "connected", label: "Connected" },
-  { value: "not_picked", label: "Not picked" },
-  { value: "busy", label: "Busy" },
-  { value: "wrong_number", label: "Wrong number", danger: true },
-  { value: "interested", label: "Interested" },
-  { value: "not_interested", label: "Not interested" },
-  { value: "callback", label: "Callback" },
-];
+import WrapupModal from "./wrapup/WrapupModal";
 
 /**
- * Shared overlays for the calling cockpit: accidental-dial guard, the mandatory
- * wrap-up form, and the blocking pending-wrap-ups list. All state comes from
+ * Shared overlays for the calling cockpit: accidental-dial guard, SIM desktop handoff, the
+ * mandatory two-tap wrap-up and the blocking pending-wrap-ups list. All state comes from
  * useCallingCockpit; the blocking list only renders when `blockingWrapups` is on.
  */
 export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) {
@@ -45,14 +20,10 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     cancelDial,
     showWrapupModal,
     activeCallCtx,
-    wrapupOutcome,
-    setWrapupOutcome,
-    wrapupNotes,
-    setWrapupNotes,
-    wrapupTags,
-    toggleWrapupTag,
-    wrapupQualityRating,
-    setWrapupQualityRating,
+    wrapupDraft,
+    setWrapupDraft,
+    wrapupContext,
+    catalogItems,
     wrapupSaving,
     handleWrapupSubmit,
     pendingWrapups,
@@ -67,18 +38,8 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
     setWrapupStartedAt,
     wrapupEndedAt,
     setWrapupEndedAt,
-    wrapupCallbackDate,
-    setWrapupCallbackDate,
-    wrapupCallbackTime,
-    setWrapupCallbackTime,
   } = cockpit;
-  const [showSaleDialog, setShowSaleDialog] = useState(false);
 
-  const simDurationSeconds = (() => {
-    if (!wrapupStartedAt || !wrapupEndedAt) return null;
-    const seconds = Math.round((new Date(wrapupEndedAt).getTime() - new Date(wrapupStartedAt).getTime()) / 1000);
-    return Number.isFinite(seconds) ? Math.max(0, seconds) : null;
-  })();
   const simHandoffUrl = simHandoffLead && typeof window !== "undefined"
     ? `${window.location.origin}/aira/dashboard/telecalling?lead_id=${simHandoffLead.id}`
     : "";
@@ -185,192 +146,23 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
         </div>
       )}
 
-      {/* Mandatory wrap-up form */}
+      {/* Mandatory two-tap wrap-up */}
       {showWrapupModal && activeCallCtx && (
-        <div className="fixed inset-0 bg-[#1c1917]/80 backdrop-blur-sm flex items-end sm:items-center justify-center z-[70] p-0 sm:p-4">
-          <div className="bg-white sm:rounded-3xl rounded-t-3xl p-5 sm:p-7 max-w-lg w-full shadow-2xl border border-[#e8e3db] animate-in fade-in slide-in-from-bottom-4 sm:zoom-in-95 max-h-[85vh] sm:max-h-[90vh] overflow-y-auto pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-7">
-            <div className="text-center mb-6">
-              <span className="px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full font-label text-[10px] font-black uppercase tracking-wider">
-                {activeCallProvider === "sim_basic" ? "SIM Call Feedback" : "Call Completed"}
-              </span>
-              <h3 className="font-display text-xl font-bold text-[#1c1917] mt-2">Mandatory Call Wrap-up</h3>
-              <p className="font-body text-xs text-[#a8a29e] mt-1">
-                Please log feedback for the call with{" "}
-                <span className="font-semibold text-[#44403c]">{activeCallCtx.name || activeCallCtx.phone}</span>.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {activeCallProvider === "sim_basic" && (
-                <div className="rounded-2xl border border-primary-muted bg-primary-light/40 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-label text-[10px] font-black uppercase tracking-wider text-primary">
-                        Manual Call Timing
-                      </p>
-                      <p className="mt-0.5 font-body text-[11px] text-[#78716c]">
-                        Aira cannot read SIM call duration, so confirm the time before saving.
-                      </p>
-                    </div>
-                    <span className="rounded-xl bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#292524]">
-                      {simDurationSeconds !== null
-                        ? `${Math.floor(simDurationSeconds / 60)}m ${simDurationSeconds % 60}s`
-                        : "0m"}
-                    </span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <label className="block">
-                      <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#a8a29e]">Started</span>
-                      <input
-                        type="datetime-local"
-                        value={wrapupStartedAt}
-                        onChange={(e) => setWrapupStartedAt(e.target.value)}
-                        className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#a8a29e]">Ended</span>
-                      <input
-                        type="datetime-local"
-                        value={wrapupEndedAt}
-                        onChange={(e) => setWrapupEndedAt(e.target.value)}
-                        className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-2">
-                  Call Outcome / Disposition *
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(activeCallProvider === "sim_basic" ? SIM_MANUAL_STATUSES : TELECMI_OUTCOMES).map((o) => {
-                    const selected = wrapupOutcome === o.value;
-                    const base = "px-3 py-2.5 rounded-xl font-label text-xs font-bold border transition-all text-center";
-                    const cls = selected
-                      ? o.danger
-                        ? "bg-red-600 border-red-600 text-white"
-                        : "bg-primary border-primary text-white"
-                      : o.danger
-                        ? "bg-[#faf8f5] hover:bg-red-50 text-red-700 border-red-200"
-                        : "bg-[#faf8f5] hover:bg-[#f0ece4] text-[#44403c] border-[#e8e3db]";
-                    return (
-                      <button key={o.value} type="button" onClick={() => setWrapupOutcome(o.value)} className={`${base} ${cls}`}>
-                        {o.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {SALE_OUTCOMES.has(wrapupOutcome) && activeCallCtx.leadId && (
-                <button
-                  type="button"
-                  onClick={() => setShowSaleDialog(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 font-label text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
-                >
-                  <HandCoins size={13} /> Sold something? Log the sale
-                </button>
-              )}
-
-              {wrapupOutcome === "callback" && activeCallCtx.leadId && (
-                <div className="flex flex-col gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
-                  <h4 className="font-display text-[10px] font-black text-amber-700 tracking-widest uppercase flex items-center gap-1.5">
-                    <CalendarClock size={11} /> Schedule Callback *
-                  </h4>
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={wrapupCallbackDate}
-                      onChange={(e) => setWrapupCallbackDate(e.target.value)}
-                      className="flex-1 px-2 py-1.5 rounded-lg border border-amber-200 bg-white font-body text-[11px] focus:outline-none focus:ring-2 focus:ring-amber-300"
-                    />
-                    <input
-                      type="time"
-                      value={wrapupCallbackTime}
-                      onChange={(e) => setWrapupCallbackTime(e.target.value)}
-                      className="flex-1 px-2 py-1.5 rounded-lg border border-amber-200 bg-white font-body text-[11px] focus:outline-none focus:ring-2 focus:ring-amber-300"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
-                  {activeCallProvider === "sim_basic" ? "Call Summary / Notes" : "Interaction Note / Comments"}
-                </label>
-                <textarea
-                  value={wrapupNotes}
-                  onChange={(e) => setWrapupNotes(e.target.value)}
-                  placeholder={activeCallProvider === "sim_basic" ? "Brief the call in 1-2 lines, e.g. asked price, wants callback tomorrow..." : "Summarize customer feedback and key discussion points..."}
-                  rows={4}
-                  className="w-full px-4 py-3 rounded-2xl bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none shadow-inner"
-                />
-              </div>
-
-              <div>
-                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
-                  Tags
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_NOTE_TAGS.map((tag) => {
-                    const selected = wrapupTags.includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => toggleWrapupTag(tag)}
-                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
-                          selected
-                            ? "bg-primary border-primary text-white"
-                            : "bg-[#faf8f5] border-[#e8e3db] text-[#57534e] hover:border-primary-muted hover:text-primary"
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-1.5">
-                  How did this call go?
-                </label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setWrapupQualityRating(wrapupQualityRating === n ? 0 : n)}
-                      className="p-1 transition-transform hover:scale-110"
-                    >
-                      <Star size={20} className={n <= wrapupQualityRating ? "fill-amber-400 text-amber-400" : "text-[#d6cfc9]"} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={handleWrapupSubmit}
-                disabled={
-                  wrapupSaving ||
-                  !wrapupOutcome ||
-                  (wrapupOutcome === "callback" && !!activeCallCtx.leadId && (!wrapupCallbackDate || !wrapupCallbackTime))
-                }
-                className="flex-1 py-3 bg-primary hover:bg-primary-dark text-white rounded-2xl font-label text-xs font-black shadow-md hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
-              >
-                {wrapupSaving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} />}
-                <span>Complete Wrap-up</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <WrapupModal
+          callee={activeCallCtx.name || formatPhone(activeCallCtx.phone ?? "") || "this lead"}
+          provider={activeCallProvider}
+          context={wrapupContext}
+          draft={wrapupDraft}
+          onChange={setWrapupDraft}
+          saving={wrapupSaving}
+          onSubmit={handleWrapupSubmit}
+          catalogItems={catalogItems}
+          simTiming={
+            activeCallProvider === "sim_basic"
+              ? { startedAt: wrapupStartedAt, endedAt: wrapupEndedAt, setStartedAt: setWrapupStartedAt, setEndedAt: setWrapupEndedAt }
+              : null
+          }
+        />
       )}
 
       {/* Blocking pending-wrap-ups list (telecaller discipline gate only) */}
@@ -395,7 +187,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
                       {log.leads?.name || "Unnamed Lead"} ({formatPhone(log.leads?.phone || "")})
                     </p>
                     <p className="font-label text-xs text-[#78716c] mt-1">
-                      {pendingCallLabel(log)} · {log.duration_seconds || 0}s · {new Date(log.created_at).toLocaleString()}
+                      {pendingCallLabel(log)} · {log.duration_seconds || 0}s · {formatIstWhen(new Date(log.created_at), new Date())}
                     </p>
                   </div>
                   <button
@@ -409,19 +201,6 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
             </div>
           </div>
         </div>
-      )}
-
-      {showSaleDialog && activeCallCtx?.leadId && (
-        <NewDealDialog
-          open
-          onClose={() => setShowSaleDialog(false)}
-          onCreated={() => {
-            setShowSaleDialog(false);
-            toast.success("Sale logged — you can finish the wrap-up now");
-          }}
-          defaultLead={{ id: activeCallCtx.leadId, name: activeCallCtx.name, phone: activeCallCtx.phone }}
-          defaultSource="call"
-        />
       )}
     </>
   );

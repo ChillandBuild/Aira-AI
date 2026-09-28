@@ -132,6 +132,7 @@ def _round_robin_assign_leads(
             .neq("do_not_call", True)
             .neq("call_status", "converted")
             .neq("call_status", "dnc")
+            .neq("call_status", "disqualified")
             .neq("call_status", "unreachable")
             .execute()
         )

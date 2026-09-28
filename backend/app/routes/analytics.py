@@ -19,6 +19,7 @@ from app.dependencies.tenant import get_tenant_and_role
 from app.services.pagination import fetch_all_rows
 from app.services.inbound_leads_logic import INBOUND_SOURCES, aggregate_inbound
 from app.services.assignment import get_telecalling_config
+from app.services.call_wrapup import CONNECTS, OUTCOMES, connect_rate as wrapup_connect_rate
 from app.services.analytics_compare import (
     CSV_FIELDNAMES,
     align_series,
@@ -35,7 +36,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 IST_OFFSET = timedelta(hours=5, minutes=30)
-MANUAL_STATUS_KEYS = ("connected", "not_picked", "busy", "wrong_number", "interested", "not_interested", "callback")
 
 
 def _tenant_id_for_permission(ctx: dict, permissions: set[str]) -> str:
@@ -186,30 +186,20 @@ def _to_ist_date(iso_ts: str | None) -> str:
         return iso_ts[:10]
 
 
-def _is_connected(log: dict) -> bool:
-    """A call is 'connected' if it had talk time or a non-no_answer outcome."""
-    manual_status = log.get("manual_status")
-    if manual_status in {"connected", "interested", "not_interested", "callback"}:
-        return True
-    if manual_status in {"not_picked", "busy", "wrong_number"}:
-        return False
-    disposition = log.get("disposition")
-    if disposition in {"answered", "followup_required"}:
-        return True
-    if disposition in {"no_answer", "busy", "switched_off"}:
-        return False
-    return (log.get("duration_seconds") or 0) > 0 or (
-        log.get("outcome") is not None and log.get("outcome") != "no_answer"
-    )
-
-
 def _manual_status_breakdown(logs: list[dict]) -> dict[str, int]:
-    counts = {key: 0 for key in MANUAL_STATUS_KEYS}
+    counts = {key: 0 for key in CONNECTS}
     for log in logs:
         status = log.get("manual_status")
         if status in counts:
             counts[status] += 1
     return counts
+
+
+def _followups_scheduled(logs: list[dict]) -> int:
+    """"Callback Today" (TeamCallsSection) counts wrap-ups where the telecaller
+    picked call_later, not every call that happens to carry a next_action_at (a retry
+    reminder from a no-connect, or a hot/warm next-step time, are not callbacks)."""
+    return sum(1 for log in logs if log.get("outcome") == "call_later")
 
 
 def _caller_idle_minutes(
@@ -271,8 +261,7 @@ def _window_aggregate(
     ]
 
     calls = len(win_logs)
-    connected = sum(1 for l in win_logs if _is_connected(l))
-    connect_rate = round(connected / calls, 4) if calls > 0 else 0.0
+    connect_rate = wrapup_connect_rate(win_logs)
     conversions = sum(1 for l in win_logs if l.get("outcome") == "converted")
 
     durations = [l["duration_seconds"] for l in win_logs if l.get("duration_seconds") is not None]
@@ -370,7 +359,7 @@ async def telecalling_analytics(
 
     logs_today_query = (
         db.table("call_logs")
-        .select("id,duration_seconds,outcome,disposition,manual_status,provider,feedback_source,caller_id,created_at,score,score_status,lead_id,leads(created_at,assigned_at)")
+        .select("id,duration_seconds,outcome,manual_status,next_action_at,provider,feedback_source,caller_id,created_at,score,score_status,lead_id,leads(created_at,assigned_at)")
         .eq("tenant_id", tenant_id)
         .gte("created_at", range_start_iso)
     )
@@ -391,7 +380,7 @@ async def telecalling_analytics(
         asyncio.to_thread(logs_today_query.execute),
         asyncio.to_thread(
             db.table("call_logs")
-            .select("id,caller_id,manual_status,outcome,disposition,duration_seconds")
+            .select("id,caller_id")
             .eq("tenant_id", tenant_id)
             .gte("created_at", week)
             .execute
@@ -435,18 +424,13 @@ async def telecalling_analytics(
     if avg_duration_seconds == 0:
         avg_duration_seconds = None
 
-    outcome_breakdown = {"converted": 0, "interested": 0, "callback": 0, "not_interested": 0, "no_answer": 0}
+    outcome_breakdown = {key: 0 for key in OUTCOMES}
     rpc_breakdown = all_time_data.get("outcome_breakdown") or {}
     for k, v in rpc_breakdown.items():
         if k in outcome_breakdown:
             outcome_breakdown[k] = v
 
     manual_status_breakdown = _manual_status_breakdown(logs_today_res)
-    rpc_manual_breakdown = all_time_data.get("manual_status_breakdown") or {}
-    manual_status_all_time_breakdown = {key: 0 for key in MANUAL_STATUS_KEYS}
-    for k, v in rpc_manual_breakdown.items():
-        if k in manual_status_all_time_breakdown:
-            manual_status_all_time_breakdown[k] = v
 
     # calls_per_hour — IST hours 9–18, today's calls
     hour_counts: dict[int, int] = {h: 0 for h in range(9, 19)}
@@ -499,8 +483,8 @@ async def telecalling_analytics(
         caller_converted[cid_str] = stats_dict.get("converted", 0)
 
     # Team-wide aggregates
-    team_connected_calls = [l for l in logs_today_res if _is_connected(l)]
-    team_connect_rate = round(len(team_connected_calls) / calls_today, 4) if calls_today > 0 else 0.0
+    team_connected_calls = [l for l in logs_today_res if l.get("manual_status") == "connected"]
+    team_connect_rate = wrapup_connect_rate(logs_today_res)
 
     today_dur_all = [l["duration_seconds"] for l in logs_today_res if l.get("duration_seconds") is not None]
     team_avg_talk_seconds = round(sum(today_dur_all) / len(today_dur_all), 1) if today_dur_all else 0.0
@@ -520,8 +504,7 @@ async def telecalling_analytics(
 
         caller_calls = [l for l in logs_today_res if str(l.get("caller_id")) == cid_str]
         c_calls_count = len(caller_calls)
-        c_connected = [l for l in caller_calls if _is_connected(l)]
-        c_connect_rate = round(len(c_connected) / c_calls_count, 4) if c_calls_count > 0 else 0.0
+        c_connect_rate = wrapup_connect_rate(caller_calls)
 
         c_talk_durations = [l["duration_seconds"] for l in caller_calls if l.get("duration_seconds") is not None]
         c_avg_talk_seconds = round(sum(c_talk_durations) / len(c_talk_durations), 1) if c_talk_durations else 0.0
@@ -664,7 +647,7 @@ async def telecalling_analytics(
     comp_logs = (
         await asyncio.to_thread(
             db.table("call_logs")
-            .select("id,duration_seconds,outcome,caller_id,created_at")
+            .select("id,duration_seconds,outcome,manual_status,caller_id,created_at")
             .eq("tenant_id", tenant_id)
             .gte("created_at", comp_window_start_iso)
             .lt("created_at", today_start.isoformat())
@@ -702,28 +685,11 @@ async def telecalling_analytics(
         "calls_today": calls_today,
         "calls_attempted": calls_today,
         "connected_calls": len(team_connected_calls),
-        "not_picked_calls": manual_status_breakdown["not_picked"] + sum(
-            1 for l in logs_today_res
-            if not l.get("manual_status") and (l.get("disposition") == "no_answer" or l.get("outcome") == "no_answer")
-        ),
-        "busy_calls": manual_status_breakdown["busy"] + sum(
-            1 for l in logs_today_res
-            if not l.get("manual_status") and l.get("disposition") == "busy"
-        ),
-        "wrong_number_calls": manual_status_breakdown["wrong_number"],
-        "interested_leads": manual_status_breakdown["interested"] + sum(
-            1 for l in logs_today_res
-            if not l.get("manual_status") and l.get("outcome") == "interested"
-        ),
-        "followups_scheduled": manual_status_breakdown["callback"] + sum(
-            1 for l in logs_today_res
-            if not l.get("manual_status") and l.get("outcome") == "callback"
-        ),
+        "followups_scheduled": _followups_scheduled(logs_today_res),
         "calls_this_week": calls_this_week,
         "avg_duration_seconds": avg_duration_seconds,
         "outcome_breakdown": outcome_breakdown,
         "manual_status_breakdown": manual_status_breakdown,
-        "manual_status_all_time_breakdown": manual_status_all_time_breakdown,
         "conversions_today": conversions_today,
         "per_caller": per_caller,
         "total_minutes_today": team_talk_minutes_today,
@@ -777,7 +743,7 @@ async def qa_queue(
     query = (
         db.table("call_logs")
         .select(
-            "id,created_at,duration_seconds,status,outcome,provider,score,score_status,"
+            "id,created_at,duration_seconds,status,outcome,manual_status,provider,score,score_status,"
             "evaluation,ai_summary,ai_status,recording_url,transcript,"
             "call_group,talk_share,interruption_count,interruptions_per_5min,score_final,"
             "lead_id,caller_id,leads(name,phone),callers(name)",

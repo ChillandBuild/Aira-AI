@@ -7,10 +7,6 @@ import {
   Clock,
   Target,
   RefreshCw,
-  CheckCircle2,
-  XCircle,
-  PhoneForwarded,
-  Minus,
   Upload,
   BarChart2,
   Settings,
@@ -23,6 +19,7 @@ import { toast } from "sonner";
 import { useMyStats, useMyPerformance, useCallerLogs } from "@/hooks/useApi";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import AttendanceMini from "../team/AttendanceMini";
+import { TONE_DOT, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
 
 export interface ProfileClientProps {
   fallbackStats: CallerStats | null;
@@ -86,35 +83,6 @@ export function ProfileClient({
     return `${Math.floor(hrs / 24)}d ago`;
   }
 
-  const outcomeIcon = (outcome: string | null) => {
-    switch (outcome) {
-      case "converted":
-        return <CheckCircle2 size={14} className="text-green-500" />;
-      case "not_interested":
-        return <XCircle size={14} className="text-red-400" />;
-      case "callback":
-        return <PhoneForwarded size={14} className="text-amber-500" />;
-      case "no_answer":
-        return <Minus size={14} className="text-gray-400" />;
-      default:
-        return <Minus size={14} className="text-gray-300" />;
-    }
-  };
-
-  const outcomeLabel = (outcome: string | null) => {
-    switch (outcome) {
-      case "converted":
-        return "Converted";
-      case "not_interested":
-        return "Not interested";
-      case "callback":
-        return "Callback";
-      case "no_answer":
-        return "No answer";
-      default:
-        return "—";
-    }
-  };
 
   if (isAdmin) {
     const adminName = userName || userEmail?.split("@")[0] || "Admin";
@@ -473,8 +441,8 @@ export function ProfileClient({
                     </td>
                     <td className="py-3 pr-4">
                       <span className="flex items-center gap-1.5 font-label text-xs">
-                        {outcomeIcon(log.outcome)}
-                        {outcomeLabel(log.outcome)}
+                        <span className={`h-2 w-2 rounded-full ${TONE_DOT[callResultTone(callResultKey(log))]}`} />
+                        {callResultLabel(callResultKey(log)) ?? "—"}
                       </span>
                     </td>
                     <td className="py-3 text-right">

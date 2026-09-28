@@ -4,28 +4,7 @@ import { ChevronDown, Loader2, Phone, RefreshCw, User } from "lucide-react";
 import { api, type CallLog } from "@/lib/api";
 import { formatPhone, timeAgo } from "@/lib/utils";
 import { CallAiDetail, CallScorePill, anyProcessing } from "@/components/CallAi";
-
-const OUTCOME_LABEL: Record<string, string> = {
-  converted: "Converted",
-  interested: "Interested",
-  callback: "Callback",
-  not_interested: "Not Interested",
-  no_answer: "No Answer",
-  do_not_call: "DNC",
-  do_not_contact: "DNC",
-  unreachable: "Unreachable",
-};
-
-const OUTCOME_CHIP: Record<string, string> = {
-  converted: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  interested: "bg-cyan-50 text-cyan-700 border-cyan-200",
-  callback: "bg-amber-50 text-amber-700 border-amber-200",
-  not_interested: "bg-[#faf8f5] text-[#78716c] border-[#e8e3db]",
-  no_answer: "bg-rose-50 text-rose-700 border-rose-200",
-  do_not_call: "bg-red-50 text-red-700 border-red-200",
-  do_not_contact: "bg-red-50 text-red-700 border-red-200",
-  unreachable: "bg-orange-50 text-orange-700 border-orange-200",
-};
+import { TONE_CHIP, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) return "—";
@@ -109,7 +88,7 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
       <div className="space-y-2">
         {logs.map((log) => {
           const expanded = expandedId === log.id;
-          const outcome = log.outcome ?? "";
+          const resultKey = callResultKey(log);
           return (
             <div key={log.id} className="bg-white border border-[#e8e3db] rounded-2xl shadow-sm overflow-hidden">
               <button
@@ -125,9 +104,9 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
                     {log.callers?.name ? ` · ${log.callers.name}` : ""}
                   </p>
                 </div>
-                {outcome && (
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full border font-label text-[9px] font-bold ${OUTCOME_CHIP[outcome] ?? "bg-[#faf8f5] text-[#78716c] border-[#e8e3db]"}`}>
-                    {OUTCOME_LABEL[outcome] ?? outcome}
+                {resultKey && (
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full border font-label text-[9px] font-bold ${TONE_CHIP[callResultTone(resultKey)]}`}>
+                    {callResultLabel(resultKey) ?? resultKey}
                   </span>
                 )}
                 <CallScorePill log={log} />

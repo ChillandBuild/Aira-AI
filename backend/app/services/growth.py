@@ -186,6 +186,7 @@ def record_stage_event(
 def cancel_pending_follow_ups(
     lead_id: str,
     *,
+    tenant_id: str,
     reason: str,
     db=None,
 ) -> None:
@@ -195,7 +196,7 @@ def cancel_pending_follow_ups(
             "status": "canceled",
             "skip_reason": reason,
         }
-    ).eq("lead_id", str(lead_id)).eq("status", "pending").execute()
+    ).eq("lead_id", str(lead_id)).eq("tenant_id", tenant_id).eq("status", "pending").execute()
 
 
 def sync_follow_up_jobs(
@@ -217,6 +218,7 @@ def sync_follow_up_jobs(
     if converted_at or not ai_enabled or not phone or current_segment not in {"A", "B"}:
         cancel_pending_follow_ups(
             lead_id,
+            tenant_id=tenant_id,
             reason=f"ineligible:{reason}",
             db=db,
         )
@@ -224,6 +226,7 @@ def sync_follow_up_jobs(
 
     cancel_pending_follow_ups(
         lead_id,
+        tenant_id=tenant_id,
         reason=f"rescheduled:{reason}",
         db=db,
     )

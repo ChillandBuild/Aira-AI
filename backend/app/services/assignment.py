@@ -3,6 +3,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from app.db.supabase import get_supabase
+from app.services.call_wrapup import CLOSED_LEAD_STATUSES
 from app.utils.db_retry import execute_with_retry
 
 logger = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ def get_caller_id_for_user(user_id: str, tenant_id: str) -> str | None:
 def _open_lead_count(db, tenant_id: str, caller_id: str) -> int:
     """Active workload for a caller = assigned leads that are still open.
 
-    Excludes Not Interested (D), Converted, DNC, and Unreachable leads.
+    Excludes Not Interested (D), Converted, DNC, Disqualified and Unreachable leads.
     """
     res = (
         db.table("leads")
@@ -57,6 +58,7 @@ def _open_lead_count(db, tenant_id: str, caller_id: str) -> int:
         .neq("do_not_call", True)
         .neq("call_status", "converted")
         .neq("call_status", "dnc")
+        .neq("call_status", "disqualified")
         .neq("call_status", "unreachable")
         .execute()
     )
@@ -131,7 +133,7 @@ def auto_assign_lead(
     lead_check = db.table("leads").select("do_not_call,call_status,converted_at").eq("id", lead_id).eq("tenant_id", tenant_id).maybe_single().execute()
     if lead_check and lead_check.data:
         ld = lead_check.data
-        if ld.get("do_not_call") or ld.get("call_status") in ("converted", "dnc", "unreachable") or ld.get("converted_at"):
+        if ld.get("do_not_call") or ld.get("call_status") in CLOSED_LEAD_STATUSES or ld.get("converted_at"):
             logger.info(f"Skipping auto-assign for lead {lead_id} — lead is dead/DNC/converted")
             return None
 
@@ -339,6 +341,7 @@ def sweep_unassigned_leads(limit_per_tenant: int = 200) -> int:
             .neq("do_not_call", True)
             .neq("call_status", "converted")
             .neq("call_status", "dnc")
+            .neq("call_status", "disqualified")
             .neq("call_status", "unreachable")
             .in_("segment", segments)
             .limit(limit_per_tenant)

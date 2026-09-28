@@ -5,6 +5,7 @@ import { Phone, Clock, Loader2 } from "lucide-react";
 
 import { api, type TimelineEvent } from "@/lib/api";
 import { formatPhone, formatIST } from "@/lib/utils";
+import { TONE_CHIP, TONE_DOT, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
 
 interface ShiftTimelineProps {
   callerId: string;
@@ -97,17 +98,14 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                   );
                 }
                 if (event.type === "call") {
-                  let color = "bg-primary border-primary-dark";
-                  if (event.outcome === "converted") color = "bg-emerald-500 border-emerald-600";
-                  else if (event.outcome === "interested") color = "bg-cyan-500 border-cyan-600";
-                  else if (event.outcome === "callback") color = "bg-amber-500 border-amber-600";
-                  else if (event.outcome === "no_answer") color = "bg-rose-450 border-rose-500";
+                  const resultKey = callResultKey(event);
+                  const color = `${TONE_DOT[callResultTone(resultKey)]} border-black/10`;
                   return (
                     <div
                       key={event.id}
                       className={`absolute top-1.5 bottom-1.5 rounded-md border text-[9px] font-bold text-white flex items-center justify-center cursor-pointer transition-all hover:scale-y-110 shadow-sm ${color}`}
                       style={getEventStyle(event)}
-                      title={`Call (${event.outcome || "disposition"}): ${formatIST(event.started_at)} (${event.duration_seconds || 0}s)\nLead: ${event.lead_name || event.lead_phone}`}
+                      title={`Call (${callResultLabel(resultKey) ?? "not wrapped up"}): ${formatIST(event.started_at)} (${event.duration_seconds || 0}s)\nLead: ${event.lead_name || event.lead_phone}`}
                     >
                       <Phone size={8} className="shrink-0" />
                     </div>
@@ -155,13 +153,8 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                     )}
                   </div>
                   {event.type === "call" && (
-                    <span className={`px-2 py-0.5 rounded font-bold text-[9px] uppercase border ${
-                      event.outcome === "converted" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                      event.outcome === "interested" ? "bg-cyan-50 text-cyan-700 border-cyan-200" :
-                      event.outcome === "callback" ? "bg-amber-50 text-amber-700 border-amber-200" :
-                      "bg-[#f0ece4] text-[#57534e] border-[#e8e3db]"
-                    }`}>
-                      {event.outcome || "Answered"}
+                    <span className={`px-2 py-0.5 rounded font-bold text-[9px] uppercase border ${TONE_CHIP[callResultTone(callResultKey(event))]}`}>
+                      {callResultLabel(callResultKey(event)) ?? "Not wrapped up"}
                     </span>
                   )}
                   {event.type === "status" && (

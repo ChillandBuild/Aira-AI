@@ -4,6 +4,7 @@ import {
   Phone, Loader2, Activity, TrendingUp, Coffee, UserCircle, Clock, BarChart3, Calendar,
 } from "lucide-react";
 import { api, TimelineEvent, CallLog } from "@/lib/api";
+import { TONE_HEX, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
 import { format, differenceInSeconds, subDays, startOfDay, isSameDay } from "date-fns";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar } from "recharts";
 import { formatDuration, initials } from "./helpers";
@@ -29,26 +30,6 @@ interface GapEvent {
 }
 
 type DisplayEvent = TimelineEvent | GapEvent;
-
-const OUTCOME_COLORS: Record<string, string> = {
-  converted: "#10b981",
-  callback: "#f59e0b",
-  not_interested: "#f43f5e",
-  no_answer: "#94a3b8",
-  do_not_call: "var(--primary-600)",
-  do_not_contact: "var(--primary-600)",
-  in_progress: "#6366f1",
-};
-
-const OUTCOME_LABELS: Record<string, string> = {
-  converted: "Converted",
-  callback: "Callback",
-  not_interested: "Not Interested",
-  no_answer: "No Answer",
-  do_not_call: "DNC",
-  do_not_contact: "DNC",
-  in_progress: "In Progress",
-};
 
 export default function TeamProfilePanel({ callerId, callerName }: { callerId: string, callerName: string }) {
   const [loading, setLoading] = useState(true);
@@ -115,7 +96,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
   const outcomeBreakdown = useMemo(() => {
     const map: Record<string, number> = {};
     callLogs.forEach((l) => {
-      const key = l.outcome ?? "unknown";
+      const key = callResultKey(l) ?? "unknown";
       map[key] = (map[key] ?? 0) + 1;
     });
     return map;
@@ -288,13 +269,13 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
                 return (
                   <div key={key}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-label text-ink-muted">{OUTCOME_LABELS[key] ?? key}</span>
+                      <span className="text-[11px] font-label text-ink-muted">{callResultLabel(key) ?? "Not wrapped up"}</span>
                       <span className="text-[11px] font-label text-ink font-semibold">{count} ({pct}%)</span>
                     </div>
                     <div className="w-full bg-surface-subtle h-2 rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
-                        style={{ width: `${pct}%`, backgroundColor: OUTCOME_COLORS[key] ?? "var(--primary-400)" }}
+                        style={{ width: `${pct}%`, backgroundColor: TONE_HEX[callResultTone(key)] }}
                       />
                     </div>
                   </div>
@@ -391,7 +372,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
               } else if (tev.type === "call") {
                 Icon = Phone; iconBg = "bg-blue-100 text-blue-600";
                 title = `Call with ${tev.lead_name ?? "Unknown"}`;
-                details = [tev.duration_seconds != null ? `${formatDuration(tev.duration_seconds)}` : null, tev.outcome ? `${tev.outcome}` : null].filter(Boolean).join(" · ");
+                details = [tev.duration_seconds != null ? `${formatDuration(tev.duration_seconds)}` : null, callResultLabel(callResultKey(tev))].filter(Boolean).join(" · ");
               }
               return (
                 <div key={tev.id} className="relative pl-6">

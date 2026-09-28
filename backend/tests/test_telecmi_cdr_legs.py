@@ -206,7 +206,7 @@ class TeleCmiCdrLegTests(unittest.TestCase):
         """Agent never picked up — this is the real 'user missed' signal."""
         db = FakeDB(_call_log())
         self._post(LEG_A_MISSED, db)
-        self.assertEqual(db.updates_to("call_logs"), [{"status": "no_answer", "outcome": "no_answer"}])
+        self.assertEqual(db.updates_to("call_logs"), [{"status": "no_answer"}])
         self.assertEqual(self.metered, [])
 
     def test_leg_a_missed_cannot_clobber_a_completed_call(self):

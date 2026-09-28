@@ -37,7 +37,7 @@ export interface Lead {
   tag_name?: string | null;
   ad_campaign_name?: string | null;
   channel?: string | null;
-  call_status?: "new" | "in_progress" | "callback" | "converted" | "not_interested" | "dnc" | "unreachable" | null;
+  call_status?: LeadCallStatus | null;
   do_not_call?: boolean;
   needs_human_attention?: boolean;
   archived_at?: string | null;
@@ -151,9 +151,71 @@ export interface CallerStats {
   caller_id: string;
 }
 
-export type Disposition = "answered" | "no_answer" | "busy" | "switched_off" | "followup_required";
-export type ManualCallStatus = "connected" | "not_picked" | "busy" | "wrong_number" | "interested" | "not_interested" | "callback";
-export type CallOutcome = "converted" | "interested" | "callback" | "not_interested" | "no_answer" | "do_not_call" | "do_not_contact" | "in_progress";
+/** Wrap-up v2 tap 1 (call_logs.manual_status). */
+export type CallConnect = "connected" | "not_picked" | "busy" | "switched_off";
+export type NoConnect = Exclude<CallConnect, "connected">;
+/** Wrap-up v2 tap 2 (call_logs.outcome). */
+export type CallResult =
+  | "interested_booked" | "interested_needs_time" | "maybe_later" | "call_later" | "converted"
+  | "not_interested" | "disqualified" | "wrong_number" | "language_barrier" | "do_not_call";
+export type LeadCallStatus =
+  | "new" | "trying" | "unreachable" | "hot" | "warm" | "cold" | "callback" | "converted"
+  | "not_interested" | "disqualified" | "wrong_number" | "language_barrier" | "dnc";
+export type OutcomeReason =
+  | "price" | "already_bought" | "no_need" | "other" | "never_enquired" | "not_a_fit" | "not_decision_maker";
+export type PreferredLanguage = "tamil" | "english" | "hindi" | "telugu" | "malayalam" | "kannada" | "other";
+export type CallTemperature = "hot" | "warm" | "cold";
+
+export interface WrapupPayload {
+  manual_status: CallConnect;
+  outcome: CallResult | null;
+  notes: string | null;
+  next_action_at: string | null;
+  reason: OutcomeReason | null;
+  preferred_language: PreferredLanguage | null;
+  stop_messages: boolean;
+  products: { catalog_item_id: string; qty: number }[];
+  amount_paise: number | null;
+  duration_seconds?: number;
+  manual_started_at?: string;
+  manual_ended_at?: string;
+}
+
+export interface WrapupContext {
+  connect_prefill: CallConnect | null;
+  never_connected: boolean;
+  failed_before: number;
+  retry_suggestions: Record<NoConnect, string>;
+}
+
+export interface WrapupSaved {
+  call_log_id: string;
+  manual_status: CallConnect;
+  outcome: CallResult | null;
+  call_status: LeadCallStatus | null;
+  next_action_at: string | null;
+  deal_id: string | null;
+  score: number | null;
+  score_status: CallScoreStatus | null;
+}
+
+export interface SendDetailsVariable {
+  key: string;
+  role: "customer_name" | "business_name" | "details" | "next_step" | null;
+  value: string;
+}
+
+export interface SendDetailsTemplate {
+  id: string;
+  name: string;
+  language: string;
+  body_text: string;
+  variables: SendDetailsVariable[];
+}
+
+export type SendDetailsContext =
+  | { available: false }
+  | { available: true; window_open: boolean; last_inbound_at: string | null; free_text: string; templates: SendDetailsTemplate[] };
 
 export interface TemplatePerformanceRow {
   template_name: string;
@@ -209,6 +271,8 @@ export interface CallEvaluation {
   wrong_info?: { quote: string; time: string; kb_fact: string | null }[];
   unverified_claims?: string[];
   language_barrier?: boolean;
+  /** D10: the AI's Hot/Warm/Cold reading replaced the telecaller's. */
+  crm_correction?: { from: CallTemperature; to: CallTemperature } | null;
 }
 
 export type CallAiStatus = "pending" | "transcribing" | "scoring" | "done" | "failed";
@@ -259,9 +323,9 @@ export interface CallLog {
   lead_id: string | null;
   call_sid: string | null;
   duration_seconds: number | null;
-  outcome: CallOutcome | null;
+  outcome: CallResult | null;
   disposition: string | null;
-  manual_status?: ManualCallStatus | null;
+  manual_status?: CallConnect | null;
   recording_url: string | null;
   score: number | null;
   status: string;
@@ -275,7 +339,6 @@ export interface CallLog {
     brief?: string;
   } | null;
   evaluation: CallEvaluation | null;
-  quality_rating: number | null;
   notes?: string | null;
   provider?: "telecmi" | "sim_basic";
   score_status?: CallScoreStatus | null;
@@ -292,6 +355,10 @@ export interface CallLog {
   transcript_preview?: TranscriptPreview | null;
   direction?: "outgoing" | "incoming" | "missed" | null;
   feedback_at?: string | null;
+  next_action_at?: string | null;
+  outcome_reason?: OutcomeReason | null;
+  preferred_language?: PreferredLanguage | null;
+  ai_call_status?: CallTemperature | "none" | null;
   created_at: string;
   leads?: { phone: string | null; name: string | null } | null;
   callers?: { name: string | null } | null;
@@ -752,10 +819,10 @@ export interface TelecallingAnalytics {
   calls_today: number;
   calls_this_week: number;
   avg_duration_seconds: number | null;
-  outcome_breakdown: { converted: number; interested: number; callback: number; not_interested: number; no_answer: number };
+  outcome_breakdown: Record<CallResult, number>;
   conversions_today?: number;
   followups_scheduled?: number;
-  manual_status_breakdown?: Record<ManualCallStatus, number>;
+  manual_status_breakdown?: Record<CallConnect, number>;
   per_caller: {
     caller_id: string;
     name: string;
@@ -840,14 +907,9 @@ export interface TelecallingAnalyticsExtended {
   total_minutes_today: number;
   calls_attempted?: number;
   connected_calls?: number;
-  not_picked_calls?: number;
-  busy_calls?: number;
-  wrong_number_calls?: number;
-  interested_leads?: number;
   followups_scheduled?: number;
-  outcome_breakdown: { converted: number; interested: number; callback: number; not_interested: number; no_answer: number };
-  manual_status_breakdown: Record<ManualCallStatus, number>;
-  manual_status_all_time_breakdown?: Record<ManualCallStatus, number>;
+  outcome_breakdown: Record<CallResult, number>;
+  manual_status_breakdown: Record<CallConnect, number>;
   conversions_today?: number;
   per_caller: {
     caller_id: string;
@@ -1125,6 +1187,7 @@ export interface TimelineEvent {
   id: string;
   status?: string;
   outcome?: string;
+  manual_status?: string | null;
   started_at: string;
   ended_at?: string | null;
   duration_seconds: number | null;
@@ -1386,6 +1449,13 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ notes: notes ?? null }),
       }),
+    sendDetailsContext: (leadId: string) =>
+      apiFetch<SendDetailsContext>(`/api/v1/leads/${leadId}/send-details`),
+    sendDetails: (leadId: string, body: { text: string } | { template_id: string; variables: string[] }) =>
+      apiFetch<Message>(`/api/v1/leads/${leadId}/send-details`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     toggleAI: (id: string, enabled: boolean) =>
       apiFetch<Lead>(`/api/v1/leads/${id}/ai`, {
         method: "PATCH",
@@ -1620,48 +1690,17 @@ export const api = {
       const res = await apiFetch<{ data: CallLog[] }>(`/api/v1/calls/recent?${qs.toString()}`);
       return res.data || [];
     },
-    setOutcome: (
-      callLogId: string,
-      outcome: NonNullable<CallLog["outcome"]>,
-      opts?: { callbackTime?: string; notes?: string; qualityRating?: number; durationSeconds?: number; manualStartedAt?: string; manualEndedAt?: string; manualStatus?: ManualCallStatus }
-    ) =>
-      apiFetch<{
-        call_log_id: string;
-        outcome: string;
-        score: number | null;
-        score_status: CallScoreStatus | null;
-      }>(`/api/v1/calls/${callLogId}/outcome`, {
+    saveWrapup: (callLogId: string, payload: WrapupPayload) =>
+      apiFetch<WrapupSaved>(`/api/v1/calls/${callLogId}/outcome`, {
         method: "PATCH",
-        body: JSON.stringify({
-          outcome,
-          manual_status: opts?.manualStatus ?? null,
-          callback_time: opts?.callbackTime ?? null,
-          notes: opts?.notes ?? null,
-          quality_rating: opts?.qualityRating ?? null,
-          duration_seconds: opts?.durationSeconds ?? null,
-          manual_started_at: opts?.manualStartedAt ?? null,
-          manual_ended_at: opts?.manualEndedAt ?? null,
-        }),
+        body: JSON.stringify(payload),
       }),
-    setDisposition: (
-      callLogId: string,
-      disposition: Disposition,
-      opts?: { notes?: string; callbackTime?: string },
-    ) =>
-      apiFetch<{
-        call_log_id: string;
-        outcome: string | null;
-        disposition: string | null;
-        score: number | null;
-        score_status: CallScoreStatus | null;
-      }>(`/api/v1/calls/${callLogId}/outcome`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          disposition,
-          notes: opts?.notes ?? null,
-          callback_time: opts?.callbackTime ?? null,
-        }),
-      }),
+    wrapupContext: (target: { leadId?: string; callLogId?: string }) => {
+      const q = new URLSearchParams();
+      if (target.leadId) q.set("lead_id", target.leadId);
+      if (target.callLogId) q.set("call_log_id", target.callLogId);
+      return apiFetch<WrapupContext>(`/api/v1/calls/wrapup-context?${q.toString()}`);
+    },
     statsToday: () =>
       apiFetch<{ calls_today: number; conversions_today: number }>(`/api/v1/calls/stats-today`),
     recentByLeads: (leadIds: string[]) =>

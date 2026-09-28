@@ -13,6 +13,7 @@ import { useCallingCockpit } from "./lib/useCallingCockpit";
 import { getLeadQueueSection, sortLeadsForCallQueue, type LeadQueueSection } from "./lib/queue-priority";
 import { useSearchParams } from "next/navigation";
 import { SegmentBadge } from "@/components/segment-badge";
+import { isClosedLeadStatus, isWorkingLeadStatus } from "@/lib/call-wrapup";
 
 export default function CallerView({ callerId, readOnly = false }: { callerId: string | null; readOnly?: boolean }) {
   const searchParams = useSearchParams();
@@ -22,7 +23,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
   const [lastCalledMap, setLastCalledMap] = useState<Record<string, string>>({});
   const [exporting, setExporting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [queueSubTab, setQueueSubTab] = useState<"new" | "callback" | "in_progress" | "closed" | "dialer" | "recent">("new");
+  const [queueSubTab, setQueueSubTab] = useState<"new" | "callback" | "working" | "closed" | "dialer" | "recent">("new");
   const [historyLead, setHistoryLead] = useState<Lead | null>(null);
 
   // Load my assigned leads (the cockpit owns callbacks/config/wrap-ups itself).
@@ -66,9 +67,9 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
           setQueueSubTab("new");
         } else if (lead.call_status === "callback") {
           setQueueSubTab("callback");
-        } else if (lead.call_status === "in_progress") {
-          setQueueSubTab("in_progress");
-        } else if (["converted", "not_interested", "dnc", "unreachable"].includes(lead.call_status)) {
+        } else if (isWorkingLeadStatus(lead.call_status)) {
+          setQueueSubTab("working");
+        } else if (isClosedLeadStatus(lead.call_status)) {
           setQueueSubTab("closed");
         }
       }
@@ -99,13 +100,13 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
 
   const newLeads = filteredLeads.filter((l) => !l.call_status || l.call_status === "new");
   const callbackLeads = filteredLeads.filter((l) => l.call_status === "callback");
-  const inProgressLeads = filteredLeads.filter((l) => l.call_status === "in_progress");
-  const closedLeads = filteredLeads.filter((l) => l.call_status && ["converted", "not_interested", "dnc", "unreachable"].includes(l.call_status));
+  const workingLeads = filteredLeads.filter((l) => isWorkingLeadStatus(l.call_status));
+  const closedLeads = filteredLeads.filter((l) => isClosedLeadStatus(l.call_status));
 
   const activeSubTabLeads =
     queueSubTab === "new" ? newLeads :
     queueSubTab === "callback" ? callbackLeads :
-    queueSubTab === "in_progress" ? inProgressLeads :
+    queueSubTab === "working" ? workingLeads :
     queueSubTab === "dialer" ? [] :
     closedLeads;
   const messageQueueCount = activeSubTabLeads.filter((lead) => getLeadQueueSection(lead) === "messages").length;
@@ -177,7 +178,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
               {[
                 { id: "new", label: `To Call (${newLeads.length})` },
                 { id: "callback", label: `Callbacks (${callbackLeads.length})` },
-                { id: "in_progress", label: `In Prog (${inProgressLeads.length})` },
+                { id: "working", label: `In Prog (${workingLeads.length})` },
                 { id: "closed", label: `Closed (${closedLeads.length})` },
                 { id: "dialer", label: "Manual Dial" },
                 { id: "recent", label: "Recent" },
@@ -235,7 +236,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                     borderAccent = "border-l-amber-500";
                     avatarBg = "bg-amber-500";
                     callBtnBg = "bg-amber-500 hover:bg-amber-600 shadow-amber-500/10";
-                  } else if (lead.call_status && ["converted", "not_interested", "dnc", "unreachable"].includes(lead.call_status)) {
+                  } else if (isClosedLeadStatus(lead.call_status)) {
                     borderAccent = "border-l-[#d6cfc9]";
                     avatarBg = "bg-[#a8a29e]";
                     callBtnBg = "bg-[#a8a29e] hover:bg-[#78716c] shadow-[#78716c]/10";
@@ -270,7 +271,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                             <p className="font-body text-sm font-bold text-[#292524] truncate">{lead.name || formatPhone(lead.phone)}</p>
                             <SegmentBadge segment={lead.segment} />
                             {lead.call_status === "callback" && (
-                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-label text-[8px] font-black uppercase">CALLBACK</span>
+                              <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-label text-[8px] font-black uppercase">CALL LATER</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
@@ -279,7 +280,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                           <div className="flex items-center gap-1 text-[10px] text-[#a8a29e] mt-0.5">
                             <Clock size={10} />
                             {lead.call_status === "callback" ? (
-                              <span>Scheduled callback</span>
+                              <span>Customer asked to call later</span>
                             ) : lastCalledMap[lead.id] ? (
                               <span>Called {timeAgo(lastCalledMap[lead.id])}</span>
                             ) : (

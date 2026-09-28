@@ -11,6 +11,7 @@ from app.services.notify import notify_user
 from app.services.scoring_rules import (
     ALERT_RATE_LIMIT_PER_HOUR, LEAD_SOURCE_BAD_RATE, LEAD_SOURCE_MIN_CALLS,
 )
+from app.services.call_wrapup import LANGUAGE_LABEL
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,25 @@ def raise_alert(
                             push_url="/dashboard/telecalling#needs-attention")
             db.table("call_alerts").update({"notified_at": now.isoformat()}).eq("id", alert_id).execute()
     return True
+
+
+def raise_reassign_alert(db, *, tenant_id: str, call_log_id: str, caller_id: str | None, language: str) -> None:
+    """A 'Language barrier' wrap-up. Alerts are deduped per call+type, so if the AI already raised a
+    language_barrier alert for this call, that row is rewritten with the language and shown again."""
+    quote = (
+        "Reassign to someone who speaks the customer's language" if language == "other"
+        else f"Reassign to a {LANGUAGE_LABEL[language]} speaker"
+    )
+    detail = {"preferred_language": language, "source": "wrapup"}
+    if raise_alert(db, tenant_id=tenant_id, type="language_barrier", call_log_id=call_log_id,
+                   caller_id=caller_id, quote=quote, detail=detail):
+        return
+    (
+        db.table("call_alerts")
+        .update({"quote": quote, "detail": detail, "seen_at": None, "seen_by": None})
+        .eq("call_log_id", call_log_id).eq("type", "language_barrier").eq("tenant_id", tenant_id)
+        .execute()
+    )
 
 
 def lead_source_is_bad(total: int, bad: int) -> bool:
