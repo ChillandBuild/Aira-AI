@@ -26,6 +26,17 @@ export function SendDetailsView({ context, sending, readOnly = false, onSendText
   const [values, setValues] = useState<string[]>(template ? template.variables.map((v) => v.value) : []);
   const blanks = template ? blankVariables(values) : 0;
 
+  // The useState initialisers above only run once. When the parent re-fetches (e.g. after
+  // a send, or the customer's last-inbound time moving the window), `context` is a new
+  // object and the draft has to re-sync to it -- otherwise a sent message's stale text
+  // sits in the box after the reload instead of the fresh pre-fill.
+  useEffect(() => {
+    setText(context.free_text);
+    const firstTemplate = context.templates[0] ?? null;
+    setTemplateId(firstTemplate?.id ?? "");
+    setValues(firstTemplate ? firstTemplate.variables.map((v) => v.value) : []);
+  }, [context]);
+
   function pickTemplate(id: string) {
     setTemplateId(id);
     const next = context.templates.find((t) => t.id === id);
