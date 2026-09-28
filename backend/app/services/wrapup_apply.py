@@ -25,6 +25,22 @@ def _earlier_calls(db, tenant_id: str, lead_id: str, call_log_id: str) -> list[d
     return [r for r in rows if r["id"] != call_log_id]
 
 
+def _cancel_other_pending_reminders(db, *, tenant_id: str, lead_id: str, exclude_id: str | None) -> None:
+    """Every wrap-up supersedes any earlier phone reminder for this lead -- otherwise a
+    pending retry from a prior no-connect (or an older callback/next-step time) survives
+    a later wrap-up and the telecaller gets called back on a lead whose outcome has moved
+    on. `sync_follow_up_jobs` only touches the WhatsApp cadence rows (and is a no-op while
+    FOLLOW_UP_CADENCES is empty), so phone/callback reminders have to be cancelled here."""
+    query = (
+        db.table("follow_up_jobs").update({"status": "canceled", "skip_reason": "superseded_by_wrapup"})
+        .eq("lead_id", lead_id).eq("tenant_id", tenant_id)
+        .eq("channel", "phone").eq("cadence", "callback").eq("status", "pending")
+    )
+    if exclude_id:
+        query = query.neq("id", exclude_id)
+    query.execute()
+
+
 async def apply_wrapup(
     db, *, tenant_id: str, user_id: str | None, caller_id: str | None, call_log_id: str,
     log: dict, wrapup: dict, log_extra: dict, now: datetime,
@@ -126,17 +142,20 @@ async def apply_wrapup(
 
     tag = f"call_{outcome or manual_status}"
     stop_all = outcome in STOP_ALL_FOLLOW_UPS
+    linked = log.get("follow_up_job_id")
+    # Cancel every other pending phone/callback reminder for this lead before deciding what
+    # (if anything) replaces it -- see Ruling W9 in the wrap-up v2 progress ledger.
+    _cancel_other_pending_reminders(db, tenant_id=tenant_id, lead_id=lead_id, exclude_id=linked)
     if stop_all:
-        cancel_pending_follow_ups(lead_id, reason=f"dnc_{outcome}", db=db)
+        cancel_pending_follow_ups(lead_id, tenant_id=tenant_id, reason=f"dnc_{outcome}", db=db)
     else:
-        # Re-plans the WhatsApp follow-ups and cancels every other pending reminder for the lead.
+        # Re-plans the WhatsApp cadences; a no-op while FOLLOW_UP_CADENCES is empty.
         sync_follow_up_jobs(
             lead_id, segment=lead_after.get("segment"), phone=lead_after.get("phone"),
             converted_at=lead_after.get("converted_at"), ai_enabled=lead_after.get("ai_enabled", True),
             reason=tag, tenant_id=tenant_id, db=db,
         )
 
-    linked = log.get("follow_up_job_id")
     if linked:
         db.table("follow_up_jobs").update({
             "status": "canceled" if stop_all else "sent",

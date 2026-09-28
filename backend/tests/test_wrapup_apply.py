@@ -200,7 +200,8 @@ class ApplyWrapupTests(unittest.IsolatedAsyncioTestCase):
     async def test_wrong_number_blocks_calls_and_cancels_every_follow_up(self):
         await self.run_wrapup(outcome="wrong_number")
         self.assertEqual((self.lead()["call_status"], self.lead()["do_not_call"]), ("wrong_number", True))
-        self.mocks["cancel_pending_follow_ups"].assert_called_once_with("lead-1", reason="dnc_wrong_number", db=self.db)
+        self.mocks["cancel_pending_follow_ups"].assert_called_once_with(
+            "lead-1", tenant_id="t1", reason="dnc_wrong_number", db=self.db)
         self.mocks["sync_follow_up_jobs"].assert_not_called()
 
     async def test_do_not_call_optionally_stops_messages(self):
@@ -280,6 +281,84 @@ class ApplyWrapupTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(out["call_status"])
         self.assertEqual(self.call()["manual_status"], "busy")
         self.assertEqual(self.reminders(), [])
+
+
+class ApplyWrapupCancelsPhoneRemindersTests(unittest.IsolatedAsyncioTestCase):
+    """Ruling W9: every wrap-up must cancel the lead's other pending phone/callback
+    reminders. Unmocked -- growth.cancel_pending_follow_ups and sync_follow_up_jobs run
+    for real against FakeSupabase so these exercise the actual cancellation wiring,
+    not a mock recording a call that (per the bug) never touched a row."""
+
+    def setUp(self):
+        self.db = FakeSupabase()
+        self.db.add("leads", id="lead-1", tenant_id="t1", segment="B", phone="+919800000001", ai_enabled=True,
+                    converted_at=None, assigned_to="caller-1", call_status="trying", do_not_call=False, opted_out=False)
+        self.mocks = {}
+        for name, mock in {
+            "record_stage_event": MagicMock(), "maybe_assign_lead": MagicMock(),
+            "get_telecalling_config": MagicMock(return_value={"max_call_attempts": 4}),
+            "create_deal": AsyncMock(return_value={"deal": {"id": "deal-1"}}),
+            "raise_reassign_alert": MagicMock(),
+        }.items():
+            patcher = patch.object(wa, name, mock)
+            self.mocks[name] = patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def add_call(self, call_log_id, **kw):
+        self.db.add("call_logs", id=call_log_id, tenant_id="t1", lead_id="lead-1", provider="telecmi",
+                     status="completed", duration_seconds=60, caller_id="caller-1", follow_up_job_id=None,
+                     outcome=None, manual_status=None, created_at="2026-09-27T08:00:00+00:00", **kw)
+
+    async def run_wrapup(self, call_log_id, log_patch=None, **wrapup):
+        body = {"manual_status": "connected", "outcome": None, "notes": None, "next_action_at": None, "reason": None,
+                "preferred_language": None, "stop_messages": False, "products": [], "amount_paise": None}
+        body.update(wrapup)
+        log = {**next(r for r in self.db.rows("call_logs") if r["id"] == call_log_id), **(log_patch or {})}
+        return await wa.apply_wrapup(self.db, tenant_id="t1", user_id="user-1", caller_id="caller-1",
+                                     call_log_id=call_log_id, log=log, wrapup=body, log_extra={}, now=NOW)
+
+    def pending_phone_reminders(self, tenant_id="t1"):
+        return [r for r in self.db.rows("follow_up_jobs")
+                if r.get("tenant_id") == tenant_id and r.get("channel") == "phone" and r.get("status") == "pending"]
+
+    async def test_a_pending_retry_then_converted_leaves_zero_pending_reminders(self):
+        self.add_call("call-1")
+        await self.run_wrapup("call-1", manual_status="not_picked")
+        self.assertEqual(len(self.pending_phone_reminders()), 1)
+
+        self.add_call("call-2")
+        await self.run_wrapup("call-2", outcome="converted", notes="cash", amount_paise=150000)
+        self.assertEqual(self.pending_phone_reminders(), [])
+
+    async def test_two_no_connects_in_a_row_leave_exactly_one_pending_reminder(self):
+        self.add_call("call-1")
+        await self.run_wrapup("call-1", manual_status="not_picked")
+        self.assertEqual(len(self.pending_phone_reminders()), 1)
+
+        self.add_call("call-2")
+        await self.run_wrapup("call-2", manual_status="busy")
+        self.assertEqual(len(self.pending_phone_reminders()), 1)
+
+    async def test_interested_booked_replaces_an_older_pending_reminder(self):
+        self.add_call("call-1")
+        await self.run_wrapup("call-1", manual_status="not_picked")
+        old_reminder = self.pending_phone_reminders()[0]
+
+        self.add_call("call-2")
+        new_time = datetime(2026, 10, 2, 5, 30, tzinfo=UTC)
+        await self.run_wrapup("call-2", outcome="interested_booked", next_action_at=new_time, notes="Demo booked")
+        [reminder] = self.pending_phone_reminders()
+        self.assertEqual(reminder["scheduled_for"], new_time.isoformat())
+        self.assertNotEqual(reminder["id"], old_reminder["id"])
+
+    async def test_another_tenants_reminder_for_the_same_lead_id_is_untouched(self):
+        self.db.add("follow_up_jobs", id="job-t2", tenant_id="t2", lead_id="lead-1", channel="phone",
+                     cadence="callback", status="pending", scheduled_for="2026-09-28T04:30:00+00:00")
+        self.add_call("call-1")
+        await self.run_wrapup("call-1", outcome="wrong_number")
+        other = next(r for r in self.db.rows("follow_up_jobs") if r["id"] == "job-t2")
+        self.assertEqual(other["status"], "pending")
+        self.assertEqual(self.pending_phone_reminders(tenant_id="t2"), [other])
 
 
 if __name__ == "__main__":
