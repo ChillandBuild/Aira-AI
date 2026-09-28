@@ -19,9 +19,11 @@ SET outcome = COALESCE(outcome, CASE manual_status
     manual_status = 'connected'
 WHERE manual_status IN ('interested', 'not_interested', 'callback', 'wrong_number');
 
-UPDATE public.call_logs
-SET next_action_at = wrapup_callback_at
-WHERE next_action_at IS NULL AND wrapup_callback_at IS NOT NULL;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='call_logs' AND column_name='wrapup_callback_at') THEN
+    UPDATE public.call_logs SET next_action_at = wrapup_callback_at WHERE next_action_at IS NULL AND wrapup_callback_at IS NOT NULL;
+  END IF;
+END $$;
 
 UPDATE public.leads SET call_status = 'trying' WHERE call_status = 'in_progress';
 

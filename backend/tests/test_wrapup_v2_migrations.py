@@ -67,6 +67,13 @@ class Migration209Tests(unittest.TestCase):
         self.assertIn("DROP COLUMN IF EXISTS wrapup_callback_at", self.sql)
         self.assertIn("DROP COLUMN IF EXISTS quality_rating", self.sql)
 
+    def test_callback_time_copy_is_guarded_by_information_schema_check(self):
+        self.assertIn("information_schema.columns", self.sql)
+        self.assertIn("column_name='wrapup_callback_at'", self.sql)
+        upper = self.sql.upper()
+        # Guard must come before the DROP (to safely re-run)
+        self.assertLess(upper.index("INFORMATION_SCHEMA"), upper.index("DROP COLUMN IF EXISTS WRAPUP_CALLBACK_AT"))
+
 
 if __name__ == "__main__":
     unittest.main()
