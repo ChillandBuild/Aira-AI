@@ -28,7 +28,10 @@
     "failIfUnavailable": true,
     "allowUnsandboxedCommands": false,
     "network": {
-      "allowedDomains": ["www.bloommatrix.in", "bloommatrix.in"],
+      "allowedDomains": [
+        "www.bloommatrix.in",
+        "bloommatrix.in"
+      ],
       "strictAllowlist": true
     },
     "filesystem": {
@@ -44,12 +47,38 @@
     },
     "credentials": {
       "envVars": [
-        { "name": "RENDER_API_KEY", "mode": "deny" },
-        { "name": "SUPABASE_ACCESS_TOKEN", "mode": "deny" },
-        { "name": "GH_TOKEN", "mode": "deny" },
-        { "name": "GITHUB_TOKEN", "mode": "deny" },
-        { "name": "ANTHROPIC_API_KEY", "mode": "deny" }
+        {
+          "name": "RENDER_API_KEY",
+          "mode": "deny"
+        },
+        {
+          "name": "SUPABASE_ACCESS_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GH_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "GITHUB_TOKEN",
+          "mode": "deny"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "mode": "deny"
+        }
       ]
     }
-  }
+  },
+  "claudeMdExcludes": [
+    "**/.claude/rules/README.md",
+    "**/.claude/rules/common/agents.md",
+    "**/.claude/rules/common/code-review.md",
+    "**/.claude/rules/common/development-workflow.md",
+    "**/.claude/rules/common/performance.md",
+    "**/.claude/rules/common/hooks.md",
+    "**/.claude/rules/web/hooks.md",
+    "**/.claude/rules/web/performance.md"
+  ],
+  "disableClaudeAiConnectors": true
 }
