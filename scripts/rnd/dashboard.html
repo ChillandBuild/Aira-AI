@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aira R&amp;D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#faf8f5;--surface:#fff;--surface-mid:#f0ece4;--primary:#5b21b6;--primary-dark:#4c1d95;
+  --primary-light:#f5f3ff;--primary-muted:#ede9fe;--ink:#1c1917;--ink-2:#78716c;--ink-3:#a8a29e;
+  --border:#e8e3db;--success:#059669;--warning:#d97706;--danger:#e11d48;--radius:1.25rem;
+  --shadow:0 2px 16px -2px rgba(28,25,23,.07),0 1px 4px -1px rgba(28,25,23,.04);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Manrope,system-ui,sans-serif}
+header{background:linear-gradient(135deg,#2e1065 0%,var(--primary) 100%);color:#fff;padding:22px 16px 56px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+header .wrap{padding:0}
+h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em}
+header p{margin:4px 0 0;opacity:.8;font-size:13px}
+.strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.chip{font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.14)}
+.chip.ok::before{content:"● ";color:#6ee7b7}.chip.bad::before{content:"● ";color:#fda4af}.chip.run::before{content:"● ";color:#fcd34d}
+main{margin-top:-36px}
+nav{display:flex;gap:4px;background:var(--surface);border-radius:999px;padding:4px;box-shadow:var(--shadow);width:max-content;max-width:100%;overflow-x:auto}
+nav button{border:0;background:none;font:600 14px Manrope;padding:8px 16px;border-radius:999px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+nav button[aria-selected=true]{background:var(--primary);color:#fff}
+nav button:focus-visible,.btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.count{display:inline-block;min-width:18px;padding:0 5px;margin-left:4px;border-radius:9px;background:var(--primary-muted);color:var(--primary);font-size:11px}
+nav button[aria-selected=true] .count{background:rgba(255,255,255,.25);color:#fff}
+section{display:none;margin:20px 0 48px}section.on{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:14px}
+.card h3{margin:0 0 4px;font-size:16px;letter-spacing:-.01em}
+.meta{color:var(--ink-2);font-size:13px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.btn{border:1px solid var(--border);background:var(--surface);color:var(--ink);font:600 13px Manrope;padding:8px 14px;border-radius:10px;cursor:pointer;transition:transform .1s,background .15s}
+.btn:hover{background:var(--surface-mid)}.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.btn.primary:hover{background:var(--primary-dark)}
+.btn.danger{color:var(--danger)}.btn:disabled{opacity:.45;cursor:not-allowed}
+.pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
+.pill.ok{background:#d1fae5;color:#065f46}.pill.bad{background:#ffe4e6;color:#9f1239}.pill.mid{background:#fef3c7;color:#92400e}.pill.info{background:var(--primary-muted);color:var(--primary)}
+.approve{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+.approve:first-child{border-top:0}
+.approve .t{flex:1;font-weight:600}
+.switch{position:relative;width:46px;height:26px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.switch span{position:absolute;inset:0;border-radius:999px;background:var(--surface-mid);border:1px solid var(--border);transition:.2s;cursor:pointer}
+.switch span::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:.2s}
+.switch input:checked+span{background:var(--primary);border-color:var(--primary)}
+.switch input:checked+span::after{transform:translateX(20px)}
+.switch input:focus-visible+span{outline:2px solid var(--primary);outline-offset:2px}
+.md{overflow-wrap:anywhere}.md h1{font-size:20px}.md h2{font-size:17px;margin-top:26px;padding-top:14px;border-top:1px solid var(--border)}.md h3{font-size:15px}
+.md code,pre{font-family:"JetBrains Mono",monospace;font-size:12.5px}
+.md code{background:var(--surface-mid);padding:1px 5px;border-radius:5px}
+pre{background:#1c1917;color:#e7e5e4;padding:14px;border-radius:12px;overflow:auto;max-height:420px}
+.md pre code{background:none;padding:0}
+details summary{cursor:pointer;font-weight:600;color:var(--primary);margin-top:10px}
+.empty{color:var(--ink-2);text-align:center;padding:36px 16px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;max-width:calc(100% - 32px);white-space:pre-wrap;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+@media (max-width:480px){nav{width:100%}nav button{flex:1;padding:8px 8px;font-size:13px}.count{margin-left:2px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Aira R&amp;D</h1>
+  <p>Your night team. Nothing ships without your click.</p>
+  <div class="strip" id="strip"></div>
+</div></header>
+<main class="wrap">
+  <nav role="tablist" id="tabs">
+    <button role="tab" data-tab="tonight" aria-selected="true">Tonight</button>
+    <button role="tab" data-tab="builds">Builds <span class="count" id="c-builds">0</span></button>
+    <button role="tab" data-tab="strategy">Strategy</button>
+    <button role="tab" data-tab="status">Status &amp; ship</button>
+  </nav>
+  <section id="tonight" class="on"></section>
+  <section id="builds"></section>
+  <section id="strategy"></section>
+  <section id="status"></section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/app.js"></script>
+</body>
+</html>
