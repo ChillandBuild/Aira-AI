@@ -21,14 +21,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo '💾 SESSION END — do both before closing:\\n1. Save anything worth remembering from this session (new decisions, fixes, patterns, corrections)\\n2. Audit all memory files — update stale facts, delete anything no longer true, merge duplicates'"
+            "command": "echo '\ud83d\udcbe SESSION END \u2014 do both before closing:\\n1. Save anything worth remembering from this session (new decisions, fixes, patterns, corrections)\\n2. Audit all memory files \u2014 update stale facts, delete anything no longer true, merge duplicates'"
           },
           {
             "type": "command",
-            "command": "cd \"${CLAUDE_PROJECT_DIR:-/Users/prem/Documents/Aira AI}\" 2>/dev/null && N=$(find backend/app frontend/app -type f \\( -name '*.py' -o -name '*.ts' -o -name '*.tsx' \\) -newer graphify-out/manifest.json 2>/dev/null | wc -l | tr -d ' ') && [ \"${N:-0}\" -gt 15 ] && echo \"🗺️  WIKI STALE — $N source files changed since the last graphify build. Run /wiki to refresh graphify-out/wiki/ before it drifts from the code.\" || true"
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-/Users/prem/Documents/Aira AI}\" 2>/dev/null && N=$(find backend/app frontend/app -type f \\( -name '*.py' -o -name '*.ts' -o -name '*.tsx' \\) -newer graphify-out/manifest.json 2>/dev/null | wc -l | tr -d ' ') && [ \"${N:-0}\" -gt 15 ] && echo \"\ud83d\uddfa\ufe0f  WIKI STALE \u2014 $N source files changed since the last graphify build. Run /wiki to refresh graphify-out/wiki/ before it drifts from the code.\" || true"
           }
         ]
       }
     ]
+  },
+  "skillOverrides": {
+    "ship": "user-invocable-only",
+    "gstack-ship": "user-invocable-only",
+    "land-and-deploy": "user-invocable-only",
+    "gstack-land-and-deploy": "user-invocable-only",
+    "setup-deploy": "user-invocable-only",
+    "gstack-setup-deploy": "user-invocable-only"
   }
 }

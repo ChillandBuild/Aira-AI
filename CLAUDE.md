@@ -19,6 +19,22 @@
 - **Database/schema work:** the wiki is CODE only. Use the migration index in [decisions/log.md](.agents/decisions/log.md) + live Supabase `list_tables`/`execute_sql` — NOT the wiki.
 - This runs automatically for every task; the user does NOT have to say "use the wiki/graph."
 
+## How we work — the gstack sprint (every task, no need to be told)
+- Bug, error, "it stopped working" → `/gstack-investigate`. Root cause before any fix;
+  a regression test that fails before the fix and passes after.
+- New feature or idea → `/gstack-office-hours` → `/gstack-autoplan` → show the plan and
+  wait for approval → build.
+- UI change → `/gstack-plan-design-review` on the plan; after building, `/gstack-qa`
+  on the local app as the UI test tenant (see subsystem-notes.md).
+- Auth, webhooks, payments, RLS → also `/gstack-cso`.
+- Before any commit → `/gstack-review` on the diff, plus `python -m pytest` (backend)
+  or typecheck + lint (frontend).
+- Before finishing → `git fetch`, check `HEAD..origin/main` for teammate commits on the
+  same files; if any, rebase and re-run the tests.
+- Weekly → `/gstack-retro`.
+- `/gstack-ship`, `/gstack-land-and-deploy`, `/gstack-setup-deploy` are user-only
+  (hidden from agents via skillOverrides). Push or deploy only when the user says so.
+  A push to `main` auto-deploys the backend on Render.
 
 ## Agent Routing Instructions
 To prevent context dilution, general invariants and rules have been split into modular guides. **Always read these files first based on the scope of your task:**
