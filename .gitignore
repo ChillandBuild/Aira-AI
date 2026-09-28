@@ -15,7 +15,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .venv/
-backend/.venv/
+backend/.venv
 
 # Node / Next.js
 node_modules/
