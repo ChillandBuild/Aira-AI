@@ -39,6 +39,11 @@ logger = logging.getLogger(__name__)
 # errors from httpx still come through; our own log lines are unaffected.
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+# Laptop runs (scripts/dev-backend.sh) set OUTBOUND_MODE=dry_run: external sends are logged,
+# not delivered. No-op in production (outbound_mode defaults to "live").
+from app.services.outbound_guard import install_outbound_guard
+install_outbound_guard()
+
 # Initialize Sentry
 if settings.sentry_dsn:
     import sentry_sdk
@@ -484,8 +489,11 @@ async def lifespan(app: FastAPI):
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
-    _scheduler.start()
-    logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + call-alert-summary(09:00 IST)")
+    _scheduler.start(paused=not settings.scheduler_enabled)
+    if settings.scheduler_enabled:
+        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + call-alert-summary(09:00 IST)")
+    else:
+        logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 15 jobs registered but PAUSED; nothing will run")
 
     yield
 

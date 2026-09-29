@@ -2,7 +2,7 @@
 # graphify python is resolved from the env graphify wrote; falls back to python3.
 PY := $(shell cat graphify-out/.graphify_python 2>/dev/null || echo python3)
 
-.PHONY: wiki wiki-refresh second-brain-close doctor verify rnd-night rnd-strategy rnd-build rnd-dashboard
+.PHONY: wiki wiki-refresh second-brain-close doctor verify rnd-night rnd-strategy rnd-build rnd-dashboard dev-backend
 
 # Rebuild the curated module wiki from the EXISTING graph.json (fast, no extraction).
 # Use after running `make wiki-refresh`, or when you only tweaked labels in scripts/build_wiki.py.
@@ -50,3 +50,7 @@ rnd-build:
 # Local R&D dashboard (127.0.0.1 only): approve, review builds, merge / drop / push, run now.
 rnd-dashboard:
 	python3 scripts/rnd/dashboard.py
+
+# Safe local backend start: scheduler PAUSED, outbound DRY-RUN, live Supabase DB.
+dev-backend:
+	bash scripts/dev-backend.sh

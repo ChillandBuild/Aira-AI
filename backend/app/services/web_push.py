@@ -32,6 +32,10 @@ def send_user_push(
     db=None,
 ) -> None:
     """Best-effort Web Push fan-out. Never raise into business flows."""
+    if settings.outbound_mode == "dry_run":
+        logger.warning("DRY-RUN blocked web push to user=%s title=%r", user_id, title)
+        return
+
     if not settings.vapid_public_key or not settings.vapid_private_key:
         return
 

@@ -1,9 +1,9 @@
 # Aira AI — Agent Operating Manual
 
 ## Core Commands
-- **Backend Dev**: `cd backend && uvicorn app.main:app --reload`
+- **Backend Dev**: `make dev-backend` (safe mode: scheduler paused, outbound dry-run). Never plain `uvicorn` on a laptop — it shares the live DB.
 - **Backend Build/Deps**: `cd backend && pip install -r requirements.txt`
-- **Backend Test**: `cd backend && python -m pytest` (runs tests under `backend/tests/`). Use `python -m pytest`, not bare `pytest` — several test modules import `app.*` without adding the backend dir to `sys.path`, so bare `pytest` dies at collection with `ModuleNotFoundError: No module named 'app'`. `python -m` puts the cwd on `sys.path` and the suite passes (2531 tests collected as of 2026-09-28). Run it from `backend/`, not the repo root.
+- **Backend Test**: `cd backend && python -m pytest` (runs tests under `backend/tests/`). Use `python -m pytest`, not bare `pytest` — several test modules import `app.*` without adding the backend dir to `sys.path`, so bare `pytest` dies at collection with `ModuleNotFoundError: No module named 'app'`. `python -m` puts the cwd on `sys.path` and the suite passes (2553 tests collected as of 2026-09-29). Run it from `backend/`, not the repo root.
 - **Frontend Dev**: `cd frontend && npm run dev`
 - **Frontend Build**: `cd frontend && npm run build`
 - **Frontend Typecheck**: `cd frontend && npm run typecheck`
@@ -30,7 +30,9 @@ or "pinned to" warning (scripts/rnd/check-gstack.sh), tell the user; never upgra
 - New feature or idea → `/gstack-office-hours` → `/gstack-autoplan` → show the plan and
   wait for approval → build.
 - UI change → `/gstack-plan-design-review` on the plan; after building, `/gstack-qa`
-  on the local app as the UI test tenant (see subsystem-notes.md).
+  as the UI test tenant — on the live site, or locally. Local backend ONLY via `make dev-backend`
+  (plain uvicorn would run the scheduler and message real leads from the live DB; see
+  subsystem-notes.md). Point the local frontend at it with NEXT_PUBLIC_API_URL=http://localhost:8000.
 - Auth, webhooks, payments, RLS → also `/gstack-cso`.
 - Before any commit → `/gstack-review` on the diff, plus `python -m pytest` (backend)
   or typecheck + lint (frontend).

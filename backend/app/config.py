@@ -37,8 +37,20 @@ class Settings(BaseSettings):
     vapid_public_key: str | None = None
     vapid_private_key: str | None = None
     vapid_subject: str | None = None
+    # Local-run safety (see scripts/dev-backend.sh). Production defaults: scheduler runs,
+    # outbound is live. A laptop sets SCHEDULER_ENABLED=false + OUTBOUND_MODE=dry_run so it
+    # never runs the 15 jobs against the live DB or messages real people.
+    scheduler_enabled: bool = True
+    outbound_mode: str = "live"  # "live" | "dry_run"
+    outbound_allow_to: str = ""  # comma-separated recipients that still get REAL sends in dry_run
 
     model_config = {"env_file": ".env", "case_sensitive": False, "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _check_outbound_mode(self) -> "Settings":
+        if self.outbound_mode not in ("live", "dry_run"):
+            raise ValueError(f"OUTBOUND_MODE must be 'live' or 'dry_run', got {self.outbound_mode!r}")
+        return self
 
     @model_validator(mode="after")
     def _warn_missing_secrets(self) -> "Settings":
