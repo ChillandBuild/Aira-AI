@@ -34,8 +34,10 @@ or "pinned to" warning (scripts/rnd/check-gstack.sh), tell the user; never upgra
   (plain uvicorn would run the scheduler and message real leads from the live DB; see
   subsystem-notes.md). Point the local frontend at it with NEXT_PUBLIC_API_URL=http://localhost:8000.
 - Auth, webhooks, payments, RLS → also `/gstack-cso`.
-- Before any commit → `/gstack-review` on the diff, plus `python -m pytest` (backend)
-  or typecheck + lint (frontend).
+- Before any commit → run the checks that fit the change (`/gstack-review` on the diff, `python -m pytest` for
+  backend, typecheck + lint for frontend), without asking. Do NOT repeat a check that already passed on the same
+  code: if no code or test file changed since the last passing run, or the change is docs/config only, skip it and
+  just commit. Push only when the user says so.
 - Before finishing → `git fetch`, check `HEAD..origin/main` for teammate commits on the
   same files; if any, rebase and re-run the tests.
 - Weekly → `/gstack-retro`.
