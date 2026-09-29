@@ -39,9 +39,11 @@ or "pinned to" warning (scripts/rnd/check-gstack.sh), tell the user; never upgra
 - Before finishing → `git fetch`, check `HEAD..origin/main` for teammate commits on the
   same files; if any, rebase and re-run the tests.
 - Weekly → `/gstack-retro`.
-- `/gstack-ship`, `/gstack-land-and-deploy`, `/gstack-setup-deploy` are user-only
-  (hidden from agents via skillOverrides). Push or deploy only when the user says so.
-  A push to `main` auto-deploys the backend on Render.
+- `/gstack-ship`, `/gstack-land-and-deploy`, `/gstack-setup-deploy` are switched ON in skillOverrides
+  (2026-09-29), so agents can see and start them. That is a choice, not a fence: push or deploy only when the user
+  says so, every time. A push to `main` auto-deploys the backend on Render.
+- Rough or voice-typed idea → `/brief <idea>` first. It shows a short brief and waits for "go" (see
+  `.claude/commands/brief.md`; glossary in `.agents/context/prem-glossary.md`).
 
 ## Agent Routing Instructions
 To prevent context dilution, general invariants and rules have been split into modular guides. **Always read these files first based on the scope of your task:**

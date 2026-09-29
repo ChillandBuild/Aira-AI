@@ -618,3 +618,8 @@ first review that has already been applied.
 - **Separate paying clients need their own Jina key** (Co and Pooja borrow Astro Tamil's).
 - **A live UI test account exists** (`Aira UI Test (Claude)`, see subsystem-notes.md) — delete when no longer needed.
 
+## Safe local mode follow-ups (2026-09-29)
+- **Allow-list path unproven end-to-end**: `OUTBOUND_ALLOW_TO` real sends are unit-tested only. The UI test tenant has no WhatsApp number, so proving it needs a spare number connected to that tenant.
+- **Operator console defaults `NEXT_PUBLIC_API_URL` to `http://localhost:8000`** (`frontend/app/operator/(console)/layout.tsx:15`) while the dashboard falls back to Render — inconsistent; a missing env var silently points the console at nothing.
+- **Scheduler startup log is wrong**: `main.py` logs `token-health(24h)` and `quality-sync(24h)` but both run every 4h.
+- **`SENTRY_DSN` still set in Render's dashboard** — harmless (ignored), delete by hand; Render MCP cannot delete a single env var.
