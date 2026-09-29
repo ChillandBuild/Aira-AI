@@ -33,7 +33,6 @@ class Settings(BaseSettings):
     facebook_access_token: str | None = None
     facebook_page_id: str | None = None
     meta_app_secret: str | None = None
-    sentry_dsn: str | None = None
     vapid_public_key: str | None = None
     vapid_private_key: str | None = None
     vapid_subject: str | None = None

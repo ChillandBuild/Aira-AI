@@ -44,15 +44,6 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 from app.services.outbound_guard import install_outbound_guard
 install_outbound_guard()
 
-# Initialize Sentry
-if settings.sentry_dsn:
-    import sentry_sdk
-    sentry_sdk.init(
-        dsn=settings.sentry_dsn,
-        traces_sample_rate=1.0,
-    )
-    logger.info("Sentry SDK initialized successfully.")
-
 from datetime import datetime, timezone
 _startup_time = datetime.now(timezone.utc)
 _heartbeats = {
@@ -641,8 +632,6 @@ async def ready():
     if is_ready:
         return payload
     return JSONResponse(status_code=503, content=payload)
-
-# Sentry debug route removed
 
 _auth = [Depends(get_current_user)]
 
