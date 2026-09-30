@@ -938,3 +938,12 @@ Catalogue was removed from the Nira config on 2026-09-06 for this reason.
 - **"What Aira saw" gates are mirrored from `generate_reply`** (blocked, opted out, auto-reply off) — keep them in sync when the real gates change.
 - **Weekly digest:** cron Monday 09:00 IST (`brain-weekly-digest`), owners only, runs off the event loop.
 - **Test Aira** calls `ai_reply._llm_chat` (never `generate_reply`/`converse_once`); rate limiter and kill-switch cache are per process.
+
+## Deal lifecycle — intake_sessions (R1–R4, 2026-09-30)
+- **Two clocks, don't mix them.** `payment_link_expires_at` only kills the *link* (`expire_intake_session` clears it; deal stays open). `last_activity_at` drives the idle *close*. Only a lead message (text or media) or real deal progress resets it. `updated_at` is never written, so don't use it.
+- **One current plink.** `razorpay_payment_link_id` is the only link that counts. Sending a new link cancels the old one on Razorpay (`cancel_payment_link(plink_id, tenant_id)`). Webhooks for any other plink are ignored.
+- **A session counts as "paid" if status == 'paid' OR `razorpay_payment_id` is set.** A second payment on a paid deal goes into `extra_payment_ids` through a compare-and-set write (`.not_.contains`). That sets `refund_needed` and alerts staff; staff refund it by hand.
+- **Three different 48 h / expiry things existed.** (1) The link expiry. (2) The old 48 h idle cancel, now replaced by `deal_idle_close_days`. (3) The paid → resolved auto-resolve. That last one still exists, but no longer blocks a repeat booking because of `new_booking`.
+- **`mark_lost(..., only_from=...)`**: the webhook path passes ("quoted","awaiting_payment") so a late event can't flip a won deal to lost.
+- **Idle sweep reads the setting strictly** (`get_setting_strict`). If the read fails, it skips that tenant and never falls back to a default. A DB blip must never mass-close deals.
+- **Eval harness:** `backend/evals/conversations/` (`run_aira.py --files scenarios_returning.json`, score with `python -m evals.conversations.returning`). `write_guard.py` makes it refuse DB writes. It needs a tenant key and explicit user OK to spend it.

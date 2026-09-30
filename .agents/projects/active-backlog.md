@@ -635,3 +635,9 @@ first review that has already been applied.
 - **Playwright QA 2026-09-30 (local, UI test tenant, owner):** hub at 320/768/1440 no overflow; badge = hub count; count-and-link line on Knowledge/Services/Catalog; 8-section Description editor; confirm sheet + Dismiss/Restore (mocked conflicts — tenant has none). Still unverified: operator Aira Brain tab and What Aira saw drawer (no operator login documented), a real Test Aira answer (test tenant has no reply model → 409 shown correctly), custom-manage/view-only users, real approve/fix end to end.
 - **Confirm sheet counts items it will skip** ("Fix 2" when one has no suggested wording). Untick or exclude skip-flagged items from the count.
 - **`GET /api/v1/operator/me` returns 500 for a non-admin** (routes/operator.py:36, `result.data` on None) — should be 403. Pre-existing, not Brain code.
+
+## Deal lifecycle follow-ups (open, 2026-09-30, after R1–R4 shipped)
+- **Not yet seen live:** `last_activity_at` updating and `razorpay_payment_link_id` being written. At 16:42 UTC there had been no deal traffic since the 16:30 deploy, so 0 rows had a plink id. Check after the next real customer message or link.
+- **Vivek (session 7091a634):** his link expires 2026-10-01 09:52 UTC. Confirm the session stays `awaiting_payment` with the link cleared, and is NOT cancelled.
+- **Eval right-actions 80–84% vs the 90% bar.** Misses: a "👍"-only return sometimes skips the continue question; repeat customers who don't name the offering get the menu first. Both harmless; lift if it matters.
+- **User-side:** staff login details were pasted into Astrotamil Pooja lead chats. The user must remove them and rotate those credentials; they are not to be read or echoed. The "Place of Birh" typo in that tenant's form.
