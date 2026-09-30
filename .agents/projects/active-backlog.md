@@ -625,7 +625,7 @@ first review that has already been applied.
 - **`SENTRY_DSN` still set in Render's dashboard** — harmless (ignored), delete by hand; Render MCP cannot delete a single env var.
 
 ## Aira Brain follow-ups (2026-09-30, `95634b21`..`e459d39d`)
-- **Run the handover migration** — `python backend/scripts/migrate_handover_to_description.py` (dry-run), then `--apply`. Founder decides when. Until it runs, the legacy `handover_line` setting is the fallback for the 2 tenants that have one. Live check 2026-09-30: both are real clients (Astro Tamil 397 words + 62-char line; Astro Tamil - Co 540 words + 116-char line), neither over the 700 cap, neither has section 8 yet.
+- ~~**Run the handover migration**~~ — DONE 2026-09-30 (`--apply`, after backend + frontend aff4f8ea were live). Both tenants migrated: Astro Tamil - Co 540→566 words, Astro Tamil 397→416 words; section 8 present, legacy `handover_line` rows deleted (0 left); follow-up dry run finds 0 tenants. Note: neither Description has a BUSINESS HOURS AND CONTACT heading (7 of 8) — harmless, `get_handover_line` looks up section 8 by key.
 - **No audit events for review decisions or conflict dismissals.** Operator "History" currently reads `knowledge_versions`, so dismissals and rejected reviews do not show.
 - **`brain_digest` is not in `notification_config` events**, so an owner cannot mute the weekly digest per event.
 - **Stuck-approval alert only on the operator clients-list banner**, not the alert bell.
