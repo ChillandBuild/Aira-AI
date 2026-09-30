@@ -11,8 +11,12 @@ import { HandoverFeed } from "@/components/brain/HandoverFeed";
 import { HeadlineStrip } from "@/components/brain/HeadlineStrip";
 import { HubTopLine } from "@/components/brain/HubTopLine";
 import { InputsList } from "@/components/brain/InputsList";
+import { TestAira } from "@/components/brain/TestAira";
+import { NEEDS_MANAGE_REASON } from "@/components/brain/testAiraLogic";
 import { useBrainData } from "@/components/brain/useBrainData";
 import { WaitingOnYou } from "@/components/brain/WaitingOnYou";
+
+const TEST_AIRA_ENDPOINT = "/api/v1/brain/sandbox";
 
 function LoadingState() {
   return (
@@ -99,6 +103,7 @@ export default function AiraBrainPage() {
             <HandoverFeed handovers={data.handovers} />
             <InputsList inputs={data.inputs} />
             <CanReply status={data.status} />
+            <TestAira endpoint={TEST_AIRA_ENDPOINT} canUse={canManage} disabledReason={NEEDS_MANAGE_REASON} />
           </>
         )}
       </div>

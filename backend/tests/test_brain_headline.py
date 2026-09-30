@@ -101,3 +101,71 @@ class TestBuildHeadline:
         for i in range(1005):
             db.add("messages", tenant_id=T1, lead_id=f"lead-{i}", direction="inbound", is_ai_generated=False, created_at=stamp)
         assert headline.build_headline(db, T1, now=NOW)["chats"] == 1005
+
+
+class _OrderRecordingDB(BrainDB):
+    """Remembers every .order() call made on the messages table, in call order."""
+    def __init__(self):
+        super().__init__()
+        self.message_orders: list[tuple] = []
+
+    def table(self, name):
+        query = super().table(name)
+        if name != "messages":
+            return query
+        original = query.order
+
+        def order(column, desc=False):
+            self.message_orders.append((column, desc))
+            return original(column, desc)
+
+        query.order = order
+        return query
+
+
+class TestPagingIsStable:
+    def test_the_paged_messages_query_ends_with_a_unique_id_tiebreaker(self):
+        db = _OrderRecordingDB()
+        db.add("messages", tenant_id=T1, lead_id="a", direction="inbound", is_ai_generated=False,
+               created_at="2026-09-26T10:00:00+05:30")
+        headline.build_headline(db, T1, now=NOW)
+        assert db.message_orders == [("created_at", False), ("id", False)]
+
+
+class TestHeadlineCache:
+    @staticmethod
+    def _db_with_chats(count):
+        db = BrainDB()
+        for i in range(count):
+            db.add("messages", tenant_id=T1, lead_id=f"lead-{i}", direction="inbound", is_ai_generated=False,
+                   created_at="2026-09-26T10:00:00+05:30")
+        return db
+
+    def test_a_second_call_inside_the_ttl_reuses_the_result(self, monkeypatch):
+        clock = [1000.0]
+        monkeypatch.setattr(headline.time, "monotonic", lambda: clock[0])
+        first = headline.build_headline(self._db_with_chats(1), T1, now=NOW)
+        clock[0] += headline.CACHE_TTL_SECONDS - 1
+        second = headline.build_headline(self._db_with_chats(3), T1, now=NOW)
+        assert first["chats"] == second["chats"] == 1
+
+    def test_the_result_is_recomputed_after_the_ttl(self, monkeypatch):
+        clock = [1000.0]
+        monkeypatch.setattr(headline.time, "monotonic", lambda: clock[0])
+        headline.build_headline(self._db_with_chats(1), T1, now=NOW)
+        clock[0] += headline.CACHE_TTL_SECONDS + 1
+        assert headline.build_headline(self._db_with_chats(3), T1, now=NOW)["chats"] == 3
+
+    def test_the_cache_is_per_tenant(self):
+        headline.build_headline(self._db_with_chats(1), T1, now=NOW)
+        assert headline.build_headline(BrainDB(), T2, now=NOW)["chats"] == 0
+
+    def test_clear_cache_forgets_everything(self):
+        headline.build_headline(self._db_with_chats(1), T1, now=NOW)
+        headline.clear_cache()
+        assert headline.build_headline(self._db_with_chats(3), T1, now=NOW)["chats"] == 3
+
+    def test_a_caller_cannot_change_the_cached_result(self):
+        first = headline.build_headline(self._db_with_chats(1), T1, now=NOW)
+        first["chats"] = 999
+        assert headline.build_headline(self._db_with_chats(1), T1, now=NOW)["chats"] == 1

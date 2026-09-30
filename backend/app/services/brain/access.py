@@ -7,10 +7,12 @@ OWNER_ROLE = "owner"
 
 def has_permission(role: str | None, permissions: Iterable[str] | None, key: str) -> bool:
     """Mirrors dependencies.tenant.require_permission: the owner passes, a ".view" key is
-    also satisfied by its ".manage" sibling."""
+    also satisfied by its ".manage" sibling, and conversations.view by conversations.reply."""
     if role == OWNER_ROLE:
         return True
     held = set(permissions or [])
     if key in held:
+        return True
+    if key == "conversations.view" and "conversations.reply" in held:
         return True
     return key.endswith(".view") and f"{key[:-5]}.manage" in held

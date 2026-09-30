@@ -1634,6 +1634,7 @@ def client_dashboard_inbox(tenant_id: str, _admin: dict = Depends(get_system_adm
         msg = last_msg_map.get(c.get("lead_id"), {})
         conversations.append({
             "id": c["id"],
+            "lead_id": c.get("lead_id"),
             "lead_name": lead.get("name", "Unknown"),
             "lead_phone": lead.get("phone"),
             "last_message": (msg.get("content") or "")[:80],

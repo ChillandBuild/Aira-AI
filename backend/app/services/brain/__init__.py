@@ -8,6 +8,7 @@ from datetime import datetime
 
 from app.db.supabase import get_supabase
 from app.services.brain import handovers, headline, inputs, status, waiting
+from app.services.brain.access import has_permission
 
 
 def build_brain(tenant_id: str, *, role: str | None, permissions: Iterable[str] | None, db=None) -> dict:
@@ -18,7 +19,10 @@ def build_brain(tenant_id: str, *, role: str | None, permissions: Iterable[str] 
         "headline": headline.build_headline(db, tenant_id, now=now),
         "waiting": waiting.waiting_summary(db, tenant_id),
         "inputs": inputs.build_inputs(db, tenant_id, role=role, permissions=permissions),
-        "handovers": handovers.recent_handovers(db, tenant_id, since),
+        "handovers": handovers.recent_handovers(
+            db, tenant_id, since,
+            include_conversation=has_permission(role, permissions, "conversations.view"),
+        ),
         "status": status.build_status(db, tenant_id, role=role, permissions=permissions),
     }
 

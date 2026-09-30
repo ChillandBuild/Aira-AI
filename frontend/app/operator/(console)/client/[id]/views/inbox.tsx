@@ -4,6 +4,7 @@ import { Inbox, MessageSquare, Hash } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { StatCard } from "../components/stat-card";
 import { SkeletonCard, SkeletonTable } from "../components/skeleton";
+import { WhatAiraSawDrawer } from "./WhatAiraSawDrawer";
 
 async function apiFetch<T>(path: string): Promise<T> {
   const auth = await getAuthHeaders();
@@ -28,6 +29,7 @@ function relTime(iso: string): string {
 
 interface Conversation {
   id: string;
+  lead_id: string | null;
   lead_name: string | null;
   last_message: string | null;
   channel: string | null;
@@ -50,6 +52,7 @@ export function InboxView({ tenantId }: { tenantId: string }) {
   const [data, setData] = useState<InboxData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sawLead, setSawLead] = useState<{ id: string; name: string | null } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -102,6 +105,7 @@ export function InboxView({ tenantId }: { tenantId: string }) {
                 <th className="text-left px-4 py-3 font-medium">Last Message</th>
                 <th className="text-left px-4 py-3 font-medium">Channel</th>
                 <th className="text-left px-4 py-3 font-medium">Time</th>
+                <th className="text-left px-4 py-3 font-medium"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
@@ -119,11 +123,26 @@ export function InboxView({ tenantId }: { tenantId: string }) {
                     ) : "—"}
                   </td>
                   <td className="px-4 py-3 text-ink-muted text-xs">{c.last_message_at ? relTime(c.last_message_at) : "—"}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      disabled={!c.lead_id}
+                      aria-describedby={c.lead_id ? undefined : "saw-no-lead"}
+                      onClick={() => c.lead_id && setSawLead({ id: c.lead_id, name: c.lead_name })}
+                      className="font-label text-xs font-bold text-primary hover:text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      What Aira saw
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      <span id="saw-no-lead" className="sr-only">This conversation has no lead attached, so there is nothing to reconstruct.</span>
+      {sawLead && (
+        <WhatAiraSawDrawer tenantId={tenantId} leadId={sawLead.id} leadName={sawLead.name} onClose={() => setSawLead(null)} />
       )}
     </div>
   );

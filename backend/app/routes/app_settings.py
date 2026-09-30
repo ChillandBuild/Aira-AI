@@ -382,6 +382,38 @@ async def list_settings(ctx: dict = Depends(require_settings_read)):
     return {"settings": settings}
 
 
+DESCRIPTION_SETTING_KEY = "business_description"
+DESCRIPTION_OWNER_ONLY_MESSAGE = "Only the owner can edit the Description"
+
+
+def _checked_owner_description(updates: dict, ctx: dict) -> str | None:
+    """The Description text to save, or None when this request does not touch it. The
+    Description is owner-only and versioned (PUT /api/v1/ai-tune/profile), so the generic
+    settings route may not write it raw: other roles get 403, and the owner's text gets the
+    same word cap before anything is written."""
+    if DESCRIPTION_SETTING_KEY not in updates:
+        return None
+    if ctx.get("role") != "owner":
+        raise HTTPException(status_code=403, detail=DESCRIPTION_OWNER_ONLY_MESSAGE)
+    from app.services.business_profile import parse, validate
+
+    text = (updates[DESCRIPTION_SETTING_KEY] or "").strip()
+    parsed = parse(text)
+    errors = validate(parsed.sections, parsed.other)
+    if errors:
+        raise HTTPException(status_code=422, detail="; ".join(errors))
+    return text
+
+
+def _save_description_as_owner(db, tenant_id: str, text: str, user_id: str | None) -> None:
+    """Same write as PUT /api/v1/ai-tune/profile: a version row, then the rubric follow-up."""
+    from app.routes.ai_tune import queue_rubric_for_description
+    from app.services import knowledge_versions
+
+    knowledge_versions.save_description(db, tenant_id, text, "edit", user_id)
+    queue_rubric_for_description(tenant_id, text)
+
+
 @router.patch("/")
 async def update_settings(
     payload: SettingsUpdate,
@@ -394,6 +426,7 @@ async def update_settings(
         raise HTTPException(status_code=400, detail="Nothing to update")
     if HANDOVER_LINE_KEY in payload.updates:
         raise HTTPException(status_code=400, detail=HANDOVER_LINE_MOVED_MESSAGE)
+    description = _checked_owner_description(payload.updates, ctx)
 
     db = get_supabase()
 
@@ -432,6 +465,8 @@ async def update_settings(
 
     updated = []
     for key, value in payload.updates.items():
+        if key == DESCRIPTION_SETTING_KEY:
+            continue  # written below through the versioned Description path
         is_secret = key in SECRET_SETTING_KEYS
         if value == "":
             # Empty string means "clear this value" — delete the row rather than
@@ -452,6 +487,10 @@ async def update_settings(
         )
         if result.data:
             updated.append(key)
+
+    if description is not None:
+        _save_description_as_owner(db, tenant_id, description, user.get("user_id"))
+        updated.append(DESCRIPTION_SETTING_KEY)
 
     # Credentials changed by hand: the channel must be re-validated, and it is no
     # longer whatever the embedded flow provisioned.
@@ -486,7 +525,7 @@ async def update_settings(
             "secret_keys": [key for key in updated if key in SECRET_SETTING_KEYS],
         },
     )
-    if "business_description" in updated:
+    if DESCRIPTION_SETTING_KEY in updated:
         from app.services.consistency import run_check_safely
         background_tasks.add_task(run_check_safely, tenant_id)
     return {"updated": updated}

@@ -592,20 +592,24 @@ def record_tamil_lock_request(db, lead_id: str, tenant_id: str | None, message: 
     return True
 
 
-def _resolve_tamil_lock(db, lead_id: str, lead_data: dict, message: str) -> str:
+def _resolve_tamil_lock(
+    db, lead_id: str, lead_data: dict, message: str, *, persist: bool = True
+) -> str:
     """For the 'tanglish_escalate_tamil' mode: returns 'tamil' once this lead has asked
     (in Tamil script) to be spoken to in Tamil, persisted via leads.tamil_locked since
     the _recent_thread() history window used for the LLM prompt is only 8 messages and
     can't be trusted to remember a switch from many turns ago. Returns 'tanglish'
     otherwise. The write here is the belt-and-braces path for turns that reach
-    generate_reply directly; record_tamil_lock_request covers consumed turns."""
+    generate_reply directly; record_tamil_lock_request covers consumed turns.
+    persist=False computes the same answer in memory without writing (read-only callers)."""
     if lead_data.get("tamil_locked"):
         return "tamil"
     if _should_lock_tamil(message):
-        try:
-            db.table("leads").update({"tamil_locked": True}).eq("id", str(lead_id)).execute()
-        except Exception:
-            logger.exception("Failed to persist tamil_locked for lead %s", lead_id)
+        if persist:
+            try:
+                db.table("leads").update({"tamil_locked": True}).eq("id", str(lead_id)).execute()
+            except Exception:
+                logger.exception("Failed to persist tamil_locked for lead %s", lead_id)
         return "tamil"
     return "tanglish"
 
@@ -1546,6 +1550,7 @@ def build_reply_system_prompt(
     catalog_context: str = "",
     include_intake_context: bool = True,
     tapped_option_key: str | None = None,
+    persist: bool = True,
 ) -> tuple[str, str, bool]:
     """Assemble the main-brain system prompt, and return the reply language mode it
     was built with (the caller needs that mode for the post-generation script-mismatch
@@ -1560,6 +1565,9 @@ def build_reply_system_prompt(
 
     include_intake_context=False for callers that ARE the intake flow: telling the
     collector "an intake is in progress" is noise at best, contradictory at worst.
+
+    persist=False makes the build read-only (it skips the tamil_locked write) so the
+    operator "What Aira saw" reconstruction can never change a lead.
     """
     system_prompt = _build_base_prompt(channel, tenant_id)
     if campaign_name:
@@ -1599,7 +1607,9 @@ def build_reply_system_prompt(
 
     reply_language_mode = _resolve_reply_language_mode(tenant_id)
     if reply_language_mode == "tanglish_escalate_tamil":
-        reply_language_mode = _resolve_tamil_lock(db, lead_id, lead_data, message)
+        reply_language_mode = _resolve_tamil_lock(
+            db, lead_id, lead_data, message, persist=persist
+        )
     system_prompt += _language_rule_block(reply_language_mode, message)
     system_prompt += _HUMAN_TOUCH_BLOCK
 

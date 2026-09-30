@@ -10,7 +10,7 @@ from app.dependencies.tenant import get_tenant_id, require_owner
 from app.services.gemini_client import gemini_chat_completion
 from app.services.knowledge_versions import save_description
 from app.services.business_profile import (
-    SECTIONS, HARD_WORD_LIMIT, parse, render, validate, word_count, propose_conversion
+    SECTIONS, HARD_WORD_LIMIT, HANDOVER_KEY, parse, render, validate, word_count, propose_conversion
 )
 
 logger = logging.getLogger(__name__)
@@ -236,6 +236,10 @@ async def update_profile(
     # key sent as "" clears it. The word cap is checked on the merged result.
     current = parse(get_setting("business_description", tenant_id=tenant_id) or "").sections
     merged = {**current, **payload.sections}
+    if HANDOVER_KEY in merged and not merged[HANDOVER_KEY].strip() and HANDOVER_KEY not in current:
+        # The editor sends every section, so a blank handover box on a Description that never
+        # had the heading is not a "clear": leave the heading out and the legacy line still applies.
+        merged = {key: text for key, text in merged.items() if key != HANDOVER_KEY}
     errors = validate(merged, payload.other)
     if errors:
         raise HTTPException(status_code=422, detail="; ".join(errors))

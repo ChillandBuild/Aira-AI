@@ -23,6 +23,7 @@ from app.routes.marketplace_intake import public_router as marketplace_public_ro
 from app.routes import marketplace_intake
 from app.routes import deals, business_details
 from app.routes import brain
+from app.routes import brain_sandbox
 from app.routes import operator_brain
 from app.routes import lead_details_share
 
@@ -350,8 +351,9 @@ async def _send_brain_weekly_digest() -> None:
     _heartbeats["brain-weekly-digest"] = datetime.now(timezone.utc)
     try:
         from app.db.supabase import get_supabase
+        import asyncio
         from app.services.brain_digest import send_weekly_digests
-        send_weekly_digests(get_supabase())
+        await asyncio.to_thread(send_weekly_digests, get_supabase())
     except Exception as e:
         logger.error(f"Brain weekly digest error: {e}")
 
@@ -497,9 +499,9 @@ async def lifespan(app: FastAPI):
     )
     _scheduler.start(paused=not settings.scheduler_enabled)
     if settings.scheduler_enabled:
-        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + call-alert-summary(09:00 IST)")
+        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
     else:
-        logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 15 jobs registered but PAUSED; nothing will run")
+        logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 16 jobs registered but PAUSED; nothing will run")
 
     yield
 
@@ -683,6 +685,7 @@ app.include_router(ai_tune.router, prefix="/api/v1/ai-tune", tags=["ai-tune"], d
 app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["knowledge"], dependencies=_auth)
 app.include_router(consistency.router, prefix="/api/v1/consistency", tags=["consistency"], dependencies=_auth)
 app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"], dependencies=_auth)
+app.include_router(brain_sandbox.client_router, prefix="/api/v1/brain", tags=["brain"], dependencies=_auth)
 app.include_router(catalog.router, prefix="/api/v1/catalog", tags=["catalog"], dependencies=_auth)
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"], dependencies=_auth)
 app.include_router(follow_ups.router, prefix="/api/v1/follow-ups", tags=["follow-ups"], dependencies=_auth)
@@ -701,6 +704,7 @@ app.include_router(todos.router, prefix="/api/v1/todos", tags=["todos"], depende
 app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"], dependencies=_auth)
 app.include_router(operator.router, prefix="/api/v1/operator", tags=["operator"])
 app.include_router(operator_brain.router, prefix="/api/v1/operator", tags=["operator"])
+app.include_router(brain_sandbox.operator_router, prefix="/api/v1/operator", tags=["operator"])
 app.include_router(chat_handovers.router, prefix="/api/v1/chat-handovers", tags=["chat-handovers"], dependencies=_auth)
 app.include_router(tags.router, prefix="/api/v1/broadcast-tags", tags=["broadcast-tags"], dependencies=_auth)
 app.include_router(inbound_leads.router, prefix="/api/v1/inbound-leads", tags=["inbound-leads"], dependencies=_auth)

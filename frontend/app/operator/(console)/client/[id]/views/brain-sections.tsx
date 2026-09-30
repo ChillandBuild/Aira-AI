@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { SectionCard } from "@/components/brain/SectionCard";
 import { WaitingRow } from "@/components/brain/WaitingRow";
@@ -168,19 +169,15 @@ export function FallbackSection({ signals }: { signals: FallbackSignals }) {
 }
 
 /** Later work replaces these two blocks: "Test Aira" (answers-only sandbox, step 9) and a per-lead "What Aira saw" (step 8). */
-export function LaterPlaceholders() {
+export function LaterPlaceholders({ testAira }: { testAira: ReactNode }) {
   return (
     <div data-placeholder="operator-brain-later" className="grid gap-4 md:grid-cols-2">
       {/* PLACEHOLDER: Test Aira (blueprint step 9). Replace this block, keep the wrapper. */}
-      <div data-placeholder="test-aira">
-        <SectionCard title="Test Aira" subtitle="Coming later: ask Aira a question and see its answer, without creating a lead or sending anything.">
-          <Empty>Not built yet.</Empty>
-        </SectionCard>
-      </div>
-      {/* PLACEHOLDER: What Aira saw (blueprint step 8). Opens per lead from the Conversations view. */}
+      <div data-placeholder="test-aira">{testAira}</div>
+      {/* What Aira saw (blueprint step 8): the per-lead drawer lives in views/WhatAiraSawDrawer.tsx, opened from the Inbox view. */}
       <div data-placeholder="what-aira-saw">
-        <SectionCard title="What Aira saw" subtitle="Coming later: open a lead in Conversations to see what Aira would see for it now.">
-          <Empty>Not built yet.</Empty>
+        <SectionCard title="What Aira saw" subtitle="A reconstruction of what Aira would see for one lead if it messaged now.">
+          <Empty>Open a chat in Inbox → What Aira saw.</Empty>
         </SectionCard>
       </div>
     </div>

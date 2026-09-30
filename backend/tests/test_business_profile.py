@@ -378,7 +378,7 @@ def test_heading_keys_reports_a_present_but_empty_heading():
     from app.services.business_profile import heading_keys
     text = "ABOUT US\nx\n\nWHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\n"
     assert heading_keys(text) == {"about", "handover"}
-    assert "handover" not in parse(text).sections  # empty sections drop out of parse
+    assert parse(text).sections["handover"] == ""  # the handover heading survives parse, empty
     assert heading_keys("") == set()
 
 
@@ -462,3 +462,35 @@ async def test_propose_conversion_prompt_describes_all_8_sections_and_routes_han
     assert "BUSINESS HOURS AND CONTACT" in system_prompt
     assert "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM" in system_prompt
     assert "suggested_handover" not in system_prompt
+
+
+# ─── a cleared handover section keeps its heading (owner's explicit choice) ─────
+
+def test_render_keeps_an_explicitly_empty_handover_heading():
+    text = render({"about": "We sell sarees.", "handover": ""})
+    assert text == f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}"
+    assert _handover_line({"business_description": text, "handover_line": "Legacy wording."}) == ""
+
+
+def test_render_still_drops_other_empty_sections_and_a_handover_that_was_never_set():
+    assert render({"about": "We sell sarees.", "who": "", "hours_contact": " "}) == "ABOUT US\nWe sell sarees."
+    assert HANDOVER_HEADING not in render({"about": "x"})
+    assert _handover_line({"business_description": render({"about": "x"}), "handover_line": "Legacy."}) == "Legacy."
+
+
+def test_parse_render_round_trip_keeps_the_empty_handover_heading():
+    text = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}"
+    parsed = parse(text)
+    assert parsed.sections == {"about": "We sell sarees.", "handover": ""}
+    assert render(parsed.sections, parsed.other) == text
+
+
+def test_an_empty_handover_heading_adds_no_words_and_no_validation_errors():
+    parsed = parse(f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}")
+    assert validate(parsed.sections, parsed.other) == []
+    assert sum(word_count(t) for t in parsed.sections.values()) == 3
+
+
+def test_empty_handover_heading_alone_is_not_structured():
+    from app.services.business_profile import is_structured
+    assert is_structured(HANDOVER_HEADING) is False

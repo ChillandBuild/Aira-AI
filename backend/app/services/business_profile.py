@@ -112,12 +112,14 @@ def parse(text: str) -> ParsedProfile:
     other_parts: list[str] = []
     current_key: Optional[str] = None
     lines = text.split("\n")
+    has_handover_heading = False
     
     for line in lines:
         found_key = section_key_for_heading(line)
         
         if found_key:
             current_key = found_key
+            has_handover_heading = has_handover_heading or found_key == HANDOVER_KEY
         elif _looks_like_heading(line):
             # An unknown heading ends the current section: its block goes to "other"
             # (heading kept) instead of being glued onto the section above it.
@@ -132,6 +134,10 @@ def parse(text: str) -> ParsedProfile:
     
     # Clean up: strip trailing whitespace from each section and join other
     clean_sections = {k: v.strip() for k, v in sections.items() if v.strip()}
+    if has_handover_heading:
+        # An empty handover heading is the owner's choice ("use Aira's default wording"),
+        # not a missing section, so it must survive a parse/render round trip.
+        clean_sections.setdefault(HANDOVER_KEY, "")
     clean_other = "\n".join(other_parts).strip()
     
     return ParsedProfile(sections=clean_sections, other=clean_other)
@@ -141,7 +147,9 @@ def render(sections: dict[str, str], other: str = "") -> str:
     """Reconstruct text from sections dict and optional other.
     
     Renders sections in SECTIONS order, each section on one line with heading,
-    followed by blank line. Then other text last (if any).
+    followed by blank line. Then other text last (if any). Empty sections are dropped,
+    except handover: a handover key set to "" keeps its heading with an empty body, so
+    get_handover_line returns "" and the legacy handover_line setting does not come back.
     """
     parts: list[str] = []
     
@@ -149,6 +157,8 @@ def render(sections: dict[str, str], other: str = "") -> str:
         text = sections.get(section.key, "").strip()
         if text:
             parts.append(f"{section.heading}\n{text}")
+        elif section.key == HANDOVER_KEY and HANDOVER_KEY in sections:
+            parts.append(section.heading)
     
     if other.strip():
         parts.append(other.strip())
@@ -164,7 +174,7 @@ def word_count(text: str) -> int:
 def is_structured(text: str) -> bool:
     """Return True if text has at least one section and no 'other' content."""
     parsed = parse(text)
-    return bool(parsed.sections) and not parsed.other.strip()
+    return any(parsed.sections.values()) and not parsed.other.strip()
 
 
 def validate(sections: dict[str, str], other: str = "") -> list[str]:

@@ -74,7 +74,34 @@ def test_put_with_an_empty_string_clears_that_section(env):
     env.state["description"] = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}\nTeam replies here."
     res = env.client.put("/api/v1/ai-tune/profile", json={"sections": {"handover": ""}})
     assert res.status_code == 200
-    assert env.saved[-1] == "ABOUT US\nWe sell sarees."  # no 8th heading, so no legacy fallback either
+    # The empty heading stays: it is what tells get_handover_line the owner cleared it on purpose.
+    assert env.saved[-1] == f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}"
+
+
+def test_a_cleared_handover_section_survives_the_next_save_of_another_section(env):
+    env.state["description"] = f"ABOUT US\nOld about.\n\n{HANDOVER_HEADING}"
+    res = env.client.put("/api/v1/ai-tune/profile", json={"sections": {"about": "New about."}})
+    assert res.status_code == 200, res.text
+    assert env.saved[-1] == f"ABOUT US\nNew about.\n\n{HANDOVER_HEADING}"
+
+
+def test_the_legacy_line_does_not_come_back_after_the_owner_clears_the_section(env):
+    from app.services import business_profile
+    env.state["description"] = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}\nTeam replies here."
+    env.client.put("/api/v1/ai-tune/profile", json={"sections": {"handover": ""}})
+    values = {"business_description": env.saved[-1], "handover_line": "Legacy wording."}
+    monkey = lambda key, fallback=None, tenant_id=None: values.get(key, fallback)
+    from unittest.mock import patch
+    with patch.object(business_profile, "get_setting", monkey):
+        assert business_profile.get_handover_line("t1") == ""
+
+
+def test_get_profile_shows_a_cleared_handover_section_as_empty(env):
+    env.state["description"] = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}"
+    body = env.client.get("/api/v1/ai-tune/profile").json()
+    handover = next(s for s in body["sections"] if s["key"] == "handover")
+    assert handover["text"] == "" and handover["words"] == 0
+    assert body["total_words"] == 3
 
 
 def test_put_rejects_when_the_merged_total_passes_700_words(env):
@@ -94,3 +121,12 @@ def test_put_rejects_a_profile_over_700_words_including_the_new_sections(env):
         "about": "word " * 400, "hours_contact": "word " * 200, "handover": "word " * 101}})
     assert res.status_code == 422 and "700" in res.json()["detail"]
     assert env.saved == []
+
+
+def test_saving_all_eight_keys_with_a_blank_handover_does_not_invent_the_heading(env):
+    """The editor always sends every section. A Description that never had the 8th heading
+    must keep falling back to the legacy handover_line, so a blank box is not a clear."""
+    env.state["description"] = "ABOUT US\nOld about."
+    res = env.client.put("/api/v1/ai-tune/profile", json={"sections": {"about": "New about.", "handover": ""}})
+    assert res.status_code == 200, res.text
+    assert env.saved[-1] == "ABOUT US\nNew about."

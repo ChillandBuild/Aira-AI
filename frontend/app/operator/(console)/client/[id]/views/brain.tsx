@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { HandoverFeed } from "@/components/brain/HandoverFeed";
 import { HeadlineStrip } from "@/components/brain/HeadlineStrip";
 import { InputsList } from "@/components/brain/InputsList";
+import { TestAira } from "@/components/brain/TestAira";
 import { isOperatorBrainResponse, type OperatorBrainResponse } from "@/components/brain/operatorBrain";
 import { operatorFetch } from "@/lib/operator";
 import { SkeletonCard, SkeletonTable } from "../components/skeleton";
@@ -83,7 +84,7 @@ export function BrainView({ tenantId, onOpenSection }: BrainViewProps) {
       <OperatorOnlyRows rows={brain.operator_rows} onOpenSection={onOpenSection && ((section) => onOpenSection(section as SectionType))} />
       <HistorySection history={brain.history} />
       <FallbackSection signals={brain.fallback_signals} />
-      <LaterPlaceholders />
+      <LaterPlaceholders testAira={<TestAira key={tenantId} endpoint={`/api/v1/operator/clients/${tenantId}/brain/sandbox`} canUse />} />
     </div>
   );
 }

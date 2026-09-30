@@ -66,6 +66,14 @@ def append_handover_section(description: str, line: str) -> str:
     return f"{existing}\n\n{section}" if existing else section
 
 
+UNPARSEABLE_REASON = "handover line would not parse cleanly (looks like a heading?)"
+
+
+def _squash(text: str) -> str:
+    """Whitespace-normalised, so a line break inside the line does not count as a change."""
+    return " ".join(text.split())
+
+
 def plan_tenant(tenant_id: str, description: str, handover_line: str) -> Plan:
     """Decide what to do for one tenant. Pure: no reads, no writes."""
     line = (handover_line or "").strip()
@@ -79,6 +87,8 @@ def plan_tenant(tenant_id: str, description: str, handover_line: str) -> Plan:
         )
     proposed = append_handover_section(description, line)
     parsed = bp.parse(proposed)
+    if _squash(parsed.sections.get(bp.HANDOVER_KEY, "")) != _squash(line):
+        return Plan(tenant_id, STOP, UNPARSEABLE_REASON, handover_line=line)
     errors = bp.validate(parsed.sections, parsed.other)
     if errors:
         return Plan(tenant_id, STOP, "; ".join(errors) + " Decide by hand; nothing was changed.", handover_line=line)

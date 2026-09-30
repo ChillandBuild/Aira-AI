@@ -52,6 +52,19 @@ def _setting(db, tenant_id, key):
 
 # ─── plan_tenant (pure) ───────────────────────────────────────────────────────
 
+@pytest.mark.parametrize("line", ["CALL 9876543210", "SUPPORT TEAM", "Hello\nCALL US"])
+def test_plan_stops_when_the_line_would_not_parse_back_as_the_section(line):
+    plan = mig.plan_tenant(T1, DESCRIPTION, line)
+    assert plan.action == mig.STOP
+    assert plan.reason == "handover line would not parse cleanly (looks like a heading?)"
+    assert plan.new_description == ""
+
+
+def test_plan_migrates_a_multi_line_line_when_it_parses_back_whole():
+    plan = mig.plan_tenant(T1, DESCRIPTION, "Call us 10am to 6pm.\nWe reply fast.")
+    assert plan.action == mig.MIGRATE
+
+
 def test_plan_appends_the_section_without_touching_existing_text():
     plan = mig.plan_tenant(T1, DESCRIPTION, LINE)
     assert plan.action == mig.MIGRATE

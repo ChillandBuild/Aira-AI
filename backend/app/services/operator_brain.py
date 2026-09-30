@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # The operator sees everything a client with view access sees. No manage keys: every input
 # comes back can_edit false.
-OPERATOR_VIEW_PERMISSIONS = ("knowledge.view", "settings.view", "catalog.view")
+OPERATOR_VIEW_PERMISSIONS = ("knowledge.view", "settings.view", "catalog.view", "conversations.view")
 READ_ONLY_REASON = "Read-only in the operator console"
 
 FALLBACK_WINDOW_DAYS = 30

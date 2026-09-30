@@ -11,7 +11,9 @@ MAX_PAGES = 50  # 50,000 rows: a hard ceiling so one busy tenant cannot make a p
 
 
 def fetch_bounded(build_query: Callable[[], Any], label: str) -> list[dict]:
-    """Page through build_query() (which must already be ordered and tenant-scoped)."""
+    """Page through build_query() (which must already be tenant-scoped and ordered by a unique
+    key, e.g. .order("created_at").order("id"): rows with equal timestamps may otherwise repeat
+    or vanish across page boundaries)."""
     rows: list[dict] = []
     for page_number in range(MAX_PAGES):
         offset = page_number * PAGE_SIZE

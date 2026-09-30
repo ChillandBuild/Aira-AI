@@ -51,8 +51,11 @@ def likely_question(db, tenant_id: str, lead_id: str, opened_at: str) -> str | N
     return content[:QUESTION_MAX_CHARS] or None
 
 
-def recent_handovers(db, tenant_id: str, since_iso: str) -> list[dict]:
-    """The newest handovers opened since since_iso, at most HANDOVER_LIMIT."""
+def recent_handovers(db, tenant_id: str, since_iso: str, *, include_conversation: bool = True) -> list[dict]:
+    """The newest handovers opened since since_iso, at most HANDOVER_LIMIT.
+
+    lead_id and likely_question are conversation data: with include_conversation False
+    (the caller lacks conversations.view) both come back null and no message is read."""
     rows = (
         db.table("chat_handovers")
         .select("id,lead_id,reason,opened_at")
@@ -65,10 +68,12 @@ def recent_handovers(db, tenant_id: str, since_iso: str) -> list[dict]:
     return [
         {
             "handover_id": r["id"],
-            "lead_id": r["lead_id"],
+            "lead_id": r["lead_id"] if include_conversation else None,
             "reason": r.get("reason"),
             "kind": classify_reason(r.get("reason")),
-            "likely_question": likely_question(db, tenant_id, r["lead_id"], r["opened_at"]),
+            "likely_question": (
+                likely_question(db, tenant_id, r["lead_id"], r["opened_at"]) if include_conversation else None
+            ),
             "opened_at": r["opened_at"],
         }
         for r in rows

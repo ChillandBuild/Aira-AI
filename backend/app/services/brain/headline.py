@@ -14,7 +14,9 @@ alone is NOT enough: the canned reply after an LLM exception is is_ai_generated=
 reply_source='ai' (ai_reply.py:2005-2007), and follow-ups (routes/follow_ups.py:105-112)
 are is_ai_generated=true with no reply_source. So a reply counts as Aira's answer only when
 both hold: is_ai_generated true AND reply_source in ('ai', 'knowledge')."""
-from datetime import datetime, time, timedelta
+import time
+from datetime import datetime, timedelta
+from datetime import time as clock_time
 from zoneinfo import ZoneInfo
 
 from app.services.brain import handovers as handover_kinds
@@ -23,13 +25,21 @@ from app.services.brain.paging import fetch_bounded
 IST = ZoneInfo("Asia/Kolkata")
 WINDOW_DAYS = 7
 AI_REPLY_SOURCES = frozenset({"ai", "knowledge"})
+CACHE_TTL_SECONDS = 60  # the hub polls; the headline scans a week of messages
+
+# tenant_id -> (monotonic time computed, result). In-process, so each worker keeps its own.
+_cache: dict[str, tuple[float, dict]] = {}
+
+
+def clear_cache() -> None:
+    _cache.clear()
 
 
 def window_start(now: datetime | None = None) -> datetime:
     """Midnight IST, WINDOW_DAYS-1 days before today (today counts as day 7)."""
     local_now = (now or datetime.now(IST)).astimezone(IST)
     first_day = local_now.date() - timedelta(days=WINDOW_DAYS - 1)
-    return datetime.combine(first_day, time.min, tzinfo=IST)
+    return datetime.combine(first_day, clock_time.min, tzinfo=IST)
 
 
 def is_aira_reply(message: dict) -> bool:
@@ -63,13 +73,24 @@ def aggregate(messages: list[dict], handovers: list[dict]) -> dict:
 
 
 def build_headline(db, tenant_id: str, *, now: datetime | None = None) -> dict:
+    """The headline, recomputed at most once per CACHE_TTL_SECONDS per tenant."""
+    cached = _cache.get(tenant_id)
+    if cached and time.monotonic() - cached[0] < CACHE_TTL_SECONDS:
+        return dict(cached[1])
+    result = _compute_headline(db, tenant_id, now)
+    _cache[tenant_id] = (time.monotonic(), result)
+    return dict(result)
+
+
+def _compute_headline(db, tenant_id: str, now: datetime | None) -> dict:
     since = window_start(now).isoformat()
     messages = fetch_bounded(
         lambda: db.table("messages")
         .select("lead_id,direction,is_ai_generated,reply_source")
         .eq("tenant_id", tenant_id)
         .gte("created_at", since)
-        .order("created_at"),
+        .order("created_at")
+        .order("id"),  # unique tiebreaker: equal timestamps must not shuffle across pages
         "headline messages",
     )
     opened = fetch_bounded(
@@ -77,7 +98,8 @@ def build_headline(db, tenant_id: str, *, now: datetime | None = None) -> dict:
         .select("lead_id,reason")
         .eq("tenant_id", tenant_id)
         .gte("opened_at", since)
-        .order("opened_at"),
+        .order("opened_at")
+        .order("id"),
         "headline handovers",
     )
     return aggregate(messages, opened)
