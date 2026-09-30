@@ -137,6 +137,7 @@ IntakePackageUpdate.model_rebuild()
 
 
 MAX_GST_PERCENT = 40
+MAX_REPLY_READY_CHARS = 500
 
 
 class IntakeConfigUpdate(BaseModel):
@@ -148,6 +149,7 @@ class IntakeConfigUpdate(BaseModel):
     service_noun: str | None = None
     amount_paise: int | None = None
     gst_percent: float | int | None = None
+    reply_ready_message: str | None = None
 
 
 class TelecallingConfigUpdate(BaseModel):
@@ -2018,6 +2020,10 @@ async def patch_intake_config(
             raise HTTPException(status_code=400, detail="Add at least one active package before enabling")
     if "service_noun" in patch and not patch["service_noun"].strip():
         raise HTTPException(status_code=400, detail="service_noun cannot be blank")
+    if len(patch.get("reply_ready_message") or "") > MAX_REPLY_READY_CHARS:
+        raise HTTPException(
+            status_code=400, detail=f"Reply-ready message must be at most {MAX_REPLY_READY_CHARS} characters",
+        )
     merged = {**current, **patch}
     save_intake_config(tenant_id, merged)
     from app.services.consistency import run_check_safely

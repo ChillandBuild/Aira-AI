@@ -101,9 +101,13 @@ async def test_nudge_send_failure_rolls_back_the_claim():
             _res([{"id": SID}]),   # archive the answer text
             _res([{"id": SID}]),   # rollback
         ],
-        "leads": [_res({"id": "L1", "phone": "+919345679286"})],
+        "leads": [_res({"id": "L1", "phone": "+919345679286", "last_inbound_at": datetime.now(timezone.utc).isoformat()})],
     })
     with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value=None)), \
+         patch("app.services.intake._send_reply_ready_template",
+               new=AsyncMock(side_effect=RuntimeError("template refused"))), \
+         patch("app.services.intake._log_astro_message"), \
+         patch("app.services.intake.notify_pool"), \
          patch("app.services.intake._astro_phone_number_id", return_value="pn1"), \
          patch("app.services.intake._compose_reply_nudge", new=AsyncMock(return_value="ready")):
         out = await deliver_astro_reply(
@@ -127,7 +131,7 @@ async def test_a_delivered_nudge_keeps_the_claim():
             _res([{"id": SID}]),
             _res([{"id": SID}]),  # resolve_intake_session's status transition
         ],
-        "leads": [_res({"id": "L1", "phone": "+919345679286"})],
+        "leads": [_res({"id": "L1", "phone": "+919345679286", "last_inbound_at": datetime.now(timezone.utc).isoformat()})],
         "messages": [_res([{"id": "m1"}])],
     })
     with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value="wamid.1")), \

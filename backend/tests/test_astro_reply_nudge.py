@@ -5,6 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -39,7 +40,7 @@ def _db():
             t.update.side_effect = update
         elif name == "leads":
             row = MagicMock()
-            row.data = {"id": "L1", "phone": PHONE}
+            row.data = {"id": "L1", "phone": PHONE, "last_inbound_at": datetime.now(timezone.utc).isoformat()}
             t.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = row
         return t
 

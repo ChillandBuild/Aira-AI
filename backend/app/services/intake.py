@@ -34,6 +34,7 @@ _DEFAULT_CONFIG = {
     "service_noun": "consultation",
     "amount_paise": 0,  # legacy single fee; superseded by packages, kept for auto-migration
     "gst_percent": 0,  # GST added on top of package + add-ons at payment; 0 = off
+    "reply_ready_message": "",  # admin wording for the "answer ready" nudge; blank = AI writes it
 }
 
 
@@ -2257,7 +2258,12 @@ def _astro_phone_number_id(tenant_id: str, db) -> str | None:
         return None
 
 
-def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str | None) -> None:
+def _log_astro_message(
+    db, lead_id: str, tenant_id: str, content: str, mid: str | None, delivery_status: str,
+) -> None:
+    """Every attempt is logged, sent or not, so staff reading the chat can see a
+    nudge that never reached the customer. "sent", not "delivered": Meta has only
+    accepted it; the status webhook moves it on from there by meta_message_id."""
     db.table("messages").insert({
         "lead_id": lead_id,
         "tenant_id": tenant_id,
@@ -2269,7 +2275,44 @@ def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str 
         # Constrained value from migration 173; the feature was renamed to
         # "intake" but the stored reply_source was deliberately left alone.
         "reply_source": "expert_handoff",
+        "delivery_status": delivery_status,
     }).execute()
+
+
+# Meta refuses free-form text once 24h pass since the customer's last message;
+# only a pre-approved template can reach them after that.
+_WA_SESSION_WINDOW = timedelta(hours=24)
+_REPLY_READY_TEMPLATE_DEFAULT = "astro_reply_ready"
+# What the chat thread shows for a template send: its wording lives at Meta.
+_REPLY_READY_TEMPLATE_LOG = "[WhatsApp template] Your expert has replied. Tap the button to read the answer in the app."
+
+
+def _within_whatsapp_window(last_inbound_at) -> bool:
+    if not last_inbound_at:
+        return False
+    try:
+        last = datetime.fromisoformat(str(last_inbound_at).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - last <= _WA_SESSION_WINDOW
+
+
+async def _send_reply_ready_template(phone: str, tenant_id: str, phone_number_id: str | None) -> str | None:
+    """The fixed-wording template (text + app-link button, approved by Meta), so it
+    has no variables to fill and can go out any time. Returns the message id."""
+    from app.config_dynamic import get_setting
+    from app.services.meta_cloud import send_template_message
+
+    name = get_setting("astro_reply_template_name", fallback=_REPLY_READY_TEMPLATE_DEFAULT, tenant_id=tenant_id)
+    data = await send_template_message(
+        to_number=phone,
+        template_name=name,
+        tenant_id=tenant_id,
+        phone_number_id=phone_number_id,
+    )
+    return (data.get("messages") or [{}])[0].get("id")
 
 
 async def _compose_reply_nudge(lead_id: str, tenant_id: str, phone: str, db) -> str:
@@ -2282,19 +2325,24 @@ async def _compose_reply_nudge(lead_id: str, tenant_id: str, phone: str, db) -> 
     """
     from app.config_dynamic import get_setting
 
-    service_noun = get_intake_config(tenant_id, db=db).get("service_noun") or "consultation"
-    language_mode = resolve_language_mode(lead_id, tenant_id, db)
-    thread, knowledge = await gather_context(db, lead_id, tenant_id, "")
-    line = await compose_line(
-        "reply_ready",
-        tenant_id=tenant_id,
-        language_mode=language_mode,
-        customer_message="",
-        field_label=service_noun,
-        thread=thread,
-        knowledge=knowledge,
-        brain_prompt=collector_identity(db, lead_id, tenant_id, ""),
-    )
+    config = get_intake_config(tenant_id, db=db)
+    # Wording the admin set in Settings wins over the model's line; blank means
+    # the model writes it in the customer's own language, as before.
+    line = str(config.get("reply_ready_message") or "").strip()
+    if not line:
+        service_noun = config.get("service_noun") or "consultation"
+        language_mode = resolve_language_mode(lead_id, tenant_id, db)
+        thread, knowledge = await gather_context(db, lead_id, tenant_id, "")
+        line = await compose_line(
+            "reply_ready",
+            tenant_id=tenant_id,
+            language_mode=language_mode,
+            customer_message="",
+            field_label=service_noun,
+            thread=thread,
+            knowledge=knowledge,
+            brain_prompt=collector_identity(db, lead_id, tenant_id, ""),
+        )
 
     from app.services.ai_reply import business_app_link
     app_link = business_app_link(tenant_id)
@@ -2361,7 +2409,7 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
     lead_id = session.get("lead_id")
     lead_row = (
         db.table("leads")
-        .select("id,phone")
+        .select("id,phone,last_inbound_at")
         .eq("id", lead_id)
         .eq("tenant_id", tenant_id)
         .maybe_single()
@@ -2390,15 +2438,40 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
         except Exception as e:
             logger.warning(f"Astro reply {reply_id} text archive failed for session {external_ref}: {e}")
 
-    nudge = await _compose_reply_nudge(lead_id, tenant_id, phone, db)
     phone_number_id = _astro_phone_number_id(tenant_id, db)
-    try:
-        mid = await send_whatsapp(phone, nudge, tenant_id=tenant_id, phone_number_id=phone_number_id)
-    except Exception as e:
-        logger.error(f"Astro reply {reply_id} nudge send failed for session {external_ref}: {e}")
-        mid = None
+    mid, via, content = None, "", _REPLY_READY_TEMPLATE_LOG
+    if _within_whatsapp_window(lead.get("last_inbound_at")):
+        content = await _compose_reply_nudge(lead_id, tenant_id, phone, db)
+        try:
+            mid = await send_whatsapp(phone, content, tenant_id=tenant_id, phone_number_id=phone_number_id)
+            via = "text"
+        except Exception as e:
+            logger.error(f"Astro reply {reply_id} nudge send failed for session {external_ref}: {e}")
+    if not mid:
+        # Outside the window, or the text failed inside it: the approved template
+        # is the only thing Meta will still deliver.
+        try:
+            mid = await _send_reply_ready_template(phone, tenant_id, phone_number_id)
+            via, content = "template", _REPLY_READY_TEMPLATE_LOG
+        except Exception as e:
+            logger.error(f"Astro reply {reply_id} template send failed for session {external_ref}: {e}")
 
     if not mid:
+        try:
+            _log_astro_message(db, lead_id, tenant_id, content, None, "failed")
+        except Exception as e:
+            logger.warning(f"Astro reply {reply_id} failed-nudge log failed for session {external_ref}: {e}")
+        try:
+            notify_pool(
+                tenant_id,
+                "intake_reply_undelivered",
+                "Expert answer could not be announced",
+                f"The expert answered a paid consultation, but the WhatsApp message telling "
+                f"{phone} could not be sent. Reach the customer another way.",
+                db=db,
+            )
+        except Exception as e:
+            logger.warning(f"Astro reply {reply_id} staff alert failed for session {external_ref}: {e}")
         # Give the claim back so a re-push from the expert platform can try the
         # nudge again, rather than the customer never learning an answer exists.
         try:
@@ -2414,12 +2487,12 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
             logger.warning(f"Astro reply {reply_id} claim rollback failed for session {external_ref}: {e}")
         return {"ok": True, "nudged": False, "reason": "send_failed"}
 
-    _log_astro_message(db, lead_id, tenant_id, nudge, mid)
-    logger.info(f"Astro reply {reply_id} for session {external_ref}: customer nudged to the app")
+    _log_astro_message(db, lead_id, tenant_id, content, mid, "sent")
+    logger.info(f"Astro reply {reply_id} for session {external_ref}: customer nudged to the app via {via}")
 
     # The astrologer's answer just landed -- that's the resolution signal itself,
     # unlike a generic tenant where only a human clicking Resolve (or the 48h
     # sweep) can know the paid request was handled. No-ops if already resolved.
     resolve_intake_session(session_id, tenant_id, db=db)
 
-    return {"ok": True, "nudged": True}
+    return {"ok": True, "nudged": True, "via": via}
