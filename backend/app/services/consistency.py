@@ -373,9 +373,21 @@ def issue_key(issue: dict) -> str:
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 
+def _narrower_keys(wide: dict, by_key: dict[str, dict]) -> list[str]:
+    """Keys of the findings from the same source whose quote sits inside this wider quote: the
+    scanner flags one sentence ("...₹49."), the model quotes the whole line ("...₹49. 😊")."""
+    target = normalize(wide["quote"])
+    return [
+        key for key, other in by_key.items()
+        if other["where"] == wide["where"] and other.get("document_id") == wide.get("document_id")
+        and normalize(other["quote"]) != target and normalize(other["quote"]) in target
+    ]
+
+
 def merge(deterministic: list[dict], model: list[dict]) -> list[dict]:
     """One issue per source line. A deterministic finding keeps its precise topic and takes
-    the model's proposed rewrite of the same line."""
+    the model's proposed rewrite of the same line. When the model quotes a wider span than the
+    scanner did, the model's card replaces the scanner's, keeping the scanner's topic."""
     by_key: dict[str, dict] = {}
     for issue in deterministic:
         by_key.setdefault(issue_key(issue), dict(issue))
@@ -384,6 +396,11 @@ def merge(deterministic: list[dict], model: list[dict]) -> list[dict]:
         if key in by_key:
             if by_key[key].get("proposed") is None and issue.get("proposed") is not None:
                 by_key[key]["proposed"] = issue["proposed"]
+            continue
+        narrower = [by_key.pop(k) for k in _narrower_keys(issue, by_key)]
+        if narrower:
+            first = narrower[0]
+            by_key[key] = {**issue, "kind": first["kind"], "topic": first["topic"], "truth": first["truth"]}
         else:
             by_key[key] = dict(issue)
     return [{**issue, "id": key} for key, issue in by_key.items()]

@@ -125,6 +125,34 @@ class TestMerge:
         assert len(merged) == 1 and merged[0]["topic"] == det[0]["topic"]
         assert merged[0]["proposed"] == "Starts from ₹49 here in chat." and merged[0]["id"]
 
+    def test_model_quote_wider_than_the_flagged_sentence_is_still_one_card(self):
+        # Real case 2026-09-30: "₹29. 😊" is two sentences to the scanner but one line to the model.
+        docs = [{"id": "d1", "name": "kb.docx", "text": "Consultation charges start at ₹29. 😊", "editable": True}]
+        src = _src(description="", documents=docs)
+        det = consistency.price_issues(src)
+        model = consistency.validate_model_issues(
+            [{"where": "knowledge", "document_name": "kb.docx", "quote": "Consultation charges start at ₹29. 😊",
+              "topic": "pricing", "proposed": "Consultation charges start at ₹49 or ₹99. 😊"}],
+            src,
+        )
+        merged = consistency.merge(det, model)
+        assert len(merged) == 1
+        assert merged[0]["topic"] == det[0]["topic"]
+        assert merged[0]["quote"] == "Consultation charges start at ₹29. 😊"
+        assert merged[0]["proposed"] == "Consultation charges start at ₹49 or ₹99. 😊"
+
+    def test_wider_quote_in_another_file_does_not_absorb_the_card(self):
+        docs = [{"id": "d1", "name": "kb.docx", "text": "Fees: Rs 29 per question.", "editable": True},
+                {"id": "d2", "name": "other.docx", "text": "Fees: Rs 29 per question. Thanks!", "editable": True}]
+        src = _src(description="", documents=docs)
+        det = [i for i in consistency.price_issues(src) if i["document_id"] == "d1"]
+        model = consistency.validate_model_issues(
+            [{"where": "knowledge", "document_name": "other.docx", "quote": "Fees: Rs 29 per question. Thanks!",
+              "topic": "pricing", "proposed": "Fees: Rs 49 per question. Thanks!"}],
+            src,
+        )
+        assert len(consistency.merge(det, model)) == 2
+
 
 class TestReplaceLine:
     def test_one_sentence_inside_a_paragraph(self):
