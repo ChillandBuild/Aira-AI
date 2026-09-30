@@ -31,11 +31,7 @@ interface SellConfig {
   fields: IntakeField[];
   service_noun: string;
   gst_percent: number;
-  // Wording for the WhatsApp "your answer is ready" nudge; blank = Aira writes it.
-  reply_ready_message: string;
 }
-
-const REPLY_READY_MAX = 500;
 
 const DEFAULT: SellConfig = {
   enabled: false,
@@ -43,7 +39,6 @@ const DEFAULT: SellConfig = {
   fields: [],
   service_noun: "consultation",
   gst_percent: 0,
-  reply_ready_message: "",
 };
 
 function toSellConfig(data: Record<string, unknown>): SellConfig {
@@ -53,7 +48,6 @@ function toSellConfig(data: Record<string, unknown>): SellConfig {
     fields: (data.fields as IntakeField[] | undefined) ?? [],
     service_noun: (data.service_noun as string | undefined) ?? "consultation",
     gst_percent: Number(data.gst_percent) || 0,
-    reply_ready_message: (data.reply_ready_message as string | undefined) ?? "",
   };
 }
 
@@ -299,33 +293,6 @@ export default function ServicesPage() {
           disabled={!canManageSettings}
           className="w-full max-w-sm rounded-lg border border-surface-mid bg-surface px-3 py-2 font-body text-sm text-ink focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/15"
         />
-      </Row>
-
-      <Row
-        title="Answer-ready message"
-        help="Sent on WhatsApp when the expert has answered, so the customer opens your app to read it. Leave blank and Aira writes it in the customer's own language. Your app link (the first link in your Description) is always added after it."
-      >
-        <textarea
-          aria-label="Answer-ready message"
-          value={draft.reply_ready_message}
-          onChange={(e) => setDraft({ ...draft, reply_ready_message: e.target.value })}
-          disabled={!canManageSettings}
-          maxLength={REPLY_READY_MAX}
-          rows={2}
-          placeholder="Your answer is ready! 🎉 Tap below to read it in the app."
-          className="w-full rounded-lg border border-surface-mid bg-surface px-3 py-2 font-body text-sm text-ink focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/15"
-        />
-        <div className="mt-3 rounded-lg border border-surface-mid bg-surface-low px-3 py-2">
-          <p className="mb-1 font-label text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Customer sees</p>
-          <p className="whitespace-pre-wrap font-body text-sm text-ink">
-            {draft.reply_ready_message.trim() || <span className="italic text-ink-secondary">A line Aira writes in the customer&apos;s language</span>}
-            {"\n"}
-            <span className="text-primary underline">your app link</span>
-          </p>
-        </div>
-        <p className="mt-2 font-body text-[11px] text-ink-muted">
-          More than 24 hours after the customer&apos;s last message, WhatsApp only allows a pre-approved template, so your approved answer-ready template&apos;s fixed wording is sent instead.
-        </p>
       </Row>
 
       <div className="sticky bottom-0 z-10 -mx-4 mt-8 border-t border-surface-mid bg-surface-low/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-surface-low/80 sm:mx-0 sm:rounded-2xl sm:border sm:px-5" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))" }}>

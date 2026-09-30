@@ -34,7 +34,6 @@ _DEFAULT_CONFIG = {
     "service_noun": "consultation",
     "amount_paise": 0,  # legacy single fee; superseded by packages, kept for auto-migration
     "gst_percent": 0,  # GST added on top of package + add-ons at payment; 0 = off
-    "reply_ready_message": "",  # admin wording for the "answer ready" nudge; blank = AI writes it
 }
 
 
@@ -2325,24 +2324,19 @@ async def _compose_reply_nudge(lead_id: str, tenant_id: str, phone: str, db) -> 
     """
     from app.config_dynamic import get_setting
 
-    config = get_intake_config(tenant_id, db=db)
-    # Wording the admin set in Settings wins over the model's line; blank means
-    # the model writes it in the customer's own language, as before.
-    line = str(config.get("reply_ready_message") or "").strip()
-    if not line:
-        service_noun = config.get("service_noun") or "consultation"
-        language_mode = resolve_language_mode(lead_id, tenant_id, db)
-        thread, knowledge = await gather_context(db, lead_id, tenant_id, "")
-        line = await compose_line(
-            "reply_ready",
-            tenant_id=tenant_id,
-            language_mode=language_mode,
-            customer_message="",
-            field_label=service_noun,
-            thread=thread,
-            knowledge=knowledge,
-            brain_prompt=collector_identity(db, lead_id, tenant_id, ""),
-        )
+    service_noun = get_intake_config(tenant_id, db=db).get("service_noun") or "consultation"
+    language_mode = resolve_language_mode(lead_id, tenant_id, db)
+    thread, knowledge = await gather_context(db, lead_id, tenant_id, "")
+    line = await compose_line(
+        "reply_ready",
+        tenant_id=tenant_id,
+        language_mode=language_mode,
+        customer_message="",
+        field_label=service_noun,
+        thread=thread,
+        knowledge=knowledge,
+        brain_prompt=collector_identity(db, lead_id, tenant_id, ""),
+    )
 
     from app.services.ai_reply import business_app_link
     app_link = business_app_link(tenant_id)

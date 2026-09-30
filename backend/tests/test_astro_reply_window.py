@@ -144,68 +144,18 @@ def test_window_check(value, expected):
     assert ik._within_whatsapp_window(value) is expected
 
 
-# --- admin-editable wording ------------------------------------------------
+# --- the nudge wording ---------------------------------------------------------
 
 
-async def _compose(cfg_message):
-    compose = AsyncMock(return_value="AI line")
-    with patch.object(ik, "get_intake_config",
-                      return_value={"service_noun": "reading", "reply_ready_message": cfg_message}), \
-         patch.object(ik, "resolve_language_mode", return_value="english"), \
+@pytest.mark.asyncio
+async def test_the_nudge_is_the_ai_line_followed_by_the_app_link():
+    compose = AsyncMock(return_value="Unga kelvikku astrologer pathil sollitaanga.")
+    with patch.object(ik, "get_intake_config", return_value={"service_noun": "reading"}), \
+         patch.object(ik, "resolve_language_mode", return_value="tanglish"), \
          patch.object(ik, "gather_context", new=AsyncMock(return_value=([], ""))), \
          patch.object(ik, "collector_identity", return_value=""), \
          patch.object(ik, "compose_line", new=compose), \
          patch("app.services.ai_reply.business_app_link", return_value="https://astrotamil.co.in/app/questions"):
         text = await ik._compose_reply_nudge("L1", TENANT, PHONE, MagicMock())
-    return text, compose
-
-
-@pytest.mark.asyncio
-async def test_admin_wording_replaces_the_ai_line_and_keeps_the_link():
-    text, compose = await _compose("  Your astrologer has replied! 🎉  ")
-    assert text == "Your astrologer has replied! 🎉\nhttps://astrotamil.co.in/app/questions"
-    compose.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_blank_admin_wording_keeps_the_ai_line():
-    text, compose = await _compose("   ")
-    assert text == "AI line\nhttps://astrotamil.co.in/app/questions"
-    compose.assert_awaited_once()
-
-
-def test_reply_ready_message_defaults_to_blank():
-    assert ik._DEFAULT_CONFIG["reply_ready_message"] == ""
-
-
-# --- Settings route --------------------------------------------------------
-
-
-@pytest.fixture
-def settings_client():
-    from fastapi.testclient import TestClient
-    from app.main import app
-    from app.dependencies.auth import get_current_user
-    from app.dependencies.tenant import get_tenant_and_role
-
-    app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
-    app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": "t-1", "role": "owner", "permissions": []}
-    with patch("app.routes.app_settings.get_intake_config", return_value={"packages": [], "amount_paise": 0}), \
-         patch("app.routes.app_settings.save_intake_config") as save, \
-         patch("app.services.consistency.run_check_safely"):
-        yield TestClient(app), save
-    app.dependency_overrides.clear()
-
-
-def test_settings_saves_the_reply_ready_message(settings_client):
-    client, save = settings_client
-    res = client.patch("/api/v1/settings/intake-config", json={"reply_ready_message": "Your astrologer has replied! 🎉"})
-    assert res.status_code == 200
-    assert save.call_args[0][1]["reply_ready_message"] == "Your astrologer has replied! 🎉"
-
-
-def test_settings_rejects_an_overlong_reply_ready_message(settings_client):
-    client, save = settings_client
-    res = client.patch("/api/v1/settings/intake-config", json={"reply_ready_message": "x" * 501})
-    assert res.status_code == 400
-    save.assert_not_called()
+    assert text == "Unga kelvikku astrologer pathil sollitaanga.\nhttps://astrotamil.co.in/app/questions"
+    assert compose.await_args.kwargs["field_label"] == "reading"
