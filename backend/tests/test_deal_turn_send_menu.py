@@ -27,9 +27,9 @@ def test_button_menu_goes_out_as_interactive_buttons(monkeypatch):
     monkeypatch.setattr(meta_cloud, "send_interactive_buttons", fake_buttons)
     menu = choices.build_menu(["Yes", "No"])
 
-    sid = _run(deal_turn.send_menu("+91000", "Shall we book?", menu, tenant_id="t-1", phone_number_id="pn-1"))
+    sid, tappable = _run(deal_turn.send_menu("+91000", "Shall we book?", menu, tenant_id="t-1", phone_number_id="pn-1"))
 
-    assert sid == "wamid.buttons"
+    assert sid == "wamid.buttons" and tappable
     assert sent["body_text"] == "Shall we book?"
     assert [b["title"] for b in sent["buttons"]] == ["Yes", "No"]
     assert sent["tenant_id"] == "t-1" and sent["phone_number_id"] == "pn-1"
@@ -45,9 +45,9 @@ def test_long_menu_goes_out_as_a_list(monkeypatch):
     monkeypatch.setattr(meta_cloud, "send_list_message", fake_list)
     menu = choices.build_menu(["One", "Two", "Three", "Four"])
 
-    sid = _run(deal_turn.send_menu("+91000", "Pick one", menu, tenant_id="t-1"))
+    sid, tappable = _run(deal_turn.send_menu("+91000", "Pick one", menu, tenant_id="t-1"))
 
-    assert sid == "wamid.list"
+    assert sid == "wamid.list" and tappable
     assert sent["button_text"] == menu["button_text"]
     assert sent["sections"] == menu["sections"]
 
@@ -68,11 +68,41 @@ def test_interactive_failure_falls_back_to_plain_text_with_options(monkeypatch):
     monkeypatch.setattr(ai_reply, "send_whatsapp", fake_send_whatsapp)
     menu = choices.build_menu(["Yes", "No"])
 
-    sid = _run(deal_turn.send_menu("+91000", "Shall we book?", menu, tenant_id="t-1"))
+    sid, tappable = _run(deal_turn.send_menu("+91000", "Shall we book?", menu, tenant_id="t-1"))
 
-    assert sid == "wamid.text"
+    assert sid == "wamid.text" and not tappable
     assert sent["text"].startswith("Shall we book?")
     assert "Yes" in sent["text"] and "No" in sent["text"]
+
+
+def test_body_over_whatsapp_limit_is_sent_first_then_the_buttons(monkeypatch):
+    from app.services import ai_reply
+
+    bodies, texts = [], []
+
+    async def fake_buttons(**kwargs):
+        bodies.append(kwargs["body_text"])
+        return {"messages": [{"id": "wamid.buttons"}]}
+
+    async def fake_send_whatsapp(phone, text, **kwargs):
+        texts.append(text)
+        return "wamid.text"
+
+    monkeypatch.setattr(meta_cloud, "send_interactive_buttons", fake_buttons)
+    monkeypatch.setattr(ai_reply, "send_whatsapp", fake_send_whatsapp)
+    long_body = "x" * (deal_turn.INTERACTIVE_BODY_MAX + 1)
+
+    sid, tappable = _run(deal_turn.send_menu("+91000", long_body, choices.build_menu(["Yes", "No"]), tenant_id="t-1"))
+
+    assert (sid, tappable) == ("wamid.buttons", True)
+    assert texts == [long_body] and bodies == [deal_turn.CHOICE_BODY_FALLBACK]
+
+
+def test_saved_record_matches_what_was_sent():
+    """[tags] mean buttons went out; a fallback is saved as the typed list the customer saw."""
+    menu = choices.build_menu(["Yes", "No"])
+    assert deal_turn.menu_record("Pick", menu, tappable=True) == "Pick\n\n[Yes]  [No]"
+    assert deal_turn.menu_record("Pick", menu, tappable=False) == "Pick\n\n• Yes\n• No"
 
 
 def test_every_lazily_imported_service_attribute_exists():
