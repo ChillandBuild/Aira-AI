@@ -1551,7 +1551,6 @@ def build_reply_system_prompt(
     include_intake_context: bool = True,
     tapped_option_key: str | None = None,
     persist: bool = True,
-    last_seen_at: str | None = None,
 ) -> tuple[str, str, bool]:
     """Assemble the main-brain system prompt, and return the reply language mode it
     was built with (the caller needs that mode for the post-generation script-mismatch
@@ -1642,13 +1641,10 @@ def build_reply_system_prompt(
                 # re-offer" rule contradicts a lead asking which package to pick.
                 from app.services.intake import _IN_PROGRESS_STATUSES, _get_active_session
                 deal_session = _get_active_session(lead_id, tenant_id, db)
-                from app.services.intake import previous_booking
-                # last_seen_at is the deal's idle clock as it was BEFORE this message (the
-                # caller read it first; capture_details has since moved it). The model, not a
-                # keyword list, judges whether the message shows intent (D4).
+                from app.services.intake import classify_non_answer
                 system_prompt += deal_engine.deal_prompt(
-                    intake_config, deal_session, tapped_key=tapped_option_key, last_seen_at=last_seen_at,
-                    previous_details=None if deal_session else previous_booking(db, tenant_id, lead_id),
+                    intake_config, deal_session, tapped_key=tapped_option_key,
+                    returning=classify_non_answer(message) == "greeting" or deal_engine.is_blank_message(message),
                 )
                 status = (deal_session or {}).get("status")
                 if status == "paid":
@@ -1755,12 +1751,6 @@ async def generate_reply(
     if not tenant_id:
         raise ValueError("tenant_id missing from lead_data")
     segment = lead_data.get("segment") or "C"
-
-    # D3: any lead message restarts their open deal's idle clock, whoever ends up replying. Read
-    # first: the value it had before this message says how long they were away (D4), and the
-    # detail capture below moves it again.
-    from app.services.intake import note_lead_message
-    last_seen_at = note_lead_message(db, tenant_id, str(lead_id))
 
     # Enforce global AI auto-reply toggle
     _ai_setting = (
@@ -1923,7 +1913,6 @@ async def generate_reply(
             # A tap on a choice Aira offered in words ("choice:2") is just its title as text;
             # only a package/addon key is a tapped offering.
             tapped_option_key=None if _is_choice_tap(interactive_id) else interactive_id,
-            last_seen_at=last_seen_at,
         )
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]
@@ -2035,10 +2024,6 @@ async def generate_reply(
         escalation_flags.add("B")
         logger.info(f"Trigger B: lead {lead_id} LLM exception - {e}")
 
-    if channel == "whatsapp":
-        from app.services.whatsapp_format import to_whatsapp
-        reply_text = to_whatsapp(reply_text)  # "**bold**" shows its stars on WhatsApp
-
     # Step 3: Dispatch to the correct channel
     outbound_media_type: str | None = None
     outbound_media_mime_type: str | None = None
@@ -2098,11 +2083,11 @@ async def generate_reply(
                     logger.warning(f"Burst check failed for lead {lead_id}: {burst_err}")
             if deal_outcome and deal_outcome.menu:
                 from app.services import deal_turn
-                sid, tappable = await deal_turn.send_menu(
+                sid = await deal_turn.send_menu(
                     _wa_phone, reply_text, deal_outcome.menu,
                     tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id,
                 )
-                reply_text = deal_turn.menu_record(reply_text, deal_outcome.menu, tappable=tappable)
+                reply_text = deal_turn.menu_log_text(reply_text, deal_outcome.menu)
             else:
                 sid = await send_whatsapp(
                     _wa_phone,

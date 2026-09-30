@@ -530,14 +530,6 @@
 - **Settings:** packages, required details, on/off and service noun are ONE page (`/dashboard/settings/packages`, "What Aira Sells"); `/dashboard/settings/intake-config` redirects there.
 
 - **Every choice goes out tappable (`services/choices.py`, 2026-09-26).** gemini-3.1-flash-lite ignored a text instruction to mark choices, so there are layers: the `offer_choices` tool (message + options in one call), a `CHOICES:` line, then code backstops in `deal_turn._attach_choices` — typed list under a pick question, a closing question naming 2+ packages or asking "want to see the options?" (only while nothing is chosen), a question about a required detail with fixed options, inline "Morning, Afternoon or Evening?", and yes/no questions. A menu identical to the previous message is only suppressed when the lead's reply was vague ("ok", "👍") — after a real question the options may come again. Button taps on these arrive as `choice:N`; `generate_reply` passes them as plain text, never as a package key. Voice-note replies send the options as a follow-up message.
-- **Package menu backstop needs no "which" word (2026-09-30).** Live miss: "Edhula book panna virumburinga?" named both packages with prices but went out as text, because the old rule needed a word from `PICK_CUE_RE` and "Edhula" isn't "edhu". Now `_package_menu` fires on 2+ offerings named OR 2+ distinct offering prices quoted (`_prices_quoted`: ₹/Rs/rupees/"1200/-" only, so a bare "199 astrologers" doesn't count) plus any closing question, while nothing is chosen, and not when that question asks for a required detail's label ("may I have your full name?"). It checks every level (top level, then each category's options) and shows the one the reply lays out, so a coaching reply listing "1 Year Program ₹50,000, 2 Year ₹90,000" gets that category's buttons. Names match whole words only, and an empty button_label matches nothing (before 2026-09-30 an empty label counted as "mentioned" in every reply). Prices make it language-proof when the model translates package names. Known blind spots: offerings described with neither names nor prices, and "₹45 lakh" style prices (names still work). Tests: `tests/test_package_menu_wording.py` (10 real Tanglish/Tamil/English wordings), `tests/test_package_menu_domains.py` (coaching, gym, salon, clinic, real estate). `send_menu` returns `(sid, tappable)`: a body over 1024 chars (WhatsApp's interactive limit) goes out as text first with the buttons under 👇, and a fallback is saved as the typed list, not `[tags]`. So `[tags]` in `messages.content` now means buttons really went out. Misses check (menu replies with no buttons, last 7 days):
-  ```sql
-  select created_at, lead_id, left(content,200) from messages
-  where tenant_id=:t and direction='outbound' and created_at > now()-interval '7 days'
-    and content ~ '[?？]' and content !~ '\[[^\]]+\]\s+\[[^\]]+\]\s*$'
-    and (select count(*) from unnest(:package_names) n where content ilike '%'||n||'%') >= 2;
-  ```
-- **WhatsApp formatting (2026-09-30).** The model writes Markdown; `services/whatsapp_format.to_whatsapp` converts `**bold**`→`*bold*`, `* `/`- ` bullets→`• `, `#` headings→bold, `~~x~~`→`~x~` for every WhatsApp reply in `generate_reply`, just before dispatch.
 - **Handover keeps the lead in this chat.** `hand_to_human` is offered on every reply (not only package tenants). The HANDOVER RULE says the team replies here; a client handover line replaces only the wording. Code makes claims true: a reply saying "I'm checking with my team" opens a handover if none was opened, "the team confirmed…" is refused, and the same question asked again after a no-answer opens a handover before the model runs (`_asked_again`).
 - **Services page is the source of truth.** `deal_engine` rules say OFFERINGS/REQUIRED DETAILS override the Description and knowledge (price, where to buy, which details to ask). `services/consistency.py` + `/api/v1/consistency` find contradictions (deterministic: prices not charged, "never ask for X" when X is required, handover lines sending people elsewhere; plus one validated model pass) at sentence level and apply one-click fixes through `knowledge_versions` (undoable). It re-runs in the background after package, description, knowledge and handover-line saves.
 - **Evals must not run on a client's API key.** 2026-09-26: eval runs on Astro Tamil's Gemini key (~10.7M input tokens in a day) left it at 402 Payment Required, and the key is shared by all three Astro Tamil tenants, so their live replies failed. Use a dedicated test key.
@@ -676,23 +668,20 @@ exercise, so the contract is checked statically instead.
 `frontend/app/dashboard/settings/SettingsSection.tsx` holds both the card
 (`SettingsSection`) and the group (`SettingsAccordion`). Two rules are load-bearing:
 
-- **Initial open state comes from the section COUNT or `defaultOpenId`.** One
-  section → opens; two or more → all collapsed, unless `defaultOpenId` is provided (e.g.
-  `Profile & Business` sets `defaultOpenId="profile"` so "Your profile" opens while the
-  other two remain collapsed). URL hash navigation (`#business`, `#business-details`, etc.)
-  also automatically expands the target section.
+- **Initial open state comes from the section COUNT, not per-section props.** One
+  section → opens; two or more → all collapsed, so the page reads as a list of topics.
   Sections `register(id)` on mount and the group seeds **once**, on the first commit
   where the id list is non-empty — every section mounts in the same commit, so that
   first list is the complete one. A section that mounts in a *later* commit (behind its
   own loading gate) therefore misses the seed and stays closed; render sections together
-  or the rule silently misapplies. `defaultOpen` on `SettingsSection` only affects a section
+  or the rule silently misapplies. `defaultOpen` now only affects a `SettingsSection`
   rendered **outside** a group (Inbox, Intake Config, Business Hours, Quick Replies,
-  Telecalling Behavior, Packages — single-section pages, open by default).
-- **A group must actually wrap its sections.** `NotificationConfigPanel` and `Profile & Business`
-  (`account/page.tsx`) wrap their cards in `<SettingsAccordion>` (with `defaultOpenId="profile"`
-  for the latter). Its loading skeleton carries the same `space-y` as the group so nothing
-  shifts when data lands. Wrapping in `<SettingsAccordion>` bridges the section count and
-  `Expand all` / `Collapse all` controls into `AppHeader.tsx`.
+  Telecalling Behavior, Packages — all single-section pages, all open by default).
+- **A group must actually wrap its sections.** `NotificationConfigPanel` rendered its
+  three cards in a bare `<>`, so they were outside the group entirely: no count rule, no
+  spacing, no toolbar. It is now wrapped in `<SettingsAccordion>` — the only multi-section
+  settings page today. Its loading skeleton carries the same `space-y` as the group so
+  nothing shifts when data lands.
 
 The section count and Expand all / Collapse all render in **`AppHeader.tsx`**, not above
 the cards (same "chrome belongs in the header" call as the telecalling tab note above).
@@ -938,12 +927,3 @@ Catalogue was removed from the Nira config on 2026-09-06 for this reason.
 - **"What Aira saw" gates are mirrored from `generate_reply`** (blocked, opted out, auto-reply off) — keep them in sync when the real gates change.
 - **Weekly digest:** cron Monday 09:00 IST (`brain-weekly-digest`), owners only, runs off the event loop.
 - **Test Aira** calls `ai_reply._llm_chat` (never `generate_reply`/`converse_once`); rate limiter and kill-switch cache are per process.
-
-## Deal lifecycle — intake_sessions (R1–R4, 2026-09-30)
-- **Two clocks, don't mix them.** `payment_link_expires_at` only kills the *link* (`expire_intake_session` clears it; deal stays open). `last_activity_at` drives the idle *close*. Only a lead message (text or media) or real deal progress resets it. `updated_at` is never written, so don't use it.
-- **One current plink.** `razorpay_payment_link_id` is the only link that counts. Sending a new link cancels the old one on Razorpay (`cancel_payment_link(plink_id, tenant_id)`). Webhooks for any other plink are ignored.
-- **A session counts as "paid" if status == 'paid' OR `razorpay_payment_id` is set.** A second payment on a paid deal goes into `extra_payment_ids` through a compare-and-set write (`.not_.contains`). That sets `refund_needed` and alerts staff; staff refund it by hand.
-- **Three different 48 h / expiry things existed.** (1) The link expiry. (2) The old 48 h idle cancel, now replaced by `deal_idle_close_days`. (3) The paid → resolved auto-resolve. That last one still exists, but no longer blocks a repeat booking because of `new_booking`.
-- **`mark_lost(..., only_from=...)`**: the webhook path passes ("quoted","awaiting_payment") so a late event can't flip a won deal to lost.
-- **Idle sweep reads the setting strictly** (`get_setting_strict`). If the read fails, it skips that tenant and never falls back to a default. A DB blip must never mass-close deals.
-- **Eval harness:** `backend/evals/conversations/` (`run_aira.py --files scenarios_returning.json`, score with `python -m evals.conversations.returning`). `write_guard.py` makes it refuse DB writes. It needs a tenant key and explicit user OK to spend it.
