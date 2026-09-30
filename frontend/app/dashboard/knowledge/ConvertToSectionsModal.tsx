@@ -9,7 +9,6 @@ export interface ConvertResult {
   sections: Record<string, string>;
   removed: Array<{ text: string; why: string }>;
   facts_to_move: string[];
-  suggested_handover: string;
   total_words: number;
   warnings: Array<{ key: string; words: number; limit: number }>;
   errors: string[];
@@ -208,25 +207,6 @@ export default function ConvertToSectionsModal({ text, onClose, onApply }: Conve
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
-
-          {/* Suggested handover */}
-          {result.suggested_handover && (
-            <div className="space-y-2">
-              <label htmlFor="handover" className="font-label text-xs font-bold text-primary uppercase tracking-wider">
-                Suggested handover line
-              </label>
-              <p className="font-body text-xs text-on-surface-muted">
-                Paste this into &quot;When Aira can&apos;t help&quot; below if you like it.
-              </p>
-              <textarea
-                id="handover"
-                value={result.suggested_handover}
-                readOnly
-                rows={3}
-                className="w-full px-4 py-3.5 rounded-xl bg-surface-low border border-surface-mid font-body text-xs leading-relaxed text-on-surface"
-              />
             </div>
           )}
         </div>

@@ -243,27 +243,97 @@ async def test_two_bad_parses_raise_a_sort_error(monkeypatch):
         await ks._llm_json("s", "u", tenant_id=T, max_tokens=10)
 
 
-# ─── handover extraction and the deterministic safety net ─────────────────────
+# ─── contact routing and the deterministic safety net (blueprint 9B) ──────────
+# A phone / hours / contact line is ROUTED to "BUSINESS HOURS AND CONTACT", never deleted.
+# The say-to-the-customer sentence is offered as suggested_handover for the 8th section.
 
-def test_strip_handover_lines_drops_a_phone_and_call_line():
+HOURS_HEADING = "BUSINESS HOURS AND CONTACT"
+
+
+def _section_text(text: str, heading: str) -> str:
+    from app.services.business_profile import parse
+    key = {"BUSINESS HOURS AND CONTACT": "hours_contact",
+           "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM": "handover"}[heading]
+    return parse(text).sections.get(key, "")
+
+
+def test_strip_handover_lines_routes_a_phone_and_call_line_to_section_7():
     text = "ABOUT US\nWe are AstroTamil.\n\nHOW CUSTOMERS BUY\nBook on the app.\nTo talk to a person, call 98765 43210."
     cleaned, handover = ks.strip_handover_lines(text, "")
-    assert "98765" not in cleaned and "call" not in cleaned.lower()
-    assert handover == "To talk to a person, call 98765 43210."
+    assert "To talk to a person, call 98765 43210." in _section_text(cleaned, HOURS_HEADING)
+    assert "98765" not in cleaned.split(HOURS_HEADING)[0]  # gone from where it was
     assert "Book on the app." in cleaned
+    assert handover == "To talk to a person, call 98765 43210."
 
 
-def test_strip_handover_lines_prefers_the_models_own_handover():
+def test_strip_handover_lines_never_deletes_a_line_the_model_already_has_a_handover_for():
     text = "Call 98765 43210 for help."
     cleaned, handover = ks.strip_handover_lines(text, "WhatsApp us for help.")
-    assert cleaned == ""
+    assert "Call 98765 43210 for help." in _section_text(cleaned, HOURS_HEADING)
     assert handover == "WhatsApp us for help."
+
+
+def test_strip_handover_lines_routes_an_hours_line_to_section_7_and_offers_no_handover():
+    text = "ABOUT US\nWe sell sarees.\nWe are open Monday to Saturday, 10am to 6pm."
+    cleaned, handover = ks.strip_handover_lines(text, "")
+    assert "open Monday to Saturday, 10am to 6pm" in _section_text(cleaned, HOURS_HEADING)
+    assert "10am" not in cleaned.split(HOURS_HEADING)[0]
+    assert handover == ""
+
+
+def test_strip_handover_lines_appends_to_an_existing_section_7():
+    text = f"{HOURS_HEADING}\nOpen 10am to 6pm.\n\nABOUT US\nWe sell sarees.\nCall us on 98765 43210."
+    cleaned, _ = ks.strip_handover_lines(text, "")
+    assert _section_text(cleaned, HOURS_HEADING) == "Open 10am to 6pm.\nCall us on 98765 43210."
+    assert cleaned.count(HOURS_HEADING) == 1
+
+
+def test_strip_handover_lines_leaves_a_line_already_in_section_7_or_8_alone():
+    text = (f"{HOURS_HEADING}\nCall us on 98765 43210. Open 10am to 6pm.\n\n"
+            "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\nFor complaints, call 98765 43210.")
+    cleaned, handover = ks.strip_handover_lines(text, "")
+    assert cleaned == text
+    assert handover == ""
+
+
+def test_strip_handover_lines_is_idempotent_and_loses_no_line():
+    text = ("ABOUT US\nWe sell sarees.\nCall us on 98765 43210.\nOpen daily 9am to 8pm.\n\n"
+            "WHAT YOU MUST NEVER DO\nNever give discounts.")
+    once, _ = ks.strip_handover_lines(text, "")
+    twice, _ = ks.strip_handover_lines(once, "")
+    assert once == twice
+    for line in (l for l in text.split("\n") if l.strip()):
+        assert line in once
 
 
 def test_strip_handover_lines_leaves_a_phone_number_with_no_handover_word_alone():
     text = "Our office is at 98765 43210 Anna Salai."  # an address, not a handover line
     cleaned, handover = ks.strip_handover_lines(text, "")
     assert cleaned == text and handover == ""
+
+
+def test_strip_handover_lines_on_text_with_nothing_to_route_is_unchanged():
+    text = "ABOUT US\nWe sell sarees.\nSend a photo and we reply with the price."
+    assert ks.strip_handover_lines(text, "") == (text, "")
+
+
+def test_compile_prompt_routes_contact_lines_instead_of_banning_them():
+    assert "BUSINESS HOURS AND CONTACT" in ks._COMPILE_SYSTEM
+    assert "must NEVER appear in the Description" not in ks._COMPILE_SYSTEM
+    assert "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM" in ks._COMPILE_SYSTEM
+    assert '"handover"' in ks._COMPILE_SYSTEM  # the say-sentence still comes back in this key
+
+
+@pytest.mark.asyncio
+async def test_enforce_section_limits_never_drops_a_phone_number_when_condensing_section_7(monkeypatch):
+    async def lossy(system, user, *, tenant_id, max_tokens):
+        return {"text": "Open daily."}  # shorter, but the number is gone
+
+    monkeypatch.setattr(ks, "_llm_json", lossy)
+    long_contact = "Open daily from nine in the morning until late evening, all week. " * 6 + "Call 98765 43210."
+    text = f"{HOURS_HEADING}\n{long_contact}"
+    result = await ks.enforce_section_limits(T, text)
+    assert "98765 43210" in result
 
 
 @pytest.mark.asyncio
@@ -293,7 +363,8 @@ async def test_run_sort_catches_a_handover_line_the_model_left_in(env, monkeypat
     # The line must come from the file: a suggested contact the file doesn't contain
     # is treated as invented and never offered (verified_handover).
     review = await _sort(env, doc, source_text=RULES + "\nTo talk to a person, call 98765 43210.")
-    assert "98765" not in review["proposed_description"]
+    # Routed to section 7, never deleted, and still offered as the suggested say-sentence.
+    assert "To talk to a person, call 98765 43210." in _section_text(review["proposed_description"], HOURS_HEADING)
     assert review["suggested_handover"] == "To talk to a person, call 98765 43210."
 
 

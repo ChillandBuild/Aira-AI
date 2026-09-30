@@ -1,7 +1,7 @@
 """Business profile: fixed sections on top of free-text description.
 
-Each section (about, how_to_buy, who, voice, job, never) has a heading, label, hint,
-and per-section word limit. The Description is stored in app_settings as plain text with
+Each section (about, how_to_buy, who, voice, job, never, hours_contact, handover) has a
+heading, label, hint, and per-section word limit. The Description is stored in app_settings as plain text with
 all sections combined and optional free-form "other" text. parse() splits by headings,
 render() reconstructs, propose_conversion() uses LLM to migrate free-text descriptions
 into structured sections.
@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
+from app.config_dynamic import get_setting
 from app.services.knowledge_sort import _llm_json
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,13 @@ SECTIONS = [
             "Rules specific to your business. General good behaviour is already built in.", 120),
     Section("never", "WHAT YOU MUST NEVER DO", "Never do",
             "Things specific to your business the assistant must never say or do.", 80),
+    Section("hours_contact", "BUSINESS HOURS AND CONTACT", "Business hours and contact",
+            "When you are open, and the phone number, email or address customers may be given.", 60),
+    Section("handover", "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM", "What Aira says when it brings in your team",
+            "The line Aira says when a person from your team takes over, in your own words.", 50),
 ]
+
+HANDOVER_KEY = "handover"
 
 HEADING_ALIASES = {
     "WHAT WE OFFER": "about",
@@ -68,6 +75,23 @@ def _looks_like_heading(line: str) -> bool:
     return bool(stripped) and bool(_HEADING_RE.match(stripped))
 
 
+looks_like_heading = _looks_like_heading
+
+
+def section_key_for_heading(line: str) -> Optional[str]:
+    """The section key when the line is a known heading (or alias), else None."""
+    normalized = _normalize_heading(line)
+    return _SECTION_BY_HEADING.get(normalized) or HEADING_ALIASES.get(normalized)
+
+
+def heading_keys(text: str) -> set[str]:
+    """Keys of every section whose heading appears in the text, even when the section
+    under it is empty (parse() drops empty sections, so it cannot tell "no heading" from
+    "heading with nothing under it")."""
+    keys = {section_key_for_heading(line) for line in (text or "").split("\n")}
+    return {key for key in keys if key}
+
+
 @dataclass(frozen=True)
 class ParsedProfile:
     sections: dict[str, str]  # key -> text
@@ -90,17 +114,7 @@ def parse(text: str) -> ParsedProfile:
     lines = text.split("\n")
     
     for line in lines:
-        normalized = _normalize_heading(line)
-        
-        # Check if this line is a known heading
-        found_key = None
-        
-        # Try direct heading match
-        if normalized in _SECTION_BY_HEADING:
-            found_key = _SECTION_BY_HEADING[normalized]
-        # Try alias match
-        elif normalized in HEADING_ALIASES:
-            found_key = HEADING_ALIASES[normalized]
+        found_key = section_key_for_heading(line)
         
         if found_key:
             current_key = found_key
@@ -194,6 +208,21 @@ def warnings(sections: dict[str, str]) -> list[dict]:
     return result
 
 
+def get_handover_line(tenant_id: Optional[str]) -> str:
+    """What Aira says when it brings in the team: the 8th Description section.
+
+    The one reader every consumer uses (the reply prompt, the Knowledge readiness
+    route, the conflict check). The old handover_line setting is consulted only while
+    the Description has no 8th heading at all. A heading with nothing under it is the
+    owner's choice: empty here, so Aira uses its default wording, and the legacy line
+    never comes back. (scripts/migrate_handover_to_description.py copies each legacy
+    line into the section and blanks the old setting.)"""
+    description = get_setting("business_description", tenant_id=tenant_id) or ""
+    if HANDOVER_KEY in heading_keys(description):
+        return parse(description).sections.get(HANDOVER_KEY, "").strip()
+    return (get_setting("handover_line", tenant_id=tenant_id) or "").strip()
+
+
 async def propose_conversion(tenant_id: str, text: str) -> dict:
     """Convert free-text description into structured sections using LLM.
     
@@ -201,7 +230,8 @@ async def propose_conversion(tenant_id: str, text: str) -> dict:
     - "sections": {key: text} - only known keys, stripped
     - "removed": [{text, why}] - lines removed (in master or about language)
     - "facts_to_move": [str] - concrete facts that belong in Documents
-    - "suggested_handover": str - one-line handover in business's words or ""
+    - "suggested_handover": str - always "" now; kept so an older frontend does not crash.
+      Handover wording goes into the "handover" section, phone and hours into "hours_contact".
     - "total_words": int - total word count across sections
     - "warnings": [...] - per-section word limit warnings
     - "errors": [...] - validation errors
@@ -223,19 +253,21 @@ async def propose_conversion(tenant_id: str, text: str) -> dict:
     
     system_prompt = """You convert a free-text business description into a structured profile.
 
-The profile has 6 sections with limits (total 700 words):
+The profile has 8 sections with limits (total 700 words):
 - ABOUT US (80 words): What you are and what you sell.
 - HOW CUSTOMERS BUY (60 words): Steps to buy/book, where, one-line price summary.
 - WHO WE TALK TO (60 words): Who messages you and why.
 - HOW TO SOUND (120 words): Tone, greetings, closings, spellings, style.
 - YOUR JOB IN EVERY CONVERSATION (120 words): Business-specific rules.
 - WHAT YOU MUST NEVER DO (80 words): Business-specific prohibitions.
+- BUSINESS HOURS AND CONTACT (60 words): Opening hours, phone/WhatsApp number, email, address customers may be given.
+- WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM (50 words): The one line said to the customer when a person from the team takes over, in the business's own words.
 
 Rules:
 1. Keep the business's own wording wherever possible; shorten only to fit limits.
 2. REMOVE lines that repeat the platform's master prompt (already built in). List them in "removed".
 3. REMOVE language/reply-language rules (e.g., "reply in Tamil") — that's a setting. Keep style/phrases/spellings.
-4. Move handover wording ("hand over", "support team", "contact us") to "suggested_handover" as one sentence.
+4. Route contact and handover text, never drop it: phone numbers, opening hours and contact details go to "hours_contact"; the sentence said to the customer when a person takes over ("hand over", "support team", "contact us") goes to "handover"; which situations need a person goes to "job".
 5. Move concrete facts (prices, offers, counts, policies, links) to "facts_to_move" — but keep a one-line price summary in HOW CUSTOMERS BUY.
 6. Drop example conversations unless an exact phrase must be used.
 7. NOTHING MAY DISAPPEAR SILENTLY. Every rule or fact in the description must end up in
@@ -246,10 +278,9 @@ Rules:
    phrases, or what it must never claim) are never duplicates: keep them, shortened.
 
 Output JSON (only these keys):
-{"sections": {"about": "...", "how_to_buy": "...", "who": "...", "voice": "...", "job": "...", "never": "..."},
+{"sections": {"about": "...", "how_to_buy": "...", "who": "...", "voice": "...", "job": "...", "never": "...", "hours_contact": "...", "handover": "..."},
  "removed": [{"text": "...", "why": "..."}],
- "facts_to_move": ["..."],
- "suggested_handover": "..."}"""
+ "facts_to_move": ["..."]}"""
     
     user_message = (
         f"Free-text description:\n{text}\n\n"
@@ -278,7 +309,7 @@ Output JSON (only these keys):
         if text:
             sections[key] = text
     
-    # Extract removed, facts_to_move, suggested_handover
+    # Extract removed and facts_to_move
     removed: list[dict] = []
     for item in (data.get("removed") or []):
         if isinstance(item, dict):
@@ -293,8 +324,6 @@ Output JSON (only these keys):
         if fact:
             facts_to_move.append(fact[:500])
     
-    suggested_handover = str(data.get("suggested_handover", "") or "").strip()[:200]
-    
     # Compute totals and validate
     total_words = sum(word_count(text) for text in sections.values())
     errs = validate(sections, "")
@@ -304,7 +333,7 @@ Output JSON (only these keys):
         "sections": sections,
         "removed": removed,
         "facts_to_move": facts_to_move,
-        "suggested_handover": suggested_handover,
+        "suggested_handover": "",
         "total_words": total_words,
         "warnings": warns,
         "errors": errs,

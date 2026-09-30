@@ -1,6 +1,6 @@
-"""One story for Aira: find where the Description, knowledge files, products and handover
-line disagree with the Services page (packages, prices, details to collect), and propose a
-fix for each.
+"""One story for Aira: find where the Description (its handover section included),
+knowledge files and products disagree with the Services page (packages, prices, details to
+collect), and propose a fix for each.
 
 Why: Aira reads every source before each reply. When the Description says "starts from
 ₹29, buy in the app, never ask for date of birth" while the Services page sells ₹49 and ₹99
@@ -10,8 +10,8 @@ client should see and fix the contradiction, not rely on the tie-break.
 
 Two layers:
 - deterministic checks that cannot be argued with: a rupee figure the business does not
-  charge, "never ask for X" when X is a required detail, a handover line that sends people
-  elsewhere;
+  charge, "never ask for X" when X is a required detail, a handover sentence that sends
+  people elsewhere;
 - one model pass for the rest (e.g. "everything happens in the app"), kept only when the
   quoted text really is in the source it names and the proposed fix adds no new number or link.
 
@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 
 from app.config_dynamic import get_setting, invalidate_cache, save_setting
 from app.services import deal_engine
+from app.services.business_profile import get_handover_line
 from app.services.description_diff import lines_of, normalize
 from app.services.knowledge_sections import unverified_tokens
 
@@ -72,7 +73,7 @@ def gather(db, tenant_id: str) -> dict:
     ).data or []
     return {
         "description": (get_setting("business_description", tenant_id=tenant_id) or "").strip(),
-        "handover_line": (get_setting("handover_line", tenant_id=tenant_id) or "").strip(),
+        "handover_line": get_handover_line(tenant_id),
         "config": config,
         "selling": deal_engine.is_enabled(config),
         "catalog": catalog,
@@ -213,15 +214,23 @@ def never_ask_issues(src: dict) -> list[dict]:
 
 
 def handover_issues(src: dict) -> list[dict]:
-    line = src["handover_line"]
-    if not line or not _ELSEWHERE_RE.search(line):
-        return []
-    issue = _issue(
-        "handover", "handover_line", None, None, True, line,
-        "Your handover line sends customers elsewhere, but Aira alerts your team to reply in this chat",
-        "When Aira brings a person in, your team is alerted in the inbox and replies here",
-    )
-    return [issue]
+    """The handover wording is the 8th Description section, so a bad sentence in it is a
+    Description issue and the ordinary Description fix edits it. A line still in the old
+    setting (no 8th heading yet) is not in the Description, so there is nothing a fix
+    could edit: it raises no issue until the data step moves it."""
+    out = []
+    for sentence in _sentences(src["handover_line"]):
+        if not _ELSEWHERE_RE.search(sentence):
+            continue
+        quote = _line_in(src["description"], sentence)
+        if not quote:
+            continue
+        out.append(_issue(
+            "handover", "description", None, None, True, quote,
+            "Your handover line sends customers elsewhere, but Aira alerts your team to reply in this chat",
+            "When Aira brings a person in, your team is alerted in the inbox and replies here",
+        ))
+    return out
 
 
 def deterministic_issues(src: dict) -> list[dict]:
@@ -234,12 +243,12 @@ _SYSTEM = """You check a business's WhatsApp assistant setup for contradictions 
 
 The SERVICES PAGE is the truth: what is sold and paid for right in this chat, the prices, the details collected before payment, and that a person on the team replies in this chat when the assistant brings one in.
 
-Find lines in the DESCRIPTION, the KNOWLEDGE files and the HANDOVER LINE that contradict it, for example: a different price, telling customers to buy or pay somewhere else for something sold in this chat, saying not to ask for a detail the Services page collects, sending customers elsewhere to reach a person. Report only real contradictions, not missing information. Also report every FLAGGED line you are given.
+Find lines in the DESCRIPTION (including its section "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM", the wording Aira uses to bring a person in) and the KNOWLEDGE files that contradict it, for example: a different price, telling customers to buy or pay somewhere else for something sold in this chat, saying not to ask for a detail the Services page collects, sending customers elsewhere to reach a person. Report only real contradictions, not missing information. Also report every FLAGGED line you are given.
 
 For each, copy the contradicting line EXACTLY as written into "quote", and write "proposed": that same line rewritten to agree with the Services page, keeping its language, tone and everything else it says; "" when the whole line should simply be removed. Never add a price, number or link that is not on the Services page or in the line itself.
 
 Reply with only JSON:
-{"issues": [{"where": "description" | "knowledge" | "handover_line", "document_name": "file name or null", "quote": "exact line", "topic": "short, plain words", "proposed": "rewritten line or \\"\\""}]}"""
+{"issues": [{"where": "description" | "knowledge", "document_name": "file name or null", "quote": "exact line", "topic": "short, plain words", "proposed": "rewritten line or \\"\\""}]}"""
 
 
 def _user_prompt(src: dict, flagged: list[dict]) -> str:
@@ -247,7 +256,6 @@ def _user_prompt(src: dict, flagged: list[dict]) -> str:
     parts.append(f"DESCRIPTION:\n{src['description'] or '(empty)'}")
     for doc in src["documents"]:
         parts.append(f"KNOWLEDGE <<{doc['name']}>>:\n{doc['text']}")
-    parts.append(f"HANDOVER LINE:\n{src['handover_line'] or '(none)'}")
     if flagged:
         parts.append("FLAGGED (must be in your answer, with a proposed fix):\n" + "\n".join(
             f"- [{i['where']}{' ' + i['document_name'] if i['document_name'] else ''}] {i['quote']}" for i in flagged
@@ -258,8 +266,6 @@ def _user_prompt(src: dict, flagged: list[dict]) -> str:
 def _source_text(src: dict, where: str, document_name: str | None) -> tuple[str | None, dict | None]:
     if where == "description":
         return src["description"], None
-    if where == "handover_line":
-        return src["handover_line"], None
     for doc in src["documents"]:
         if doc["name"] == document_name:
             return doc["text"], doc
@@ -289,7 +295,7 @@ def validate_model_issues(items, src: dict) -> list[dict]:
         if not isinstance(item, dict):
             continue
         where = str(item.get("where") or "").strip().lower()
-        if where not in ("description", "knowledge", "handover_line"):
+        if where not in ("description", "knowledge"):
             continue
         name = item.get("document_name") if where == "knowledge" else None
         text, doc = _source_text(src, where, name)
@@ -476,10 +482,6 @@ def apply_fix(db, tenant_id: str, issue_id: str, *, user_id: str | None, is_owne
         new_text = _replace_line(current, issue["quote"], proposed)
         kv.save_description(db, tenant_id, new_text, "edit", user_id)  # knowledge_versions_reason_check allows only its fixed reasons
         result = {"where": "description", "description": new_text}
-    elif issue["where"] == "handover_line":
-        save_setting("handover_line", proposed, tenant_id=tenant_id)
-        invalidate_cache("handover_line")
-        result = {"where": "handover_line"}
     else:
         if not issue.get("editable"):
             raise FixError("This file was uploaded before auto-sort. Re-sort it on the Knowledge page, then fix it there.")

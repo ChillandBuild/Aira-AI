@@ -2,32 +2,67 @@
 import asyncio
 from unittest.mock import MagicMock, patch
 
-from app.services import ai_reply, knowledge_service, scoring_engine
+from app.services import ai_reply, business_profile, knowledge_service, scoring_engine
 
 TENANT = "tenant-1"
 LINE = "Use the Support option in our app."
+
+
+HANDOVER_HEADING = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
 
 
 def _settings(values: dict):
     return lambda key, fallback=None, tenant_id=None: values.get(key, fallback)
 
 
+def _with_settings(values: dict):
+    """The handover reader lives in business_profile; the rest of the prompt reads ai_reply."""
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    stack.enter_context(patch.object(ai_reply, "get_setting", _settings(values)))
+    stack.enter_context(patch.object(business_profile, "get_setting", _settings(values)))
+    return stack
+
+
 def test_handover_rule_uses_client_line_and_forbids_callback_promise():
-    with patch.object(ai_reply, "get_setting", _settings({"handover_line": LINE})):
+    with _with_settings({"handover_line": LINE}):
         block = ai_reply._handover_rule_block(TENANT)
     assert LINE in block
     assert "Do not say anyone will contact them" in block
 
 
+def test_handover_rule_quotes_the_eighth_description_section():
+    description = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}\n{LINE}"
+    with _with_settings({"business_description": description}):
+        assert ai_reply._handover_line(TENANT) == LINE
+        assert LINE in ai_reply._handover_rule_block(TENANT)
+
+
+def test_handover_line_ignores_the_legacy_setting_once_the_description_has_the_heading():
+    description = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}\nSection wording."
+    with _with_settings({"business_description": description, "handover_line": "Legacy wording."}):
+        assert ai_reply._handover_line(TENANT) == "Section wording."
+
+
+def test_cleared_eighth_section_uses_the_default_wording_not_the_legacy_line():
+    description = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}\n"
+    with _with_settings({"business_description": description, "handover_line": "Legacy wording."}):
+        assert ai_reply._handover_line(TENANT) == ""
+        block = ai_reply._handover_rule_block(TENANT)
+    assert "Legacy wording." not in block
+    assert "hand_to_human" in block and "they will reply here" in block
+
+
 def test_handover_rule_default_when_client_line_missing():
-    with patch.object(ai_reply, "get_setting", _settings({})):
+    with _with_settings({}):
         block = ai_reply._handover_rule_block(TENANT)
     assert "hand_to_human" in block and "they will reply here" in block
     assert "callback" in block  # forbidden, not promised
 
 
 def test_base_prompt_routes_missing_link_to_handover_rule():
-    with patch.object(ai_reply, "get_setting", _settings({"handover_line": LINE})), \
+    with _with_settings({"handover_line": LINE}), \
          patch.object(ai_reply, "get_master_prompt", lambda: "MASTER"):
         prompt = ai_reply._build_base_prompt("whatsapp", TENANT)
     assert "HANDOVER RULE (this business's own instruction)" in prompt

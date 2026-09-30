@@ -172,18 +172,35 @@ def test_delete_without_a_body_still_works(env, monkeypatch):
     assert env.db.rows("knowledge_documents") == []
 
 
-def test_readiness_reads_description_handover_and_live_facts_for_a_manager(env, monkeypatch):
+READINESS_DESCRIPTION = "ABOUT US\nA dental clinic.\n\nHOW CUSTOMERS BUY\nBook a checkup."
+HANDOVER_SECTION = "\n\nWHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\n"
+
+
+def _readiness_items(env, monkeypatch, settings: dict) -> dict:
+    from app.services import business_profile
+
     client = _client(env, monkeypatch, role="manager", permissions=["knowledge.view"])
-    settings = {
-        "business_description": "ABOUT US\nA dental clinic.\n\nHOW CUSTOMERS BUY\nBook a checkup.",
-        "handover_line": "Call 90000 12345.",
-    }
-    monkeypatch.setattr(knowledge, "get_setting", lambda key, tenant_id=None: settings.get(key))
+    reader = lambda key, fallback=None, tenant_id=None: settings.get(key, fallback)  # noqa: E731
+    monkeypatch.setattr(knowledge, "get_setting", reader)
+    monkeypatch.setattr(business_profile, "get_setting", reader)
     add_doc(env.db, name="prices.docx", status="indexed", full_text="Cleaning Rs 800")
     add_doc(env.db, name="waiting.docx", status="review_pending", full_text="Q: Refund?\nA: No refunds.")
+    return {i["key"]: i["ok"] for i in client.get("/api/v1/knowledge/readiness").json()["data"]}
 
-    items = {i["key"]: i["ok"] for i in client.get("/api/v1/knowledge/readiness").json()["data"]}
-    assert items == {
+
+def test_readiness_reads_description_handover_section_and_live_facts_for_a_manager(env, monkeypatch):
+    settings = {"business_description": READINESS_DESCRIPTION + HANDOVER_SECTION + "Our team will reply here."}
+    assert _readiness_items(env, monkeypatch, settings) == {
         "about": True, "how_to_buy": True, "prices": True, "handover": True,
         "who": False, "never": False, "questions": False, "voice": False,
     }
+
+
+def test_readiness_falls_back_to_the_legacy_setting_when_the_description_has_no_eighth_heading(env, monkeypatch):
+    settings = {"business_description": READINESS_DESCRIPTION, "handover_line": "Call 90000 12345."}
+    assert _readiness_items(env, monkeypatch, settings)["handover"] is True
+
+
+def test_readiness_an_emptied_eighth_section_is_not_ready_even_with_a_legacy_setting(env, monkeypatch):
+    settings = {"business_description": READINESS_DESCRIPTION + HANDOVER_SECTION, "handover_line": "Call 90000 12345."}
+    assert _readiness_items(env, monkeypatch, settings)["handover"] is False

@@ -9,6 +9,7 @@ import {
   ProfileSection,
   ProfileResponse,
   SECTION_KEYS_ORDERED,
+  SECTION_HELP_FALLBACK,
   wordCount,
   totalWords,
   sectionState,
@@ -254,9 +255,9 @@ export default function ProfileSectionsEditor({
                 <label htmlFor={`section-${key}`} className="font-display text-sm font-bold text-primary">
                   {section.label}
                 </label>
-                {section.hint && (
+                {(section.hint || SECTION_HELP_FALLBACK[key]) && (
                   <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                    {section.hint}
+                    {section.hint || SECTION_HELP_FALLBACK[key]}
                   </p>
                 )}
               </div>

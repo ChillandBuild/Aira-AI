@@ -29,6 +29,7 @@ import {
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { buildFinalDescription, normalizeText, wordCount } from "./descriptionDiff";
+import { HANDOVER_SECTION_KEY, type ProfileResponse } from "./profileSections";
 
 interface Props {
   documentId: string;
@@ -273,19 +274,31 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
     }
   }
 
+  // Owner-only: the handover wording lives in the "handover" section of the Description,
+  // and PUT /ai-tune/profile is the only write path. Read the current sections, replace
+  // that one, write them all back so nothing else changes.
   async function useHandoverLine() {
-    if (!review || !review.suggested_handover.trim()) return;
+    const line = review?.suggested_handover.trim();
+    if (!line || !isOwner) return;
     setHandoverSaving(true);
     try {
       const auth = await getAuthHeaders();
-      const res = await fetch(`${API_URL}/api/v1/settings/`, {
-        method: "PATCH",
+      const getRes = await fetch(`${API_URL}/api/v1/ai-tune/profile`, { headers: auth });
+      if (!getRes.ok) throw new Error("Could not read the profile");
+      const profile: ProfileResponse = await getRes.json();
+      const sections = Object.fromEntries(profile.sections.map((sec) => [sec.key, sec.text]));
+      const putRes = await fetch(`${API_URL}/api/v1/ai-tune/profile`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json", ...auth },
-        body: JSON.stringify({ updates: { handover_line: review.suggested_handover.trim() } }),
+        body: JSON.stringify({ sections: { ...sections, [HANDOVER_SECTION_KEY]: line }, other: profile.other }),
       });
-      if (!res.ok) throw new Error("Save failed");
+      if (putRes.status === 422) {
+        toast.error("That line would push your profile over its word limit. Shorten another section first.");
+        return;
+      }
+      if (!putRes.ok) throw new Error("Save failed");
       setHandoverSaved(true);
-      toast.success("Saved as your ‘When Aira can’t help’ line.");
+      toast.success("Saved in your profile, under ‘What Aira says when it brings in your team’.");
     } catch {
       toast.error("Could not save this line. Please try again.");
     } finally {
@@ -416,8 +429,8 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
               </Section>
 
               {/* Contact line found -- a sentence telling customers how to reach a person.
-                  Aira keeps this out of the Description; it's offered as the separate
-                  "when Aira can't help" line instead, never saved automatically. */}
+                  Offered for the profile's "What Aira says when it brings in your team"
+                  section, never saved automatically. Owner-only (profile write). */}
               {review.suggested_handover.trim() && !handoverDismissed && (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
                   <div className="flex items-start gap-2.5">
@@ -427,17 +440,19 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                     <div className="min-w-0 flex-1">
                       <h4 className="font-display text-sm font-bold text-on-surface">Contact line found in this file</h4>
                       <p className="mt-1 font-body text-xs leading-relaxed text-amber-900">
-                        This tells customers how to reach a person. Aira keeps it out of your profile. Use it as
-                        your &ldquo;When Aira can&rsquo;t help&rdquo; line?
+                        This tells customers how to reach a person. Use it as your &ldquo;What Aira says when it
+                        brings in your team&rdquo; section? It replaces what is in that section now, and you can
+                        undo it from the profile history.
                       </p>
                       <p className="mt-2 rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-[11.5px] leading-relaxed text-on-surface">
                         {review.suggested_handover}
                       </p>
                       {canManage && (
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button
                             onClick={useHandoverLine}
-                            disabled={handoverSaving || handoverSaved}
+                            disabled={handoverSaving || handoverSaved || !isOwner}
+                            aria-describedby={!isOwner ? "handover-owner-reason" : undefined}
                             className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 font-label text-xs font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             {handoverSaving ? (
@@ -454,6 +469,11 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                             >
                               Ignore
                             </button>
+                          )}
+                          {!isOwner && (
+                            <p id="handover-owner-reason" className="font-body text-xs text-amber-900">
+                              Only an account owner can change this section. Ask an owner to add this line.
+                            </p>
                           )}
                         </div>
                       )}

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import {
   BarChart2,
   BookOpen,
+  Brain,
   Calendar,
   Grid3X3,
   HandCoins,
@@ -27,6 +28,10 @@ import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn, isActive } from "@/lib/utils";
 import { getVisibleSettingsItems, SETTINGS_GROUP_ORDER } from "@/components/settingsNavigation";
+import { useBrainCount } from "@/hooks/useBrainCount";
+import { BrainNavBadge } from "@/components/brain/BrainNavBadge";
+
+const BRAIN_HREF = "/dashboard/brain";
 
 type MoreMenuItem = {
   href: string;
@@ -47,6 +52,7 @@ const MORE_ITEMS: MoreMenuItem[] = [
   { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", permissionAny: ["inbound_leads.view", "inbound_leads.manage"], feature: "inbound_messaging" },
   { href: "/dashboard/meta-ads", icon: Megaphone, label: "Meta Ads", permissionAny: ["inbound_leads.view"], feature: "inbound_messaging" },
   { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: BRAIN_HREF, icon: Brain, label: "Aira Brain", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/catalog", icon: ShoppingBag, label: "Products", permissionAny: ["catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/services", icon: Package, label: "Services", permissionAny: ["settings.view", "settings.manage", "catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
@@ -69,6 +75,8 @@ export function MoreMenu() {
   const [purchasedFeatures, setPurchasedFeatures] = useState<string[]>([]);
 
   const items = MORE_ITEMS.filter((item) => isVisible(item, role, enabledFeatures, permissions));
+  // Same gate as the Knowledge Base entry: the entry is in `items` exactly when it is allowed.
+  const brainCount = useBrainCount(items.some((item) => item.href === BRAIN_HREF));
   const canSettings = role === "owner" || permissions.includes("settings.view") || permissions.includes("settings.manage");
   const settingsItems = getVisibleSettingsItems(purchasedFeatures);
   const settingsActive = pathname.startsWith("/dashboard/settings");
@@ -145,6 +153,7 @@ export function MoreMenu() {
                     >
                       <Icon size={17} />
                       <span className="min-w-0 truncate">{item.label}</span>
+                      {item.href === BRAIN_HREF && <BrainNavBadge count={brainCount} variant="menu" />}
                     </Link>
                   );
                 })}

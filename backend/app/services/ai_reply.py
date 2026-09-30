@@ -338,9 +338,12 @@ def business_app_link(tenant_id: str | None) -> str:
 
 
 def _handover_line(tenant_id: str | None) -> str:
-    """The client's own words for "I can't help with this here" (Knowledge page).
+    """The client's own words for "I can't help with this here": the 8th Description
+    section (business_profile.get_handover_line, which owns the legacy-setting fallback).
     Empty means the client hasn't set one and the platform default applies."""
-    return (get_setting("handover_line", tenant_id=tenant_id) or "").strip()
+    from app.services.business_profile import get_handover_line
+
+    return get_handover_line(tenant_id)
 
 
 def _handover_rule_block(tenant_id: str | None) -> str:

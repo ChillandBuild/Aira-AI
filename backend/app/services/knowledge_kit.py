@@ -38,7 +38,8 @@ _QUESTIONS_RE = re.compile(
 )
 
 # Kit heading -> the auto-sort label it always gets. Rules feed the Description (the
-# compile step also pulls the handover line out of them); facts go to lookup verbatim.
+# compile step routes phone and hours lines to BUSINESS HOURS AND CONTACT and offers the
+# say-sentence for WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM); facts go to lookup verbatim.
 KIT_HEADINGS = {
     "ABOUT YOUR BUSINESS": "RULE",
     "WHO YOUR CUSTOMERS ARE": "RULE",
@@ -122,7 +123,10 @@ def readiness(*, description: str, handover_line: str, facts: list[str]) -> list
     found = {key: bool(sections.get(key, "").strip()) for key in _DESCRIPTION_KEYS}
     found["prices"] = bool(_PRICE_RE.search(facts_text))
     found["questions"] = bool(_QUESTIONS_RE.search(facts_text))
-    found["handover"] = bool((handover_line or "").strip())
+    # The 8th Description section is where the handover wording lives now. handover_line
+    # is the resolved value from business_profile.get_handover_line (it still honours the
+    # legacy setting for a Description with no 8th heading).
+    found["handover"] = bool(sections.get(business_profile.HANDOVER_KEY, "").strip() or (handover_line or "").strip())
     return [{"key": key, "label": label, "level": level, "ok": found[key]} for key, label, level in _ITEMS]
 
 

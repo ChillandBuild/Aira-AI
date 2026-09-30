@@ -8,13 +8,15 @@ import {
   LayoutDashboard, MessageSquare, Users, Phone,
   BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package, ShoppingBag,
   ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, HandCoins,
-  Settings,
+  Settings, Brain,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
 import { AiraLogo } from "@/components/logo";
 import { getVisibleSettingsItems, SETTINGS_GROUP_ORDER, SETTINGS_ITEMS } from "@/components/settingsNavigation";
+import { useBrainCount } from "@/hooks/useBrainCount";
+import { BrainNavBadge } from "@/components/brain/BrainNavBadge";
 
 type NavItem = {
   href: string;
@@ -200,6 +202,14 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
     (f) => f === "telecalling_sim" || f === "telecalling_telecmi" || f.startsWith("telecalling.")
   );
   const canManageTeam = role === "owner" || permissions.includes("team.manage");
+  // Same gate as the Knowledge Base entry below. Computed up here (not from
+  // isSubscribed / canAny, which are defined after the early return) so the count
+  // hook stays above it and hook order never changes between renders.
+  const brainGate =
+    subStatus === "active" &&
+    messagingOn &&
+    (role === "owner" || permissions.includes("knowledge.view") || permissions.includes("knowledge.manage"));
+  const brainCount = useBrainCount(brainGate);
 
   useEffect(() => {
     if (!telecallingOn || !canManageTeam) return;
@@ -398,6 +408,17 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
             active={pathname.startsWith("/dashboard/numbers")}
             icon={Layers}
             label="Numbers Pool"
+          />
+        )}
+
+        {/* TOP LEVEL: Aira Brain -- same gate as Knowledge Base; badge = things waiting on the client */}
+        {brainGate && (
+          <CollapsedNavItem
+            href="/dashboard/brain"
+            active={pathname.startsWith("/dashboard/brain")}
+            icon={Brain}
+            label="Aira Brain"
+            badge={brainCount ? <BrainNavBadge count={brainCount} variant="rail" /> : undefined}
           />
         )}
 
@@ -702,6 +723,17 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
             active={pathname.startsWith("/dashboard/numbers")}
             icon={Layers}
             label="Numbers Pool"
+          />
+        )}
+
+        {/* TOP LEVEL: Aira Brain -- same gate as Knowledge Base */}
+        {brainGate && (
+          <MainNavItem
+            href="/dashboard/brain"
+            active={pathname.startsWith("/dashboard/brain")}
+            icon={Brain}
+            label="Aira Brain"
+            badge={brainCount ? <BrainNavBadge count={brainCount} variant="row" /> : undefined}
           />
         )}
 

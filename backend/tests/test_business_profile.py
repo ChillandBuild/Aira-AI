@@ -10,10 +10,10 @@ from app.services.business_profile import (
 
 
 def test_sections_are_defined():
-    """Verify the 6 sections exist in order."""
-    assert len(SECTIONS) == 6
+    """Verify the 8 sections exist in order."""
+    assert len(SECTIONS) == 8
     keys = [s.key for s in SECTIONS]
-    assert keys == ["about", "how_to_buy", "who", "voice", "job", "never"]
+    assert keys == ["about", "how_to_buy", "who", "voice", "job", "never", "hours_contact", "handover"]
     
     # Check each section has required fields
     for section in SECTIONS:
@@ -280,7 +280,8 @@ async def test_propose_conversion_success():
         assert len(result["removed"]) == 1
         assert result["removed"][0]["why"] == "already in the platform rules"
         assert result["facts_to_move"] == ["Price: $10"]
-        assert result["suggested_handover"] == "Ask for our support team"
+        # Handover wording now lives in the handover section, never in this old key.
+        assert result["suggested_handover"] == ""
         assert result["total_words"] > 0
 
 
@@ -325,3 +326,139 @@ def test_bullet_in_capitals_is_not_treated_as_a_heading():
     parsed = parse("ABOUT US\n- WE SELL SAREES ONLINE\nMore text")
     assert parsed.sections["about"] == "- WE SELL SAREES ONLINE\nMore text"
     assert parsed.other == ""
+
+
+# ─── 8 sections: hours_contact and handover (blueprint 9B) ─────────────────────
+
+def test_new_sections_have_the_agreed_headings_and_limits():
+    hours = _SECTION_BY_KEY["hours_contact"]
+    handover = _SECTION_BY_KEY["handover"]
+    assert (hours.heading, hours.word_limit) == ("BUSINESS HOURS AND CONTACT", 60)
+    assert (handover.heading, handover.word_limit) == ("WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM", 50)
+
+
+def test_section_limits_stay_inside_the_hard_cap():
+    assert sum(s.word_limit for s in SECTIONS) <= HARD_WORD_LIMIT
+
+
+def test_parse_reads_the_two_new_headings():
+    text = (
+        "ABOUT US\nWe sell sarees.\n\n"
+        "BUSINESS HOURS AND CONTACT\nOpen 10am to 6pm. Call 98765 43210.\n\n"
+        "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\nOur team will reply here shortly."
+    )
+    parsed = parse(text)
+    assert parsed.sections["hours_contact"] == "Open 10am to 6pm. Call 98765 43210."
+    assert parsed.sections["handover"] == "Our team will reply here shortly."
+    assert parsed.other == ""
+
+
+def test_render_puts_the_new_sections_last_in_order_and_round_trips():
+    sections = {
+        "handover": "Team will reply here.",
+        "hours_contact": "Open 10am to 6pm.",
+        "about": "We sell sarees.",
+    }
+    text = render(sections)
+    assert text.index("ABOUT US") < text.index("BUSINESS HOURS AND CONTACT") < text.index(
+        "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM")
+    assert parse(text).sections == sections
+
+
+def test_validate_accepts_the_new_keys():
+    assert validate({"hours_contact": "Open 10am.", "handover": "Team replies here."}, "") == []
+
+
+def test_warnings_use_the_new_section_limits():
+    warns = warnings({"handover": "word " * 51, "hours_contact": "word " * 61})
+    assert {(w["key"], w["limit"]) for w in warns} == {("handover", 50), ("hours_contact", 60)}
+
+
+def test_heading_keys_reports_a_present_but_empty_heading():
+    from app.services.business_profile import heading_keys
+    text = "ABOUT US\nx\n\nWHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\n"
+    assert heading_keys(text) == {"about", "handover"}
+    assert "handover" not in parse(text).sections  # empty sections drop out of parse
+    assert heading_keys("") == set()
+
+
+# ─── get_handover_line: one reader for the handover wording ────────────────────
+
+HANDOVER_HEADING = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
+
+
+def _settings(values: dict):
+    return lambda key, fallback=None, tenant_id=None: values.get(key, fallback)
+
+
+def _handover_line(values: dict) -> str:
+    from app.services import business_profile
+    with patch.object(business_profile, "get_setting", _settings(values)):
+        return business_profile.get_handover_line("tenant-1")
+
+
+def test_get_handover_line_returns_the_eighth_section():
+    description = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}\nOur team will reply here."
+    assert _handover_line({"business_description": description}) == "Our team will reply here."
+
+
+def test_get_handover_line_prefers_the_section_over_the_legacy_setting():
+    description = f"{HANDOVER_HEADING}\nSection wording."
+    values = {"business_description": description, "handover_line": "Legacy wording."}
+    assert _handover_line(values) == "Section wording."
+
+
+def test_get_handover_line_falls_back_to_legacy_only_when_no_eighth_heading():
+    values = {"business_description": "ABOUT US\nWe sell sarees.", "handover_line": "Legacy wording."}
+    assert _handover_line(values) == "Legacy wording."
+
+
+def test_get_handover_line_falls_back_when_there_is_no_description():
+    assert _handover_line({"handover_line": "Legacy wording."}) == "Legacy wording."
+
+
+def test_get_handover_line_present_but_empty_section_does_not_bring_the_legacy_back():
+    description = f"ABOUT US\nWe sell sarees.\n\n{HANDOVER_HEADING}\n"
+    values = {"business_description": description, "handover_line": "Legacy wording."}
+    assert _handover_line(values) == ""
+
+
+def test_get_handover_line_is_empty_when_nothing_is_set():
+    assert _handover_line({}) == ""
+
+
+def test_get_handover_line_strips_whitespace():
+    assert _handover_line({"handover_line": "  Legacy wording.  \n"}) == "Legacy wording."
+
+
+# ─── propose_conversion: handover wording goes into the handover section ───────
+
+@pytest.mark.asyncio
+async def test_propose_conversion_keeps_the_new_sections_and_empties_suggested_handover():
+    with patch("app.services.business_profile._llm_json") as mock_llm:
+        mock_llm.return_value = {
+            "sections": {
+                "about": "A widget shop.",
+                "hours_contact": "Open 10am to 6pm. Call 98765 43210.",
+                "handover": "Our team will reply here.",
+            },
+            "removed": [],
+            "facts_to_move": [],
+            "suggested_handover": "Ask for our support team",  # an old-style model answer
+        }
+        result = await propose_conversion("tenant-1", "We sell widgets. Open 10am to 6pm. Call 98765 43210.")
+    assert result["sections"]["hours_contact"] == "Open 10am to 6pm. Call 98765 43210."
+    assert result["sections"]["handover"] == "Our team will reply here."
+    assert result["suggested_handover"] == ""
+
+
+@pytest.mark.asyncio
+async def test_propose_conversion_prompt_describes_all_8_sections_and_routes_handover():
+    with patch("app.services.business_profile._llm_json") as mock_llm:
+        mock_llm.return_value = {"sections": {"about": "x"}, "removed": [], "facts_to_move": []}
+        await propose_conversion("tenant-1", "We sell widgets.")
+    system_prompt = mock_llm.call_args.args[0]
+    assert "8 sections" in system_prompt
+    assert "BUSINESS HOURS AND CONTACT" in system_prompt
+    assert "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM" in system_prompt
+    assert "suggested_handover" not in system_prompt

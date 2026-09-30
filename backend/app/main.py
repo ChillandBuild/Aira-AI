@@ -22,6 +22,7 @@ from app.routes import intake
 from app.routes.marketplace_intake import public_router as marketplace_public_router
 from app.routes import marketplace_intake
 from app.routes import deals, business_details
+from app.routes import brain
 from app.routes import lead_details_share
 
 # Configure logging
@@ -667,6 +668,7 @@ app.include_router(callers.router, prefix="/api/v1/callers", tags=["callers"], d
 app.include_router(ai_tune.router, prefix="/api/v1/ai-tune", tags=["ai-tune"], dependencies=_auth)
 app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["knowledge"], dependencies=_auth)
 app.include_router(consistency.router, prefix="/api/v1/consistency", tags=["consistency"], dependencies=_auth)
+app.include_router(brain.router, prefix="/api/v1/brain", tags=["brain"], dependencies=_auth)
 app.include_router(catalog.router, prefix="/api/v1/catalog", tags=["catalog"], dependencies=_auth)
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"], dependencies=_auth)
 app.include_router(follow_ups.router, prefix="/api/v1/follow-ups", tags=["follow-ups"], dependencies=_auth)

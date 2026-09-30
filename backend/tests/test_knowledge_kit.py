@@ -160,3 +160,20 @@ def test_a_heading_with_nothing_under_it_is_dropped():
 
 def test_a_file_with_fewer_than_four_kit_headings_is_not_a_kit():
     assert split_kit("ABOUT YOUR BUSINESS\nA shop.\n\nPRODUCTS, SERVICES, PRICES\nRs 5") is None
+
+
+def test_handover_is_ready_when_the_eighth_section_has_text():
+    description = PROFILE + "\n\nWHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\nOur team will reply here shortly."
+    items = _by_key(readiness(description=description, handover_line="", facts=[]))
+    assert items["handover"]["ok"]
+
+
+def test_handover_is_not_ready_when_the_eighth_heading_is_empty():
+    description = PROFILE + "\n\nWHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\n"
+    items = _by_key(readiness(description=description, handover_line="", facts=[]))
+    assert not items["handover"]["ok"]
+
+
+def test_kit_heading_for_handover_stays_a_kit_heading():
+    from app.services.knowledge_kit import KIT_HEADINGS
+    assert KIT_HEADINGS["WHEN TO HAND OVER TO A PERSON"] == "RULE"

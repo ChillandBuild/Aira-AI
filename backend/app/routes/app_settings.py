@@ -29,6 +29,16 @@ class SettingsUpdate(BaseModel):
     updates: dict[str, str | None]
 
 
+# The handover wording is the 8th Description section now (owner-only, edited through
+# PUT /api/v1/ai-tune/profile). The old setting is only a read fallback until the data
+# step moves it, so this route must not write it: a write would be silently ignored.
+HANDOVER_LINE_KEY = "handover_line"
+HANDOVER_LINE_MOVED_MESSAGE = (
+    "The handover line is now part of your Description: edit the section "
+    "'What Aira says when it brings in your team' on the Knowledge page."
+)
+
+
 class ActivateChannelRequest(BaseModel):
     channel: str  # whatsapp | instagram | facebook | telegram | meta_ads
 
@@ -382,6 +392,8 @@ async def update_settings(
     tenant_id = ctx["tenant_id"]
     if not payload.updates:
         raise HTTPException(status_code=400, detail="Nothing to update")
+    if HANDOVER_LINE_KEY in payload.updates:
+        raise HTTPException(status_code=400, detail=HANDOVER_LINE_MOVED_MESSAGE)
 
     db = get_supabase()
 
@@ -474,7 +486,7 @@ async def update_settings(
             "secret_keys": [key for key in updated if key in SECRET_SETTING_KEYS],
         },
     )
-    if {"business_description", "handover_line"} & set(updated):
+    if "business_description" in updated:
         from app.services.consistency import run_check_safely
         background_tasks.add_task(run_check_safely, tenant_id)
     return {"updated": updated}
@@ -482,47 +494,10 @@ async def update_settings(
 
 @router.get("/webhook-health")
 async def webhook_health(ctx: dict = Depends(require_settings_read)):
-    tenant_id = ctx["tenant_id"]
     """Return last inbound event timestamp per channel + recent token_invalid incidents."""
-    from datetime import datetime, timezone, timedelta
-    db = get_supabase()
-    health: dict = {}
+    from app.services.webhook_health import get_webhook_health
 
-    for channel in ("whatsapp", "instagram", "facebook", "telegram"):
-        row = (
-            db.table("messages")
-            .select("created_at")
-            .eq("tenant_id", tenant_id)
-            .eq("channel", channel)
-            .eq("direction", "inbound")
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        last_at = row.data[0]["created_at"] if row.data else None
-        health[channel] = {"last_event": last_at}
-
-    # Token alerts: any token_invalid incidents in last 48h
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-    alerts = (
-        db.table("incidents")
-        .select("type,detail,created_at")
-        .eq("tenant_id", tenant_id)
-        .eq("type", "token_invalid")
-        .gte("created_at", cutoff)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    token_alerts = []
-    for inc in (alerts.data or []):
-        detail = inc.get("detail") or {}
-        token_alerts.append({
-            "channel": detail.get("channel"),
-            "error": detail.get("error"),
-            "created_at": inc["created_at"],
-        })
-
-    return {"health": health, "token_alerts": token_alerts}
+    return get_webhook_health(get_supabase(), ctx["tenant_id"])
 
 
 @router.post("/webhook-subscriptions/sync")

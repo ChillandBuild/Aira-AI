@@ -231,11 +231,16 @@ async def update_profile(
     Validates total word count and saves via save_description with reason 'edit'.
     Returns 422 if validation fails.
     """
-    errors = validate(payload.sections, payload.other)
+    # Merge, not replace: a section key missing from the payload keeps its current text
+    # (a stale frontend that knows only 6 sections must not wipe the other two), while a
+    # key sent as "" clears it. The word cap is checked on the merged result.
+    current = parse(get_setting("business_description", tenant_id=tenant_id) or "").sections
+    merged = {**current, **payload.sections}
+    errors = validate(merged, payload.other)
     if errors:
         raise HTTPException(status_code=422, detail="; ".join(errors))
-    
-    text = render(payload.sections, payload.other)
+
+    text = render(merged, payload.other)
     save_description(get_supabase(), tenant_id, text, "edit", ctx.get("user_id"))
     queue_rubric_for_description(tenant_id, text)
     from app.services.consistency import run_check_safely

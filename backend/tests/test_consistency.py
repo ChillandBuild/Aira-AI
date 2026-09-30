@@ -23,11 +23,14 @@ DESCRIPTION = (
     "Be kind."
 )
 HANDOVER = "App la irukkura support option moolama contact pannalam."
+HANDOVER_HEADING = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
+# Handover wording is a Description section now, so a conflict on it is a Description sentence.
+DESCRIPTION_WITH_HANDOVER = f"{DESCRIPTION}\n{HANDOVER_HEADING}\n{HANDOVER}"
 
 
 def _src(**over):
     base = {
-        "description": DESCRIPTION, "handover_line": HANDOVER, "config": CONFIG, "selling": True,
+        "description": DESCRIPTION_WITH_HANDOVER, "handover_line": HANDOVER, "config": CONFIG, "selling": True,
         "catalog": [], "documents": [{"id": "d1", "name": "kb.docx", "text": "Fees: Rs 49 per question.", "editable": True}],
     }
     return {**base, **over}
@@ -63,12 +66,29 @@ class TestDeterministic:
     def test_never_ask_ignored_when_not_selling(self):
         assert consistency.never_ask_issues(_src(selling=False)) == []
 
-    def test_handover_line_that_sends_people_elsewhere(self):
+    def test_handover_sentence_that_sends_people_elsewhere_is_a_description_issue(self):
         issues = consistency.handover_issues(_src())
-        assert issues and issues[0]["where"] == "handover_line"
+        assert len(issues) == 1
+        assert issues[0]["where"] == "description" and issues[0]["quote"] == HANDOVER
+        assert issues[0]["kind"] == "handover" and issues[0]["editable"] is True
 
     def test_in_chat_handover_line_is_fine(self):
-        assert consistency.handover_issues(_src(handover_line="I'll check with the team, they'll reply here.")) == []
+        line = "I'll check with the team, they'll reply here."
+        src = _src(handover_line=line, description=f"{DESCRIPTION}\n{HANDOVER_HEADING}\n{line}")
+        assert consistency.handover_issues(src) == []
+
+    def test_only_the_offending_sentence_is_quoted(self):
+        text = f"The team replies here. {HANDOVER}"
+        src = _src(handover_line=text, description=f"{DESCRIPTION}\n{HANDOVER_HEADING}\n{text}")
+        assert [i["quote"] for i in consistency.handover_issues(src)] == [HANDOVER]
+
+    def test_a_legacy_line_that_is_not_in_the_description_has_nothing_to_fix(self):
+        # Before the data step runs, the line still lives in the old setting. The conflict
+        # fix edits only the Description, so it would fail: no issue is raised for it.
+        assert consistency.handover_issues(_src(description=DESCRIPTION)) == []
+
+    def test_no_handover_line_means_no_issue(self):
+        assert consistency.handover_issues(_src(handover_line="")) == []
 
 
 class TestModelValidation:
@@ -154,17 +174,38 @@ class TestApplyFix:
         assert "Never ask for DOB" not in writes[0][0] and writes[0][1] == "edit"
         assert saved["issues"] == []
 
-    def test_handover_fix_writes_the_setting(self, monkeypatch):
-        issue = {"id": "h", "where": "handover_line", "quote": HANDOVER, "proposed": "Team kitta check panni inga reply pannuvanga."}
+    def test_handover_fix_is_a_description_fix_now(self, monkeypatch):
+        from app.services import knowledge_versions as kv
+
+        issue = {"id": "h", "where": "description", "quote": HANDOVER, "proposed": "Team kitta check panni inga reply pannuvanga."}
         self._report(monkeypatch, issue)
-        writes = {}
-        monkeypatch.setattr(consistency, "save_setting", lambda key, value, tenant_id: writes.update({key: value}))
-        monkeypatch.setattr(consistency, "invalidate_cache", lambda key=None: None)
-        consistency.apply_fix(object(), "t", "h", user_id="u", is_owner=False)
-        assert writes["handover_line"] == "Team kitta check panni inga reply pannuvanga."
+        writes = []
+        monkeypatch.setattr(kv, "current_description", lambda tenant_id: DESCRIPTION_WITH_HANDOVER)
+        monkeypatch.setattr(kv, "save_description", lambda db, t, text, reason, user: writes.append(text))
+        consistency.apply_fix(object(), "t", "h", user_id="u", is_owner=True)
+        assert HANDOVER not in writes[0]
+        assert f"{HANDOVER_HEADING}\nTeam kitta check panni inga reply pannuvanga." in writes[0]
+
+    def test_handover_fix_needs_an_owner_like_any_description_fix(self, monkeypatch):
+        issue = {"id": "h", "where": "description", "quote": HANDOVER, "proposed": "Team replies here."}
+        self._report(monkeypatch, issue)
+        with pytest.raises(consistency.FixError) as e:
+            consistency.apply_fix(object(), "t", "h", user_id="u", is_owner=False)
+        assert e.value.status == 403
+
+    def test_a_stale_handover_line_issue_never_writes_the_old_setting(self, monkeypatch):
+        # A report saved before this release can still hold where="handover_line".
+        issue = {"id": "h", "where": "handover_line", "quote": HANDOVER, "proposed": "x", "editable": True, "document_id": None}
+        self._report(monkeypatch, issue)
+        monkeypatch.setattr(consistency, "_documents", lambda db, tenant_id: [])
+        writes = []
+        monkeypatch.setattr(consistency, "save_setting", lambda key, value, tenant_id: writes.append(key), raising=False)
+        with pytest.raises(consistency.FixError) as e:
+            consistency.apply_fix(object(), "t", "h", user_id="u", is_owner=True)
+        assert e.value.status == 404 and "handover_line" not in writes
 
     def test_new_wording_with_an_invented_price_is_refused(self, monkeypatch):
-        issue = {"id": "p", "where": "handover_line", "quote": HANDOVER, "proposed": None}
+        issue = {"id": "p", "where": "description", "quote": HANDOVER, "proposed": None}
         self._report(monkeypatch, issue)
         with pytest.raises(consistency.FixError):
             consistency.apply_fix(object(), "t", "p", user_id="u", is_owner=True, text="Only ₹19 today!")
@@ -175,6 +216,31 @@ class TestApplyFix:
         with pytest.raises(consistency.FixError) as e:
             consistency.apply_fix(object(), "t", "k", user_id="u", is_owner=True)
         assert "Re-sort" in str(e.value)
+
+
+class TestGatherAndModelPrompt:
+    def test_gather_reads_the_handover_through_get_handover_line(self, monkeypatch):
+        from unittest.mock import MagicMock
+        from app.services import intake
+
+        calls = []
+        monkeypatch.setattr(consistency, "get_handover_line", lambda tenant_id: calls.append(tenant_id) or "Team replies here.")
+        monkeypatch.setattr(consistency, "get_setting", lambda key, fallback=None, tenant_id=None: {"business_description": "ABOUT US\nx"}.get(key))
+        monkeypatch.setattr(intake, "get_intake_config", lambda tenant_id, db=None: {})
+        monkeypatch.setattr(consistency, "_documents", lambda db, tenant_id: [])
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
+        src = consistency.gather(db, "t1")
+        assert calls == ["t1"] and src["handover_line"] == "Team replies here."
+
+    def test_model_prompt_no_longer_offers_a_handover_line_source(self):
+        assert "handover_line" not in consistency._SYSTEM
+        assert "HANDOVER LINE:" not in consistency._user_prompt(_src(), [])
+        assert HANDOVER_HEADING in consistency._SYSTEM  # the model is told where the handover wording lives
+
+    def test_model_answer_naming_the_old_location_is_dropped(self):
+        items = [{"where": "handover_line", "quote": HANDOVER, "topic": "x", "proposed": ""}]
+        assert consistency.validate_model_issues(items, _src()) == []
 
 
 def test_run_check_keeps_deterministic_findings_when_the_model_fails(monkeypatch):

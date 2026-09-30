@@ -8,6 +8,7 @@ from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services import knowledge_sort as ks
 from app.services import knowledge_versions as kv
+from app.services.business_profile import get_handover_line
 from app.services.knowledge_kit import readiness
 from app.services.knowledge_service import DOCS_BUCKET, process_document, reindex_tenant
 
@@ -135,7 +136,7 @@ async def get_readiness(tenant_id: str = Depends(get_tenant_id)):
     )
     return {"data": readiness(
         description=get_setting("business_description", tenant_id=tenant_id) or "",
-        handover_line=get_setting("handover_line", tenant_id=tenant_id) or "",
+        handover_line=get_handover_line(tenant_id),
         facts=[row.get("full_text") or "" for row in (live.data or [])],
     )}
 

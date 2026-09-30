@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { wordCount, totalWords, sectionState, SECTION_KEYS_ORDERED } from "./profileSections";
+import {
+  wordCount,
+  totalWords,
+  sectionState,
+  SECTION_KEYS_ORDERED,
+  SECTION_HELP_FALLBACK,
+  HANDOVER_SECTION_KEY,
+} from "./profileSections";
 
 describe("profileSections", () => {
   describe("wordCount", () => {
@@ -41,6 +48,13 @@ describe("profileSections", () => {
     });
   });
 
+  describe("totalWords with 8 sections", () => {
+    it("counts the new sections toward the total", () => {
+      const sections = { about: "one two", hours_contact: "Mon to Sat", handover: "we call you" };
+      expect(totalWords(sections, "")).toBe(8);
+    });
+  });
+
   describe("sectionState", () => {
     it("returns ok when under limit", () => {
       expect(sectionState(10, 50)).toBe("ok");
@@ -55,7 +69,27 @@ describe("profileSections", () => {
 
   describe("SECTION_KEYS_ORDERED", () => {
     it("has the correct order", () => {
-      expect(SECTION_KEYS_ORDERED).toEqual(["about", "how_to_buy", "who", "voice", "job", "never"]);
+      expect(SECTION_KEYS_ORDERED).toEqual([
+        "about",
+        "how_to_buy",
+        "who",
+        "voice",
+        "job",
+        "never",
+        "hours_contact",
+        "handover",
+      ]);
+    });
+
+    it("has 8 sections with the two new ones last", () => {
+      expect(SECTION_KEYS_ORDERED).toHaveLength(8);
+      expect(SECTION_KEYS_ORDERED.slice(-2)).toEqual(["hours_contact", "handover"]);
+    });
+
+    it("exposes the handover key and help text for the new sections", () => {
+      expect(SECTION_KEYS_ORDERED).toContain(HANDOVER_SECTION_KEY);
+      expect(SECTION_HELP_FALLBACK.hours_contact).toBeTruthy();
+      expect(SECTION_HELP_FALLBACK.handover).toBeTruthy();
     });
   });
 });

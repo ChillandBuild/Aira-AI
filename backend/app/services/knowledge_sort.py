@@ -149,13 +149,15 @@ You get the CURRENT DESCRIPTION and NEW RULES taken from an uploaded document. P
 
 How to write it:
 - Keep every line of the current Description word for word, unless a new rule contradicts it.
-- Merge the new rules in as short plain lines under UPPERCASE headings, in this order, using only the ones you need: ABOUT US, HOW CUSTOMERS BUY, WHO WE TALK TO, HOW TO SOUND, YOUR JOB IN EVERY CONVERSATION, WHAT YOU MUST NEVER DO. Headings already in the current Description stay as they are.
+- Merge the new rules in as short plain lines under UPPERCASE headings, in this order, using only the ones you need: ABOUT US, HOW CUSTOMERS BUY, WHO WE TALK TO, HOW TO SOUND, YOUR JOB IN EVERY CONVERSATION, WHAT YOU MUST NEVER DO, BUSINESS HOURS AND CONTACT, WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM. Headings already in the current Description stay as they are.
 - Section routing is strict:
   - HOW CUSTOMERS BUY is ONLY the steps to buy or book, where to do it, and AT MOST ONE line summarising price. Never a price list, package breakdown, FAQ or policy.
   - Conversation-flow rules -- when or how often to recommend something, what to do when the customer shares X, when to ask a follow-up question -- go under YOUR JOB IN EVERY CONVERSATION, never under HOW CUSTOMERS BUY.
   - Price lists, package breakdowns, FAQs and policies NEVER go in the Description at all -- they are looked up separately from Documents -- unless a line identical in substance is already in the current Description.
 - Never include rules about WHICH LANGUAGE to reply in (that is a setting); keep style/phrases/spellings.
-- Never include a line telling the assistant how to hand over to a person, e.g. a phone number, WhatsApp number, email or "talk to a human" instruction -- that is a separate per-tenant setting, and such a line must NEVER appear in the Description. Instead, put ONE sentence describing how a customer reaches a person (in the business's own words) in "handover"; "" if none is present in these rules.
+- Contact and hours are never dropped. A line giving a phone number, WhatsApp number, email, address to visit or opening hours goes, word for word, under BUSINESS HOURS AND CONTACT (keep every number exactly).
+- Which situations need a person (a complaint, a refund, a custom order) is a rule: it goes under YOUR JOB IN EVERY CONVERSATION.
+- The ONE sentence the assistant should SAY to the customer when it brings the team in, in the business's own words, goes in "handover", not in the Description; "" if none is present in these rules. Keep WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM as it is when the current Description already has it.
 - Drop generic good behaviour that every assistant already follows (no guarantees, no invented facts, be polite, keep it short, no pressure, honesty about being AI).
 - When one new rule says it overrides or replaces another, keep only the winning one.
 - Write each rule once. Drop example conversations unless one exact phrase must be used word for word.
@@ -330,21 +332,69 @@ def _is_handover_line(line: str) -> bool:
     return bool(_PHONE_RE.search(line)) and bool(_HANDOVER_HINT_RE.search(line))
 
 
+_TIME_RE = re.compile(r"\b\d{1,2}(?:[:.]\d{2})?\s?(?:am|pm)\b", re.IGNORECASE)
+_HOURS_HINT_RE = re.compile(
+    r"\b(open|opens|opening|close|closes|closed|hours|timings?|daily|everyday|weekdays?|working|"
+    r"mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b",
+    re.IGNORECASE,
+)
+_CONTACT_SECTIONS = frozenset({"hours_contact", "handover"})  # lines here are already where they belong
+
+
+def _is_hours_line(line: str) -> bool:
+    return bool(_TIME_RE.search(line)) and bool(_HOURS_HINT_RE.search(line))
+
+
+def _append_to_section(lines: list[str], key: str, heading: str, new_lines: list[str]) -> list[str]:
+    """Add lines at the end of the section with this key; add the section (heading
+    included) at the end of the text when it isn't there. Lines already present in the
+    section are not added twice."""
+    from app.services import business_profile as bp
+
+    start = next((i for i, line in enumerate(lines) if bp.section_key_for_heading(line) == key), None)
+    if start is None:
+        block = [heading, *new_lines]
+        return [*lines, "", *block] if any(line.strip() for line in lines) else block
+    end = start + 1
+    while end < len(lines) and not (bp.section_key_for_heading(lines[end]) or bp.looks_like_heading(lines[end])):
+        end += 1
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1
+    present = {normalize(line) for line in lines[start + 1:end]}
+    fresh = [line for line in new_lines if normalize(line) not in present]
+    return [*lines[:end], *fresh, *lines[end:]]
+
+
 def strip_handover_lines(text: str, handover: str) -> tuple[str, str]:
-    """Deterministic safety net, independent of what the model claimed: a line with a
-    phone number next to a word like "call" or "contact" is a handover instruction, and
-    it must never reach the Description -- handover is a separate per-tenant setting.
-    If the model's own "handover" came back empty, the first dropped line becomes the
-    fallback suggestion."""
+    """Deterministic safety net, independent of what the model claimed. A line with a
+    phone number next to a word like "call" or "contact", or with opening hours, is
+    contact information: it is ROUTED to the BUSINESS HOURS AND CONTACT section, never
+    deleted. Lines already under that section or under WHAT AIRA SAYS WHEN IT BRINGS IN
+    YOUR TEAM stay where they are. If the model's own "handover" (the sentence Aira says
+    to the customer) came back empty, the first phone-and-call line is offered as the
+    suggestion for the 8th section; the client decides whether to use it."""
+    from app.services import business_profile as bp
+
+    hours = bp._SECTION_BY_KEY["hours_contact"]
     kept: list[str] = []
+    routed: list[str] = []
     fallback = ""
+    current: str | None = None
     for line in text.split("\n"):
-        if _is_handover_line(line):
-            if not fallback:
+        key = bp.section_key_for_heading(line)
+        if key or bp.looks_like_heading(line):
+            current = key
+            kept.append(line)
+            continue
+        phone_line = _is_handover_line(line)
+        if current not in _CONTACT_SECTIONS and (phone_line or _is_hours_line(line)):
+            routed.append(line.strip())
+            if phone_line and not fallback:
                 fallback = line.strip()
             continue
         kept.append(line)
-    cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+    merged = _append_to_section(kept, hours.key, hours.heading, routed) if routed else kept
+    cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(merged)).strip()
     return cleaned, (handover or fallback)
 
 
@@ -362,7 +412,8 @@ def _source_handover_sentence(source: str) -> str:
 
 
 def verified_handover(handover: str, source: str) -> str:
-    """The suggested "When Aira can't help" line must never carry a contact the file
+    """The suggested line for the client's WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM
+    section must never carry a contact the file
     doesn't contain: live-tested, the model offered 9840012345 for a file whose number
     was 97890 33445. The file's own phone sentence wins when there is one (verbatim,
     and it has the number the model sometimes drops); otherwise the model's line is
@@ -380,7 +431,7 @@ async def compile_description(tenant_id: str, current: str, rules: list[str]) ->
     """Fold the rules into the Description batch by batch, so a very long rulebook never
     has to fit one request. Each round's output is the next round's CURRENT. handover is
     the last non-empty one the model reported across rounds; strip_handover_lines then
-    catches anything it missed."""
+    routes any contact or hours line it left in the wrong section."""
     description = current
     conflicts: list[dict] = []
     handover = ""
@@ -433,8 +484,11 @@ async def enforce_section_limits(tenant_id: str, text: str) -> str:
         if not current_text or business_profile.word_count(current_text) <= section.word_limit:
             continue
         condensed = await _condense_section(tenant_id, section.heading, section.word_limit, current_text)
-        if condensed and business_profile.word_count(condensed) < business_profile.word_count(current_text):
-            sections[section.key] = condensed
+        if not condensed or business_profile.word_count(condensed) >= business_profile.word_count(current_text):
+            continue
+        if section.key in _CONTACT_SECTIONS and critical_tokens(current_text) - critical_tokens(condensed):
+            continue  # a shortened contact section must keep every number, email and link
+        sections[section.key] = condensed
     return business_profile.render(sections, parsed.other)
 
 
