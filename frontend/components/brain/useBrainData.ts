@@ -23,11 +23,15 @@ export interface BrainData {
   isRetrying: boolean;
   /** Changes on every approval-driven reload; passed to the conflicts panel as reloadSignal so it re-reads (without remounting, which would drop its result message). */
   panelKey: number;
+  refreshedAt: string | null;
+  refreshError: string | null;
   retry: () => void;
 }
 
 export function useBrainData(enabled: boolean): BrainData {
   const [state, dispatch] = useReducer(brainReducer, undefined, initialLatestState<BrainResponse>);
+  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [panelKey, setPanelKey] = useState(0);
   const [isRetrying, setIsRetrying] = useState(false);
   const seqRef = useRef(0);
@@ -39,10 +43,17 @@ export function useBrainData(enabled: boolean): BrainData {
     const seq = seqRef.current;
     try {
       const data = await getBrain();
-      if (isMountedRef.current) dispatch({ type: "success", seq, data });
+      if (isMountedRef.current && seq === seqRef.current) {
+        dispatch({ type: "success", seq, data });
+        setRefreshedAt(new Date().toISOString());
+        setRefreshError(null);
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : "Couldn't load Aira Brain. Please try again.";
-      if (isMountedRef.current) dispatch({ type: "failure", seq, message });
+      if (isMountedRef.current && seq === seqRef.current) {
+        dispatch({ type: "failure", seq, message });
+        setRefreshError(message);
+      }
     }
   }, []);
 
@@ -89,6 +100,8 @@ export function useBrainData(enabled: boolean): BrainData {
     isLoading: enabled && state.data === null && state.error === null,
     isRetrying,
     panelKey,
+    refreshedAt,
+    refreshError,
     retry,
   };
 }

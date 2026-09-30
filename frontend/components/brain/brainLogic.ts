@@ -136,7 +136,7 @@ export function conflictsLinkText(count: number): string {
 }
 
 export function topLineText(waitingCount: number): string {
-  if (waitingCount <= 0) return "Aira is ready";
+  if (waitingCount <= 0) return "No pending items";
   return `${waitingCount} ${plural(waitingCount, "thing needs", "things need")} you`;
 }
 

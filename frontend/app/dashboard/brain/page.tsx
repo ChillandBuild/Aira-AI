@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import KnowledgeReviewModal from "@/app/dashboard/knowledge/KnowledgeReviewModal";
 import { announceApprovalsChanged } from "@/components/brain/approvalsEvent";
-import { pickMainAction } from "@/components/brain/brainLogic";
+import { BrainWorkspace } from "@/components/brain/BrainWorkspace";
 import { CanReply } from "@/components/brain/CanReply";
 import { HandoverFeed } from "@/components/brain/HandoverFeed";
 import { HeadlineStrip } from "@/components/brain/HeadlineStrip";
-import { HubTopLine } from "@/components/brain/HubTopLine";
+import { NextBrainAction } from "@/components/brain/NextBrainAction";
 import { InputsList } from "@/components/brain/InputsList";
 import { TestAira } from "@/components/brain/TestAira";
 import { NEEDS_MANAGE_REASON } from "@/components/brain/testAiraLogic";
@@ -50,12 +51,48 @@ function ErrorState({ message, isRetrying, onRetry }: { message: string; isRetry
 
 export default function AiraBrainPage() {
   const { role, permissions, loading: roleLoading } = useAuthRole();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const testQuestion = (searchParams.get("question") ?? "").slice(0, 2000);
+  const requestedSection = searchParams.get("section");
   const canView = role === "owner" || permissions.includes("knowledge.view") || permissions.includes("knowledge.manage");
   const canManage = role === "owner" || permissions.includes("knowledge.manage");
   const isOwner = role === "owner";
 
-  const { data, error, isLoading, isRetrying, panelKey, retry } = useBrainData(canView);
+  const { data, error, isLoading, isRetrying, panelKey, refreshedAt, refreshError, retry } = useBrainData(canView);
   const [reviewingDocumentId, setReviewingDocumentId] = useState<string | null>(null);
+
+  const [activeSection, setActiveSection] = useState("overview");
+  const [pendingAnchor, setPendingAnchor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (requestedSection && ["overview", "approvals", "knowledge", "handovers", "test"].includes(requestedSection)) setActiveSection(requestedSection);
+  }, [requestedSection]);
+
+  function addAnswer(question: string) {
+    router.push(`/dashboard/knowledge?${new URLSearchParams({ tab: "documents", question })}`);
+  }
+
+  function openAnchor(anchor: string) {
+    setActiveSection("approvals");
+    setPendingAnchor(anchor);
+  }
+
+  useEffect(() => {
+    function followHash() {
+      const anchor = window.location.hash.slice(1);
+      if (["brain-conflicts", "brain-failed-files", "brain-templates"].includes(anchor)) openAnchor(anchor);
+    }
+    followHash();
+    window.addEventListener("hashchange", followHash);
+    return () => window.removeEventListener("hashchange", followHash);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingAnchor || !data) return;
+    document.getElementById(pendingAnchor)?.scrollIntoView({ block: "nearest" });
+    setPendingAnchor(null);
+  }, [pendingAnchor, data]);
 
   function openReview(reviewId: string): void {
     const review = data?.waiting.sort_reviews.find((r) => r.id === reviewId);
@@ -81,29 +118,29 @@ export default function AiraBrainPage() {
 
   return (
     <>
-      <div className="mx-auto flex min-w-0 max-w-3xl flex-col gap-4">
+      <div className="mx-auto flex min-w-0 max-w-6xl flex-col gap-5">
         {isLoading && <LoadingState />}
         {!isLoading && error && data === null && <ErrorState message={error} isRetrying={isRetrying} onRetry={retry} />}
         {data && (
           <>
-            <HubTopLine
-              waitingCount={data.waiting.count}
-              action={pickMainAction(data.waiting)}
-              onOpenReview={openReview}
-            />
-            <HeadlineStrip headline={data.headline} />
-            <WaitingOnYou
-              waiting={data.waiting}
-              canManage={canManage}
-              isOwner={isOwner}
-              panelKey={panelKey}
-              onConflictsChanged={announceApprovalsChanged}
-              onOpenReview={openReview}
-            />
-            <HandoverFeed handovers={data.handovers} />
-            <InputsList inputs={data.inputs} />
-            <CanReply status={data.status} />
-            <TestAira endpoint={TEST_AIRA_ENDPOINT} canUse={canManage} disabledReason={NEEDS_MANAGE_REASON} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-body text-xs text-ink-secondary">
+                {refreshedAt ? <>Status loaded at <time dateTime={refreshedAt}>{new Date(refreshedAt).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" })} IST</time></> : "Loading current status…"}
+                {" · Conflict check time is shown under Needs attention."}
+              </p>
+              <button type="button" disabled={isRetrying} onClick={retry} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-white px-3 font-label text-xs font-bold text-ink hover:bg-surface-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50">
+                <RefreshCw size={13} aria-hidden className={isRetrying ? "animate-spin" : ""} />Refresh status
+              </button>
+            </div>
+            {refreshError && <p role="alert" className="font-body text-sm text-danger">{refreshError} Showing the last loaded status; try refreshing again.</p>}
+            <NextBrainAction brain={data} onSelect={setActiveSection} activeSection={activeSection} canManageSettings={isOwner || permissions.includes("settings.manage")} />
+            <BrainWorkspace activeId={activeSection} onSelect={setActiveSection} sections={[
+              { id: "overview", label: "Overview", description: "How Aira is doing and whether it can reply.", content: <><HeadlineStrip headline={data.headline} /><CanReply status={data.status} /></> },
+              { id: "approvals", label: "Needs attention", description: "Review sorted files, resolve conflicts, and fix failed inputs.", count: data.waiting.count, content: <WaitingOnYou waiting={data.waiting} canManage={canManage} isOwner={isOwner} panelKey={panelKey} onConflictsChanged={announceApprovalsChanged} onOpenReview={openReview} onTest={() => setActiveSection("test")} /> },
+              { id: "knowledge", label: "What Aira knows", description: "Check the information Aira reads before answering.", content: <InputsList inputs={data.inputs} /> },
+              { id: "handovers", label: "Handovers", description: "See which conversations needed a person.", content: <HandoverFeed handovers={data.handovers} canManageKnowledge={canManage} /> },
+              { id: "test", label: "Test Aira", description: "Try a customer message and inspect Aira’s response.", content: <TestAira endpoint={TEST_AIRA_ENDPOINT} canUse={canManage} disabledReason={NEEDS_MANAGE_REASON} initialQuestion={testQuestion} onAddAnswer={canManage ? addAnswer : undefined} /> },
+            ]} />
           </>
         )}
       </div>

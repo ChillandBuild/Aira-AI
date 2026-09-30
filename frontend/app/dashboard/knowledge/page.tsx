@@ -28,6 +28,7 @@ import ProfileSectionsEditor from "./ProfileSectionsEditor";
 import { AutoGrowTextarea } from "./useAutoGrow";
 import KitStarter from "./KitStarter";
 import ReadinessLine from "./ReadinessLine";
+import KnowledgeGapAnswerForm from "./KnowledgeGapAnswerForm";
 
 // ─── Interfaces & Types ───────────────────────────────────────────────────────
 
@@ -328,6 +329,9 @@ export default function KnowledgePage() {
 
   // The hub links here with ?status=review to land on the files waiting for review.
   const presetStatus = searchParams.get("status");
+  const gapQuestion = searchParams.get("question")?.trim().slice(0, 2000) ?? "";
+  const requestedReviewId = searchParams.get("review");
+  const uploadedDocumentId = searchParams.get("uploaded");
   useEffect(() => {
     if (presetStatus && PRESETTABLE_STATUSES.includes(presetStatus)) setStatusFilter(presetStatus);
   }, [presetStatus]);
@@ -423,6 +427,12 @@ export default function KnowledgePage() {
     [documents]
   );
   usePolling(loadDocuments, 5000, hasProcessing);
+
+  useEffect(() => {
+    if (!requestedReviewId) return;
+    const requested = documents.find((document) => document.id === requestedReviewId);
+    if (requested && docStatus(requested) === "review") setReviewingDocId(requested.id);
+  }, [documents, requestedReviewId]);
 
   // Map campaign tags for fast lookup
   const tagMap = useMemo(() => {
@@ -960,6 +970,18 @@ export default function KnowledgePage() {
               </div>
             </div>
           </div>
+
+          {gapQuestion && (
+            <KnowledgeGapAnswerForm
+              question={gapQuestion}
+              uploadedDocumentId={uploadedDocumentId}
+              canManage={canManageKnowledge}
+              onUploaded={async () => {
+                announceApprovalsChanged();
+                await loadDocuments();
+              }}
+            />
+          )}
 
           {/* ── Modern Upload Zone Card ───────────────────────────────────── */}
           <div className="bg-surface rounded-2xl border border-surface-mid shadow-sm overflow-hidden">

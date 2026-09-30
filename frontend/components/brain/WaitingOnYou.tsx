@@ -18,6 +18,7 @@ interface WaitingOnYouProps {
   /** The conflicts panel changed something (fix, dismiss, restore): announce it so the count and the hub reload. */
   onConflictsChanged: () => void;
   onOpenReview: (reviewId: string) => void;
+  onTest?: () => void;
 }
 
 function GroupLabel({ id, children }: { id?: string; children: string }) {
@@ -28,13 +29,16 @@ function GroupLabel({ id, children }: { id?: string; children: string }) {
   );
 }
 
-export function WaitingOnYou({ waiting, canManage, isOwner, panelKey, onConflictsChanged, onOpenReview }: WaitingOnYouProps) {
+export function WaitingOnYou({ waiting, canManage, isOwner, panelKey, onConflictsChanged, onOpenReview, onTest }: WaitingOnYouProps) {
   const rejected = waiting.rejected_templates;
   return (
-    <SectionCard title="Waiting on you" subtitle="Things Aira can't finish without you.">
+    <SectionCard title="Review and fix" subtitle="Sorted answers are only available to Aira after you approve them.">
       <div className="flex flex-col gap-4">
         {waiting.count === 0 && (
-          <p className="font-body text-sm text-ink-secondary">Nothing is waiting on you.</p>
+          <div className="flex flex-col items-start gap-2">
+            <p className="font-body text-sm text-ink-secondary">Nothing is waiting on you. After making a change, test a customer question to check the answer.</p>
+            {onTest && <button type="button" onClick={onTest} className={ROW_BUTTON_CLASS}>Test an answer</button>}
+          </div>
         )}
 
         {waiting.sort_reviews.length > 0 && (
