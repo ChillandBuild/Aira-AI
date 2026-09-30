@@ -65,7 +65,8 @@ export interface BrainInput {
 
 export interface BrainHandover {
   handover_id: string;
-  lead_id: string;
+  /** null when the caller lacks conversations.view (the backend hides it). */
+  lead_id: string | null;
   reason: string;
   kind: HandoverKind;
   likely_question: string | null;

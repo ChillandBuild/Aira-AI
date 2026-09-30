@@ -623,3 +623,15 @@ first review that has already been applied.
 - **Operator console defaults `NEXT_PUBLIC_API_URL` to `http://localhost:8000`** (`frontend/app/operator/(console)/layout.tsx:15`) while the dashboard falls back to Render — inconsistent; a missing env var silently points the console at nothing.
 - **Scheduler startup log is wrong**: `main.py` logs `token-health(24h)` and `quality-sync(24h)` but both run every 4h.
 - **`SENTRY_DSN` still set in Render's dashboard** — harmless (ignored), delete by hand; Render MCP cannot delete a single env var.
+
+## Aira Brain follow-ups (2026-09-30, `95634b21`..`e459d39d`)
+- **Run the handover migration** — `python backend/scripts/migrate_handover_to_description.py` (dry-run), then `--apply`. Founder decides when. Until it runs, the legacy `handover_line` setting is the fallback for the 2 tenants that have one. Live check 2026-09-30: both are real clients (Astro Tamil 397 words + 62-char line; Astro Tamil - Co 540 words + 116-char line), neither over the 700 cap, neither has section 8 yet.
+- **No audit events for review decisions or conflict dismissals.** Operator "History" currently reads `knowledge_versions`, so dismissals and rejected reviews do not show.
+- **`brain_digest` is not in `notification_config` events**, so an owner cannot mute the weekly digest per event.
+- **Stuck-approval alert only on the operator clients-list banner**, not the alert bell.
+- **Rate limiter is per process** (Test Aira, 20 per 10 min per tenant): resets on restart and is not shared across workers.
+- **View-only test user unverified** — the hub hiding customer message text without `conversations.view` has unit tests only.
+- **Sandbox catalog prompt mentions tools it cannot call** (`_build_catalog_context` text; the sandbox passes no tools).
+- **Playwright QA 2026-09-30 (local, UI test tenant, owner):** hub at 320/768/1440 no overflow; badge = hub count; count-and-link line on Knowledge/Services/Catalog; 8-section Description editor; confirm sheet + Dismiss/Restore (mocked conflicts — tenant has none). Still unverified: operator Aira Brain tab and What Aira saw drawer (no operator login documented), a real Test Aira answer (test tenant has no reply model → 409 shown correctly), custom-manage/view-only users, real approve/fix end to end.
+- **Confirm sheet counts items it will skip** ("Fix 2" when one has no suggested wording). Untick or exclude skip-flagged items from the count.
+- **`GET /api/v1/operator/me` returns 500 for a non-admin** (routes/operator.py:36, `result.data` on None) — should be 403. Pre-existing, not Brain code.

@@ -1,7 +1,7 @@
 // Pure logic behind the Aira Brain hub and its sidebar badge. No React, no fetch,
 // so every rule here is covered by brainLogic.test.ts.
 
-import type { BrainCount, BrainHeadline, BrainWaiting } from "./types";
+import type { BrainCount, BrainHandover, BrainHeadline, BrainWaiting } from "./types";
 
 // ─── Sidebar poll: what a poll result does to the badge ──────────────────────
 
@@ -168,4 +168,20 @@ export function pickMainAction(waiting: BrainWaiting): MainAction {
     return { kind: "link", label: "Open templates", href: "/dashboard/templates" };
   }
   return { kind: "link", label: "Add to what Aira knows", href: "/dashboard/knowledge" };
+}
+
+// ─── Handover feed: which action a row offers ────────────────────────────────
+
+export type HandoverAction =
+  | { kind: "none" }
+  | { kind: "add_answer" }
+  | { kind: "open_chat"; leadId: string }
+  | { kind: "no_inbox_access" };
+
+/** Knowledge gaps always offer "Add an answer"; other rows link to the chat only when lead_id is present. */
+export function handoverAction(handover: BrainHandover, readOnly: boolean): HandoverAction {
+  if (readOnly) return { kind: "none" };
+  if (handover.kind === "knowledge_gap") return { kind: "add_answer" };
+  if (!handover.lead_id) return { kind: "no_inbox_access" };
+  return { kind: "open_chat", leadId: handover.lead_id };
 }

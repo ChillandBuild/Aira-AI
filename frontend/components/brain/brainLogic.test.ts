@@ -5,6 +5,7 @@ import {
   INITIAL_COUNT_STATE,
   badgeCount,
   canAutoCheckPanel,
+  handoverAction,
   headlineSentence,
   initialLatestState,
   nextCountState,
@@ -265,5 +266,33 @@ describe("pickMainAction", () => {
 
   it("offers to add knowledge when nothing waits", () => {
     expect(pickMainAction(EMPTY_WAITING)).toMatchObject({ kind: "link", href: "/dashboard/knowledge" });
+  });
+});
+
+describe("handoverAction", () => {
+  const base = {
+    handover_id: "h1",
+    lead_id: "lead-1" as string | null,
+    reason: "asked for a person",
+    kind: "asked_for_human" as const,
+    likely_question: null,
+    opened_at: "2026-09-30T00:00:00Z",
+  };
+
+  it("links to the chat when lead_id is present", () => {
+    expect(handoverAction(base, false)).toEqual({ kind: "open_chat", leadId: "lead-1" });
+  });
+
+  it("shows the inbox-access note instead of a link when lead_id is null", () => {
+    expect(handoverAction({ ...base, lead_id: null }, false)).toEqual({ kind: "no_inbox_access" });
+  });
+
+  it("still offers Add an answer for knowledge gaps, even without a lead_id", () => {
+    expect(handoverAction({ ...base, kind: "knowledge_gap", lead_id: null }, false)).toEqual({ kind: "add_answer" });
+  });
+
+  it("offers nothing in read-only mode", () => {
+    expect(handoverAction(base, true)).toEqual({ kind: "none" });
+    expect(handoverAction({ ...base, lead_id: null }, true)).toEqual({ kind: "none" });
   });
 });
