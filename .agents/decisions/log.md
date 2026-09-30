@@ -1526,3 +1526,11 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Conflicts live in the Aira Brain hub only (`/dashboard/brain`).** Knowledge, Services and Products each show one "N things disagree, open the Hub" line (count + link, no panel). Replaced the earlier page-by-page routing idea (blueprint 9A). Bulk Fix / Dismiss is in the hub.
 - **Handover data step is a one-off script, NOT a SQL migration:** `backend/scripts/migrate_handover_to_description.py` (dry-run by default, `--apply` writes). **It has NOT been run yet.** No schema change and no new migration number in this build.
 - **Test Aira is answers-only:** no lead, no writes, no tools, no message/deal/payment rows. Kill switch = `platform_defaults` key `brain_sandbox_enabled` ("false"/"off"/"0"/"no" switches it off, absent = on). Limit 20 requests per 10 min per tenant, in-process.
+
+## 2026-09-30 — Settings accordion defaultOpenId & Profile & Business page layout migration
+- **Why:** The Profile & Business settings page (`/dashboard/settings/account`) was previously rendered without `SettingsAccordion`, so all 3 sections (`Your profile`, `Sign-in & security`, and `Business details`) were expanded simultaneously and the app header lacked the `3 SECTIONS` accordion controls present on the Notifications settings page.
+- **What:**
+  - Extended `SettingsAccordion` in `frontend/app/dashboard/settings/SettingsSection.tsx` to support `defaultOpenId?: string | string[]`, as well as URL hash routing (`#business` / `#business-details` automatically expands the target section).
+  - Wrapped `Profile & Business` in `<SettingsAccordion defaultOpenId="profile">`. "Your profile" is open by default, with "Sign-in & security" and "Business details" collapsed by default.
+  - Removed redundant `<h1>` header block from `account/page.tsx` so the page begins directly with the cards, matching the layout of the Notifications page and connecting to `AppHeader`'s `3 SECTIONS` `1 open` | `Expand all` / `Collapse all` controls.
+- **Templates KPI / filter locking:** `/dashboard/templates` layout was pinned (`h-[calc(100dvh-...)] overflow-hidden`) with a `shrink-0` header keeping KPI cards and filter controls locked while only the template list/table scrolls (`flex-1 overflow-y-auto min-h-0`). Table headers are `sticky top-0`.

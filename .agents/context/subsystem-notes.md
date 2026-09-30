@@ -668,20 +668,23 @@ exercise, so the contract is checked statically instead.
 `frontend/app/dashboard/settings/SettingsSection.tsx` holds both the card
 (`SettingsSection`) and the group (`SettingsAccordion`). Two rules are load-bearing:
 
-- **Initial open state comes from the section COUNT, not per-section props.** One
-  section → opens; two or more → all collapsed, so the page reads as a list of topics.
+- **Initial open state comes from the section COUNT or `defaultOpenId`.** One
+  section → opens; two or more → all collapsed, unless `defaultOpenId` is provided (e.g.
+  `Profile & Business` sets `defaultOpenId="profile"` so "Your profile" opens while the
+  other two remain collapsed). URL hash navigation (`#business`, `#business-details`, etc.)
+  also automatically expands the target section.
   Sections `register(id)` on mount and the group seeds **once**, on the first commit
   where the id list is non-empty — every section mounts in the same commit, so that
   first list is the complete one. A section that mounts in a *later* commit (behind its
   own loading gate) therefore misses the seed and stays closed; render sections together
-  or the rule silently misapplies. `defaultOpen` now only affects a `SettingsSection`
+  or the rule silently misapplies. `defaultOpen` on `SettingsSection` only affects a section
   rendered **outside** a group (Inbox, Intake Config, Business Hours, Quick Replies,
-  Telecalling Behavior, Packages — all single-section pages, all open by default).
-- **A group must actually wrap its sections.** `NotificationConfigPanel` rendered its
-  three cards in a bare `<>`, so they were outside the group entirely: no count rule, no
-  spacing, no toolbar. It is now wrapped in `<SettingsAccordion>` — the only multi-section
-  settings page today. Its loading skeleton carries the same `space-y` as the group so
-  nothing shifts when data lands.
+  Telecalling Behavior, Packages — single-section pages, open by default).
+- **A group must actually wrap its sections.** `NotificationConfigPanel` and `Profile & Business`
+  (`account/page.tsx`) wrap their cards in `<SettingsAccordion>` (with `defaultOpenId="profile"`
+  for the latter). Its loading skeleton carries the same `space-y` as the group so nothing
+  shifts when data lands. Wrapping in `<SettingsAccordion>` bridges the section count and
+  `Expand all` / `Collapse all` controls into `AppHeader.tsx`.
 
 The section count and Expand all / Collapse all render in **`AppHeader.tsx`**, not above
 the cards (same "chrome belongs in the header" call as the telecalling tab note above).
